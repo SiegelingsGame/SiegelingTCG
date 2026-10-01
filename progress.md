@@ -1,4 +1,21 @@
 Original prompt: Merge and deploy
+- October 1, 2026 - **Landing cards drawn exactly as the binder draws them; card art served as thumbnails so iOS stops killing and reloading the page.**
+  - **Why.** On a phone, the landing rows from the previous entry had two problems:
+    - The art sat in an opaque box that hid the frame's painted scene.
+    - The page kept reloading. That is iOS killing the tab for memory: the drifting rows decoded dozens of full-size 1024x1536 Storage PNGs (about 6.3 MB of bitmap each), and every card also carried a drop-shadow layer.
+  - **Card face (`css/card-face.css`, new, and `landing.js renderBinderFace`).** These are the binder's own rules.
+    - The CSS was extracted from `style.css` in headless Chromium. The extraction rendered every element x rarity through the real `renderBinderCardTile` and kept only the selectors that matched.
+    - The markup is a port of `renderShowcaseCard`'s framed-Siegling output: the frame with its scene, a transparent creature with the dashboard art crop, notch sockets, the cost/evo corner chips, HP/SPD pills, and the description in the element's ink colour.
+    - Colour tokens are scoped to `.binder-face-scope`, so they cannot collide with landing.css. Roster, legendary and spotlight all use this face; elements without a painted frame are skipped.
+    - The file header says it is generated: a binder change in `style.css` has to be mirrored here.
+  - **Thumbnails (`functions/index.js`).** `/api/cards/art-mirror` takes an optional `w`. It snaps to 160/240/320/480/640, resizes with `sharp` (new dependency) to WebP, and serves `Cache-Control: immutable` so the Hosting CDN keeps it. Any resize failure serves the original bytes.
+    - `landing.js thumbAttrs` routes every Storage image on the page through it: roster, legendary, spotlight, knights, placement demo and element overlay. If the request fails, the image falls back to the original URL.
+    - Pylord's art drops from 2.4 MB to 44 KB, and from 6.3 MB to 0.6 MB decoded.
+  - **Also.** The per-card drop-shadow filter is removed. **Cache pins:** `landing.css?v=42`, `landing.js?v=37`, `card-face.css?v=1` (`index.html` and `landing.html`).
+- Verification:
+  - `node --check js/landing.js`; `npm test` in `functions/` (22 pass, including new tests for width bucketing and a real 1024x1536 -> 320x480 WebP resize with alpha); `npm run lint`; `mvn -Dtest=GameJavaScriptRegressionTest test`.
+  - **Side-by-side against the real binder.** The binder was a scratch harness loading `style.css` + `game.js` + `card-binder-visual.js`, with the same cards at the same width. At 1280 and 390, the landing and binder faces match: identical computed sizes for the slot (166x232), title (16px), pills and description (9px), the same frame scenes, and transparent art.
+  - **Behavior harness (390x844, service workers blocked, art-mirror mocked):** frame painted from `/img/frames`, art window background `none`, card `src` is `/api/cards/art-mirror?w=320...`, and zero full-size Storage requests after scrolling the whole page. The earlier drift/wrap/tap/spotlight/reduced-motion/no-overflow/no-error checks still pass.
 - October 1, 2026 - **Landing page reordered for play-first flow; 3D legendary viewer replaced by real legendary cards; roster and knights become drifting card rows.**
   - **Order (`index.html`, mirrored into `landing.html`, which Spring Boot serves for `/`).** Hero -> card-placement demo -> Siegling roster -> Legendary cards -> SiegeKnights -> Game modes -> Elements -> World art -> Arenas -> About. The three-tile feature strip is gone; the demo, roster and knight sections below it show those same points directly. The quick-nav menu follows the new order.
   - **Roster.** The tall spotlight slide and its thumbnail filmstrip are now two rows of framed Siegling cards drifting in opposite directions (`bindAutoScroll` in `landing.js`). Each row is a real overflow scroller, so swiping still works. The drift pauses on touch, hover or focus, and resumes after about 2.5s. Tapping a card opens a compact strip under the rows with its art, element/rarity and description. Every card is rendered twice for the seamless wrap; the second copy is `aria-hidden` and has `tabindex=-1`.

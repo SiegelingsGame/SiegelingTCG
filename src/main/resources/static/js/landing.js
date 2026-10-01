@@ -166,10 +166,10 @@
     }
 
     function normalizeRosterCard(card) {
-        const element = String(card.element || 'NEUTRAL').toUpperCase();
         return {
+            ...card,
             name: String(card.name || 'Unknown Siegling'),
-            element,
+            element: String(card.element || 'NEUTRAL').toUpperCase(),
             rarity: String(card.rarity || 'COMMON').toUpperCase(),
             art: String(card.cardArtUrl || ''),
             description: rosterDescription(card)
@@ -239,7 +239,7 @@
         return `
             <div class="placement-card${compact ? ' is-compact' : ''}" style="--placement-element:var(--element-${element.toLowerCase()})">
                 <div class="placement-card-visual">
-                    <img class="placement-card-art" ${landingImgAttrs(card.cardArtUrl)} alt="${escapeAttr(card.name)}" loading="eager">
+                    <img class="placement-card-art" ${thumbAttrs(card.cardArtUrl, 320)} alt="${escapeAttr(card.name)}" loading="eager">
                     <img class="placement-card-frame" src="${frame}" alt="" aria-hidden="true">
                     ${notchMarkup}
                 </div>
@@ -360,40 +360,120 @@
         if (!window.advanceTime) window.advanceTime = () => Promise.resolve();
     }
 
-    // Painted card frames, mirroring game.js ELEMENT_FRAME_CLASS: elements without
-    // a template fall back to the CSS-drawn border on .showcase-card.
+    // ── Binder card face ────────────────────────────────────────────────
+    // The same markup card-binder-visual.js renderBinderCardTile produces for a
+    // framed Siegling (via game.js renderShowcaseCard), so css/card-face.css,
+    // which is extracted from style.css, draws it identically. Kept local
+    // because the landing page cannot afford to load game.js just for this.
     const FRAME_FAMILY = {
-        FIRE: 'fire-metal', METAL: 'fire-metal', EARTH: 'earth', PSYCHIC: 'psychic',
-        ICE: 'ice-water', WATER: 'ice-water', WIND: 'air-electric', AIR: 'air-electric', ELECTRIC: 'air-electric'
+        FIRE: 'frame-fire-metal', METAL: 'frame-fire-metal', EARTH: 'frame-earth', PSYCHIC: 'frame-psychic',
+        ICE: 'frame-ice-water', WATER: 'frame-ice-water', WIND: 'frame-air-electric', AIR: 'frame-air-electric', ELECTRIC: 'frame-air-electric'
     };
     const FRAME_RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
-    function cardFrameUrl(element, rarity) {
-        const family = FRAME_FAMILY[String(element || '').toUpperCase()];
-        if (!family) return '';
-        const key = String(rarity || 'COMMON').toUpperCase();
-        return `/img/frames/frame-${family}-${(FRAME_RARITIES.includes(key) ? key : 'COMMON').toLowerCase()}.webp`;
+    const CARD_NOTCH_DIRECTIONS = ['TOP', 'TOP_RIGHT', 'RIGHT', 'BOTTOM_RIGHT', 'BOTTOM', 'BOTTOM_LEFT', 'LEFT', 'TOP_LEFT'];
+    const ELEMENT_HEX = {
+        FIRE: '#ff501e', EARTH: '#b48c50', WIND: '#96ffb4', WATER: '#3296ff', ICE: '#76e6ff', SHADOW: '#7832b4',
+        ELECTRIC: '#ffe63c', METAL: '#a0aab4', UNDEAD: '#8c78a0', PSYCHIC: '#c896ff', POISON: '#7ecb4d', LIGHT: '#ffe59a', NEUTRAL: '#95a5a6'
+    };
+    // game.js getCompactSummaryInkPalette, Siegling branch.
+    const SUMMARY_INK = {
+        FIRE:     ['#a8f4ff', '#fff7b0', '#dafbff', 'rgba(5, 18, 28, 0.94)'],
+        EARTH:    ['#c8d7ff', '#fff0ac', '#e6ecff', 'rgba(13, 14, 27, 0.92)'],
+        WIND:     ['#ffc1eb', '#f8ffb5', '#ffe0f6', 'rgba(22, 6, 24, 0.92)'],
+        WATER:    ['#ffd59f', '#f8fff5', '#ffe8c9', 'rgba(25, 12, 4, 0.92)'],
+        ICE:      ['#ffbd91', '#fff8d8', '#ffe2cf', 'rgba(28, 9, 3, 0.9)'],
+        ELECTRIC: ['#cab8ff', '#fff8b8', '#e7ddff', 'rgba(16, 8, 35, 0.92)'],
+        METAL:    ['#ffd1a5', '#f9fdff', '#ffe8d5', 'rgba(24, 13, 5, 0.9)'],
+        PSYCHIC:  ['#c9ffba', '#fff7c4', '#e5ffde', 'rgba(6, 24, 5, 0.92)']
+    };
+    const DEFAULT_INK = ['#e8f1ff', '#fff0a8', '#cfdcff', 'rgba(2, 8, 18, 0.92)'];
+
+    function hasCardFrame(card) {
+        return Boolean(FRAME_FAMILY[String(card?.element || '').toUpperCase()]);
     }
 
-    function showcaseCardFace(entry, options) {
+    function notchStyle(element) {
+        const key = String(element || 'NEUTRAL').toUpperCase();
+        return `--notch:${ELEMENT_HEX[key] || ELEMENT_HEX.NEUTRAL};--notch-icon:url('/img/notches/notch-${key.toLowerCase()}.png?v=2');`;
+    }
+
+    // card-binder-visual.js buildArtTransformStyle: the dashboard's art crop.
+    function cardArtTransform(card) {
+        const num = (value) => (value === null || value === undefined || value === '' ? NaN : Number(value));
+        const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+        const xPct = num(card.cardArtOffsetXPct);
+        const yPct = num(card.cardArtOffsetYPct);
+        const usePct = Number.isFinite(xPct) || Number.isFinite(yPct);
+        const x = Number.isFinite(num(card.cardArtOffsetX)) ? num(card.cardArtOffsetX) : 0;
+        const y = Number.isFinite(num(card.cardArtOffsetY)) ? num(card.cardArtOffsetY) : 0;
+        const tx = usePct ? `${Number.isFinite(xPct) ? clamp(xPct, -200, 200) : 0}%` : `${x}px`;
+        const ty = usePct ? `${Number.isFinite(yPct) ? clamp(yPct, -200, 200) : 0}%` : `${y}px`;
+        const scale = Number.isFinite(num(card.cardArtScale)) ? clamp(num(card.cardArtScale), 0.25, 3) : 1;
+        const rotation = Number.isFinite(num(card.cardArtRotation)) ? clamp(num(card.cardArtRotation), -180, 180) : 0;
+        if (parseFloat(tx) === 0 && parseFloat(ty) === 0 && scale === 1 && !rotation) return '';
+        return `transform:translate(${tx},${ty}) scale(${scale}) rotate(${rotation}deg);transform-origin:center center;`;
+    }
+
+    // Storage art is 1024x1536. A row of them decoded at full size is what got
+    // the page killed and reloaded on iOS, so cards ask the art mirror for a
+    // thumbnail and only fall back to the original if that request fails.
+    function thumbAttrs(url, width) {
+        const original = String(url || '');
+        if (!/^https:\/\/firebasestorage\.googleapis\.com\//.test(original)) {
+            return landingImgAttrs(original);
+        }
+        const thumb = `/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(original)}`;
+        return `src="${escapeAttr(thumb)}" data-img-fallback="${escapeAttr(original)}" onerror="landingWebpFallback(this)"`;
+    }
+
+    function renderBinderFace(card, options) {
         const opts = options || {};
-        const element = String(entry.element || 'NEUTRAL').toUpperCase();
+        const element = String(card.element || 'NEUTRAL').toUpperCase();
         const key = element.toLowerCase();
-        const rarity = String(entry.rarity || 'COMMON').toUpperCase();
-        const frame = cardFrameUrl(element, rarity);
-        const stats = opts.stats && (Number(entry.health) || Number(entry.speed))
-            ? `<span class="showcase-card-stats"><b>${Number(entry.health) || '–'} HP</b><b>${Number(entry.speed) || '–'} SPD</b></span>`
-            : '';
+        const rarity = String(card.rarity || 'COMMON').toUpperCase();
+        const frame = `${FRAME_FAMILY[element]} frame-rarity-${(FRAME_RARITIES.includes(rarity) ? rarity : 'COMMON').toLowerCase()}`;
+        const notchMap = {};
+        (Array.isArray(card.notches) ? card.notches : []).forEach((notch) => { if (notch?.direction) notchMap[String(notch.direction).toUpperCase()] = notch; });
+        const notches = CARD_NOTCH_DIRECTIONS.map((dir) => {
+            const notch = notchMap[dir];
+            return notch
+                ? `<div class="notch-dot ${escapeAttr(String(notch.element || element).toLowerCase())} notch-${dir}" style="${notchStyle(notch.element || element)}"></div>`
+                : `<div class="notch-dot notch-${dir}"></div>`;
+        }).join('');
+        const chips = [];
+        const costAmount = Number(card.costAmount);
+        if (card.costElement && costAmount > 0) {
+            const shown = Math.min(costAmount, 4);
+            let icons = '';
+            for (let i = 0; i < shown; i += 1) icons += `<span class="card-summary-energy-icon" style="${notchStyle(card.costElement)}"></span>`;
+            if (costAmount > shown) icons += `<span class="card-summary-energy-more">x${costAmount}</span>`;
+            chips.push(`<div class="card-corner-chip card-corner-cost"><span class="card-summary-energy-icons energy-count-${Math.min(costAmount, 10)}">${icons}</span></div>`);
+        }
+        const evolvesFrom = String(card.evolvesFromName || '').trim()
+            || String(card.evolvesFromId || '').split(/[-_\s]+/).filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(' ');
+        if (evolvesFrom) {
+            chips.push(`<div class="card-corner-chip card-corner-evo"><span class="card-corner-evo-tag">Evo</span><span class="card-corner-evo-name">${escapeHtml(evolvesFrom)}</span></div>`);
+        }
+        const art = String(card.cardArtUrl || card.art || '');
+        const transform = cardArtTransform(card);
+        const ink = SUMMARY_INK[element] || DEFAULT_INK;
+        const description = String(card.description || '').trim() || 'Description coming soon.';
+        const stat = (value) => (Number.isFinite(Number(value)) && value !== null && value !== '' ? Number(value) : '-');
         return `
-            <span class="showcase-card${frame ? '' : ' is-frameless'}${rarity === 'LEGENDARY' ? ' is-legendary' : ''}"
-                  style="--card-color: var(--element-${key}, #9fb3d9); --card-glow: var(--element-${key}-glow, rgba(160,200,255,.4))">
-                <img class="showcase-card-art" ${landingImgAttrs(entry.art)} alt="" loading="${opts.eager ? 'eager' : 'lazy'}" decoding="async">
-                ${frame ? `<img class="showcase-card-frame" src="${frame}" alt="" loading="lazy" decoding="async">` : ''}
-                <span class="showcase-card-info">
-                    <strong>${escapeHtml(entry.name)}</strong>
-                    <span>${escapeHtml(element)} · ${escapeHtml(rarity)}</span>
-                    ${stats}
-                </span>
-            </span>`;
+            <div class="mulligan-card-slot binder-framed-slot">
+                <div class="hand-card ${escapeAttr(key)} card-type-siegling mulligan-showcase binder-grid-showcase element-frame ${frame}">
+                    <div class="hand-notches"><div class="notch-center"></div>${notches}</div>
+                    <div class="hand-card-shell">
+                        ${chips.join('')}
+                        <div class="hand-card-header"><div class="card-title">${escapeHtml(card.name)}</div><div class="card-label">SIEGLING / ${escapeHtml(element.charAt(0) + element.slice(1).toLowerCase())}</div></div>
+                        <div class="card-art card-art-preview">${art ? `<img ${thumbAttrs(art, opts.thumbWidth || 320)} alt="" loading="${opts.eager ? 'eager' : 'lazy'}" decoding="async"${transform ? ` style="${transform}"` : ''}>` : ''}</div>
+                        <div class="hand-card-body">
+                            <div class="card-stat-pills"><span class="card-stat-pill card-stat-pill-hp">HP: ${stat(card.health)}</span><span class="card-stat-pill card-stat-pill-spd">SPD: ${stat(card.speed)}</span></div>
+                            <div class="card-summary-list card-summary-description-list" style="--summary-ink:${ink[0]};--summary-strong:${ink[1]};--summary-muted:${ink[2]};--summary-shadow:${ink[3]}"><div class="card-summary-description">${escapeHtml(description)}</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
     }
 
     // Auto-drifting card rows. A real overflow scroller (not a CSS transform) so a
@@ -477,7 +557,7 @@
             const payload = await loadGameOptions();
             const cards = Array.isArray(payload?.cardCatalog) ? payload.cardCatalog : [];
             const entries = cards
-                .filter((card) => String(card?.type || '').toUpperCase() === 'SIEGLING' && String(card?.cardArtUrl || '').trim())
+                .filter((card) => String(card?.type || '').toUpperCase() === 'SIEGLING' && String(card?.cardArtUrl || '').trim() && hasCardFrame(card))
                 .map(normalizeRosterCard);
             if (entries.length) return entries;
         } catch (_ignored) {
@@ -502,7 +582,7 @@
         const markup = (index, _i, clone) => `
             <button class="marquee-card" type="button" data-roster-index="${index}"${clone ? ' aria-hidden="true" tabindex="-1"' : ''}
                     aria-label="Meet ${escapeAttr(entries[index].name)}">
-                ${showcaseCardFace(entries[index])}
+                ${renderBinderFace(entries[index], { thumbWidth: 320 })}
             </button>`;
         fillMarquee(rowA, rows[0], markup);
         fillMarquee(rowB, rows[1], markup);
@@ -514,7 +594,7 @@
             spotlight.hidden = false;
             spotlight.style.setProperty('--roster-color', `var(--element-${key}, #aeeaff)`);
             spotlight.innerHTML = `
-                <img class="roster-spotlight-art" ${landingImgAttrs(entry.art)} alt="">
+                <img class="roster-spotlight-art" ${thumbAttrs(entry.art, 240)} alt="">
                 <div class="roster-spotlight-copy">
                     <span class="roster-element">${escapeHtml(entry.element)} · ${escapeHtml(entry.rarity || 'Siegling')}</span>
                     <h3>${escapeHtml(entry.name)}</h3>
@@ -540,17 +620,20 @@
     async function renderLegendaryRow() {
         const host = document.getElementById('legendaryRow');
         if (!host) return;
-        let legends = FEATURED_SIEGELINGS.map((entry) => ({ ...entry }));
+        let legends = FEATURED_SIEGELINGS.map((entry) => ({ ...entry, pitch: entry.description }));
         try {
             const payload = await loadGameOptions();
             const live = (Array.isArray(payload?.cardCatalog) ? payload.cardCatalog : [])
                 .filter((card) => String(card?.type || '').toUpperCase() === 'SIEGLING'
                     && String(card?.rarity || '').toUpperCase() === 'LEGENDARY'
-                    && String(card?.cardArtUrl || '').trim());
+                    && String(card?.cardArtUrl || '').trim()
+                    && hasCardFrame(card));
             if (live.length) {
+                // The card face prints the catalog text, as the binder does; the
+                // curated line rides underneath as the pitch.
                 legends = live.map((card) => {
                     const curated = FEATURED_SIEGELINGS.find((entry) => entry.id === String(card.id || '').toLowerCase());
-                    return { ...card, description: curated?.description || rosterDescription(card) };
+                    return { ...card, description: rosterDescription(card), pitch: curated?.description || '' };
                 });
                 // Curated legends lead; newer ones follow in catalog order.
                 legends.sort((a, b) => {
@@ -562,9 +645,9 @@
             // Shipped art keeps the legendary row painted offline.
         }
         host.innerHTML = legends.map((card) => `
-            <article class="legendary-card">
-                ${showcaseCardFace({ ...card, art: card.cardArtUrl }, { stats: true })}
-                <p>${escapeHtml(card.description)}</p>
+            <article class="legendary-card" aria-label="${escapeAttr(card.name)}, legendary ${escapeAttr(card.element)} Siegling">
+                ${renderBinderFace(card, { thumbWidth: 480 })}
+                ${card.pitch ? `<p>${escapeHtml(card.pitch)}</p>` : ''}
             </article>`).join('');
     }
 
@@ -745,7 +828,7 @@
             const caption = overlay.querySelector('[data-element-face]');
             if (art) {
                 art.insertAdjacentHTML('afterbegin',
-                    `<img class="element-overlay-siegeling" ${landingImgAttrs(face.art)} alt="${escapeAttr(face.name)}" loading="lazy">`);
+                    `<img class="element-overlay-siegeling" ${thumbAttrs(face.art, 480)} alt="${escapeAttr(face.name)}" loading="lazy">`);
                 art.classList.add('has-art');
             }
             if (caption && face.name) caption.textContent = face.name;
@@ -809,9 +892,9 @@
                 <span class="knight-card-ability"><span>${escapeHtml(activeLabel)}</span>${escapeHtml(knightAbilityText(trainer.active))}</span>
             </div>`;
         const artLayer = overlay
-            ? `<div class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${landingImgAttrs(art)} alt="" loading="lazy"${artStyle}></div>
+            ? `<div class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${thumbAttrs(art, 480)} alt="" loading="lazy" decoding="async"${artStyle}></div>
                <div class="knight-card-template" aria-hidden="true"></div>`
-            : `<img class="knight-full-art" ${landingImgAttrs(art)} alt="${escapeAttr(trainer.name || 'SiegeKnight card')}" loading="lazy"${artStyle}>`;
+            : `<img class="knight-full-art" ${thumbAttrs(art, 480)} alt="${escapeAttr(trainer.name || 'SiegeKnight card')}" loading="lazy" decoding="async"${artStyle}>`;
         return `
             <article class="knight-card${overlay ? ' is-overlay-art' : ''}" style="--knight-color: var(--element-${key}, var(--siegelings-gold)); --knight-glow: var(--element-${key}-glow, rgba(245,166,35,.45))">
                 <div class="knight-card-art">${artLayer}${body}</div>

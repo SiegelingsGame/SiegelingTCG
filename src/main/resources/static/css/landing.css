@@ -2309,7 +2309,7 @@ body.element-overlay-open { overflow: hidden; }
 .roster-marquee + .roster-marquee { margin-top: 4px; }
 .marquee-card {
     flex: 0 0 auto;
-    width: clamp(118px, 13vw, 168px);
+    width: clamp(140px, 13vw, 176px);
     padding: 0;
     border: 0;
     background: none;
@@ -2320,59 +2320,7 @@ body.element-overlay-open { overflow: hidden; }
 }
 .marquee-card:hover, .marquee-card.is-active { transform: translateY(-6px); }
 .marquee-card:focus-visible { outline: 3px solid #fff; outline-offset: 3px; border-radius: 10px; }
-.marquee-card.is-active .showcase-card { filter: drop-shadow(0 0 14px var(--card-glow)); }
-
-/* One card face for the roster and legendary rows: the shipped element frame
-   over the art window, same geometry as the placement demo's cards. */
-.showcase-card {
-    position: relative;
-    display: block;
-    width: 100%;
-    aspect-ratio: 639 / 919;
-    color: #fff;
-    text-align: center;
-    filter: drop-shadow(0 12px 18px rgba(0, 0, 0, .45));
-}
-.showcase-card-art {
-    position: absolute;
-    z-index: 2;
-    top: 7%;
-    left: 8%;
-    width: 84%;
-    height: 55%;
-    border-radius: 8px;
-    object-fit: cover;
-    object-position: center 30%;
-    background: radial-gradient(circle at 50% 40%, var(--card-glow), transparent 70%), #0a1430;
-}
-.showcase-card-frame { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
-.showcase-card.is-frameless {
-    border: 2px solid var(--card-color);
-    border-radius: 12px;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--card-color), #050a1b 70%), #060c20);
-}
-.showcase-card-info {
-    position: absolute;
-    z-index: 3;
-    left: 10%; right: 10%; bottom: 8%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    padding: 8px 4px 4px;
-    text-shadow: 0 2px 5px #000;
-}
-.showcase-card-info strong {
-    max-width: 100%;
-    overflow: hidden;
-    font-family: 'Cinzel', Georgia, serif;
-    font-size: clamp(.68rem, 1.1vw, .86rem);
-    line-height: 1.1;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.showcase-card-info > span { color: color-mix(in srgb, var(--card-color), #fff 45%); font-size: .5rem; font-weight: 800; letter-spacing: .1em; }
-.showcase-card-stats { display: flex; gap: 8px; margin-top: 3px; font-size: .58rem; color: #fff !important; letter-spacing: .04em !important; }
+.marquee-card.is-active .mulligan-card-slot { border-color: rgba(255, 215, 0, .7); box-shadow: 0 0 0 1px rgba(255, 215, 0, .45), 0 0 18px rgba(255, 215, 0, .35); }
 
 /* Tapped Siegling: a compact strip under the rows instead of a tall slide. */
 .roster-spotlight {
@@ -2411,23 +2359,9 @@ body.element-overlay-open { overflow: hidden; }
     gap: 20px;
 }
 .legendary-card { margin: 0; display: flex; flex-direction: column; gap: 10px; }
-.legendary-card .showcase-card { transition: transform .25s ease, filter .25s ease; }
-.legendary-card:hover .showcase-card { transform: translateY(-8px) rotate(-1deg); filter: drop-shadow(0 18px 26px rgba(0, 0, 0, .5)) drop-shadow(0 0 22px var(--card-glow)); }
+.legendary-card .mulligan-card-slot { transition: transform .25s ease; }
+.legendary-card:hover .mulligan-card-slot { transform: translateY(-8px); }
 .legendary-card p { margin: 0; color: rgba(228, 235, 252, .74); font-size: .8rem; line-height: 1.5; text-align: center; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.legendary-card .showcase-card-info strong { font-size: clamp(.8rem, 1.2vw, .98rem); }
-/* A slow foil sweep marks the legendary rarity. */
-.showcase-card.is-legendary::after {
-    content: '';
-    position: absolute;
-    z-index: 4;
-    inset: 2%;
-    border-radius: 10px;
-    pointer-events: none;
-    background: linear-gradient(115deg, transparent 38%, rgba(255, 244, 200, .26) 48%, transparent 58%) no-repeat;
-    background-size: 260% 100%;
-    animation: legendary-foil 5.5s ease-in-out infinite;
-}
-@keyframes legendary-foil { 0%, 30% { background-position: 130% 0; } 70%, 100% { background-position: -40% 0; } }
 
 /* Knight rail: full-bleed drifting row instead of a clipped 1240px grid. */
 .knights-section { padding-left: 0; padding-right: 0; }
@@ -2438,7 +2372,7 @@ body.element-overlay-open { overflow: hidden; }
 
 @media (max-width: 760px) {
     .roster-section .landing-section-heading, .knights-section .landing-section-heading { margin-bottom: 22px; }
-    .marquee-card { width: 112px; }
+    .marquee-card { width: 142px; }
     .roster-spotlight { grid-template-columns: 60px minmax(0, 1fr); gap: 12px; padding: 12px 42px 12px 12px; }
     .roster-spotlight-art { width: 60px; height: 78px; }
     .roster-spotlight-copy h3 { font-size: 1.1rem; }
@@ -2481,6 +2415,6 @@ body.element-overlay-open { overflow: hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .marquee-card, .legendary-card .showcase-card { transition: none; }
-    .showcase-card.is-legendary::after, .roster-spotlight { animation: none; }
+    .marquee-card, .legendary-card .mulligan-card-slot { transition: none; }
+    .roster-spotlight { animation: none; }
 }
