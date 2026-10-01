@@ -184,12 +184,21 @@
     // One catalog request feeds both the Siegling roster and the SiegeKnight rail;
     // the payload carries `cardCatalog` and `trainers` together.
     let __gameOptions = null;
+    // Evolution chips show the precursor's art, looked up by evolvesFromId.
+    const __catalogById = new Map();
+
     function loadGameOptions() {
         if (!__gameOptions) {
             __gameOptions = fetch('/api/game/options', { credentials: 'same-origin' })
                 .then((response) => {
                     if (!response.ok) throw new Error(`Catalog request failed (${response.status})`);
                     return response.json();
+                })
+                .then((payload) => {
+                    (Array.isArray(payload?.cardCatalog) ? payload.cardCatalog : []).forEach((card) => {
+                        if (card?.id) __catalogById.set(card.id, card);
+                    });
+                    return payload;
                 });
         }
         return __gameOptions;
@@ -320,6 +329,8 @@
             target.setAttribute('aria-label', `${card.name} placed beside Applehead${linkType === 'combo' ? `, ${anchorElement} and ${cardElement} combo formed` : connected ? `, ${anchorElement} energy link formed` : ', notches do not link'}`);
             target.innerHTML = placementCardFace(card);
             scheduleDescriptionFit(target);
+            // The entrance animation scales the card; measure again at rest.
+            target.querySelector('.mulligan-card-slot')?.addEventListener('animationend', () => scheduleDescriptionFit(target), { once: true });
             feedback.innerHTML = linkType === 'combo'
                 ? `<strong>${escapeHtml(anchorElement)} + ${escapeHtml(cardElement)} combo formed.</strong> Different elements generate 1 combo point.`
                 : connected
@@ -441,7 +452,14 @@
         const evolvesFrom = String(card.evolvesFromName || '').trim()
             || String(card.evolvesFromId || '').split(/[-_\s]+/).filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(' ');
         if (evolvesFrom) {
-            chips.push(`<div class="card-corner-chip card-corner-evo"><span class="card-corner-evo-tag">Evo</span><span class="card-corner-evo-name">${escapeHtml(evolvesFrom)}</span></div>`);
+            // Only the transparent creature overlay reads at chip size.
+            const source = __catalogById.get(card.evolvesFromId);
+            const sourceArt = String(source?.cardArtMode || '').toUpperCase() === 'OVERLAY'
+                ? String(source.cardArtUrl || '').trim() : '';
+            const sourceHtml = sourceArt
+                ? `<span class="card-corner-evo-thumb"><img ${thumbAttrs(sourceArt, 64)} alt="${escapeAttr(evolvesFrom)}" decoding="async"></span>`
+                : `<span class="card-corner-evo-name">${escapeHtml(evolvesFrom)}</span>`;
+            chips.push(`<div class="card-corner-chip card-corner-evo" title="${escapeAttr(`Evolves from ${evolvesFrom}`)}"><span class="card-corner-evo-tag">Evo</span>${sourceHtml}</div>`);
         }
         const art = String(card.cardArtUrl || card.art || '');
         const transform = cardArtTransform(card);
@@ -479,17 +497,36 @@
         // Clones in a marquee row are the same card at the same width; measure once.
         const key = `${Math.round(card.clientWidth)}|${text.textContent}`;
         if (memo && memo.has(key)) {
-            const [size, lineHeight] = memo.get(key);
+            const [size, lineHeight, maxHeight, overflow, display, clamp] = memo.get(key);
             list.style.fontSize = size;
             text.style.lineHeight = lineHeight;
+            text.style.maxHeight = maxHeight;
+            text.style.overflow = overflow;
+            text.style.display = display;
+            text.style.webkitBoxOrient = display ? 'vertical' : '';
+            text.style.webkitLineClamp = clamp;
             return;
         }
         list.style.fontSize = '';
         text.style.lineHeight = '';
+        text.style.maxHeight = '';
+        text.style.overflow = '';
+        text.style.display = '';
+        text.style.webkitLineClamp = '';
         const maxPx = Math.min(14, Math.max(7, card.clientWidth * 0.075));
+        // The painted panel runs down behind the bottom notch row, so fitting
+        // the panel alone lets the last lines sit under the sockets - worst at
+        // the centre one. As in the binder (home-redesign.js fitOneDescription),
+        // the text must also end above the highest bottom socket, with a
+        // clearance that scales with the card.
+        const sockets = [...card.querySelectorAll('.notch-dot.notch-BOTTOM, .notch-dot.notch-BOTTOM_LEFT, .notch-dot.notch-BOTTOM_RIGHT')];
+        const clearance = Math.max(2, card.clientWidth * 0.015);
+        const socketLine = () => (sockets.length ? Math.min(...sockets.map((dot) => dot.getBoundingClientRect().top)) - clearance : Infinity);
         // The list clips internally (overflow hidden), so check its own overflow
         // as well as the body's.
-        const fits = () => body.scrollHeight <= body.clientHeight + 0.5 && list.scrollHeight <= list.clientHeight + 0.5;
+        const fits = () => body.scrollHeight <= body.clientHeight + 0.5
+            && list.scrollHeight <= list.clientHeight + 0.5
+            && text.getBoundingClientRect().bottom <= socketLine() + 0.25;
         const search = () => {
             let lo = DESCRIPTION_FLOOR_PX;
             let hi = maxPx;
@@ -511,9 +548,19 @@
         // Tighter leading buys a size step before the text has to shrink further.
         if (!search()) {
             text.style.lineHeight = '1.12';
-            search();
+            if (!search()) {
+                // Even the floor runs into the sockets: clamp to the lines that fit
+                // above them rather than draw over the frame.
+                const room = socketLine() - text.getBoundingClientRect().top;
+                const lineHeight = parseFloat(window.getComputedStyle(text).lineHeight) || 4;
+                text.style.maxHeight = `${Math.max(lineHeight, room).toFixed(1)}px`;
+                text.style.overflow = 'hidden';
+                text.style.display = '-webkit-box';
+                text.style.webkitBoxOrient = 'vertical';
+                text.style.webkitLineClamp = String(Math.max(1, Math.floor(room / lineHeight)));
+            }
         }
-        if (memo) memo.set(key, [list.style.fontSize, text.style.lineHeight]);
+        if (memo) memo.set(key, [list.style.fontSize, text.style.lineHeight, text.style.maxHeight, text.style.overflow, text.style.display, text.style.webkitLineClamp]);
     }
 
     function fitCardDescriptions(root) {
@@ -684,6 +731,25 @@
 
     // Legendary cards are shown as cards: live catalog art and stats where the
     // API answers, the curated copy for the words either way.
+    // One-line pitches for legends outside the curated four, written from their
+    // kits. Keyed by lower-case name: Zeel's catalog id is a placeholder.
+    const LEGENDARY_PITCHES = {
+        zeel: 'A storm serpent whose lightning chains from one foe to every enemy linked beside it.',
+        conchious: 'The Defender of the Seas, raising living reefs that shield every ally on the tide line.'
+    };
+
+    // Any legend without a written pitch still gets a line: the first sentence
+    // of its own text, cut at a word boundary so it stays a summary.
+    function legendaryPitch(card, curated) {
+        if (curated?.description) return curated.description;
+        const written = LEGENDARY_PITCHES[String(card.name || '').trim().toLowerCase()];
+        if (written) return written;
+        const text = String(card.description || '').trim();
+        const sentence = (text.match(/^[^.!?]+[.!?]/) || [text])[0].trim();
+        if (sentence.length <= 110) return sentence;
+        return `${sentence.slice(0, 107).replace(/\s+\S*$/, '')}…`;
+    }
+
     async function renderLegendaryRow() {
         const host = document.getElementById('legendaryRow');
         if (!host) return;
@@ -700,7 +766,8 @@
                 // curated line rides underneath as the pitch.
                 legends = live.map((card) => {
                     const curated = FEATURED_SIEGELINGS.find((entry) => entry.id === String(card.id || '').toLowerCase());
-                    return { ...card, description: rosterDescription(card), pitch: curated?.description || '' };
+                    const description = rosterDescription(card);
+                    return { ...card, description, pitch: legendaryPitch({ ...card, description }, curated) };
                 });
                 // Curated legends lead; newer ones follow in catalog order.
                 legends.sort((a, b) => {

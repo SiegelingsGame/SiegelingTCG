@@ -9133,6 +9133,8 @@
         if (!hasCardCatalog(options) && hasCardCatalog(state.options)) return;
         const next = options || { decks: [], trainers: [], cardCatalog: [], liveElements: [] };
         state.options = next;
+        // game.js card renderer resolves evolution-precursor art from this.
+        window.SieglingsCardCatalog = next.cardCatalog || [];
         state.catalogVersion = Number(next.catalogVersion) || 0;
     }
 

@@ -2313,7 +2313,9 @@ body.element-overlay-open { overflow: hidden; }
 .legendary-card { margin: 0; display: flex; flex-direction: column; gap: 10px; }
 .legendary-card .mulligan-card-slot { transition: transform .25s ease; }
 .legendary-card:hover .mulligan-card-slot { transform: translateY(-8px); }
-.legendary-card p { margin: 0; color: rgba(228, 235, 252, .74); font-size: .8rem; line-height: 1.5; text-align: center; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* Pitches are written (or cut) to one short line of copy, so they show in
+   full rather than behind a line clamp that ate the longer ones on desktop. */
+.legendary-card p { margin: 0; color: rgba(228, 235, 252, .74); font-size: .8rem; line-height: 1.5; text-align: center; }
 
 /* Knight rail: full-bleed drifting row instead of a clipped 1240px grid. */
 .knights-section { padding-left: 0; padding-right: 0; }
@@ -2370,3 +2372,7 @@ body.element-overlay-open { overflow: hidden; }
     .marquee-card, .legendary-card .mulligan-card-slot { transition: none; }
     .roster-spotlight { animation: none; }
 }
+
+/* Fitted descriptions can run at tight leading; without a hair of headroom the
+   first line's ascenders poke above the line box and the panel clips them. */
+.binder-face-scope .card-summary-description { padding-top: .14em; }

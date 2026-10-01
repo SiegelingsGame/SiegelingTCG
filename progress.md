@@ -46,6 +46,40 @@ Original prompt: Merge and deploy
     - Firebase's own `listFiles` shrinks the Hosting upload from 620 files / 297 MB to 524 / 137 MB with no fixtures.
     - `gcloud meta list-files-for-upload` drops from 1,557 files / 447 MB to the Maven project (still includes Dockerfile, pom.xml, mvnw, .mvn, src).
   - **Not run.** `tests/mobile-overlap` (it needs `@playwright/test`, which isn't installed); the `home.css` and fixture it checks are unchanged.
+- October 1, 2026 - **Evo chip thumbnail uses the precursor's creature overlay only.**
+  - **Change.** Follow-up to the Evo chip thumbnail entry below. The thumbnail now uses only the precursor's transparent creature art (`cardArtUrl` with `cardArtMode: OVERLAY`), via `game.js getEvolutionSourceOverlayUrl` and the matching check in `landing.js`. It never uses the holographic/full-card art, REPLACE illustrations or built-in `CARD_ART_BY_KEY` card images. The circle frame is gone: the creature sits loose in the chip, slightly larger than the pill, with a 1px drop shadow.
+  - **Coverage.** Every framed card face gets the chip: battle hand/board/inspect (`play.html`, full `gameOptions.cardCatalog`), hub binder and deck builder (`home.js`), card dashboard previews (`card-dashboard.js` now also publishes `window.SieglingsCardCatalog`) and the landing roster (`landing.js`). Siege adventure has no framed faces with corner chips.
+  - **Cache pins:** `game.js?v=306`, `style.css?v=271`, `landing.js?v=43`, `card-face.css?v=3`, `card-dashboard.js?v=63`.
+- Verification: headless Chromium on play.html with the live `/api/game/options` catalog injected. The headless browser here can't reach Firebase Storage, so the real overlay PNGs were downloaded and served through request routing. At 390x844 and 1920x1080, Kilokong's chip shows simicircuit.png, Simicircuit's shows monkwatt.png and Bleetstrike's shows joltram.png (19px, no name fallback). Screenshots confirm the creature cut-outs read next to "EVO".
+- October 1, 2026 - **Evolution corner chip shows the precursor's art instead of its name.**
+  - **Why.** On hand, binder and roster-sized cards the top-right chip ("EVO Simicircuit") ellipsised the precursor name down to "Mo…"/"Si…", which said nothing.
+  - **Change.** `game.js renderCardCornerChips` now renders "EVO" plus a small round thumbnail of the card it evolves from (`.card-corner-evo-thumb`). The precursor is found by `evolvesFromId` in the live catalog (`gameOptions.cardCatalog`, or `window.SieglingsCardCatalog`, which `home.js applyGameOptions` now publishes for the hub), so dashboard art overrides are used; a bare id/name stub still resolves built-in `CARD_ART_BY_KEY` art. The name is kept as the fallback when no art resolves, and as the chip tooltip. `landing.js renderBinderFace` does the same from its fetched catalog via the art-mirror thumbnail. CSS added to `style.css` and `card-face.css`.
+  - **Cache pins:** `game.js?v=305`, `style.css?v=270`, `home.js?v=174`, `landing.js?v=43`, `card-face.css?v=2`.
+- Verification: `node --check` on game.js/home.js/landing.js. Headless Chromium (play.html, mock evolution card evolving from Staticap) at 390x844 and 1920x1080: the chip contains the tag and a 14px thumbnail img (`/images/cards/Staticap.png`) and no name span; 4x-DPR screenshot confirms the art is legible beside "EVO".
+- October 1, 2026 - **Every landing legendary carries a summary line under its card.**
+  - **Why.** The pitch under each legendary card came only from the four curated entries (Pylord, Glaciemperor, Aerovane, Gymstone), so the catalog's other legendaries, Zeel and Conchious, showed none.
+  - **Change.**
+    - `landing.js` adds written one-liners for Zeel and Conchious (`LEGENDARY_PITCHES`, keyed by name because Zeel's catalog id is the placeholder `new-siegli`).
+    - `legendaryPitch()` gives any future legendary without one the first sentence of its own text, cut at a word boundary to about 110 characters.
+    - The 3-line clamp on `.legendary-card p` is removed: at the 186px desktop card width it was cutting the existing Glaciemperor and Aerovane pitches mid-sentence.
+  - **Cache pins:** `landing.css?v=45`, `landing.js?v=41`.
+- Verification: headless Chromium at 390x844 and 1920x1080, against the live catalog snapshot and a variant with an extra uncurated legendary ("Testwyrm", 165-character lore).
+  - All 6 (and 7) legendaries render a pitch, and none is truncated by layout.
+  - Testwyrm gets its auto first-sentence line, ending in an ellipsis at the 110-character cap.
+  - The description-fit/socket sweep, demo alignment checks and behavior harness still pass.
+- October 1, 2026 - **Landing card descriptions stay clear of the bottom notch sockets.**
+  - **Why.** The landing fitter only checked that the description fit its painted panel. That panel runs down behind the bottom socket row, so on the live build 158-160 of 176 card faces had their last line under a bottom socket, up to 6px deep and worst at the centre notch.
+  - **Change.** As in the binder (`home-redesign.js fitOneDescription`), the size search in `landing.js fitCardDescription` now also requires the text to end above the highest of the three bottom sockets. The clearance scales with the card: `max(2px, 1.5%` of its width).
+    - If even the floor size cannot clear them, the text is clamped to the lines that do fit rather than drawn over the frame. No current card needs that.
+    - Clones reuse the full fitted state.
+    - The demo's placed card re-fits after its entrance animation, which would otherwise be measured mid-scale.
+  - **Also.** `.card-summary-description` gets `.14em` of top padding, because at the tight 1.12 fallback leading the first line's ascenders were being shaved off by the panel.
+  - **Cache pins:** `landing.css?v=44`, `landing.js?v=40`.
+- Verification: the fit sweep now also asserts the socket gap, at 390x844, 320x568, 1920x1080 and 1366x768.
+  - **Before (the live code):** 158-160 of 176 faces on or under a socket, with the worst gap -6.1px.
+  - **After:** all 176 faces (roster rows, legendaries and the demo) end at least 1.8px above the sockets, with no panel overflow and no clamping needed.
+  - Screenshots at 3x DPR: Glaciemperor (380 characters), Pylord and Applehead are clear of the centre and corner sockets, and the first line is intact.
+  - The demo alignment checks (21) and the behavior harness still pass.
 - October 1, 2026 - **Landing card-placement demo uses the binder card face.**
   - **Change.** The "Place a card. Power the board." demo (anchor Applehead, the placed card, and the three hand cards) drew its own older face. It had a dark info box over the art, its own notch images and no description. It now renders through `renderBinderFace`, like the roster and legendary rows:
     - painted frame scene, transparent art and the frame's own notch sockets;
