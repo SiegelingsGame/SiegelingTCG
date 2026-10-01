@@ -71,12 +71,23 @@
         };
     }
 
+    // Curated legendary copy. The live catalog supplies the real card art and
+    // stats; the shipped loading art keeps the row painted when the API is away.
     const FEATURED_SIEGELINGS = [
-        { name: 'Pylord',       element: 'FIRE',  art: '/img/legendary/legendary-fire.png',  model: '/assets/models/Model_Pylord.fbx', description: 'A crown-forged fire titan that turns every linked ember into a decisive opening.' },
-        { name: 'Glaciemperor', element: 'ICE',   art: '/img/legendary/legendary-ice.png',   model: '/assets/models/Model_Glaciemperor.fbx', description: 'An ancient ruler of the frostbound reaches, patient enough to freeze an entire board in place.' },
-        { name: 'Aerovane',     element: 'WIND',  art: '/img/legendary/legendary-wind.png',  model: '/assets/models/Aerovane.fbx', description: 'A skyborne tactician whose shifting currents reward players who never stand still.' },
-        { name: 'Gymstone',     element: 'EARTH', art: '/img/legendary/legendary-earth.png', model: '/assets/models/Model_Gymstone.fbx', description: 'A living fortress of stone and root, built to hold the field when the battle turns.' },
+        { id: 'pylord',       name: 'Pylord',       element: 'FIRE',  rarity: 'LEGENDARY', cardArtUrl: '/img/art/loading/pylord-landscape.webp',       description: 'A crown-forged fire titan that turns every linked ember into a decisive opening.' },
+        { id: 'glaciemperor', name: 'Glaciemperor', element: 'ICE',   rarity: 'LEGENDARY', cardArtUrl: '/img/art/loading/glaciemperor-landscape.webp', description: 'An ancient ruler of the frostbound reaches, patient enough to freeze an entire board in place.' },
+        { id: 'aerovane',     name: 'Aerovane',     element: 'WIND',  rarity: 'LEGENDARY', cardArtUrl: '/img/art/loading/aerovane-landscape.webp',     description: 'A skyborne tactician whose shifting currents reward players who never stand still.' },
+        { id: 'gymstone',     name: 'Gymstone',     element: 'EARTH', rarity: 'LEGENDARY', cardArtUrl: '/img/art/loading/gymstone-landscape.webp',     description: 'A living fortress of stone and root, built to hold the field when the battle turns.' },
     ];
+
+    // Offline roster: shipped art only, so the card rows still move in a static
+    // preview or while Cloud Run is cold.
+    const ROSTER_FALLBACK = [
+        { name: 'Applehead', element: 'EARTH', rarity: 'COMMON',   art: '/img/art/loading/applehead-portrait.webp',        description: 'The peaceful applehead, often found sleeping at the base of orchard trees.' },
+        { name: 'Draco',     element: 'FIRE',  rarity: 'COMMON',   art: '/img/art/loading/dracos-portrait.webp',           description: 'A hatchling of the Draco brood, already breathing sparks.' },
+        { name: 'Cacty',     element: 'EARTH', rarity: 'COMMON',   art: '/img/art/loading/cacty-earth-landscape.webp',     description: 'Adorable, until its razor thorns find you.' },
+        { name: 'Bonoblade', element: 'EARTH', rarity: 'UNCOMMON', art: '/img/art/loading/bonoblade-ambush-landscape.webp', description: 'An ambusher that waits in the brush for a careless step.' },
+    ].concat(FEATURED_SIEGELINGS.map((entry) => ({ name: entry.name, element: entry.element, rarity: entry.rarity, art: entry.cardArtUrl, description: entry.description })));
 
     // Art-first content. All three lists point at files that ship in the repo, so
     // the landing page stays fully painted even with the API unavailable (static
@@ -144,33 +155,6 @@
         'Beware the silence between phases.'
     ];
 
-    function renderCreatureGrid() {
-        const grid = document.getElementById('creatureGrid');
-        if (!grid) return;
-        const html = FEATURED_SIEGELINGS.map((s, index) => {
-            const elKey = String(s.element).toLowerCase();
-            return `
-                <button class="legendary-selector${index === 0 ? ' is-selected' : ''}" type="button" data-featured-index="${index}"
-                         aria-label="Show ${escapeAttr(s.name)}, legendary ${escapeAttr(s.element)} Siegling"
-                         aria-pressed="${index === 0 ? 'true' : 'false'}"
-                         style="--creature-color: var(--element-${elKey}); --creature-glow: var(--element-${elKey}-glow, rgba(255,255,255,0.4))">
-                    <span class="legendary-selector-notch" aria-hidden="true">${getElementSvg(s.element)}</span>
-                    <span class="legendary-selector-name">${escapeHtml(s.name)}</span>
-                    <span class="legendary-selector-element">${escapeHtml(s.element)}</span>
-                </button>
-            `;
-        }).join('');
-        grid.innerHTML = html;
-        grid.querySelectorAll('[data-featured-index]').forEach((button) => {
-            button.addEventListener('click', () => {
-                document.dispatchEvent(new CustomEvent('sieglings:featured-legendary-select', {
-                    detail: { index: Number(button.dataset.featuredIndex) }
-                }));
-            });
-        });
-        document.dispatchEvent(new CustomEvent('sieglings:legendary-grid-rendered'));
-    }
-
     function rosterDescription(card) {
         const direct = String(card.description || '').trim();
         if (direct) return direct;
@@ -186,6 +170,7 @@
         return {
             name: String(card.name || 'Unknown Siegling'),
             element,
+            rarity: String(card.rarity || 'COMMON').toUpperCase(),
             art: String(card.cardArtUrl || ''),
             description: rosterDescription(card)
         };
@@ -375,8 +360,118 @@
         if (!window.advanceTime) window.advanceTime = () => Promise.resolve();
     }
 
+    // Painted card frames, mirroring game.js ELEMENT_FRAME_CLASS: elements without
+    // a template fall back to the CSS-drawn border on .showcase-card.
+    const FRAME_FAMILY = {
+        FIRE: 'fire-metal', METAL: 'fire-metal', EARTH: 'earth', PSYCHIC: 'psychic',
+        ICE: 'ice-water', WATER: 'ice-water', WIND: 'air-electric', AIR: 'air-electric', ELECTRIC: 'air-electric'
+    };
+    const FRAME_RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
+    function cardFrameUrl(element, rarity) {
+        const family = FRAME_FAMILY[String(element || '').toUpperCase()];
+        if (!family) return '';
+        const key = String(rarity || 'COMMON').toUpperCase();
+        return `/img/frames/frame-${family}-${(FRAME_RARITIES.includes(key) ? key : 'COMMON').toLowerCase()}.webp`;
+    }
+
+    function showcaseCardFace(entry, options) {
+        const opts = options || {};
+        const element = String(entry.element || 'NEUTRAL').toUpperCase();
+        const key = element.toLowerCase();
+        const rarity = String(entry.rarity || 'COMMON').toUpperCase();
+        const frame = cardFrameUrl(element, rarity);
+        const stats = opts.stats && (Number(entry.health) || Number(entry.speed))
+            ? `<span class="showcase-card-stats"><b>${Number(entry.health) || '–'} HP</b><b>${Number(entry.speed) || '–'} SPD</b></span>`
+            : '';
+        return `
+            <span class="showcase-card${frame ? '' : ' is-frameless'}${rarity === 'LEGENDARY' ? ' is-legendary' : ''}"
+                  style="--card-color: var(--element-${key}, #9fb3d9); --card-glow: var(--element-${key}-glow, rgba(160,200,255,.4))">
+                <img class="showcase-card-art" ${landingImgAttrs(entry.art)} alt="" loading="${opts.eager ? 'eager' : 'lazy'}" decoding="async">
+                ${frame ? `<img class="showcase-card-frame" src="${frame}" alt="" loading="lazy" decoding="async">` : ''}
+                <span class="showcase-card-info">
+                    <strong>${escapeHtml(entry.name)}</strong>
+                    <span>${escapeHtml(element)} · ${escapeHtml(rarity)}</span>
+                    ${stats}
+                </span>
+            </span>`;
+    }
+
+    // Auto-drifting card rows. A real overflow scroller (not a CSS transform) so a
+    // thumb swipe or trackpad flick still browses it; the drift pauses while the
+    // player is touching, hovering or focused inside, and resumes a moment after.
+    // The content is rendered twice and the position wraps by one copy's width,
+    // so the row never runs out.
+    function bindAutoScroll(row, options) {
+        const opts = options || {};
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reducedMotion || !row.children.length) return;
+        const reverse = row.hasAttribute('data-marquee-reverse');
+        const speed = opts.speed || 28; // px per second
+        let period = 0;
+        let pos = 0;
+        let pausedUntil = 0;
+        let hovering = false;
+        let visible = false;
+        let last = 0;
+        let lastSet = -1;
+
+        function measure() {
+            const half = row.children.length / 2;
+            const first = row.children[0];
+            const twin = row.children[half];
+            period = first && twin ? twin.offsetLeft - first.offsetLeft : 0;
+        }
+        function wrap(value) {
+            if (period <= 0) return value;
+            return ((value % period) + period) % period;
+        }
+        function hold(ms) { pausedUntil = performance.now() + ms; }
+
+        measure();
+        pos = reverse ? period * 0.6 : 0;
+        row.scrollLeft = pos;
+
+        row.addEventListener('pointerenter', (event) => { if (event.pointerType === 'mouse') hovering = true; });
+        row.addEventListener('pointerleave', () => { hovering = false; });
+        row.addEventListener('pointerdown', () => hold(3200));
+        row.addEventListener('touchstart', () => hold(3200), { passive: true });
+        row.addEventListener('wheel', () => hold(2400), { passive: true });
+        row.addEventListener('focusin', () => hold(6000));
+        // Any scroll we did not cause is the player browsing: adopt their position.
+        row.addEventListener('scroll', () => {
+            if (Math.abs(row.scrollLeft - lastSet) > 2) {
+                pos = row.scrollLeft;
+                hold(2400);
+            }
+        }, { passive: true });
+        window.addEventListener('resize', measure);
+        if ('IntersectionObserver' in window) {
+            new IntersectionObserver((entries) => { visible = entries.some((entry) => entry.isIntersecting); }).observe(row);
+        } else {
+            visible = true;
+        }
+
+        function tick(now) {
+            const dt = last ? Math.min(64, now - last) : 16;
+            last = now;
+            if (visible && !hovering && !document.hidden && now >= pausedUntil && period > 0) {
+                pos = wrap(pos + (reverse ? -1 : 1) * speed * dt / 1000);
+                row.scrollLeft = pos;
+                lastSet = row.scrollLeft;
+            }
+            window.requestAnimationFrame(tick);
+        }
+        window.requestAnimationFrame(tick);
+    }
+
+    // Renders items twice for the seamless wrap; the second copy is hidden from
+    // assistive tech and the tab order so each card is announced once.
+    function fillMarquee(row, items, markup) {
+        row.innerHTML = items.map((item, i) => markup(item, i, false)).join('')
+            + items.map((item, i) => markup(item, i, true)).join('');
+    }
+
     // The full roster comes from the same live catalog used by the deck builder.
-    // The legendary roster remains hand-curated below so it stays a distinct section.
     async function loadRosterEntries() {
         try {
             const payload = await loadGameOptions();
@@ -388,133 +483,89 @@
         } catch (_ignored) {
             // A static preview or an unavailable API still presents the curated fallback.
         }
-        return FEATURED_SIEGELINGS.map((entry) => ({ ...entry }));
+        return ROSTER_FALLBACK.map((entry) => ({ ...entry }));
     }
 
-    async function bindRosterRotator() {
-        const host = document.getElementById('rosterRotator');
-        if (!host) return;
+    async function bindRosterMarquee() {
+        const rowA = document.getElementById('rosterMarqueeA');
+        const rowB = document.getElementById('rosterMarqueeB');
+        const spotlight = document.getElementById('rosterSpotlight');
+        if (!rowA || !rowB) return;
         const entries = await loadRosterEntries();
         if (!entries.length) return;
-        let activeIndex = 0;
-        let interval = null;
-        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        // Alternate cards between the rows so neighbours in the catalog (one
+        // evolution line, one element) are spread across both.
+        const rows = [[], []];
+        entries.forEach((entry, i) => rows[entries.length < 8 ? 0 : i % 2].push(i));
+        if (!rows[1].length) rows[1] = rows[0].slice().reverse();
 
-        function render(index) {
-            activeIndex = (index + entries.length) % entries.length;
-            const entry = entries[activeIndex];
-            const element = String(entry.element || 'NEUTRAL').toLowerCase();
-            host.style.setProperty('--roster-color', `var(--element-${element}, #aeeaff)`);
-            host.style.setProperty('--roster-glow', `var(--element-${element}-glow, rgba(92, 205, 255, .38))`);
-            host.innerHTML = `
-                <article class="roster-slide" aria-live="polite">
-                    <div class="roster-slide-art"><img ${landingImgAttrs(entry.art)} alt="${escapeAttr(entry.name)}, ${escapeAttr(entry.element)} Siegling" loading="eager"></div>
-                    <div class="roster-slide-copy">
-                        <span class="roster-element">Siegling · ${escapeHtml(entry.element)}</span>
-                        <h3>${escapeHtml(entry.name)}</h3>
-                        <p>${escapeHtml(entry.description)}</p>
-                        <div class="roster-controls" aria-label="Siegling roster controls">
-                            <button class="roster-control" type="button" data-roster-prev aria-label="Previous Siegling">←</button>
-                            <button class="roster-control" type="button" data-roster-next aria-label="Next Siegling">→</button>
-                        </div>
-                    </div>
-                    <div class="roster-progress" aria-label="Current roster position"><span>${activeIndex + 1}</span> / ${entries.length}</div>
-                </article>`;
-            host.querySelector('[data-roster-prev]')?.addEventListener('click', () => render(activeIndex - 1));
-            host.querySelector('[data-roster-next]')?.addEventListener('click', () => render(activeIndex + 1));
-            syncFilmstrip();
+        const markup = (index, _i, clone) => `
+            <button class="marquee-card" type="button" data-roster-index="${index}"${clone ? ' aria-hidden="true" tabindex="-1"' : ''}
+                    aria-label="Meet ${escapeAttr(entries[index].name)}">
+                ${showcaseCardFace(entries[index])}
+            </button>`;
+        fillMarquee(rowA, rows[0], markup);
+        fillMarquee(rowB, rows[1], markup);
+
+        function show(index) {
+            if (!spotlight) return;
+            const entry = entries[index];
+            const key = String(entry.element || 'NEUTRAL').toLowerCase();
+            spotlight.hidden = false;
+            spotlight.style.setProperty('--roster-color', `var(--element-${key}, #aeeaff)`);
+            spotlight.innerHTML = `
+                <img class="roster-spotlight-art" ${landingImgAttrs(entry.art)} alt="">
+                <div class="roster-spotlight-copy">
+                    <span class="roster-element">${escapeHtml(entry.element)} · ${escapeHtml(entry.rarity || 'Siegling')}</span>
+                    <h3>${escapeHtml(entry.name)}</h3>
+                    <p>${escapeHtml(entry.description)}</p>
+                </div>
+                <button class="roster-spotlight-close" type="button" aria-label="Close ${escapeAttr(entry.name)}">×</button>`;
+            spotlight.querySelector('.roster-spotlight-close')?.addEventListener('click', () => { spotlight.hidden = true; });
+            [rowA, rowB].forEach((row) => row.querySelectorAll('[data-roster-index]').forEach((button) => {
+                button.classList.toggle('is-active', Number(button.dataset.rosterIndex) === index);
+            }));
         }
-
-        // The filmstrip is the art-first way into the roster: every Siegling that
-        // has art is on screen at once, and the rotator follows the thumbnail.
-        const strip = document.getElementById('rosterFilmstrip');
-        function renderFilmstrip() {
-            if (!strip) return;
-            strip.innerHTML = entries.map((entry, i) => {
-                const element = String(entry.element || 'NEUTRAL').toLowerCase();
-                return `
-                    <button class="roster-thumb" type="button" data-roster-index="${i}"
-                            style="--thumb-color: var(--element-${element}, #9fb3d9)"
-                            aria-label="Show ${escapeAttr(entry.name)}">
-                        <img ${landingImgAttrs(entry.art)} alt="" loading="lazy" aria-hidden="true">
-                        <span>${escapeHtml(entry.name)}</span>
-                    </button>`;
-            }).join('');
-            strip.querySelectorAll('[data-roster-index]').forEach((button) => {
-                button.addEventListener('click', () => render(Number(button.dataset.rosterIndex)));
+        [rowA, rowB].forEach((row) => {
+            row.addEventListener('click', (event) => {
+                const button = event.target.closest('[data-roster-index]');
+                if (button) show(Number(button.dataset.rosterIndex));
             });
-        }
-        function syncFilmstrip() {
-            if (!strip) return;
-            strip.querySelectorAll('[data-roster-index]').forEach((button) => {
-                const selected = Number(button.dataset.rosterIndex) === activeIndex;
-                button.classList.toggle('is-active', selected);
-                button.setAttribute('aria-pressed', String(selected));
-                // Centre the active thumb by scrolling the strip itself.
-                // scrollIntoView would drag the whole page down to the roster on
-                // the very first render, before the visitor has scrolled at all.
-                if (selected) {
-                    const left = button.offsetLeft - (strip.clientWidth - button.clientWidth) / 2;
-                    strip.scrollTo({ left: Math.max(0, left), behavior: reducedMotion ? 'auto' : 'smooth' });
-                }
-            });
-        }
-        renderFilmstrip();
-
-        function stop() { if (interval) { window.clearInterval(interval); interval = null; } }
-        function start() { if (!reducedMotion && !interval && entries.length > 1) interval = window.setInterval(() => render(activeIndex + 1), 5600); }
-        host.addEventListener('pointerenter', stop);
-        host.addEventListener('pointerleave', start);
-        host.addEventListener('focusin', stop);
-        host.addEventListener('focusout', () => window.setTimeout(() => { if (!host.contains(document.activeElement)) start(); }, 0));
-        render(0);
-        start();
+            bindAutoScroll(row, { speed: row === rowA ? 30 : 24 });
+        });
     }
 
-    // The spotlight gives the legendary roster a narrative, rotating treatment
-    // while retaining the browseable card grid beneath it.
-    function bindFeaturedRotator() {
-        const host = document.getElementById('featuredRotator');
-        if (!host || !FEATURED_SIEGELINGS.length) return;
-        let activeIndex = 0;
-
-        function render(index) {
-            activeIndex = (index + FEATURED_SIEGELINGS.length) % FEATURED_SIEGELINGS.length;
-            const entry = FEATURED_SIEGELINGS[activeIndex];
-            const element = entry.element.toLowerCase();
-            host.style.setProperty('--feature-color', `var(--element-${element})`);
-            host.style.setProperty('--feature-glow', `var(--element-${element}-glow, rgba(117, 218, 255, .4))`);
-            host.innerHTML = `
-                <article class="featured-slide" aria-live="polite">
-                    <div class="featured-slide-art featured-model-card" data-element="${escapeAttr(element)}" data-model="${escapeAttr(entry.model || '')}">
-                        <div class="featured-model-viewport" data-model-viewport data-active-element="${escapeAttr(element)}">
-                            <canvas aria-label="Animated ${escapeAttr(entry.name)} model viewport"></canvas>
-                            <img class="featured-model-poster" ${landingImgAttrs(entry.art)} alt="${escapeAttr(entry.name)}, legendary ${escapeAttr(entry.element)} Siegling" loading="eager">
-                            <div class="legendary-loading">Summoning model</div>
-                        </div>
-                    </div>
-                    <div class="featured-slide-copy">
-                        <span class="featured-element">Legendary · ${escapeHtml(entry.element)}</span>
-                        <h3>${escapeHtml(entry.name)}</h3>
-                        <p>${escapeHtml(entry.description)}</p>
-                        <div class="featured-controls" aria-label="Featured Siegeling controls">
-                            <button class="featured-control" type="button" data-rotator-prev aria-label="Previous featured Siegeling">←</button>
-                            <button class="featured-control" type="button" data-rotator-next aria-label="Next featured Siegeling">→</button>
-                        </div>
-                    </div>
-                </article>`;
-            host.querySelector('[data-rotator-prev]')?.addEventListener('click', () => render(activeIndex - 1));
-            host.querySelector('[data-rotator-next]')?.addEventListener('click', () => render(activeIndex + 1));
-            document.querySelectorAll('[data-featured-index]').forEach((button) => {
-                const selected = Number(button.dataset.featuredIndex) === activeIndex;
-                button.classList.toggle('is-selected', selected);
-                button.setAttribute('aria-pressed', String(selected));
-            });
-            document.dispatchEvent(new CustomEvent('sieglings:featured-legendary-rendered'));
+    // Legendary cards are shown as cards: live catalog art and stats where the
+    // API answers, the curated copy for the words either way.
+    async function renderLegendaryRow() {
+        const host = document.getElementById('legendaryRow');
+        if (!host) return;
+        let legends = FEATURED_SIEGELINGS.map((entry) => ({ ...entry }));
+        try {
+            const payload = await loadGameOptions();
+            const live = (Array.isArray(payload?.cardCatalog) ? payload.cardCatalog : [])
+                .filter((card) => String(card?.type || '').toUpperCase() === 'SIEGLING'
+                    && String(card?.rarity || '').toUpperCase() === 'LEGENDARY'
+                    && String(card?.cardArtUrl || '').trim());
+            if (live.length) {
+                legends = live.map((card) => {
+                    const curated = FEATURED_SIEGELINGS.find((entry) => entry.id === String(card.id || '').toLowerCase());
+                    return { ...card, description: curated?.description || rosterDescription(card) };
+                });
+                // Curated legends lead; newer ones follow in catalog order.
+                legends.sort((a, b) => {
+                    const rank = (card) => { const i = FEATURED_SIEGELINGS.findIndex((entry) => entry.id === String(card.id || '').toLowerCase()); return i < 0 ? 99 : i; };
+                    return rank(a) - rank(b);
+                });
+            }
+        } catch (_ignored) {
+            // Shipped art keeps the legendary row painted offline.
         }
-
-        document.addEventListener('sieglings:featured-legendary-select', (event) => render(Number(event.detail?.index) || 0));
-        render(0);
+        host.innerHTML = legends.map((card) => `
+            <article class="legendary-card">
+                ${showcaseCardFace({ ...card, art: card.cardArtUrl }, { stats: true })}
+                <p>${escapeHtml(card.description)}</p>
+            </article>`).join('');
     }
 
     // ── Hero art stage ────────────────────────────────────────────────────
@@ -622,11 +673,9 @@
             // Static preview or API away: the overlay still shows the notch and land.
         }
         if (!face) {
-            // Offline fallback. The curated legendary plate is an element crest,
-            // not that Siegeling's portrait, so it stands in for the art but must
-            // not be captioned with a name it is not a picture of.
+            // Offline fallback: the curated legend's shipped painting of itself.
             const fallback = FEATURED_SIEGELINGS.find((s) => String(s.element).toUpperCase() === key);
-            if (fallback) face = { name: '', art: fallback.art };
+            if (fallback) face = { name: fallback.name, art: fallback.cardArtUrl };
         }
         __elementFaces.set(key, face);
         return face;
@@ -782,7 +831,11 @@
         } catch (_ignored) {
             // A static preview or an unavailable API still shows the shipped cards.
         }
-        rail.innerHTML = trainers.map(knightCardMarkup).join('');
+        fillMarquee(rail, trainers, (trainer, _i, clone) => {
+            const card = knightCardMarkup(trainer);
+            return clone ? card.replace('<article class="knight-card', '<article aria-hidden="true" class="knight-card') : card;
+        });
+        bindAutoScroll(rail, { speed: 22 });
     }
 
     // ── World art marquee ─────────────────────────────────────────────────
@@ -1208,10 +1261,9 @@
         renderElementRail();
         renderKnightRail();
         renderWorldMarquee();
-        renderCreatureGrid();
-        bindRosterRotator();
+        bindRosterMarquee();
+        renderLegendaryRow();
         bindPlacementDemo();
-        bindFeaturedRotator();
         bindLandingFab();
         bindParallax();
         bindTrailerModal();
