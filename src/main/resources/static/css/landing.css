@@ -1806,45 +1806,12 @@ img { display: block; }
 .placement-demo[data-state='combo'] .placement-energy {
     display: none;
 }
-.placement-card { width: 100%; height: 100%; position: relative; color: #fff; }
-.placement-card-visual { position: relative; width: 100%; height: 100%; overflow: visible; }
-.placement-card-art {
-    position: absolute;
-    z-index: 2;
-    top: 7%;
-    left: 8%;
-    width: 84%;
-    height: 55%;
-    border-radius: 8px;
-    object-fit: cover;
-    object-position: center 34%;
-    background: transparent;
-}
-.placement-card-frame { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
-.placement-card-info {
-    position: absolute;
-    z-index: 3;
-    left: 10%; right: 10%; bottom: 7%;
-    padding: 20px 8px 7px;
-    border-radius: 0 0 9px 9px;
-    background: linear-gradient(180deg, transparent, rgba(5, 12, 10, .92) 34%);
-    text-align: center;
-    text-shadow: 0 2px 5px #000;
-}
-.placement-card-info strong { display: block; font-family: 'Cinzel', Georgia, serif; font-size: .88rem; line-height: 1.1; }
-.placement-card-info > span:not(.placement-card-stats) { display: block; margin-top: 3px; color: #d9f4c1; font-size: .46rem; font-weight: 800; letter-spacing: .08em; }
-.placement-card-stats { display: flex; justify-content: center; gap: 8px; margin-top: 5px; font-size: .53rem; }
-/* Same socket coordinates and diameter as style.css framed arena/hand cards. */
-.placement-card-notch { position: absolute; z-index: 4; width: 10.4%; height: auto; aspect-ratio: 1; object-fit: contain; transform: translate(-50%, -50%); filter: drop-shadow(0 0 2px rgba(182, 235, 125, .4)); }
-.placement-notch-top { left: 50%; top: 5.6%; }
-.placement-notch-right { left: 91.9%; top: 50%; }
-.placement-notch-bottom { left: 49.5%; top: 94.3%; }
-.placement-notch-left { left: 7.7%; top: 50%; }
-.placement-notch-top-left { left: 7.8%; top: 5.7%; }
-.placement-notch-top-right { left: 91.8%; top: 5.7%; }
-.placement-notch-bottom-left { left: 7.6%; top: 94.1%; }
-.placement-notch-bottom-right { left: 91.7%; top: 94.2%; }
-.placement-board-slot.is-placing .placement-card { animation: placement-card-in .38s cubic-bezier(.2, .9, .25, 1.2) both; }
+/* Binder card faces inside the demo: the board slot itself is the card's
+   tile, so the binder's slot chrome is dropped and the frame fills the slot
+   (keeping the LEFT/RIGHT notches where the link line meets them). */
+.placement-section .placement-board-slot > .mulligan-card-slot { width: 100%; height: 100%; padding: 0; border: 0; border-radius: 0; background: none; }
+.placement-section .placement-hand-card > .mulligan-card-slot { flex: 0 0 auto; width: min(145px, 100%); padding: 0; border: 0; border-radius: 0; background: none; }
+.placement-board-slot.is-placing .mulligan-card-slot { animation: placement-card-in .38s cubic-bezier(.2, .9, .25, 1.2) both; }
 @keyframes placement-card-in { from { opacity: 0; transform: translateY(28px) rotate(3deg) scale(.92); } to { opacity: 1; transform: none; } }
 .placement-feedback { min-height: 44px; margin: 22px 0 16px; color: rgba(225, 237, 231, .72); font-size: .83rem; line-height: 1.5; text-align: center; }
 .placement-feedback strong { color: #d8f7b7; }
@@ -1869,23 +1836,11 @@ img { display: block; }
     cursor: pointer;
     transition: transform .18s ease, border-color .18s ease, background .18s ease;
 }
-.placement-hand-card > .placement-card {
-    flex: 0 0 auto;
-    width: min(145px, 100%);
-    height: auto;
-    aspect-ratio: 5 / 7;
-}
 .placement-choice-copy { display: grid; gap: 3px; width: 100%; }
 .placement-choice-copy strong { color: #fff; font-family: 'Cinzel', Georgia, serif; font-size: .9rem; }
 .placement-choice-copy span { color: #cdecaa; font-size: .56rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .placement-choice-copy small { color: rgba(231, 240, 235, .68); font-size: .67rem; line-height: 1.35; }
 .placement-hand-card:hover, .placement-hand-card:focus-visible, .placement-hand-card[aria-pressed='true'] { transform: translateY(-3px); border-color: rgba(193, 239, 147, .62); background: rgba(176, 225, 128, .1); outline: none; }
-.placement-card.is-compact { display: grid; grid-template-columns: 49px minmax(0, 1fr); align-items: center; gap: 9px; height: 68px; }
-.placement-card.is-compact .placement-card-visual { width: 49px; height: 68px; }
-.placement-card.is-compact .placement-card-info { position: static; min-width: 0; padding: 0; background: none; text-align: left; }
-.placement-card.is-compact .placement-card-info strong { overflow: hidden; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
-.placement-card.is-compact .placement-card-info > span:not(.placement-card-stats) { font-size: .43rem; }
-.placement-card.is-compact .placement-card-stats { justify-content: flex-start; font-size: .48rem; }
 .placement-hand-action { display: inline-flex; align-items: center; gap: 6px; margin-top: auto; padding-top: 2px; color: #bce78f; font-size: .58rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .placement-hand-action b { font-size: .85rem; }
 
@@ -2210,9 +2165,6 @@ body.element-overlay-open { overflow: hidden; }
     .placement-demo { padding: 21px 14px 17px; }
     .placement-board { --placement-slot-width: clamp(112px, 35vw, 145px); }
     .placement-link { width: clamp(30px, 9vw, 44px); }
-    .placement-card-info strong { font-size: clamp(.66rem, 2.7vw, .82rem); }
-    .placement-card-info > span:not(.placement-card-stats) { font-size: .39rem; }
-    .placement-card-stats { gap: 5px; font-size: .46rem; }
     .placement-feedback { margin-top: 19px; }
     .placement-hand {
         max-width: 100%;
@@ -2252,7 +2204,7 @@ body.element-overlay-open { overflow: hidden; }
     .hero-art-layer { transition: opacity .2s linear; transform: none; }
     .element-tile, .knight-card, .world-tile, .world-tile img { transition: none; }
     .element-overlay, .element-overlay-card { transition: none; }
-    .placement-board-slot.is-placing .placement-card { animation: none; }
+    .placement-board-slot.is-placing .mulligan-card-slot { animation: none; }
 }
 
 @media (max-width: 760px) {

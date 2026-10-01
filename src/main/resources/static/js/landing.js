@@ -226,29 +226,10 @@
         }
     };
 
-    function placementCardFace(card, compact) {
-        const element = String(card.element || 'EARTH').toUpperCase();
-        const rarity = String(card.rarity || 'COMMON').toLowerCase();
-        const frame = `/img/frames/frame-${element.toLowerCase()}-${rarity}.webp`;
-        const notches = compact ? [] : (Array.isArray(card.notches) ? card.notches : []);
-        const notchMarkup = notches.map((notch) => {
-            const direction = String(notch.direction || '').toLowerCase().replaceAll('_', '-');
-            const notchElement = String(notch.element || element).toLowerCase();
-            return `<img class="placement-card-notch placement-notch-${escapeAttr(direction)}" src="${notchTokenUrl(notchElement)}" alt="" aria-hidden="true">`;
-        }).join('');
-        return `
-            <div class="placement-card${compact ? ' is-compact' : ''}" style="--placement-element:var(--element-${element.toLowerCase()})">
-                <div class="placement-card-visual">
-                    <img class="placement-card-art" ${thumbAttrs(card.cardArtUrl, 320)} alt="${escapeAttr(card.name)}" loading="eager">
-                    <img class="placement-card-frame" src="${frame}" alt="" aria-hidden="true">
-                    ${notchMarkup}
-                </div>
-                <div class="placement-card-info">
-                    <strong>${escapeHtml(card.name)}</strong>
-                    <span>${escapeHtml(element)} · ${escapeHtml(String(card.rarity || 'COMMON'))}</span>
-                    <span class="placement-card-stats"><b>${Number(card.health) || '–'} HP</b><b>${Number(card.speed) || '–'} SPD</b></span>
-                </div>
-            </div>`;
+    // The demo draws the same binder card face as the roster rows, so its
+    // notches sit exactly where the link line expects them.
+    function placementCardFace(card) {
+        return renderBinderFace({ ...card, description: rosterDescription(card) }, { thumbWidth: 320, eager: true });
     }
 
     async function bindPlacementDemo() {
@@ -277,7 +258,8 @@
         let placed = null;
         let connected = false;
         let linkType = null;
-        anchorHost.innerHTML = placementCardFace(anchor, false);
+        anchorHost.innerHTML = placementCardFace(anchor);
+        scheduleDescriptionFit(anchorHost);
         hand.innerHTML = choices.map((card) => {
             const leftNotch = (Array.isArray(card.notches) ? card.notches : [])
                 .find((notch) => String(notch?.direction || '').toUpperCase() === 'LEFT');
@@ -288,7 +270,7 @@
             return `
             <button class="placement-hand-card" type="button" data-placement-card="${escapeAttr(card.id)}"
                     aria-label="Place ${escapeAttr(card.name)} beside Applehead" aria-pressed="false">
-                ${placementCardFace(card, false)}
+                ${placementCardFace(card)}
                 <span class="placement-choice-copy">
                     <strong>${escapeHtml(card.name)}</strong>
                     <span>${escapeHtml(linkLabel)}</span>
@@ -297,6 +279,7 @@
                 <span class="placement-hand-action">Place card <b aria-hidden="true">→</b></span>
             </button>`;
         }).join('');
+        scheduleDescriptionFit(hand);
 
         function resetDemo() {
             placed = null;
@@ -330,7 +313,8 @@
             demo.querySelector('.placement-energy').textContent = linkType === 'combo' ? '' : '+1';
             target.className = `placement-board-slot is-target is-occupied is-placing${connected ? ' is-connected' : ''}`;
             target.setAttribute('aria-label', `${card.name} placed beside Applehead${linkType === 'combo' ? `, ${anchorElement} and ${cardElement} combo formed` : connected ? `, ${anchorElement} energy link formed` : ', notches do not link'}`);
-            target.innerHTML = placementCardFace(card, false);
+            target.innerHTML = placementCardFace(card);
+            scheduleDescriptionFit(target);
             feedback.innerHTML = linkType === 'combo'
                 ? `<strong>${escapeHtml(anchorElement)} + ${escapeHtml(cardElement)} combo formed.</strong> Different elements generate 1 combo point.`
                 : connected
