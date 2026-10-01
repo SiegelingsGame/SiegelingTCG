@@ -1,4 +1,16 @@
 Original prompt: Merge and deploy
+- October 1, 2026 - **Landing card-placement demo uses the binder card face.**
+  - **Change.** The "Place a card. Power the board." demo (anchor Applehead, the placed card, and the three hand cards) drew its own older face. It had a dark info box over the art, its own notch images and no description. It now renders through `renderBinderFace`, like the roster and legendary rows:
+    - painted frame scene, transparent art and the frame's own notch sockets;
+    - HP/SPD and the fitted description;
+    - `#connections` gains `.binder-face-scope`.
+  - **Layout.** The binder's slot padding and border are dropped inside the demo, so the frame fills the board slot exactly. That keeps Applehead's RIGHT socket and the placed card's LEFT socket on the link line.
+  - **Cleanup.** The old `.placement-card*` / `.placement-notch-*` rules are removed (including an orphaned rule body the removal briefly left behind; brace balance re-checked).
+  - **Cache pins:** `landing.css?v=43`, `landing.js?v=39`.
+- Verification: headless Chromium with the live catalog snapshot and real art thumbnails resized by the function's own `resizeArt`, at 390x844, 320x568 and 1920x1080:
+  - Applehead's face fills its slot exactly. The link line starts within 2px of its RIGHT notch, and for Bonoblade (connected), Draco (combo) and Cacty (blocked) the line ends within 2px of the placed card's LEFT notch at the same height.
+  - Every demo description fits, all art loads, there is no page overflow and there are no errors.
+  - The description-fit sweep (172 faces, 4 viewports) and the behavior harness still pass.
 - October 1, 2026 - **Landing cards: every description is scaled to fit its card.**
   - **Change.** `landing.js fitCardDescription` runs on every binder face in the roster rows and the legendary row. It is a binary search on the description list's font size, like `game.js fitFramedSummaryList`, with these differences:
     - **Floor:** 3px instead of the binder's 7px, because the longest lore (Glaciemperor, Hydroxyl and Peatbeak, about 370-380 characters) cannot fit a 142px phone card at a legible size and the ask is that it all fits.
