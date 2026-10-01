@@ -24,9 +24,9 @@ Original prompt: Merge and deploy
     - 44 never-called functions (~25 KB), found with the TypeScript parser. Each name occurs exactly once across site code, `src/test`, `tests/` and `tools/`, iterated to a fixpoint.
     - The committed service-account key is untracked (it must still be rotated).
   - **Deferred.** Splitting `landing.css` for `/play`: Play also depends on its `.hidden`, `.is-open`, `.knight-card*`, `.mulligan-card-slot` and global `*`/`img`/16px-input rules, which needs its own audit.
-  - **Cache pins:**
-    - `game.js?v=305`, `card-binder-visual.js?v=27`, `home-redesign.js?v=57`, `home.js?v=174`
-    - `landing.js?v=40`, `landing.css?v=44` (index + play), `install-guide.js?v=3`, `loading-gate.js?v=6`
+  - **Cache pins** (after merging #989-#991, whose shipped pins these sit above):
+    - `game.js?v=307`, `card-binder-visual.js?v=27`, `home-redesign.js?v=57`, `home.js?v=175`
+    - `landing.js?v=44`, `landing.css?v=46` (index + play + the `loading-gate.js` fallback), `install-guide.js?v=3`, `loading-gate.js?v=6`
     - `arena-tutorial.js?v=51`, `fx.js?v=5`, `sounds.js?v=3`, `keep.js?v=58`, `siege-tutorial.js?v=28`
 - Verification: baselines were captured from a pristine copy of `main` and every check was re-run after.
   - **JUnit.** 732 -> 735 green, including 3 new `LoadingArtStorageServiceTest` cache tests (mutation-checked: disabling the cache or the invalidation fails them).
