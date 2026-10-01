@@ -315,6 +315,8 @@
             target.setAttribute('aria-label', `${card.name} placed beside Applehead${linkType === 'combo' ? `, ${anchorElement} and ${cardElement} combo formed` : connected ? `, ${anchorElement} energy link formed` : ', notches do not link'}`);
             target.innerHTML = placementCardFace(card);
             scheduleDescriptionFit(target);
+            // The entrance animation scales the card; measure again at rest.
+            target.querySelector('.mulligan-card-slot')?.addEventListener('animationend', () => scheduleDescriptionFit(target), { once: true });
             feedback.innerHTML = linkType === 'combo'
                 ? `<strong>${escapeHtml(anchorElement)} + ${escapeHtml(cardElement)} combo formed.</strong> Different elements generate 1 combo point.`
                 : connected
@@ -474,17 +476,36 @@
         // Clones in a marquee row are the same card at the same width; measure once.
         const key = `${Math.round(card.clientWidth)}|${text.textContent}`;
         if (memo && memo.has(key)) {
-            const [size, lineHeight] = memo.get(key);
+            const [size, lineHeight, maxHeight, overflow, display, clamp] = memo.get(key);
             list.style.fontSize = size;
             text.style.lineHeight = lineHeight;
+            text.style.maxHeight = maxHeight;
+            text.style.overflow = overflow;
+            text.style.display = display;
+            text.style.webkitBoxOrient = display ? 'vertical' : '';
+            text.style.webkitLineClamp = clamp;
             return;
         }
         list.style.fontSize = '';
         text.style.lineHeight = '';
+        text.style.maxHeight = '';
+        text.style.overflow = '';
+        text.style.display = '';
+        text.style.webkitLineClamp = '';
         const maxPx = Math.min(14, Math.max(7, card.clientWidth * 0.075));
+        // The painted panel runs down behind the bottom notch row, so fitting
+        // the panel alone lets the last lines sit under the sockets - worst at
+        // the centre one. As in the binder (home-redesign.js fitOneDescription),
+        // the text must also end above the highest bottom socket, with a
+        // clearance that scales with the card.
+        const sockets = [...card.querySelectorAll('.notch-dot.notch-BOTTOM, .notch-dot.notch-BOTTOM_LEFT, .notch-dot.notch-BOTTOM_RIGHT')];
+        const clearance = Math.max(2, card.clientWidth * 0.015);
+        const socketLine = () => (sockets.length ? Math.min(...sockets.map((dot) => dot.getBoundingClientRect().top)) - clearance : Infinity);
         // The list clips internally (overflow hidden), so check its own overflow
         // as well as the body's.
-        const fits = () => body.scrollHeight <= body.clientHeight + 0.5 && list.scrollHeight <= list.clientHeight + 0.5;
+        const fits = () => body.scrollHeight <= body.clientHeight + 0.5
+            && list.scrollHeight <= list.clientHeight + 0.5
+            && text.getBoundingClientRect().bottom <= socketLine() + 0.25;
         const search = () => {
             let lo = DESCRIPTION_FLOOR_PX;
             let hi = maxPx;
@@ -506,9 +527,19 @@
         // Tighter leading buys a size step before the text has to shrink further.
         if (!search()) {
             text.style.lineHeight = '1.12';
-            search();
+            if (!search()) {
+                // Even the floor runs into the sockets: clamp to the lines that fit
+                // above them rather than draw over the frame.
+                const room = socketLine() - text.getBoundingClientRect().top;
+                const lineHeight = parseFloat(window.getComputedStyle(text).lineHeight) || 4;
+                text.style.maxHeight = `${Math.max(lineHeight, room).toFixed(1)}px`;
+                text.style.overflow = 'hidden';
+                text.style.display = '-webkit-box';
+                text.style.webkitBoxOrient = 'vertical';
+                text.style.webkitLineClamp = String(Math.max(1, Math.floor(room / lineHeight)));
+            }
         }
-        if (memo) memo.set(key, [list.style.fontSize, text.style.lineHeight]);
+        if (memo) memo.set(key, [list.style.fontSize, text.style.lineHeight, text.style.maxHeight, text.style.overflow, text.style.display, text.style.webkitLineClamp]);
     }
 
     function fitCardDescriptions(root) {

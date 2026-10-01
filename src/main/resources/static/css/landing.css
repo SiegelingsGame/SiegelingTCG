@@ -2370,3 +2370,7 @@ body.element-overlay-open { overflow: hidden; }
     .marquee-card, .legendary-card .mulligan-card-slot { transition: none; }
     .roster-spotlight { animation: none; }
 }
+
+/* Fitted descriptions can run at tight leading; without a hair of headroom the
+   first line's ascenders poke above the line box and the panel clips them. */
+.binder-face-scope .card-summary-description { padding-top: .14em; }

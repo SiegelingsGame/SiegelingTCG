@@ -1,4 +1,17 @@
 Original prompt: Merge and deploy
+- October 1, 2026 - **Landing card descriptions stay clear of the bottom notch sockets.**
+  - **Why.** The landing fitter only checked that the description fit its painted panel. That panel runs down behind the bottom socket row, so on the live build 158-160 of 176 card faces had their last line under a bottom socket, up to 6px deep and worst at the centre notch.
+  - **Change.** As in the binder (`home-redesign.js fitOneDescription`), the size search in `landing.js fitCardDescription` now also requires the text to end above the highest of the three bottom sockets. The clearance scales with the card: `max(2px, 1.5%` of its width).
+    - If even the floor size cannot clear them, the text is clamped to the lines that do fit rather than drawn over the frame. No current card needs that.
+    - Clones reuse the full fitted state.
+    - The demo's placed card re-fits after its entrance animation, which would otherwise be measured mid-scale.
+  - **Also.** `.card-summary-description` gets `.14em` of top padding, because at the tight 1.12 fallback leading the first line's ascenders were being shaved off by the panel.
+  - **Cache pins:** `landing.css?v=44`, `landing.js?v=40`.
+- Verification: the fit sweep now also asserts the socket gap, at 390x844, 320x568, 1920x1080 and 1366x768.
+  - **Before (the live code):** 158-160 of 176 faces on or under a socket, with the worst gap -6.1px.
+  - **After:** all 176 faces (roster rows, legendaries and the demo) end at least 1.8px above the sockets, with no panel overflow and no clamping needed.
+  - Screenshots at 3x DPR: Glaciemperor (380 characters), Pylord and Applehead are clear of the centre and corner sockets, and the first line is intact.
+  - The demo alignment checks (21) and the behavior harness still pass.
 - October 1, 2026 - **Landing card-placement demo uses the binder card face.**
   - **Change.** The "Place a card. Power the board." demo (anchor Applehead, the placed card, and the three hand cards) drew its own older face. It had a dark info box over the art, its own notch images and no description. It now renders through `renderBinderFace`, like the roster and legendary rows:
     - painted frame scene, transparent art and the frame's own notch sockets;
