@@ -1721,6 +1721,35 @@ function webpImgAttrs(url) {
     return `src="${escapeHtmlAttribute(preferred)}" data-img-fallback="${escapeHtmlAttribute(original)}" onerror="sgWebpFallback(this)"`;
 }
 
+function sgEvoThumbFallback(img) {
+    if (!img) return;
+    const fallback = img.getAttribute('data-img-fallback');
+    if (fallback && img.getAttribute('src') !== fallback) {
+        img.setAttribute('src', fallback);
+        return;
+    }
+    const label = img.getAttribute('data-evo-label') || img.getAttribute('alt') || '';
+    const node = document.createElement('span');
+    node.className = 'card-corner-evo-name';
+    node.textContent = label;
+    const holder = img.closest('.card-corner-evo-thumb');
+    if (holder) {
+        holder.replaceWith(node);
+    } else {
+        img.replaceWith(node);
+    }
+}
+
+function evoThumbImgAttrs(url, label) {
+    const original = String(url || '');
+    const preferred = sgPreferWebp(original);
+    const labelAttr = ` data-evo-label="${escapeHtmlAttribute(label || '')}"`;
+    if (preferred === original) {
+        return `src="${escapeHtmlAttribute(original)}"${labelAttr} onerror="sgEvoThumbFallback(this)"`;
+    }
+    return `src="${escapeHtmlAttribute(preferred)}" data-img-fallback="${escapeHtmlAttribute(original)}"${labelAttr} onerror="sgEvoThumbFallback(this)"`;
+}
+
 function escapeHtml(value) {
     return String(value || '')
         .replace(/&/g, '&amp;')
@@ -3984,7 +4013,7 @@ function renderCardCornerChips(card) {
         // The name stays as the fallback when no art resolves.
         const sourceArtUrl = getEvolutionSourceOverlayUrl(card);
         const sourceHtml = sourceArtUrl
-            ? `<span class="card-corner-evo-thumb"><img ${webpImgAttrs(sourceArtUrl)} alt="${escapeHtmlAttribute(evolutionSource)}" decoding="async"></span>`
+            ? `<span class="card-corner-evo-thumb"><img ${evoThumbImgAttrs(sourceArtUrl, evolutionSource)} alt="${escapeHtmlAttribute(evolutionSource)}" decoding="async"></span>`
             : `<span class="card-corner-evo-name">${escapeHtml(evolutionSource)}</span>`;
         chips.push(`<div class="card-corner-chip card-corner-evo" title="${escapeHtmlAttribute(`Evolves from ${evolutionSource}`)}">`
             + '<span class="card-corner-evo-tag">Evo</span>'

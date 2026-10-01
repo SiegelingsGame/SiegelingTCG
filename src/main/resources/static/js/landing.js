@@ -426,6 +426,37 @@
         return `src="${escapeAttr(thumb)}" data-img-fallback="${escapeAttr(original)}" onerror="landingWebpFallback(this)"`;
     }
 
+    if (typeof window !== 'undefined' && !window.landingEvoThumbFallback) {
+        window.landingEvoThumbFallback = function (img) {
+            if (!img) return;
+            const fallback = img.getAttribute('data-img-fallback');
+            if (fallback && img.getAttribute('src') !== fallback) {
+                img.setAttribute('src', fallback);
+                return;
+            }
+            const label = img.getAttribute('data-evo-label') || img.getAttribute('alt') || '';
+            const node = document.createElement('span');
+            node.className = 'card-corner-evo-name';
+            node.textContent = label;
+            const holder = img.closest('.card-corner-evo-thumb');
+            if (holder) {
+                holder.replaceWith(node);
+            } else {
+                img.replaceWith(node);
+            }
+        };
+    }
+
+    function evoThumbAttrs(url, width, label) {
+        const original = String(url || '');
+        const safeLabel = String(label || '');
+        if (!/^https:\/\/firebasestorage\.googleapis\.com\//.test(original)) {
+            return `src="${escapeAttr(original)}" data-evo-label="${escapeAttr(safeLabel)}" onerror="landingEvoThumbFallback(this)"`;
+        }
+        const thumb = `/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(original)}`;
+        return `src="${escapeAttr(thumb)}" data-img-fallback="${escapeAttr(original)}" data-evo-label="${escapeAttr(safeLabel)}" onerror="landingEvoThumbFallback(this)"`;
+    }
+
     function renderBinderFace(card, options) {
         const opts = options || {};
         const element = String(card.element || 'NEUTRAL').toUpperCase();
@@ -457,7 +488,7 @@
             const sourceArt = String(source?.cardArtMode || '').toUpperCase() === 'OVERLAY'
                 ? String(source.cardArtUrl || '').trim() : '';
             const sourceHtml = sourceArt
-                ? `<span class="card-corner-evo-thumb"><img ${thumbAttrs(sourceArt, 64)} alt="${escapeAttr(evolvesFrom)}" decoding="async"></span>`
+                ? `<span class="card-corner-evo-thumb"><img ${evoThumbAttrs(sourceArt, 64, evolvesFrom)} alt="${escapeAttr(evolvesFrom)}" decoding="async"></span>`
                 : `<span class="card-corner-evo-name">${escapeHtml(evolvesFrom)}</span>`;
             chips.push(`<div class="card-corner-chip card-corner-evo" title="${escapeAttr(`Evolves from ${evolvesFrom}`)}"><span class="card-corner-evo-tag">Evo</span>${sourceHtml}</div>`);
         }
