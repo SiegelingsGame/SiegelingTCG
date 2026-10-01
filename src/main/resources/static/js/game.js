@@ -3610,6 +3610,23 @@ function formatCardReferenceName(value) {
         .join(' ');
 }
 
+// Precursor lookup for the Evo corner thumbnail. Prefers the live catalog
+// row (it carries dashboard art overrides); the hub keeps its catalog in
+// home.js, so it publishes it on window. A bare {id, name} stub still hits
+// the built-in CARD_ART_BY_KEY art.
+function findEvolutionSourceCard(card) {
+    const id = String(card?.evolvesFromId || '').trim();
+    const name = String(card?.evolvesFromName || '').trim();
+    if (!id && !name) return null;
+    const catalogs = [gameOptions?.cardCatalog, window.SieglingsCardCatalog];
+    for (const catalog of catalogs) {
+        if (!Array.isArray(catalog)) continue;
+        const match = catalog.find((entry) => entry && ((id && entry.id === id) || (!id && entry.name === name)));
+        if (match) return match;
+    }
+    return { id, name };
+}
+
 function getCardEvolutionSourceName(card) {
     return String(card?.evolvesFromName || '').trim()
         || formatCardReferenceName(card?.evolvesFromId);
@@ -4030,9 +4047,16 @@ function renderCardCornerChips(card) {
     }
     const evolutionSource = getCardEvolutionSourceName(card);
     if (evolutionSource) {
+        // A thumbnail of the precursor reads at every card scale, where the
+        // name ellipsised down to two letters on hand/binder-sized cards.
+        // The name stays as the fallback when no art resolves.
+        const sourceArt = getCardArtMeta(findEvolutionSourceCard(card));
+        const sourceHtml = sourceArt?.url && !sourceArt.fullCard
+            ? `<span class="card-corner-evo-thumb"><img ${webpImgAttrs(sourceArt.url)} alt="${escapeHtmlAttribute(evolutionSource)}" decoding="async"></span>`
+            : `<span class="card-corner-evo-name">${escapeHtml(evolutionSource)}</span>`;
         chips.push(`<div class="card-corner-chip card-corner-evo" title="${escapeHtmlAttribute(`Evolves from ${evolutionSource}`)}">`
             + '<span class="card-corner-evo-tag">Evo</span>'
-            + `<span class="card-corner-evo-name">${escapeHtml(evolutionSource)}</span>`
+            + sourceHtml
             + '</div>');
     }
     return chips.join('');

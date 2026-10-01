@@ -9681,6 +9681,24 @@ body.placement-active .board-cell.legal {
     text-overflow: ellipsis;
 }
 
+.hand-card.element-frame .card-corner-evo-thumb {
+    flex: 0 0 auto;
+    width: 1.9em;
+    height: 1.9em;
+    border-radius: 50%;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 225, 90, 0.7);
+}
+
+.hand-card.element-frame .card-corner-evo-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 40%;
+}
+
 /* Spell / trap painted templates use the element-colored spell frames while
    preserving Claude's Siegeling frame geometry above. */
 .hand-card.spell-trap-frame {

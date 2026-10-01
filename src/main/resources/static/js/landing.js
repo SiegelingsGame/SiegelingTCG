@@ -179,12 +179,21 @@
     // One catalog request feeds both the Siegling roster and the SiegeKnight rail;
     // the payload carries `cardCatalog` and `trainers` together.
     let __gameOptions = null;
+    // Evolution chips show the precursor's art, looked up by evolvesFromId.
+    const __catalogById = new Map();
+
     function loadGameOptions() {
         if (!__gameOptions) {
             __gameOptions = fetch('/api/game/options', { credentials: 'same-origin' })
                 .then((response) => {
                     if (!response.ok) throw new Error(`Catalog request failed (${response.status})`);
                     return response.json();
+                })
+                .then((payload) => {
+                    (Array.isArray(payload?.cardCatalog) ? payload.cardCatalog : []).forEach((card) => {
+                        if (card?.id) __catalogById.set(card.id, card);
+                    });
+                    return payload;
                 });
         }
         return __gameOptions;
@@ -438,7 +447,11 @@
         const evolvesFrom = String(card.evolvesFromName || '').trim()
             || String(card.evolvesFromId || '').split(/[-_\s]+/).filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(' ');
         if (evolvesFrom) {
-            chips.push(`<div class="card-corner-chip card-corner-evo"><span class="card-corner-evo-tag">Evo</span><span class="card-corner-evo-name">${escapeHtml(evolvesFrom)}</span></div>`);
+            const sourceArt = String(__catalogById.get(card.evolvesFromId)?.cardArtUrl || '').trim();
+            const sourceHtml = sourceArt
+                ? `<span class="card-corner-evo-thumb"><img ${thumbAttrs(sourceArt, 64)} alt="${escapeAttr(evolvesFrom)}" decoding="async"></span>`
+                : `<span class="card-corner-evo-name">${escapeHtml(evolvesFrom)}</span>`;
+            chips.push(`<div class="card-corner-chip card-corner-evo" title="${escapeAttr(`Evolves from ${evolvesFrom}`)}"><span class="card-corner-evo-tag">Evo</span>${sourceHtml}</div>`);
         }
         const art = String(card.cardArtUrl || card.art || '');
         const transform = cardArtTransform(card);
