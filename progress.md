@@ -1,4 +1,15 @@
 Original prompt: Merge and deploy
+- October 1, 2026 - **Every landing legendary carries a summary line under its card.**
+  - **Why.** The pitch under each legendary card came only from the four curated entries (Pylord, Glaciemperor, Aerovane, Gymstone), so the catalog's other legendaries, Zeel and Conchious, showed none.
+  - **Change.**
+    - `landing.js` adds written one-liners for Zeel and Conchious (`LEGENDARY_PITCHES`, keyed by name because Zeel's catalog id is the placeholder `new-siegli`).
+    - `legendaryPitch()` gives any future legendary without one the first sentence of its own text, cut at a word boundary to about 110 characters.
+    - The 3-line clamp on `.legendary-card p` is removed: at the 186px desktop card width it was cutting the existing Glaciemperor and Aerovane pitches mid-sentence.
+  - **Cache pins:** `landing.css?v=45`, `landing.js?v=41`.
+- Verification: headless Chromium at 390x844 and 1920x1080, against the live catalog snapshot and a variant with an extra uncurated legendary ("Testwyrm", 165-character lore).
+  - All 6 (and 7) legendaries render a pitch, and none is truncated by layout.
+  - Testwyrm gets its auto first-sentence line, ending in an ellipsis at the 110-character cap.
+  - The description-fit/socket sweep, demo alignment checks and behavior harness still pass.
 - October 1, 2026 - **Landing card descriptions stay clear of the bottom notch sockets.**
   - **Why.** The landing fitter only checked that the description fit its painted panel. That panel runs down behind the bottom socket row, so on the live build 158-160 of 176 card faces had their last line under a bottom socket, up to 6px deep and worst at the centre notch.
   - **Change.** As in the binder (`home-redesign.js fitOneDescription`), the size search in `landing.js fitCardDescription` now also requires the text to end above the highest of the three bottom sockets. The clearance scales with the card: `max(2px, 1.5%` of its width).
