@@ -726,6 +726,25 @@
 
     // Legendary cards are shown as cards: live catalog art and stats where the
     // API answers, the curated copy for the words either way.
+    // One-line pitches for legends outside the curated four, written from their
+    // kits. Keyed by lower-case name: Zeel's catalog id is a placeholder.
+    const LEGENDARY_PITCHES = {
+        zeel: 'A storm serpent whose lightning chains from one foe to every enemy linked beside it.',
+        conchious: 'The Defender of the Seas, raising living reefs that shield every ally on the tide line.'
+    };
+
+    // Any legend without a written pitch still gets a line: the first sentence
+    // of its own text, cut at a word boundary so it stays a summary.
+    function legendaryPitch(card, curated) {
+        if (curated?.description) return curated.description;
+        const written = LEGENDARY_PITCHES[String(card.name || '').trim().toLowerCase()];
+        if (written) return written;
+        const text = String(card.description || '').trim();
+        const sentence = (text.match(/^[^.!?]+[.!?]/) || [text])[0].trim();
+        if (sentence.length <= 110) return sentence;
+        return `${sentence.slice(0, 107).replace(/\s+\S*$/, '')}…`;
+    }
+
     async function renderLegendaryRow() {
         const host = document.getElementById('legendaryRow');
         if (!host) return;
@@ -742,7 +761,8 @@
                 // curated line rides underneath as the pitch.
                 legends = live.map((card) => {
                     const curated = FEATURED_SIEGELINGS.find((entry) => entry.id === String(card.id || '').toLowerCase());
-                    return { ...card, description: rosterDescription(card), pitch: curated?.description || '' };
+                    const description = rosterDescription(card);
+                    return { ...card, description, pitch: legendaryPitch({ ...card, description }, curated) };
                 });
                 // Curated legends lead; newer ones follow in catalog order.
                 legends.sort((a, b) => {
