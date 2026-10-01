@@ -447,7 +447,10 @@
         const evolvesFrom = String(card.evolvesFromName || '').trim()
             || String(card.evolvesFromId || '').split(/[-_\s]+/).filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(' ');
         if (evolvesFrom) {
-            const sourceArt = String(__catalogById.get(card.evolvesFromId)?.cardArtUrl || '').trim();
+            // Only the transparent creature overlay reads at chip size.
+            const source = __catalogById.get(card.evolvesFromId);
+            const sourceArt = String(source?.cardArtMode || '').toUpperCase() === 'OVERLAY'
+                ? String(source.cardArtUrl || '').trim() : '';
             const sourceHtml = sourceArt
                 ? `<span class="card-corner-evo-thumb"><img ${thumbAttrs(sourceArt, 64)} alt="${escapeAttr(evolvesFrom)}" decoding="async"></span>`
                 : `<span class="card-corner-evo-name">${escapeHtml(evolvesFrom)}</span>`;

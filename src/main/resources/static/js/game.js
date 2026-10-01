@@ -3610,21 +3610,23 @@ function formatCardReferenceName(value) {
         .join(' ');
 }
 
-// Precursor lookup for the Evo corner thumbnail. Prefers the live catalog
-// row (it carries dashboard art overrides); the hub keeps its catalog in
-// home.js, so it publishes it on window. A bare {id, name} stub still hits
-// the built-in CARD_ART_BY_KEY art.
-function findEvolutionSourceCard(card) {
+// The Evo corner thumbnail is the precursor's transparent creature overlay
+// only — never holographic/full-card or REPLACE illustrations, which shrink
+// to an unreadable framed card at chip size. The hub keeps its catalog in
+// home.js, so it publishes it on window for this lookup.
+function getEvolutionSourceOverlayUrl(card) {
     const id = String(card?.evolvesFromId || '').trim();
     const name = String(card?.evolvesFromName || '').trim();
-    if (!id && !name) return null;
+    if (!id && !name) return '';
     const catalogs = [gameOptions?.cardCatalog, window.SieglingsCardCatalog];
     for (const catalog of catalogs) {
         if (!Array.isArray(catalog)) continue;
         const match = catalog.find((entry) => entry && ((id && entry.id === id) || (!id && entry.name === name)));
-        if (match) return match;
+        if (!match) continue;
+        const mode = String(match.cardArtMode || '').trim().toUpperCase();
+        return mode === 'OVERLAY' ? String(match.cardArtUrl || '').trim() : '';
     }
-    return { id, name };
+    return '';
 }
 
 function getCardEvolutionSourceName(card) {
@@ -4050,9 +4052,9 @@ function renderCardCornerChips(card) {
         // A thumbnail of the precursor reads at every card scale, where the
         // name ellipsised down to two letters on hand/binder-sized cards.
         // The name stays as the fallback when no art resolves.
-        const sourceArt = getCardArtMeta(findEvolutionSourceCard(card));
-        const sourceHtml = sourceArt?.url && !sourceArt.fullCard
-            ? `<span class="card-corner-evo-thumb"><img ${webpImgAttrs(sourceArt.url)} alt="${escapeHtmlAttribute(evolutionSource)}" decoding="async"></span>`
+        const sourceArtUrl = getEvolutionSourceOverlayUrl(card);
+        const sourceHtml = sourceArtUrl
+            ? `<span class="card-corner-evo-thumb"><img ${webpImgAttrs(sourceArtUrl)} alt="${escapeHtmlAttribute(evolutionSource)}" decoding="async"></span>`
             : `<span class="card-corner-evo-name">${escapeHtml(evolutionSource)}</span>`;
         chips.push(`<div class="card-corner-chip card-corner-evo" title="${escapeHtmlAttribute(`Evolves from ${evolutionSource}`)}">`
             + '<span class="card-corner-evo-tag">Evo</span>'

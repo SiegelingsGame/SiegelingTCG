@@ -9683,12 +9683,9 @@ body.placement-active .board-cell.legal {
 
 .hand-card.element-frame .card-corner-evo-thumb {
     flex: 0 0 auto;
-    width: 1.9em;
-    height: 1.9em;
-    border-radius: 50%;
-    overflow: hidden;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 225, 90, 0.7);
+    width: 2.3em;
+    height: 2.3em;
+    margin: -0.4em -0.15em -0.4em 0;
 }
 
 .hand-card.element-frame .card-corner-evo-thumb img {
@@ -9696,7 +9693,8 @@ body.placement-active .board-cell.legal {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: 50% 40%;
+    object-position: 50% 50%;
+    filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
 }
 
 /* Spell / trap painted templates use the element-colored spell frames while

@@ -111,8 +111,8 @@
 .hand-card.element-frame .card-corner-evo { right: 13.5%; }
 .hand-card.element-frame .card-corner-evo-tag { flex: 0 0 auto; color: rgb(255, 225, 90); font-weight: 900; font-size: 0.74em; letter-spacing: 0.08em; text-transform: uppercase; }
 .hand-card.element-frame .card-corner-evo-name { min-width: 0px; color: rgb(244, 248, 255); font-weight: 700; font-size: 0.8em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hand-card.element-frame .card-corner-evo-thumb { flex: 0 0 auto; width: 1.9em; height: 1.9em; border-radius: 50%; overflow: hidden; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 225, 90, 0.7); }
-.hand-card.element-frame .card-corner-evo-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 40%; }
+.hand-card.element-frame .card-corner-evo-thumb { flex: 0 0 auto; width: 2.3em; height: 2.3em; margin: -0.4em -0.15em -0.4em 0; }
+.hand-card.element-frame .card-corner-evo-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); }
 .mulligan-showcase.element-frame .hand-notches { inset: 0px; }
 .mulligan-showcase.element-frame .notch-dot { width: 10.4%; height: auto; aspect-ratio: 1 / 1; border-width: 1px; }
 .mulligan-showcase.element-frame .notch-dot:not([style*="--notch-icon"]) { background: transparent; border-color: transparent; box-shadow: none; }
