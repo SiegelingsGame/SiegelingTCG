@@ -357,3 +357,24 @@ test('art mirror: refuses any URL outside this project\'s bucket', () => {
     assert.equal(_private.isMirrorableArtUrl(url), false, `must refuse ${url || '(empty)'}`);
   }
 });
+
+test('art-mirror thumbnail widths snap to fixed buckets', () => {
+  assert.equal(_private.parseThumbWidth(undefined), 0);
+  assert.equal(_private.parseThumbWidth('abc'), 0);
+  assert.equal(_private.parseThumbWidth('-5'), 0);
+  assert.equal(_private.parseThumbWidth('100'), 160);
+  assert.equal(_private.parseThumbWidth('240'), 240);
+  assert.equal(_private.parseThumbWidth('300'), 320);
+  assert.equal(_private.parseThumbWidth('5000'), 640);
+});
+
+test('art-mirror resizes card art to a WebP thumbnail', async () => {
+  const sharp = require('sharp');
+  const source = await sharp({ create: { width: 1024, height: 1536, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+  const thumb = await _private.resizeArt(source, 320);
+  const meta = await sharp(thumb).metadata();
+  assert.equal(meta.format, 'webp');
+  assert.equal(meta.width, 320);
+  assert.equal(meta.height, 480);
+  assert.equal(meta.hasAlpha, true);
+});

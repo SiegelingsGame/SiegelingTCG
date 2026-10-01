@@ -238,6 +238,30 @@ function isMirrorableArtUrl(target) {
     && parsed.pathname.startsWith(`/v0/b/${ART_MIRROR_BUCKET}/o/`);
 }
 
+/* Thumbnail widths snap to a few buckets so the CDN holds one copy per bucket
+   instead of one per arbitrary `w` a caller invents. */
+const THUMB_WIDTHS = [160, 240, 320, 480, 640];
+
+function parseThumbWidth(raw) {
+  const requested = Number.parseInt(String(raw || ''), 10);
+  if (!Number.isFinite(requested) || requested <= 0) {
+    return 0;
+  }
+  return THUMB_WIDTHS.find((bucket) => bucket >= requested) || THUMB_WIDTHS[THUMB_WIDTHS.length - 1];
+}
+
+// sharp is loaded on first use, so a cold start that never resizes pays nothing.
+let sharpModule = null;
+async function resizeArt(buffer, width) {
+  if (!sharpModule) {
+    sharpModule = require('sharp');
+  }
+  return sharpModule(buffer)
+    .resize({ width, withoutEnlargement: true })
+    .webp({ quality: 82, alphaQuality: 90 })
+    .toBuffer();
+}
+
 app.get('/api/cards/art-mirror', async (req, res) => {
   const target = String(req.query.url || '');
   if (!isMirrorableArtUrl(target)) {
@@ -254,9 +278,24 @@ app.get('/api/cards/art-mirror', async (req, res) => {
     if (!type.startsWith('image/')) {
       return res.status(415).json({ error: 'That is not an image.' });
     }
-    const body = Buffer.from(await upstream.arrayBuffer());
+    let body = Buffer.from(await upstream.arrayBuffer());
+    let contentType = type;
+    const width = parseThumbWidth(req.query.w);
+    if (width) {
+      // Card art ships at 1024x1536. Surfaces that show dozens of cards at once
+      // (the landing page's drifting rows) decode every one, and on iOS Safari
+      // that much bitmap memory gets the tab killed and reloaded. A thumbnail is
+      // decoded at a fraction of the size; on any resize failure the original
+      // bytes still go out so the card is never blank.
+      try {
+        body = await resizeArt(body, width);
+        contentType = 'image/webp';
+      } catch (error) {
+        console.warn('art-mirror resize failed; serving the original', error);
+      }
+    }
     res.set('Access-Control-Allow-Origin', '*');
-    res.set('Content-Type', type);
+    res.set('Content-Type', contentType);
     res.set('Cache-Control', 'public, max-age=31536000, immutable');
     return res.send(body);
   } catch (error) {
@@ -1189,6 +1228,8 @@ function buildCardArtPublicUrl(bucketName, objectPath, downloadToken) {
 
 exports._private = {
   isMirrorableArtUrl,
+  parseThumbWidth,
+  resizeArt,
   ART_MIRROR_BUCKET,
   // Gate internals, exported for the tests: the real passphrase is never in
   // them - they configure a gate with a hash of their own.
