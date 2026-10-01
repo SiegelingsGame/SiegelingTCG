@@ -109,7 +109,7 @@
         if (!already) {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = '/css/landing.css?v=32';
+            link.href = '/css/landing.css?v=44';
             link.dataset.sglLandingCss = '1';
             document.head.appendChild(link);
         }
@@ -244,7 +244,7 @@
                 <div class="sgl-logo-stage" aria-hidden="true">
                     <div class="sgl-logo-ring-outer"></div>
                     <div class="sgl-logo-ring-inner"></div>
-                    <img class="sgl-game-logo-img" src="/img/siegelings-logo.png" alt="Siegelings" draggable="false">
+                    <img class="sgl-game-logo-img" src="/img/siegelings-logo.webp" alt="Siegelings" draggable="false">
                 </div>
 
                 <div class="sgl-gate-wordmark">Siegelings<span>Trading Card Game</span></div>

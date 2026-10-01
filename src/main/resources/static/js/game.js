@@ -35,6 +35,9 @@ let onlineRoomMode = 'create';
 let multiplayerSession = loadSavedMultiplayerSession();
 let soloSessionToken = loadSavedSoloToken();
 let roomPollHandle = null;
+// The last room-status payload the poll rendered, and the gameState it installed.
+let lastPolledRoomJson = null;
+let lastPolledGameState = null;
 let roomExpiryTimeoutHandle = null;
 let currentRoomStatus = null;
 let mobileInfoTab = 'battle';
@@ -792,15 +795,6 @@ function getShieldInfo(cell, hpOverride, maxHpOverride) {
         : 'intact';
     const intactPct = total > 0 ? 100 : 0;
     return { active: total > 0, total, intact, depleted, state, intactPct };
-}
-
-function renderShieldChip(info) {
-    if (!info?.active || info.intact <= 0) return '';
-    const stateClass = ` stat-shield--${info.state}`;
-    const title = info.depleted > 0
-        ? `Shield +${info.total}: ${info.intact} intact, ${info.depleted} depleted`
-        : `Shield +${info.total}: intact`;
-    return `<span class="stat-shield${stateClass}" title="${title}" data-shield-state="${info.state}" style="--shield-intact-pct:${info.intactPct}%"><span class="stat-shield-icon" aria-hidden="true"></span><span class="stat-shield-value">+${info.total}</span></span>`;
 }
 
 // Neutral fallback sigil. A future catalog row with no art must NOT borrow
@@ -1576,18 +1570,23 @@ function escapeHtmlAttribute(value) {
 // ── WebP delivery (self-contained; the battle page does not load
 // card-binder-visual.js). Every local raster card asset has a .webp twin;
 // prefer it when supported and fall back to the original on any load error.
-let __sgWebpSupport = null;
-function sgWebpSupported() {
-    if (__sgWebpSupport !== null) {
-        return __sgWebpSupport;
-    }
+// What matters is whether WebP *decodes*. The old probe asked a canvas to
+// *encode* WebP, which Safari never supports (it decodes WebP since iOS 14),
+// so every iPhone fell back to the multi-MB PNGs. Start from "supported" (the
+// stylesheets already use .webp unconditionally) and let a real decode probe
+// turn it off on a browser that cannot.
+let __sgWebpSupport = true;
+(function probeWebpDecode() {
     try {
-        const c = document.createElement('canvas');
-        __sgWebpSupport = !!(c.getContext && c.getContext('2d'))
-            && c.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+        const img = new Image();
+        img.onload = () => { if (!img.width) __sgWebpSupport = false; };
+        img.onerror = () => { __sgWebpSupport = false; };
+        img.src = 'data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA';
     } catch (e) {
-        __sgWebpSupport = false;
+        // No Image constructor (non-browser test harness): keep the default.
     }
+})();
+function sgWebpSupported() {
     return __sgWebpSupport;
 }
 function sgPreferWebp(url) {
@@ -2672,22 +2671,6 @@ function getDomCellCenter(isPlayer, row, col) {
     };
 }
 
-// Source anchor for attack lines: the centre of the card's FRONT edge — the
-// edge facing the opponent. Player cards face upward (front = top edge); enemy
-// cards face downward (front = bottom edge). Computed from the live card box so
-// the line consistently starts at the front-centre of the attacking card on any
-// screen size.
-function getDomCardFrontCenter(isPlayer, row, col) {
-    const rect = getDomCardRect(isPlayer, row, col);
-    if (!rect) {
-        return null;
-    }
-    return {
-        x: rect.left + (rect.width / 2),
-        y: isPlayer ? rect.top : rect.top + rect.height
-    };
-}
-
 function drawDomTargetingPreview(timestamp) {
     const state = targetArrowPreviewState;
     if (!state.active || !state.sourceCell || state.targetCells.length === 0) {
@@ -3676,55 +3659,6 @@ function getCompactAbilityValue(ability) {
     return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function getCompactAbilityTargetLabel(ability) {
-    const targetType = String(ability?.targetType || '').trim().toUpperCase();
-    switch (targetType) {
-        case 'SINGLE_ENEMY':
-            return 'enemy';
-        case 'ALL_ENEMIES':
-            return 'all';
-        case 'ROW_ENEMIES':
-        case 'ROW_SELECT_ENEMIES':
-            return ability?.targetRow ? formatElementLabel(ability.targetRow) : 'row';
-        case 'SINGLE_ALLY':
-            return 'ally';
-        case 'ALL_ALLIES':
-            return 'allies';
-        case 'ROW_ALLIES':
-        case 'ROW_SELECT_ALLIES':
-            return ability?.targetRow ? formatElementLabel(ability.targetRow) : 'ally row';
-        case 'ENEMY_PLAYER':
-            return 'player';
-        case 'SELF':
-            return 'self';
-        default:
-            return '';
-    }
-}
-
-function getCompactEffectLabel(kind) {
-    switch (kind) {
-        case 'damage':
-            return 'DMG';
-        case 'heal':
-            return 'Heal';
-        case 'shield':
-            return 'Shield';
-        case 'draw':
-            return 'Draw';
-        case 'control':
-            return 'Ctrl';
-        case 'speed':
-            return 'SPD';
-        case 'health':
-            return 'HP';
-        case 'move':
-            return 'Move';
-        default:
-            return 'Effect';
-    }
-}
-
 // Dark type with a light halo, for the spell/trap templates whose info panel
 // is a pale wash instead of the usual dark band.
 const PALE_PANEL_INK_PALETTE = {
@@ -3779,10 +3713,6 @@ function getCompactSummaryInkStyle(element, card) {
         `--summary-muted:${palette.muted}`,
         `--summary-shadow:${palette.shadow}`
     ].join(';');
-}
-
-function renderCompactSummaryIcon(kind) {
-    return `<span class="card-summary-icon card-summary-icon-${escapeHtmlAttribute(kind)}" aria-hidden="true"></span>`;
 }
 
 function renderCompactEnergyIcons(element, amount, options = {}) {
@@ -4844,11 +4774,6 @@ function updateResponsiveLayoutVars(force = false) {
     fitPortraitBoards();
 }
 
-function setMobileInfoTab(tab) {
-    mobileInfoTab = tab;
-    syncMobileInfoTab();
-}
-
 function syncMobileInfoTab() {
     const tabs = document.querySelectorAll('.mobile-info-tab');
     const sections = document.querySelectorAll('.utility-section');
@@ -5850,23 +5775,6 @@ function closeEffectKey(event) {
         overlay.classList.add('hidden');
     }
     effectKeyOriginKind = null;
-}
-
-function openDashboardAccess() {
-    const overlay = document.getElementById('dashboardAccessOverlay');
-    const input = document.getElementById('dashboardAccessPassword');
-    const error = document.getElementById('dashboardAccessError');
-    if (!overlay || !input) {
-        window.location.href = '/card-dashboard.html';
-        return;
-    }
-    if (error) {
-        error.textContent = '';
-    }
-    input.value = '';
-    overlay.classList.remove('hidden');
-    overlay.setAttribute('aria-hidden', 'false');
-    setTimeout(() => input.focus(), 0);
 }
 
 function closeDashboardAccess(event) {
@@ -8484,15 +8392,6 @@ function jumpWelcomeSlide(index) {
     renderWelcomeTutorial();
 }
 
-function stepWelcomeSlide(direction) {
-    const nextIndex = welcomeSlideIndex + direction;
-    if (nextIndex < 0 || nextIndex >= WELCOME_SLIDES.length) {
-        return;
-    }
-    welcomeSlideIndex = nextIndex;
-    renderWelcomeTutorial();
-}
-
 function dismissWelcome() {
     welcomeDismissed = true;
     syncEntryOverlays();
@@ -8542,61 +8441,6 @@ function startPlaySolo() {
     resetPlayLobbyState(false);
     dropStaleGuestToken();
     dismissWelcome();
-}
-
-// Siege is the upcoming roguelike mode where SiegeKnight levels carry into
-// every fight. The progression logic already exists (see PlayerProgressionService
-// / GameService.applyTrainerLevel) but the mode is not yet playable, so the entry
-// button just lets players know it is on the way.
-function announceSiegeComingSoon() {
-    showComingSoonToast('Siege is the upcoming roguelike mode — your SiegeKnight levels will matter there. Coming soon!');
-}
-
-// Neutral, info-styled cousin of showErrorToast for non-error announcements.
-function showComingSoonToast(message, holdMs = 4200) {
-    const text = String(message == null ? '' : message).trim();
-    if (!text || typeof document === 'undefined' || !document.body) return;
-
-    let stack = document.getElementById('sglErrorToastStack');
-    if (!stack) {
-        stack = document.createElement('div');
-        stack.id = 'sglErrorToastStack';
-        stack.style.cssText = [
-            'position:fixed',
-            'top:max(16px, env(safe-area-inset-top, 0px))',
-            'left:50%',
-            'transform:translateX(-50%)',
-            'z-index:2147483000',
-            'display:flex',
-            'flex-direction:column',
-            'align-items:center',
-            'gap:8px',
-            'width:min(560px, 92vw)',
-            'pointer-events:none'
-        ].join(';');
-        document.body.appendChild(stack);
-    }
-
-    const node = document.createElement('div');
-    node.setAttribute('role', 'status');
-    node.style.cssText = [
-        'pointer-events:auto',
-        'display:flex',
-        'align-items:center',
-        'gap:10px',
-        'width:100%',
-        'box-sizing:border-box',
-        'padding:12px 16px',
-        'border-radius:12px',
-        'background:linear-gradient(180deg, rgba(12,20,40,0.97), rgba(8,14,28,0.97))',
-        'border:1px solid rgba(226,183,20,0.55)',
-        'box-shadow:0 10px 30px rgba(0,0,0,0.45)',
-        'color:#f0f4ff',
-        'font:600 14px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif'
-    ].join(';');
-    node.textContent = text;
-    stack.appendChild(node);
-    window.setTimeout(() => node.remove(), Math.max(1200, holdMs));
 }
 
 function resetPlayLobbyState(shouldRender = true) {
@@ -11034,51 +10878,74 @@ async function fetchRoomStatus() {
 
 function startRoomPolling() {
     clearRoomPolling();
-    roomPollHandle = setInterval(async () => {
-        const data = await fetchRoomStatus();
-        if (!data || data.error) {
-            if (currentRoomStatus?.roomId && !currentRoomStatus?.started && !gameState?.multiplayer) {
-                void closeUnfilledLobby(data?.error || 'Lobby closed before another player joined.');
-            } else if (gameState?.multiplayer || currentRoomStatus?.started) {
-                console.warn(data?.error || 'Room status polling failed.');
-                clearMultiplayerSession();
-                gameState = null;
-                openLoadoutSelector();
-            }
-            return;
-        }
-        currentRoomStatus = data;
-        handleMatchStatusExtras(data);
-        if (data.started) {
-            clearRoomExpiryTimer();
-            if (!gameState) {
-                applyStartedMultiplayerState(data);
-            } else {
-                const prevState = gameState;
-                const wasGameOver = prevState?.gameOver;
-                gameState = data;
-                if (wasGameOver && !data.gameOver && data.rematchStarted !== false) {
-                    resetGameOverOverlayState();
-                    lastProfileRefreshKey = '';
-                }
-                maybeNotifyTurnChange(prevState, data);
-                render();
-            }
-        } else if (data.loadoutPhase) {
-            renderLoadoutOptions();
-            updateLoadoutSummary();
-            syncEntryOverlays();
-        } else {
-            if (isRoomStatusExpired(data)) {
-                void closeUnfilledLobby('Lobby expired before another player joined.');
-                return;
-            }
-            scheduleRoomExpiryClose(data);
-            renderOnlineStatus();
-            updateLoadoutSummary();
-            syncEntryOverlays();
+    // A hidden tab cannot show anything, and the server does not track presence
+    // through these polls, so skip them; becoming visible polls at once.
+    roomPollHandle = setInterval(() => {
+        if (!document.hidden) {
+            void pollRoomStatusOnce();
         }
     }, 2000);
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && roomPollHandle) {
+        void pollRoomStatusOnce();
+    }
+});
+
+async function pollRoomStatusOnce() {
+    const data = await fetchRoomStatus();
+    if (!data || data.error) {
+        if (currentRoomStatus?.roomId && !currentRoomStatus?.started && !gameState?.multiplayer) {
+            void closeUnfilledLobby(data?.error || 'Lobby closed before another player joined.');
+        } else if (gameState?.multiplayer || currentRoomStatus?.started) {
+            console.warn(data?.error || 'Room status polling failed.');
+            clearMultiplayerSession();
+            gameState = null;
+            openLoadoutSelector();
+        }
+        return;
+    }
+    currentRoomStatus = data;
+    handleMatchStatusExtras(data);
+    if (data.started) {
+        clearRoomExpiryTimer();
+        if (!gameState) {
+            applyStartedMultiplayerState(data);
+        } else {
+            // While the opponent is deciding, every poll returns the same
+            // state, and each one used to rebuild the whole board. Skip it
+            // unless something other than this poll replaced gameState.
+            const snapshot = JSON.stringify(data);
+            if (snapshot === lastPolledRoomJson && gameState === lastPolledGameState) {
+                return;
+            }
+            const prevState = gameState;
+            const wasGameOver = prevState?.gameOver;
+            gameState = data;
+            lastPolledRoomJson = snapshot;
+            lastPolledGameState = data;
+            if (wasGameOver && !data.gameOver && data.rematchStarted !== false) {
+                resetGameOverOverlayState();
+                lastProfileRefreshKey = '';
+            }
+            maybeNotifyTurnChange(prevState, data);
+            render();
+        }
+    } else if (data.loadoutPhase) {
+        renderLoadoutOptions();
+        updateLoadoutSummary();
+        syncEntryOverlays();
+    } else {
+        if (isRoomStatusExpired(data)) {
+            void closeUnfilledLobby('Lobby expired before another player joined.');
+            return;
+        }
+        scheduleRoomExpiryClose(data);
+        renderOnlineStatus();
+        updateLoadoutSummary();
+        syncEntryOverlays();
+    }
 }
 
 function setBuilderElementFilter(filter) {
@@ -13146,18 +13013,6 @@ function renderDomLegacy() {
     renderGameOverOverlay();
 }
 
-function getBoardCellMarkers(board, markers) {
-    const result = [];
-    for (let r = 0; r < 3; r++) {
-        for (let c = 0; c < 3; c++) {
-            if (markers.some((entry) => entry[0] === r && entry[1] === c)) {
-                result.push({ row: r, col: c, cell: board?.[r]?.[c] || null });
-            }
-        }
-    }
-    return result;
-}
-
 function render() {
     if (tutorialMatchActive) {
     }
@@ -13177,31 +13032,6 @@ window.confirmRowSelectBattleTarget = confirmRowSelectBattleTarget;
 window.clearRowSelectBattleTarget = clearRowSelectBattleTarget;
 window.cancelBattleTargetSelection = cancelBattleTargetSelection;
 window.clearTargetingPreview = clearTargetingPreview;
-
-function renderEnergy(containerId, playerData) {
-    const el = document.getElementById(containerId);
-    const tokens = buildEnergyTokens(playerData);
-    const regularCount = tokens.filter(token => token.type === 'solid').length;
-    const comboCount = tokens.filter(token => token.type === 'combo').length;
-
-    let html = `<div class="energy-bucket-card">`;
-    html += `<div class="energy-bucket-title">Energy Bucket</div>`;
-    html += `<div class="energy-bucket">`;
-    html += tokens.length > 0
-        ? tokens.map(renderEnergyToken).join('')
-        : `<div class="energy-empty">No energy stored</div>`;
-    html += `</div>`;
-    html += `<div class="energy-bucket-meta">${regularCount} energy | ${comboCount} combo</div>`;
-    if (playerData.comboPoints && playerData.comboPoints.length > 0) {
-        html += `<div class="combo-list">${playerData.comboPoints.map(formatComboPoint).join('')}</div>`;
-    }
-    if (playerData.mistActive) {
-        html += `<div class="combo-summary">Mist combo is active</div>`;
-    }
-    html += `</div>`;
-
-    el.innerHTML = html;
-}
 
 function formatBreakdown(internal, external, passive = 0, overcharge = 0) {
     const parts = [];
@@ -13731,34 +13561,6 @@ function updateHudRailKnight(prefix, trainer) {
     if (portrait) portrait.style.display = 'none';
 }
 
-/** Full SiegeKnight readout (element + passive + active/ultimate) for the player detail tray. */
-function buildKnightAbilitiesHtml(trainer) {
-    if (!trainer) return '';
-    const parts = [];
-    if (trainer.element) {
-        parts.push(`<span class="m-knight-type" style="color:${getElementHex(trainer.element)}">${escapeHtml(formatElementLabel(trainer.element))}</span>`);
-    }
-    const passiveText = readTrainerAbilityText(trainer.passive);
-    if (passiveText && passiveText !== 'None') {
-        parts.push(`<span class="m-knight-ability"><span class="m-knight-ability-tag">Passive</span>${escapeHtml(passiveText)}</span>`);
-    }
-    const activeText = readTrainerAbilityText(trainer.active);
-    if (activeText && activeText !== 'None') {
-        const label = trainer.oncePerGame ? 'Ultimate' : 'Active';
-        const activeName = trainer.active?.name && trainer.active.name !== activeText
-            ? `${escapeHtml(trainer.active.name)}: `
-            : '';
-        parts.push(`<span class="m-knight-ability"><span class="m-knight-ability-tag tag-active">${label}</span>${activeName}${escapeHtml(activeText)}</span>`);
-    }
-    return parts.join('');
-}
-
-function getTrainerRailAbilityText(trainer) {
-    return getTrainerAbilitySummaries(trainer)
-        .map((entry) => `${entry.label}: ${entry.text}`)
-        .join(' | ');
-}
-
 function getTrainerAbilitySummaries(trainer) {
     if (!trainer) return [];
     const summaries = [];
@@ -14236,12 +14038,14 @@ function buildNexusHubGraphics(hx, hy, hubR, distinctElements) {
         + `<circle cx="${hx}" cy="${hy}" r="${hubR + 3}" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2.5" />`;
 }
 
+// Legend chips render at 18px; the painted elements ship a 96px cut (the
+// 1254px originals were 2.5-3.1 MB each).
 const ELEMENT_KEY_ICON_PATHS = {
-    FIRE: '/img/elements/element-fire.png',
-    EARTH: '/img/elements/element-earth.png',
-    WIND: '/img/elements/element-wind.png',
+    FIRE: '/img/elements/element-fire-96.webp',
+    EARTH: '/img/elements/element-earth-96.webp',
+    WIND: '/img/elements/element-wind-96.webp',
     WATER: '/img/elements/element-water.svg',
-    ICE: '/img/elements/element-ice.png',
+    ICE: '/img/elements/element-ice-96.webp',
     SHADOW: '/img/elements/element-shadow.svg',
     ELECTRIC: '/img/elements/element-electric.svg',
     METAL: '/img/elements/element-metal.svg',
@@ -14740,10 +14544,6 @@ function updateBoardOverlays(gridId, board, isPlayer, options = {}) {
     boardOverlayFingerprints[sideKey] = fingerprint;
 }
 
-function renderNexusOverlays(gridId, board, isPlayer, nexusPoints) {
-    updateBoardOverlays(gridId, board, isPlayer, { forceContent: true, forceLayout: true });
-}
-
 function collectNexusOverlayElements(out, grid, board, isPlayer, nexusPoints) {
     if (!nexusPoints || nexusPoints.length === 0) return;
 
@@ -14843,10 +14643,6 @@ function getBoardCellLocalRect(grid, cellEl) {
         right: left + width,
         bottom: top + height
     };
-}
-
-function renderLinkConnectors(gridId, board, isPlayer) {
-    updateBoardOverlays(gridId, board, isPlayer, { forceContent: true, forceLayout: true });
 }
 
 function collectLinkConnectorElements(out, grid, board, isPlayer) {
@@ -15245,29 +15041,6 @@ const NOTCH_ICON_PATHS = {
     LIGHT: '/img/notches/notch-light.png?v=2',
     NEUTRAL: '/img/notches/notch-neutral.png?v=2'
 };
-
-function renderBoardNotches(notches, options) {
-    const notchMap = {};
-    for (const n of (notches || [])) {
-        notchMap[n.direction] = n;
-    }
-    let html = `<div class="bc-notches">`;
-    for (const dir of ALL_DIRECTIONS) {
-        const notch = notchMap[dir];
-        if (notch) {
-            const elemClass = notch.element.toLowerCase();
-            let stateClass = '';
-            if (options.board) {
-                stateClass = getNotchStateClass(notch, { ...options, isBoard: true });
-            }
-            html += `<div class="bc-notch bc-notch-${dir} filled ${elemClass} ${stateClass}" style="${notchIconStyle(notch.element)}"></div>`;
-        } else {
-            html += `<div class="bc-notch bc-notch-${dir} empty"></div>`;
-        }
-    }
-    html += `</div>`;
-    return html;
-}
 
 function renderHandNotches(notches) {
     const notchMap = {};
@@ -17171,10 +16944,6 @@ function canCardAnchorToSocket(card, row, col) {
     if (col === 2) socketDirections.push('RIGHT');
     if (row === 0) socketDirections.push('BOTTOM');
     return socketDirections.some(direction => (card.notches || []).some(notch => notch.direction === direction));
-}
-
-function canSelectedCardLinkAt(row, col, board) {
-    return canCardLinkAt(selectedCard, row, col, board);
 }
 
 /**

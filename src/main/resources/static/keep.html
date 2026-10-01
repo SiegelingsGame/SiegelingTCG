@@ -92,7 +92,7 @@
 <div class="keep-app" id="keepApp">
     <header class="keep-header">
         <a class="keep-brand" href="/home" aria-label="Back to home">
-            <img src="/img/siegelings-icon.png?v=2" alt="">
+            <img src="/img/siegelings-icon-256.webp" alt="">
             <span><strong id="keepName">My Keep</strong><small id="chapterLabel">Chapter I · The Wounded Ground</small></span>
         </a>
         <div class="keep-resource-bar" aria-label="Keep resources">
@@ -704,7 +704,7 @@
     </div>
 
     <div class="keep-loading" id="keepLoading" aria-live="polite">
-        <img src="/img/siegelings-icon.png?v=2" alt="">
+        <img src="/img/siegelings-icon-256.webp" alt="">
         <strong>Listening to the land…</strong>
     </div>
 
@@ -735,13 +735,15 @@
     </div>
 </div>
 
-<audio id="keepTheme" loop preload="auto"
+<!-- preload="none": the 4-6 MB theme only loads once play() runs on the first
+     gesture, instead of downloading with the page whether or not music is on. -->
+<audio id="keepTheme" loop preload="none"
        data-keep-src="/audio/sieglings-theme.mp3?v=1"
        data-front-src="/audio/sieglings-battle-theme.mp3?v=1"
        src="/audio/sieglings-theme.mp3?v=1"></audio>
 <script src="/js/config.js?v=1"></script>
 <script src="/js/coach.js?v=11"></script>
-<script src="/js/keep.js?v=57"></script>
+<script src="/js/keep.js?v=58"></script>
 <script src="/js/keep-tutorial.js?v=3"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>

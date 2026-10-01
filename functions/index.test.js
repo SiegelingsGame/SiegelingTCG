@@ -378,3 +378,43 @@ test('art-mirror resizes card art to a WebP thumbnail', async () => {
   assert.equal(meta.height, 480);
   assert.equal(meta.hasAlpha, true);
 });
+
+test('large JSON responses are gzipped for clients that accept it; images are not', async () => {
+  const http = require('node:http');
+  const zlib = require('node:zlib');
+  const { app } = require('./index');
+  const big = { cards: Array.from({ length: 400 }, (_, i) => ({ id: `card-${i}`, name: `Card ${i}`, element: 'FIRE' })) };
+  // Registered after the module's middleware, so these go through it exactly
+  // like the real routes do.
+  app.get('/__test/large-json', (req, res) => res.json(big));
+  app.get('/__test/small-json', (req, res) => res.json({ ok: true }));
+  app.get('/__test/image', (req, res) => res.type('image/webp').send(Buffer.alloc(64 * 1024, 7)));
+  const server = app.listen(0);
+  const port = server.address().port;
+  const get = (path, headers) => new Promise((resolve, reject) => {
+    http.get({ port, path, headers }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve({ headers: res.headers, body: Buffer.concat(chunks) }));
+    }).on('error', reject);
+  });
+  try {
+    const gz = await get('/__test/large-json', { 'Accept-Encoding': 'gzip' });
+    assert.equal(gz.headers['content-encoding'], 'gzip');
+    assert.deepEqual(JSON.parse(zlib.gunzipSync(gz.body)), big);
+    assert.ok(gz.body.length < JSON.stringify(big).length / 4);
+
+    const plain = await get('/__test/large-json', {});
+    assert.equal(plain.headers['content-encoding'], undefined);
+    assert.deepEqual(JSON.parse(plain.body), big);
+
+    const small = await get('/__test/small-json', { 'Accept-Encoding': 'gzip' });
+    assert.equal(small.headers['content-encoding'], undefined);
+
+    const image = await get('/__test/image', { 'Accept-Encoding': 'gzip' });
+    assert.equal(image.headers['content-encoding'], undefined);
+    assert.equal(image.body.length, 64 * 1024);
+  } finally {
+    server.close();
+  }
+});

@@ -1748,7 +1748,7 @@ img { display: block; }
     flex: 0 0 auto;
     width: 35px;
     aspect-ratio: 1;
-    background: url('/img/notches/notch-earth.png?v=2') center / contain no-repeat;
+    background: url('/img/notches/notch-earth.webp?v=2') center / contain no-repeat;
     filter: drop-shadow(0 0 9px rgba(166, 226, 111, .55));
 }
 .placement-demo {

@@ -1,4 +1,51 @@
 Original prompt: Merge and deploy
+- October 1, 2026 - **Performance pass: compressed API, right-sized images, WebP on iPhones, dead code and assets removed.**
+  - **API.** `server.compression.enabled=true` (Spring) and the `compression` middleware (Cards Editor Function). Hosting relays both as-is, and API JSON had been going out raw: `/api/game/options` 381 KB -> 23 KB, `/api/cards/editor` ~200 KB -> ~30 KB, `/api/shop/packs` 57 KB -> 6.6 KB.
+  - **`/api/art/loading`.** It was doing two Storage list calls plus a jar scan on every hub/Siege visit (~450 ms of the ~0.7 s response). The Storage listing is now cached for 5 min. Both upload paths clear it, and a write mid-listing or a partial listing is never cached. The packaged-art scan runs once.
+  - **WebP on iPhones.** `sgPreferWebp`, `preferWebp` and `landingWebpSupported` detected WebP by *encoding* it on a canvas. Safari cannot do that (MDN: `toDataURL` webp unsupported on Safari/iOS), so iPhones were served every multi-MB PNG. The helpers now assume support and turn it off only if a 1x1 WebP fails to *decode*. iOS now takes the path Chrome already used.
+  - **Right-sized art.**
+    - New `img/siegelings-icon-256.webp` (33 KB) replaces the 529 KB PNG on every page; the largest render is 84px.
+    - `img/elements/element-*-96.webp` (~5.5 KB) for the 18px legend chips (were 2.5-3.1 MB PNGs). Binder element art now goes through `preferWebp`.
+    - Gate logo -> `siegelings-logo.webp`. Hub header logo -> the 256px icon. Hub notches and card backs go through `preferWebp`. Landing notches -> `.webp`.
+    - Footer logo -> `pcg-logo-800.webp`, lazy.
+    - Landing element rail -> `img/lands/thumbs/*.webp` (640px), painted by an IntersectionObserver (0 land fetches at load; was 12, ~2.4 MB).
+    - Siege favicon -> the ico/48/192 set (was a 718 KB PNG).
+  - **Play.**
+    - The unused Howler.js CDN script is removed.
+    - The multiplayer room poll skips `render()` when the payload is byte-identical *and* `gameState` is still the object the last poll installed. It also pauses while the tab is hidden and polls at once on return. The server's presence/expiry never depended on polls (`isExpired` reads `expiresAt` only).
+  - **Keep.** Theme `<audio>` is `preload="none"` (the 6 MB track no longer downloads before the first gesture).
+  - **Hosting/deploy.**
+    - `no-cache` now also covers `/`, `/battle`, `/legacy(/**)`, `/settings`, `/next`, `/gallery`, `/shop/**`. The emulator showed `/`, `/battle` and `/legacy` sent no Cache-Control.
+    - `/landing` serves `index.html`, and the byte-identical `landing.html` is deleted.
+    - `ignore` drops `*-fixture.html`, `*-preview.html` and `*.d.ts` from Hosting.
+    - New `.gcloudignore` keeps Cloud Run source uploads to the Maven project.
+  - **Removed.**
+    - 102 assets / 161 MB unreferenced by old code, new code, tests, tools or any recorded live API payload: PNG/JPG twins of WebPs, `img/legendary/`, `assets/models/*.fbx`, root `static/game.js` + `style.css`. `frame-spell-*.png` is kept for `tools/build_spell_frames.py`. Files only the old pages named (`siegelings-icon.png`, `siegelings-logo.png`, `pcg-logo.jpg`, `favicon.png`) are kept for clients still holding cached HTML.
+    - 44 never-called functions (~25 KB), found with the TypeScript parser. Each name occurs exactly once across site code, `src/test`, `tests/` and `tools/`, iterated to a fixpoint.
+    - The committed service-account key is untracked (it must still be rotated).
+  - **Deferred.** Splitting `landing.css` for `/play`: Play also depends on its `.hidden`, `.is-open`, `.knight-card*`, `.mulligan-card-slot` and global `*`/`img`/16px-input rules, which needs its own audit.
+  - **Cache pins:**
+    - `game.js?v=305`, `card-binder-visual.js?v=27`, `home-redesign.js?v=57`, `home.js?v=174`
+    - `landing.js?v=40`, `landing.css?v=44` (index + play), `install-guide.js?v=3`, `loading-gate.js?v=6`
+    - `arena-tutorial.js?v=51`, `fx.js?v=5`, `sounds.js?v=3`, `keep.js?v=58`, `siege-tutorial.js?v=28`
+- Verification: baselines were captured from a pristine copy of `main` and every check was re-run after.
+  - **JUnit.** 732 -> 735 green, including 3 new `LoadingArtStorageServiceTest` cache tests (mutation-checked: disabling the cache or the invalidation fails them).
+  - **Functions.** `npm test` 22 -> 23 green; the new gzip test was mutation-checked. `node --check` passes on every JS file.
+  - **Page-health harness.** Headless Chromium at 390x844 (DPR 3) and 1920x1080 over landing, 6 hub screens, play, siege, keep, help, legacy hub, legacy lobby, dashboard and offline. Live public API GETs were replayed from a recording; writes were blocked.
+    - 0 new page errors, console errors, failed requests, non-200s or broken images.
+    - Image bytes: Play 1.5 MB -> 0.35 MB, Keep 1.06 MB -> 64 KB, hub home 2.1 -> 1.1 MB, offline 529 -> 32 KB.
+    - With Safari's canvas behaviour emulated, PNG bytes drop from 1.2-2.1 MB to 46 KB per hub/play screen.
+  - **Computed-style diff.** Every property of every element on play (loadout + open gate) and landing (+ overlay), phone and desktop, ~13.5k elements. 0 unexplained differences over two repeat runs; only the intended notch URL swaps and the lazily painted land tiles change.
+  - **Behaviour harnesses.**
+    - Multiplayer poll: identical polls 3 renders -> 1, a state change still renders, a hidden tab makes 0 status calls, and visible again polls within 400 ms.
+    - Keep: no mp3 before a gesture; plays after.
+    - Landing tiles: 12/12 paint on scroll.
+  - **Local jars.** The original jar vs the clean-built final jar (362 MB -> 205 MB) return JSON-identical `/api/art/loading` (123 pieces, all WebP), `/api/game/options`, `/api/shop/packs` and `/api/game/catalog-version`; the final jar gzips them.
+  - **Deploy config.**
+    - The Firebase Hosting emulator confirms the new no-cache headers and the `/landing` rewrite.
+    - Firebase's own `listFiles` shrinks the Hosting upload from 620 files / 297 MB to 524 / 137 MB with no fixtures.
+    - `gcloud meta list-files-for-upload` drops from 1,557 files / 447 MB to the Maven project (still includes Dockerfile, pom.xml, mvnw, .mvn, src).
+  - **Not run.** `tests/mobile-overlap` (it needs `@playwright/test`, which isn't installed); the `home.css` and fixture it checks are unchanged.
 - October 1, 2026 - **Landing card-placement demo uses the binder card face.**
   - **Change.** The "Place a card. Power the board." demo (anchor Applehead, the placed card, and the three hand cards) drew its own older face. It had a dark info box over the art, its own notch images and no description. It now renders through `renderBinderFace`, like the roster and legendary rows:
     - painted frame scene, transparent art and the frame's own notch sockets;

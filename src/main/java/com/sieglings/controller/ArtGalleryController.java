@@ -19,6 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -47,6 +48,8 @@ public class ArtGalleryController {
 
     @Autowired
     private LoadingArtStorageService loadingArtStorageService;
+
+    private volatile Map<String, ArtFile> packagedArtFiles;
 
     @Autowired
     private CardOverrideStorageService storageService;
@@ -188,34 +191,7 @@ public class ArtGalleryController {
      * Hosting-visible URLs.
      */
     private Map<String, ArtFile> collectArtFilesByFilename() {
-        Map<String, ArtFile> filesByFilename = new TreeMap<>();
-        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-        try {
-            Resource[] resources = resolver.getResources("classpath*:/static/img/art/loading/*.*");
-            for (Resource resource : resources) {
-                String filename = resource.getFilename();
-                if (filename != null) {
-                    filesByFilename.put(filename, new ArtFile("/img/art/loading/" + filename, ArtSource.LOADING));
-                }
-            }
-        } catch (Exception ex) {
-            // An unreadable classpath folder just means fewer entries.
-        }
-        try {
-            Resource[] galleryResources = resolver.getResources("classpath*:/static/img/gallery/*.*");
-            for (Resource resource : galleryResources) {
-                String filename = resource.getFilename();
-                if (filename != null) {
-                    // Do not clobber a loading-folder file of the same name.
-                    filesByFilename.putIfAbsent(
-                            filename,
-                            new ArtFile("/img/gallery/" + filename, ArtSource.CINEMATIC)
-                    );
-                }
-            }
-        } catch (Exception ex) {
-            // Gallery is optional for the loading catalog.
-        }
+        Map<String, ArtFile> filesByFilename = new TreeMap<>(packagedArtFiles());
         Path uploadDir = loadingArtStorageService.getArtDirectory();
         if (Files.isDirectory(uploadDir)) {
             try (Stream<Path> files = Files.list(uploadDir)) {
@@ -248,6 +224,55 @@ public class ArtGalleryController {
             filesByFilename.put(hosted.getKey(), new ArtFile(url, source));
         }
         return filesByFilename;
+    }
+
+    /**
+     * The art packaged in the jar cannot change while the JVM runs, so the
+     * classpath scan (a walk over every jar entry) runs once rather than on
+     * every /api/art/loading call. A scan that failed is not remembered, so a
+     * transient read error cannot drop packaged art for the life of the process.
+     */
+    private Map<String, ArtFile> packagedArtFiles() {
+        Map<String, ArtFile> cached = packagedArtFiles;
+        if (cached != null) {
+            return cached;
+        }
+        Map<String, ArtFile> filesByFilename = new TreeMap<>();
+        boolean complete = true;
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        try {
+            Resource[] resources = resolver.getResources("classpath*:/static/img/art/loading/*.*");
+            for (Resource resource : resources) {
+                String filename = resource.getFilename();
+                if (filename != null) {
+                    filesByFilename.put(filename, new ArtFile("/img/art/loading/" + filename, ArtSource.LOADING));
+                }
+            }
+        } catch (Exception ex) {
+            // An unreadable classpath folder just means fewer entries.
+            complete = false;
+        }
+        try {
+            Resource[] galleryResources = resolver.getResources("classpath*:/static/img/gallery/*.*");
+            for (Resource resource : galleryResources) {
+                String filename = resource.getFilename();
+                if (filename != null) {
+                    // Do not clobber a loading-folder file of the same name.
+                    filesByFilename.putIfAbsent(
+                            filename,
+                            new ArtFile("/img/gallery/" + filename, ArtSource.CINEMATIC)
+                    );
+                }
+            }
+        } catch (Exception ex) {
+            // Gallery is optional for the loading catalog.
+            complete = false;
+        }
+        Map<String, ArtFile> result = Collections.unmodifiableMap(filesByFilename);
+        if (complete) {
+            packagedArtFiles = result;
+        }
+        return result;
     }
 
     private static boolean isGalleryUrl(String url) {

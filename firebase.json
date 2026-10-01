@@ -8,7 +8,10 @@
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**"
+      "**/node_modules/**",
+      "**/*-fixture.html",
+      "**/*-preview.html",
+      "**/*.d.ts"
     ],
     "headers": [
       {
@@ -39,7 +42,7 @@
         ]
       },
       {
-        "source": "/@(landing|home|login|social|cards|decks|lobbies|profile|achievements|deck-builder|shop|play|siege|keep|help)",
+        "source": "/@(landing|home|login|social|cards|decks|lobbies|profile|achievements|deck-builder|shop|play|battle|siege|keep|help|legacy|settings|next|gallery)",
         "headers": [
           {
             "key": "Cache-Control",
@@ -48,7 +51,16 @@
         ]
       },
       {
-        "source": "/@(social|profile|achievements)/**",
+        "source": "/@(social|profile|achievements|legacy|shop)/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/",
         "headers": [
           {
             "key": "Cache-Control",
@@ -69,7 +81,7 @@
     "rewrites": [
       {
         "source": "/landing",
-        "destination": "/landing.html"
+        "destination": "/index.html"
       },
       {
         "source": "/home",

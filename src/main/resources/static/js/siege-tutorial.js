@@ -1454,7 +1454,6 @@
     return visited['cache-a'] ? 'rift-a' : 'cache-a';
   }
 
-  function leadName() { return M.party[0] ? M.party[0].name : 'your Siegeling'; }
   function knightName() { return M.knight.name; }
 
   function buildSteps() {

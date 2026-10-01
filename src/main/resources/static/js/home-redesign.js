@@ -57,10 +57,17 @@
     return (typeof NOTCH_ICON_PATHS !== 'undefined' && NOTCH_ICON_PATHS) || EL_NOTCH;
   }
 
+  // The canonical notch/card-back paths are .png literals; every one has a
+  // WebP twin a fraction of the size, which the binder helper swaps in.
+  function webp(url) {
+    var visual = window.SieglingsCardBinderVisual;
+    return visual && visual.preferWebp ? visual.preferWebp(url) : url;
+  }
+
   function icon(el) {
     var key = String(el || '').toUpperCase();
     var map = notchArt();
-    return map[key] || map.NEUTRAL || EL_NOTCH.NEUTRAL;
+    return webp(map[key] || map.NEUTRAL || EL_NOTCH.NEUTRAL);
   }
   function land(el) { return '/img/lands/' + (EL_LAND[String(el || '').toUpperCase()] || 'relic') + '.webp'; }
   function title(v) {
@@ -328,10 +335,6 @@
     if (!ext) return '';
     if (ext.charAt(0) !== '/') return ' href="' + pathForScreen(ext) + '" data-screen="' + ext + '"';
     return ' href="' + ext + '"';
-  }
-  function hrefFor(label) {
-    if (INTERNAL[label]) return pathForScreen(INTERNAL[label]);
-    return EXTERNAL[label] || '';
   }
 
   // Tray badges were invented ("412" cards, "6" decks, "11 open", "4 on", a "2h"
@@ -915,7 +918,7 @@
     var guest = Boolean(opts && opts.guest);
     var unread = unreadNotifCount(opts);
     return '<header class="sg-top' + (guest ? ' is-guest' : '') + '">' +
-      '<img class="sg-logo" src="/img/siegelings-logo.webp" alt="Siegelings">' +
+      '<img class="sg-logo" src="/img/siegelings-icon-256.webp" alt="Siegelings">' +
       '<span class="sg-top-spacer"></span>' +
       '<span class="sg-chip coin"><img src="/img/ui/home-stats/siegecoin.png" alt="">' +
         esc(formatCoins(opts, guest)) + '</span>' +
@@ -4050,7 +4053,7 @@
     return null;
   }
   function cardBackArt(entry) {
-    return '/img/decks/card-back-' + String(entry.element).toLowerCase() + '.png';
+    return webp('/img/decks/card-back-' + String(entry.element).toLowerCase() + '.png');
   }
 
   function normalizePrefs(raw) {
@@ -5534,28 +5537,6 @@
       '<div class="sg-empty-body"><strong>Nobody is waiting</strong>' +
       '<p>Host a table and it shows up here for everyone.</p></div>' +
     '</div>';
-  }
-
-  // Kael, Ruune, Sable and Wren were invented people with invented statuses.
-  // /api/social/presence returns the signed-in account's real friends with live
-  // presence, so the list is that or it is empty.
-  function friendsSection(opts) {
-    var friends = (opts && opts.live && opts.live.friends) || [];
-    return '<section class="sg-section">' +
-      '<div class="sg-section-head"><h3>Friends</h3></div>' +
-      (friends.length
-        ? '<div class="sg-stack sg-stack-tight">' + friends.slice(0, 12).map(function (f) {
-            var p = f.presence || {};
-            var name = f.displayName || f.email || 'Player';
-            var status = p.online ? title(p.status || 'ONLINE') : 'Offline';
-            return '<div class="sg-friend' + (p.online ? ' is-on' : '') + '">' +
-              '<span class="sg-friend-crest">' + esc(String(name).charAt(0).toUpperCase()) + '</span>' +
-              '<span class="sg-friend-body"><strong>' + esc(name) + '</strong><em>' + esc(status) + '</em></span>' +
-              (p.online ? '<button class="sg-friend-go" type="button">Invite</button>' : '') +
-            '</div>';
-          }).join('') + '</div>'
-        : '<div class="sg-empty-row">No friends added yet.</div>') +
-    '</section>';
   }
 
   /* ---------- social behaviour ----------

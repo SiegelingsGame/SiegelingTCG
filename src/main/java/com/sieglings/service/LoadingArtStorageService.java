@@ -21,6 +21,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
@@ -28,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -48,6 +52,11 @@ public class LoadingArtStorageService {
     private static final long MAX_BYTES = 8L * 1024L * 1024L;
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("png", "jpg", "jpeg", "webp", "gif");
     private static final Set<String> ORIENTATIONS = Set.of("landscape", "portrait");
+    // Listing hosted art is two Storage list calls (~450 ms on Cloud Run), and
+    // /api/art/loading runs on every hub and Siege visit. Uploads through this
+    // service clear the cache at once; the TTL only bounds how long an object
+    // changed outside the app (e.g. in the Firebase console) can stay unseen.
+    static final Duration HOSTED_LISTING_TTL = Duration.ofMinutes(5);
 
     private final ObjectMapper objectMapper;
     private final boolean cloudStorageEnabled;
@@ -58,6 +67,9 @@ public class LoadingArtStorageService {
     private volatile StorageClientContext storageContext;
     private volatile boolean storageInitializationAttempted;
     private volatile String storageInitializationError;
+    private volatile HostedListing hostedListing;
+    private final AtomicLong hostedListingGeneration = new AtomicLong();
+    private Clock clock = Clock.systemUTC();
 
     @Autowired
     public LoadingArtStorageService(
@@ -99,6 +111,15 @@ public class LoadingArtStorageService {
         if (context == null) {
             return Collections.emptyMap();
         }
+        Instant now = clock.instant();
+        HostedListing cached = hostedListing;
+        if (cached != null && now.isBefore(cached.expiresAt())) {
+            return cached.urlsByFilename();
+        }
+        // An upload that lands while this listing runs bumps the generation, so
+        // a listing that may predate it is returned but never cached.
+        long generation = hostedListingGeneration.get();
+        boolean complete = true;
         Map<String, String> urlsByFilename = new TreeMap<>();
         try {
             Page<Blob> blobs = context.storage().list(
@@ -121,6 +142,7 @@ public class LoadingArtStorageService {
             }
         } catch (Exception ex) {
             // Loading-folder hosted list failed — still try gallery below.
+            complete = false;
         }
         try {
             Page<Blob> galleryBlobs = context.storage().list(
@@ -144,8 +166,31 @@ public class LoadingArtStorageService {
             }
         } catch (Exception ex) {
             // Gallery hosted list is optional.
+            complete = false;
         }
-        return urlsByFilename;
+        Map<String, String> result = Collections.unmodifiableMap(urlsByFilename);
+        // A partial listing is not cached: a transient Storage error must not
+        // hide hosted art for the whole TTL.
+        if (complete && hostedListingGeneration.get() == generation) {
+            hostedListing = new HostedListing(result, now.plus(HOSTED_LISTING_TTL));
+        }
+        return result;
+    }
+
+    private void invalidateHostedListing() {
+        hostedListingGeneration.incrementAndGet();
+        hostedListing = null;
+    }
+
+    /** Test seam: route Storage calls to a stub client instead of Google Cloud. */
+    void useStorageClient(Storage storage, String bucketName) {
+        storageContext = new StorageClientContext(storage, bucketName);
+        storageInitializationAttempted = true;
+    }
+
+    /** Test seam: drive the listing TTL without sleeping. */
+    void setClock(Clock clock) {
+        this.clock = clock;
     }
 
     /**
@@ -213,8 +258,12 @@ public class LoadingArtStorageService {
                 .setCacheControl("public,max-age=31536000,immutable")
                 .setMetadata(Map.of("firebaseStorageDownloadTokens", downloadToken))
                 .build();
-        context.storage().create(blobInfo, file.getBytes());
-        deleteOtherCloudVariants(context, STORAGE_PREFIX, baseName, objectPath);
+        try {
+            context.storage().create(blobInfo, file.getBytes());
+            deleteOtherCloudVariants(context, STORAGE_PREFIX, baseName, objectPath);
+        } finally {
+            invalidateHostedListing();
+        }
         return buildStoragePublicUrl(context.bucketName(), objectPath, downloadToken);
     }
 
@@ -228,18 +277,22 @@ public class LoadingArtStorageService {
                 .setCacheControl("public,max-age=31536000,immutable")
                 .setMetadata(Map.of("firebaseStorageDownloadTokens", downloadToken))
                 .build();
-        context.storage().create(blobInfo, bytes);
-        // Keep the thumb sibling current so the hub carousel does not show a
-        // stale crop after a full-plate replace (same bytes is acceptable).
-        String thumbToken = UUID.randomUUID().toString();
-        BlobInfo thumbInfo = BlobInfo.newBuilder(BlobId.of(context.bucketName(), thumbPath))
-                .setContentType(contentTypeForExtension(extension))
-                .setCacheControl("public,max-age=31536000,immutable")
-                .setMetadata(Map.of("firebaseStorageDownloadTokens", thumbToken))
-                .build();
-        context.storage().create(thumbInfo, bytes);
-        deleteOtherCloudVariants(context, GALLERY_STORAGE_PREFIX, pieceId, objectPath);
-        deleteOtherCloudVariants(context, GALLERY_STORAGE_PREFIX, pieceId + "-thumb", thumbPath);
+        try {
+            context.storage().create(blobInfo, bytes);
+            // Keep the thumb sibling current so the hub carousel does not show a
+            // stale crop after a full-plate replace (same bytes is acceptable).
+            String thumbToken = UUID.randomUUID().toString();
+            BlobInfo thumbInfo = BlobInfo.newBuilder(BlobId.of(context.bucketName(), thumbPath))
+                    .setContentType(contentTypeForExtension(extension))
+                    .setCacheControl("public,max-age=31536000,immutable")
+                    .setMetadata(Map.of("firebaseStorageDownloadTokens", thumbToken))
+                    .build();
+            context.storage().create(thumbInfo, bytes);
+            deleteOtherCloudVariants(context, GALLERY_STORAGE_PREFIX, pieceId, objectPath);
+            deleteOtherCloudVariants(context, GALLERY_STORAGE_PREFIX, pieceId + "-thumb", thumbPath);
+        } finally {
+            invalidateHostedListing();
+        }
         return buildStoragePublicUrl(context.bucketName(), objectPath, downloadToken);
     }
 
@@ -525,4 +578,6 @@ public class LoadingArtStorageService {
     }
 
     private record StorageClientContext(Storage storage, String bucketName) {}
+
+    private record HostedListing(Map<String, String> urlsByFilename, Instant expiresAt) {}
 }

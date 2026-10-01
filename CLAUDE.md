@@ -36,10 +36,12 @@ Siegelings TCG is a tactical elemental card game with two playable modes:
    `adventure.js` only renders state and plays back presentation events. Run
    state is addressed by an opaque token in `localStorage.siegeToken`.
 
-Supporting surfaces: landing (`/` → `index.html`, 3D FBX legendary viewer), hub
-(`/home` → `home.html` — also serves `/cards`, `/decks`, `/profile`, `/shop`,
-`/social`, `/achievements`, `/deck-builder` via rewrites; contains gacha packs,
-binder, social lobbies, deck builder), and the **live card dashboard**
+Supporting surfaces: landing (`/` and `/landing` → `index.html`), hub
+(`/home` → `home-next.html`, driven by `home-redesign.js` — also serves `/cards`,
+`/decks`, `/profile`, `/shop`, `/social`, `/achievements`, `/deck-builder` via
+rewrites; contains gacha packs, binder, deck builder). The legacy hub
+`home.html` still answers `/legacy/*` and, importantly, `/social/lobby/*` —
+the live multiplayer lobby — so it is not dead code. Then the **live card dashboard**
 (`/card-dashboard.html`) where designers edit card/deck data persisted in
 Firestore.
 
@@ -73,8 +75,8 @@ Firestore.
 |---|---|
 | Battle Table UI | `static/play.html`, `static/js/game.js` (~15k lines), `static/css/style.css` (~14k lines) |
 | Battle playback/FX | `static/js/action-queue.js` (queues server log/state diffs into animations), `static/js/fx.js` (projectiles/particles) |
-| Hub UI | `static/home.html`, `static/js/home.js`, `static/css/home.css` |
-| Landing | `static/index.html`, `static/js/landing.js`, `static/css/landing.css`, `static/js/legendary-viewport.js` |
+| Hub UI | `static/home-next.html`, `static/js/home-redesign.js`, `static/css/home-redesign.css` (legacy hub + lobby: `static/home.html`, `static/js/home.js`, `static/css/home.css`) |
+| Landing | `static/index.html`, `static/js/landing.js`, `static/css/landing.css` |
 | Adventure UI | `static/adventure.html`, `static/js/adventure.js`, `static/css/adventure.css` |
 | Card dashboard | `static/card-dashboard.html`, `static/js/card-dashboard.js`, `static/css/card-dashboard.css` |
 | TCG rules engine | `src/main/java/com/sieglings/service/`: `GameService` (orchestration/phases), `PlacementService` (legal cells, foundation network), `EnergyService` (links/sockets/combos), `BattleService` (speed order, abilities), `EffectService` (effect-key resolver), `AIService` |
@@ -83,9 +85,15 @@ Firestore.
 | REST API | `controller/GameController` (`/api/game/**`), `SocialController`, `AuthController`, plus progression/missions/leaderboards/shop; adventure has `SiegeController` |
 | Tests | `src/test/java/com/sieglings/service/*Test.java` (JUnit); `tests/mobile-overlap/` (Playwright layout guard, uses `static/mobile-overlap-fixture.html`) |
 
-**Legacy traps**: `static/game.js` and `static/style.css` at the static *root*
-(not under `js/`/`css/`) are dead legacy copies. The active bundles are
-`static/js/game.js` and `static/css/style.css`.
+**Images**: raster art ships as `.webp` (PNG originals are kept only where code
+still names the `.png` path as a fallback). Size art to its largest rendered box
+at 3x — e.g. `img/siegelings-icon-256.webp`, `img/elements/element-*-96.webp`,
+`img/lands/thumbs/*.webp`. The `sgPreferWebp`/`preferWebp`/`landingImgAttrs`
+helpers detect WebP by *decoding* a probe image: Safari decodes WebP but cannot
+encode it, so a canvas `toDataURL('image/webp')` check wrongly fails on iPhones.
+Dev fixtures (`*-fixture.html`, `*-preview.html`) are excluded from Hosting via
+`firebase.json` `ignore`; `.gcloudignore` keeps Cloud Run uploads to the Maven
+project.
 
 ## Non-negotiable conventions
 
