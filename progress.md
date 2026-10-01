@@ -1,4 +1,15 @@
 Original prompt: Merge and deploy
+- October 1, 2026 - **Landing cards: every description is scaled to fit its card.**
+  - **Change.** `landing.js fitCardDescription` runs on every binder face in the roster rows and the legendary row. It is a binary search on the description list's font size, like `game.js fitFramedSummaryList`, with these differences:
+    - **Floor:** 3px instead of the binder's 7px, because the longest lore (Glaciemperor, Hydroxyl and Peatbeak, about 370-380 characters) cannot fit a 142px phone card at a legible size and the ask is that it all fits.
+    - **Ceiling:** scales with the card (`7.5%` of its width, 7-14px), so short text on a large legendary card reads larger.
+    - **Rounding and leading:** the result is rounded down, then re-checked; rounding the boundary size up tipped Solgator/Emberfin/Dracoil just over. If nothing fits, the leading tightens to 1.12 before the size shrinks further.
+  - **When it runs.** Cloned marquee cards reuse the measurement of their original. The fit reruns after fonts settle and on resize.
+  - **Cache pin:** `landing.js?v=38` (`index.html`, `landing.html`).
+- Verification: headless Chromium against the live catalog snapshot at 390x844, 320x568, 1920x1080 and 1366x768.
+  - All 172 card faces (2 roster rows with clones, plus 6 legendaries) end with body and list `scrollHeight <= clientHeight`, and none is left unfitted.
+  - **Sizes:** 3.1-14px on phones, 3.8-12.1px on desktop. Pylord's one-liner grows to 14px; Glaciemperor's 380 characters shrink to about 5px.
+  - The behavior harness (drift/wrap/tap/spotlight/thumbnails/no full-size art/no errors) still passes.
 - October 1, 2026 - **Landing cards drawn exactly as the binder draws them; card art served as thumbnails so iOS stops killing and reloading the page.**
   - **Why.** On a phone, the landing rows from the previous entry had two problems:
     - The art sat in an opaque box that hid the frame's painted scene.

@@ -476,6 +476,82 @@
             </div>`;
     }
 
+    // Description fit: every card prints its whole description. Same binary
+    // search as game.js fitFramedSummaryList, but with a lower floor, because
+    // the binder's 7px floor still clips the longest lore on a phone-sized
+    // card. The ceiling scales with the card, so short text on a big
+    // legendary card reads larger instead of leaving the panel half empty.
+    const DESCRIPTION_FLOOR_PX = 3;
+    function fitCardDescription(card, memo) {
+        const body = card.querySelector('.hand-card-body');
+        const list = card.querySelector('.card-summary-list');
+        const text = card.querySelector('.card-summary-description');
+        if (!body || !list || !text || !body.clientHeight || !list.clientWidth) return;
+        // Clones in a marquee row are the same card at the same width; measure once.
+        const key = `${Math.round(card.clientWidth)}|${text.textContent}`;
+        if (memo && memo.has(key)) {
+            const [size, lineHeight] = memo.get(key);
+            list.style.fontSize = size;
+            text.style.lineHeight = lineHeight;
+            return;
+        }
+        list.style.fontSize = '';
+        text.style.lineHeight = '';
+        const maxPx = Math.min(14, Math.max(7, card.clientWidth * 0.075));
+        // The list clips internally (overflow hidden), so check its own overflow
+        // as well as the body's.
+        const fits = () => body.scrollHeight <= body.clientHeight + 0.5 && list.scrollHeight <= list.clientHeight + 0.5;
+        const search = () => {
+            let lo = DESCRIPTION_FLOOR_PX;
+            let hi = maxPx;
+            let best = DESCRIPTION_FLOOR_PX;
+            for (let i = 0; i < 10; i += 1) {
+                const mid = (lo + hi) / 2;
+                list.style.fontSize = `${mid}px`;
+                if (fits()) { best = mid; lo = mid; } else { hi = mid; }
+            }
+            // Round down: rounding the boundary size up can tip it back over.
+            let size = Math.floor(best * 100) / 100;
+            list.style.fontSize = `${size}px`;
+            while (!fits() && size > DESCRIPTION_FLOOR_PX) {
+                size = Math.max(DESCRIPTION_FLOOR_PX, size - 0.1);
+                list.style.fontSize = `${size.toFixed(2)}px`;
+            }
+            return fits();
+        };
+        // Tighter leading buys a size step before the text has to shrink further.
+        if (!search()) {
+            text.style.lineHeight = '1.12';
+            search();
+        }
+        if (memo) memo.set(key, [list.style.fontSize, text.style.lineHeight]);
+    }
+
+    function fitCardDescriptions(root) {
+        if (!root) return;
+        const memo = new Map();
+        root.querySelectorAll('.binder-framed-slot .hand-card').forEach((card) => fitCardDescription(card, memo));
+    }
+
+    // Cards are fitted after layout, again once web fonts settle (metrics
+    // change), and on resize, since card widths are viewport-relative.
+    const fitRoots = new Set();
+    let fitFrame = null;
+    function scheduleDescriptionFit(root) {
+        if (root) fitRoots.add(root);
+        if (fitFrame != null) window.cancelAnimationFrame(fitFrame);
+        fitFrame = window.requestAnimationFrame(() => {
+            fitFrame = null;
+            fitRoots.forEach(fitCardDescriptions);
+        });
+    }
+    document.fonts?.ready?.then(() => scheduleDescriptionFit());
+    let fitResizeTimer = null;
+    window.addEventListener('resize', () => {
+        window.clearTimeout(fitResizeTimer);
+        fitResizeTimer = window.setTimeout(() => scheduleDescriptionFit(), 160);
+    });
+
     // Auto-drifting card rows. A real overflow scroller (not a CSS transform) so a
     // thumb swipe or trackpad flick still browses it; the drift pauses while the
     // player is touching, hovering or focused inside, and resumes a moment after.
@@ -586,6 +662,8 @@
             </button>`;
         fillMarquee(rowA, rows[0], markup);
         fillMarquee(rowB, rows[1], markup);
+        scheduleDescriptionFit(rowA);
+        scheduleDescriptionFit(rowB);
 
         function show(index) {
             if (!spotlight) return;
@@ -649,6 +727,7 @@
                 ${renderBinderFace(card, { thumbWidth: 480 })}
                 ${card.pitch ? `<p>${escapeHtml(card.pitch)}</p>` : ''}
             </article>`).join('');
+        scheduleDescriptionFit(host);
     }
 
     // ── Hero art stage ────────────────────────────────────────────────────
