@@ -1,4 +1,23 @@
 Original prompt: Merge and deploy
+- October 1, 2026 (deploy) **PR #992 (performance pass) merged to `main` as `79ba5550`; Deploy run #980 green** (Cloud Run 16:49-16:53 UTC, Hosting + Functions by 16:55).
+  - **Recovery point.**
+    - Branch `recovery/pre-perf-pass-2026-10-01` is at `c5722252`, the last deploy before #992 (run #979).
+    - To roll back: Actions -> Deploy -> *Run workflow* on that branch (the workflow has no branch filter and checks out the chosen ref), or revert the #992 merge on `main`.
+    - Pushing a tag was refused (HTTP 403) from the agent environment, hence a branch.
+  - **Merge with main.** #989-#991 landed while #992 was open.
+    - Conflicts were only cache pins and the deleted `landing.html` (main had kept it byte-identical to `index.html`).
+    - Assets changed on both sides got pins above main's shipped ones: `game.js` 307, `home.js` 175 (a *silent* collision at 174), `landing.js` 44, `landing.css` 46.
+    - After the merge: JUnit 735/735 and functions 23/23. A TypeScript-parser check found none of the 44 removed functions or 103 deleted files referenced by main's new code.
+  - **Later commits.** `1f33f909` and `ec97c66c` (runs #981, #982, green) were pushed after the merge. They also reference no removed function or deleted asset, bump their pins above #992's (`game.js` 308, `landing.js` 45), and call the fixed `sgPreferWebp`.
+- Verification against production (21:16 UTC):
+  - **Health.** `/api/cards/editor` returns `source: FIRESTORE`, `liveEditingEnabled: true` and `firestoreAvailable: true` through Hosting and Cloud Run direct. `config.js` has `apiBaseUrl: ''`. `/api/game/options` has 6 decks and 13 trainers.
+  - **Compression.** API JSON is now gzipped: options 234 -> 27 KB, editor (Function) 200 -> 31 KB, packs 53 -> 6.6 KB, art/loading 28 -> 3.9 KB. The pre-deploy snapshot had no `content-encoding`.
+  - **Art listing.** Warm `/api/art/loading` TTFB is ~0.24 s (was ~0.7 s).
+  - **Caching.** `cache-control: no-cache` now on `/`, `/battle`, `/legacy` (pre-deploy `/` was `max-age=3600`).
+  - **Assets.** All new WebPs serve as `image/webp`. Fixtures, previews, `assets/models`, `img/legendary` and the root legacy `game.js` now fall through to the catch-all (not deployed).
+  - **Read-only Playwright pass** of the live site (`/`, `/home`, `/cards`, `/shop`, `/play`, `/siege`, `/keep`, `/help`, `/legacy`, `/offline.html`) at 390x844 @3x, at 1920x1080, and phone with Safari's canvas behaviour emulated. Non-GET API calls were blocked. Results:
+    - 0 page errors, failed same-origin requests, non-200s, broken images, and HTML served as an image.
+    - `/play` loads 260 KB of images and `/keep` 32 KB.
 - October 1, 2026 - **Performance pass: compressed API, right-sized images, WebP on iPhones, dead code and assets removed.**
   - **API.** `server.compression.enabled=true` (Spring) and the `compression` middleware (Cards Editor Function). Hosting relays both as-is, and API JSON had been going out raw: `/api/game/options` 381 KB -> 23 KB, `/api/cards/editor` ~200 KB -> ~30 KB, `/api/shop/packs` 57 KB -> 6.6 KB.
   - **`/api/art/loading`.** It was doing two Storage list calls plus a jar scan on every hub/Siege visit (~450 ms of the ~0.7 s response). The Storage listing is now cached for 5 min. Both upload paths clear it, and a write mid-listing or a partial listing is never cached. The packaged-art scan runs once.
