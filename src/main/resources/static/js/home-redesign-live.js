@@ -89,7 +89,10 @@
         // grants in Siege, and which Keep stations an element helps at. The card
         // sheet reports both for every Siegeling, signed in or not.
         get('/api/siege/advantage-riders'),
-        get('/api/keep/affinities')
+        get('/api/keep/affinities'),
+        // Which gallery art is an achievement reward and what earns it - public,
+        // so a guest sees the locks too.
+        get('/api/art/rewards')
       ];
       var gated = signedIn
         ? [get('/api/player/progression'), get('/api/missions/daily'), get('/api/profile/decks'),
@@ -113,9 +116,9 @@
 
       return Promise.all(core.concat(gated)).then(function (r) {
         var options = r[0], rooms = r[1], siege = r[2], boards = r[3], shop = r[4],
-            riders = r[5], affinities = r[6],
-            progressionResponse = r[7], missions = r[8], decks = r[9], presence = r[10], keep = r[11],
-            profile = r[12], threads = r[13];
+            riders = r[5], affinities = r[6], artRewards = r[7],
+            progressionResponse = r[8], missions = r[9], decks = r[10], presence = r[11], keep = r[12],
+            profile = r[13], threads = r[14];
         var catalog = (options && options.cardCatalog) || [];
         // /api/player/progression answers {progression:{gold, ownedTotal, …},
         // packs, dailyOffers, …} - the wallet is NESTED. Reading it off the root
@@ -199,6 +202,13 @@
           advantageRiders: (riders && riders.riders) || null,
           keepAffinities: (affinities && affinities.stations) || null,
           profileSettings: (profile && !profile.error && profile.profileSettings) || null,
+          // Gallery rewards: the table, and the pieces this player has earned. A
+          // guest has earned none; a signed-in load whose progression failed
+          // leaves it unknown (null), and nothing is reset on an unknown.
+          galleryRewards: (artRewards && !artRewards.error && artRewards.rewards) || null,
+          galleryUnlockedIds: signedIn
+            ? ((progression && Array.isArray(progression.galleryUnlockedIds)) ? progression.galleryUnlockedIds : null)
+            : [],
           catalogVersion: options && options.catalogVersion
         };
       });

@@ -1053,6 +1053,40 @@ body.concept-board {
 .sg-look-tab:focus-visible { outline:2px solid var(--gold-bright); outline-offset:2px; }
 .sg-look-body { flex:1 1 auto; overflow:auto; min-height:0; padding-top:10px; scrollbar-width:none; overscroll-behavior:contain; }
 .sg-look-body::-webkit-scrollbar { display:none; }
+/* ---------- gallery rewards (locked art) ----------
+   Siegeling scenes are earned through achievements. A locked one stays visible
+   as a veiled teaser with a padlock, so the gallery reads as something to earn. */
+.sg-lock {
+  display:inline-block; flex:0 0 auto; width:12px; height:12px; background:currentColor;
+  -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M7 10V7a5 5 0 0 1 10 0v3h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h1zm2 0h6V7a3 3 0 0 0-6 0v3z'/></svg>") center / contain no-repeat;
+  mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M7 10V7a5 5 0 0 1 10 0v3h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h1zm2 0h6V7a3 3 0 0 0-6 0v3z'/></svg>") center / contain no-repeat;
+}
+.sg-look-swatch.is-locked .sg-look-swatch-art, .sg-bg.is-locked img, .sg-art.is-locked img {
+  filter:grayscale(.7) brightness(.6) blur(1px);
+}
+.sg-look-swatch.is-locked > .sg-lock, .sg-bg.is-locked > .sg-lock, .sg-art.is-locked > .sg-lock {
+  position:absolute; top:8px; right:8px; z-index:2; width:14px; height:14px;
+  color:var(--gold-bright); filter:drop-shadow(0 1px 2px rgba(0,0,0,.85));
+}
+.sg-art.is-locked > .sg-lock { top:12px; right:12px; width:18px; height:18px; }
+.sg-look-earned, .sg-bg-earned, .sg-art-earned {
+  display:flex; align-items:center; gap:7px; margin:0 0 4px; font-size:11.5px; color:var(--muted);
+}
+.sg-look-earned { grid-column:1 / -1; }
+.sg-bg-earned { margin-top:9px; }
+.sg-art-earned { margin-top:4px; }
+.sg-look-earned .sg-lock, .sg-bg-earned .sg-lock, .sg-art-earned .sg-lock { color:var(--gold-bright); }
+.sg-art-foot em.sg-art-req, .sg-lightbox-foot em.sg-art-req {
+  display:flex; align-items:center; gap:6px; color:var(--gold-bright); letter-spacing:.02em; text-transform:none;
+}
+.sg-lightbox.is-locked img { filter:grayscale(.85) brightness(.5) blur(6px); }
+.sg-look-toast {
+  position:absolute; left:16px; right:16px; bottom:16px; z-index:5; padding:11px 14px; border-radius:14px;
+  font-size:12.5px; line-height:1.35; color:var(--ink); background:rgba(14,10,36,.97);
+  border:1px solid rgba(230,205,140,.45); box-shadow:0 10px 30px rgba(0,0,0,.6);
+}
+.sg-look-toast[hidden] { display:none; }
+
 /* Panels set their own display, which would override the [hidden] default. */
 .sg-look-panel[hidden] { display:none; }
 .sg-look-covers { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px; }

@@ -1,0 +1,520 @@
+{
+  "notes": "Gallery art earned through achievements. A piece listed here is locked until its achievement is unlocked; every gallery piece not listed (the element and place backdrops, and any art added later) is free. achievement/requirement are display text and must match the achievement catalog (js/achievements.js).",
+  "rewards": {
+    "aerovane": {
+      "achievementId": "arena_sovereign",
+      "achievement": "Arena Sovereign",
+      "requirement": "Win 150 matches of any type."
+    },
+    "apple-grove": {
+      "achievementId": "keep_first_timber",
+      "achievement": "First Harvest",
+      "requirement": "Collect timber from the Restorative Woodlot."
+    },
+    "applehead": {
+      "achievementId": "earth_spark",
+      "achievement": "Earth Spark",
+      "requirement": "Own your first unique Earth card."
+    },
+    "applehead-orchard": {
+      "achievementId": "signed_in",
+      "achievement": "Account Linked",
+      "requirement": "Sign in and choose a starter pack."
+    },
+    "bearby-blastoff": {
+      "achievementId": "win_streak_3",
+      "achievement": "Win Streak",
+      "requirement": "Reach a best win streak of 3."
+    },
+    "bearby-longfuse": {
+      "achievementId": "solo_streak_3",
+      "achievement": "Solo Heater",
+      "requirement": "Reach a solo win streak of 3."
+    },
+    "bearnade-payload": {
+      "achievementId": "win_streak_5",
+      "achievement": "Hot Streak",
+      "requirement": "Reach a best win streak of 5."
+    },
+    "bearzooka-rampage": {
+      "achievementId": "win_streak_7",
+      "achievement": "Blazing Run",
+      "requirement": "Reach a best win streak of 7."
+    },
+    "blanky-ice-peaks": {
+      "achievementId": "brawler",
+      "achievement": "Brawler",
+      "requirement": "Play 25 matches."
+    },
+    "bonoblade": {
+      "achievementId": "collector_25",
+      "achievement": "Serious Collector",
+      "requirement": "Discover 25 unique cards."
+    },
+    "bonoblade-ambush": {
+      "achievementId": "pack_veteran",
+      "achievement": "Pack Veteran",
+      "requirement": "Open 15 card packs."
+    },
+    "breezee": {
+      "achievementId": "wind_spark",
+      "achievement": "Wind Spark",
+      "requirement": "Own your first unique Wind card."
+    },
+    "cacty": {
+      "achievementId": "rare_find",
+      "achievement": "Rare Find",
+      "requirement": "Own at least one Rare card."
+    },
+    "cacty-earth": {
+      "achievementId": "premade_victory",
+      "achievement": "Premade Victory",
+      "requirement": "Win a match with a premade or shop deck loadout."
+    },
+    "cactyjackedty": {
+      "achievementId": "rainbow_six",
+      "achievement": "Sixfold Prism",
+      "requirement": "Own cards from 6 different elements."
+    },
+    "cactyjackedty-guardian": {
+      "achievementId": "siegecoin_hoarder",
+      "achievement": "Siegecoin Hoarder",
+      "requirement": "Hold 1,000 Siegecoins at once."
+    },
+    "cactyjackedty-ruins": {
+      "achievementId": "siege_conqueror",
+      "achievement": "Expedition Conqueror",
+      "requirement": "Win your first Siege expedition."
+    },
+    "chilldoe": {
+      "achievementId": "deck_architect",
+      "achievement": "Deck Architect",
+      "requirement": "Save 3 custom decks."
+    },
+    "chilldoe-cliffs": {
+      "achievementId": "arena_regular",
+      "achievement": "Arena Regular",
+      "requirement": "Win a PVP match against another player."
+    },
+    "chilldoe-winter-falls": {
+      "achievementId": "siege_boss_slayer",
+      "achievement": "Boss Slayer",
+      "requirement": "Defeat 5 Siege bosses."
+    },
+    "clawfloor": {
+      "achievementId": "water_spark",
+      "achievement": "Water Spark",
+      "requirement": "Own your first unique Water card."
+    },
+    "cloudpuff": {
+      "achievementId": "deck_builder",
+      "achievement": "Deck Builder",
+      "requirement": "Save your first custom 30-card deck."
+    },
+    "cloudpuff-drifting": {
+      "achievementId": "siege_initiate",
+      "achievement": "Expedition Initiate",
+      "requirement": "Complete your first Siege expedition run."
+    },
+    "cloudsprite": {
+      "achievementId": "veteran",
+      "achievement": "Arena Veteran",
+      "requirement": "Play 50 matches."
+    },
+    "cloudsprite-weaver": {
+      "achievementId": "collector_50",
+      "achievement": "Binder Curator",
+      "requirement": "Discover 50 unique cards."
+    },
+    "cloudwisp": {
+      "achievementId": "wind_victor",
+      "achievement": "Wind Victor",
+      "requirement": "Win 3 matches with a Wind loadout."
+    },
+    "cloudwisp-dancer": {
+      "achievementId": "keep_confidant",
+      "achievement": "Confidant",
+      "requirement": "Complete 3 conversations with sanctuary voices."
+    },
+    "cozycub": {
+      "achievementId": "ice_spark",
+      "achievement": "Ice Spark",
+      "requirement": "Own your first unique Ice card."
+    },
+    "cozycub-den": {
+      "achievementId": "keep_founder",
+      "achievement": "Sanctuary Founder",
+      "requirement": "Found My Keep on the wounded ground."
+    },
+    "draco-brood": {
+      "achievementId": "triple_trio",
+      "achievement": "Triple Trio",
+      "requirement": "Max out copies on 3 different cards."
+    },
+    "dracoil": {
+      "achievementId": "epic_hunter",
+      "achievement": "Epic Hunter",
+      "requirement": "Own at least one Epic card."
+    },
+    "dracos": {
+      "achievementId": "loadout_rack",
+      "achievement": "Loadout Rack",
+      "requirement": "Keep 5 saved decks on your profile."
+    },
+    "dracosleaf": {
+      "achievementId": "pack_habit",
+      "achievement": "Pack Habit",
+      "requirement": "Open 25 card packs."
+    },
+    "ember-burrow": {
+      "achievementId": "element_specialist",
+      "achievement": "Element Specialist",
+      "requirement": "Own 8+ copies from your most-collected element."
+    },
+    "emberfox": {
+      "achievementId": "fire_spark",
+      "achievement": "Fire Spark",
+      "requirement": "Own your first unique Fire card."
+    },
+    "emberfox-lava-falls": {
+      "achievementId": "rainbow_binder",
+      "achievement": "Rainbow Binder",
+      "requirement": "Own cards from 4 different elements."
+    },
+    "emberpup": {
+      "achievementId": "remnant_pouch",
+      "achievement": "Remnant Pouch",
+      "requirement": "Hold 100 Remnants at once."
+    },
+    "emberpup-lava-roost": {
+      "achievementId": "keep_listener",
+      "achievement": "Good Listener",
+      "requirement": "Complete a conversation with a sanctuary voice."
+    },
+    "falcoat": {
+      "achievementId": "tactician",
+      "achievement": "Tactician",
+      "requirement": "Maintain 50% win rate over 20+ matches."
+    },
+    "falcool": {
+      "achievementId": "first_win",
+      "achievement": "First Win",
+      "requirement": "Win your first recorded match."
+    },
+    "falcool-aurora": {
+      "achievementId": "collector_10",
+      "achievement": "Collector",
+      "requirement": "Discover 10 unique cards."
+    },
+    "falcool-banner": {
+      "achievementId": "profile_ready",
+      "achievement": "Profile Ready",
+      "requirement": "Set a player title and bio on your profile."
+    },
+    "falcool-cliff": {
+      "achievementId": "custom_victory",
+      "achievement": "Custom Victory",
+      "requirement": "Win a match with a saved custom deck."
+    },
+    "falcool-flight": {
+      "achievementId": "online_streak_3",
+      "achievement": "Online Heater",
+      "requirement": "Reach an online win streak of 3."
+    },
+    "fawny": {
+      "achievementId": "loadout_shelf",
+      "achievement": "Loadout Shelf",
+      "requirement": "Keep any saved deck on your profile."
+    },
+    "firsky": {
+      "achievementId": "keep_restorer",
+      "achievement": "Archive Restorer",
+      "requirement": "Complete your first restoration project."
+    },
+    "firsky-volcano": {
+      "achievementId": "mission_claim",
+      "achievement": "Daily Striker",
+      "requirement": "Claim a daily mission reward."
+    },
+    "floraknight": {
+      "achievementId": "copy_hoarder",
+      "achievement": "Copy Hoarder",
+      "requirement": "Own 30 total card copies."
+    },
+    "frostag": {
+      "achievementId": "lobby_runner",
+      "achievement": "Lobby Runner",
+      "requirement": "Play 10 PVP matches."
+    },
+    "frostag-peaks": {
+      "achievementId": "siege_high_score",
+      "achievement": "High Scorer",
+      "requirement": "Reach a Siege score of 1,000."
+    },
+    "frostag-training": {
+      "achievementId": "solo_veteran",
+      "achievement": "Solo Veteran",
+      "requirement": "Win 15 solo matches."
+    },
+    "frostfly": {
+      "achievementId": "triple_threat",
+      "achievement": "Triple Threat",
+      "requirement": "Own 3 copies of one card."
+    },
+    "frostfly-canyon": {
+      "achievementId": "trainer_ready",
+      "achievement": "Trainer Ready",
+      "requirement": "Save a custom deck with a SiegeKnight trainer."
+    },
+    "gagglestand": {
+      "achievementId": "master_crafter",
+      "achievement": "Master Crafter",
+      "requirement": "Craft 5 cards from the binder."
+    },
+    "generoot": {
+      "achievementId": "favorite_element_win",
+      "achievement": "True Allegiance",
+      "requirement": "Win 5 matches with your favorite element loadout."
+    },
+    "glaciemperor": {
+      "achievementId": "set_complete",
+      "achievement": "Catalog Complete",
+      "requirement": "Reach 90% catalog discovery."
+    },
+    "glaciemperor-roar": {
+      "achievementId": "siege_boss_legend",
+      "achievement": "Boss Legend",
+      "requirement": "Defeat 50 Siege bosses."
+    },
+    "guerilla": {
+      "achievementId": "mission_habit",
+      "achievement": "Mission Habit",
+      "requirement": "Claim 5 daily mission rewards."
+    },
+    "guerilla-commander": {
+      "achievementId": "pvp_champion",
+      "achievement": "PVP Champion",
+      "requirement": "Win 30 PVP matches."
+    },
+    "gymstone": {
+      "achievementId": "eternal_duelist",
+      "achievement": "Eternal Duelist",
+      "requirement": "Play 200 matches."
+    },
+    "gymstone-legendary": {
+      "achievementId": "legendary_stack",
+      "achievement": "Legendary Stack",
+      "requirement": "Own 3 unique Legendary cards."
+    },
+    "higher-trees": {
+      "achievementId": "keep_timber_300",
+      "achievement": "Timber Steward",
+      "requirement": "Collect 300 lifetime timber at My Keep."
+    },
+    "hotdog-lava-field": {
+      "achievementId": "uncommon_stack",
+      "achievement": "Uncommon Stack",
+      "requirement": "Own 10 unique Uncommon cards."
+    },
+    "hurricrane": {
+      "achievementId": "wind_master",
+      "achievement": "Wind Master",
+      "requirement": "Own 10 unique Wind cards."
+    },
+    "hurricrane-skyruins": {
+      "achievementId": "siege_champion",
+      "achievement": "Expedition Champion",
+      "requirement": "Win 10 Siege expeditions."
+    },
+    "icecuewee": {
+      "achievementId": "ice_adept",
+      "achievement": "Ice Adept",
+      "requirement": "Own 5 unique Ice cards."
+    },
+    "icecuewee-ledge": {
+      "achievementId": "premade_collector",
+      "achievement": "Premade Collector",
+      "requirement": "Purchase 3 premade decks."
+    },
+    "icecuewee-valley": {
+      "achievementId": "pvp_duelist",
+      "achievement": "PVP Duelist",
+      "requirement": "Win 5 PVP matches."
+    },
+    "icewee": {
+      "achievementId": "ice_victor",
+      "achievement": "Ice Victor",
+      "requirement": "Win 3 matches with a Ice loadout."
+    },
+    "jackedty": {
+      "achievementId": "siege_pathfinder",
+      "achievement": "Pathfinder",
+      "requirement": "Clear 50 Siege map nodes."
+    },
+    "jackedty-growth": {
+      "achievementId": "earth_adept",
+      "achievement": "Earth Adept",
+      "requirement": "Own 5 unique Earth cards."
+    },
+    "kinder-forests": {
+      "achievementId": "friend_link",
+      "achievement": "First Ally",
+      "requirement": "Add your first friend."
+    },
+    "lumina": {
+      "achievementId": "trainer_corps",
+      "achievement": "Trainer Corps",
+      "requirement": "Save 3 custom decks with trainers."
+    },
+    "lumina-aurora-drift": {
+      "achievementId": "solo_striker",
+      "achievement": "Solo Striker",
+      "requirement": "Win 5 solo matches."
+    },
+    "luvy": {
+      "achievementId": "keep_chronicler",
+      "achievement": "Chronicler",
+      "requirement": "Read 3 Chronicle discoveries at My Keep."
+    },
+    "moonlit-cache": {
+      "achievementId": "remnant_vault",
+      "achievement": "Remnant Vault",
+      "requirement": "Hold 2,000 Remnants at once."
+    },
+    "mossy": {
+      "achievementId": "earth_master",
+      "achievement": "Earth Master",
+      "requirement": "Own 10 unique Earth cards."
+    },
+    "peatbeak": {
+      "achievementId": "ice_master",
+      "achievement": "Ice Master",
+      "requirement": "Own 10 unique Ice cards."
+    },
+    "pyleer": {
+      "achievementId": "champion",
+      "achievement": "Champion",
+      "requirement": "Win 25 matches."
+    },
+    "pyleer-cluster": {
+      "achievementId": "copy_master",
+      "achievement": "Copy Master",
+      "requirement": "Own 60 total card copies."
+    },
+    "pylme": {
+      "achievementId": "favorite_siegling",
+      "achievement": "Siegeling Fan",
+      "requirement": "Set a favorite Siegeling on your profile."
+    },
+    "pylook": {
+      "achievementId": "fire_victor",
+      "achievement": "Fire Victor",
+      "requirement": "Win 3 matches with a Fire loadout."
+    },
+    "pylook-inferno": {
+      "achievementId": "premade_owner",
+      "achievement": "Premade Owner",
+      "requirement": "Purchase a premade deck from the shop."
+    },
+    "pylord": {
+      "achievementId": "legendary_pull",
+      "achievement": "Legendary Pull",
+      "requirement": "Own at least one Legendary card."
+    },
+    "rag": {
+      "achievementId": "remnant_stash",
+      "achievement": "Remnant Stash",
+      "requirement": "Hold 500 Remnants at once."
+    },
+    "raydile": {
+      "achievementId": "fire_adept",
+      "achievement": "Fire Adept",
+      "requirement": "Own 5 unique Fire cards."
+    },
+    "raydile-ruins": {
+      "achievementId": "siege_explorer",
+      "achievement": "Expedition Explorer",
+      "requirement": "Complete 10 Siege expedition runs."
+    },
+    "rooted-together": {
+      "achievementId": "friend_circle",
+      "achievement": "War Council",
+      "requirement": "Add 5 friends."
+    },
+    "sky-egg": {
+      "achievementId": "first_pack",
+      "achievement": "Pack Opener",
+      "requirement": "Open your first card pack."
+    },
+    "sky-nest": {
+      "achievementId": "pack_regular",
+      "achievement": "Pack Regular",
+      "requirement": "Open 5 card packs."
+    },
+    "skydon": {
+      "achievementId": "set_quarter",
+      "achievement": "Quarter Catalog",
+      "requirement": "Reach 25% catalog discovery."
+    },
+    "skydon-skyreach": {
+      "achievementId": "siege_trailblazer",
+      "achievement": "Trailblazer",
+      "requirement": "Clear 200 Siege map nodes."
+    },
+    "sleaf": {
+      "achievementId": "element_avatar",
+      "achievement": "Element Avatar",
+      "requirement": "Set your avatar style to favorite element."
+    },
+    "sleaf-relic": {
+      "achievementId": "first_craft",
+      "achievement": "Remnant Smith",
+      "requirement": "Craft a card from the binder."
+    },
+    "solgator": {
+      "achievementId": "deck_library",
+      "achievement": "Deck Library",
+      "requirement": "Save 10 custom decks."
+    },
+    "solgator-eruption": {
+      "achievementId": "fire_master",
+      "achievement": "Fire Master",
+      "requirement": "Own 10 unique Fire cards."
+    },
+    "solgator-ruins": {
+      "achievementId": "siege_boss_hunter",
+      "achievement": "Boss Hunter",
+      "requirement": "Defeat 25 Siege bosses."
+    },
+    "squirebud": {
+      "achievementId": "earth_victor",
+      "achievement": "Earth Victor",
+      "requirement": "Win 3 matches with a Earth loadout."
+    },
+    "strikehawk": {
+      "achievementId": "wind_adept",
+      "achievement": "Wind Adept",
+      "requirement": "Own 5 unique Wind cards."
+    },
+    "strikehawk-judgment": {
+      "achievementId": "pvp_warlord",
+      "achievement": "PVP Warlord",
+      "requirement": "Win 50 PVP matches."
+    },
+    "stronger-roots": {
+      "achievementId": "keep_builder",
+      "achievement": "Sanctuary Builder",
+      "requirement": "Complete 2 restoration projects."
+    },
+    "sundile": {
+      "achievementId": "planner_unlock",
+      "achievement": "Planner Unlocked",
+      "requirement": "Unlock save-ready custom decks (30 owned copies)."
+    },
+    "sundile-volcano": {
+      "achievementId": "duelist",
+      "achievement": "Duelist",
+      "requirement": "Play 10 matches."
+    }
+  }
+}

@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class PlayerTitleService {
@@ -54,11 +55,28 @@ public class PlayerTitleService {
             }
         }
         String starterElement = starterElementFromPack(progression.getStarterPackId());
+        // Every achievement title is settled from one read of the player's history.
+        // Asking per title re-read match history and saved decks ~175 times on
+        // every progression response.
+        List<String> achievementIds = new ArrayList<>();
+        for (PlayerTitleCatalogService.TitleDefinition def : titleCatalogService.listDefinitions()) {
+            if (def.source() == PlayerTitleCatalogService.Source.ACHIEVEMENT && def.achievementId() != null
+                    && !unlocked.contains(def.id())) {
+                achievementIds.add(def.achievementId());
+            }
+        }
+        Set<String> unlockedAchievements = achievementIds.isEmpty()
+                ? Set.of()
+                : achievementEvaluationService.unlockedAmong(user, achievementIds, progression, settings);
         for (PlayerTitleCatalogService.TitleDefinition def : titleCatalogService.listDefinitions()) {
             if (unlocked.contains(def.id())) {
                 continue;
             }
-            if (isDefinitionUnlocked(user, def, progression, settings, starterElement)) {
+            boolean earned = def.source() == PlayerTitleCatalogService.Source.ACHIEVEMENT
+                    ? def.achievementId() != null
+                        && unlockedAchievements.contains(def.achievementId().trim().toLowerCase(Locale.ROOT))
+                    : isDefinitionUnlocked(user, def, progression, settings, starterElement);
+            if (earned) {
                 unlocked.add(def.id());
             }
         }
