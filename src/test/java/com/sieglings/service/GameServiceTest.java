@@ -168,6 +168,40 @@ class GameServiceTest {
     }
 
     @Test
+    void aiTrainerHealthPassiveAppliesWhenTheAiSetupTurnEnds() throws Exception {
+        GameService gameService = new GameService();
+        setField(gameService, "energyService", new EnergyService(new PlacementService()));
+        setField(gameService, "placementService", new PlacementService());
+        setField(gameService, "effectService", new EffectService());
+
+        Player player = new Player("Player", true);
+        Player enemy = new Player("Enemy", false);
+        enemy.setActiveTrainer(new TrainerCard("trainer_water", "Tide Warden", Element.WATER, Rarity.RARE,
+                Ability.passive("Tidal Shell", "All Water allies gain +2 max Health", AbilityEffectKeys.HEALTH_BOOST, 2),
+                null, false));
+
+        GameState state = new GameState();
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        state.setCurrentPhase(Phase.SETUP);
+        state.setPlayerTurn(false);
+
+        // AIService places straight onto the board rather than through placeSiegling.
+        SieglingCard shellpack = new SieglingCard("shellpack", "Shellpack", Element.WATER, Rarity.COMMON, 12, 6, List.of(), Row.BACK);
+        CardInstance placed = new CardInstance(shellpack, 0, 0, false);
+        state.setAt(false, 0, 0, placed);
+
+        Method finish = GameService.class.getDeclaredMethod("finishSetupTurn", GameState.class, boolean.class);
+        finish.setAccessible(true);
+        finish.invoke(gameService, state, false);
+
+        assertTrue(state.isPlayerTurn(), "The human should be up next.");
+        assertEquals(14, placed.getEffectiveMaxHealth(),
+                "The AI's passive must already show before the human acts, not after their next placement.");
+        assertEquals(14, placed.getCurrentHealth());
+    }
+
+    @Test
     void placedEnergyBoostPassiveFeedsThePoolAndSurvivesTheNextDraw() throws Exception {
         GameService gameService = new GameService();
         PlacementService placementService = new PlacementService();

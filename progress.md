@@ -1,4 +1,9 @@
 Original prompt: Merge and deploy
+- October 2, 2026 **AI SiegeKnight passives apply as soon as the AI places a card.**
+  - **Bug.** The AI places, evolves and casts straight onto the board (`AIService`), and only energy was recalculated afterwards. So an AI passive like "+2 max Health to Water allies" didn't show on its Shellpack until the human's own next placement ran `recalculateTrainerPassiveStatBuffs`. That made the AI card look like it grew mid-turn.
+  - **Fix.** `GameService.finishSetupTurn` now refreshes trainer passive stat buffs and board auras at the end of every setup turn, so the AI's bonuses are in the state the human first sees. Human placements already recalculated on placement and are unchanged. Backend only; no static assets changed.
+- Verification:
+  - New `GameServiceTest.aiTrainerHealthPassiveAppliesWhenTheAiSetupTurnEnds`: an AI-placed Water Siegling (12 HP) reads 14/14 when the human's turn starts. With the fix reverted it fails (12). Full `./mvnw -q test`: 741 run, 0 failures.
 - October 2, 2026 **Landing element tiles show their Siegeling in the tile itself; the popup is gone.**
   - **Before.** Clicking an element tile opened a full-screen overlay with the element's Siegeling.
   - **Now.** The Siegeling rises into the tile:
