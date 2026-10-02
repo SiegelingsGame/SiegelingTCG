@@ -1,4 +1,24 @@
 Original prompt: Merge and deploy
+- October 2, 2026 **Landing element tiles show their Siegeling in the tile itself; the popup is gone.**
+  - **Before.** Clicking an element tile opened a full-screen overlay with the element's Siegeling.
+  - **Now.** The Siegeling rises into the tile:
+    - On hover with a mouse (`@media (hover: hover) and (pointer: fine)`), on keyboard focus, or by tapping/clicking the tile (`.is-showing`, one tile at a time, tap again to put it back; the only way on a touch screen).
+    - The blurb crossfades to the Siegeling's name in the same slot, so the tile never changes size.
+    - Elements without a live Siegeling (Metal, Poison, Psychic, Shadow, Light, Undead) say "Siegelings arriving soon".
+    - Faces (`elementFace`, unchanged) load when the rail is within 400px of the screen, from ready-made 320 cuts, so the reveal never waits on a request. Art is drawn at 1.3x from its feet, because overlay cutouts carry wide transparent margins.
+  - **Removed.** `bindElementOverlay`, `notchTokenUrl` and all `.element-overlay*` CSS.
+  - **Pins.** `landing.js?v=50` (index), `landing.css?v=49` (index, play). Rides with the Painted Lands marquee entry below, which is not yet shipped.
+- Verification:
+  - **Method.** Headless Chromium on `/`, with Storage relayed through Node because sandbox Chromium cannot reach it.
+  - **Desktop 1920x1080.**
+    - Idle Fire tile: face opacity 0, art already loaded, blurb shown.
+    - Hover: face 1, "BEARBY" shown, blurb 0.
+    - Hover Metal: "Siegelings arriving soon".
+    - Mouse away: back to idle.
+  - **Phone 390x844.**
+    - Tapping Ice shows Chilldoe; tapping Fire switches (Ice hides); tapping Fire again hides it.
+  - **Both viewports.** 6 faces loaded, 6 arriving-soon tiles, no popup element in the DOM, 0 page errors.
+  - **Screenshots.** Both checked.
 - October 2, 2026 **Landing "Painted lands" row drifts on its own; no scrollbar.**
   - **Behaviour.** The world-art row was a native scroller with a visible scrollbar on desktop. It now works like the card rows:
     - `fillMarquee` renders the tiles twice for a seamless wrap (clones `aria-hidden`), and `bindAutoScroll` drifts it at 26 px/s, pausing while the player hovers, touches or swipes.
