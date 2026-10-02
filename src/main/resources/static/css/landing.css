@@ -1901,67 +1901,44 @@ img { display: block; }
 .element-tile { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; -webkit-appearance: none; appearance: none; }
 .element-tile:focus-visible { outline: 2px solid var(--tile-color); outline-offset: 3px; }
 
-/* ---------- element overlay: the Siegeling and the notch it prints ---------- */
-/* The author `display: grid` outranks the UA `[hidden] { display: none }`, so the
-   attribute alone would leave a full-screen, invisible, still-hit-testable sheet
-   over the whole landing page. Both guards stay: `[hidden]` takes it out of the
-   layout, and the `:not(.is-open)` pointer-events rule keeps it inert during the
-   fade in case a future caller forgets the attribute. */
-.element-overlay { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity .24s ease; }
-.element-overlay[hidden] { display: none; }
-.element-overlay.is-open { opacity: 1; pointer-events: auto; }
-.element-overlay-scrim { position: absolute; inset: 0; background: rgba(3, 7, 20, .82); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border: 0; }
-.element-overlay-card {
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    width: min(420px, 100%);
-    max-height: min(84vh, 720px);
+/* ---------- element faces: the Siegeling rises into its tile ----------
+   Revealed on hover with a mouse, on keyboard focus, or by tapping the tile
+   (.is-showing, toggled in landing.js) - the only way on a touch screen. */
+.element-tile-face {
+    position: absolute;
+    inset: 2px 4px 46px;
+    z-index: 0;
     display: flex;
-    flex-direction: column;
-    border: 1px solid color-mix(in srgb, var(--tile-color), transparent 46%);
-    border-radius: 22px;
-    background: #071026;
-    box-shadow: 0 30px 70px rgba(0, 0, 0, .6), 0 0 40px color-mix(in srgb, var(--tile-color), transparent 76%);
-    transform: translateY(14px) scale(.98);
-    transition: transform .28s cubic-bezier(.2,.8,.25,1);
+    align-items: flex-end;
+    justify-content: center;
+    opacity: 0;
+    transform: translateY(16px) scale(.94);
+    transition: opacity .28s ease, transform .34s cubic-bezier(.2, .8, .2, 1);
+    pointer-events: none;
 }
-.element-overlay.is-open .element-overlay-card { transform: none; }
-.element-overlay-land { position: absolute; inset: 0; z-index: -2; background-position: center; background-size: cover; opacity: .5; }
-.element-overlay-card::after {
-    content: ''; position: absolute; inset: 0; z-index: -1;
-    background:
-        linear-gradient(180deg, rgba(5, 10, 27, .28) 10%, rgba(5, 10, 27, .94) 62%),
-        linear-gradient(140deg, color-mix(in srgb, var(--tile-color), transparent 74%), transparent 60%);
+/* Overlay art is a 2:3 cutout with generous transparent margins, so it is
+   drawn a size up from its feet to read at tile size. */
+.element-tile-siegeling { max-width: 100%; max-height: 100%; object-fit: contain; transform: scale(1.3); transform-origin: center bottom; filter: drop-shadow(0 12px 18px rgba(0, 0, 0, .65)); }
+.element-tile-sigil, .element-tile-name, .element-tile-sub { position: relative; z-index: 1; }
+.element-tile-sigil { transition: opacity .22s ease; }
+/* The blurb and the Siegeling's name share one slot, so the tile never jumps. */
+.element-tile-sub { display: grid; }
+.element-tile-sub > * { grid-area: 1 / 1; transition: opacity .22s ease; }
+.element-tile-face-name { opacity: 0; color: var(--tile-color); font-size: .7rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; align-self: end; }
+.element-tile.is-showing .element-tile-face,
+.element-tile.has-face:focus-visible .element-tile-face { opacity: 1; transform: none; }
+.element-tile.has-face.is-showing .element-tile-sigil,
+.element-tile.has-face:focus-visible .element-tile-sigil,
+.element-tile.is-showing .element-tile-blurb,
+.element-tile.has-face:focus-visible .element-tile-blurb { opacity: 0; }
+.element-tile.is-showing .element-tile-face-name,
+.element-tile.has-face:focus-visible .element-tile-face-name { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+    .element-tile:hover .element-tile-face { opacity: 1; transform: none; }
+    .element-tile.has-face:hover .element-tile-sigil,
+    .element-tile:hover .element-tile-blurb { opacity: 0; }
+    .element-tile:hover .element-tile-face-name { opacity: 1; }
 }
-.element-overlay-close {
-    position: absolute; top: 10px; right: 10px; z-index: 3;
-    width: 34px; height: 34px; padding: 0; line-height: 1;
-    border: 1px solid rgba(226, 236, 253, .24); border-radius: 50%;
-    background: rgba(5, 10, 27, .6); color: #fff; font-size: 1.15rem; cursor: pointer;
-}
-.element-overlay-close:focus-visible { outline: 2px solid var(--tile-color); outline-offset: 2px; }
-/* The sigil holds the frame until the Siegeling art arrives, then steps aside so
-   the card never reflows under the player mid-open. */
-.element-overlay-art { position: relative; display: grid; place-items: center; min-height: 210px; padding: 26px 18px 6px; }
-.element-overlay-art.has-art .element-overlay-sigil { display: none; }
-.element-overlay-sigil { width: 84px; height: 84px; color: var(--tile-color); opacity: .75; filter: drop-shadow(0 0 16px color-mix(in srgb, var(--tile-color), transparent 40%)); }
-.element-overlay-sigil .sgl-element-svg { width: 100%; height: 100%; }
-.element-overlay-siegeling { max-width: 100%; max-height: 240px; object-fit: contain; filter: drop-shadow(0 18px 30px rgba(0, 0, 0, .68)); }
-.element-overlay-body { padding: 4px 22px 24px; text-align: center; overflow-y: auto; }
-/* Same composite as the battle table: the square notch plate over the element
-   colour, clipped round. */
-.element-overlay-notch {
-    display: block; width: 52px; height: 52px; margin: 0 auto 10px; border-radius: 50%;
-    background: var(--notch-icon) center / 100% 100% no-repeat, var(--tile-color);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, .6), 0 0 18px color-mix(in srgb, var(--tile-color), transparent 55%);
-}
-.element-overlay-name { margin: 0 0 6px; font-family: 'Cinzel', Georgia, serif; font-size: 1.5rem; color: #fff; }
-.element-overlay-blurb { margin: 0 0 10px; color: rgba(226, 236, 253, .82); font-size: .92rem; }
-.element-overlay-notch-label { margin: 0; color: rgba(226, 236, 253, .6); font-size: .76rem; line-height: 1.5; }
-.element-overlay-face { margin: 10px 0 0; color: var(--tile-color); font-size: .74rem; letter-spacing: .16em; text-transform: uppercase; }
-.element-overlay-face:empty { display: none; }
-body.element-overlay-open { overflow: hidden; }
 
 /* Mode cards: real art, elemental edges */
 .mode-card { position: relative; --mode-color: var(--siegelings-blue); }
@@ -2115,24 +2092,32 @@ body.element-overlay-open { overflow: hidden; }
 /* World art gallery */
 .world-section { padding: 82px 0 76px; background: radial-gradient(ellipse at 50% 0%, rgba(30, 144, 255, .16), transparent 45%), #06102a; }
 .world-section .landing-section-heading { padding: 0 24px; }
+/* Auto-drifting like the card rows (landing.js bindAutoScroll): a real
+   scroller so a swipe still browses it, with the bar hidden and no snap,
+   which would fight the drift every frame. */
 .world-marquee {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(288px, 1fr);
+    display: flex;
     gap: 16px;
-    padding: 0 max(24px, calc((100vw - 1240px) / 2)) 14px;
+    width: 100%;
+    padding: 8px 0 14px;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x proximity;
+    touch-action: pan-x pan-y;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
 }
+.world-marquee::-webkit-scrollbar { display: none; }
 .world-tile {
     position: relative;
+    flex: 0 0 auto;
+    width: clamp(288px, 26vw, 380px);
     margin: 0;
     overflow: hidden;
     aspect-ratio: 16 / 10;
     border: 1px solid color-mix(in srgb, var(--world-color), transparent 62%);
     border-radius: 18px;
-    scroll-snap-align: center;
     box-shadow: 0 18px 42px rgba(0, 0, 0, .4);
     transition: transform .24s ease, border-color .24s ease, box-shadow .24s ease;
 }
@@ -2185,7 +2170,7 @@ body.element-overlay-open { overflow: hidden; }
     .element-tile-name { font-size: .98rem; }
     .element-tile-blurb { font-size: .7rem; }
     .knight-rail { grid-auto-columns: minmax(168px, 72vw); }
-    .world-marquee { grid-auto-columns: minmax(230px, 78vw); padding-left: 18px; padding-right: 18px; }
+    .world-tile { width: min(78vw, 320px); }
     /* Sits above the scroll hint on phones, where the hero is tallest. */
     .hero-art-caption { left: 50%; transform: translateX(-50%); bottom: calc(66px + env(safe-area-inset-bottom, 0px)); font-size: .58rem; }
     .mode-extra-links a { padding: 8px 13px; font-size: .68rem; }
@@ -2203,7 +2188,7 @@ body.element-overlay-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
     .hero-art-layer { transition: opacity .2s linear; transform: none; }
     .element-tile, .knight-card, .world-tile, .world-tile img { transition: none; }
-    .element-overlay, .element-overlay-card { transition: none; }
+    .element-tile-face, .element-tile-sub > *, .element-tile-sigil { transition: none; }
     .placement-board-slot.is-placing .mulligan-card-slot { animation: none; }
 }
 

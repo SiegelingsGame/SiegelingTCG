@@ -1,4 +1,37 @@
 Original prompt: Merge and deploy
+- October 2, 2026 **Landing element tiles show their Siegeling in the tile itself; the popup is gone.**
+  - **Before.** Clicking an element tile opened a full-screen overlay with the element's Siegeling.
+  - **Now.** The Siegeling rises into the tile:
+    - On hover with a mouse (`@media (hover: hover) and (pointer: fine)`), on keyboard focus, or by tapping/clicking the tile (`.is-showing`, one tile at a time, tap again to put it back; the only way on a touch screen).
+    - The blurb crossfades to the Siegeling's name in the same slot, so the tile never changes size.
+    - Elements without a live Siegeling (Metal, Poison, Psychic, Shadow, Light, Undead) say "Siegelings arriving soon".
+    - Faces (`elementFace`, unchanged) load when the rail is within 400px of the screen, from ready-made 320 cuts, so the reveal never waits on a request. Art is drawn at 1.3x from its feet, because overlay cutouts carry wide transparent margins.
+  - **Removed.** `bindElementOverlay`, `notchTokenUrl` and all `.element-overlay*` CSS.
+  - **Pins.** `landing.js?v=50` (index), `landing.css?v=49` (index, play). Rides with the Painted Lands marquee entry below, which is not yet shipped.
+- Verification:
+  - **Method.** Headless Chromium on `/`, with Storage relayed through Node because sandbox Chromium cannot reach it.
+  - **Desktop 1920x1080.**
+    - Idle Fire tile: face opacity 0, art already loaded, blurb shown.
+    - Hover: face 1, "BEARBY" shown, blurb 0.
+    - Hover Metal: "Siegelings arriving soon".
+    - Mouse away: back to idle.
+  - **Phone 390x844.**
+    - Tapping Ice shows Chilldoe; tapping Fire switches (Ice hides); tapping Fire again hides it.
+  - **Both viewports.** 6 faces loaded, 6 arriving-soon tiles, no popup element in the DOM, 0 page errors.
+  - **Screenshots.** Both checked.
+- October 2, 2026 **Landing "Painted lands" row drifts on its own; no scrollbar.**
+  - **Behaviour.** The world-art row was a native scroller with a visible scrollbar on desktop. It now works like the card rows:
+    - `fillMarquee` renders the tiles twice for a seamless wrap (clones `aria-hidden`), and `bindAutoScroll` drifts it at 26 px/s, pausing while the player hovers, touches or swipes.
+    - The scrollbar is hidden, the edges fade, and scroll-snap is gone (it would fight the drift).
+    - Tiles are a fixed `clamp(288px, 26vw, 380px)` (phone `min(78vw, 320px)`).
+  - **Loading.** Lazy art in a drifting row is only fetched once on screen, so `loadWorldArtAhead` switches a tile to eager when it comes within 600px of the row (about 20s of drift).
+  - **Pins:** `landing.js?v=49` (index), `landing.css?v=48` (index, play).
+- Verification:
+  - **Method.** Headless Chromium on `/` served from this tree, sampled every 250ms for 10s with the section in view.
+  - **Desktop 1920x1080.** 20 tiles (10 clones); scrollbar 0px (`scrollbar-width: none`); `scrollLeft` advanced 25 -> 289; 0 visible tiles without art; 0 errors.
+  - **Phone 390x844 @3x.** The same, with 304px tiles and `scrollLeft` 36 -> 300.
+  - **Reduced motion.** The row stays put (`scrollLeft` 0).
+  - **Screenshot.** Desktop screenshot checked.
 - October 2, 2026 **Gallery art is now earned through achievements.**
   - **Design (owner's choices).**
     - The 20 element and place backdrops stay free: Earth, Water, Wind, Sky, Sky Ledge, Sand, Void, Void Sigil, Static, Light, Electric, Air/Fire/Ice Loading, Ice Peak, Ice Earth, Air & Wind, Water Beach, Air Battle, Water Battle.
