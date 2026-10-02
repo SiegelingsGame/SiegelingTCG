@@ -509,8 +509,11 @@
         const stat = (value) => (Number.isFinite(Number(value)) && value !== null && value !== '' ? Number(value) : '-');
         const artAttrs = opts.deferArt ? deferredThumbAttrs(art, opts.thumbWidth || 320) : thumbAttrs(art, opts.thumbWidth || 320);
         const loading = opts.eager ? 'eager' : 'lazy';
+        // Held back until its creature art is ready (art-reveal.js), so the frame
+        // never paints first with an empty art window.
+        const pending = art && window.SieglingsArtReveal ? ` ${window.SieglingsArtReveal.PENDING}` : '';
         return `
-            <div class="mulligan-card-slot binder-framed-slot">
+            <div class="mulligan-card-slot binder-framed-slot${pending}">
                 <div class="hand-card ${escapeAttr(key)} card-type-siegling mulligan-showcase binder-grid-showcase element-frame ${frame}">
                     <div class="hand-notches"><div class="notch-center"></div>${notches}</div>
                     <div class="hand-card-shell">
@@ -715,6 +718,27 @@
         return images.length;
     }
 
+    // The rows start mid-list (the reverse row at 60% of a period), so DOM order
+    // says nothing about which cards are on screen. Load whatever sits inside a
+    // row's own scrollport or is about to drift into it first; the idle pass
+    // below fills in the rest.
+    function hydrateNearView(row) {
+        if (!('IntersectionObserver' in window)) return;
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                observer.unobserve(entry.target);
+                entry.target.querySelectorAll('img[data-src]').forEach((img) => {
+                    img.setAttribute('src', img.getAttribute('data-src'));
+                    img.removeAttribute('data-src');
+                });
+            });
+        }, { root: row, rootMargin: '0px 480px' });
+        row.querySelectorAll('.marquee-card').forEach((card) => {
+            if (card.querySelector('img[data-src]')) observer.observe(card);
+        });
+    }
+
     function hydrateDeferredImagesSoon(root) {
         const step = () => {
             const count = hydrateDeferredImages(root, 4);
@@ -769,6 +793,8 @@
         fillMarquee(rowB, rows[1], markup);
         scheduleDescriptionFit(rowA);
         scheduleDescriptionFit(rowB);
+        hydrateNearView(rowA);
+        hydrateNearView(rowB);
         hydrateDeferredImagesSoon(rowA);
         hydrateDeferredImagesSoon(rowB);
 

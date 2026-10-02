@@ -1609,6 +1609,38 @@ if (typeof window !== 'undefined' && !window.sgWebpFallback) {
     };
 }
 
+// Dashboard creature art lives in Firebase Storage as 1024x1536 PNGs of up to
+// ~2.4 MB, yet no surface draws it wider than ~740 device px. The art mirror
+// returns a WebP cut of it (roughly 20-60 KB), so cards are fetched that way;
+// the original stays the fallback if the mirror fails.
+const SG_STORAGE_ART_PREFIX = 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/';
+// Hand, board and mulligan cards; `selected` (the large inspect view) asks for more.
+const SG_CARD_ART_WIDTH = 640;
+const SG_SELECTED_ART_WIDTH = 960;
+
+function sgArtThumbSrc(url, width) {
+    const u = String(url || '');
+    if (width && u.startsWith(SG_STORAGE_ART_PREFIX)) {
+        return `/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(u)}`;
+    }
+    return sgPreferWebp(u);
+}
+
+// A failed mirror thumbnail falls back to the original once, and the original
+// then gets the same backoff retries any remote art gets.
+window.sgArtThumbFallback = function (img) {
+    if (!img) {
+        return;
+    }
+    const fallback = img.getAttribute('data-img-fallback');
+    if (fallback && img.getAttribute('src') !== fallback) {
+        img.setAttribute('onerror', 'sgArtRetry(this)');
+        img.setAttribute('src', fallback);
+        return;
+    }
+    window.sgArtRetry(img);
+};
+
 // Retry a failed card-art load with backoff. Dashboard creature overlays are
 // remote (Firebase Storage) images; a dropped fetch on flaky cellular used to
 // leave the card frame permanently empty until the next full re-render.
@@ -1641,8 +1673,9 @@ window.sgArtRetry = function (img) {
 // instead of blinking out while it refetches/re-decodes multi-MB PNGs.
 const battleArtImageCache = new Map();
 
-function preloadArtUrl(url) {
-    if (!url || battleArtImageCache.has(url)) {
+function preloadArtUrl(url, width) {
+    const src = sgArtThumbSrc(url, width);
+    if (!url || battleArtImageCache.has(src)) {
         return;
     }
     // Soft cap so a long session can't pin unbounded image memory; Map
@@ -1655,16 +1688,18 @@ function preloadArtUrl(url) {
     img.decoding = 'async';
     img.onerror = () => {
         // Drop the failed entry so the next render() pass re-attempts it.
-        if (battleArtImageCache.get(url) === img) {
-            battleArtImageCache.delete(url);
+        if (battleArtImageCache.get(src) === img) {
+            battleArtImageCache.delete(src);
         }
     };
-    img.src = sgPreferWebp(url);
-    battleArtImageCache.set(url, img);
+    img.src = src;
+    battleArtImageCache.set(src, img);
 }
 
 function preloadCardArtFor(card) {
-    preloadArtUrl(getCardArtMeta(card)?.url);
+    const meta = getCardArtMeta(card);
+    // Holographic full-card faces render from the original, so warm that.
+    preloadArtUrl(meta?.url, meta?.fullCard ? 0 : SG_CARD_ART_WIDTH);
     if (cardShowsPlayerHolographic(card)) {
         preloadArtUrl(String(card?.holographicCardArtUrl || '').trim());
     }
@@ -1712,8 +1747,12 @@ function knightArtStyleAttr(trainer) {
 // Builds `src` (+ WebP fallback) attributes for a local raster art URL.
 // URLs without a .webp twin (remote dashboard art) get a retrying onerror so
 // one dropped fetch doesn't leave the card art blank.
-function webpImgAttrs(url) {
+function webpImgAttrs(url, width) {
     const original = String(url || '');
+    const thumb = sgArtThumbSrc(original, width);
+    if (thumb.startsWith('/api/cards/art-mirror')) {
+        return `src="${escapeHtmlAttribute(thumb)}" data-img-fallback="${escapeHtmlAttribute(original)}" onerror="sgArtThumbFallback(this)"`;
+    }
     const preferred = sgPreferWebp(original);
     if (preferred === original) {
         return `src="${escapeHtmlAttribute(original)}" onerror="sgArtRetry(this)"`;
@@ -1742,7 +1781,8 @@ function sgEvoThumbFallback(img) {
 
 function evoThumbImgAttrs(url, label) {
     const original = String(url || '');
-    const preferred = sgPreferWebp(original);
+    // The chip is ~20px wide; the mirror's smallest cut replaces a multi-MB original.
+    const preferred = sgArtThumbSrc(original, 160);
     const labelAttr = ` data-evo-label="${escapeHtmlAttribute(label || '')}"`;
     if (preferred === original) {
         return `src="${escapeHtmlAttribute(original)}"${labelAttr} onerror="sgEvoThumbFallback(this)"`;
@@ -1835,9 +1875,13 @@ function getCardArtMeta(card) {
     return null;
 }
 
-function renderCardArt(card, variant, fallbackLabel = '') {
+function renderCardArt(card, variant, fallbackLabel = '', artOptions = {}) {
     const artMeta = getCardArtMeta(card);
     if (artMeta?.url) {
+        // Holographic full-card faces keep their original; everything else
+        // draws a mirror cut sized for its slot (see sgArtThumbSrc).
+        const artWidth = artMeta.fullCard ? 0
+            : (artOptions.width || (variant === 'selected' ? SG_SELECTED_ART_WIDTH : SG_CARD_ART_WIDTH));
         const fullCardClass = artMeta.fullCard ? ' game-holographic-full-card-art' : '';
         const cropClass = artMeta.crop && artMeta.crop !== 'default'
             ? ` card-art-crop-${artMeta.crop}`
@@ -1850,7 +1894,7 @@ function renderCardArt(card, variant, fallbackLabel = '') {
         // re-renders recreate every hand/board <img> via innerHTML, which
         // restarted the lazy deferral each interaction and made the art
         // blink out. All these images are on-screen cards, so eager is right.
-        return `<div class="card-art card-art-${variant}${cropClass}${fullCardClass}"><img ${webpImgAttrs(artMeta.url)} alt="${escapeHtmlAttribute(artLabel)}" decoding="async"${styleAttr}></div>`;
+        return `<div class="card-art card-art-${variant}${cropClass}${fullCardClass}"><img ${webpImgAttrs(artMeta.url, artWidth)} alt="${escapeHtmlAttribute(artLabel)}" decoding="async"${styleAttr}></div>`;
     }
     if (!fallbackLabel) {
         return '';
@@ -4168,7 +4212,7 @@ function renderShowcaseCard(card, options = {}) {
     html += `<div class="card-title">${escapeHtml(card.name)}</div>`;
     html += `<div class="card-label">${escapeHtml(labelText)}</div>`;
     html += `</div>`;
-    html += renderCardArt(card, options.artVariant || 'preview', fallbackArtLabel);
+    html += renderCardArt(card, options.artVariant || 'preview', fallbackArtLabel, { width: options.artWidth });
     // Surface status badges (shield, buffs, and the max-health badge) when this
     // preview reflects a board card. Board cards carry a numeric maxHp; hand
     // cards don't, so this renders nothing for those.

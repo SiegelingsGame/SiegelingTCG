@@ -365,7 +365,8 @@ test('art-mirror thumbnail widths snap to fixed buckets', () => {
   assert.equal(_private.parseThumbWidth('100'), 160);
   assert.equal(_private.parseThumbWidth('240'), 240);
   assert.equal(_private.parseThumbWidth('300'), 320);
-  assert.equal(_private.parseThumbWidth('5000'), 640);
+  assert.equal(_private.parseThumbWidth('700'), 960);
+  assert.equal(_private.parseThumbWidth('5000'), 960);
 });
 
 test('art-mirror resizes card art to a WebP thumbnail', async () => {

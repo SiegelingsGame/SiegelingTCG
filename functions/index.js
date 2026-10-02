@@ -245,7 +245,9 @@ function isMirrorableArtUrl(target) {
 
 /* Thumbnail widths snap to a few buckets so the CDN holds one copy per bucket
    instead of one per arbitrary `w` a caller invents. */
-const THUMB_WIDTHS = [160, 240, 320, 480, 640];
+// 960 serves the large inspect view and SiegeKnight art (up to ~740 device px);
+// the originals are 1024 wide, so nothing ever needs more.
+const THUMB_WIDTHS = [160, 240, 320, 480, 640, 960];
 
 function parseThumbWidth(raw) {
   const requested = Number.parseInt(String(raw || ''), 10);
