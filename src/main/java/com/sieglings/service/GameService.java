@@ -1207,6 +1207,11 @@ public class GameService {
     private void finishSetupTurn(GameState state, boolean playerSide) {
         state.completeSetupTurn();
         energyService.recalculateEnergy(state);
+        // The AI places, casts, and evolves directly on the state instead of going
+        // through placeSiegling, so its SiegeKnight passive and board auras must be
+        // refreshed here or they only show up after the human's next placement.
+        recalculateTrainerPassiveStatBuffs(state);
+        effectService.recalculateBoardAuraDamageBoosts(state);
         checkWinCondition(state);
         if (state.isGameOver()) {
             return;
