@@ -16,16 +16,15 @@ Original prompt: Merge and deploy
     - `/api/player/progression` adds `galleryUnlockedIds`.
     - `ProfileSettingsService` resets an unearned reward in `profileArtId`/`pageArtId` to the default on save (never failing the rest of the save, so a legacy client resending an old pick still saves) and on read (persisted, so every viewer of that profile sees the default).
     - New `AchievementEvaluationService.unlockedAmong` settles a list of achievements from ONE read of match history and saved decks. `PlayerTitleService` now uses it too: it used to call `isUnlocked` once per achievement title, about 175 Firestore round-trips on every progression response.
-  - **Hub (`home-redesign.js`, `home-redesign-live.js`, `home-redesign.css`).**
-    - The live loader fetches the table.
-    - `galleryLock(id)` drives every picker:
-      - Binder cover swatches: padlock, veiled art, and a toast with the requirement on tap. A stored locked cover resets to Midnight once unlocks are known.
-      - Profile background tiles: padlock, and the requirement in the sheet's message box on tap.
-      - The Gallery: veiled tiles with the requirement; the lightbox shows a locked piece veiled with what earns it.
-    - Each shows "N of 103 Siegeling scenes earned".
-    - Newly earned art lands in the notification feed once; the first look on a device only records what is already earned.
-    - Profile backgrounds and the Gallery now load ready-made cuts (320/480) instead of full originals.
-  - **Pins:** `home-redesign.js?v=61`, `home-redesign.css?v=68`, `home-redesign-live.js?v=14` (home-next).
+  - **Hub (`home-redesign.js`, `home-redesign-live.js`, `home-redesign.css`).** The live loader fetches the table, and `galleryLock(id)` drives the pickers. Owner's follow-up: everything stays viewable in the Gallery; only putting art on show is gated.
+    - **The Gallery** shows every piece in full, earned or not.
+    - **The binder sheet's Cover tab** lists only owned art: shipped plates, free backdrops and earned scenes, so earned art simply appears there.
+    - **A new Unowned tab** (tabs are now Cover / Unowned / Page / Sleeves) lists each scene still to earn, with its achievement and requirement, as read-only rows.
+    - **The profile Background picker** shows owned art, with a collapsed "Unowned backgrounds" list beneath.
+    - **Resets.** A stored binder cover that is now an unearned reward resets to Midnight once unlocks are known.
+    - **Feedback.** "N of 103 Siegeling scenes earned" shows in the Cover tab and the profile picker. Newly earned art lands in the notification feed once; the first look on a device only records what is already earned.
+    - **Images.** Profile backgrounds and the Gallery now load ready-made cuts (320/480) instead of full originals.
+  - **Pins:** `home-redesign.js?v=62`, `home-redesign.css?v=69`, `home-redesign-live.js?v=14` (home-next).
 - Verification:
   - **JUnit.** 740/740, including new `GalleryRewardServiceTest` (5):
     - The table has 103 entries with distinct achievements, all known to the server, none unreachable; free backdrops are absent.
@@ -36,10 +35,12 @@ Original prompt: Merge and deploy
     - A `@SpringBootTest` suite boots the context (no bean cycle from the new lazy injections).
     - A script confirmed every table achievement is a `case` in the server's evaluator.
   - **Headless Chromium at 390x844 @3x** (page from this tree, API proxied to production, `/api/art/rewards` served from the table in the server's format, a simulated signed-in player with Applehead Orchard and Sky Egg earned).
-    - **Guest.** A stored `gallery:aerovane` cover resets to Midnight; 103 of 140 swatches are locked ("0 of 103"); tapping Glaciemperor toasts "Unlock with \u201cCatalog Complete\u201d: Reach 90% catalog discovery." and leaves the cover; the free Sky backdrop can be picked; 103 of 123 gallery tiles are locked, and the lightbox is veiled with the requirement.
-    - **Player.** 101 locked ("2 of 103"); Sky Egg can be picked; profile background tiles show 101 locked, and tapping one shows the requirement without selecting it.
-    - **Notification.** With `sky-egg` already seen, "Gallery art unlocked: Applehead Orchard" lands in the feed exactly once.
-    - 0 page errors. Screenshots of the sheet, gallery grid and lightbox checked.
+    - **Guest.** A stored `gallery:aerovane` cover resets to Midnight. Cover tab: 37 swatches (17 plates + 20 free backdrops; no reward scenes). The free Sky backdrop can be picked. Unowned tab: 103 read-only rows with requirements, no buttons.
+    - **Player.** Cover tab: 39 swatches, including earned Sky Egg (pickable) and no Aerovane. Unowned tab: 101 rows.
+    - **Both.** Gallery: 123 tiles, 0 locked or veiled; the lightbox shows the full original. All four tab labels fit, and the sheet stays 640px.
+    - **Profile picker.** 23 owned backgrounds (Sky Egg pickable), "Unowned backgrounds" with 101 rows.
+    - **Notification.** With `sky-egg` already seen, "Gallery art unlocked: Applehead Orchard" lands exactly once.
+    - 0 page errors. Screenshots of the Unowned tab and the profile picker checked.
 - October 2, 2026 **Dress-the-binder sheet: picks no longer jump to the top; Cover / Page / Sleeves tabs; no more blank cover swatches.**
   - **Jump.** Every pick rebuilt the whole sheet (`card.innerHTML = binderLookMarkup(look)`), which recreated its scroll area, so choosing a cover deep in the list threw the player back to the top. A pick now only moves the highlight (`.on` plus `aria-pressed`) within its group; the binder behind the sheet still updates live.
   - **Tabs.** The three stacked sections are now a Cover / Page / Sleeves tablist (`role=tab`/`tabpanel`, Left/Right arrow keys). The open tab is remembered while the page is open. Opening scrolls the current cover into view.

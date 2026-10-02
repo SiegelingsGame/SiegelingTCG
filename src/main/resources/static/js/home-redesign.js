@@ -1154,10 +1154,6 @@
     return Boolean(GALLERY_REWARDS) && Array.isArray(GALLERY_UNLOCKED);
   }
 
-  function galleryLockLabel(reward) {
-    return 'Unlock with \u201c' + reward.achievement + '\u201d: ' + reward.requirement;
-  }
-
   var LOCK_ICON = '<i class="sg-lock" aria-hidden="true"></i>';
 
   /* Newly earned art goes into the notification feed. The first look on a device
@@ -1234,16 +1230,16 @@
       : attrs + ' onerror="' + failed + '"';
   }
 
-  function binderSwatch(attr, value, label, art, on, lock) {
-    return '<button class="sg-look-swatch' + (on ? ' on' : '') + (lock ? ' is-locked' : '') + '" type="button" ' +
-      attr + '="' + esc(value) + '" aria-pressed="' + on + '"' +
-      (lock ? ' data-look-locked="' + esc(galleryLockLabel(lock)) + '" aria-label="' + esc(label + ' (locked). ' + galleryLockLabel(lock)) + '"' : '') + '>' +
+  function binderSwatch(attr, value, label, art, on) {
+    return '<button class="sg-look-swatch' + (on ? ' on' : '') + '" type="button" ' +
+      attr + '="' + esc(value) + '" aria-pressed="' + on + '">' +
       (art ? '<img class="sg-look-swatch-art" ' + swatchArtAttrs(art) + ' alt="" loading="lazy" decoding="async" ' +
         'onload="this.classList.add(\'is-loaded\')">' : '') +
-      (lock ? LOCK_ICON : '') +
       '<span>' + esc(label) + '</span></button>';
   }
 
+  // The Cover tab holds only what the player owns: the shipped plates, the free
+  // backdrops and every scene they have earned - earned art simply appears here.
   function binderSwatchRow(look) {
     var covers = BINDER_COVERS.map(function (c) {
       return binderSwatch('data-look-cover', c.id, c.label, c.art, c.id === look.cover);
@@ -1252,10 +1248,29 @@
     // the shipped covers above are always there to fall back on.
     var pieces = galleryPieces();
     pieces.forEach(function (p) {
-      covers.push(binderSwatch('data-look-cover', 'gallery:' + p.id, p.title, p.thumb,
-        look.cover === 'gallery:' + p.id, galleryLock(p.id)));
+      if (galleryLock(p.id)) return;
+      covers.push(binderSwatch('data-look-cover', 'gallery:' + p.id, p.title, p.thumb, look.cover === 'gallery:' + p.id));
     });
     return galleryEarnedLine(pieces, 'sg-look-earned') + covers.join('');
+  }
+
+  /* Scenes still to earn, each with what earns it. Read-only rows rather than
+     swatches: none of them can be hung on the binder yet. Shared by the binder
+     sheet's Unowned tab and the profile background picker. */
+  function unownedArtList(pieces) {
+    var locked = pieces.filter(function (p) { return galleryLock(p.id); });
+    if (!GALLERY_REWARDS) return '<p class="sg-unowned-note">Achievement rewards are still loading.</p>';
+    if (!locked.length) return '<p class="sg-unowned-note">Every Siegeling scene is yours.</p>';
+    return '<p class="sg-unowned-note">' + LOCK_ICON + esc(locked.length) + ' scene' + (locked.length === 1 ? '' : 's') +
+        ' to earn. Each unlocks with an achievement.</p>' +
+      '<ul class="sg-unowned-list">' + locked.map(function (p) {
+        var reward = galleryLock(p.id);
+        return '<li class="sg-unowned-row">' +
+          '<span class="sg-unowned-art"><img ' + swatchArtAttrs(p.thumb) + ' alt="" loading="lazy" decoding="async"></span>' +
+          '<span class="sg-unowned-text"><strong>' + esc(p.title) + '</strong>' +
+            '<em>\u201c' + esc(reward.achievement) + '\u201d \u2014 ' + esc(reward.requirement) + '</em></span>' +
+        '</li>';
+      }).join('') + '</ul>';
   }
 
   // "12 of 103 reward pieces earned" - only once both halves are known.
@@ -1272,7 +1287,7 @@
       ' Siegeling scenes earned through achievements</p>';
   }
 
-  var BINDER_LOOK_TABS = [['cover', 'Cover'], ['page', 'Page'], ['sleeve', 'Sleeves']];
+  var BINDER_LOOK_TABS = [['cover', 'Cover'], ['unowned', 'Unowned'], ['page', 'Page'], ['sleeve', 'Sleeves']];
 
   function binderLookMarkup(look, tab) {
     return '<div class="sg-look-grab"></div>' +
@@ -1284,10 +1299,11 @@
           'data-look-tab="' + t[0] + '" aria-controls="sgLookPanel-' + t[0] + '" aria-selected="' + on + '" tabindex="' + (on ? 0 : -1) + '">' +
           esc(t[1]) + '</button>';
       }).join('') + '</div>' +
-      '<div class="sg-look-toast" data-look-toast role="status" aria-live="polite" hidden></div>' +
       '<div class="sg-look-body">' +
         '<div class="sg-look-panel sg-look-covers" role="tabpanel" id="sgLookPanel-cover" aria-labelledby="sgLookTab-cover"' +
           (tab === 'cover' ? '' : ' hidden') + '>' + binderSwatchRow(look) + '</div>' +
+        '<div class="sg-look-panel" role="tabpanel" id="sgLookPanel-unowned" aria-labelledby="sgLookTab-unowned"' +
+          (tab === 'unowned' ? '' : ' hidden') + '>' + unownedArtList(galleryPieces()) + '</div>' +
         '<div class="sg-look-panel sg-look-grid" role="tabpanel" id="sgLookPanel-page" aria-labelledby="sgLookTab-page"' +
           (tab === 'page' ? '' : ' hidden') + '>' + BINDER_PAGES.map(function (p) {
           var on = p[0] === look.page;
@@ -1333,15 +1349,6 @@
       writeBinderLook(look);
     }
     applyBinderLook(app, look);
-    var toastTimer = 0;
-    function toast(text) {
-      var el = card.querySelector('[data-look-toast]');
-      if (!el) return;
-      el.textContent = text;
-      el.hidden = false;
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(function () { el.hidden = true; }, 3200);
-    }
 
     function open() {
       card.innerHTML = binderLookMarkup(look, tab);
@@ -1399,7 +1406,6 @@
       var tabButton = e.target.closest('[data-look-tab]');
       if (tabButton) { showTab(tabButton.getAttribute('data-look-tab')); return; }
       var cover = e.target.closest('[data-look-cover]');
-      if (cover && cover.hasAttribute('data-look-locked')) { toast(cover.getAttribute('data-look-locked')); return; }
       if (cover) { pick('cover', cover.getAttribute('data-look-cover'), cover); return; }
       var page = e.target.closest('[data-look-page]');
       if (page) { pick('page', page.getAttribute('data-look-page'), page); return; }
@@ -3064,18 +3070,16 @@
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<div class="sg-page-head"><h2>The Gallery</h2><p>' +
-          esc(pieces.length) + ' piece' + (pieces.length === 1 ? '' : 's') + '</p>' +
-          galleryEarnedLine(pieces, 'sg-art-earned') + '</div>' +
+          esc(pieces.length) + ' piece' + (pieces.length === 1 ? '' : 's') + '</p></div>' +
+        // Every piece is on view here, earned or not; achievements decide only
+        // what can be hung on the binder or the profile.
         (pieces.length
           ? '<div class="sg-art-grid" data-art-grid>' + pieces.map(function (p, i) {
-              var lock = galleryLock(p.id);
-              return '<button class="sg-art' + (lock ? ' is-locked' : '') + '" type="button" data-art="' + i + '">' +
+              return '<button class="sg-art" type="button" data-art="' + i + '">' +
                 '<img ' + artAttrs(p.thumb, 480) + ' alt="' + esc(p.title) + '" loading="lazy">' +
                 '<span class="sg-art-veil"></span>' +
-                (lock ? LOCK_ICON : '') +
                 '<span class="sg-art-foot"><strong>' + esc(p.title) + '</strong>' +
-                  (lock ? '<em class="sg-art-req">' + esc(galleryLockLabel(lock)) + '</em>'
-                        : (p.place ? '<em>' + esc(p.place) + '</em>' : '')) + '</span>' +
+                  (p.place ? '<em>' + esc(p.place) + '</em>' : '') + '</span>' +
               '</button>';
             }).join('') + '</div>'
           : '<div class="sg-empty-row">The gallery has not loaded yet.</div>') +
@@ -3110,14 +3114,9 @@
       if (!btn) return;
       var p = pieces[Number(btn.getAttribute('data-art'))];
       if (!p) return;
-      // A locked piece is previewed veiled, with what earns it.
-      var lock = galleryLock(p.id);
-      box.classList.toggle('is-locked', Boolean(lock));
-      img.src = lock ? (btn.querySelector('img') || {}).currentSrc || p.thumb : p.full;
+      img.src = p.full;
       img.alt = p.title;
-      foot.innerHTML = '<strong>' + esc(p.title) + '</strong>' +
-        (lock ? '<em class="sg-art-req">' + LOCK_ICON + esc(galleryLockLabel(lock)) + '</em>'
-              : (p.place ? '<em>' + esc(p.place) + '</em>' : ''));
+      foot.innerHTML = '<strong>' + esc(p.title) + '</strong>' + (p.place ? '<em>' + esc(p.place) + '</em>' : '');
       box.hidden = false;
     });
   }
@@ -4639,15 +4638,17 @@
         ? '<div class="sg-bg-grid">' +
             '<button class="sg-bg' + (d.profileArtId ? '' : ' on') + '" type="button" data-pick-art="">' +
               '<span class="sg-bg-none">Default</span></button>' +
-            pieces.map(function (p) {
-              var lock = galleryLock(p.id);
-              return '<button class="sg-bg' + (p.id === d.profileArtId ? ' on' : '') + (lock ? ' is-locked' : '') + '" type="button" ' +
-                'data-pick-art="' + esc(p.id) + '"' +
-                (lock ? ' data-art-locked="' + esc(galleryLockLabel(lock)) + '"' : '') + '>' +
+            // Only art the player owns can be a background; the rest waits in
+            // the Unowned list below until its achievement is earned.
+            pieces.filter(function (p) { return !galleryLock(p.id); }).map(function (p) {
+              return '<button class="sg-bg' + (p.id === d.profileArtId ? ' on' : '') + '" type="button" ' +
+                'data-pick-art="' + esc(p.id) + '">' +
                 '<img ' + artAttrs(p.thumb, 320) + ' alt="' + esc(p.title) + '" loading="lazy">' +
-                (lock ? LOCK_ICON : '') +
                 '<span>' + esc(p.title) + '</span></button>';
-            }).join('') + '</div>' + galleryEarnedLine(pieces, 'sg-bg-earned')
+            }).join('') + '</div>' + galleryEarnedLine(pieces, 'sg-bg-earned') +
+            (pieces.some(function (p) { return galleryLock(p.id); })
+              ? '<details class="sg-bg-unowned"><summary>Unowned backgrounds</summary>' + unownedArtList(pieces) + '</details>'
+              : '')
         : '<div class="sg-empty-row">The gallery has not loaded yet.</div>') +
       '<h4 class="sg-prof-sub">Icon style</h4>' +
       '<div class="sg-chip-row">' +
@@ -4811,7 +4812,6 @@
       var back = e.target.closest('[data-pick-back]');
       if (back) { d.preferredCardBack = back.getAttribute('data-pick-back'); paint(true); return; }
       var art = e.target.closest('[data-pick-art]');
-      if (art && art.hasAttribute('data-art-locked')) { fail(art.getAttribute('data-art-locked')); return; }
       if (art) { d.profileArtId = art.getAttribute('data-pick-art'); paint(true); return; }
       var avatar = e.target.closest('[data-pick-avatar]');
       if (avatar) { d.avatarMode = avatar.getAttribute('data-pick-avatar'); paint(true); return; }
