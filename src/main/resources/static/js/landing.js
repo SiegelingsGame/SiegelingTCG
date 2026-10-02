@@ -497,8 +497,12 @@
             const source = __catalogById.get(card.evolvesFromId);
             const sourceArt = String(source?.cardArtMode || '').toUpperCase() === 'OVERLAY'
                 ? String(source.cardArtUrl || '').trim() : '';
+            // A deferred card's chip waits with its art, so forty chips don't
+            // compete with the creature art of the cards actually on screen.
+            const evoSrcAttrs = sourceArt ? evoThumbAttrs(sourceArt, 64, evolvesFrom) : '';
+            const evoAttrs = opts.deferArt ? evoSrcAttrs.replace(/^src=/, 'data-src=') : evoSrcAttrs;
             const sourceHtml = sourceArt
-                ? `<span class="card-corner-evo-thumb"><img ${evoThumbAttrs(sourceArt, 64, evolvesFrom)} alt="${escapeAttr(evolvesFrom)}" decoding="async"></span>`
+                ? `<span class="card-corner-evo-thumb"><img ${evoAttrs} alt="${escapeAttr(evolvesFrom)}"${opts.deferArt ? ' loading="lazy"' : ''} decoding="async"></span>`
                 : `<span class="card-corner-evo-name">${escapeHtml(evolvesFrom)}</span>`;
             chips.push(`<div class="card-corner-chip card-corner-evo" title="${escapeAttr(`Evolves from ${evolvesFrom}`)}"><span class="card-corner-evo-tag">Evo</span>${sourceHtml}</div>`);
         }
@@ -722,20 +726,26 @@
     // says nothing about which cards are on screen. Load whatever sits inside a
     // row's own scrollport or is about to drift into it first; the idle pass
     // below fills in the rest.
+    // The idle pass leaves its images lazy, and lazy art in a scrolling row is
+    // only fetched once it is on screen, so a card would drift in still waiting
+    // for its creature. A card coming within 480px (~16s of auto-scroll) is
+    // switched to eager here, so its art is ready before it arrives.
     function hydrateNearView(row) {
         if (!('IntersectionObserver' in window)) return;
         const observer = new IntersectionObserver((entries) => {
             entries.forEach((entry) => {
                 if (!entry.isIntersecting) return;
                 observer.unobserve(entry.target);
-                entry.target.querySelectorAll('img[data-src]').forEach((img) => {
+                entry.target.querySelectorAll('img').forEach((img) => {
+                    if (img.getAttribute('loading') === 'lazy') img.setAttribute('loading', 'eager');
+                    if (!img.hasAttribute('data-src')) return;
                     img.setAttribute('src', img.getAttribute('data-src'));
                     img.removeAttribute('data-src');
                 });
             });
         }, { root: row, rootMargin: '0px 480px' });
         row.querySelectorAll('.marquee-card').forEach((card) => {
-            if (card.querySelector('img[data-src]')) observer.observe(card);
+            if (card.querySelector('img[data-src], img[loading="lazy"]')) observer.observe(card);
         });
     }
 

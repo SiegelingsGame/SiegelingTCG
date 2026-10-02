@@ -29,8 +29,11 @@
     '.' + PENDING + '{opacity:0}' +
     // The failsafe clock starts once the art is actually requested: a card whose
     // image is still deferred (data-src, landing marquee) has nothing to time
-    // out yet. Its own rule, so a browser without :has() only loses the failsafe.
-    '.' + PENDING + ':not(:has(img[data-src])){animation:sg-art-failsafe .3s ease 8s forwards}' +
+    // out yet, and neither does lazy art, which the browser only fetches once it
+    // is on screen - expiring first would show exactly the empty frame this
+    // script exists to hide. Its own rule, so a browser without :has() only
+    // loses the failsafe.
+    '.' + PENDING + ':not(:has(img[data-src], .card-art img[loading="lazy"])){animation:sg-art-failsafe .3s ease 8s forwards}' +
     '.' + FADE + '{animation:sg-art-fade .3s ease both}' +
     '@keyframes sg-art-fade{from{opacity:0}to{opacity:1}}' +
     '@keyframes sg-art-failsafe{to{opacity:1}}' +

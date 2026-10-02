@@ -1,4 +1,31 @@
 Original prompt: Merge and deploy
+- October 2, 2026 (deploy follow-up) **#996 deployed (run #985, merge `27af9e4a`); live check found late frame-only cards on the landing roster, fixed here.**
+  - **Live result of #996.**
+    - Hub `/cards`: 0 frame-only cards at 390x844 and 1920x1080; all visible cards complete in 1.8-2.3s; 24 mirror requests at `w=480`, 0 originals.
+    - The 960 mirror bucket is live: `w=960` returns a 960px WebP.
+    - Landing roster: 1-5 frame-only cards per run, each appearing 8s or later after load.
+  - **Cause.**
+    - The idle hydration pass gives roster images their `src` but leaves them `loading="lazy"`, and a lazy image inside the scrolling row is only fetched once it is on screen.
+    - `art-reveal.js`'s 8s failsafe clock started at hydration. A card that drifted in after that was force-revealed before its art was even requested: the exact empty frame the script hides.
+    - Separately, all ~40 evo chips (`w=64`) were eager on every card, offscreen clones included, competing with the creature art of the visible cards.
+  - **Fix.**
+    - `hydrateNearView` now also switches a card's lazy images to eager when it comes within 480px of the row's scrollport (about 16s of auto-scroll at 24-30 px/s), so its art is fetched before it arrives. It observes cards with `img[data-src]` or `img[loading="lazy"]`.
+    - Evo chips on deferred cards are deferred and lazy with their card.
+    - `art-reveal.js`: the failsafe excludes cards whose `.card-art img` is still `loading="lazy"` (nothing has been requested to time out). The load/error listeners still reveal them.
+  - **Pins:** `landing.js?v=47` (index), `art-reveal.js?v=2` (index, home-next, home).
+- Verification:
+  - **Method.** Headless Chromium against production, with only `/`, `landing.js` and `art-reveal.js` served from this tree. Sampled every 100ms for 25s with the roster in view, real mirror and network.
+  - **Phone 390x844 @3x.**
+    - Frame-only cards: 0 (live `main`: 5).
+    - Hidden-in-view cards appear only in the 0.55s after first render (the whole-card fade-in), never later.
+    - 47 mirror requests (live #996 code with every hydrated image eager: 128).
+  - **Desktop 1920x1080.** Frame-only cards: 0 (live: 3). The initial fill completes 1.3s after render, with no hidden or frame-only card afterwards.
+  - **Hub `/cards` with the new `art-reveal.js`.**
+    - 0 frame-only cards at both viewports.
+    - Complete at 1.9s (phone) and 2.3s (desktop).
+    - Pending tiles still carry the `sg-art-failsafe` animation, so the new `:has()` selector list parses.
+  - **Checks.** `node --check` on both files; 0 page errors.
+  - **Recovery point.** `recovery/pre-popin-fix-2026-10-02` (`900f6922`) remains the pre-#996 rollback; `27af9e4a` is the #996 state.
 - October 2, 2026 - **No more frame-first pop-in: binder and landing cards appear whole, from right-sized art.**
   - **Cause.** Every Siegeling overlay is a 1024x1536 Firebase Storage PNG (0.9-2.4 MB measured).
     - The hub binder, hub rails, the new Evo chip (~20px) and the battle table loaded those originals directly.
