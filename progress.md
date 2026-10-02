@@ -1,4 +1,50 @@
 Original prompt: Merge and deploy
+- October 2, 2026 **Card art loads fast after a deploy, the landing roster fills in card by card, and binder tiles cascade in.**
+  - **Cause of the slow loads.** Every Hosting release empties the CDN. art-mirror then re-downloaded each 1-2.4 MB original from Storage and resized it on a 256 MiB, 1-vCPU instance.
+    - Measured on production: one cold thumbnail took 1.5s.
+    - 24 binder tiles requested together took a median 15.7s (max 19s), and some returned 500/503 when the instance ran out of memory. Each failure then fell back to the 2 MB original.
+    - A CDN hit takes ~0.08-0.16s.
+  - **Functions (`functions/index.js`).**
+    - art-mirror keeps every thumbnail it makes in the bucket at `art-thumbs/w{N}/{sha256(url)}.webp`, so a CDN miss costs one small object read, not a download plus a resize. Art URLs carry their upload token, so new art is a new key and a cached thumbnail never goes stale.
+    - Resizes run through a 2-slot limiter.
+    - `api` gets `memory: '1GiB'`.
+    - Tests: cache keys, limiter peak/results, and an end-to-end handler test (a second request is served from the stored thumbnail with no upstream fetch).
+  - **Deploy.** A new best-effort `Warm card art thumbnails` step runs `scripts/warm-art-thumbs.mjs` after the functions deploy.
+    - It requests every Storage card and SiegeKnight art at the six mirror widths: 3 concurrent, 9-minute budget, always exits 0, `continue-on-error`.
+    - The first run builds the bucket cache; later runs re-read it.
+  - **Landing roster (`landing.js`).**
+    - Shows a sample, not the catalog: 4 per element (one each of Epic/Rare/Uncommon/Common where available; Legendaries have their own section). That is 24 cards instead of 83.
+    - Picks alternate rows per round, so both rows carry every element.
+    - Each card's art (and its evo chip, with a 400ms grace before falling back to the name) is preloaded first. Only then does the card join its row, rising in 70ms after the previous one.
+    - A row holds still while it fills, then gains enough wrap copies for any screen width (clones marked `data-marquee-clone`; `bindAutoScroll` wraps on the first one) and starts drifting from where it stands (`keepPosition`).
+    - Cards still loading at 6s are left out, so a card is never shown half-drawn.
+    - `landing.css` reserves each row's height (5:7 card plus padding) from first paint, so nothing below shifts.
+    - Removed the now-unused deferred-hydration helpers (`deferredThumbAttrs`, `hydrateDeferredImages*`, `hydrateNearView`).
+    - Roster copy: "A few from every element...".
+  - **Binder (`art-reveal.js`).**
+    - Tiles whose art lands together are revealed in reading order, 16-45ms apart, so a full screen is out within ~0.4s.
+    - The reveal is now a fade plus a 10px rise.
+    - Art already in memory is still revealed instantly.
+  - **Pins:** `landing.js?v=48`, `landing.css?v=47` (index, play), `art-reveal.js?v=3` (index, home-next, home).
+- Verification:
+  - **Method.** Headless Chromium against a local server that serves this tree and proxies `/api/*` to production. No Playwright routing, so the browser cache behaves for real (routing disables it and made preloaded art look refetched).
+  - **Landing at 390x844 @3x, 1920x1080 and 3440x1440.**
+    - First card at 0.96 / 1.34 / 2.33s; all 24 in and moving by 2.0 / 2.6 / 3.6s.
+    - 0 frame-only cards, 0 layout shifts below the roster, 0 repeated art requests, 0 cards left pending, 0 errors.
+    - Both rows carry all six elements.
+    - Ultrawide gets two wrap copies.
+    - Reduced motion: rows fill and stay still, no animation.
+    - API down: the 8-card offline roster fills both rows.
+    - Screenshots mid-fill and full show whole cards with art and evo chips only.
+  - **Hub `/cards`.**
+    - 0 frame-only tiles at both viewports, first visit and return.
+    - Desktop: tiles revealed 0.67-1.97s in reading order (2 in-burst inversions, only where an earlier tile was not ready), median step 41-53ms.
+    - The phone first visit was network-bound on cold thumbnails from the current production function (3.1-9.1s), which is what the server cache addresses.
+  - **Functions.** `node --test` 26/26; `npm run lint` ok; regenerated manifest shows `availableMemoryMb: 1024`.
+  - **Warm script.** Against a mock server: dedupes art, skips non-Storage URLs, reports one forced 500 as a warning and exits 0. It also exits 0 with a warning when the host is unreachable.
+  - **Workflow.** The YAML parses.
+  - **Checks.** `node --check` on every changed JS file.
+  - **Not verified before merge.** The Storage cache and the 1 GiB setting on real Cloud Functions (needs a deploy).
 - October 2, 2026 (deploy follow-up) **#996 deployed (run #985, merge `27af9e4a`); live check found late frame-only cards on the landing roster, fixed here.**
   - **Live result of #996.**
     - Hub `/cards`: 0 frame-only cards at 390x844 and 1920x1080; all visible cards complete in 1.8-2.3s; 24 mirror requests at `w=480`, 0 originals.

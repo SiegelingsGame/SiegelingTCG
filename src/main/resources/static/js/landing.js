@@ -426,14 +426,17 @@
         return `src="${escapeAttr(thumb)}" data-img-fallback="${escapeAttr(original)}" onerror="landingWebpFallback(this)"`;
     }
 
-    function deferredThumbAttrs(url, width) {
+    // The URLs thumbAttrs would try, in order: the mirror thumbnail (or WebP
+    // twin) first, the original as its fallback.
+    function artCandidates(url, width) {
         const original = String(url || '');
-        if (!/^https:\/\/firebasestorage\.googleapis\.com\//.test(original)) {
-            const attrs = landingImgAttrs(original);
-            return attrs.replace(/^src=/, 'data-src=');
+        if (!original) return [];
+        if (/^https:\/\/firebasestorage\.googleapis\.com\//.test(original)) {
+            return [`/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(original)}`, original];
         }
-        const thumb = `/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(original)}`;
-        return `data-src="${escapeAttr(thumb)}" data-img-fallback="${escapeAttr(original)}" onerror="landingWebpFallback(this)"`;
+        const preferred = (landingImgAttrs(original).match(/^src="([^"]*)"/) || [])[1];
+        const decoded = preferred ? preferred.replace(/&amp;/g, '&').replace(/&quot;/g, '"') : original;
+        return decoded === original ? [original] : [decoded, original];
     }
 
     if (typeof window !== 'undefined' && !window.landingEvoThumbFallback) {
@@ -467,6 +470,13 @@
         return `src="${escapeAttr(thumb)}" data-img-fallback="${escapeAttr(original)}" data-evo-label="${escapeAttr(safeLabel)}" onerror="landingEvoThumbFallback(this)"`;
     }
 
+    // Only the transparent creature overlay reads at evolution-chip size.
+    function evoSourceArt(card) {
+        const source = __catalogById.get(card.evolvesFromId);
+        return String(source?.cardArtMode || '').toUpperCase() === 'OVERLAY'
+            ? String(source.cardArtUrl || '').trim() : '';
+    }
+
     function renderBinderFace(card, options) {
         const opts = options || {};
         const element = String(card.element || 'NEUTRAL').toUpperCase();
@@ -493,16 +503,12 @@
         const evolvesFrom = String(card.evolvesFromName || '').trim()
             || String(card.evolvesFromId || '').split(/[-_\s]+/).filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(' ');
         if (evolvesFrom) {
-            // Only the transparent creature overlay reads at chip size.
-            const source = __catalogById.get(card.evolvesFromId);
-            const sourceArt = String(source?.cardArtMode || '').toUpperCase() === 'OVERLAY'
-                ? String(source.cardArtUrl || '').trim() : '';
-            // A deferred card's chip waits with its art, so forty chips don't
-            // compete with the creature art of the cards actually on screen.
-            const evoSrcAttrs = sourceArt ? evoThumbAttrs(sourceArt, 64, evolvesFrom) : '';
-            const evoAttrs = opts.deferArt ? evoSrcAttrs.replace(/^src=/, 'data-src=') : evoSrcAttrs;
+            // A card rendered from preloaded art (opts.loaded) shows the chip
+            // image only if it loaded too; otherwise the name stands in.
+            const sourceArt = opts.loaded ? (opts.loaded.evo || '') : evoSourceArt(card);
+            const evoAttrs = opts.loaded ? `src="${escapeAttr(sourceArt)}"` : evoThumbAttrs(sourceArt, 64, evolvesFrom);
             const sourceHtml = sourceArt
-                ? `<span class="card-corner-evo-thumb"><img ${evoAttrs} alt="${escapeAttr(evolvesFrom)}"${opts.deferArt ? ' loading="lazy"' : ''} decoding="async"></span>`
+                ? `<span class="card-corner-evo-thumb"><img ${evoAttrs} alt="${escapeAttr(evolvesFrom)}" decoding="async"></span>`
                 : `<span class="card-corner-evo-name">${escapeHtml(evolvesFrom)}</span>`;
             chips.push(`<div class="card-corner-chip card-corner-evo" title="${escapeAttr(`Evolves from ${evolvesFrom}`)}"><span class="card-corner-evo-tag">Evo</span>${sourceHtml}</div>`);
         }
@@ -511,8 +517,10 @@
         const ink = SUMMARY_INK[element] || DEFAULT_INK;
         const description = String(card.description || '').trim() || 'Description coming soon.';
         const stat = (value) => (Number.isFinite(Number(value)) && value !== null && value !== '' ? Number(value) : '-');
-        const artAttrs = opts.deferArt ? deferredThumbAttrs(art, opts.thumbWidth || 320) : thumbAttrs(art, opts.thumbWidth || 320);
-        const loading = opts.eager ? 'eager' : 'lazy';
+        const artAttrs = opts.loaded ? `src="${escapeAttr(opts.loaded.art)}"` : thumbAttrs(art, opts.thumbWidth || 320);
+        // Preloaded art is already decoded in memory; lazy would ignore that copy
+        // and hold the image back until it scrolls into view.
+        const loading = opts.eager || opts.loaded ? 'eager' : 'lazy';
         // Held back until its creature art is ready (art-reveal.js), so the frame
         // never paints first with an empty art window.
         const pending = art && window.SieglingsArtReveal ? ` ${window.SieglingsArtReveal.PENDING}` : '';
@@ -657,10 +665,12 @@
         let last = 0;
         let lastSet = -1;
 
+        // Rows that mark their copies (the roster may need more than one copy
+        // to cover a wide screen) wrap at the first copy; the rest are two
+        // equal halves.
         function measure() {
-            const half = row.children.length / 2;
             const first = row.children[0];
-            const twin = row.children[half];
+            const twin = row.querySelector('[data-marquee-clone]') || row.children[row.children.length / 2];
             period = first && twin ? twin.offsetLeft - first.offsetLeft : 0;
         }
         function wrap(value) {
@@ -670,7 +680,9 @@
         function hold(ms) { pausedUntil = performance.now() + ms; }
 
         measure();
-        pos = reverse ? period * 0.6 : 0;
+        // keepPosition: the row was already on screen (and maybe swiped) before
+        // it started moving, so a jump to a new offset would show.
+        pos = opts.keepPosition ? wrap(row.scrollLeft) : (reverse ? period * 0.6 : 0);
         row.scrollLeft = pos;
 
         row.addEventListener('pointerenter', (event) => { if (event.pointerType === 'mouse') hovering = true; });
@@ -713,59 +725,6 @@
             + items.map((item, i) => markup(item, i, true)).join('');
     }
 
-    function hydrateDeferredImages(root, limit) {
-        const images = Array.from(root.querySelectorAll('img[data-src]')).slice(0, limit || Infinity);
-        images.forEach((img) => {
-            img.setAttribute('src', img.getAttribute('data-src'));
-            img.removeAttribute('data-src');
-        });
-        return images.length;
-    }
-
-    // The rows start mid-list (the reverse row at 60% of a period), so DOM order
-    // says nothing about which cards are on screen. Load whatever sits inside a
-    // row's own scrollport or is about to drift into it first; the idle pass
-    // below fills in the rest.
-    // The idle pass leaves its images lazy, and lazy art in a scrolling row is
-    // only fetched once it is on screen, so a card would drift in still waiting
-    // for its creature. A card coming within 480px (~16s of auto-scroll) is
-    // switched to eager here, so its art is ready before it arrives.
-    function hydrateNearView(row) {
-        if (!('IntersectionObserver' in window)) return;
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach((entry) => {
-                if (!entry.isIntersecting) return;
-                observer.unobserve(entry.target);
-                entry.target.querySelectorAll('img').forEach((img) => {
-                    if (img.getAttribute('loading') === 'lazy') img.setAttribute('loading', 'eager');
-                    if (!img.hasAttribute('data-src')) return;
-                    img.setAttribute('src', img.getAttribute('data-src'));
-                    img.removeAttribute('data-src');
-                });
-            });
-        }, { root: row, rootMargin: '0px 480px' });
-        row.querySelectorAll('.marquee-card').forEach((card) => {
-            if (card.querySelector('img[data-src], img[loading="lazy"]')) observer.observe(card);
-        });
-    }
-
-    function hydrateDeferredImagesSoon(root) {
-        const step = () => {
-            const count = hydrateDeferredImages(root, 4);
-            if (count > 0 && root.querySelector('img[data-src]')) {
-                window.setTimeout(schedule, 140);
-            }
-        };
-        const schedule = () => {
-            if ('requestIdleCallback' in window) {
-                window.requestIdleCallback(step, { timeout: 900 });
-            } else {
-                window.setTimeout(step, 120);
-            }
-        };
-        window.setTimeout(schedule, 650);
-    }
-
     // The full roster comes from the same live catalog used by the deck builder.
     async function loadRosterEntries() {
         try {
@@ -774,11 +733,153 @@
             const entries = cards
                 .filter((card) => String(card?.type || '').toUpperCase() === 'SIEGLING' && String(card?.cardArtUrl || '').trim() && hasCardFrame(card))
                 .map(normalizeRosterCard);
-            if (entries.length) return entries;
+            if (entries.length) return { entries, live: true };
         } catch (_ignored) {
             // A static preview or an unavailable API still presents the curated fallback.
         }
-        return ROSTER_FALLBACK.map((entry) => ({ ...entry }));
+        return { entries: ROSTER_FALLBACK.map((entry) => ({ ...entry })), live: false };
+    }
+
+    // The landing page shows a sample, not the catalog: a few per element, one
+    // of each rarity where the element has it, so every element is represented
+    // and the page loads two dozen cards instead of every Siegling. Legendaries
+    // have their own section below.
+    const ROSTER_PER_ELEMENT = 4;
+    const ROSTER_RARITY_ORDER = ['EPIC', 'RARE', 'UNCOMMON', 'COMMON'];
+    function pickRosterShowcase(entries) {
+        const byElement = new Map();
+        entries.forEach((entry) => {
+            if (entry.rarity === 'LEGENDARY') return;
+            if (!byElement.has(entry.element)) byElement.set(entry.element, []);
+            byElement.get(entry.element).push(entry);
+        });
+        const groups = [...byElement.values()].map((list) => {
+            const chosen = [];
+            ROSTER_RARITY_ORDER.forEach((rarity) => {
+                const pick = list.find((entry) => entry.rarity === rarity);
+                if (pick) chosen.push(pick);
+            });
+            list.forEach((entry) => { if (!chosen.includes(entry)) chosen.push(entry); });
+            return chosen.slice(0, ROSTER_PER_ELEMENT);
+        });
+        // Round-robin across elements, alternating each element's row from one
+        // round to the next, so both rows carry every element.
+        const picks = [];
+        for (let round = 0; round < ROSTER_PER_ELEMENT; round++) {
+            groups.forEach((group, g) => { if (group[round]) picks.push({ entry: group[round], row: (g + round) % 2 }); });
+        }
+        return picks;
+    }
+
+    // Resolves with the first candidate that actually decodes, or null. The
+    // Image objects are kept so the browser keeps the decoded art in memory for
+    // the <img> that follows.
+    const rosterArtKeep = [];
+    function preloadFirst(candidates) {
+        return candidates.reduce((chain, src) => chain.then((found) => found || new Promise((resolve) => {
+            const img = new Image();
+            img.decoding = 'async';
+            img.onload = () => {
+                rosterArtKeep.push(img);
+                const decoded = typeof img.decode === 'function' ? img.decode().catch(() => {}) : Promise.resolve();
+                decoded.then(() => resolve(src));
+            };
+            img.onerror = () => resolve(null);
+            img.src = src;
+        })), Promise.resolve(null));
+    }
+
+    /* Cards join the rows as their art arrives, each fading in, instead of every
+       slot being laid out up front and filling in out of order. A row holds still
+       while it fills, then gains its wrap copies and starts drifting. Anything
+       still loading at the deadline is left out rather than shown half-drawn. */
+    const ROSTER_FILL_DEADLINE_MS = 6000;
+    const ROSTER_ARRIVAL_GAP_MS = 70;
+
+    function fillRosterRow(row, items, entries, cardMarkup, onReady) {
+        // landing.css reserves the row's height, so nothing below shifts as
+        // the first card lands.
+        const memo = new Map();
+        row.innerHTML = '';
+        const arrived = [];
+        const queue = [];
+        let flushing = false;
+        let closed = false;
+        let settled = 0;
+        let resolveDone;
+        const done = new Promise((resolve) => { resolveDone = resolve; });
+
+        function place(item, loaded, clone) {
+            const holder = document.createElement('div');
+            holder.innerHTML = cardMarkup(item, loaded, clone).trim();
+            const card = holder.firstElementChild;
+            card.classList.add('is-arriving');
+            card.addEventListener('animationend', function arrivedEnd(event) {
+                if (event.target !== card) return;
+                card.classList.remove('is-arriving');
+                card.removeEventListener('animationend', arrivedEnd);
+            });
+            row.appendChild(card);
+            const face = card.querySelector('.binder-framed-slot .hand-card');
+            if (face) fitCardDescription(face, memo);
+            return card;
+        }
+        function flush() {
+            if (!queue.length) {
+                flushing = false;
+                if (closed) resolveDone();
+                return;
+            }
+            flushing = true;
+            const next = queue.shift();
+            arrived.push(next);
+            place(next.item, next.loaded, false);
+            window.setTimeout(flush, ROSTER_ARRIVAL_GAP_MS);
+        }
+        function close() {
+            if (closed) return;
+            closed = true;
+            if (!flushing) resolveDone();
+        }
+        items.forEach((item) => {
+            const entry = entries[item];
+            const evo = evoSourceArt(entry);
+            const evoLoad = evo ? preloadFirst(artCandidates(evo, 64)) : Promise.resolve(null);
+            // The evolution chip is a garnish: it gets a short grace period once
+            // the creature has loaded, then the chip shows the name instead.
+            preloadFirst(artCandidates(entry.art, 320)).then((art) => (art
+                ? Promise.race([evoLoad, new Promise((resolve) => window.setTimeout(resolve, 400, null))])
+                : null).then((evoArt) => [art, evoArt])).then(([art, evoArt]) => {
+                settled += 1;
+                if (!closed && art) {
+                    queue.push({ item, loaded: { art, evo: evoArt } });
+                    if (!flushing) flush();
+                }
+                if (settled === items.length) close();
+            });
+        });
+        window.setTimeout(close, ROSTER_FILL_DEADLINE_MS);
+
+        return done.then(() => {
+            if (!arrived.length) {
+                row.hidden = true;
+                return;
+            }
+            // Copies to wrap on: enough that one full copy plus the visible
+            // width is always laid out, however wide the screen.
+            const first = row.firstElementChild;
+            const last = row.lastElementChild;
+            const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+            const period = last.offsetLeft + last.offsetWidth + gap - first.offsetLeft;
+            const copies = Math.max(1, Math.ceil(row.clientWidth / Math.max(1, period)));
+            for (let c = 0; c < copies; c++) {
+                arrived.forEach(({ item, loaded }, i) => {
+                    const card = place(item, loaded, true);
+                    if (c === 0 && i === 0) card.setAttribute('data-marquee-clone', '');
+                });
+            }
+            onReady();
+        });
     }
 
     async function bindRosterMarquee() {
@@ -786,27 +887,28 @@
         const rowB = document.getElementById('rosterMarqueeB');
         const spotlight = document.getElementById('rosterSpotlight');
         if (!rowA || !rowB) return;
-        const entries = await loadRosterEntries();
-        if (!entries.length) return;
-        // Alternate cards between the rows so neighbours in the catalog (one
-        // evolution line, one element) are spread across both.
+        const roster = await loadRosterEntries();
+        // The offline fallback is already a short curated list; sample only the
+        // live catalog.
+        const showcase = roster.live ? pickRosterShowcase(roster.entries) : [];
+        const picks = showcase.length ? showcase : roster.entries.map((entry, i) => ({ entry, row: i % 2 }));
+        if (!picks.length) return;
+        const entries = picks.map((pick) => pick.entry);
         const rows = [[], []];
-        entries.forEach((entry, i) => rows[entries.length < 8 ? 0 : i % 2].push(i));
+        picks.forEach((pick, i) => rows[entries.length < 8 ? 0 : pick.row].push(i));
         if (!rows[1].length) rows[1] = rows[0].slice().reverse();
 
-        const markup = (index, i, clone) => `
+        const markup = (index, loaded, clone) => `
             <button class="marquee-card" type="button" data-roster-index="${index}"${clone ? ' aria-hidden="true" tabindex="-1"' : ''}
                     aria-label="Meet ${escapeAttr(entries[index].name)}">
-                ${renderBinderFace(entries[index], { thumbWidth: 320, eager: !clone && i < 4, deferArt: clone || i >= 4 })}
+                ${renderBinderFace(entries[index], { thumbWidth: 320, loaded })}
             </button>`;
-        fillMarquee(rowA, rows[0], markup);
-        fillMarquee(rowB, rows[1], markup);
-        scheduleDescriptionFit(rowA);
-        scheduleDescriptionFit(rowB);
-        hydrateNearView(rowA);
-        hydrateNearView(rowB);
-        hydrateDeferredImagesSoon(rowA);
-        hydrateDeferredImagesSoon(rowB);
+        [rowA, rowB].forEach((row, r) => {
+            fillRosterRow(row, rows[r], entries, markup, () => {
+                scheduleDescriptionFit(row);
+                bindAutoScroll(row, { speed: row === rowA ? 30 : 24, keepPosition: true });
+            });
+        });
 
         function show(index) {
             if (!spotlight) return;
@@ -832,7 +934,6 @@
                 const button = event.target.closest('[data-roster-index]');
                 if (button) show(Number(button.dataset.rosterIndex));
             });
-            bindAutoScroll(row, { speed: row === rowA ? 30 : 24 });
         });
     }
 

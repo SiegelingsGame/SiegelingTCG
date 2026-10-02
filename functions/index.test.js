@@ -369,6 +369,85 @@ test('art-mirror thumbnail widths snap to fixed buckets', () => {
   assert.equal(_private.parseThumbWidth('5000'), 960);
 });
 
+test('art-mirror thumbnail cache keys are per width and per art URL', () => {
+  const url = `https://firebasestorage.googleapis.com/v0/b/${_private.ART_MIRROR_BUCKET}/o/cards%2Fa.png?alt=media&token=1`;
+  const path = _private.artThumbCachePath(url, 480);
+  assert.match(path, /^art-thumbs\/w480\/[0-9a-f]{64}\.webp$/);
+  assert.equal(_private.artThumbCachePath(url, 480), path);
+  assert.notEqual(_private.artThumbCachePath(url, 320), path);
+  // A re-upload gets a new token, so it can never be served a stale thumbnail.
+  assert.notEqual(_private.artThumbCachePath(url.replace('token=1', 'token=2'), 480), path);
+});
+
+test('resize limiter never runs more than its slots at once and keeps every result', async () => {
+  const limit = _private.createLimiter(2);
+  let active = 0;
+  let peak = 0;
+  const results = await Promise.all(Array.from({ length: 9 }, (_, i) => limit(async () => {
+    active += 1;
+    peak = Math.max(peak, active);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    active -= 1;
+    if (i === 4) throw new Error('boom');
+    return i;
+  }).catch((error) => error.message)));
+  assert.equal(peak, 2);
+  assert.deepEqual(results, [0, 1, 2, 3, 'boom', 5, 6, 7, 8]);
+});
+
+test('art-mirror resizes once, stores the thumbnail and serves later misses from the bucket', async () => {
+  const http = require('node:http');
+  const sharp = require('sharp');
+  const { app } = require('./index');
+  const original = await sharp({ create: { width: 1024, height: 1536, channels: 4, background: { r: 200, g: 40, b: 40, alpha: 1 } } }).png().toBuffer();
+  const stored = new Map();
+  const realBucket = _private.artThumbStore.bucket;
+  const realFetch = global.fetch;
+  let upstreamFetches = 0;
+  _private.artThumbStore.bucket = () => ({
+    file: (name) => ({
+      download: async () => {
+        if (!stored.has(name)) throw Object.assign(new Error('No such object'), { code: 404 });
+        return [stored.get(name)];
+      },
+      save: async (body) => { stored.set(name, body); }
+    })
+  });
+  global.fetch = async () => {
+    upstreamFetches += 1;
+    return new Response(original, { status: 200, headers: { 'content-type': 'image/png' } });
+  };
+  const server = app.listen(0);
+  const port = server.address().port;
+  const art = `https://firebasestorage.googleapis.com/v0/b/${_private.ART_MIRROR_BUCKET}/o/cards%2Ftest.png?alt=media&token=t`;
+  const get = () => new Promise((resolve, reject) => {
+    http.get({ port, path: `/api/cards/art-mirror?w=300&url=${encodeURIComponent(art)}` }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+    }).on('error', reject);
+  });
+  try {
+    const first = await get();
+    assert.equal(first.status, 200);
+    assert.equal(first.headers['content-type'], 'image/webp');
+    assert.equal((await sharp(first.body).metadata()).width, 320);
+    assert.equal(upstreamFetches, 1);
+    assert.deepEqual([...stored.keys()], [_private.artThumbCachePath(art, 320)]);
+
+    const second = await get();
+    assert.equal(second.status, 200);
+    assert.equal(second.headers['content-type'], 'image/webp');
+    assert.match(second.headers['cache-control'], /immutable/);
+    assert.ok(second.body.equals(first.body));
+    assert.equal(upstreamFetches, 1, 'a cached thumbnail must not re-download the original');
+  } finally {
+    server.close();
+    _private.artThumbStore.bucket = realBucket;
+    global.fetch = realFetch;
+  }
+});
+
 test('art-mirror resizes card art to a WebP thumbnail', async () => {
   const sharp = require('sharp');
   const source = await sharp({ create: { width: 1024, height: 1536, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();

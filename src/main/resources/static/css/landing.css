@@ -2258,6 +2258,10 @@ body.element-overlay-open { overflow: hidden; }
 .roster-section { padding-left: 0; padding-right: 0; }
 .roster-section .landing-section-heading { padding: 0 24px; margin-bottom: 26px; }
 .roster-marquee { padding: 8px 0 10px; }
+/* Cards fill in as their art arrives, so hold each row at one card's height
+   (5:7 cards plus the row padding) from first paint. */
+.roster-marquee:not([hidden]) { min-height: calc(clamp(140px, 13vw, 176px) * 1.4 + 18px); }
+.roster-marquee[hidden] { display: none; }
 .roster-marquee + .roster-marquee { margin-top: 4px; }
 .marquee-card {
     flex: 0 0 auto;
@@ -2271,6 +2275,13 @@ body.element-overlay-open { overflow: hidden; }
     transition: transform .2s ease;
 }
 .marquee-card:hover, .marquee-card.is-active { transform: translateY(-6px); }
+/* Roster cards join their row only once their art has loaded, rising in one
+   after another (landing.js fillRosterRow). */
+.marquee-card.is-arriving { animation: roster-arrive .5s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes roster-arrive {
+    from { opacity: 0; transform: translateY(16px) scale(.96); }
+    to { opacity: 1; transform: none; }
+}
 .marquee-card:focus-visible { outline: 3px solid #fff; outline-offset: 3px; border-radius: 10px; }
 .marquee-card.is-active .mulligan-card-slot { border-color: rgba(255, 215, 0, .7); box-shadow: 0 0 0 1px rgba(255, 215, 0, .45), 0 0 18px rgba(255, 215, 0, .35); }
 
@@ -2327,6 +2338,7 @@ body.element-overlay-open { overflow: hidden; }
 @media (max-width: 760px) {
     .roster-section .landing-section-heading, .knights-section .landing-section-heading { margin-bottom: 22px; }
     .marquee-card { width: 142px; }
+    .roster-marquee:not([hidden]) { min-height: calc(142px * 1.4 + 18px); }
     .roster-spotlight { grid-template-columns: 60px minmax(0, 1fr); gap: 12px; padding: 12px 42px 12px 12px; }
     .roster-spotlight-art { width: 60px; height: 78px; }
     .roster-spotlight-copy h3 { font-size: 1.1rem; }
@@ -2370,6 +2382,7 @@ body.element-overlay-open { overflow: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
     .marquee-card, .legendary-card .mulligan-card-slot { transition: none; }
+    .marquee-card.is-arriving { animation: none; }
     .roster-spotlight { animation: none; }
 }
 

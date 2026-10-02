@@ -269,6 +269,70 @@ async function resizeArt(buffer, width) {
     .toBuffer();
 }
 
+/* Every Hosting release empties the CDN, so after a deploy the first visitors
+   used to make this function re-download every 1-2.4 MB original and resize it
+   again - 24 binder tiles at once took a median 15.7s and some died with
+   500/503 when the instance ran out of memory. A thumbnail is now resized once
+   ever and kept in the bucket; a CDN miss then costs one small object read.
+   Art URLs carry their upload token, so new art is a new key and a cached
+   thumbnail can never go stale. */
+const ART_THUMB_CACHE_PREFIX = 'art-thumbs';
+// Indirection so tests can stand in a bucket (firebase-admin's is getter-only).
+const artThumbStore = { bucket: () => admin.storage().bucket() };
+
+function artThumbCachePath(url, width) {
+  const key = crypto.createHash('sha256').update(String(url)).digest('hex');
+  return `${ART_THUMB_CACHE_PREFIX}/w${width}/${key}.webp`;
+}
+
+async function readCachedThumb(url, width) {
+  try {
+    const [body] = await artThumbStore.bucket().file(artThumbCachePath(url, width)).download();
+    return body;
+  } catch (error) {
+    if (error?.code !== 404) {
+      console.warn('art-mirror thumb cache read failed', error?.message || error);
+    }
+    return null;
+  }
+}
+
+async function writeCachedThumb(url, width, body) {
+  try {
+    await artThumbStore.bucket().file(artThumbCachePath(url, width)).save(body, {
+      resumable: false,
+      metadata: { contentType: 'image/webp', cacheControl: 'public,max-age=31536000,immutable' }
+    });
+  } catch (error) {
+    console.warn('art-mirror thumb cache write failed', error?.message || error);
+  }
+}
+
+/* Decoding one original takes ~6 MB of bitmap plus libvips working memory, and
+   a cold binder asks for two dozen at once. Queueing them behind a few slots
+   finishes the burst sooner on one CPU than running them all together, and
+   never runs the instance out of memory. */
+function createLimiter(slots) {
+  let active = 0;
+  const waiting = [];
+  const next = () => {
+    if (active >= slots || !waiting.length) return;
+    active += 1;
+    const { task, resolve, reject } = waiting.shift();
+    Promise.resolve().then(task).then(resolve, reject).finally(() => {
+      active -= 1;
+      next();
+    });
+  };
+  return (task) => new Promise((resolve, reject) => {
+    waiting.push({ task, resolve, reject });
+    next();
+  });
+}
+
+const RESIZE_SLOTS = 2;
+const withResizeSlot = createLimiter(RESIZE_SLOTS);
+
 app.get('/api/cards/art-mirror', async (req, res) => {
   const target = String(req.query.url || '');
   if (!isMirrorableArtUrl(target)) {
@@ -276,7 +340,20 @@ app.get('/api/cards/art-mirror', async (req, res) => {
     // so this cannot be used to fetch a URL of the caller's choosing.
     return res.status(400).json({ error: 'Only this project\'s card art can be mirrored.' });
   }
+  const sendArt = (body, contentType) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    return res.send(body);
+  };
   try {
+    const width = parseThumbWidth(req.query.w);
+    if (width) {
+      const cached = await readCachedThumb(target, width);
+      if (cached) {
+        return sendArt(cached, 'image/webp');
+      }
+    }
     const upstream = await fetch(target);
     if (!upstream.ok) {
       return res.status(upstream.status).json({ error: 'Card art could not be read.' });
@@ -287,7 +364,6 @@ app.get('/api/cards/art-mirror', async (req, res) => {
     }
     let body = Buffer.from(await upstream.arrayBuffer());
     let contentType = type;
-    const width = parseThumbWidth(req.query.w);
     if (width) {
       // Card art ships at 1024x1536. Surfaces that show dozens of cards at once
       // (the landing page's drifting rows) decode every one, and on iOS Safari
@@ -295,16 +371,14 @@ app.get('/api/cards/art-mirror', async (req, res) => {
       // decoded at a fraction of the size; on any resize failure the original
       // bytes still go out so the card is never blank.
       try {
-        body = await resizeArt(body, width);
+        body = await withResizeSlot(() => resizeArt(body, width));
         contentType = 'image/webp';
+        await writeCachedThumb(target, width, body);
       } catch (error) {
         console.warn('art-mirror resize failed; serving the original', error);
       }
     }
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Content-Type', contentType);
-    res.set('Cache-Control', 'public, max-age=31536000, immutable');
-    return res.send(body);
+    return sendArt(body, contentType);
   } catch (error) {
     return res.status(502).json({ error: 'Card art could not be read.' });
   }
@@ -427,7 +501,9 @@ app.post('/api/cards/editor/auth/logout', async (req, res) => {
   }
 });
 
-const api = onRequest({ region: 'us-central1' }, app);
+// 1 GiB: the default 256 MiB ran out during a burst of art-mirror resizes
+// (each original decodes to ~6 MB of bitmap before libvips' own buffers).
+const api = onRequest({ region: 'us-central1', memory: '1GiB' }, app);
 exports.api = api;
 exports.app = app;
 
@@ -1237,6 +1313,9 @@ exports._private = {
   isMirrorableArtUrl,
   parseThumbWidth,
   resizeArt,
+  artThumbCachePath,
+  artThumbStore,
+  createLimiter,
   ART_MIRROR_BUCKET,
   // Gate internals, exported for the tests: the real passphrase is never in
   // them - they configure a gate with a hash of their own.
