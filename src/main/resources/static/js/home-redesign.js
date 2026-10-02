@@ -448,10 +448,23 @@
      same bytes come back CORS-clean from our own origin via the art mirror, so
      that is what the probe loads. A non-storage URL (the offline snapshot's
      `/img/...` art) is already same-origin and is probed directly. */
+  /* The probe samples a 64px canvas, so it asks the mirror for its smallest
+     cut rather than the full original. Tiles drawn through artAttrs already
+     show a same-origin mirror URL, which is probed as-is (a cache hit). */
   function probeUrlFor(src) {
     return /^https?:\/\/firebasestorage\.googleapis\.com\//.test(src)
-      ? '/api/cards/art-mirror?url=' + encodeURIComponent(src)
+      ? '/api/cards/art-mirror?w=160&url=' + encodeURIComponent(src)
       : src;
+  }
+
+  /* Storage creature art is up to ~2.4 MB per file, and these surfaces draw it
+     at most ~470 device px, so they take the mirror's WebP cut (falling back to
+     the original if the mirror fails). */
+  function artAttrs(url, width) {
+    var visual = window.SieglingsCardBinderVisual;
+    return visual && visual.artImgAttrs
+      ? visual.artImgAttrs(url, width || 480)
+      : 'src="' + esc(url) + '"';
   }
 
   function measureArtBox(src) {
@@ -641,7 +654,7 @@
         '<div class="sg-swipe">' + FEATURED.map(function (c) {
           return '<article class="sg-feat" data-card="' + esc(c.id) + '" tabindex="0" style="--el:' + color(c.element) + '">' +
             '<div class="sg-feat-plate"></div>' +
-            '<div class="sg-feat-art"><img src="' + esc(c.cardArtUrl) + '" alt="' + esc(c.name) + '" loading="lazy"></div>' +
+            '<div class="sg-feat-art"><img ' + artAttrs(c.cardArtUrl) + ' alt="' + esc(c.name) + '" loading="lazy"></div>' +
             '<div class="sg-feat-foot"><span class="sg-feat-name">' + esc(c.name) + '</span>' +
             '<span class="sg-feat-marks"><i class="sg-rar ' + esc(String(c.rarity || '').toLowerCase()) + '"></i>' +
             '<img src="' + esc(icon(c.element)) + '" alt="' + esc(title(c.element)) + '"></span></div>' +
@@ -1147,11 +1160,17 @@
     '</div>';
   }
 
+  // A swatch is at most ~130x62 CSS px; Storage-hosted plates take a mirror cut.
+  function swatchArt(url) {
+    var visual = window.SieglingsCardBinderVisual;
+    return visual && visual.artThumbSrc ? visual.artThumbSrc(url, 480) : url;
+  }
+
   function binderSwatchRow(look) {
     var covers = BINDER_COVERS.map(function (c) {
       return '<button class="sg-look-swatch' + (c.id === look.cover ? ' on' : '') + '" type="button" ' +
         'data-look-cover="' + esc(c.id) + '"' +
-        (c.art ? ' style="background-image:url(\'' + esc(c.art) + '\')"' : '') + '>' +
+        (c.art ? ' style="background-image:url(\'' + esc(swatchArt(c.art)) + '\')"' : '') + '>' +
         '<span>' + esc(c.label) + '</span></button>';
     });
     // Gallery pieces load from /api/art/loading, so this list is empty offline -
@@ -1160,7 +1179,7 @@
       covers.push('<button class="sg-look-swatch' +
         (look.cover === 'gallery:' + p.id ? ' on' : '') + '" type="button" ' +
         'data-look-cover="gallery:' + esc(p.id) + '" ' +
-        'style="background-image:url(\'' + esc(p.thumb) + '\')">' +
+        'style="background-image:url(\'' + esc(swatchArt(p.thumb)) + '\')">' +
         '<span>' + esc(p.title) + '</span></button>');
     });
     return covers.join('');
@@ -1191,9 +1210,10 @@
   function binderLookHost(look) {
     return '<div class="sg-look" data-look aria-hidden="true">' +
       '<button class="sg-look-scrim" type="button" data-look-close aria-label="Close binder styling"></button>' +
-      '<div class="sg-look-card" role="dialog" aria-modal="true" aria-label="Dress the binder" data-look-card>' +
-        binderLookMarkup(look) +
-      '</div>' +
+      // Filled by open(): every swatch is a full gallery backdrop, and the sheet
+      // stays closed for most visits, so rendering it up front downloaded ~25
+      // backdrops (~9 MB) alongside the binder's card art.
+      '<div class="sg-look-card" role="dialog" aria-modal="true" aria-label="Dress the binder" data-look-card></div>' +
     '</div>';
   }
 
@@ -1415,8 +1435,8 @@
       var crop = visual.buildArtTransformStyle ? visual.buildArtTransformStyle(card) : '';
       return '<div class="knight-card knight-full-card-art knight-binder-card rarity-frame-' + esc(rarity) +
         ' el-' + esc(el) + '" role="img" aria-label="' + esc(card.name) + '">' +
-        '<img src="' + esc(visual.preferWebp ? visual.preferWebp(card.cardArtUrl) : card.cardArtUrl) +
-        '" alt="' + esc(card.name) + '" loading="lazy"' + (crop ? ' style="' + esc(crop) + '"' : '') + '>' +
+        '<img ' + artAttrs(card.cardArtUrl, 640) +
+        ' alt="' + esc(card.name) + '" loading="lazy"' + (crop ? ' style="' + esc(crop) + '"' : '') + '>' +
         body + '</div>';
     }
     if (visual.usesKnightOverlayArt && visual.usesKnightOverlayArt(card)) {
@@ -1871,7 +1891,7 @@
       '" style="--el:' + color(lead.element) + '">' +
       '<div class="sg-deckrow-bg" style="background-image:url(\'' + land(lead.element) + '\')"></div>' +
       '<div class="sg-deckrow-veil"></div>' +
-      '<div class="sg-deckrow-art"><img src="' + esc(lead.cardArtUrl) + '" alt="" loading="lazy"></div>' +
+      '<div class="sg-deckrow-art"><img ' + artAttrs(lead.cardArtUrl) + ' alt="" loading="lazy"></div>' +
       '<div class="sg-deckrow-body">' +
         (d.active ? '<span class="sg-tag">Selected</span>' : '') +
         (d.label ? '<span class="sg-deck-kind">' + esc(d.label) + '</span>' : '') +
@@ -3182,7 +3202,7 @@
     if (visual && visual.renderBinderCardTile) {
       return visual.renderBinderCardTile(c, { descriptionText: cardFaceText(c) });
     }
-    return '<img src="' + esc(c.cardArtUrl || '') + '" alt="" loading="lazy">';
+    return '<img ' + artAttrs(c.cardArtUrl || '') + ' alt="" loading="lazy">';
   }
 
   /* The head-corner preview. Deliberately the raw cutout rather than
@@ -4132,7 +4152,7 @@
   function featTile(c) {
     return '<article class="sg-feat" data-card="' + esc(c.id) + '" tabindex="0" style="--el:' + color(c.element) + '">' +
       '<div class="sg-feat-plate"></div>' +
-      '<div class="sg-feat-art"><img src="' + esc(c.cardArtUrl) + '" alt="" loading="lazy"' +
+      '<div class="sg-feat-art"><img ' + artAttrs(c.cardArtUrl) + ' alt="" loading="lazy"' +
       // The authored card-face size, carried to the tile so a grouped rail can
       // size these cards against each other instead of each to its own frame.
       (c.cardArtScale != null ? ' data-art-scale="' + esc(c.cardArtScale) + '"' : '') + '></div>' +
@@ -4287,7 +4307,7 @@
     if (visual && visual.renderBinderCardTile) {
       return visual.renderBinderCardTile(card, { descriptionText: cardFaceText(card) });
     }
-    return '<img src="' + esc(card.cardArtUrl) + '" alt="' + esc(card.name) + '" loading="lazy">';
+    return '<img ' + artAttrs(card.cardArtUrl) + ' alt="' + esc(card.name) + '" loading="lazy">';
   }
 
   function signatureSection(opts) {
@@ -4403,7 +4423,7 @@
   function pickTile(c, on, attr, badge) {
     return '<button class="sg-pick' + (on ? ' on' : '') + '" type="button" ' + attr + '="' + esc(c.id) + '" ' +
       'style="--el:' + color(c.element) + '">' +
-      '<img src="' + esc(c.cardArtUrl) + '" alt="" loading="lazy">' +
+      '<img ' + artAttrs(c.cardArtUrl) + ' alt="" loading="lazy">' +
       '<span class="sg-pick-name">' + esc(c.name) + '</span>' +
       (badge ? '<i class="sg-pick-badge">' + esc(badge) + '</i>' : '') +
     '</button>';
@@ -5520,7 +5540,7 @@
     return '<article class="sg-lobby" style="--el:' + color(lead && lead.element) + '">' +
       '<div class="sg-lobby-bg" style="background-image:url(\'' + land(lead && lead.element) + '\')"></div>' +
       '<div class="sg-lobby-veil"></div>' +
-      (lead ? '<div class="sg-lobby-art"><img src="' + esc(lead.cardArtUrl) + '" alt="" loading="lazy"></div>' : '') +
+      (lead ? '<div class="sg-lobby-art"><img ' + artAttrs(lead.cardArtUrl) + ' alt="" loading="lazy"></div>' : '') +
       '<div class="sg-lobby-body">' +
         '<span class="sg-lobby-kicker">Waiting</span>' +
         '<strong>' + esc(host) + '</strong>' +
@@ -6638,6 +6658,37 @@
      Everything this design owns is swapped in place: no reload, no flash, and
      the browser Back button still works. Anything it does not own (the Battle
      table, Siege, Keep, Social) is a real navigation, deliberately. */
+  /* The binder holds each card back until its creature art is ready
+     (art-reveal.js). Fetching the first page's art in idle time from whichever
+     screen the player lands on means opening Cards usually finds it cached, so
+     the grid paints whole at once. Same URLs the tiles request (the binder's
+     480px mirror cut), so this is a cache warm, never a second download. */
+  var BINDER_WARM_COUNT = 12;
+  var warmedBinderArt = [];
+  function warmBinderArt(screen) {
+    var visual = window.SieglingsCardBinderVisual;
+    if (screen === 'collection' || !visual || !visual.artThumbSrc) return;
+    if (navigator.connection && navigator.connection.saveData) return;
+    var urls = [];
+    for (var i = 0; i < ALL_CARDS.length && urls.length < BINDER_WARM_COUNT; i++) {
+      var c = ALL_CARDS[i];
+      var mode = String(c && c.cardArtMode || '').toUpperCase();
+      if (c && c.cardArtUrl && (mode === 'OVERLAY' || mode === 'REPLACE')) {
+        urls.push(visual.artThumbSrc(c.cardArtUrl, 480));
+      }
+    }
+    var run = function () {
+      // Held for the page's lifetime: a live Image keeps its bitmap in the
+      // in-memory image cache, so the tile's <img> is complete on insertion and
+      // art-reveal shows the card before the first paint instead of a frame later.
+      warmedBinderArt = urls.map(function (url) {
+        var img = new Image(); img.decoding = 'async'; img.src = url; return img;
+      });
+    };
+    if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 4000 });
+    else window.setTimeout(run, 1500);
+  }
+
   function mountApp(host, opts) {
     opts = opts || {};
     var current = null;
@@ -6710,6 +6761,7 @@
     // ?screen= still works so existing links and the preview board keep going.
     show(opts.screen || new URLSearchParams(location.search).get('screen') ||
          screenForPath(location.pathname) || 'home', false);
+    warmBinderArt(current);
     return { show: show, currentScreen: function () { return current; } };
   }
 

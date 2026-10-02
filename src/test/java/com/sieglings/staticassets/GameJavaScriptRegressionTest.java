@@ -1446,7 +1446,7 @@ class GameJavaScriptRegressionTest {
     void ownedHolographicCardsUseTheirDedicatedArtworkInBattle() throws IOException {
         String gameScript = readGameScript();
         String artResolver = extractFunction(gameScript, "function getDashboardCardArtMeta(card)");
-        String artRenderer = extractFunction(gameScript, "function renderCardArt(card, variant, fallbackLabel = '')");
+        String artRenderer = extractFunction(gameScript, "function renderCardArt(card, variant, fallbackLabel = '', artOptions = {})");
         String style = Files.readString(STYLE_CSS);
 
         assertTrue(

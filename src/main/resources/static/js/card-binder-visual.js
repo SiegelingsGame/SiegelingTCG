@@ -139,12 +139,7 @@
 
     function renderCustomArtImage(className, artUrl, card) {
         const style = buildArtTransformStyle(card);
-        const original = String(artUrl || '');
-        const preferred = preferWebp(original);
-        const fallbackAttrs = preferred !== original
-            ? ` data-img-fallback="${escapeAttr(original)}" onerror="sgWebpFallback(this)"`
-            : '';
-        return `<img class="${className}" src="${escapeAttr(preferred)}" alt=""${style ? ` style="${style}"` : ''}${fallbackAttrs}>`;
+        return `<img class="${className}" ${artImgAttrs(artUrl, 640)} alt=""${style ? ` style="${style}"` : ''}>`;
     }
 
     function holographicFullCardArtUrl(card, options = {}) {
@@ -184,11 +179,8 @@
         const artUrl = knightOverlayArtUrl(card);
         if (!artUrl) return '';
         const style = buildArtTransformStyle(card);
-        const preferred = preferWebp(artUrl);
-        const fallbackAttrs = preferred !== artUrl
-            ? ` data-img-fallback="${escapeAttr(artUrl)}" onerror="sgWebpFallback(this)"`
-            : '';
-        return `<div class="knight-overlay-art-window"><img class="knight-overlay-art-img" src="${escapeAttr(preferred)}" alt=""${style ? ` style="${style}"` : ''}${fallbackAttrs}></div>`;
+        // Knight illustrations fill most of a tall card: up to ~740 device px.
+        return `<div class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${artImgAttrs(artUrl, 960)} alt=""${style ? ` style="${style}"` : ''}></div>`;
     }
 
     function isHolographic(card, options = {}) {
@@ -343,11 +335,7 @@
             // window, and most cards carry a scale around 1.7. Replaying that
             // on a 36px square crops the thumbnail down to the middle of the
             // creature, so the row shows the whole cutout instead.
-            const preferred = preferWebp(artUrl);
-            const fallbackAttrs = preferred !== artUrl
-                ? ` data-img-fallback="${escapeAttr(artUrl)}" onerror="sgWebpFallback(this)"`
-                : '';
-            return `<img class="card-row-thumb-art" src="${escapeAttr(preferred)}" alt="" loading="lazy"${fallbackAttrs}>`;
+            return `<img class="card-row-thumb-art" ${artImgAttrs(artUrl, 160)} alt="" loading="lazy">`;
         }
         return renderElementIcon(card?.element);
     }
@@ -509,6 +497,7 @@
         // panel instead of the move list (cost/evo live in the corner chips).
         return showcase.renderShowcaseCard(card, {
             artVariant: options.artVariant || 'preview',
+            artWidth: options.artWidth || BINDER_ART_WIDTH,
             cardClass: options.cardClass || 'mulligan-showcase binder-grid-showcase',
             compactAbilityLimit: options.compactAbilityLimit ?? 2,
             summaryMode: options.summaryMode || 'description',
@@ -528,7 +517,11 @@
         });
         if (framed) {
             const holoClass = holographicClass(card, options);
-            return `<div class="mulligan-card-slot binder-framed-slot${holoClass}" aria-hidden="true">${framed}${isHolographic(card, options) ? renderHolographicOverlay() : ''}</div>`;
+            // Hold the whole card back until its creature art is ready (art-reveal.js),
+            // so the frame never paints first with an empty art window.
+            const pendingClass = window.SieglingsArtReveal && /class="card-art[^"]*"><img /.test(framed)
+                ? ` ${window.SieglingsArtReveal.PENDING}` : '';
+            return `<div class="mulligan-card-slot binder-framed-slot${holoClass}${pendingClass}" aria-hidden="true">${framed}${isHolographic(card, options) ? renderHolographicOverlay() : ''}</div>`;
         }
         return renderBinderCardShell(card, options);
     }
@@ -579,6 +572,30 @@
     })();
     function webpSupported() {
         return __webpSupport;
+    }
+
+    // Dashboard creature art is a 1024x1536 Firebase Storage PNG of up to
+    // ~2.4 MB; the art mirror returns a WebP cut sized for the slot instead
+    // (mirrors game.js sgArtThumbSrc). Anything else keeps preferWebp.
+    const STORAGE_ART_PREFIX = 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/';
+    // Binder tiles and the card sheet draw art at most ~400 device px.
+    const BINDER_ART_WIDTH = 480;
+
+    function artThumbSrc(url, width) {
+        const u = String(url || '');
+        if (width && u.startsWith(STORAGE_ART_PREFIX)) {
+            return `/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(u)}`;
+        }
+        return preferWebp(u);
+    }
+
+    // `src` plus a fall-back-to-original handler whenever the URL was rewritten.
+    function artImgAttrs(url, width) {
+        const original = String(url || '');
+        const preferred = artThumbSrc(original, width);
+        return preferred !== original
+            ? `src="${escapeAttr(preferred)}" data-img-fallback="${escapeAttr(original)}" onerror="sgWebpFallback(this)"`
+            : `src="${escapeAttr(original)}"`;
     }
 
     function preferWebp(url) {
@@ -700,6 +717,8 @@
         buildArtTransformStyle,
         resolveArtModeClass,
         preferWebp,
+        artThumbSrc,
+        artImgAttrs,
         webpSupported
     };
 })();
