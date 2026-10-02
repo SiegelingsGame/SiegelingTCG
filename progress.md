@@ -1,4 +1,26 @@
 Original prompt: Merge and deploy
+- October 2, 2026 **Dress-the-binder sheet: picks no longer jump to the top; Cover / Page / Sleeves tabs; no more blank cover swatches.**
+  - **Jump.** Every pick rebuilt the whole sheet (`card.innerHTML = binderLookMarkup(look)`), which recreated its scroll area, so choosing a cover deep in the list threw the player back to the top. A pick now only moves the highlight (`.on` plus `aria-pressed`) within its group; the binder behind the sheet still updates live.
+  - **Tabs.** The three stacked sections are now a Cover / Page / Sleeves tablist (`role=tab`/`tabpanel`, Left/Right arrow keys). The open tab is remembered while the page is open. Opening scrolls the current cover into view.
+    - The sheet has a fixed height (`min(78%, 640px)`, was `max-height`), so switching tabs does not resize it under the player's thumb.
+    - Page and Sleeves options are larger two-column tiles.
+  - **Blank swatches (a regression from #998).** Swatches were CSS backgrounds pointed at ready-made thumbnails. Gallery art is not in the card catalog, so the deploy built none for it, and a failed background just leaves the tile blank (Static, Void, Water, Wind, Earth...).
+    - Swatches are now `<img>` elements with the same fallback chain as card art (ready-made cut, then art mirror, then original), at a 320 cut.
+    - They fade in over a soft shimmer while lazy-loading, and settle to the plain tile (`is-failed`) if every fallback fails.
+    - `functions/scripts/build-art-thumbs.js` now also builds cuts for gallery art (`/api/art/loading` landscape and portrait, 48 Storage files). An unreadable gallery list only narrows a run to card art.
+  - **Pins:** `home-redesign.js?v=60`, `home-redesign.css?v=67` (home-next).
+- Verification:
+  - **Method.** Headless Chromium on `/cards` served from this tree (API proxied to production; Firebase Storage relayed through Node because this sandbox's Chromium cannot reach it), at 390x844 @3x and 1920x1080.
+  - **No jump.** With the cover list scrolled to 900px, picking a cover keeps `scrollTop` at 900. The highlight moves, the binder cover changes and the choice is stored.
+  - **Tabs.**
+    - Sheet height is 640px on every tab, and only the active panel is displayed.
+    - Picking Parchment / Ember sets `data-binder-page` and the sleeve.
+    - ArrowLeft from Sleeves focuses Page.
+    - Close and reopen keeps the tab and all three choices.
+  - **Swatches.** 139 of 139 load, 0 blank. Storage gallery swatches fell back to the mirror where no ready-made cut existed yet; the mirror stores what it builds, so later visits get the ready-made cut.
+  - **All-fail run.** Storage, mirror and local art all 404: 139 of 139 swatches end as `is-failed`, none left shimmering, 0 page errors.
+  - **Screenshots.** Phone screenshots of the Cover and Sleeves tabs checked.
+  - **Tests.** Functions `node --test` 28/28 (the build test now covers gallery art and an unreadable gallery list). `node --check` on `home-redesign.js`.
 - October 2, 2026 **Card art loads fast after a deploy, the landing roster fills in card by card, and binder tiles cascade in.**
   - **Cause of the slow loads.** Every Hosting release empties the CDN. art-mirror then re-downloaded each 1-2.4 MB original from Storage and resized it on a 256 MiB, 1-vCPU instance.
     - Measured on production: one cold thumbnail took 1.5s.

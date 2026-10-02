@@ -1030,7 +1030,9 @@ body.concept-board {
 .sg-look-scrim { position:absolute; inset:0; border:0; padding:0; cursor:pointer;
   background:rgba(3,6,12,.58); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
 .sg-look-card {
-  position:relative; width:min(560px, 100%); max-height:78%; display:flex; flex-direction:column;
+  /* A fixed height, not max-height: switching tabs swaps a long cover grid for
+     a few options, and the sheet should not jump size under the player's thumb. */
+  position:relative; width:min(560px, 100%); height:min(78%, 640px); display:flex; flex-direction:column;
   margin:0 8px 8px; padding:0 16px 18px; border-radius:24px;
   border:1px solid rgba(200,165,79,.28);
   background:linear-gradient(180deg, rgba(20,15,48,.97), rgba(8,6,22,.99));
@@ -1043,16 +1045,35 @@ body.concept-board {
 .sg-look-head h3 { margin:0; font-family:var(--serif); font-size:19px; font-weight:600; }
 .sg-look-x { width:30px; height:30px; border:0; border-radius:50%; cursor:pointer; font-size:17px;
   color:var(--ink); background:rgba(6,3,24,.6); }
-.sg-look-body { overflow:auto; min-height:0; scrollbar-width:none; }
+.sg-look-tabs { display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; margin:12px 0 4px; padding:4px;
+  border-radius:999px; border:1px solid var(--steel-soft); background:rgba(6,3,24,.55); }
+.sg-look-tab { height:34px; border:0; border-radius:999px; cursor:pointer; font-size:12.5px; letter-spacing:.04em;
+  color:var(--muted); background:none; transition:color .2s ease, background .2s ease; }
+.sg-look-tab.on { color:#1f1608; background:linear-gradient(180deg,#f0cd8a,var(--gold)); }
+.sg-look-tab:focus-visible { outline:2px solid var(--gold-bright); outline-offset:2px; }
+.sg-look-body { flex:1 1 auto; overflow:auto; min-height:0; padding-top:10px; scrollbar-width:none; overscroll-behavior:contain; }
 .sg-look-body::-webkit-scrollbar { display:none; }
-.sg-look-sub { margin:14px 0 8px; font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
+/* Panels set their own display, which would override the [hidden] default. */
+.sg-look-panel[hidden] { display:none; }
 .sg-look-covers { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px; }
 .sg-look-swatch {
   position:relative; height:62px; border-radius:13px; cursor:pointer; overflow:hidden;
-  border:1px solid var(--steel-soft); background-size:cover; background-position:center;
+  border:1px solid var(--steel-soft);
   background-color:#141032; color:var(--ink); padding:0;
   transition:border-color .25s ease, box-shadow .25s ease, transform .25s ease;
 }
+.sg-look-swatch-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center;
+  opacity:0; transition:opacity .35s ease; }
+.sg-look-swatch-art.is-loaded { opacity:1; }
+.sg-look-swatch-art.is-failed { display:none; }
+/* Swatch art loads lazily as the list scrolls; until it lands the tile shows a
+   soft shimmer, so it reads as loading rather than as an empty cover. */
+.sg-look-swatch:has(.sg-look-swatch-art:not(.is-loaded):not(.is-failed))::before {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(100deg, transparent 30%, rgba(170,160,230,.12) 50%, transparent 70%) 0 0 / 220% 100%;
+  animation:sg-look-shimmer 1.4s linear infinite;
+}
+@keyframes sg-look-shimmer { from { background-position:120% 0; } to { background-position:-100% 0; } }
 .sg-look-swatch span {
   position:absolute; left:0; right:0; bottom:0; padding:12px 6px 5px; font-size:10px; line-height:1.2;
   background:linear-gradient(180deg, transparent, rgba(4,3,16,.88));
@@ -1060,6 +1081,9 @@ body.concept-board {
 }
 .sg-look-swatch.on { border-color:var(--gold-bright); box-shadow:0 0 0 2px rgba(230,205,140,.45); transform:translateY(-2px); }
 .sg-look-row { display:flex; flex-wrap:wrap; gap:8px; }
+.sg-look-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; }
+.sg-look-grid .sg-look-chip { height:56px; justify-content:flex-start; padding:0 16px; border-radius:16px; font-size:14px; gap:12px; }
+.sg-look-grid .sg-look-dot, .sg-look-grid .sg-look-page-dot { width:22px; height:22px; }
 .sg-look-chip {
   display:inline-flex; align-items:center; gap:7px; height:34px; padding:0 13px; border-radius:999px;
   cursor:pointer; font-size:12px; color:var(--ink);
@@ -1079,8 +1103,9 @@ body.concept-board {
   .sg-binder-page { margin:10px 22px 0; }
 }
 @media (prefers-reduced-motion:reduce) {
-  .sg-binder-cover, .sg-look, .sg-look-card, .sg-look-swatch,
+  .sg-binder-cover, .sg-look, .sg-look-card, .sg-look-swatch, .sg-look-swatch-art,
   .sg-binder-page .sg-card-tile::before { transition:none; }
+  .sg-look-swatch::before { animation:none; }
 }
 
 .sg-gal-card { position:relative; cursor:pointer; }
