@@ -569,13 +569,21 @@ test('thumbnail build only makes what is missing and survives a failing original
       ],
       trainers: [{ cardArtUrl: `${prefix}cards%2Fthree.png?alt=media&token=${tokens[2]}` }]
     }),
+    // Gallery art is included (and de-duplicated); a local file is not.
+    fetchGallery: async () => ({ art: [
+      { landscape: `${prefix}img%2Fart%2Floading%2Fsky.webp?alt=media&token=${tokens[0]}`, portrait: '/img/art/loading/sky-portrait.webp' }
+    ] }),
     fetchOriginal: async (url) => {
       fetched.push(url);
       if (url.includes('three')) throw new Error('404');
       return original;
     }
   });
-  assert.deepEqual(tally, { art: 3, complete: 1, built: 2, failed: 1, skipped: 0 });
+  assert.deepEqual(tally, { art: 4, complete: 2, built: 2, failed: 1, skipped: 0 });
   assert.deepEqual(writes.sort(), [artThumbs.thumbObjectPath(tokens[1], 160), artThumbs.thumbObjectPath(tokens[1], 960)].sort());
   assert.equal(fetched.filter((u) => u.includes('one')).length, 0, 'complete art is never downloaded');
+
+  // An unreadable gallery list narrows the run to card art instead of failing it.
+  const cardsOnly = await run({ bucket, now: () => 0, fetchCatalog: async () => ({ cardCatalog: [] }), fetchGallery: async () => { throw new Error('503'); }, fetchOriginal: async () => original });
+  assert.equal(cardsOnly.art, 0);
 });

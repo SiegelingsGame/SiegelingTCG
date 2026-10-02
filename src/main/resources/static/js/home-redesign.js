@@ -1161,48 +1161,68 @@
     '</div>';
   }
 
-  // A swatch is at most ~130x62 CSS px; Storage-hosted plates take a mirror cut.
-  function swatchArt(url) {
-    var visual = window.SieglingsCardBinderVisual;
-    return visual && visual.artThumbSrc ? visual.artThumbSrc(url, 480) : url;
+  /* A swatch is ~120x62 CSS px on a phone, so the 320 cut is close to 3x for
+     a scenic backdrop at a fraction of the original's weight. It is an <img>,
+     not a CSS background, so Storage-hosted plates get the same fallback chain
+     as card art (ready-made cut, art mirror, original): a background image
+     that fails just leaves the swatch blank. */
+  // The tile shimmers until its art loads; once every fallback has failed it
+  // settles to the plain tile instead (sgWebpFallback clears onerror then).
+  function swatchArtAttrs(url) {
+    var attrs = artAttrs(url, 320);
+    var failed = 'this.classList.add(\'is-failed\')';
+    return attrs.indexOf('onerror="sgWebpFallback(this)"') >= 0
+      ? attrs.replace('onerror="sgWebpFallback(this)"', 'onerror="sgWebpFallback(this);if(!this.onerror)' + failed + '"')
+      : attrs + ' onerror="' + failed + '"';
+  }
+
+  function binderSwatch(attr, value, label, art, on) {
+    return '<button class="sg-look-swatch' + (on ? ' on' : '') + '" type="button" ' +
+      attr + '="' + esc(value) + '" aria-pressed="' + on + '">' +
+      (art ? '<img class="sg-look-swatch-art" ' + swatchArtAttrs(art) + ' alt="" loading="lazy" decoding="async" ' +
+        'onload="this.classList.add(\'is-loaded\')">' : '') +
+      '<span>' + esc(label) + '</span></button>';
   }
 
   function binderSwatchRow(look) {
     var covers = BINDER_COVERS.map(function (c) {
-      return '<button class="sg-look-swatch' + (c.id === look.cover ? ' on' : '') + '" type="button" ' +
-        'data-look-cover="' + esc(c.id) + '"' +
-        (c.art ? ' style="background-image:url(\'' + esc(swatchArt(c.art)) + '\')"' : '') + '>' +
-        '<span>' + esc(c.label) + '</span></button>';
+      return binderSwatch('data-look-cover', c.id, c.label, c.art, c.id === look.cover);
     });
     // Gallery pieces load from /api/art/loading, so this list is empty offline -
     // the shipped covers above are always there to fall back on.
     galleryPieces().forEach(function (p) {
-      covers.push('<button class="sg-look-swatch' +
-        (look.cover === 'gallery:' + p.id ? ' on' : '') + '" type="button" ' +
-        'data-look-cover="gallery:' + esc(p.id) + '" ' +
-        'style="background-image:url(\'' + esc(swatchArt(p.thumb)) + '\')">' +
-        '<span>' + esc(p.title) + '</span></button>');
+      covers.push(binderSwatch('data-look-cover', 'gallery:' + p.id, p.title, p.thumb, look.cover === 'gallery:' + p.id));
     });
     return covers.join('');
   }
 
-  function binderLookMarkup(look) {
+  var BINDER_LOOK_TABS = [['cover', 'Cover'], ['page', 'Page'], ['sleeve', 'Sleeves']];
+
+  function binderLookMarkup(look, tab) {
     return '<div class="sg-look-grab"></div>' +
       '<div class="sg-look-head"><h3>Dress the binder</h3>' +
         '<button class="sg-look-x" type="button" data-look-close aria-label="Close">×</button></div>' +
+      '<div class="sg-look-tabs" role="tablist" aria-label="Binder part">' + BINDER_LOOK_TABS.map(function (t) {
+        var on = t[0] === tab;
+        return '<button class="sg-look-tab' + (on ? ' on' : '') + '" type="button" role="tab" id="sgLookTab-' + t[0] + '" ' +
+          'data-look-tab="' + t[0] + '" aria-controls="sgLookPanel-' + t[0] + '" aria-selected="' + on + '" tabindex="' + (on ? 0 : -1) + '">' +
+          esc(t[1]) + '</button>';
+      }).join('') + '</div>' +
       '<div class="sg-look-body">' +
-        '<h4 class="sg-look-sub">Cover</h4>' +
-        '<div class="sg-look-covers">' + binderSwatchRow(look) + '</div>' +
-        '<h4 class="sg-look-sub">Page</h4>' +
-        '<div class="sg-look-row">' + BINDER_PAGES.map(function (p) {
-          return '<button class="sg-look-chip' + (p[0] === look.page ? ' on' : '') + '" type="button" ' +
-            'data-look-page="' + esc(p[0]) + '"><i class="sg-look-page-dot page-' + esc(p[0]) + '"></i>' +
+        '<div class="sg-look-panel sg-look-covers" role="tabpanel" id="sgLookPanel-cover" aria-labelledby="sgLookTab-cover"' +
+          (tab === 'cover' ? '' : ' hidden') + '>' + binderSwatchRow(look) + '</div>' +
+        '<div class="sg-look-panel sg-look-grid" role="tabpanel" id="sgLookPanel-page" aria-labelledby="sgLookTab-page"' +
+          (tab === 'page' ? '' : ' hidden') + '>' + BINDER_PAGES.map(function (p) {
+          var on = p[0] === look.page;
+          return '<button class="sg-look-chip' + (on ? ' on' : '') + '" type="button" ' +
+            'data-look-page="' + esc(p[0]) + '" aria-pressed="' + on + '"><i class="sg-look-page-dot page-' + esc(p[0]) + '"></i>' +
             esc(p[1]) + '</button>';
         }).join('') + '</div>' +
-        '<h4 class="sg-look-sub">Sleeves</h4>' +
-        '<div class="sg-look-row">' + BINDER_SLEEVES.map(function (sl) {
-          return '<button class="sg-look-chip' + (sl[0] === look.sleeve ? ' on' : '') + '" type="button" ' +
-            'data-look-sleeve="' + esc(sl[0]) + '"><i class="sg-look-dot" style="--sw:' + esc(sl[2]) +
+        '<div class="sg-look-panel sg-look-grid" role="tabpanel" id="sgLookPanel-sleeve" aria-labelledby="sgLookTab-sleeve"' +
+          (tab === 'sleeve' ? '' : ' hidden') + '>' + BINDER_SLEEVES.map(function (sl) {
+          var on = sl[0] === look.sleeve;
+          return '<button class="sg-look-chip' + (on ? ' on' : '') + '" type="button" ' +
+            'data-look-sleeve="' + esc(sl[0]) + '" aria-pressed="' + on + '"><i class="sg-look-dot" style="--sw:' + esc(sl[2]) +
             '"></i>' + esc(sl[1]) + '</button>';
         }).join('') + '</div>' +
       '</div>';
@@ -1218,21 +1238,48 @@
     '</div>';
   }
 
-  // The picker repaints in place: a swatch is a preview, so the binder behind
-  // the sheet has to change while the sheet is still open.
+  /* A swatch is a preview, so the binder behind the sheet changes while the
+     sheet stays open. A pick only moves the highlight - the sheet is never
+     re-rendered, because rebuilding it threw the player back to the top of a
+     long cover list on every tap. */
   function mountBinderLook(app) {
     var host = app.querySelector('[data-look]');
     var toggle = app.querySelector('[data-look-toggle]');
     if (!host || !toggle) return;
     var card = host.querySelector('[data-look-card]');
     var look = readBinderLook();
+    var tab = 'cover';
     applyBinderLook(app, look);
 
     function open() {
-      card.innerHTML = binderLookMarkup(look);
+      card.innerHTML = binderLookMarkup(look, tab);
       host.classList.add('open');
       host.setAttribute('aria-hidden', 'false');
       toggle.classList.add('on');
+      revealSelection();
+    }
+    // Opening on a long cover list lands with the current cover in view.
+    function revealSelection() {
+      var body = card.querySelector('.sg-look-body');
+      var sel = card.querySelector('.sg-look-panel:not([hidden]) .on');
+      if (!body || !sel) return;
+      body.scrollTop = Math.max(0, sel.offsetTop - body.offsetTop - (body.clientHeight - sel.offsetHeight) / 2);
+    }
+    function showTab(next, focus) {
+      tab = next;
+      card.querySelectorAll('[data-look-tab]').forEach(function (b) {
+        var on = b.getAttribute('data-look-tab') === next;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-selected', String(on));
+        b.tabIndex = on ? 0 : -1;
+        if (on && focus) b.focus();
+      });
+      card.querySelectorAll('.sg-look-panel').forEach(function (panel) {
+        panel.hidden = panel.id !== 'sgLookPanel-' + next;
+      });
+      var body = card.querySelector('.sg-look-body');
+      if (body) body.scrollTop = 0;
+      revealSelection();
     }
     function close() {
       host.classList.remove('open');
@@ -1240,11 +1287,16 @@
       toggle.classList.remove('on');
       toggle.focus({ preventScroll: true });
     }
-    function pick(key, value) {
+    function pick(key, value, button) {
       look[key] = value;
       writeBinderLook(look);
       applyBinderLook(app, look);
-      card.innerHTML = binderLookMarkup(look);
+      var attr = 'data-look-' + key;
+      card.querySelectorAll('[' + attr + ']').forEach(function (b) {
+        var on = b === button;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
     }
 
     toggle.addEventListener('click', function () {
@@ -1252,12 +1304,22 @@
     });
     host.addEventListener('click', function (e) {
       if (e.target.closest('[data-look-close]')) { close(); return; }
+      var tabButton = e.target.closest('[data-look-tab]');
+      if (tabButton) { showTab(tabButton.getAttribute('data-look-tab')); return; }
       var cover = e.target.closest('[data-look-cover]');
-      if (cover) { pick('cover', cover.getAttribute('data-look-cover')); return; }
+      if (cover) { pick('cover', cover.getAttribute('data-look-cover'), cover); return; }
       var page = e.target.closest('[data-look-page]');
-      if (page) { pick('page', page.getAttribute('data-look-page')); return; }
+      if (page) { pick('page', page.getAttribute('data-look-page'), page); return; }
       var sleeve = e.target.closest('[data-look-sleeve]');
-      if (sleeve) { pick('sleeve', sleeve.getAttribute('data-look-sleeve')); }
+      if (sleeve) { pick('sleeve', sleeve.getAttribute('data-look-sleeve'), sleeve); }
+    });
+    // Arrow keys move between tabs, as a tablist should.
+    host.addEventListener('keydown', function (e) {
+      if (!e.target.closest('[data-look-tab]') || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+      var ids = BINDER_LOOK_TABS.map(function (t) { return t[0]; });
+      var i = ids.indexOf(tab) + (e.key === 'ArrowRight' ? 1 : -1);
+      showTab(ids[(i + ids.length) % ids.length], true);
+      e.preventDefault();
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && host.classList.contains('open')) close();
