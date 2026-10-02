@@ -32,6 +32,7 @@ Original prompt: Merge and deploy
   - **Rendered size.** Measured per surface at both viewports before choosing widths. Screenshots with real production thumbnails show crisp creatures and unchanged framing.
   - **Page health** (15 scenarios x 2 viewports vs current `main`): 0 new page errors, console errors, failed requests, non-200s or broken images.
   - **Tests.** JUnit 735/735 (`renderCardArt` signature updated in `GameJavaScriptRegressionTest`; `CardDefinitionServiceTest`'s 500ms wall-clock assertion only failed while Chromium ran in parallel and passes alone). Functions 23/23 (bucket test now covers 960). `node --check` on every JS file.
+  - **Recovery point.** Branch `recovery/pre-popin-fix-2026-10-02` is at `900f6922`, the last `main` before this merge. To roll back: Actions -> Deploy -> *Run workflow* on that branch, or revert this merge on `main`.
 - October 1, 2026 (deploy) **PR #992 (performance pass) merged to `main` as `79ba5550`; Deploy run #980 green** (Cloud Run 16:49-16:53 UTC, Hosting + Functions by 16:55).
   - **Recovery point.**
     - Branch `recovery/pre-perf-pass-2026-10-01` is at `c5722252`, the last deploy before #992 (run #979).
