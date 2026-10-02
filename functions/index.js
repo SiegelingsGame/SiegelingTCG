@@ -9,6 +9,7 @@ const compression = require('compression');
 const Busboy = require('busboy');
 const { onRequest } = require('firebase-functions/v2/https');
 const { buildMetadata } = require('./editorMetadata');
+const artThumbs = require('./artThumbs');
 
 // The default Storage bucket resolves to the legacy `<project>.appspot.com`
 // name, which does not exist for this project — its bucket is the newer
@@ -243,31 +244,14 @@ function isMirrorableArtUrl(target) {
     && parsed.pathname.startsWith(`/v0/b/${ART_MIRROR_BUCKET}/o/`);
 }
 
-/* Thumbnail widths snap to a few buckets so the CDN holds one copy per bucket
-   instead of one per arbitrary `w` a caller invents. */
-// 960 serves the large inspect view and SiegeKnight art (up to ~740 device px);
-// the originals are 1024 wide, so nothing ever needs more.
-const THUMB_WIDTHS = [160, 240, 320, 480, 640, 960];
+/* Thumbnail widths snap to fixed buckets (artThumbs.THUMB_WIDTHS) so the CDN
+   and the bucket hold one copy per width instead of one per arbitrary `w`. */
+const { parseThumbWidth, resizeArt, createLimiter } = artThumbs;
+// Indirection so tests can stand in a bucket (firebase-admin's is getter-only).
+const artThumbStore = { bucket: () => admin.storage().bucket() };
 
-function parseThumbWidth(raw) {
-  const requested = Number.parseInt(String(raw || ''), 10);
-  if (!Number.isFinite(requested) || requested <= 0) {
-    return 0;
-  }
-  return THUMB_WIDTHS.find((bucket) => bucket >= requested) || THUMB_WIDTHS[THUMB_WIDTHS.length - 1];
-}
-
-// sharp is loaded on first use, so a cold start that never resizes pays nothing.
-let sharpModule = null;
-async function resizeArt(buffer, width) {
-  if (!sharpModule) {
-    sharpModule = require('sharp');
-  }
-  return sharpModule(buffer)
-    .resize({ width, withoutEnlargement: true })
-    .webp({ quality: 82, alphaQuality: 90 })
-    .toBuffer();
-}
+const RESIZE_SLOTS = 2;
+const withResizeSlot = createLimiter(RESIZE_SLOTS);
 
 app.get('/api/cards/art-mirror', async (req, res) => {
   const target = String(req.query.url || '');
@@ -276,7 +260,26 @@ app.get('/api/cards/art-mirror', async (req, res) => {
     // so this cannot be used to fetch a URL of the caller's choosing.
     return res.status(400).json({ error: 'Only this project\'s card art can be mirrored.' });
   }
+  const sendArt = (body, contentType) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    return res.send(body);
+  };
   try {
+    const width = parseThumbWidth(req.query.w);
+    // The ready-made thumbnail, when this art has one (see artThumbs.js).
+    const token = artThumbs.artToken(target);
+    // Only a cut of the original art may be stored: one made from another
+    // thumbnail (the hub's art-fit probe asks for those) could store a small
+    // image under a larger width.
+    const fromOriginal = !decodeURIComponent(new URL(target).pathname).includes('/o/art-thumbs/');
+    if (width && token) {
+      const ready = await artThumbs.readThumb(artThumbStore.bucket(), token, width);
+      if (ready) {
+        return sendArt(ready, 'image/webp');
+      }
+    }
     const upstream = await fetch(target);
     if (!upstream.ok) {
       return res.status(upstream.status).json({ error: 'Card art could not be read.' });
@@ -287,7 +290,6 @@ app.get('/api/cards/art-mirror', async (req, res) => {
     }
     let body = Buffer.from(await upstream.arrayBuffer());
     let contentType = type;
-    const width = parseThumbWidth(req.query.w);
     if (width) {
       // Card art ships at 1024x1536. Surfaces that show dozens of cards at once
       // (the landing page's drifting rows) decode every one, and on iOS Safari
@@ -295,16 +297,19 @@ app.get('/api/cards/art-mirror', async (req, res) => {
       // decoded at a fraction of the size; on any resize failure the original
       // bytes still go out so the card is never blank.
       try {
-        body = await resizeArt(body, width);
+        body = await withResizeSlot(() => resizeArt(body, width));
         contentType = 'image/webp';
+        if (token && fromOriginal) {
+          // Built on demand only because it was missing; from now on pages load
+          // it directly.
+          await artThumbs.saveThumb(artThumbStore.bucket(), token, width, body)
+            .catch((error) => console.warn('art thumbnail save failed', error?.message || error));
+        }
       } catch (error) {
         console.warn('art-mirror resize failed; serving the original', error);
       }
     }
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Content-Type', contentType);
-    res.set('Cache-Control', 'public, max-age=31536000, immutable');
-    return res.send(body);
+    return sendArt(body, contentType);
   } catch (error) {
     return res.status(502).json({ error: 'Card art could not be read.' });
   }
@@ -397,6 +402,14 @@ app.post('/api/cards/editor/art', async (req, res) => {
       }
     });
     await objectRef.makePublic().catch(() => {});
+    // Pages load card art as ready-made thumbnails keyed by this token; build
+    // them now so the very first visitor never waits on a resize. A failure
+    // here only costs speed - the art mirror builds any missing cut on demand.
+    try {
+      await withResizeSlot(() => artThumbs.buildThumbs(bucket, downloadToken, file.buffer));
+    } catch (error) {
+      console.warn('card art thumbnails were not built at upload', error?.message || error);
+    }
     const publicUrl = buildCardArtPublicUrl(bucket.name, objectPath, downloadToken);
     res.json({ ok: true, url: publicUrl, artVariant });
   } catch (error) {
@@ -427,7 +440,9 @@ app.post('/api/cards/editor/auth/logout', async (req, res) => {
   }
 });
 
-const api = onRequest({ region: 'us-central1' }, app);
+// 1 GiB: the default 256 MiB ran out during a burst of art-mirror resizes
+// (each original decodes to ~6 MB of bitmap before libvips' own buffers).
+const api = onRequest({ region: 'us-central1', memory: '1GiB' }, app);
 exports.api = api;
 exports.app = app;
 
@@ -1237,6 +1252,8 @@ exports._private = {
   isMirrorableArtUrl,
   parseThumbWidth,
   resizeArt,
+  artThumbStore,
+  createLimiter,
   ART_MIRROR_BUCKET,
   // Gate internals, exported for the tests: the real passphrase is never in
   // them - they configure a gate with a hash of their own.

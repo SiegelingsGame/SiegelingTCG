@@ -449,8 +449,9 @@
      that is what the probe loads. A non-storage URL (the offline snapshot's
      `/img/...` art) is already same-origin and is probed directly. */
   /* The probe samples a 64px canvas, so it asks the mirror for its smallest
-     cut rather than the full original. Tiles drawn through artAttrs already
-     show a same-origin mirror URL, which is probed as-is (a cache hit). */
+     cut rather than the full original. Tiles show a ready-made Storage cut
+     (artAttrs); the mirror answers a probe of one from that art's stored 160px
+     cut, without resizing. */
   function probeUrlFor(src) {
     return /^https?:\/\/firebasestorage\.googleapis\.com\//.test(src)
       ? '/api/cards/art-mirror?w=160&url=' + encodeURIComponent(src)
@@ -458,8 +459,8 @@
   }
 
   /* Storage creature art is up to ~2.4 MB per file, and these surfaces draw it
-     at most ~470 device px, so they take the mirror's WebP cut (falling back to
-     the original if the mirror fails). */
+     at most ~470 device px, so they take a ready-made WebP cut (falling back to
+     the art mirror, then the original - see card-binder-visual artImgAttrs). */
   function artAttrs(url, width) {
     var visual = window.SieglingsCardBinderVisual;
     return visual && visual.artImgAttrs

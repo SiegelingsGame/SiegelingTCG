@@ -18,6 +18,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- Card art thumbnails come from Firebase Storage. -->
+<link rel="preconnect" href="https://firebasestorage.googleapis.com">
 <!-- style.css carries the real card frames, notches and rarity treatments the
      binder renders. It must load BEFORE home-redesign.css so the art-first
      palette and layout win where the two overlap. -->
@@ -109,12 +111,12 @@
   window.SiegelingsLoadingArt.paint(document.getElementById('boot'));
   window.sgStopBootHints = window.SiegelingsLoadingArt.mountHints(document.getElementById('bootHint'));
 </script>
-<script src="/js/art-reveal.js?v=2"></script>
-<script src="/js/game.js?v=309"></script>
-<script src="/js/card-binder-visual.js?v=28"></script>
+<script src="/js/art-reveal.js?v=3"></script>
+<script src="/js/game.js?v=310"></script>
+<script src="/js/card-binder-visual.js?v=29"></script>
 <script src="/js/home-redesign-data.js?v=1"></script>
 <script src="/js/match-review.js?v=1"></script>
-<script src="/js/home-redesign.js?v=58"></script>
+<script src="/js/home-redesign.js?v=59"></script>
 <script src="/js/home-redesign-live.js?v=13"></script>
 <script src="/js/install-guide.js?v=3"></script>
 <script>

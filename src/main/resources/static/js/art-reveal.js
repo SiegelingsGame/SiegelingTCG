@@ -5,17 +5,17 @@
    landed, the frame showed first and the creature popped in a moment later - or
    seconds later on a phone connection. Surfaces that draw a card once (the
    binder, the landing roster) now mark its wrapper `sg-art-pending`: the card
-   stays invisible until its art has loaded (or definitively failed), then fades
-   in whole. Art that is already cached is revealed before the first paint, with
-   no fade at all.
+   stays invisible until its art has loaded (or definitively failed), then rises
+   in whole, in reading order with any cards that landed alongside it. Art that
+   is already cached is revealed before the first paint, with no fade at all.
 
    Battle re-renders are deliberately not opted in: they rebuild the board many
    times per match and keep their art warm with preloading instead, so a fade
    there would read as flicker.
 
    Safety: a CSS animation reveals any card still pending 8s after its art was
-   requested, so a lost load event can never leave a card invisible. Callers add the class only when
-   this script is present (window.SieglingsArtReveal), so a page that does not
+   requested, so a lost load event can never leave a card invisible. Callers
+   add the class only when this script is present (window.SieglingsArtReveal), so a page that does not
    load it renders exactly as before. */
 (function () {
   'use strict';
@@ -34,8 +34,8 @@
     // script exists to hide. Its own rule, so a browser without :has() only
     // loses the failsafe.
     '.' + PENDING + ':not(:has(img[data-src], .card-art img[loading="lazy"])){animation:sg-art-failsafe .3s ease 8s forwards}' +
-    '.' + FADE + '{animation:sg-art-fade .3s ease both}' +
-    '@keyframes sg-art-fade{from{opacity:0}to{opacity:1}}' +
+    '.' + FADE + '{animation:sg-art-fade .42s cubic-bezier(.2,.8,.2,1) both}' +
+    '@keyframes sg-art-fade{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}' +
     '@keyframes sg-art-failsafe{to{opacity:1}}' +
     '@media (prefers-reduced-motion:reduce){.' + FADE + '{animation:none}}';
   (document.head || document.documentElement).appendChild(style);
@@ -58,18 +58,38 @@
     });
   }
 
-  // A failed thumbnail with an untried original is about to retry with it
-  // (sgWebpFallback / sgArtThumbFallback run after this capture listener).
+  // A failed image with an untried URL left in its `data-img-fallback` chain
+  // (space-separated, tried in order after src) is about to retry with it:
+  // sgWebpFallback / sgArtThumbFallback run after this capture listener.
   function awaitingFallback(img) {
-    var fallback = img.getAttribute('data-img-fallback');
-    return Boolean(fallback) && img.getAttribute('src') !== fallback;
+    var chain = String(img.getAttribute('data-img-fallback') || '').split(' ').filter(Boolean);
+    return chain.indexOf(img.getAttribute('src')) + 1 < chain.length;
+  }
+
+  /* Cards whose art lands together are revealed in reading order, a beat
+     apart, so a grid fills as a quick cascade instead of tiles blinking on in
+     whatever order the network finished them. The beat shrinks as the queue
+     grows, so even a full screen of tiles is out within ~0.4s. */
+  var queue = [];
+  var flushTimer = 0;
+
+  function flush() {
+    flushTimer = 0;
+    queue = queue.filter(function (card) { return card.isConnected && card.classList.contains(PENDING); });
+    if (!queue.length) return;
+    queue.sort(function (a, b) {
+      return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+    });
+    reveal(queue.shift(), true);
+    if (queue.length) flushTimer = setTimeout(flush, Math.max(16, Math.min(45, 400 / queue.length)));
   }
 
   function settle(img, failed) {
     var card = img.closest('.' + PENDING);
     if (!card || artOf(card) !== img) return;
     if (failed && awaitingFallback(img)) return;
-    reveal(card, true);
+    if (queue.indexOf(card) < 0) queue.push(card);
+    if (!flushTimer) flushTimer = setTimeout(flush, 0);
   }
 
   // load/error do not bubble, but they do pass through the capture phase, so one
