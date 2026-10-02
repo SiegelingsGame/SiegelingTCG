@@ -58,11 +58,12 @@
     });
   }
 
-  // A failed thumbnail with an untried original is about to retry with it
-  // (sgWebpFallback / sgArtThumbFallback run after this capture listener).
+  // A failed image with an untried URL left in its `data-img-fallback` chain
+  // (space-separated, tried in order after src) is about to retry with it:
+  // sgWebpFallback / sgArtThumbFallback run after this capture listener.
   function awaitingFallback(img) {
-    var fallback = img.getAttribute('data-img-fallback');
-    return Boolean(fallback) && img.getAttribute('src') !== fallback;
+    var chain = String(img.getAttribute('data-img-fallback') || '').split(' ').filter(Boolean);
+    return chain.indexOf(img.getAttribute('src')) + 1 < chain.length;
   }
 
   /* Cards whose art lands together are revealed in reading order, a beat

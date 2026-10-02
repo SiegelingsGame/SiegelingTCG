@@ -10,6 +10,12 @@
     <link rel="icon" type="image/png" href="/favicon-192x192.png" sizes="192x192">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="manifest" href="/site.webmanifest">
+    <!-- The roster, legendaries and knights all wait on the card catalog; start
+         it with the HTML instead of after the scripts run. Matches landing.js's
+         fetch (same URL, same-origin credentials) so the browser reuses it. -->
+    <link rel="preload" href="/api/game/options" as="fetch" crossorigin>
+    <!-- Card art thumbnails come from Firebase Storage. -->
+    <link rel="preconnect" href="https://firebasestorage.googleapis.com">
     <link rel="stylesheet" href="/css/install-guide.css?v=2">
     <meta name="theme-color" content="#0a1530">
     <meta name="apple-mobile-web-app-title" content="Siegelings">

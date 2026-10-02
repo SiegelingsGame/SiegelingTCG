@@ -4,14 +4,21 @@ Original prompt: Merge and deploy
     - Measured on production: one cold thumbnail took 1.5s.
     - 24 binder tiles requested together took a median 15.7s (max 19s), and some returned 500/503 when the instance ran out of memory. Each failure then fell back to the 2 MB original.
     - A CDN hit takes ~0.08-0.16s.
-  - **Functions (`functions/index.js`).**
-    - art-mirror keeps every thumbnail it makes in the bucket at `art-thumbs/w{N}/{sha256(url)}.webp`, so a CDN miss costs one small object read, not a download plus a resize. Art URLs carry their upload token, so new art is a new key and a cached thumbnail never goes stale.
-    - Resizes run through a 2-slot limiter.
-    - `api` gets `memory: '1GiB'`.
-    - Tests: cache keys, limiter peak/results, and an end-to-end handler test (a second request is served from the stored thumbnail with no upstream fetch).
-  - **Deploy.** A new best-effort `Warm card art thumbnails` step runs `scripts/warm-art-thumbs.mjs` after the functions deploy.
-    - It requests every Storage card and SiegeKnight art at the six mirror widths: 3 concurrent, 9-minute budget, always exits 0, `continue-on-error`.
-    - The first run builds the bucket cache; later runs re-read it.
+  - **Ready-made thumbnails (no request waits on a resize, first visit or not).** New `functions/artThumbs.js`: every Storage art file gets WebP cuts at 160/240/320/480/640/960 stored as `art-thumbs/<download token>/w<N>.webp`, readable with the art's own token.
+    - Pages derive the thumbnail URL from the art URL with string handling alone (`sgArtThumbChain` in game.js, `artThumbChain` in card-binder-visual.js, `storageThumbChain` in landing.js; verified identical, and identical to the server's `thumbDownloadUrl`).
+    - Each card loads a small static file. A re-upload gets a new token, so a thumbnail can never go stale. Tokens are validated (`[0-9A-Za-z-]{8,64}`) before they touch an object path.
+    - `data-img-fallback` is now an ordered, space-separated chain: ready-made cut, then art mirror, then original. Every handler steps to the entry after the current src; a single URL behaves as before.
+      - Handlers updated: `sgWebpFallback` (game.js and card-binder-visual.js), `sgArtThumbFallback`, `sgEvoThumbFallback`, `landingWebpFallback`, `landingEvoThumbFallback`.
+      - `art-reveal.js` `awaitingFallback` is updated to match.
+    - When a thumbnail is missing, Storage answers 404, which Chromium blocks (ORB), and the error moves the image on down the chain.
+    - The hub art-fit probe stays on the same-origin mirror (it reads pixels); the mirror answers it from the stored 160px cut.
+  - **Building them.**
+    - The dashboard upload (`POST /api/cards/editor/art` in functions) builds all six cuts as the art lands.
+    - The deploy workflow runs a new best-effort `Build card art thumbnails` step (`functions/scripts/build-art-thumbs.js`) **before** the Hosting release. It reads the live catalog, checks which cuts each Storage art file lacks, builds only those, always exits 0, and is time-capped.
+    - The art mirror, as last resort, stores any cut it has to make, but only from an original: a cut of a thumbnail could put a small image under a larger width.
+    - Mirror resizes run through a 2-slot limiter, and `api` gets `memory: '1GiB'`; the default 256 MiB ran out during resize bursts.
+    - The earlier warm-the-CDN script is removed.
+  - **Catalog first.** `index.html` preloads `/api/game/options` with the HTML (matching landing.js's fetch), and both hubs preconnect to Firebase Storage.
   - **Landing roster (`landing.js`).**
     - Shows a sample, not the catalog: 4 per element (one each of Epic/Rare/Uncommon/Common where available; Legendaries have their own section). That is 24 cards instead of 83.
     - Picks alternate rows per round, so both rows carry every element.
@@ -25,7 +32,7 @@ Original prompt: Merge and deploy
     - Tiles whose art lands together are revealed in reading order, 16-45ms apart, so a full screen is out within ~0.4s.
     - The reveal is now a fade plus a 10px rise.
     - Art already in memory is still revealed instantly.
-  - **Pins:** `landing.js?v=48`, `landing.css?v=47` (index, play), `art-reveal.js?v=3` (index, home-next, home).
+  - **Pins:** `landing.js?v=48`, `landing.css?v=47` (index, play), `art-reveal.js?v=3` (index, home-next, home), `game.js?v=310` and `card-binder-visual.js?v=29` (play, home, home-next, card-dashboard), `home-redesign.js?v=59`.
 - Verification:
   - **Method.** Headless Chromium against a local server that serves this tree and proxies `/api/*` to production. No Playwright routing, so the browser cache behaves for real (routing disables it and made preloaded art look refetched).
   - **Landing at 390x844 @3x, 1920x1080 and 3440x1440.**
@@ -40,11 +47,20 @@ Original prompt: Merge and deploy
     - 0 frame-only tiles at both viewports, first visit and return.
     - Desktop: tiles revealed 0.67-1.97s in reading order (2 in-burst inversions, only where an earlier tile was not ready), median step 41-53ms.
     - The phone first visit was network-bound on cold thumbnails from the current production function (3.1-9.1s), which is what the server cache addresses.
-  - **Functions.** `node --test` 26/26; `npm run lint` ok; regenerated manifest shows `availableMemoryMb: 1024`.
-  - **Warm script.** Against a mock server: dedupes art, skips non-Storage URLs, reports one forced 500 as a warning and exits 0. It also exits 0 with a warning when the host is unreachable.
-  - **Workflow.** The YAML parses.
-  - **Checks.** `node --check` on every changed JS file.
-  - **Not verified before merge.** The Storage cache and the 1 GiB setting on real Cloud Functions (needs a deploy).
+  - **First visit with ready-made thumbnails.** Page from this tree with the API proxied to production; Storage `art-thumbs` URLs answered from thumbnails built by the real build script, at 250ms each.
+    - Phone landing: first card 0.84s, screen complete 2.4s.
+    - Phone `/cards`: complete 1.2s.
+    - Desktop `/cards`: complete 2.3s.
+    - Every card is served from a ready-made cut (0 mirror requests, 0 originals), with 0 frame-only cards and 0 errors.
+    - With every thumbnail answering 404, all cards fall back cleanly (0 frame-only, 0 errors). Verified both under routing and against real production, where the 404s are ORB-blocked.
+    - The catalog request now starts at 13ms (preload), was ~1.1s; it is made once, with no unused-preload warning.
+  - **Build script against the live catalog** (writing to a local folder): 94 art files, 564 cuts built in 55s, 0 failures; a second run builds nothing in 0s. Average cut sizes 10 KB (160), 27 KB (320), 52 KB (480), 83 KB (640), 164 KB (960).
+  - **Fallback chains, in page.** Every handler steps a -> b -> c, then stops (battle art retries; evo chips swap to the name label); a single URL behaves as before.
+  - **Other pages.** `/play`, `card-dashboard.html` and legacy `home.html` load with 0 errors and emit thumbnail-chain attrs.
+  - **Functions.** `node --test` 28/28: token keys and path-injection refusal, all six cuts stored with the art token, limiter, mirror serving a ready-made cut without re-downloading, a thumbnail-sourced cut served but never stored, and the build script building only missing cuts and surviving a failed original. `npm run lint` ok; manifest `availableMemoryMb: 1024`.
+  - **JUnit.** 735 tests: the only failure was `CardDefinitionServiceTest`'s 500ms wall-clock check while the suite ran, which passes alone.
+  - **Checks.** The workflow YAML parses; `node --check` on every changed JS file.
+  - **Not verifiable before merge.** Writing to the real bucket (the deploy service account's Storage access) and the 1 GiB setting on real Cloud Functions. Checked live after deploy.
 - October 2, 2026 (deploy follow-up) **#996 deployed (run #985, merge `27af9e4a`); live check found late frame-only cards on the landing roster, fixed here.**
   - **Live result of #996.**
     - Hub `/cards`: 0 frame-only cards at 390x844 and 1920x1080; all visible cards complete in 1.8-2.3s; 24 mirror requests at `w=480`, 0 originals.

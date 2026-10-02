@@ -575,24 +575,43 @@
     }
 
     // Dashboard creature art is a 1024x1536 Firebase Storage PNG of up to
-    // ~2.4 MB; the art mirror returns a WebP cut sized for the slot instead
-    // (mirrors game.js sgArtThumbSrc). Anything else keeps preferWebp.
+    // ~2.4 MB. Each art file has ready-made WebP cuts stored beside it under its
+    // download token (functions/artThumbs.js), so a slot loads a small static
+    // file whose URL is derived here; the art mirror and then the original are
+    // the fallbacks. Mirrors game.js sgArtThumbChain - keep the two in step.
+    // Anything else keeps preferWebp.
     const STORAGE_ART_PREFIX = 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/';
+    const ART_THUMB_WIDTHS = [160, 240, 320, 480, 640, 960];
     // Binder tiles and the card sheet draw art at most ~400 device px.
     const BINDER_ART_WIDTH = 480;
 
-    function artThumbSrc(url, width) {
+    function artThumbChain(url, width) {
         const u = String(url || '');
-        if (width && u.startsWith(STORAGE_ART_PREFIX)) {
-            return `/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(u)}`;
+        if (!width || !u.startsWith(STORAGE_ART_PREFIX)) {
+            return [];
         }
-        return preferWebp(u);
+        const mirror = `/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(u)}`;
+        const token = (u.match(/[?&]token=([0-9A-Za-z-]{8,64})(?:&|$)/) || [])[1];
+        if (!token) {
+            return [mirror, u];
+        }
+        const bucket = ART_THUMB_WIDTHS.find((w) => w >= width) || ART_THUMB_WIDTHS[ART_THUMB_WIDTHS.length - 1];
+        return [`${STORAGE_ART_PREFIX}${encodeURIComponent(`art-thumbs/${token}/w${bucket}.webp`)}?alt=media&token=${token}`, mirror, u];
     }
 
-    // `src` plus a fall-back-to-original handler whenever the URL was rewritten.
+    function artThumbSrc(url, width) {
+        const chain = artThumbChain(url, width);
+        return chain.length ? chain[0] : preferWebp(String(url || ''));
+    }
+
+    // `src` plus the fallback chain whenever the URL was rewritten.
     function artImgAttrs(url, width) {
         const original = String(url || '');
-        const preferred = artThumbSrc(original, width);
+        const chain = artThumbChain(original, width);
+        if (chain.length) {
+            return `src="${escapeAttr(chain[0])}" data-img-fallback="${escapeAttr(chain.slice(1).join(' '))}" onerror="sgWebpFallback(this)"`;
+        }
+        const preferred = preferWebp(original);
         return preferred !== original
             ? `src="${escapeAttr(preferred)}" data-img-fallback="${escapeAttr(original)}" onerror="sgWebpFallback(this)"`
             : `src="${escapeAttr(original)}"`;
@@ -606,16 +625,20 @@
         return u.replace(/^(\/(?:img|assets)\/[^?#]+)\.(png|jpe?g)(\?[^#]*)?$/i, '$1.webp$3');
     }
 
-    // onerror handler: revert a failed .webp <img> to its original source once.
+    // onerror handler: step to the next URL in `data-img-fallback` (space-
+    // separated, tried in order after src), then stop. Same contract as
+    // game.js's sgNextImgFallback.
     window.sgWebpFallback = function (img) {
         if (!img) {
             return;
         }
-        const fallback = img.getAttribute('data-img-fallback');
-        img.onerror = null;
-        if (fallback && img.getAttribute('src') !== fallback) {
-            img.setAttribute('src', fallback);
+        const chain = String(img.getAttribute('data-img-fallback') || '').split(' ').filter(Boolean);
+        const next = chain[chain.indexOf(img.getAttribute('src')) + 1];
+        if (next) {
+            img.setAttribute('src', next);
+            return;
         }
+        img.onerror = null;
     };
 
     // Fit every card description fully inside its painted info window: long

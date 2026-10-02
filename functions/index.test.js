@@ -369,14 +369,39 @@ test('art-mirror thumbnail widths snap to fixed buckets', () => {
   assert.equal(_private.parseThumbWidth('5000'), 960);
 });
 
-test('art-mirror thumbnail cache keys are per width and per art URL', () => {
-  const url = `https://firebasestorage.googleapis.com/v0/b/${_private.ART_MIRROR_BUCKET}/o/cards%2Fa.png?alt=media&token=1`;
-  const path = _private.artThumbCachePath(url, 480);
-  assert.match(path, /^art-thumbs\/w480\/[0-9a-f]{64}\.webp$/);
-  assert.equal(_private.artThumbCachePath(url, 480), path);
-  assert.notEqual(_private.artThumbCachePath(url, 320), path);
-  // A re-upload gets a new token, so it can never be served a stale thumbnail.
-  assert.notEqual(_private.artThumbCachePath(url.replace('token=1', 'token=2'), 480), path);
+test('ready-made thumbnails are keyed by the art download token', () => {
+  const artThumbs = require('./artThumbs');
+  const token = '09eacc10-6181-4238-b116-c7ade334b43a';
+  const url = `https://firebasestorage.googleapis.com/v0/b/${_private.ART_MIRROR_BUCKET}/o/cards%2Fa.png?alt=media&token=${token}`;
+  assert.equal(artThumbs.artToken(url), token);
+  assert.equal(artThumbs.thumbObjectPath(token, 480), `art-thumbs/${token}/w480.webp`);
+  assert.equal(
+    artThumbs.thumbDownloadUrl(_private.ART_MIRROR_BUCKET, token, 480),
+    `https://firebasestorage.googleapis.com/v0/b/${_private.ART_MIRROR_BUCKET}/o/art-thumbs%2F${token}%2Fw480.webp?alt=media&token=${token}`
+  );
+  // A token can never steer the object path.
+  for (const bad of ['../../etc', 'a/b/c/d/e/f', 'short', '', 'x'.repeat(65), 'abc.def.ghi', '%2E%2E%2Fsecret']) {
+    assert.equal(artThumbs.artToken(`${url.split('&token=')[0]}&token=${encodeURIComponent(bad)}`), '', bad);
+  }
+  assert.equal(artThumbs.artToken('not a url'), '');
+});
+
+test('buildThumbs stores every width under the art token, readable with that token', async () => {
+  const artThumbs = require('./artThumbs');
+  const sharp = require('sharp');
+  const original = await sharp({ create: { width: 1024, height: 1536, channels: 4, background: { r: 1, g: 2, b: 3, alpha: 1 } } }).png().toBuffer();
+  const saved = new Map();
+  const bucket = { file: (name) => ({ save: async (body, opts) => { saved.set(name, { body, opts }); } }) };
+  const token = '11111111-2222-3333-4444-555555555555';
+  assert.equal(await artThumbs.buildThumbs(bucket, token, original), artThumbs.THUMB_WIDTHS.length);
+  for (const width of artThumbs.THUMB_WIDTHS) {
+    const entry = saved.get(`art-thumbs/${token}/w${width}.webp`);
+    assert.ok(entry, `w${width} missing`);
+    assert.equal((await sharp(entry.body).metadata()).width, width);
+    assert.equal(entry.opts.metadata.contentType, 'image/webp');
+    assert.equal(entry.opts.metadata.metadata.firebaseStorageDownloadTokens, token);
+    assert.match(entry.opts.metadata.cacheControl, /immutable/);
+  }
 });
 
 test('resize limiter never runs more than its slots at once and keeps every result', async () => {
@@ -395,7 +420,7 @@ test('resize limiter never runs more than its slots at once and keeps every resu
   assert.deepEqual(results, [0, 1, 2, 3, 'boom', 5, 6, 7, 8]);
 });
 
-test('art-mirror resizes once, stores the thumbnail and serves later misses from the bucket', async () => {
+test('art-mirror serves ready-made thumbnails and stores the ones it has to build', async () => {
   const http = require('node:http');
   const sharp = require('sharp');
   const { app } = require('./index');
@@ -419,9 +444,11 @@ test('art-mirror resizes once, stores the thumbnail and serves later misses from
   };
   const server = app.listen(0);
   const port = server.address().port;
-  const art = `https://firebasestorage.googleapis.com/v0/b/${_private.ART_MIRROR_BUCKET}/o/cards%2Ftest.png?alt=media&token=t`;
-  const get = () => new Promise((resolve, reject) => {
-    http.get({ port, path: `/api/cards/art-mirror?w=300&url=${encodeURIComponent(art)}` }, (res) => {
+  const token = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const art = `https://firebasestorage.googleapis.com/v0/b/${_private.ART_MIRROR_BUCKET}/o/cards%2Ftest.png?alt=media&token=${token}`;
+  const thumbUrl = `https://firebasestorage.googleapis.com/v0/b/${_private.ART_MIRROR_BUCKET}/o/art-thumbs%2F${token}%2Fw480.webp?alt=media&token=${token}`;
+  const get = (target = art, w = 300) => new Promise((resolve, reject) => {
+    http.get({ port, path: `/api/cards/art-mirror?w=${w}&url=${encodeURIComponent(target)}` }, (res) => {
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
@@ -433,14 +460,25 @@ test('art-mirror resizes once, stores the thumbnail and serves later misses from
     assert.equal(first.headers['content-type'], 'image/webp');
     assert.equal((await sharp(first.body).metadata()).width, 320);
     assert.equal(upstreamFetches, 1);
-    assert.deepEqual([...stored.keys()], [_private.artThumbCachePath(art, 320)]);
+    assert.deepEqual([...stored.keys()], [`art-thumbs/${token}/w320.webp`]);
 
     const second = await get();
     assert.equal(second.status, 200);
     assert.equal(second.headers['content-type'], 'image/webp');
     assert.match(second.headers['cache-control'], /immutable/);
     assert.ok(second.body.equals(first.body));
-    assert.equal(upstreamFetches, 1, 'a cached thumbnail must not re-download the original');
+    assert.equal(upstreamFetches, 1, 'a ready-made thumbnail must not re-download the original');
+
+    // A cut made from another thumbnail (the art-fit probe's request) is served
+    // but never stored, so it cannot put a small image under a larger width.
+    const fromThumb = await get(thumbUrl, 960);
+    assert.equal(fromThumb.status, 200);
+    assert.equal(upstreamFetches, 2);
+    assert.deepEqual([...stored.keys()], [`art-thumbs/${token}/w320.webp`]);
+    // ...but it still reads a ready-made cut of the same art when there is one.
+    const probe = await get(thumbUrl, 300);
+    assert.ok(probe.body.equals(first.body));
+    assert.equal(upstreamFetches, 2);
   } finally {
     server.close();
     _private.artThumbStore.bucket = realBucket;
@@ -497,4 +535,47 @@ test('large JSON responses are gzipped for clients that accept it; images are no
   } finally {
     server.close();
   }
+});
+
+test('thumbnail build only makes what is missing and survives a failing original', async () => {
+  const { run } = require('./scripts/build-art-thumbs');
+  const artThumbs = require('./artThumbs');
+  const sharp = require('sharp');
+  const original = await sharp({ create: { width: 1024, height: 1536, channels: 4, background: { r: 9, g: 9, b: 9, alpha: 1 } } }).png().toBuffer();
+  const prefix = `https://firebasestorage.googleapis.com/v0/b/${_private.ART_MIRROR_BUCKET}/o/`;
+  const tokens = ['aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000002', 'aaaaaaaa-0000-0000-0000-000000000003'];
+  const stored = new Set();
+  // Art 1 is complete, art 2 is missing two widths, art 3's original cannot be read.
+  artThumbs.THUMB_WIDTHS.forEach((w) => stored.add(artThumbs.thumbObjectPath(tokens[0], w)));
+  artThumbs.THUMB_WIDTHS.filter((w) => w !== 160 && w !== 960).forEach((w) => stored.add(artThumbs.thumbObjectPath(tokens[1], w)));
+  const writes = [];
+  const bucket = {
+    file: (name) => ({
+      exists: async () => [stored.has(name)],
+      save: async () => { writes.push(name); stored.add(name); }
+    })
+  };
+  const fetched = [];
+  const tally = await run({
+    bucket,
+    now: () => 0,
+    fetchCatalog: async () => ({
+      cardCatalog: [
+        { cardArtUrl: `${prefix}cards%2Fone.png?alt=media&token=${tokens[0]}` },
+        { cardArtUrl: `${prefix}cards%2Ftwo.png?alt=media&token=${tokens[1]}` },
+        { cardArtUrl: `${prefix}cards%2Ftwo.png?alt=media&token=${tokens[1]}` },
+        { cardArtUrl: '/img/art/loading/local.webp' },
+        { cardArtUrl: `${prefix}cards%2Fnotoken.png?alt=media` }
+      ],
+      trainers: [{ cardArtUrl: `${prefix}cards%2Fthree.png?alt=media&token=${tokens[2]}` }]
+    }),
+    fetchOriginal: async (url) => {
+      fetched.push(url);
+      if (url.includes('three')) throw new Error('404');
+      return original;
+    }
+  });
+  assert.deepEqual(tally, { art: 3, complete: 1, built: 2, failed: 1, skipped: 0 });
+  assert.deepEqual(writes.sort(), [artThumbs.thumbObjectPath(tokens[1], 160), artThumbs.thumbObjectPath(tokens[1], 960)].sort());
+  assert.equal(fetched.filter((u) => u.includes('one')).length, 0, 'complete art is never downloaded');
 });

@@ -133,6 +133,19 @@ jobs:
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
           chmod 600 "$RUNNER_TEMP/firebase-service-account.json"
 
+      - name: Build card art thumbnails
+        # Pages load card art as ready-made WebP thumbnails stored next to each
+        # art file (functions/artThumbs.js), so no visitor ever waits on a
+        # resize. Dashboard uploads build them as they land; this makes any
+        # that are missing (older art) before the new pages go live. It only
+        # creates what is missing, always exits 0 and is time-capped - a card
+        # without a thumbnail falls back to the art mirror.
+        continue-on-error: true
+        timeout-minutes: 12
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: node functions/scripts/build-art-thumbs.js
+
       - name: Deploy Firebase Hosting
         # Hosting is deployed on its own so a functions deploy failure can never
         # block the hosting release. A stuck functions:api operation returning
@@ -210,14 +223,3 @@ jobs:
           done
           echo "::warning::Firebase functions deploy failed after $attempt attempts (hosting was still released)."
           exit 1
-
-      - name: Warm card art thumbnails
-        # The Hosting release above emptied the CDN, so the first players would
-        # otherwise wait on art-mirror to rebuild each thumbnail. The function
-        # keeps thumbnails in Storage once made; this pass makes any that are
-        # missing (new art) and re-reads the rest. It always exits 0 and is
-        # time-capped, so it can only delay the job, never fail it.
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        timeout-minutes: 12
-        run: node scripts/warm-art-thumbs.mjs

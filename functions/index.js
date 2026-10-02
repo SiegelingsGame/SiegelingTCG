@@ -9,6 +9,7 @@ const compression = require('compression');
 const Busboy = require('busboy');
 const { onRequest } = require('firebase-functions/v2/https');
 const { buildMetadata } = require('./editorMetadata');
+const artThumbs = require('./artThumbs');
 
 // The default Storage bucket resolves to the legacy `<project>.appspot.com`
 // name, which does not exist for this project — its bucket is the newer
@@ -243,92 +244,11 @@ function isMirrorableArtUrl(target) {
     && parsed.pathname.startsWith(`/v0/b/${ART_MIRROR_BUCKET}/o/`);
 }
 
-/* Thumbnail widths snap to a few buckets so the CDN holds one copy per bucket
-   instead of one per arbitrary `w` a caller invents. */
-// 960 serves the large inspect view and SiegeKnight art (up to ~740 device px);
-// the originals are 1024 wide, so nothing ever needs more.
-const THUMB_WIDTHS = [160, 240, 320, 480, 640, 960];
-
-function parseThumbWidth(raw) {
-  const requested = Number.parseInt(String(raw || ''), 10);
-  if (!Number.isFinite(requested) || requested <= 0) {
-    return 0;
-  }
-  return THUMB_WIDTHS.find((bucket) => bucket >= requested) || THUMB_WIDTHS[THUMB_WIDTHS.length - 1];
-}
-
-// sharp is loaded on first use, so a cold start that never resizes pays nothing.
-let sharpModule = null;
-async function resizeArt(buffer, width) {
-  if (!sharpModule) {
-    sharpModule = require('sharp');
-  }
-  return sharpModule(buffer)
-    .resize({ width, withoutEnlargement: true })
-    .webp({ quality: 82, alphaQuality: 90 })
-    .toBuffer();
-}
-
-/* Every Hosting release empties the CDN, so after a deploy the first visitors
-   used to make this function re-download every 1-2.4 MB original and resize it
-   again - 24 binder tiles at once took a median 15.7s and some died with
-   500/503 when the instance ran out of memory. A thumbnail is now resized once
-   ever and kept in the bucket; a CDN miss then costs one small object read.
-   Art URLs carry their upload token, so new art is a new key and a cached
-   thumbnail can never go stale. */
-const ART_THUMB_CACHE_PREFIX = 'art-thumbs';
+/* Thumbnail widths snap to fixed buckets (artThumbs.THUMB_WIDTHS) so the CDN
+   and the bucket hold one copy per width instead of one per arbitrary `w`. */
+const { parseThumbWidth, resizeArt, createLimiter } = artThumbs;
 // Indirection so tests can stand in a bucket (firebase-admin's is getter-only).
 const artThumbStore = { bucket: () => admin.storage().bucket() };
-
-function artThumbCachePath(url, width) {
-  const key = crypto.createHash('sha256').update(String(url)).digest('hex');
-  return `${ART_THUMB_CACHE_PREFIX}/w${width}/${key}.webp`;
-}
-
-async function readCachedThumb(url, width) {
-  try {
-    const [body] = await artThumbStore.bucket().file(artThumbCachePath(url, width)).download();
-    return body;
-  } catch (error) {
-    if (error?.code !== 404) {
-      console.warn('art-mirror thumb cache read failed', error?.message || error);
-    }
-    return null;
-  }
-}
-
-async function writeCachedThumb(url, width, body) {
-  try {
-    await artThumbStore.bucket().file(artThumbCachePath(url, width)).save(body, {
-      resumable: false,
-      metadata: { contentType: 'image/webp', cacheControl: 'public,max-age=31536000,immutable' }
-    });
-  } catch (error) {
-    console.warn('art-mirror thumb cache write failed', error?.message || error);
-  }
-}
-
-/* Decoding one original takes ~6 MB of bitmap plus libvips working memory, and
-   a cold binder asks for two dozen at once. Queueing them behind a few slots
-   finishes the burst sooner on one CPU than running them all together, and
-   never runs the instance out of memory. */
-function createLimiter(slots) {
-  let active = 0;
-  const waiting = [];
-  const next = () => {
-    if (active >= slots || !waiting.length) return;
-    active += 1;
-    const { task, resolve, reject } = waiting.shift();
-    Promise.resolve().then(task).then(resolve, reject).finally(() => {
-      active -= 1;
-      next();
-    });
-  };
-  return (task) => new Promise((resolve, reject) => {
-    waiting.push({ task, resolve, reject });
-    next();
-  });
-}
 
 const RESIZE_SLOTS = 2;
 const withResizeSlot = createLimiter(RESIZE_SLOTS);
@@ -348,10 +268,16 @@ app.get('/api/cards/art-mirror', async (req, res) => {
   };
   try {
     const width = parseThumbWidth(req.query.w);
-    if (width) {
-      const cached = await readCachedThumb(target, width);
-      if (cached) {
-        return sendArt(cached, 'image/webp');
+    // The ready-made thumbnail, when this art has one (see artThumbs.js).
+    const token = artThumbs.artToken(target);
+    // Only a cut of the original art may be stored: one made from another
+    // thumbnail (the hub's art-fit probe asks for those) could store a small
+    // image under a larger width.
+    const fromOriginal = !decodeURIComponent(new URL(target).pathname).includes('/o/art-thumbs/');
+    if (width && token) {
+      const ready = await artThumbs.readThumb(artThumbStore.bucket(), token, width);
+      if (ready) {
+        return sendArt(ready, 'image/webp');
       }
     }
     const upstream = await fetch(target);
@@ -373,7 +299,12 @@ app.get('/api/cards/art-mirror', async (req, res) => {
       try {
         body = await withResizeSlot(() => resizeArt(body, width));
         contentType = 'image/webp';
-        await writeCachedThumb(target, width, body);
+        if (token && fromOriginal) {
+          // Built on demand only because it was missing; from now on pages load
+          // it directly.
+          await artThumbs.saveThumb(artThumbStore.bucket(), token, width, body)
+            .catch((error) => console.warn('art thumbnail save failed', error?.message || error));
+        }
       } catch (error) {
         console.warn('art-mirror resize failed; serving the original', error);
       }
@@ -471,6 +402,14 @@ app.post('/api/cards/editor/art', async (req, res) => {
       }
     });
     await objectRef.makePublic().catch(() => {});
+    // Pages load card art as ready-made thumbnails keyed by this token; build
+    // them now so the very first visitor never waits on a resize. A failure
+    // here only costs speed - the art mirror builds any missing cut on demand.
+    try {
+      await withResizeSlot(() => artThumbs.buildThumbs(bucket, downloadToken, file.buffer));
+    } catch (error) {
+      console.warn('card art thumbnails were not built at upload', error?.message || error);
+    }
     const publicUrl = buildCardArtPublicUrl(bucket.name, objectPath, downloadToken);
     res.json({ ok: true, url: publicUrl, artVariant });
   } catch (error) {
@@ -1313,7 +1252,6 @@ exports._private = {
   isMirrorableArtUrl,
   parseThumbWidth,
   resizeArt,
-  artThumbCachePath,
   artThumbStore,
   createLimiter,
   ART_MIRROR_BUCKET,

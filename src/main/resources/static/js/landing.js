@@ -63,16 +63,23 @@
         }
         return `src="${escapeAttr(preferred)}" data-img-fallback="${escapeAttr(original)}" onerror="landingWebpFallback(this)"`;
     }
+    // `data-img-fallback` lists the URLs to try after src, in order and
+    // space-separated; the next is whichever follows the current src.
+    function landingNextFallback(img) {
+        const chain = String(img.getAttribute('data-img-fallback') || '').split(' ').filter(Boolean);
+        return chain[chain.indexOf(img.getAttribute('src')) + 1] || null;
+    }
     if (typeof window !== 'undefined' && !window.landingWebpFallback) {
         window.landingWebpFallback = function (img) {
             if (!img) {
                 return;
             }
-            const fallback = img.getAttribute('data-img-fallback');
-            img.onerror = null;
-            if (fallback && img.getAttribute('src') !== fallback) {
-                img.setAttribute('src', fallback);
+            const next = landingNextFallback(img);
+            if (next) {
+                img.setAttribute('src', next);
+                return;
             }
+            img.onerror = null;
         };
     }
 
@@ -415,25 +422,37 @@
     }
 
     // Storage art is 1024x1536. A row of them decoded at full size is what got
-    // the page killed and reloaded on iOS, so cards ask the art mirror for a
-    // thumbnail and only fall back to the original if that request fails.
-    function thumbAttrs(url, width) {
+    // the page killed and reloaded on iOS, so cards load a ready-made WebP cut
+    // stored beside each art file under its download token (functions/
+    // artThumbs.js) - a small static file, no server work, first visit or not -
+    // then the art mirror, then the original. Same chain as game.js
+    // sgArtThumbChain; keep the two in step.
+    const STORAGE_ART_PREFIX = 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/';
+    const ART_THUMB_WIDTHS = [160, 240, 320, 480, 640, 960];
+    function storageThumbChain(url, width) {
         const original = String(url || '');
-        if (!/^https:\/\/firebasestorage\.googleapis\.com\//.test(original)) {
-            return landingImgAttrs(original);
-        }
-        const thumb = `/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(original)}`;
-        return `src="${escapeAttr(thumb)}" data-img-fallback="${escapeAttr(original)}" onerror="landingWebpFallback(this)"`;
+        if (!original.startsWith(STORAGE_ART_PREFIX)) return [];
+        const mirror = `/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(original)}`;
+        const token = (original.match(/[?&]token=([0-9A-Za-z-]{8,64})(?:&|$)/) || [])[1];
+        if (!token) return [mirror, original];
+        const bucket = ART_THUMB_WIDTHS.find((w) => w >= width) || ART_THUMB_WIDTHS[ART_THUMB_WIDTHS.length - 1];
+        return [`${STORAGE_ART_PREFIX}${encodeURIComponent(`art-thumbs/${token}/w${bucket}.webp`)}?alt=media&token=${token}`, mirror, original];
     }
 
-    // The URLs thumbAttrs would try, in order: the mirror thumbnail (or WebP
-    // twin) first, the original as its fallback.
+    function thumbAttrs(url, width) {
+        const chain = storageThumbChain(url, width);
+        if (!chain.length) {
+            return landingImgAttrs(String(url || ''));
+        }
+        return `src="${escapeAttr(chain[0])}" data-img-fallback="${escapeAttr(chain.slice(1).join(' '))}" onerror="landingWebpFallback(this)"`;
+    }
+
+    // The URLs thumbAttrs would try, in order.
     function artCandidates(url, width) {
         const original = String(url || '');
         if (!original) return [];
-        if (/^https:\/\/firebasestorage\.googleapis\.com\//.test(original)) {
-            return [`/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(original)}`, original];
-        }
+        const chain = storageThumbChain(original, width);
+        if (chain.length) return chain;
         const preferred = (landingImgAttrs(original).match(/^src="([^"]*)"/) || [])[1];
         const decoded = preferred ? preferred.replace(/&amp;/g, '&').replace(/&quot;/g, '"') : original;
         return decoded === original ? [original] : [decoded, original];
@@ -442,9 +461,9 @@
     if (typeof window !== 'undefined' && !window.landingEvoThumbFallback) {
         window.landingEvoThumbFallback = function (img) {
             if (!img) return;
-            const fallback = img.getAttribute('data-img-fallback');
-            if (fallback && img.getAttribute('src') !== fallback) {
-                img.setAttribute('src', fallback);
+            const next = landingNextFallback(img);
+            if (next) {
+                img.setAttribute('src', next);
                 return;
             }
             const label = img.getAttribute('data-evo-label') || img.getAttribute('alt') || '';
@@ -463,11 +482,11 @@
     function evoThumbAttrs(url, width, label) {
         const original = String(url || '');
         const safeLabel = String(label || '');
-        if (!/^https:\/\/firebasestorage\.googleapis\.com\//.test(original)) {
+        const chain = storageThumbChain(original, width);
+        if (!chain.length) {
             return `src="${escapeAttr(original)}" data-evo-label="${escapeAttr(safeLabel)}" onerror="landingEvoThumbFallback(this)"`;
         }
-        const thumb = `/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(original)}`;
-        return `src="${escapeAttr(thumb)}" data-img-fallback="${escapeAttr(original)}" data-evo-label="${escapeAttr(safeLabel)}" onerror="landingEvoThumbFallback(this)"`;
+        return `src="${escapeAttr(chain[0])}" data-img-fallback="${escapeAttr(chain.slice(1).join(' '))}" data-evo-label="${escapeAttr(safeLabel)}" onerror="landingEvoThumbFallback(this)"`;
     }
 
     // Only the transparent creature overlay reads at evolution-chip size.

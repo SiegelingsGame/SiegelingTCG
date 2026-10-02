@@ -1596,48 +1596,76 @@ function sgPreferWebp(url) {
     }
     return u.replace(/^(\/(?:img|assets)\/[^?#]+)\.(png|jpe?g)(\?[^#]*)?$/i, '$1.webp$3');
 }
+// `data-img-fallback` lists the URLs to try after `src`, in order and
+// space-separated (URLs never hold a raw space): the next one is whichever
+// follows the current src. A single URL behaves as it always did.
+if (typeof window !== 'undefined' && !window.sgNextImgFallback) {
+    window.sgNextImgFallback = function (img) {
+        const chain = String(img.getAttribute('data-img-fallback') || '').split(' ').filter(Boolean);
+        const next = chain[chain.indexOf(img.getAttribute('src')) + 1];
+        return next || null;
+    };
+}
 if (typeof window !== 'undefined' && !window.sgWebpFallback) {
     window.sgWebpFallback = function (img) {
         if (!img) {
             return;
         }
-        const fallback = img.getAttribute('data-img-fallback');
-        img.onerror = null;
-        if (fallback && img.getAttribute('src') !== fallback) {
-            img.setAttribute('src', fallback);
+        const next = window.sgNextImgFallback(img);
+        if (next) {
+            img.setAttribute('src', next);
+            return;
         }
+        img.onerror = null;
     };
 }
 
 // Dashboard creature art lives in Firebase Storage as 1024x1536 PNGs of up to
-// ~2.4 MB, yet no surface draws it wider than ~740 device px. The art mirror
-// returns a WebP cut of it (roughly 20-60 KB), so cards are fetched that way;
-// the original stays the fallback if the mirror fails.
+// ~2.4 MB, yet no surface draws it wider than ~740 device px. Every art file
+// has ready-made WebP cuts stored beside it under its own download token
+// (functions/artThumbs.js), so a card loads a ~20-60 KB static file whose URL
+// is derived right here - no server work, first visit or not. The art mirror
+// (which builds a missing cut) and then the original are the fallbacks.
+// Keep in step with card-binder-visual.js and landing.js.
 const SG_STORAGE_ART_PREFIX = 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/';
+const SG_ART_THUMB_WIDTHS = [160, 240, 320, 480, 640, 960];
 // Hand, board and mulligan cards; `selected` (the large inspect view) asks for more.
 const SG_CARD_ART_WIDTH = 640;
 const SG_SELECTED_ART_WIDTH = 960;
 
-function sgArtThumbSrc(url, width) {
+// [ready-made thumbnail, art mirror, original] for Storage art; [] otherwise.
+function sgArtThumbChain(url, width) {
     const u = String(url || '');
-    if (width && u.startsWith(SG_STORAGE_ART_PREFIX)) {
-        return `/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(u)}`;
+    if (!width || !u.startsWith(SG_STORAGE_ART_PREFIX)) {
+        return [];
     }
-    return sgPreferWebp(u);
+    const mirror = `/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(u)}`;
+    const token = (u.match(/[?&]token=([0-9A-Za-z-]{8,64})(?:&|$)/) || [])[1];
+    if (!token) {
+        return [mirror, u];
+    }
+    const bucket = SG_ART_THUMB_WIDTHS.find((w) => w >= width) || SG_ART_THUMB_WIDTHS[SG_ART_THUMB_WIDTHS.length - 1];
+    const ready = `${SG_STORAGE_ART_PREFIX}${encodeURIComponent(`art-thumbs/${token}/w${bucket}.webp`)}?alt=media&token=${token}`;
+    return [ready, mirror, u];
 }
 
-// A failed mirror thumbnail falls back to the original once, and the original
-// then gets the same backoff retries any remote art gets.
+function sgArtThumbSrc(url, width) {
+    const chain = sgArtThumbChain(url, width);
+    return chain.length ? chain[0] : sgPreferWebp(String(url || ''));
+}
+
+// A failed thumbnail walks the chain once, and the original then gets the same
+// backoff retries any remote art gets.
 window.sgArtThumbFallback = function (img) {
     if (!img) {
         return;
     }
-    const fallback = img.getAttribute('data-img-fallback');
-    if (fallback && img.getAttribute('src') !== fallback) {
-        img.setAttribute('onerror', 'sgArtRetry(this)');
-        img.setAttribute('src', fallback);
+    const next = window.sgNextImgFallback(img);
+    if (next) {
+        img.setAttribute('src', next);
         return;
     }
+    img.setAttribute('onerror', 'sgArtRetry(this)');
     window.sgArtRetry(img);
 };
 
@@ -1749,9 +1777,9 @@ function knightArtStyleAttr(trainer) {
 // one dropped fetch doesn't leave the card art blank.
 function webpImgAttrs(url, width) {
     const original = String(url || '');
-    const thumb = sgArtThumbSrc(original, width);
-    if (thumb.startsWith('/api/cards/art-mirror')) {
-        return `src="${escapeHtmlAttribute(thumb)}" data-img-fallback="${escapeHtmlAttribute(original)}" onerror="sgArtThumbFallback(this)"`;
+    const chain = sgArtThumbChain(original, width);
+    if (chain.length) {
+        return `src="${escapeHtmlAttribute(chain[0])}" data-img-fallback="${escapeHtmlAttribute(chain.slice(1).join(' '))}" onerror="sgArtThumbFallback(this)"`;
     }
     const preferred = sgPreferWebp(original);
     if (preferred === original) {
@@ -1762,9 +1790,9 @@ function webpImgAttrs(url, width) {
 
 function sgEvoThumbFallback(img) {
     if (!img) return;
-    const fallback = img.getAttribute('data-img-fallback');
-    if (fallback && img.getAttribute('src') !== fallback) {
-        img.setAttribute('src', fallback);
+    const next = window.sgNextImgFallback(img);
+    if (next) {
+        img.setAttribute('src', next);
         return;
     }
     const label = img.getAttribute('data-evo-label') || img.getAttribute('alt') || '';
@@ -1781,13 +1809,13 @@ function sgEvoThumbFallback(img) {
 
 function evoThumbImgAttrs(url, label) {
     const original = String(url || '');
-    // The chip is ~20px wide; the mirror's smallest cut replaces a multi-MB original.
-    const preferred = sgArtThumbSrc(original, 160);
+    // The chip is ~20px wide; the smallest ready-made cut replaces a multi-MB original.
+    const chain = sgArtThumbChain(original, 160);
     const labelAttr = ` data-evo-label="${escapeHtmlAttribute(label || '')}"`;
-    if (preferred === original) {
+    if (!chain.length) {
         return `src="${escapeHtmlAttribute(original)}"${labelAttr} onerror="sgEvoThumbFallback(this)"`;
     }
-    return `src="${escapeHtmlAttribute(preferred)}" data-img-fallback="${escapeHtmlAttribute(original)}"${labelAttr} onerror="sgEvoThumbFallback(this)"`;
+    return `src="${escapeHtmlAttribute(chain[0])}" data-img-fallback="${escapeHtmlAttribute(chain.slice(1).join(' '))}"${labelAttr} onerror="sgEvoThumbFallback(this)"`;
 }
 
 function escapeHtml(value) {
