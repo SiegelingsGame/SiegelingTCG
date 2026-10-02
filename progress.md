@@ -1,4 +1,17 @@
 Original prompt: Merge and deploy
+- October 2, 2026 **Landing "Painted lands" row drifts on its own; no scrollbar.**
+  - **Behaviour.** The world-art row was a native scroller with a visible scrollbar on desktop. It now works like the card rows:
+    - `fillMarquee` renders the tiles twice for a seamless wrap (clones `aria-hidden`), and `bindAutoScroll` drifts it at 26 px/s, pausing while the player hovers, touches or swipes.
+    - The scrollbar is hidden, the edges fade, and scroll-snap is gone (it would fight the drift).
+    - Tiles are a fixed `clamp(288px, 26vw, 380px)` (phone `min(78vw, 320px)`).
+  - **Loading.** Lazy art in a drifting row is only fetched once on screen, so `loadWorldArtAhead` switches a tile to eager when it comes within 600px of the row (about 20s of drift).
+  - **Pins:** `landing.js?v=49` (index), `landing.css?v=48` (index, play).
+- Verification:
+  - **Method.** Headless Chromium on `/` served from this tree, sampled every 250ms for 10s with the section in view.
+  - **Desktop 1920x1080.** 20 tiles (10 clones); scrollbar 0px (`scrollbar-width: none`); `scrollLeft` advanced 25 -> 289; 0 visible tiles without art; 0 errors.
+  - **Phone 390x844 @3x.** The same, with 304px tiles and `scrollLeft` 36 -> 300.
+  - **Reduced motion.** The row stays put (`scrollLeft` 0).
+  - **Screenshot.** Desktop screenshot checked.
 - October 2, 2026 **Gallery art is now earned through achievements.**
   - **Design (owner's choices).**
     - The 20 element and place backdrops stay free: Earth, Water, Wind, Sky, Sky Ledge, Sand, Void, Void Sigil, Static, Light, Electric, Air/Fire/Ice Loading, Ice Peak, Ice Earth, Air & Wind, Water Beach, Air Battle, Water Battle.

@@ -1308,14 +1308,33 @@
     }
 
     // ── World art marquee ─────────────────────────────────────────────────
+    // Drifts like the card rows: rendered twice for the seamless wrap, no
+    // scrollbar, paused while the player hovers, touches or swipes it.
     function renderWorldMarquee() {
         const host = document.getElementById('worldMarquee');
         if (!host) return;
-        host.innerHTML = WORLD_ART.map((art) => `
-            <figure class="world-tile" style="--world-color: var(--element-${art.element}, var(--siegelings-blue))">
-                <img src="${escapeAttr(artUrl(art.id))}" alt="${escapeAttr(art.title)}" loading="lazy">
+        fillMarquee(host, WORLD_ART, (art, _i, clone) => `
+            <figure class="world-tile" style="--world-color: var(--element-${art.element}, var(--siegelings-blue))"${clone ? ' aria-hidden="true"' : ''}>
+                <img src="${escapeAttr(artUrl(art.id))}" alt="${clone ? '' : escapeAttr(art.title)}" loading="lazy" decoding="async">
                 <figcaption>${escapeHtml(art.title)}</figcaption>
-            </figure>`).join('');
+            </figure>`);
+        loadWorldArtAhead(host);
+        bindAutoScroll(host, { speed: 26 });
+    }
+
+    // Lazy art in a drifting row is only fetched once it is on screen, so a tile
+    // would slide in empty. A tile within 600px (~20s of drift) loads now.
+    function loadWorldArtAhead(row) {
+        if (!('IntersectionObserver' in window)) return;
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                observer.unobserve(entry.target);
+                const img = entry.target.querySelector('img[loading="lazy"]');
+                if (img) img.setAttribute('loading', 'eager');
+            });
+        }, { root: row, rootMargin: '0px 600px' });
+        row.querySelectorAll('.world-tile').forEach((tile) => observer.observe(tile));
     }
 
     function bindLandingFab() {
