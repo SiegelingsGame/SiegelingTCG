@@ -426,6 +426,16 @@
         return `src="${escapeAttr(thumb)}" data-img-fallback="${escapeAttr(original)}" onerror="landingWebpFallback(this)"`;
     }
 
+    function deferredThumbAttrs(url, width) {
+        const original = String(url || '');
+        if (!/^https:\/\/firebasestorage\.googleapis\.com\//.test(original)) {
+            const attrs = landingImgAttrs(original);
+            return attrs.replace(/^src=/, 'data-src=');
+        }
+        const thumb = `/api/cards/art-mirror?w=${width}&url=${encodeURIComponent(original)}`;
+        return `data-src="${escapeAttr(thumb)}" data-img-fallback="${escapeAttr(original)}" onerror="landingWebpFallback(this)"`;
+    }
+
     if (typeof window !== 'undefined' && !window.landingEvoThumbFallback) {
         window.landingEvoThumbFallback = function (img) {
             if (!img) return;
@@ -497,6 +507,8 @@
         const ink = SUMMARY_INK[element] || DEFAULT_INK;
         const description = String(card.description || '').trim() || 'Description coming soon.';
         const stat = (value) => (Number.isFinite(Number(value)) && value !== null && value !== '' ? Number(value) : '-');
+        const artAttrs = opts.deferArt ? deferredThumbAttrs(art, opts.thumbWidth || 320) : thumbAttrs(art, opts.thumbWidth || 320);
+        const loading = opts.eager ? 'eager' : 'lazy';
         return `
             <div class="mulligan-card-slot binder-framed-slot">
                 <div class="hand-card ${escapeAttr(key)} card-type-siegling mulligan-showcase binder-grid-showcase element-frame ${frame}">
@@ -504,7 +516,7 @@
                     <div class="hand-card-shell">
                         ${chips.join('')}
                         <div class="hand-card-header"><div class="card-title">${escapeHtml(card.name)}</div><div class="card-label">SIEGLING / ${escapeHtml(element.charAt(0) + element.slice(1).toLowerCase())}</div></div>
-                        <div class="card-art card-art-preview">${art ? `<img ${thumbAttrs(art, opts.thumbWidth || 320)} alt="" loading="${opts.eager ? 'eager' : 'lazy'}" decoding="async"${transform ? ` style="${transform}"` : ''}>` : ''}</div>
+                        <div class="card-art card-art-preview">${art ? `<img ${artAttrs} alt="" loading="${loading}" decoding="async"${transform ? ` style="${transform}"` : ''}>` : ''}</div>
                         <div class="hand-card-body">
                             <div class="card-stat-pills"><span class="card-stat-pill card-stat-pill-hp">HP: ${stat(card.health)}</span><span class="card-stat-pill card-stat-pill-spd">SPD: ${stat(card.speed)}</span></div>
                             <div class="card-summary-list card-summary-description-list" style="--summary-ink:${ink[0]};--summary-strong:${ink[1]};--summary-muted:${ink[2]};--summary-shadow:${ink[3]}"><div class="card-summary-description">${escapeHtml(description)}</div></div>
@@ -694,6 +706,32 @@
             + items.map((item, i) => markup(item, i, true)).join('');
     }
 
+    function hydrateDeferredImages(root, limit) {
+        const images = Array.from(root.querySelectorAll('img[data-src]')).slice(0, limit || Infinity);
+        images.forEach((img) => {
+            img.setAttribute('src', img.getAttribute('data-src'));
+            img.removeAttribute('data-src');
+        });
+        return images.length;
+    }
+
+    function hydrateDeferredImagesSoon(root) {
+        const step = () => {
+            const count = hydrateDeferredImages(root, 4);
+            if (count > 0 && root.querySelector('img[data-src]')) {
+                window.setTimeout(schedule, 140);
+            }
+        };
+        const schedule = () => {
+            if ('requestIdleCallback' in window) {
+                window.requestIdleCallback(step, { timeout: 900 });
+            } else {
+                window.setTimeout(step, 120);
+            }
+        };
+        window.setTimeout(schedule, 650);
+    }
+
     // The full roster comes from the same live catalog used by the deck builder.
     async function loadRosterEntries() {
         try {
@@ -722,15 +760,17 @@
         entries.forEach((entry, i) => rows[entries.length < 8 ? 0 : i % 2].push(i));
         if (!rows[1].length) rows[1] = rows[0].slice().reverse();
 
-        const markup = (index, _i, clone) => `
+        const markup = (index, i, clone) => `
             <button class="marquee-card" type="button" data-roster-index="${index}"${clone ? ' aria-hidden="true" tabindex="-1"' : ''}
                     aria-label="Meet ${escapeAttr(entries[index].name)}">
-                ${renderBinderFace(entries[index], { thumbWidth: 320 })}
+                ${renderBinderFace(entries[index], { thumbWidth: 320, eager: !clone && i < 4, deferArt: clone || i >= 4 })}
             </button>`;
         fillMarquee(rowA, rows[0], markup);
         fillMarquee(rowB, rows[1], markup);
         scheduleDescriptionFit(rowA);
         scheduleDescriptionFit(rowB);
+        hydrateDeferredImagesSoon(rowA);
+        hydrateDeferredImagesSoon(rowB);
 
         function show(index) {
             if (!spotlight) return;
