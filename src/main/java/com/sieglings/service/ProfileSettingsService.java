@@ -9,6 +9,7 @@ import com.sieglings.persistence.entity.ProfileSettingsEntity;
 import com.sieglings.persistence.firestore.AccountUserStore;
 import com.sieglings.persistence.firestore.ProfileSettingsStore;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -38,6 +39,10 @@ public class ProfileSettingsService {
 
     @Autowired
     private CardDefinitionService cardDefinitionService;
+
+    @Autowired(required = false)
+    @Lazy
+    private GalleryRewardService galleryRewardService;
 
     public ProfileSettingsEntity getOrCreate(AccountUser user) {
         return settingsStore.findByUserId(user.getId()).orElseGet(() -> defaultsFor(user));
@@ -77,6 +82,10 @@ public class ProfileSettingsService {
         if (req.containsKey("pageArtId")) {
             settings.setPageArtId(trim(readString(req, "pageArtId"), 120));
         }
+        // Reward art the player has not earned falls back to the default rather
+        // than failing the save: a client still holding an old pick must not lose
+        // the rest of what it is saving.
+        clearLockedArt(settings, user, progression);
         String requestedTitleId = readString(req, "playerTitleId");
         if (requestedTitleId.isBlank()) {
             requestedTitleId = readString(req, "playerTitle");
@@ -156,6 +165,11 @@ public class ProfileSettingsService {
 
     public Map<String, Object> serialize(ProfileSettingsEntity settings, AccountUser user) {
         PlayerProgressionEntity progression = playerProgressionService.getOrCreate(user);
+        // Art chosen before it became an achievement reward resets to the default
+        // until the player earns it, for everyone who sees this profile.
+        if (clearLockedArt(settings, user, progression) && settings.getUserId() != null) {
+            settingsStore.save(settings);
+        }
         Map<String, Object> out = new LinkedHashMap<>();
         String displayName = settings.getDisplayName();
         if (displayName == null || displayName.isBlank()) {
@@ -193,6 +207,23 @@ public class ProfileSettingsService {
         out.put("favoriteCardIds", resolveFavoriteCardIds(settings.getFavoriteCardIds(), progression));
         out.put("updatedAt", settings.getUpdatedAt() == null ? null : settings.getUpdatedAt().toString());
         return out;
+    }
+
+    /** Clears profile/page art that is a reward this player has not earned; true when it changed anything. */
+    private boolean clearLockedArt(ProfileSettingsEntity settings, AccountUser user, PlayerProgressionEntity progression) {
+        if (galleryRewardService == null || settings == null) {
+            return false;
+        }
+        boolean changed = false;
+        if (!galleryRewardService.canUse(user, progression, settings, settings.getProfileArtId())) {
+            settings.setProfileArtId("");
+            changed = true;
+        }
+        if (!galleryRewardService.canUse(user, progression, settings, settings.getPageArtId())) {
+            settings.setPageArtId("");
+            changed = true;
+        }
+        return changed;
     }
 
     /** Keep only owned favorites (max 3), preserving player order. */

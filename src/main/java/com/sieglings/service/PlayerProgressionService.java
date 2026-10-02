@@ -6,10 +6,13 @@ import com.sieglings.model.enums.Element;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
+import com.sieglings.persistence.entity.ProfileSettingsEntity;
 import com.sieglings.persistence.firestore.PlayerProgressionStore;
+import com.sieglings.persistence.firestore.ProfileSettingsStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -90,6 +93,13 @@ public class PlayerProgressionService {
 
     @Autowired(required = false)
     private PlayerTitleService playerTitleService;
+
+    @Autowired(required = false)
+    @Lazy
+    private GalleryRewardService galleryRewardService;
+
+    @Autowired(required = false)
+    private ProfileSettingsStore profileSettingsStore;
 
     private static Object[] createLockStripes() {
         Object[] locks = new Object[PACK_OPEN_LOCK_STRIPES];
@@ -640,6 +650,22 @@ public class PlayerProgressionService {
         }
     }
 
+    private List<String> galleryUnlockedIds(AccountUser user, PlayerProgressionEntity progression) {
+        if (galleryRewardService == null || user == null || user.getId() == null) {
+            return List.of();
+        }
+        try {
+            ProfileSettingsEntity settings = profileSettingsStore == null
+                    ? null
+                    : profileSettingsStore.findByUserId(user.getId()).orElse(null);
+            return List.copyOf(galleryRewardService.unlockedPieceIds(user, progression, settings));
+        } catch (RuntimeException error) {
+            // An unreadable history must not cost the player their whole progression
+            // payload; the hub then shows reward art as locked until the next load.
+            return List.of();
+        }
+    }
+
     public Map<String, Object> serialize(PlayerProgressionEntity progression) {
         return serialize(progression, null);
     }
@@ -697,6 +723,9 @@ public class PlayerProgressionService {
             out.put("playerTitles", List.of());
         }
         out.put("purchasedTitleIds", progression.getPurchasedTitleIds());
+        // Gallery art this player has earned (catalog/gallery-rewards.json); the
+        // table of what each locked piece needs is public at /api/art/rewards.
+        out.put("galleryUnlockedIds", galleryUnlockedIds(user, progression));
         out.put("siegeUnlockedKnights", progression.getSiegeUnlockedKnights());
         out.put("siegeRuns", progression.getSiegeRuns());
         out.put("siegeWins", progression.getSiegeWins());

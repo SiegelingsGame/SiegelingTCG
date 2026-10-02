@@ -11,6 +11,7 @@ import com.sieglings.persistence.firestore.MatchHistoryStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -47,6 +48,32 @@ public class AchievementEvaluationService {
         }
         EvaluationContext ctx = buildContext(user, progression, settings);
         return evaluate(achievementId.trim().toLowerCase(Locale.ROOT), ctx);
+    }
+
+    /**
+     * Which of {@code achievementIds} this player has unlocked, from ONE read of
+     * their match history, saved decks and missions. Checking a list one id at a
+     * time through {@link #isUnlocked} re-reads all of that for every id.
+     */
+    public Set<String> unlockedAmong(AccountUser user,
+                                     Collection<String> achievementIds,
+                                     PlayerProgressionEntity progression,
+                                     ProfileSettingsEntity settings) {
+        Set<String> unlocked = new HashSet<>();
+        if (achievementIds == null || achievementIds.isEmpty() || progression == null) {
+            return unlocked;
+        }
+        EvaluationContext ctx = buildContext(user, progression, settings);
+        for (String id : achievementIds) {
+            if (id == null || id.isBlank()) {
+                continue;
+            }
+            String normalized = id.trim().toLowerCase(Locale.ROOT);
+            if (evaluate(normalized, ctx)) {
+                unlocked.add(normalized);
+            }
+        }
+        return unlocked;
     }
 
     private boolean evaluate(String achievementId, EvaluationContext ctx) {

@@ -2,10 +2,12 @@ package com.sieglings.controller;
 
 import com.sieglings.service.CardEditorAuthService;
 import com.sieglings.service.CardOverrideStorageService;
+import com.sieglings.service.GalleryRewardService;
 import com.sieglings.service.LoadingArtStorageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Files;
+import java.time.Duration;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,6 +59,21 @@ public class ArtGalleryController {
 
     @Autowired
     private CardEditorAuthService authService;
+
+    @Autowired
+    private GalleryRewardService galleryRewardService;
+
+    /**
+     * Which gallery pieces are achievement rewards, and what unlocks each. Public
+     * and the same for everyone (a guest sees the locks too); whether THIS player
+     * has earned a piece rides on /api/player/progression as galleryUnlockedIds.
+     */
+    @GetMapping("/api/art/rewards")
+    public ResponseEntity<Map<String, Object>> galleryRewards() {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(Duration.ofMinutes(5)).cachePublic())
+                .body(galleryRewardService.serializeTable());
+    }
 
     /**
      * Lists every cataloged world-art plate: classpath + local + hosted files
