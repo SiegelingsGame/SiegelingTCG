@@ -94,6 +94,32 @@ public class MatchReviewStore {
         return out.size() > limit ? new ArrayList<>(out.subList(0, limit)) : out;
     }
 
+    /**
+     * Every recorded Siege run, projected to the fields the score leaderboard
+     * ranks by. The projection matters: a full run document carries its map and
+     * stop journal, and the leaderboard rescans the collection on every refresh.
+     */
+    public List<Map<String, Object>> listSiegeRunScores() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (client != null && client.isAvailable()) {
+            try {
+                for (QueryDocumentSnapshot doc : client.requireFirestore()
+                        .collection(siegeRunsCollection)
+                        .select("userId", "userDisplayName", "score", "finishedAt", "knightName", "floorReached", "result", "mode")
+                        .get()
+                        .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                        .getDocuments()) {
+                    out.add(normalize(doc.getId(), doc.getData()));
+                }
+            } catch (Exception ex) {
+                throw new IllegalStateException("Unable to list Siege run scores from Firestore.", ex);
+            }
+        } else {
+            memorySiegeRuns.forEach((id, data) -> out.add(normalize(id, data)));
+        }
+        return out;
+    }
+
     private void save(String collection, Map<String, Map<String, Object>> memory, String id, Map<String, Object> payload) {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("Review document id is required.");

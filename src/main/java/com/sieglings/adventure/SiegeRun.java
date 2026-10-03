@@ -101,7 +101,7 @@ class SiegeRun {
     private final List<String> sourceTeamIds = new ArrayList<>();
     /** A guaranteed stage-2+ reveal earned at a Battlegrounds boss (reward, not a party member); null when none. */
     private java.util.Map<String, Object> bossReveal;
-    private long score;
+    private final SiegeScore scoreTally = new SiegeScore();
     private int loop;
     private int nodesCleared;
     private int bossKills;
@@ -220,7 +220,11 @@ class SiegeRun {
 
     int getGold() { return gold; }
     void setGold(int gold) { this.gold = Math.max(0, gold); }
-    void addGold(int amount) { setGold(gold + amount); }
+    void addGold(int amount) {
+        // Every negative adjustment is a purchase or a toll; score credits the gold put to use.
+        if (amount < 0) scoreTally.spent(Math.min(gold, -amount));
+        setGold(gold + amount);
+    }
 
     boolean isInCamp() { return inCamp; }
     void setInCamp(boolean inCamp) { this.inCamp = inCamp; }
@@ -265,9 +269,11 @@ class SiegeRun {
     java.util.Set<String> getDiscoveredSieglingIds() { return discoveredSieglingIds; }
     java.util.Map<String, Object> getBossReveal() { return bossReveal; }
     void setBossReveal(java.util.Map<String, Object> bossReveal) { this.bossReveal = bossReveal; }
-    long getScore() { return score; }
-    void addScore(long points) { this.score = Math.max(0, this.score + points); }
-    void setScore(long score) { this.score = Math.max(0, score); }
+    SiegeScore getScoreTally() { return scoreTally; }
+    /** Unmultiplied score; drives the Siegecoin payout. */
+    long getScore() { return scoreTally.base(this); }
+    /** The ranked score: the base with the Battlegrounds multiplier applied. */
+    long getFinalScore() { return scoreTally.total(this); }
     int getLoop() { return loop; }
     void setLoop(int loop) { this.loop = Math.max(0, loop); }
     int getNodesCleared() { return nodesCleared; }

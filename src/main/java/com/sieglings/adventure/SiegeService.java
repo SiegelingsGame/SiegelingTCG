@@ -918,7 +918,6 @@ public class SiegeService {
         if (run.getLand() != null) amount = (int) Math.round(amount * run.getLand().goldMultiplier());
         run.addGold(amount);
         run.setGoldEarnedTotal(run.getGoldEarnedTotal() + amount);
-        run.addScore(amount);
         return amount;
     }
 
@@ -1192,6 +1191,7 @@ public class SiegeService {
             s.put("sourceTeamIds", new ArrayList<>(run.getSourceTeamIds()));
         }
         s.put("score", run.getScore());
+        s.put("scoreTally", run.getScoreTally().toMap());
         s.put("loop", run.getLoop());
         s.put("nodesCleared", run.getNodesCleared());
         s.put("bossKills", run.getBossKills());
@@ -1531,7 +1531,7 @@ public class SiegeService {
                     for (Object t : tl) run.getSourceTeamIds().add(String.valueOf(t));
                 }
             }
-            run.setScore(intVal(s.get("score"), 0));
+            run.getScoreTally().restore(s.get("scoreTally"), intVal(s.get("score"), 0));
             run.setLoop(intVal(s.get("loop"), 0));
             run.setNodesCleared(intVal(s.get("nodesCleared"), 0));
             run.setBossKills(intVal(s.get("bossKills"), 0));
@@ -1679,6 +1679,7 @@ public class SiegeService {
         SiegeNode node = run.nodeById(nodeId);
         run.setCurrentNodeId(nodeId);
         run.getJournal().open(run, node);
+        run.getScoreTally().nodeEntered(node.getType());
         run.setLastReward("");
         run.setBossReveal(null); // the boss reveal is a one-shot; travelling dismisses it
 
@@ -2443,7 +2444,9 @@ public class SiegeService {
             int foes = (int) battle.getCombatants().stream().filter(c -> c.getSide() == Side.ENEMY).count();
             run.setEnemiesDefeated(run.getEnemiesDefeated() + foes);
             int depth = node == null ? 1 : node.getRow() + 1 + run.getLoop() * SiegeContentService.MAP_ROWS;
-            run.addScore(foes * (10L + depth) + 5);
+            boolean bossWin = node != null && node.getType() == NodeType.BOSS;
+            run.getScoreTally().syncWarband(run);
+            run.getScoreTally().battleWon(foes, depth, battle.getRoundNumber(), bossWin, run.getBossKills() + 1);
             // A short breather after victory.
             for (Combatant ally : run.getParty()) {
                 if (ally.isAlive()) ally.heal((int) Math.round(ally.getMaxHp() * 0.12));
@@ -2476,7 +2479,6 @@ public class SiegeService {
 
             if (wasBoss) {
                 run.setBossKills(run.getBossKills() + 1);
-                run.addScore(100L + 50L * run.getBossKills());
                 if (run.isBattlegrounds()) {
                     // Every Battlegrounds boss guarantees a stage-2+ reveal reward.
                     grantBossReveal(run);
@@ -2537,13 +2539,15 @@ public class SiegeService {
                 run.setLastReward(run.getLastReward() + " Entering " + run.getLand().name() + ".");
             }
         } else if (battle.getPhase() == BattlePhase.LOST) {
+            run.getScoreTally().syncWarband(run);
+            run.getScoreTally().battleLost();
             journalBattle(run, battle, "LOSS");
             run.setStatus(RunStatus.LOST);
             run.setBattle(null);
             run.setMercenary(null);
             run.getMercCards().clear();
             run.setLastReward(run.getMode() == RunMode.ENDLESS
-                    ? "The warband falls after " + run.getBossKills() + " boss(es). Final score: " + run.getScore() + "."
+                    ? "The warband falls after " + run.getBossKills() + " boss(es). Final score: " + run.getFinalScore() + "."
                     : run.isBattlegrounds()
                         ? "The squad is routed. Its veteran teams are fatigued for 24h — but survive to fight again."
                         : "The warband has fallen. The expedition ends here.");
@@ -2626,7 +2630,8 @@ public class SiegeService {
                     "id", cardPrize.getId(), "name", cardPrize.getName(),
                     "element", cardPrize.getElement().name(), "rarity", cardPrize.getRarity().name()));
             // Battlegrounds triples the end-of-run score payout, further scaled by tier.
-            out.put("score", run.isBattlegrounds() ? SiegeTuning.bgScore(run.getScore(), run.getBgTier()) : run.getScore());
+            out.put("score", run.getFinalScore());
+            out.put("scoreBreakdown", run.getScoreTally().breakdown(run));
         }
 
         AccountUser user = null;
@@ -2651,7 +2656,7 @@ public class SiegeService {
                 }
                 progression.setSiegeBossKills(progression.getSiegeBossKills() + Math.max(0, run.getBossKills()));
                 progression.setSiegeNodesCleared(progression.getSiegeNodesCleared() + Math.max(0, run.getNodesCleared()));
-                progression.setSiegeBestScore(Math.max(progression.getSiegeBestScore(), (int) Math.max(0L, run.getScore())));
+                progression.setSiegeBestScore(Math.max(progression.getSiegeBestScore(), (int) Math.min(Integer.MAX_VALUE, run.getFinalScore())));
                 // Siegelings met on the run become permanent starter picks. Banked
                 // here (not at the moment of the find) so they are earned by
                 // finishing the expedition, win or lose.
@@ -3664,6 +3669,7 @@ public class SiegeService {
         run.getJournal().close(run);
         Map<String, Object> doc = new LinkedHashMap<>();
         doc.put("userId", owner);
+        doc.put("userDisplayName", ownerDisplayName(owner));
         doc.put("finishedAt", Instant.now());
         doc.put("result", run.getStatus() == RunStatus.WON ? "WIN" : "LOSS");
         doc.put("mode", run.getMode().name());
@@ -3679,7 +3685,12 @@ public class SiegeService {
         doc.put("bossKills", run.getBossKills());
         doc.put("enemiesDefeated", run.getEnemiesDefeated());
         doc.put("goldEarned", run.getGoldEarnedTotal());
-        doc.put("score", run.getScore());
+        run.getScoreTally().syncWarband(run);
+        doc.put("score", run.getFinalScore());
+        doc.put("scoreBreakdown", run.getScoreTally().breakdown(run));
+        doc.put("goldSpent", run.getScoreTally().goldSpent());
+        doc.put("siegelingsFallen", run.getScoreTally().fallen());
+        doc.put("siegelingsRevived", run.getScoreTally().revived());
         doc.put("endRewards", run.getEndRewards());
         List<Map<String, Object>> map = new ArrayList<>();
         for (SiegeNode node : run.getMap()) {
@@ -3698,6 +3709,17 @@ public class SiegeService {
             run.setHistoryRecorded(true);
         } catch (RuntimeException ex) {
             log.warn("Unable to record Siege run history for {}", owner, ex);
+        }
+    }
+
+    /** The name the Siege leaderboard shows; a lookup failure must not cost the run its history. */
+    private String ownerDisplayName(String ownerId) {
+        if (accountService == null) return null;
+        try {
+            AccountUser user = accountService.findById(ownerId);
+            return user == null ? null : user.getDisplayName();
+        } catch (RuntimeException ex) {
+            return null;
         }
     }
 
@@ -4210,7 +4232,11 @@ public class SiegeService {
         // resume prompt from it, so the two modes never read as the same save.
         m.put("slot", RunSlot.of(run.getMode()).name());
         m.put("slotLabel", RunSlot.of(run.getMode()).label());
-        m.put("score", run.getScore());
+        // The live tally is synced on every response so falls and revives from any
+        // source (combat, traps, events, camp) are caught where they happened.
+        run.getScoreTally().syncWarband(run);
+        m.put("score", run.getFinalScore());
+        if (run.getStatus() != RunStatus.ACTIVE) m.put("scoreBreakdown", run.getScoreTally().breakdown(run));
         m.put("loop", run.getLoop());
         m.put("partyMax", content.partyMax());
         if (run.isBattlegrounds()) {

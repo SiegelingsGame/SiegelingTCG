@@ -231,6 +231,32 @@ class LeaderboardServiceTest {
         return service;
     }
 
+    @Test
+    void siegeScoreBoardRanksEachPlayersBestRun() {
+        List<Map<String, Object>> runs = List.of(
+                Map.of("userId", "a", "userDisplayName", "Ava", "score", 900L, "finishedAt", "2026-10-01T10:00:00Z"),
+                Map.of("userId", "a", "userDisplayName", "Ava", "score", 2400L, "finishedAt", "2026-10-02T10:00:00Z"),
+                Map.of("userId", "b", "score", 1500L, "finishedAt", "2026-10-02T11:00:00Z"),
+                Map.of("userId", "c", "userDisplayName", "Cy", "score", 0L, "finishedAt", "2026-10-02T12:00:00Z"));
+        List<Map<String, Object>> board = LeaderboardService.buildSiegeScoreBoard(runs, id -> "b".equals(id) ? "Bo" : null);
+        assertEquals(2, board.size(), "zero scores and duplicate runs are not ranked");
+        assertEquals("Ava", board.get(0).get("displayName"));
+        assertEquals(2400L, board.get(0).get("value"));
+        assertEquals("Bo", board.get(1).get("displayName"), "a run without a stored name falls back to the account");
+    }
+
+    @Test
+    void siegeRunsAreScopedToThePeriod() {
+        Instant now = Instant.parse("2026-10-03T12:00:00Z");
+        List<Map<String, Object>> runs = List.of(
+                Map.of("userId", "a", "score", 10L, "finishedAt", "2026-10-03T08:00:00Z"),
+                Map.of("userId", "b", "score", 10L, "finishedAt", "2026-09-01T08:00:00Z"),
+                Map.of("userId", "c", "score", 10L));
+        ZoneId utc = ZoneId.of("UTC");
+        assertEquals(1, LeaderboardService.filterRunsForPeriod(runs, utc, LeaderboardService.PERIOD_DAILY, now).size());
+        assertEquals(3, LeaderboardService.filterRunsForPeriod(runs, utc, LeaderboardService.PERIOD_ALL_TIME, now).size());
+    }
+
     private static void setField(Object target, String name, Object value) throws Exception {
         Field field = LeaderboardService.class.getDeclaredField(name);
         field.setAccessible(true);
