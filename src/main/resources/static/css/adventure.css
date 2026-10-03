@@ -968,11 +968,14 @@ body[data-screen="rewardScreen"] .siege-screen{
 .lane-label{font-size:9px; font-weight:800; letter-spacing:.5px; color:var(--faint); width:44px; flex:0 0 44px; white-space:nowrap;}
 .track-lane.you .lane-label b{color:var(--good);}
 .track-lane.them .lane-label b{color:var(--bad);}
-.lane-bar{position:relative; flex:1; height:12px; border-radius:6px; background:#0c1017; overflow:visible;}
-.lane-fill{position:absolute; left:0; top:0; height:100%; border-radius:6px; transition:width .4s ease; opacity:.5;}
+/* --runner-r is half a runner token: runners and the fill end are placed along
+   the bar's inner run (r .. 100%-r) so the fastest token sits flush inside the
+   bar's right end rather than overflowing into the Advantage queue beside it. */
+.lane-bar{--runner-r:11px; position:relative; flex:1; height:12px; border-radius:6px; background:#0c1017; overflow:visible;}
+.lane-fill{position:absolute; left:0; top:0; height:100%; width:calc(var(--runner-r) + (100% - 2 * var(--runner-r)) * var(--f, 0)); border-radius:6px; transition:width .4s ease; opacity:.5;}
 .track-lane.you .lane-fill{background:linear-gradient(90deg,#1d4a2a,var(--good));}
 .track-lane.them .lane-fill{background:linear-gradient(90deg,#4a1d1d,var(--bad));}
-.lane-runner{position:absolute; top:50%; transform:translate(-50%,-52%); font-size:11px; line-height:1; filter:drop-shadow(0 1px 3px rgba(0,0,0,.8)); transition:left .4s ease;}
+.lane-runner{position:absolute; z-index:1; top:50%; left:calc(var(--runner-r) + (100% - 2 * var(--runner-r)) * var(--f, 0)); transform:translate(-50%,-52%); font-size:11px; line-height:1; filter:drop-shadow(0 1px 3px rgba(0,0,0,.8)); transition:left .4s ease;}
 /* runner avatar: the unit's overlay art cutout in a small ring. Art cutouts are
    framed inconsistently (some full-body, some head-only, some off-centre), so
    the token fits the whole image with `contain` instead of zooming into a
@@ -982,12 +985,12 @@ body[data-screen="rewardScreen"] .siege-screen{
   background-color:#0c1017; background-size:contain; background-position:center center; background-repeat:no-repeat;
   border:1.5px solid var(--el); box-shadow:0 1px 4px rgba(0,0,0,.7);
 }
-.lane-flag{position:absolute; right:-2px; top:50%; transform:translateY(-55%); font-size:11px;}
+.lane-flag{position:absolute; right:0; top:50%; transform:translateY(-55%); font-size:11px; opacity:.75;}
 .track-lane.leads .lane-bar{box-shadow:0 0 8px rgba(255,208,102,.25);}
 .track-first{font-size:9.5px; font-weight:800; letter-spacing:.4px; writing-mode:initial; white-space:nowrap;}
 .track-first.you{color:var(--good);}
 .track-first.them{color:var(--bad);}
-.advantage-lane{display:flex; align-items:center; gap:5px; min-width:0; max-width:290px; padding-left:7px; border-left:1px solid rgba(255,208,102,.2);}
+.advantage-lane{display:flex; align-items:center; gap:5px; flex:0 1 auto; min-width:0; max-width:290px; padding-left:7px; margin-left:2px; border-left:1px solid rgba(255,208,102,.2);}
 .advantage-label{font-size:8px; font-weight:900; letter-spacing:.7px; color:#ffd066; flex:0 0 auto;}
 .advantage-queue{display:flex; align-items:center; min-width:0; overflow:hidden;}
 .advantage-chip{
