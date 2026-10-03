@@ -1,5 +1,5 @@
 {
-  "token" : "4fTKiqO1OQrsfoejR8qtvJvGNJAbibiI",
+  "token" : "WZ3ZnT7WJ8MTD5u3QX2t5OY_c7njkM7N",
   "status" : "ACTIVE",
   "currentNodeId" : -1,
   "lastReward" : "",
@@ -31,23 +31,23 @@
     "eventTitle" : "The Cinder Smith"
   },
   "landHistory" : [ {
-    "id" : "ice",
-    "name" : "Frostveil",
+    "id" : "water",
+    "name" : "Tideglass",
     "kind" : "ELEMENTAL",
-    "elements" : [ "ICE" ],
-    "background" : "/img/lands/ice.webp",
+    "elements" : [ "WATER" ],
+    "background" : "/img/lands/water.webp",
     "locations" : {
-      "journey" : "/img/lands/locations/ice-journey.webp",
-      "shelter" : "/img/lands/locations/ice-shelter.webp",
-      "elite" : "/img/lands/locations/ice-elite.webp",
-      "boss" : "/img/lands/locations/ice-boss.webp"
+      "journey" : "/img/lands/locations/water-journey.webp",
+      "shelter" : "/img/lands/locations/water-shelter.webp",
+      "elite" : "/img/lands/locations/water-elite.webp",
+      "boss" : "/img/lands/locations/water-boss.webp"
     },
-    "feature" : "Frost Shelter",
-    "featureType" : "REST",
-    "terrain" : "Glacial cover",
-    "effect" : "ICE Siegelings start battles with +5 Shield.",
+    "feature" : "Tide Traders",
+    "featureType" : "CARAVAN",
+    "terrain" : "Healing tides",
+    "effect" : "WATER Siegelings recover 4 HP at battle start.",
     "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
-    "eventTitle" : "The Frozen Waystation"
+    "eventTitle" : "The Tide Salvager"
   } ],
   "landSegment" : 0,
   "landSegmentRows" : 8,
