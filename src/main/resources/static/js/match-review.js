@@ -518,6 +518,29 @@
     return 'Chose';
   }
 
+  function num(n) {
+    return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  // Runs recorded before itemized scoring carry only a total (or nothing), so
+  // the panel degrades to the number alone rather than inventing lines.
+  function scorePanel(run) {
+    var b = run.scoreBreakdown;
+    var total = b ? b.total : run.score;
+    if (total == null) return '';
+    var lines = (b && b.lines) || [];
+    var head = '<span>Run score</span><b>' + num(total) + '</b>';
+    if (!lines.length) return '<div class="mr-score"><div class="mr-score-head">' + head + '</div></div>';
+    return '<details class="mr-score"><summary class="mr-score-head">' + head + '<i aria-hidden="true">›</i></summary>' +
+      '<div class="mr-score-lines">' + lines.map(function (l) {
+        var p = Number(l.points) || 0;
+        return '<div class="' + (p < 0 ? 'neg' : '') + '"><span>' + esc(l.label) + '<small>' + esc(l.detail || '') +
+          '</small></span><b>' + (p > 0 ? '+' : p < 0 ? '−' : '') + num(Math.abs(p)) + '</b></div>';
+      }).join('') +
+      (b.multiplier > 1 ? '<p>Battlegrounds ×' + (Math.round(b.multiplier * 100) / 100) + ' on ' + num(b.base) + '</p>' : '') +
+      '</div></details>';
+  }
+
   function renderSiege(body, run) {
     var stops = run.stops || [];
     // Only the floors the warband reached, plus one row of the road ahead: a
@@ -605,9 +628,10 @@
           '<div><span>Floor</span><b>' + esc(run.floorReached || '—') + '</b></div>' +
           '<div><span>Battles</span><b>' + wins + '–' + (battles - wins) + '</b></div>' +
           '<div><span>Gold earned</span><b>' + esc(run.goldEarned != null ? run.goldEarned : '—') + '</b></div>' +
-          '<div><span>Spent</span><b>' + spent + '</b></div>' +
+          '<div><span>Spent</span><b>' + (run.goldSpent != null ? esc(run.goldSpent) : spent) + '</b></div>' +
         '</div>' +
         (run.outcome ? '<p class="mr-out mr-run-out ' + (won ? 'w' : 'r') + '">' + esc(run.outcome) + '</p>' : '') +
+        scorePanel(run) +
         (map.length ? '<div class="mr-map">' + svg + labels + '</div>' : '') +
         '<div class="mr-ledger">' + (ledger || '<div class="mr-state">No stops were recorded for this run.</div>') + '</div>' +
       '</div>';
@@ -648,7 +672,7 @@
     var sub, gain, hint;
     if (siege) {
       sub = (m.knightName ? m.knightName + ' · ' : '') + 'Floor ' + (m.floorReached || '?') + (m.floorTotal ? ' of ' + m.floorTotal : '');
-      gain = 'F' + (m.floorReached || '?');
+      gain = m.score != null ? num(m.score) + ' pts' : 'F' + (m.floorReached || '?');
       hint = 'Route';
     } else {
       sub = m.opponentName ? 'vs ' + m.opponentName : (m.loadoutLabel || '');

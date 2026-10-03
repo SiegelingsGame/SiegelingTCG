@@ -4415,11 +4415,20 @@
     var rate = played ? Math.round(wins / played * 100) + '%' : '—';
     var pct = collectedPercent(live);
     var owned = pct == null ? '—' : pct + '%';
-    return '<div class="sg-tiles" data-prof-block="tiles">' +
+    return '<div class="sg-tiles is-four" data-prof-block="tiles">' +
       '<div><span>Matches</span><b>' + esc(played != null ? played : '—') + '</b></div>' +
       '<div><span>Win Rate</span><b>' + esc(rate) + '</b></div>' +
       '<div><span>Collected</span><b>' + esc(owned) + '</b></div>' +
+      '<div><span>Siege Best</span><b>' + esc(siegeBest(live.siegeBestScore, live.siegeHistory)) + '</b></div>' +
     '</div>';
+  }
+
+  // The progression record holds the best score ever banked; the recent run
+  // list is a fallback for a payload that predates it.
+  function siegeBest(best, runs) {
+    var n = Number(best) || 0;
+    (runs || []).forEach(function (r) { if (r && Number(r.score) > n) n = Number(r.score); });
+    return n > 0 ? n.toLocaleString() : '—';
   }
 
   // This drew an XP bar toward an account level. Neither exists: the backend
@@ -5077,9 +5086,11 @@
     matchesPlayed:      { label: 'Matches',     unit: 'played',  el: 'WIND',     icon: '↻' },
     siegelingsDefeated: { label: 'Felled',      unit: 'downed',  el: 'SHADOW',   icon: '☠' },
     spellsCast:         { label: 'Strategies',  unit: 'cast',    el: 'PSYCHIC',  icon: '✧' },
-    trapsSprung:        { label: 'Deceptions',  unit: 'sprung',  el: 'POISON',   icon: '✦' }
+    trapsSprung:        { label: 'Deceptions',  unit: 'sprung',  el: 'POISON',   icon: '✦' },
+    // Best single Siege run in the period, not a sum - see LeaderboardService.
+    siegeScore:         { label: 'Siege Score', unit: 'pts',     el: 'EARTH',    icon: '⛰', siege: true }
   };
-  var BOARD_ORDER = ['wins', 'pvpWinRate', 'matchesPlayed', 'siegelingsDefeated', 'spellsCast', 'trapsSprung'];
+  var BOARD_ORDER = ['wins', 'siegeScore', 'pvpWinRate', 'matchesPlayed', 'siegelingsDefeated', 'spellsCast', 'trapsSprung'];
   var PERIOD_LABEL = { daily: 'Today', weekly: 'This week', monthly: 'This month', year: 'This year', allTime: 'All time' };
 
   function boardRows(live, boardId, period) {
@@ -5119,8 +5130,10 @@
     var medal = rank <= 3 ? ' is-podium rank-' + rank : '';
     return '<div class="sg-lb-row' + medal + '">' +
       '<span class="sg-lb-rank">' + esc(rank) + '</span>' +
-      '<span class="sg-lb-name">' + esc(row.displayName || '?') + '</span>' +
-      '<span class="sg-lb-value">' + esc(row.detail || (row.value + ' ' + meta.unit)) + '</span>' +
+      '<span class="sg-lb-name">' + esc(row.displayName || '?') +
+        (meta.siege && row.knightName ? '<em class="sg-lb-sub">' + esc(row.knightName) +
+          (row.floorReached ? ' · F' + esc(row.floorReached) : '') + '</em>' : '') + '</span>' +
+      '<span class="sg-lb-value">' + esc(row.detail || (Number(row.value || 0).toLocaleString() + ' ' + meta.unit)) + '</span>' +
     '</div>';
   }
 
@@ -5134,7 +5147,9 @@
         '<strong>The hall is empty</strong>' +
         '<p>No ' + esc(String(meta.label).toLowerCase()) + ' recorded ' +
         esc((PERIOD_LABEL[period] || title(period)).toLowerCase()) + '. Be the first name on it.</p>' +
-        '<a class="sg-lb-cta" href="' + HREF.battle + '">Play a match ›</a>' +
+        (meta.siege
+          ? '<a class="sg-lb-cta" href="' + HREF.siege + '">Start an expedition ›</a>'
+          : '<a class="sg-lb-cta" href="' + HREF.battle + '">Play a match ›</a>') +
       '</div>' +
     '</div>';
   }
@@ -6120,10 +6135,11 @@
             (settings.bio ? '<p class="sg-crest-bio">' + esc(settings.bio) + '</p>' : '') +
           '</div>' +
         '</section>' +
-        '<div class="sg-tiles">' +
+        '<div class="sg-tiles is-four">' +
           '<div><span>Matches</span><b>' + esc(stats.matches != null ? stats.matches : '\u2014') + '</b></div>' +
           '<div><span>Win Rate</span><b>' + esc(rate) + '</b></div>' +
           '<div><span>Collected</span><b>' + esc(collected) + '</b></div>' +
+          '<div><span>Siege Best</span><b>' + esc(siegeBest(stats.siegeBestScore, sieges)) + '</b></div>' +
         '</div>' +
         (showcase.length
           ? '<section class="sg-section"><div class="sg-section-head"><h3>Showcase</h3></div>' +

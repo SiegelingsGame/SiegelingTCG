@@ -177,6 +177,7 @@
           // instead of inventing a number for the player.
           knights: (progression && progression.ownedTrainers) || null,
           siegeWins: progression && progression.siegeWins,
+          siegeBestScore: progression && progression.siegeBestScore,
           titles: (progression && progression.playerTitles) || null,
           remnants: progression && progression.remnants,
           ownedCards: (progression && progression.ownedCards) || null,

@@ -1,7 +1,9 @@
 package com.sieglings.service;
 
+import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
 import com.sieglings.persistence.firestore.MatchHistoryStore;
+import com.sieglings.persistence.firestore.MatchReviewStore;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +37,7 @@ public class LeaderboardService {
     public static final String BOARD_TRAPS_SPRUNG = "trapsSprung";
     public static final String BOARD_SIEGELINGS_DEFEATED = "siegelingsDefeated";
     public static final String BOARD_PVP_WIN_RATE = "pvpWinRate";
+    public static final String BOARD_SIEGE_SCORE = "siegeScore";
 
     public static final String PERIOD_DAILY = "daily";
     public static final String PERIOD_WEEKLY = "weekly";
@@ -54,6 +57,12 @@ public class LeaderboardService {
 
     @Autowired
     private MatchHistoryStore matchHistoryStore;
+
+    @Autowired(required = false)
+    private MatchReviewStore matchReviewStore;
+
+    @Autowired(required = false)
+    private AccountService accountService;
 
     @Value("${app.leaderboard.time-zone:UTC}")
     private String leaderboardTimeZoneId;
@@ -112,11 +121,14 @@ public class LeaderboardService {
         ZoneId zone = ZoneId.of(leaderboardTimeZoneId);
         Instant now = Instant.now();
         List<MatchHistoryEntity> matches = matchHistoryStore.findAll();
+        List<Map<String, Object>> siegeRuns = loadSiegeRuns();
 
         Map<String, Map<String, List<Map<String, Object>>>> periods = new LinkedHashMap<>();
         for (String period : PERIOD_ORDER) {
             List<MatchHistoryEntity> scoped = filterMatchesForPeriod(matches, zone, period, now);
-            periods.put(period, buildBoards(scoped));
+            Map<String, List<Map<String, Object>>> boards = buildBoards(scoped);
+            boards.put(BOARD_SIEGE_SCORE, buildSiegeScoreBoard(filterRunsForPeriod(siegeRuns, zone, period, now), this::siegeDisplayName));
+            periods.put(period, boards);
         }
 
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -226,6 +238,95 @@ public class LeaderboardService {
             case PERIOD_YEAR -> zdt.withDayOfYear(1).toLocalDate().atStartOfDay(zone).toInstant();
             default -> Instant.EPOCH;
         };
+    }
+
+    // Siege runs live outside matchHistory (they are not battles), so the score
+    // board reads its own collection. A failure there costs only this board.
+    private List<Map<String, Object>> loadSiegeRuns() {
+        if (matchReviewStore == null) {
+            return List.of();
+        }
+        try {
+            return matchReviewStore.listSiegeRunScores();
+        } catch (RuntimeException ex) {
+            logger.warn("Siege score board unavailable for this refresh.", ex);
+            return List.of();
+        }
+    }
+
+    private String siegeDisplayName(String userId) {
+        if (accountService == null) {
+            return null;
+        }
+        try {
+            AccountUser user = accountService.findById(userId);
+            return user == null ? null : user.getDisplayName();
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    static List<Map<String, Object>> filterRunsForPeriod(List<Map<String, Object>> runs,
+                                                         ZoneId zone,
+                                                         String period,
+                                                         Instant now) {
+        if (PERIOD_ALL_TIME.equals(period)) {
+            return runs;
+        }
+        Instant start = periodStart(zone, period, now);
+        return runs.stream().filter(run -> {
+            try {
+                return !Instant.parse(String.valueOf(run.get("finishedAt"))).isBefore(start);
+            } catch (RuntimeException ex) {
+                return false;
+            }
+        }).toList();
+    }
+
+    /**
+     * Each player's single best run in the period, highest first. A best run,
+     * not a sum, so the board rewards how well an expedition went rather than
+     * how many were played.
+     */
+    static List<Map<String, Object>> buildSiegeScoreBoard(List<Map<String, Object>> runs,
+                                                          java.util.function.Function<String, String> nameForUser) {
+        Map<String, Map<String, Object>> best = new HashMap<>();
+        for (Map<String, Object> run : runs) {
+            Object userId = run.get("userId");
+            if (userId == null || !(run.get("score") instanceof Number score) || score.longValue() <= 0) {
+                continue;
+            }
+            Map<String, Object> current = best.get(String.valueOf(userId));
+            if (current == null || ((Number) current.get("score")).longValue() < score.longValue()) {
+                best.put(String.valueOf(userId), run);
+            }
+        }
+        List<Map<String, Object>> ranked = new ArrayList<>(best.values());
+        ranked.sort(Comparator.<Map<String, Object>>comparingLong(r -> ((Number) r.get("score")).longValue()).reversed()
+                .thenComparing(r -> String.valueOf(r.getOrDefault("finishedAt", ""))));
+
+        List<Map<String, Object>> out = new ArrayList<>();
+        int rank = 1;
+        for (Map<String, Object> run : ranked) {
+            if (rank > TOP_N) {
+                break;
+            }
+            Object name = run.get("userDisplayName");
+            if (name == null || String.valueOf(name).isBlank()) {
+                // Runs recorded before the name was stored on the document.
+                name = nameForUser == null ? null : nameForUser.apply(String.valueOf(run.get("userId")));
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("rank", rank++);
+            row.put("displayName", name == null || String.valueOf(name).isBlank() ? "?" : String.valueOf(name));
+            row.put("value", ((Number) run.get("score")).longValue());
+            row.put("detail", null);
+            row.put("knightName", run.get("knightName"));
+            row.put("floorReached", run.get("floorReached"));
+            row.put("result", run.get("result"));
+            out.add(row);
+        }
+        return out;
     }
 
     private Map<String, List<Map<String, Object>>> buildBoards(List<MatchHistoryEntity> matches) {

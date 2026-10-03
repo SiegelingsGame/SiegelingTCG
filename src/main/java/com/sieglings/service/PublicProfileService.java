@@ -96,6 +96,7 @@ public class PublicProfileService {
         stats.put("collectedPercent", collection.percent());
         stats.put("level", Math.max(1, ownedTotal / 12 + 1));
         stats.put("siegeWins", progression.getSiegeWins());
+        stats.put("siegeBestScore", progression.getSiegeBestScore());
         stats.put("knights", progression.getTrainerLevels() == null ? 0 : progression.getTrainerLevels().size());
         // The headline numbers a player's own profile leads with. Without these
         // a visitor's view of the same profile could only show em-dashes, which

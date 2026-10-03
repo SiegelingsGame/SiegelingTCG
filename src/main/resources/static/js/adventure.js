@@ -5909,6 +5909,40 @@
       .catch(function () { state.endRewardRetryPending = false; });
   }
 
+  // The server itemizes the score (route, battles, mastery, falls, revives,
+  // gold, victory) so the player can see what the run was worth and why.
+  function resultScoreCard(breakdown, fallbackTotal) {
+    if (!breakdown && fallbackTotal == null) return null;
+    var total = breakdown ? breakdown.total : fallbackTotal;
+    var lines = (breakdown && breakdown.lines) || [];
+    var mult = breakdown && breakdown.multiplier > 1
+      ? '<div class="score-mult">Battlegrounds ×' + (Math.round(breakdown.multiplier * 100) / 100) +
+        ' on ' + fmtNum(breakdown.base) + '</div>'
+      : '';
+    var head = '<h3>Run Score</h3><div class="score-total">' + fmtNum(total || 0) + '</div>';
+    // Collapsed by default so the rest of the end screen (spoils, unlocks, the
+    // extracted team) stays in view; the breakdown opens on tap.
+    if (!lines.length) return el('div', 'result-score', head);
+    var card = el('details', 'result-score',
+      '<summary>' + head + '<span class="score-toggle">See breakdown</span></summary>' +
+      ('<div class="score-lines">' + lines.map(function (l) {
+        var pts = Number(l.points) || 0;
+        return '<div class="score-line' + (pts < 0 ? ' neg' : '') + '"><span class="score-label">' + esc(l.label) +
+          '<small>' + esc(l.detail || '') + '</small></span><b>' + (pts > 0 ? '+' : pts < 0 ? '−' : '') +
+          fmtNum(Math.abs(pts)) + '</b></div>';
+      }).join('') + '</div>') +
+      mult);
+    card.addEventListener('toggle', function () {
+      var t = card.querySelector('.score-toggle');
+      if (t) t.textContent = card.open ? 'Hide breakdown' : 'See breakdown';
+    });
+    return card;
+  }
+
+  function fmtNum(n) {
+    return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
   function renderResult() {
     showScreen('resultScreen');
     var run = state.run;
@@ -5928,6 +5962,8 @@
       (st.nodesCleared || 0) + ' nodes · 🪙 ' + (st.goldEarned || 0) + ' looted' +
       (endless ? ' · 🔁 loop ' + ((run.loop || 0) + 1) : ''));
     extras.appendChild(statsRow);
+    var scoreCard = resultScoreCard(run.scoreBreakdown || (run.endRewards && run.endRewards.scoreBreakdown), run.score);
+    if (scoreCard) extras.appendChild(scoreCard);
 
     var er = run.endRewards;
     if (er) {
