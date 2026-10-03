@@ -1838,12 +1838,22 @@
     var art = u.artUrl
       ? '<div class="um-art" style="background-image:url(\'' + artCss(u.artUrl) + '\')"></div>'
       : '<div class="um-art um-art-fallback">' + icon(u.element) + '</div>';
-    var cards = (u.cards || []).map(function (spec) {
+    var tax = Number(u.costTax) || 0;
+    var cards = (u.cards || []).map(function (printed) {
+      // A taxed card reads "<s>0</s> 1": the printed price struck, the real one beside it.
+      var spec = printed;
+      var costHtml = String(printed.actionCost);
+      if (tax > 0) {
+        var real = Number(printed.actionCost || 0) + tax;
+        costHtml = '<s class="um-cost-was">' + printed.actionCost + '</s>' + real;
+        spec = Object.assign({}, printed, { actionCost: '<s>' + printed.actionCost + '</s> <b class="um-cost-tax">' + real + '</b>' });
+      }
       var status = spec.status && spec.statusChance
         ? '<span class="um-status">' + (STATUS_META[spec.status] || {}).icon + ' ' + spec.statusChance + '% ' + (STATUS_META[spec.status] || {}).label + '</span>'
         : '';
       return '<div class="um-card ' + elClass(spec.element) + '">' +
-        '<span class="um-cost">' + spec.actionCost + '</span>' +
+        '<span class="um-cost' + (tax > 0 ? ' is-taxed' : '') + '"' +
+        (tax > 0 ? ' title="Disorient: +' + tax + ' AP"' : '') + '>' + costHtml + '</span>' +
         '<div class="um-card-main"><div class="um-card-name">' + icon(spec.element) + ' ' + esc(spec.name) + '</div>' +
         '<div class="um-card-eff">' + specSummary(spec) + ' ' + status + '</div>' +
         (advantageRiderText(spec) ? '<div class="um-card-advantage"><b>◆ Advantage</b> ' + esc(advantageRiderText(spec)) + '</div>' : '') +
@@ -3803,6 +3813,13 @@
     return (u.statuses || []).indexOf('STUN') >= 0;
   }
 
+  /** AP a unit's cards cost on top of their printed price — mirrors
+   *  SiegeCombatEngine#effectiveCost, where Disorient adds 1 for any unit but
+   *  the Knight. Preview-only: the server stays the authority on what a play costs. */
+  function cardCostTax(u) {
+    return u && !u.knight && (u.statuses || []).indexOf('DISORIENT') >= 0 ? 1 : 0;
+  }
+
   /**
    * The notches an enemy attack is actually aimed at. Recomputed from the foes
    * on screen rather than taken from the server's list alone, so the ring
@@ -5474,7 +5491,7 @@
       showUnitModal({
         name: u.name, element: u.element, artUrl: u.artUrl,
         subtitle: 'Enemy · HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + intentNote,
-        cards: u.abilities || [], effects: battleUnitEffects(u)
+        cards: u.abilities || [], effects: battleUnitEffects(u), costTax: cardCostTax(u)
       });
       return;
     }
@@ -5491,7 +5508,7 @@
     showUnitModal({
       name: u.name, element: u.element, artUrl: u.artUrl,
       subtitle: 'HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + evoNote,
-      cards: member ? (member.cards || []) : [], effects: battleUnitEffects(u)
+      cards: member ? (member.cards || []) : [], effects: battleUnitEffects(u), costTax: cardCostTax(u)
     });
   }
 
