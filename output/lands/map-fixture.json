@@ -1,5 +1,5 @@
 {
-  "token" : "WZ3ZnT7WJ8MTD5u3QX2t5OY_c7njkM7N",
+  "token" : "H7s8XJQPoaMUcfgXi4C8lWXlqgJMSt7B",
   "status" : "ACTIVE",
   "currentNodeId" : -1,
   "lastReward" : "",
@@ -31,23 +31,23 @@
     "eventTitle" : "The Cinder Smith"
   },
   "landHistory" : [ {
-    "id" : "water",
-    "name" : "Tideglass",
+    "id" : "undead",
+    "name" : "Hollow March",
     "kind" : "ELEMENTAL",
-    "elements" : [ "WATER" ],
-    "background" : "/img/lands/water.webp",
+    "elements" : [ "UNDEAD" ],
+    "background" : "/img/lands/undead.webp",
     "locations" : {
-      "journey" : "/img/lands/locations/water-journey.webp",
-      "shelter" : "/img/lands/locations/water-shelter.webp",
-      "elite" : "/img/lands/locations/water-elite.webp",
-      "boss" : "/img/lands/locations/water-boss.webp"
+      "journey" : "/img/lands/locations/undead-journey.webp",
+      "shelter" : "/img/lands/locations/undead-shelter.webp",
+      "elite" : "/img/lands/locations/undead-elite.webp",
+      "boss" : "/img/lands/locations/undead-boss.webp"
     },
-    "feature" : "Tide Traders",
-    "featureType" : "CARAVAN",
-    "terrain" : "Healing tides",
-    "effect" : "WATER Siegelings recover 4 HP at battle start.",
+    "feature" : "Grave Lantern",
+    "featureType" : "EVENT",
+    "terrain" : "Grave shelter",
+    "effect" : "UNDEAD Siegelings start battles with +5 Shield.",
     "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
-    "eventTitle" : "The Tide Salvager"
+    "eventTitle" : "The Lantern Bearer"
   } ],
   "landSegment" : 0,
   "landSegmentRows" : 8,
