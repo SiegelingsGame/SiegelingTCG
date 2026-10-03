@@ -3706,9 +3706,11 @@
       .forEach(function (lane) {
         var row = el('div', 'track-lane ' + lane.side + (lane.first ? ' leads' : ''));
         var bar = el('div', 'lane-bar');
-        var fillPct = Math.round(100 * lane.total / max);
+        // Positions are fractions of the bar's inner run (see .lane-bar's
+        // --runner-r in adventure.css), so the leader's token ends flush with the
+        // bar instead of hanging half past it into the Advantage queue.
         bar.appendChild(el('div', 'lane-fill', ''));
-        bar.lastChild.style.width = fillPct + '%';
+        bar.lastChild.style.setProperty('--f', Math.min(1, (lane.total || 0) / max).toFixed(4));
         // runners: each living unit at its cumulative speed position —
         // shown with its overlay art cutout (element icon as fallback).
         var cum = 0;
@@ -3722,7 +3724,7 @@
           } else {
             runner = el('span', 'lane-runner ' + elClass(u.element), icon(u.element));
           }
-          runner.style.left = Math.round(100 * cum / max) + '%';
+          runner.style.setProperty('--f', Math.min(1, cum / max).toFixed(4));
           runner.title = u.name + ' ⚡' + (u.effectiveSpeed != null ? u.effectiveSpeed : u.speed);
           bar.appendChild(runner);
         });
