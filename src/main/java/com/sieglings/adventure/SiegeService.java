@@ -1911,7 +1911,7 @@ public class SiegeService {
     }
 
     /** Uses one camp interaction (each option once; goods cost gold). */
-    private Map<String, Object> campChooseImpl(String token, String optionId) {
+    private Map<String, Object> campChooseImpl(String token, String optionId, String learnerId) {
         SiegeRun run = require(token);
         if (!run.isInCamp()) throw new IllegalArgumentException("The party is not camped.");
         CampOption pick = run.getCampOptions().stream()
@@ -1919,6 +1919,7 @@ public class SiegeService {
                 .orElseThrow(() -> new IllegalArgumentException("Unknown camp option."));
         if (pick.used) throw new IllegalArgumentException("Already used this stop.");
         if (run.getGold() < pick.cost) throw new IllegalArgumentException("Not enough gold.");
+        String campLearner = shopCardLearner(run, pick, learnerId);
 
         switch (pick.kind) {
             case "REST" -> {
@@ -1952,8 +1953,8 @@ public class SiegeService {
             case "SHOP_CARD" -> {
                 run.addGold(-pick.cost);
                 run.getDeckTemplates().add(new SiegeCard(
-                        "camp-" + pick.id + "-" + run.getDeckTemplates().size(), pick.ownerId, pick.cardSpec));
-                run.setLastReward("Bought " + pick.cardSpec.name() + " for the deck.");
+                        "camp-" + pick.id + "-" + run.getDeckTemplates().size(), campLearner, pick.cardSpec));
+                run.setLastReward(boughtCardLine(run, pick, campLearner));
             }
             case "SHOP_UPGRADE" -> {
                 run.addGold(-pick.cost);
@@ -3238,6 +3239,31 @@ public class SiegeService {
         return serialize(run);
     }
 
+    /**
+     * Who learns a purchased move. Element moves keep the owner the offer was
+     * rolled for; a universal move is taught to whichever party Siegeling the
+     * buyer picked (living only, like the owners element offers are rolled
+     * for). Validated before any gold moves so a bad pick costs nothing.
+     */
+    private String shopCardLearner(SiegeRun run, CampOption pick, String learnerId) {
+        if (!pick.choosesLearner()) return pick.ownerId;
+        if (learnerId == null || learnerId.isBlank()) {
+            throw new IllegalArgumentException("Choose who learns " + pick.cardSpec.name() + ".");
+        }
+        return run.getParty().stream()
+                .filter(m -> m.getId().equals(learnerId) && m.isAlive())
+                .map(Combatant::getId)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("That Siegeling can't learn this move."));
+    }
+
+    private String boughtCardLine(SiegeRun run, CampOption pick, String learnerId) {
+        if (!pick.choosesLearner()) return "Bought " + pick.cardSpec.name() + " for the deck.";
+        String name = run.getParty().stream().filter(m -> m.getId().equals(learnerId))
+                .map(Combatant::getName).findFirst().orElse("your Siegeling");
+        return name + " learned " + pick.cardSpec.name() + ".";
+    }
+
     // ---- Merchant Caravan (items + goods for gold) ------------------------
 
     private void openCaravan(SiegeRun run) {
@@ -3259,13 +3285,14 @@ public class SiegeService {
         run.setLastReward("");
     }
 
-    private Map<String, Object> caravanBuyImpl(String token, String optionId) {
+    private Map<String, Object> caravanBuyImpl(String token, String optionId, String learnerId) {
         SiegeRun run = require(token);
         if (!run.isInCaravan()) throw new IllegalArgumentException("There is no caravan here.");
         CampOption pick = run.getCaravanOptions().stream().filter(o -> o.id.equals(optionId)).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unknown wares."));
         if (pick.used) throw new IllegalArgumentException("Already bought.");
         if (run.getGold() < pick.cost) throw new IllegalArgumentException("Not enough gold.");
+        String caravanLearner = shopCardLearner(run, pick, learnerId);
         run.addGold(-pick.cost);
         switch (pick.kind) {
             case "SHOP_ITEM" -> {
@@ -3275,8 +3302,8 @@ public class SiegeService {
             }
             case "SHOP_CARD" -> {
                 run.getDeckTemplates().add(new SiegeCard(
-                        "caravan-" + pick.id + "-" + run.getDeckTemplates().size(), pick.ownerId, pick.cardSpec));
-                run.setLastReward("Bought " + pick.cardSpec.name() + " for the deck.");
+                        "caravan-" + pick.id + "-" + run.getDeckTemplates().size(), caravanLearner, pick.cardSpec));
+                run.setLastReward(boughtCardLine(run, pick, caravanLearner));
             }
             case "SHOP_HEAL" -> {
                 int healed = healParty(run, 0.3);
@@ -3470,8 +3497,11 @@ public class SiegeService {
         return journaledChoice(run, "choice", run.getBrokerOptions(), optionId, () -> brokerHireImpl(token, optionId, replaceId));
     }
     Map<String, Object> campChoose(String token, String optionId) {
+        return campChoose(token, optionId, null);
+    }
+    Map<String, Object> campChoose(String token, String optionId, String learnerId) {
         SiegeRun run = require(token);
-        return journaledChoice(run, "choice", run.getCampOptions(), optionId, () -> campChooseImpl(token, optionId));
+        return journaledChoice(run, "choice", run.getCampOptions(), optionId, () -> campChooseImpl(token, optionId, learnerId));
     }
     Map<String, Object> cacheChoose(String token, String optionId) {
         SiegeRun run = require(token);
@@ -3482,8 +3512,11 @@ public class SiegeService {
         return journaledChoice(run, "choice", run.getSmithOptions(), optionId, () -> smithChooseImpl(token, optionId, scrapIndex));
     }
     Map<String, Object> caravanBuy(String token, String optionId) {
+        return caravanBuy(token, optionId, null);
+    }
+    Map<String, Object> caravanBuy(String token, String optionId, String learnerId) {
         SiegeRun run = require(token);
-        return journaledChoice(run, "choice", run.getCaravanOptions(), optionId, () -> caravanBuyImpl(token, optionId));
+        return journaledChoice(run, "choice", run.getCaravanOptions(), optionId, () -> caravanBuyImpl(token, optionId, learnerId));
     }
     Map<String, Object> eventChoose(String token, String optionId) {
         SiegeRun run = require(token);
@@ -4256,6 +4289,7 @@ public class SiegeService {
                 om.put("used", o.used);
                 om.put("affordable", run.getGold() >= o.cost);
                 if (o.cardSpec != null) om.put("card", serializeSpec(o.cardSpec));
+                if (o.choosesLearner()) om.put("chooseLearner", true);
                 options.add(om);
             }
             camp.put("options", options);
@@ -4750,6 +4784,7 @@ public class SiegeService {
             if (!hideOutcome && "SHOP_ITEM".equals(o.kind) && o.sieglingId != null) {
                 om.put("item", serializeItem(content.findItem(o.sieglingId)));
             }
+            if (!hideOutcome && o.choosesLearner()) om.put("chooseLearner", true);
             opts.add(om);
         }
         out.put("options", opts);

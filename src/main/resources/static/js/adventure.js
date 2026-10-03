@@ -2527,8 +2527,38 @@
       art +
       '<div class="camp-card-title">' + esc(opt.title) + '</div>' +
       '<div class="camp-card-desc">' + esc(opt.desc) + '</div>';
-    if (canUse) c.addEventListener('click', function () { campChoose(opt.id, resultTitle, resultIcon); });
+    if (canUse && opt.chooseLearner) {
+      attachLearnerPicker(c, opt, function (learnerId) { campChoose(opt.id, resultTitle, resultIcon, learnerId); });
+    } else if (canUse) {
+      c.addEventListener('click', function () { campChoose(opt.id, resultTitle, resultIcon); });
+    }
     grid.appendChild(c);
+  }
+
+  /**
+   * A universal move is not bound to anyone until it is bought: tapping the
+   * offer opens a "Teach to" row of the living warband, and the pick is what
+   * actually pays. Mirrors the broker's Swap row, so a stray tap never spends gold.
+   */
+  function attachLearnerPicker(card, opt, onPick) {
+    var row = el('div', 'learner-row hidden');
+    row.appendChild(el('div', 'learner-prompt', 'Teach ' + esc(opt.title) + ' to:'));
+    var choices = el('div', 'learner-choices');
+    (state.run.party || []).filter(function (p) { return p.alive; }).forEach(function (p) {
+      var b = el('button', 'siege-btn learner-btn ' + elClass(p.element),
+        (p.artUrl ? '<img src="' + artAttr(p.artUrl) + '" alt="">' : '<b>' + icon(p.element) + '</b>') +
+        '<span>' + esc(partyDisplayName(p) || p.name) + '</span>');
+      b.type = 'button';
+      b.addEventListener('click', function (e) { e.stopPropagation(); onPick(p.id); });
+      choices.appendChild(b);
+    });
+    row.appendChild(choices);
+    card.appendChild(row);
+    card.classList.add('clickable', 'chooses-learner');
+    card.addEventListener('click', function () {
+      row.classList.toggle('hidden');
+      card.classList.toggle('picking', !row.classList.contains('hidden'));
+    });
   }
 
   function renderCampService(grid, kind, offers) {
@@ -2588,9 +2618,9 @@
     if (brokerOptions.length) renderCampService(grid, 'BROKER', brokerOptions);
   }
 
-  function campChoose(optionId, resultTitle, resultIcon) {
+  function campChoose(optionId, resultTitle, resultIcon, learnerId) {
     if (state.busy) return; state.busy = true;
-    api('/api/siege/camp/choose', { method: 'POST', body: { token: token(), optionId: optionId } })
+    api('/api/siege/camp/choose', { method: 'POST', body: { token: token(), optionId: optionId, learnerId: learnerId || null } })
       .then(function (run) { applyInteractionResponse(run, { source: 'camp', title: resultTitle || 'Rest Camp', icon: resultIcon || '🏕️' }); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
@@ -2853,7 +2883,10 @@
         '<div class="camp-card-title">' + esc(o.title) + '</div>' +
         '<div class="camp-card-desc">' + esc(o.desc) + '</div>' +
         '<div class="camp-card-cost">🪙 ' + o.cost + '</div>';
-      if (!o.used && o.affordable) { card.classList.add('clickable'); card.addEventListener('click', function () { simplePost('/api/siege/caravan/buy', { optionId: o.id }, { source: 'caravan', title: 'Merchant Caravan', icon: '🐫' }); }); }
+      var caravanCtx = { source: 'caravan', title: 'Merchant Caravan', icon: '🐫' };
+      if (!o.used && o.affordable && o.chooseLearner) {
+        attachLearnerPicker(card, o, function (learnerId) { simplePost('/api/siege/caravan/buy', { optionId: o.id, learnerId: learnerId }, caravanCtx); });
+      } else if (!o.used && o.affordable) { card.classList.add('clickable'); card.addEventListener('click', function () { simplePost('/api/siege/caravan/buy', { optionId: o.id }, caravanCtx); }); }
       else if (!o.affordable) card.classList.add('unaffordable');
       grid.appendChild(card);
     });

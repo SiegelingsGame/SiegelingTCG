@@ -205,7 +205,7 @@ public class SiegeController {
     /** Use one Rest Camp interaction (rest / trader goods / broker): body { token, optionId }. */
     @PostMapping("/api/siege/camp/choose")
     public Map<String, Object> campChoose(@RequestBody Map<String, Object> body) {
-        return siege.campChoose(str(body.get("token")), str(body.get("optionId")));
+        return siege.campChoose(str(body.get("token")), str(body.get("optionId")), str(body.get("learnerId")));
     }
 
     /** Break camp and open the map back up: body { token }. */
@@ -299,7 +299,7 @@ public class SiegeController {
 
     @PostMapping("/api/siege/caravan/buy")
     public Map<String, Object> caravanBuy(@RequestBody Map<String, Object> body) {
-        return siege.caravanBuy(str(body.get("token")), str(body.get("optionId")));
+        return siege.caravanBuy(str(body.get("token")), str(body.get("optionId")), str(body.get("learnerId")));
     }
 
     @PostMapping("/api/siege/caravan/leave")

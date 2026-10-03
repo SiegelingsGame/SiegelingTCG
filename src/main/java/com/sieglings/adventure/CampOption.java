@@ -44,10 +44,28 @@ class CampOption {
                 null, null, null, null, -1, null);
     }
 
+    /**
+     * A move for sale. Element moves are bound to the Siegeling whose pool they
+     * came from; a NEUTRAL (universal) move has no owner yet — the buyer names
+     * the learner when paying, see {@link #choosesLearner()}.
+     */
     static CampOption shopCard(String id, AbilitySpec spec, String ownerId, String ownerName, int cost) {
-        return new CampOption(id, "SHOP_CARD", spec.name(),
-                (spec.description() == null || spec.description().isBlank() ? "A new move" : spec.description())
-                        + " · learned by " + ownerName, cost, spec.element(), null, spec, ownerId, -1, null);
+        String base = spec.description() == null || spec.description().isBlank() ? "A new move" : spec.description();
+        if (isUniversal(spec)) {
+            return new CampOption(id, "SHOP_CARD", spec.name(), base + " · choose who learns it",
+                    cost, spec.element(), null, spec, null, -1, null);
+        }
+        return new CampOption(id, "SHOP_CARD", spec.name(), base + " · learned by " + ownerName,
+                cost, spec.element(), null, spec, ownerId, -1, null);
+    }
+
+    static boolean isUniversal(AbilitySpec spec) {
+        return spec != null && (spec.element() == null || spec.element() == Element.NEUTRAL);
+    }
+
+    /** True for a universal move whose learner is picked at purchase time. */
+    boolean choosesLearner() {
+        return "SHOP_CARD".equals(kind) && cardSpec != null && ownerId == null;
     }
 
     static CampOption shopHeal(String id, int cost) {

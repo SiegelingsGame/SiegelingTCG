@@ -462,6 +462,15 @@ body[data-screen="mapScreen"] #mapScreen{
 .broker-btn.swap:not(:disabled){border-color:#c896ff; color:#c896ff;}
 .broker-swap-row{display:flex; flex-direction:column; gap:5px; margin-top:7px;}
 .broker-member{padding:6px 8px; font-size:11px; text-align:left; border-left:3px solid var(--el);}
+/* Universal-move learner pick: the offer opens a row of the living warband and
+   the tapped Siegeling is what pays (see attachLearnerPicker in adventure.js). */
+.camp-card.picking{border-color:var(--accent);}
+.learner-row{margin-top:8px; padding-top:7px; border-top:1px dashed rgba(255,226,133,.3);}
+.learner-prompt{font-size:10px; font-weight:900; letter-spacing:.05em; text-transform:uppercase; color:#ffe285; margin-bottom:5px;}
+.learner-choices{display:flex; flex-wrap:wrap; gap:5px;}
+.learner-btn{display:inline-flex; align-items:center; gap:5px; min-height:34px; padding:3px 9px 3px 4px; font-size:11px; border-left:3px solid var(--el); flex:1 1 auto;}
+.learner-btn img{width:26px; height:26px; object-fit:contain; flex:0 0 26px;}
+.learner-btn b{width:26px; text-align:center; flex:0 0 26px;}
 .camp-card-head .info-btn{position:static;}
 
 /* ---------- Illustrated expedition locations ----------
