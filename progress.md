@@ -1,4 +1,13 @@
 Original prompt: Merge and deploy
+- October 3, 2026 **Siege battle HUD: in portrait, a big AP pool shows as one ⚡ orb + count instead of running off screen.**
+  - **Bug.** GAIN_AP cards (e.g. Tailwind's Advantage rider) grow the AP row past 5 pips. In portrait the centered HUD row (pips, deck chip, charge, End Turn) then overflowed both edges, clipping "AP" and End Turn. At 390px even 5 pips overflowed (about 446px of content).
+  - **Fix.** `renderBattle` always appends an `.ap-count` chip (⚡ orb + held AP, yellow when over the per-turn max). It sets `.ap-many` when the pool is over 5. A new `syncApFit` runs after the rest of the HUD is filled, and again on resize; it sets `.ap-tight` when the pip row would still push the HUD past the viewport. Under `@media (orientation: portrait)`, either class hides the pips and shows the chip. The pips stay in the DOM so the refill/gain animations keep their targets, and landscape/desktop still show the full row. `adventure.css` v99, `adventure.js` v111.
+- Verification:
+  - `node --check`. Headless Chromium with a mocked battle at 390x844, 430x932 and 1920x1080, with AP 8/5/3 (max 5):
+    - 390: always the chip; End Turn ends at 380, no horizontal overflow.
+    - 430: 8 AP shows "⚡8" (End Turn at 420); 5 and 3 AP keep the 5-pip row, which fits (2–428).
+    - 1920: full pip rows, chip hidden.
+    - No page errors.
 - October 3, 2026 **Siege shops: universal moves are taught to a Siegeling you pick when you buy.**
   - **Before.** The camp Wandering Trader and the Merchant Caravan rolled each move offer for a random living Siegeling. Universal (NEUTRAL) techniques were pre-bound too, e.g. "Guard Pulse · learned by Fawny", even though any Siegeling can learn them.
   - **Now.** `CampOption.shopCard` leaves a NEUTRAL move unowned ("· choose who learns it") and serializes `chooseLearner: true`. `/api/siege/camp/choose` and `/api/siege/caravan/buy` take an optional `learnerId`. For a universal move it must name a living party member, and it is checked before any gold moves. Element moves keep their rolled owner and ignore the field. On the client, tapping a universal offer opens a "Teach X to:" row of the living warband (`attachLearnerPicker`, styled like the broker's Swap row). The tap on a Siegeling is what buys the move, so a stray tap never spends gold. The result line reads "Fawny learned Guard Pulse." The tutorial's scripted shop sends no `chooseLearner` and is unchanged. `adventure.css` v98, `adventure.js` v110.

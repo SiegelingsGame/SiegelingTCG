@@ -3506,10 +3506,19 @@
       ap.appendChild(el('span', 'ap-pip' + (i < b.actionPoints ? ' full' : '') +
         (i >= (b.maxActionPoints || 5) ? ' bonus' : '')));
     }
+    // Past 5 pips the row runs off a portrait phone, so the CSS swaps it for this
+    // single orb + count. The pips stay in the DOM: the refill and gain
+    // animations index into them, and wider layouts still show the full row.
+    var apHeld = b.actionPoints || 0;
+    ap.setAttribute('aria-label', apHeld + ' of ' + (b.maxActionPoints || 5) + ' AP');
+    ap.appendChild(el('span', 'ap-count' + (apHeld > (b.maxActionPoints || 5) ? ' bonus' : ''),
+      '<span class="ap-count-orb">⚡</span><b>' + apHeld + '</b>'));
+    ap.classList.toggle('ap-many', apPipCount > 5);
     $('deckCounts').textContent = '🃏' + b.deckCount + ' · ✋' + b.hand.length + ' · 🗑' + b.discardCount;
 
     var over = b.phase === 'WON' || b.phase === 'LOST';
     syncBattleActionButtons();
+    syncApFit();
 
     if (!state.deferBattleHandRender) renderHand(b, over);
     // The sheet mirrors the hand, so it has to follow every draw/play/end turn
@@ -4512,6 +4521,29 @@
       ult.textContent = value >= cost ? '⚡ ULT!' : '⚡' + value + '/' + cost;
     }
   }
+
+  /**
+   * Narrow phones can't even fit 5 pips beside the deck chip, charge and End
+   * Turn — the centered HUD row then clips both ends — so the count readout
+   * takes over there too. Measured with the pips shown, after the rest of the
+   * HUD has its final text, and again on resize/rotation.
+   */
+  function syncApFit() {
+    var ap = $('apDisplay'), hud = $('battleHud');
+    if (!ap || !hud) return;
+    ap.classList.remove('ap-tight');
+    if (ap.classList.contains('ap-many') || !window.matchMedia ||
+        !window.matchMedia('(orientation: portrait)').matches) return;
+    var box = hud.getBoundingClientRect();
+    var overflows = Array.prototype.some.call(hud.children, function (c) {
+      var r = c.getBoundingClientRect();
+      return r.width > 0 && (r.left < box.left - 1 || r.right > box.right + 1);
+    });
+    if (overflows) ap.classList.add('ap-tight');
+  }
+  window.addEventListener('resize', function () {
+    if (document.body.dataset.screen === 'battleScreen') syncApFit();
+  });
 
   /** Leftover AP pips fly from the HUD into the Knight's charge bar — the
    *  charge number ticks up as each orb lands. */
