@@ -61,6 +61,44 @@ public class ProfileSettingsStore {
         }
     }
 
+    /**
+     * Blanks profile and/or page art only when the stored value is still the id
+     * observed by the caller. A profile read decides those ids are locked only
+     * after a match-history scan, and {@link #save} replaces the whole document,
+     * so writing the snapshot from that read would drop a name, bio, or avatar
+     * saved in the meantime. A null id means "do not touch that field".
+     */
+    public void clearArtIfUnchanged(String userId, String profileArtId, String pageArtId) {
+        if (userId == null || userId.isBlank() || (profileArtId == null && pageArtId == null)) {
+            return;
+        }
+        DocumentReference ref = doc(userId);
+        try {
+            client.requireFirestore().runTransaction(transaction -> {
+                DocumentSnapshot snapshot = transaction.get(ref).get();
+                if (!snapshot.exists()) {
+                    return null;
+                }
+                Map<String, Object> updates = new LinkedHashMap<>();
+                if (profileArtId != null && profileArtId.equals(snapshot.getString("profileArtId"))) {
+                    updates.put("profileArtId", "");
+                }
+                if (pageArtId != null && pageArtId.equals(snapshot.getString("pageArtId"))) {
+                    updates.put("pageArtId", "");
+                }
+                if (!updates.isEmpty()) {
+                    transaction.update(ref, updates);
+                }
+                return null;
+            }).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while clearing locked profile art.", ex);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to clear locked profile art in Firestore.", ex);
+        }
+    }
+
     public void deleteByUserId(String userId) {
         if (userId == null || userId.isBlank()) {
             return;
