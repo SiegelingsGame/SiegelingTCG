@@ -158,6 +158,80 @@ class SiegeElementalStatusEffectsTest {
         assertEquals(1, engine.effectiveCost(f.battle, hit, f.foe));
     }
 
+    // ---- Foe-side meanings: every status must do something to an enemy -----
+
+    private void enemyAct(SiegeBattle battle, Combatant foe, AbilitySpec spec, Random rng) {
+        try {
+            Method m = SiegeCombatEngine.class.getDeclaredMethod("executeEnemyAbility",
+                    SiegeBattle.class, Combatant.class, AbilitySpec.class, int.class, Random.class);
+            m.setAccessible(true);
+            m.invoke(engine, battle, foe, spec, 0, rng);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private void enemyTurn(SiegeRun run, Random rng) {
+        try {
+            Method m = SiegeCombatEngine.class.getDeclaredMethod("resolveEnemyTurn", SiegeRun.class, Random.class);
+            m.setAccessible(true);
+            m.invoke(engine, run, rng);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @Test
+    void disorientMakesAFoeMissHalfItsActions() {
+        AbilitySpec hit = new AbilitySpec("hit", "Strike", Element.FIRE, Effect.DAMAGE, 5,
+                TargetKind.ENEMY_SINGLE, 0, "Hit.");
+        int misses = 0, lands = 0;
+        for (int seed = 0; seed < 40; seed++) {
+            Fixture f = fixture();
+            f.foe.getAbilities().add(hit);
+            f.foe.setIntent(hit);
+            f.foe.setIntentPosition(0);
+            f.foe.applyStatus(StatusKind.DISORIENT, 2);
+            SiegeRun run = new SiegeRun("t");
+            run.setBattle(f.battle);
+            f.battle.setPhase(BattlePhase.ENEMY_RESOLVING);
+            enemyTurn(run, new Random(seed));
+            assertFalse(f.foe.has(StatusKind.DISORIENT), "Disorient is spent on the foe's next action");
+            if (f.ally.getHp() == f.ally.getMaxHp()) misses++; else lands++;
+        }
+        assertTrue(misses > 0, "a disoriented foe sometimes loses its action");
+        assertTrue(lands > 0, "and sometimes shakes it off");
+    }
+
+    @Test
+    void shockWeakensAFoesHealAndShieldNotJustItsHits() {
+        Fixture f = fixture();
+        f.foe.setHp(20);
+        f.foe.applyStatus(StatusKind.SHOCK, 2);
+        enemyAct(f.battle, f.foe, new AbilitySpec("mend", "Mend", Element.FIRE, Effect.HEAL, 6,
+                TargetKind.SELF, 0, "Heal."), new Random(1));
+        assertEquals(24, f.foe.getHp(), "a shocked heal loses 2");
+        assertFalse(f.foe.has(StatusKind.SHOCK));
+
+        f.foe.applyStatus(StatusKind.SHOCK, 2);
+        enemyAct(f.battle, f.foe, new AbilitySpec("brace", "Brace", Element.FIRE, Effect.SHIELD, 6,
+                TargetKind.SELF, 0, "Shield."), new Random(1));
+        assertEquals(4, f.foe.getShield(), "a shocked shield loses 2");
+    }
+
+    @Test
+    void curseStopsAFoeHealingOrShielding() {
+        Fixture f = fixture();
+        f.foe.setHp(20);
+        f.foe.applyStatus(StatusKind.CURSE, 2);
+        enemyAct(f.battle, f.foe, new AbilitySpec("mend", "Mend", Element.FIRE, Effect.HEAL, 6,
+                TargetKind.SELF, 0, "Heal."), new Random(1));
+        assertEquals(20, f.foe.getHp(), "a cursed foe cannot heal");
+        enemyAct(f.battle, f.foe, new AbilitySpec("brace", "Brace", Element.FIRE, Effect.SHIELD, 6,
+                TargetKind.SELF, 0, "Shield."), new Random(1));
+        assertEquals(0, f.foe.getShield(), "a cursed foe cannot gain Shield");
+    }
+
     @Test
     void slowReapplyFreezesWithStun() {
         Fixture f = fixture();

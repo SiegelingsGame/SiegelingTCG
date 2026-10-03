@@ -53,17 +53,22 @@
     SHADOW: '#9a63d6', ELECTRIC: '#ffe63c', METAL: '#a0aab4', UNDEAD: '#8c78a0',
     PSYCHIC: '#c896ff', POISON: '#78dc50', LIGHT: '#fff0b0', NEUTRAL: '#95a5a6'
   };
+  /** Enemies have no AP and never evolve, so a few statuses do something
+   *  different to a foe — mirrored from SiegeCombatEngine (foeTip). */
+  function statusTip(meta, side) {
+    return side === 'ENEMY' && meta.foeTip ? meta.foeTip : meta.tip;
+  }
   var STATUS_META = {
     BURN: { icon: '🔥', label: 'Burn', tip: '1 damage at end of round' },
     SLOW: { icon: '❄️', label: 'Slow', timed: true, tip: '−2 Speed; reapply freezes' },
     STUN: { icon: '💫', label: 'Stun', tip: 'Skips next action' },
     LEECH: { icon: '💚', label: 'Leech', tip: 'Heals the attacker for HP damage dealt' },
-    SHOCK: { icon: '⚡', label: 'Shock', tip: 'Drains AP / weakens next hit' },
-    DISORIENT: { icon: '🌬️', label: 'Disorient', tip: 'Cards cost +1 AP' },
+    SHOCK: { icon: '⚡', label: 'Shock', tip: 'Party loses 1 AP next turn', foeTip: 'Next action −2 (hit, heal or shield)' },
+    DISORIENT: { icon: '🌬️', label: 'Disorient', tip: 'Cards cost +1 AP', foeTip: '50% chance its next action misses' },
     POISON: { icon: '☠️', label: 'Poison', tip: 'End-round DoT; blocks heals' },
     SOAK: { icon: '💧', label: 'Soak', timed: true, tip: 'Takes +1 from attacks' },
     RUST: { icon: '⚙️', label: 'Rust', timed: true, tip: 'Next Metal hit +1, then clears' },
-    CURSE: { icon: '🌑', label: 'Curse', timed: true, tip: 'Cannot evolve' },
+    CURSE: { icon: '🌑', label: 'Curse', timed: true, tip: 'Cannot evolve or use its Signature', foeTip: 'Cannot heal or gain Shield' },
     INSIGHT: { icon: '👁️', label: 'Insight', tip: 'Second hit draws / pays off' },
     BLIND: { icon: '✨', label: 'Blind', tip: 'Ability values −1' },
     WITHER: { icon: '💀', label: 'Wither', timed: true, tip: '−1 HP at turn start' }
@@ -3813,11 +3818,11 @@
     return (u.statuses || []).indexOf('STUN') >= 0;
   }
 
-  /** AP a unit's cards cost on top of their printed price — mirrors
-   *  SiegeCombatEngine#effectiveCost, where Disorient adds 1 for any unit but
-   *  the Knight. Preview-only: the server stays the authority on what a play costs. */
+  /** AP a Siegeling's cards cost on top of their printed price — mirrors
+   *  SiegeCombatEngine#effectiveCost (Disorient +1). Foes spend no AP, so on
+   *  them Disorient is a miss chance instead (see STATUS_META.foeTip). */
   function cardCostTax(u) {
-    return u && !u.knight && (u.statuses || []).indexOf('DISORIENT') >= 0 ? 1 : 0;
+    return u && u.side !== 'ENEMY' && (u.statuses || []).indexOf('DISORIENT') >= 0 ? 1 : 0;
   }
 
   /**
@@ -3878,7 +3883,8 @@
       var statusChips = (u.statuses || []).map(function (s) {
         var meta = STATUS_META[s];
         if (!meta) return '';
-        var tip = meta.tip ? (meta.label + ' — ' + meta.tip) : meta.label;
+        var tipText = statusTip(meta, u.side);
+        var tip = tipText ? (meta.label + ' — ' + tipText) : meta.label;
         return '<span class="sp-status st-' + s + '" title="' + tip + '">' + meta.icon + '</span>';
       }).join('');
       var body = u.artUrl
@@ -4115,7 +4121,7 @@
     round: 620, card: 380, enemyAct: 440, ultimate: 560, whiff: 440, loot: 520,
     swapStart: 420, swap: 460, evolve: 760, cardUpdate: 560,
     reshuffle: 560, discardHand: 380, apCharge: 500, actionPoints: 380,
-    buff: 380, gaugeReady: 380, signature: 620, cardTransform: 420
+    buff: 380, gaugeReady: 380, signature: 620, cardTransform: 420, cursed: 380
   };
 
   function playEvent(ev, stage) {
@@ -4307,8 +4313,17 @@
         showBanner('📦 ' + ev.name, 'you');
         return 700;
       case 'whiff':
+        if (ev.reason === 'DISORIENT') {
+          floatText(ev.sourceId, '🌬️ Missed!', 'status');
+          showBanner(nameOf(ev.sourceId) + ' is disoriented — ' + ev.name + ' goes astray!', 'them');
+          return 620;
+        }
         showBanner(nameOf(ev.sourceId) + '\'s ' + ev.name + ' hits empty ground!', 'them');
         return 620;
+      case 'cursed':
+        flashSprite(ev.targetId, 'statused');
+        floatText(ev.targetId, '🌑 Cursed — no recovery', 'status');
+        return 480;
       case 'stunned':
         flashSprite(ev.sourceId, 'statused');
         floatText(ev.sourceId, '💫 Stunned!', 'status');
@@ -5466,7 +5481,7 @@
       // ones sit behind a 2-round safety net, so showing either reads as a
       // promise the engine never made ("Burn · 99 rounds").
       var clock = meta.timed && rounds > 0 ? ' · ' + rounds + ' round' + (rounds === 1 ? '' : 's') : '';
-      effects.push({ icon: meta.icon, label: meta.label, detail: meta.tip + clock, negative: true });
+      effects.push({ icon: meta.icon, label: meta.label, detail: statusTip(meta, u.side) + clock, negative: true });
     });
     return effects;
   }
@@ -5491,7 +5506,7 @@
       showUnitModal({
         name: u.name, element: u.element, artUrl: u.artUrl,
         subtitle: 'Enemy · HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + intentNote,
-        cards: u.abilities || [], effects: battleUnitEffects(u), costTax: cardCostTax(u)
+        cards: u.abilities || [], effects: battleUnitEffects(u)
       });
       return;
     }

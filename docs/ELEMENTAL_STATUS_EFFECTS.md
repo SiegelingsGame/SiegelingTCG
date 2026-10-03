@@ -250,15 +250,19 @@ in `SiegeCombatEngine`.**
 | FIRE | `BURN` | End-of-round 1 dmg while active |
 | ICE | `SLOW` | −2 Speed for 2 rounds; **reapply while Slow → also Stun** (freeze) |
 | EARTH | `LEECH` | First hit marks; second hit heals the attacker for HP damage dealt, then clear |
-| WIND | `DISORIENT` | Owner's cards cost +1 AP while active |
-| ELECTRIC | `SHOCK` | Player: −1 party AP then clear; Enemy: next hit −2 dmg then clear |
+| WIND | `DISORIENT` | Player: owner's cards cost +1 AP while active; Enemy (no AP): 50% chance its next action misses, then clear |
+| ELECTRIC | `SHOCK` | Player: −1 party AP then clear; Enemy: next action (hit, heal or shield) −2 then clear |
 | WATER | `SOAK` | Incoming attacks deal +1 while soaked |
 | METAL | `RUST` | Next **Metal** hit +1, then clear Rust |
 | POISON | `POISON` | End-of-round 1 DoT; heals / max-HP surges clear Poison instead of restoring HP |
-| SHADOW | `CURSE` | Cannot evolve while Cursed |
+| SHADOW | `CURSE` | Player: cannot evolve or play its Signature Ultimate; Enemy (never evolves): cannot heal or gain Shield while Cursed |
 | PSYCHIC | `INSIGHT` | First hit marks; second hit → inflicter draws 1 (player) or heals 2 (enemy), then clear |
 | LIGHT | `BLIND` | Outgoing ability values −1 while blinded |
 | UNDEAD | `WITHER` | On owner's turn open: −1 current HP (min 1 left), then clear |
+
+Every status must do something to whichever side it lands on: where a player
+rule has no meaning for a foe (AP, evolution), the Enemy column gives the foe
+its own effect.
 
 Battle badge stacks and Siege round durations stay different cadences of the
 same fantasy.

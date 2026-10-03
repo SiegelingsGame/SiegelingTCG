@@ -1,4 +1,26 @@
 Original prompt: Merge and deploy
+- October 3, 2026 **Siege statuses: every status now does something to whichever side it lands on.**
+  - **Audit.** Every `StatusKind` was checked against both sides in `SiegeCombatEngine`. Three were inert on a foe:
+    - **Disorient:** taxes AP, and foes have none.
+    - **Curse:** blocks evolving, and foes never evolve. The new Shadow Signature even applied it to foes.
+    - **Shock:** only blunted a foe's damage, so a foe that healed or shielded ignored it.
+    - **Curse on a final-form ally** also did nothing, because the Signature card ignored it.
+    - All other statuses already act on both sides: Burn, Slow, Stun, Leech, Poison, Soak, Rust, Insight, Blind, Wither.
+  - **Now.**
+    - **Disorient on a foe:** `DISORIENT_FOE_MISS_PERCENT` (50%) chance its next action misses (a `whiff` event with reason DISORIENT), then the status clears.
+    - **Shock on a foe:** `shockPenalty` takes −2 from its next action of any kind: hit, heal or shield.
+    - **Curse on a foe:** `curseBlocksRecovery` stops all foe healing and Shield, including Advantage riders, the Insight payoff and Leech, with a `cursed` event.
+    - **Curse on an ally:** now also blocks the Signature Ultimate, on the server and in the hand's `playable`/`blockedBy` flags.
+    - **Client:** `STATUS_META.foeTip` + `statusTip()` give foes their own tooltip and modal text. The Disorient AP strike-through now applies to allies only, since foes spend no AP. `adventure.js` v114.
+    - **Docs:** the Siege table in `docs/ELEMENTAL_STATUS_EFFECTS.md` gains the Enemy column wording.
+- Verification:
+  - `SiegeElementalStatusEffectsTest` +3:
+    - over 40 seeds, a disoriented foe both misses and lands, and always spends the status;
+    - a shocked heal and shield each lose 2;
+    - a cursed foe neither heals nor shields.
+  - `SiegeSignatureUltimateTest`: Curse refuses the Signature.
+  - Full `./mvnw test`: 751 tests, 0 failures. `node --check`.
+  - Headless Chromium against `spring-boot:run` at 390x844 and 1920x1080, with a foe given Disorient, Shock and Curse. The modal reads "50% chance its next action misses", "Next action −2 (hit, heal or shield)" and "Cannot heal or gain Shield", and the foe ability cost shows a plain "0".
 - October 3, 2026 **Siege unit preview: Disorient shows the real card cost, with the printed price struck through.**
   - **Change.** The unit detail modal (enemy abilities and an ally's cards) now applies Disorient's +1 AP. `cardCostTax(u)` mirrors `SiegeCombatEngine#effectiveCost` (Disorient adds 1 for any unit but the Knight). `showUnitModal` takes a `costTax` and renders the badge and the summary line as `<s>0</s> 1`, with a red `.um-cost.is-taxed` pill. Untaxed cards render exactly as before. `adventure.css` v101, `adventure.js` v113.
   - **Caveat.** In Siege, enemies do not spend AP (`resolveEnemyTurn` acts once per foe regardless of cost), so on a foe the +1 is informational only. Disorient only changes play costs for the player's Siegelings.

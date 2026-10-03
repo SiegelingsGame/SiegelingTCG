@@ -72,6 +72,13 @@ public class SiegeCombatEngine {
      * instead: this fraction of their max HP.
      */
     static final double EXECUTE_BOSS_FRACTION = 0.25;
+    /**
+     * Enemies have no AP, so Disorient's "+1 AP" has nothing to tax on a foe.
+     * Instead a disoriented foe has this percent chance to lose its next action.
+     */
+    static final int DISORIENT_FOE_MISS_PERCENT = 50;
+    /** Shock on a foe blunts its next action — damage, heal, or shield — by this much. */
+    static final int SHOCK_FOE_PENALTY = 2;
 
     // ---- Battle setup ---------------------------------------------------
 
@@ -590,6 +597,11 @@ public class SiegeCombatEngine {
         boolean signature = SiegeContentService.isSignature(spec);
         // A Signature Ultimate is gated by the same gauge an Evolution card is:
         // a final form earns its ultimate by fighting, not on turn one.
+        // Curse blocks a final form's Signature exactly as it blocks evolving —
+        // otherwise Curse would do nothing at all to a fully evolved Siegeling.
+        if (signature && attacker.has(StatusKind.CURSE)) {
+            return PlayResult.fail(attacker.getName() + " is cursed and cannot unleash its Signature Ultimate.");
+        }
         if (signature && attacker.getApSpent() < SiegeBattle.EVOLVE_GAUGE) {
             return PlayResult.fail(attacker.getName() + " must spend " + SiegeBattle.EVOLVE_GAUGE
                     + " AP of moves before its Signature Ultimate (" + attacker.getApSpent() + "/"
@@ -1384,6 +1396,7 @@ public class SiegeCombatEngine {
                     battle.log(inflicter.getName() + " reads the Insight and draws " + drawn + ".");
                 }
             } else if (inflicter != null && inflicter.getSide() == Side.ENEMY) {
+                if (curseBlocksRecovery(battle, inflicter)) return;
                 inflicter.heal(2);
                 battle.event("heal", "sourceId", inflicter.getId(), "targetId", inflicter.getId(), "amount", 2);
                 battle.log(inflicter.getName() + " reads the Insight and recovers 2.");
@@ -1431,6 +1444,7 @@ public class SiegeCombatEngine {
             battle.log(inflicter.getName() + " triggers Leech, but toxin absorbs the heal.");
             return;
         }
+        if (curseBlocksRecovery(battle, inflicter)) return;
 
         int before = inflicter.getHp();
         inflicter.heal(hpDamageDealt);
@@ -1512,6 +1526,18 @@ public class SiegeCombatEngine {
             }
             AbilitySpec choice = foe.getIntent() != null ? foe.getIntent() : pickEnemyAbility(foe, rng);
             if (choice == null) continue;
+            if (foe.has(StatusKind.DISORIENT)) {
+                // Disorient is spent on the foe's next action whether or not it lands.
+                foe.clearStatus(StatusKind.DISORIENT);
+                battle.event("status-consumed", "targetId", foe.getId(), "status", "DISORIENT");
+                if (rng.nextInt(100) < DISORIENT_FOE_MISS_PERCENT) {
+                    battle.event("whiff", "sourceId", foe.getId(), "name", choice.name(), "reason", "DISORIENT");
+                    battle.log(foe.getName() + " is disoriented — its " + choice.name() + " goes astray!");
+                    battle.turnEntry("foe", foe.getName(), choice.name(), -1, "Disoriented — " + choice.name() + " misses");
+                    continue;
+                }
+                battle.log(foe.getName() + " shakes off the disorientation.");
+            }
             executeEnemyAbility(battle, foe, choice, foe.getIntentPosition(), rng);
         }
 
@@ -1539,8 +1565,10 @@ public class SiegeCombatEngine {
         switch (choice.effect()) {
             case HEAL -> {
                 advantageTargets.add(foe);
-                int amount = effectValue(foe, choice.value());
-                if (foe.has(StatusKind.POISON)) {
+                int amount = Math.max(0, effectValue(foe, choice.value()) - shockPenalty(battle, foe));
+                if (curseBlocksRecovery(battle, foe)) {
+                    // Nothing more to do: the curse already announced the fizzle.
+                } else if (foe.has(StatusKind.POISON)) {
                     foe.clearStatus(StatusKind.POISON);
                     battle.event("status-consumed", "targetId", foe.getId(), "status", "POISON");
                     battle.log(foe.getName() + "'s toxin absorbs the recover.");
@@ -1552,10 +1580,12 @@ public class SiegeCombatEngine {
             }
             case SHIELD -> {
                 advantageTargets.add(foe);
-                int amount = effectValue(foe, choice.value());
-                foe.addShield(amount, shieldExpiryFor(battle, foe));
-                battle.event("shield", "sourceId", foe.getId(), "targetId", foe.getId(), "amount", amount);
-                battle.log(foe.getName() + " uses " + choice.name() + " and braces.");
+                int amount = Math.max(0, effectValue(foe, choice.value()) - shockPenalty(battle, foe));
+                if (!curseBlocksRecovery(battle, foe)) {
+                    foe.addShield(amount, shieldExpiryFor(battle, foe));
+                    battle.event("shield", "sourceId", foe.getId(), "targetId", foe.getId(), "amount", amount);
+                    battle.log(foe.getName() + " uses " + choice.name() + " and braces.");
+                }
             }
             case DAMAGE -> {
                 int dmg = enemyDamage(battle, foe, choice);
@@ -1683,7 +1713,7 @@ public class SiegeCombatEngine {
     }
 
     private void advantageHeal(SiegeBattle battle, Combatant source, Combatant target, int amount) {
-        if (target == null || !target.isAlive()) return;
+        if (target == null || !target.isAlive() || curseBlocksRecovery(battle, target)) return;
         int before = target.getHp();
         target.heal(amount);
         int healed = target.getHp() - before;
@@ -1692,7 +1722,7 @@ public class SiegeCombatEngine {
     }
 
     private void advantageShield(SiegeBattle battle, Combatant source, Combatant target, int amount) {
-        if (target == null || !target.isAlive()) return;
+        if (target == null || !target.isAlive() || curseBlocksRecovery(battle, target)) return;
         target.setShield(target.getShield() + amount);
         battle.event("shield", "sourceId", source.getId(), "targetId", target.getId(), "amount", amount,
                 "advantage", true);
@@ -1821,14 +1851,32 @@ public class SiegeCombatEngine {
 
     /** A shocked enemy's next hit is blunted (its "lost AP"); Blind also softens it. */
     private int enemyDamage(SiegeBattle battle, Combatant foe, AbilitySpec spec) {
-        int dmg = effectValue(foe, spec.value());
-        if (foe.has(StatusKind.SHOCK)) {
-            foe.clearStatus(StatusKind.SHOCK);
-            dmg = Math.max(0, dmg - 2);
-            battle.event("status-consumed", "targetId", foe.getId(), "status", "SHOCK");
-            battle.log(foe.getName() + " is shocked — its blow is weakened.");
-        }
-        return dmg;
+        return Math.max(0, effectValue(foe, spec.value()) - shockPenalty(battle, foe));
+    }
+
+    /**
+     * Shock on a foe stands in for the AP it does not have: its next action of
+     * any kind — strike, recover, or brace — loses {@link #SHOCK_FOE_PENALTY}.
+     * Returns the penalty and spends the status, or 0 when the foe is not shocked.
+     */
+    private int shockPenalty(SiegeBattle battle, Combatant foe) {
+        if (!foe.has(StatusKind.SHOCK)) return 0;
+        foe.clearStatus(StatusKind.SHOCK);
+        battle.event("status-consumed", "targetId", foe.getId(), "status", "SHOCK");
+        battle.log(foe.getName() + " is shocked — its action is weakened.");
+        return SHOCK_FOE_PENALTY;
+    }
+
+    /**
+     * Curse (Shadow) on a foe: foes never evolve, so instead a cursed foe cannot
+     * heal or gain Shield while the badge remains. Returns true (and logs the
+     * fizzle) when the recovery is blocked.
+     */
+    private boolean curseBlocksRecovery(SiegeBattle battle, Combatant target) {
+        if (target == null || target.getSide() != Side.ENEMY || !target.has(StatusKind.CURSE)) return false;
+        battle.event("cursed", "targetId", target.getId());
+        battle.log(target.getName() + " is cursed — its recovery fizzles.");
+        return true;
     }
 
     // ---- Enemy AI / telegraphs ------------------------------------------

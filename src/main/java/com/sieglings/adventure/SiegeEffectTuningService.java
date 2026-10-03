@@ -674,7 +674,7 @@ public class SiegeEffectTuningService {
         sig(com.sieglings.model.enums.Element.LIGHT, "Radiant Dawn", Effect.HEAL, 12, TargetKind.ALLY_ALL, 2,
                 null, 0, "A blinding sunrise that mends the whole warband.");
         sig(com.sieglings.model.enums.Element.SHADOW, "Eclipse", Effect.DAMAGE, 15, TargetKind.ENEMY_SINGLE, 2,
-                StatusKind.CURSE, 100, "Swallows one foe in darkness.");
+                StatusKind.CURSE, 100, "Swallows one foe in darkness — a cursed foe cannot heal or shield.");
         sig(com.sieglings.model.enums.Element.UNDEAD, "Grave Tide", Effect.DAMAGE, 8, TargetKind.ALL_ENEMIES, 2,
                 StatusKind.WITHER, 100, "The dead rise and wither every foe.");
         sig(com.sieglings.model.enums.Element.NEUTRAL, "Final Form", Effect.BUFF_ATK, 3, TargetKind.ALLY_ALL, 2,

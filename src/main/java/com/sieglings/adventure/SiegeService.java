@@ -4657,7 +4657,8 @@ public class SiegeService {
             boolean gaugeOk = (spec.effect() != Effect.EVOLVE
                     || (owner != null && owner.getApSpent() >= SiegeBattle.EVOLVE_GAUGE
                     && !owner.has(StatusKind.CURSE)))
-                    && (!signature || (owner != null && owner.getApSpent() >= SiegeBattle.EVOLVE_GAUGE));
+                    && (!signature || (owner != null && owner.getApSpent() >= SiegeBattle.EVOLVE_GAUGE
+                    && !owner.has(StatusKind.CURSE)));
             Map<String, Object> h = new LinkedHashMap<>();
             h.put("instanceId", card.getInstanceId());
             h.put("name", spec.name());
@@ -4693,7 +4694,7 @@ public class SiegeService {
             if ((spec.effect() == Effect.EVOLVE || signature) && owner != null) {
                 h.put("gauge", Math.min(owner.getApSpent(), SiegeBattle.EVOLVE_GAUGE));
                 h.put("gaugeMax", SiegeBattle.EVOLVE_GAUGE);
-                if (!signature && owner.has(StatusKind.CURSE)) {
+                if (owner.has(StatusKind.CURSE)) {
                     h.put("blockedBy", "CURSE");
                 }
             }
