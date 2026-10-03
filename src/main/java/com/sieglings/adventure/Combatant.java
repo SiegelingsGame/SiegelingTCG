@@ -89,6 +89,8 @@ class Combatant {
     private Combatant evolvedFrom;
     /** Battle-scoped evolution gauge: AP spent on this unit's own moves. */
     private int apSpent;
+    /** Set once this battle's Signature Ultimate has been played; cleared with the gauge. */
+    private boolean signatureUsed;
 
     /** Equipped item id (one carried item per Siegeling), or null. */
     private String itemId;
@@ -181,6 +183,8 @@ class Combatant {
     int getApSpent() { return apSpent; }
     void setApSpent(int apSpent) { this.apSpent = Math.max(0, apSpent); }
     void addApSpent(int amount) { setApSpent(apSpent + amount); }
+    boolean isSignatureUsed() { return signatureUsed; }
+    void setSignatureUsed(boolean signatureUsed) { this.signatureUsed = signatureUsed; }
 
     // ---- Leveling ---------------------------------------------------------
 
