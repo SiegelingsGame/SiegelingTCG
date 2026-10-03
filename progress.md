@@ -1,4 +1,9 @@
 Original prompt: Merge and deploy
+- October 3, 2026 **Siege speed track: runner icons stay inside their bar and never overlap the Advantage queue.**
+  - **Bug.** Runners were placed at `left: N%` and centered with `translate(-50%)`, so the leading unit (always at 100%) hung half its width past the bar end, right onto the "ADV" label and first Advantage chip on phones.
+  - **Fix.** `renderSpeedTrack` now sets a `--f` fraction (cumulative speed / max team total) on each runner and on the fill; `adventure.css` maps it onto the bar's inner run, `left: calc(r + (100% - 2r) * f)` with `--runner-r: 11px`. Icons still spread by real speed differences, but the fastest one ends flush with the bar. The 🏁 flag sits inside the bar under the runners. `adventure.css` v97, `adventure.js` v109.
+- Verification:
+  - `node --check`. Headless Chromium at 390x844 and 1920x1080, via `SiegeClient.applyRun` with the screenshot's battle (YOU 21: 7/8/6, FOE 20: 10/10). Before: the last YOU runner ended at x=215, with ADV at 216 (22px art tokens overlap it). After: every runner's box is inside its bar (390: bar 110–206, runners end ≤202; 1920: bar ends 1697, runners ≤1693). No page errors.
 - October 2, 2026 **AI SiegeKnight passives apply as soon as the AI places a card.**
   - **Bug.** The AI places, evolves and casts straight onto the board (`AIService`), and only energy was recalculated afterwards. So an AI passive like "+2 max Health to Water allies" didn't show on its Shellpack until the human's own next placement ran `recalculateTrainerPassiveStatBuffs`. That made the AI card look like it grew mid-turn.
   - **Fix.** `GameService.finishSetupTurn` now refreshes trainer passive stat buffs and board auras at the end of every setup turn, so the AI's bonuses are in the state the human first sees. Human placements already recalculated on placement and are unchanged. Backend only; no static assets changed.
