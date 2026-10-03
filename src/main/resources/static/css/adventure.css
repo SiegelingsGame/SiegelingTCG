@@ -1467,6 +1467,20 @@ button.ledger-card{font-size:10px;}
 .ap-pip{width:20px;height:20px;border-radius:50%; border:2px solid var(--accent);}
 .ap-pip.full{background:var(--accent); box-shadow:0 0 8px rgba(255,154,60,.7);}
 .ap-label{font-size:12px; color:var(--dim); margin-right:4px;}
+/* Compact AP readout (see renderBattle): in portrait, a pool over 5 — or any
+   pip row that would push the HUD off a narrow phone (.ap-tight) — becomes one
+   orb + count. Elsewhere the full pip row still shows. */
+.ap-count{display:none; align-items:center; gap:4px; font-weight:900; font-size:17px; color:var(--text); line-height:1;}
+.ap-count-orb{
+  width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
+  background:var(--accent); box-shadow:0 0 8px rgba(255,154,60,.7); font-size:12px; color:#2a1400;
+}
+.ap-count.bonus .ap-count-orb{background:#ffe63c; box-shadow:0 0 10px rgba(255,230,60,.6);}
+.ap-count.bonus b{color:#ffe63c;}
+@media (orientation: portrait){
+  .ap-display.ap-many .ap-pip,.ap-display.ap-tight .ap-pip{display:none;}
+  .ap-display.ap-many .ap-count,.ap-display.ap-tight .ap-count{display:inline-flex;}
+}
 /* Also the button that opens the hand sheet — the fan only shows a few cards
    at a time, so this is how you read the whole hand on any screen size. */
 .deck-counts{

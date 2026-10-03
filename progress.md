@@ -1,4 +1,13 @@
 Original prompt: Merge and deploy
+- October 3, 2026 **Siege battle HUD: in portrait, a big AP pool shows as one ⚡ orb + count instead of running off screen.**
+  - **Bug.** GAIN_AP cards (e.g. Tailwind's Advantage rider) grow the AP row past 5 pips. In portrait the centered HUD row (pips, deck chip, charge, End Turn) then overflowed both edges, clipping "AP" and End Turn. At 390px even 5 pips overflowed (about 446px of content).
+  - **Fix.** `renderBattle` always appends an `.ap-count` chip (⚡ orb + held AP, yellow when over the per-turn max). It sets `.ap-many` when the pool is over 5. A new `syncApFit` runs after the rest of the HUD is filled, and again on resize; it sets `.ap-tight` when the pip row would still push the HUD past the viewport. Under `@media (orientation: portrait)`, either class hides the pips and shows the chip. The pips stay in the DOM so the refill/gain animations keep their targets, and landscape/desktop still show the full row. `adventure.css` v99, `adventure.js` v111.
+- Verification:
+  - `node --check`. Headless Chromium with a mocked battle at 390x844, 430x932 and 1920x1080, with AP 8/5/3 (max 5):
+    - 390: always the chip; End Turn ends at 380, no horizontal overflow.
+    - 430: 8 AP shows "⚡8" (End Turn at 420); 5 and 3 AP keep the 5-pip row, which fits (2–428).
+    - 1920: full pip rows, chip hidden.
+    - No page errors.
 - October 2, 2026 **AI SiegeKnight passives apply as soon as the AI places a card.**
   - **Bug.** The AI places, evolves and casts straight onto the board (`AIService`), and only energy was recalculated afterwards. So an AI passive like "+2 max Health to Water allies" didn't show on its Shellpack until the human's own next placement ran `recalculateTrainerPassiveStatBuffs`. That made the AI card look like it grew mid-turn.
   - **Fix.** `GameService.finishSetupTurn` now refreshes trainer passive stat buffs and board auras at the end of every setup turn, so the AI's bonuses are in the state the human first sees. Human placements already recalculated on placement and are unchanged. Backend only; no static assets changed.
