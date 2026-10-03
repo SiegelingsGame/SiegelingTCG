@@ -8,6 +8,8 @@ import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.persistence.entity.ProfileSettingsEntity;
 import com.sieglings.persistence.firestore.AccountUserStore;
 import com.sieglings.persistence.firestore.ProfileSettingsStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ import java.util.Set;
 
 @Service
 public class ProfileSettingsService {
+    private static final Logger log = LoggerFactory.getLogger(ProfileSettingsService.class);
     private static final Set<String> AVATAR_MODES = Set.of("INITIAL", "ELEMENT");
     private record FavoriteSelection(String id, String variant) {}
 
@@ -166,10 +169,12 @@ public class ProfileSettingsService {
     public Map<String, Object> serialize(ProfileSettingsEntity settings, AccountUser user) {
         PlayerProgressionEntity progression = playerProgressionService.getOrCreate(user);
         // Art chosen before it became an achievement reward resets to the default
-        // until the player earns it, for everyone who sees this profile.
-        if (clearLockedArt(settings, user, progression) && settings.getUserId() != null) {
-            settingsStore.save(settings);
-        }
+        // until the player earns it, for everyone who sees this profile. The
+        // check reads the whole match history, so the document we loaded is
+        // stale by the time we know. Persist only the art fields, and only if
+        // they are still the locked ids — a full save here dropped a name, bio,
+        // or avatar written while that check was running.
+        persistClearedArt(settings, user, progression);
         Map<String, Object> out = new LinkedHashMap<>();
         String displayName = settings.getDisplayName();
         if (displayName == null || displayName.isBlank()) {
@@ -224,6 +229,45 @@ public class ProfileSettingsService {
             changed = true;
         }
         return changed;
+    }
+
+    /**
+     * Same reset as {@link #clearLockedArt}, but a failed achievement read leaves
+     * the stored art alone and still returns the profile. Friend presence and
+     * {@code /api/auth/me} both come through here, so one unreadable history
+     * must not 500 the whole response or blank art the player has earned.
+     */
+    private void persistClearedArt(ProfileSettingsEntity settings, AccountUser user, PlayerProgressionEntity progression) {
+        if (galleryRewardService == null || settings == null) {
+            return;
+        }
+        String previousProfileArt = settings.getProfileArtId();
+        String previousPageArt = settings.getPageArtId();
+        boolean clearProfile;
+        boolean clearPage;
+        try {
+            clearProfile = !galleryRewardService.canUse(user, progression, settings, previousProfileArt);
+            clearPage = !galleryRewardService.canUse(user, progression, settings, previousPageArt);
+        } catch (RuntimeException ex) {
+            log.warn("Skipping gallery art reset for {}: achievement check failed", settings.getUserId(), ex);
+            return;
+        }
+        if (clearProfile) {
+            settings.setProfileArtId("");
+        }
+        if (clearPage) {
+            settings.setPageArtId("");
+        }
+        if ((!clearProfile && !clearPage) || settings.getUserId() == null) {
+            return;
+        }
+        try {
+            settingsStore.clearArtIfUnchanged(settings.getUserId(),
+                    clearProfile ? previousProfileArt : null,
+                    clearPage ? previousPageArt : null);
+        } catch (RuntimeException ex) {
+            log.warn("Could not persist gallery art reset for {}", settings.getUserId(), ex);
+        }
     }
 
     /** Keep only owned favorites (max 3), preserving player order. */

@@ -660,9 +660,12 @@ public class PlayerProgressionService {
                     : profileSettingsStore.findByUserId(user.getId()).orElse(null);
             return List.copyOf(galleryRewardService.unlockedPieceIds(user, progression, settings));
         } catch (RuntimeException error) {
-            // An unreadable history must not cost the player their whole progression
-            // payload; the hub then shows reward art as locked until the next load.
-            return List.of();
+            // An empty list is a definite "earned nothing". The hub treats that as
+            // known and writes the default binder cover over one the player already
+            // hung. Unknown has to stay unknown so a failed history read cannot
+            // take the cover away; the next successful load fills this in.
+            logger.warn("Gallery unlocks unavailable for {}: {}", user.getId(), error.toString());
+            return null;
         }
     }
 
