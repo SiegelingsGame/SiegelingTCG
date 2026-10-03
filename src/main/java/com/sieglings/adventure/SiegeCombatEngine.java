@@ -98,6 +98,7 @@ public class SiegeCombatEngine {
             ally.clearTimedBuffs();
             ally.clearStatuses();
             ally.setApSpent(0);
+            ally.setSignatureUsed(false);
             ally.setLeveledRecently(false);
             ally.setPosition(pos++);
             if (knight != null && passive != null) {
@@ -159,12 +160,11 @@ public class SiegeCombatEngine {
         // Evolution sigils transform the holder before EVOLVE cards are injected.
         applySigilEvolutions(run, battle, rng);
         // Each member with a next stage gets its Evolution card in the deck —
-        // evolution happens in battle by drawing and playing it (2 AP).
+        // evolution happens in battle by drawing and playing it (2 AP). A member
+        // already at the end of its line carries its Signature Ultimate instead.
         for (Combatant ally : battle.living(Side.PLAYER)) {
             if (ally.isKnight()) continue;
-            content.evolutionOf(ally.getSourceCardId()).ifPresent(evo ->
-                    battle.getDeck().add(new SiegeCard("evo-" + ally.getId(), ally.getId(),
-                            content.evolveCardSpec(ally.getName(), evo, content.stageOf(evo)))));
+            refreshSpecialCard(battle, ally, null);
         }
         Collections.shuffle(battle.getDeck(), rng);
 
@@ -289,8 +289,62 @@ public class SiegeCombatEngine {
         battle.log("🌟 " + member.getName() + " evolves into " + evolved.getName() + "!");
 
         content.addNewStageCards(evo, evolved.getId(), battle.getDeck());
+        // A free evolution (Marshal Ultimate, sigil) skips the Evolution card, so
+        // whatever copy of it sits in hand/deck/discard is now stale: it becomes
+        // the next stage's card, or the Signature Ultimate on a final form.
+        refreshSpecialCard(battle, evolved, null);
         if (shuffleDeck) Collections.shuffle(battle.getDeck(), rng);
         return evolved;
+    }
+
+    /**
+     * Keeps exactly one "special" card per Siegeling across hand, deck and
+     * discard: the Evolution card for its next stage, or — once nothing is left
+     * to evolve into — its Signature Ultimate. A stale card is rewritten in place
+     * (same pile, same slot, same instance id) so a card already in hand visibly
+     * turns into the new one instead of vanishing.
+     *
+     * @param excludeInstanceId a card being played right now, which must not be
+     *                          rewritten (it leaves the hand once this returns)
+     */
+    void refreshSpecialCard(SiegeBattle battle, Combatant ally, String excludeInstanceId) {
+        if (ally == null || ally.isKnight() || ally.getSide() != Side.PLAYER) return;
+        String ownerId = ally.getId();
+        AbilitySpec desired = content.evolutionOf(ally.getSourceCardId())
+                .map(next -> content.evolveCardSpec(ally.getName(), next, content.stageOf(next)))
+                .orElseGet(() -> content.findAnySiegling(ally.getSourceCardId())
+                        .map(content::signatureCardSpec).orElse(null));
+
+        List<List<SiegeCard>> piles = List.of(battle.getHand(), battle.getDeck(), battle.getDiscard());
+        boolean placed = false;
+        for (List<SiegeCard> pile : piles) {
+            for (int i = 0; i < pile.size(); i++) {
+                SiegeCard card = pile.get(i);
+                if (!ownerId.equals(card.getOwnerId()) || !isSpecial(card.getSpec())
+                        || card.getInstanceId().equals(excludeInstanceId)) continue;
+                if (!placed && desired != null) {
+                    placed = true;
+                    if (card.getSpec().id().equals(desired.id())) continue;
+                    pile.set(i, new SiegeCard(card.getInstanceId(), ownerId, desired));
+                    if (pile == battle.getHand()) {
+                        battle.event("cardTransform", "targetId", ownerId, "instanceId", card.getInstanceId(),
+                                "from", card.getSpec().name(), "to", desired.name());
+                    }
+                    battle.log("✦ " + card.getSpec().name() + " becomes " + desired.name()
+                            + (SiegeContentService.isSignature(desired) ? " (Signature Ultimate)!" : "."));
+                } else {
+                    pile.remove(i--);
+                }
+            }
+        }
+        if (!placed && desired != null) {
+            String prefix = SiegeContentService.isSignature(desired) ? "sig-" : "evo-";
+            battle.getDeck().add(new SiegeCard(prefix + ownerId + "-" + desired.id(), ownerId, desired));
+        }
+    }
+
+    private static boolean isSpecial(AbilitySpec spec) {
+        return spec.effect() == Effect.EVOLVE || SiegeContentService.isSignature(spec);
     }
 
     /**
@@ -517,7 +571,7 @@ public class SiegeCombatEngine {
                 return PlayResult.fail(attacker.getName() + " must spend " + SiegeBattle.EVOLVE_GAUGE
                         + " AP of moves before evolving (" + attacker.getApSpent() + "/" + SiegeBattle.EVOLVE_GAUGE + ").");
             }
-            PlayResult evolved = playEvolution(run, battle, attacker, spec, rng);
+            PlayResult evolved = playEvolution(run, battle, attacker, spec, card.getInstanceId(), rng);
             if (!evolved.ok) return evolved;
             battle.getHand().remove(card);
             // Evolution cards are consumed for the battle — they do not reshuffle.
@@ -533,8 +587,22 @@ public class SiegeCombatEngine {
             return PlayResult.okay();
         }
 
+        boolean signature = SiegeContentService.isSignature(spec);
+        // A Signature Ultimate is gated by the same gauge an Evolution card is:
+        // a final form earns its ultimate by fighting, not on turn one.
+        if (signature && attacker.getApSpent() < SiegeBattle.EVOLVE_GAUGE) {
+            return PlayResult.fail(attacker.getName() + " must spend " + SiegeBattle.EVOLVE_GAUGE
+                    + " AP of moves before its Signature Ultimate (" + attacker.getApSpent() + "/"
+                    + SiegeBattle.EVOLVE_GAUGE + ").");
+        }
+
         List<Combatant> targets = resolveTargets(battle, spec, attacker, targetId);
         if (targets.isEmpty()) return PlayResult.fail("No valid target.");
+        if (signature) {
+            battle.event("signature", "sourceId", attacker.getId(), "name", spec.name(),
+                    "element", spec.element() == null ? null : spec.element().name());
+            battle.log("✦ " + attacker.getName() + " unleashes " + spec.name() + "!");
+        }
 
         battle.event("card", "sourceId", attacker.getId(), "name", spec.name(),
                 "element", spec.element() == null ? null : spec.element().name());
@@ -551,11 +619,13 @@ public class SiegeCombatEngine {
             applyAdvantageRider(battle, attacker, spec, targets, rng);
         }
         battle.stampTally(entry);
-        battle.getDiscard().add(card);
+        // A Signature Ultimate is once per battle: consumed like an Evolution card.
+        if (signature) attacker.setSignatureUsed(true);
+        else battle.getDiscard().add(card);
         battle.setActionPoints(battle.getActionPoints() - cost);
 
         // Playing a Siegeling's own move fills its evolution gauge.
-        if (!card.getOwnerId().startsWith(KNIGHT_OWNER_PREFIX) && !attacker.isKnight()) {
+        if (!signature && !card.getOwnerId().startsWith(KNIGHT_OWNER_PREFIX) && !attacker.isKnight()) {
             boolean wasReady = attacker.getApSpent() >= SiegeBattle.EVOLVE_GAUGE;
             attacker.addApSpent(spec.actionCost());
             if (!wasReady && attacker.getApSpent() >= SiegeBattle.EVOLVE_GAUGE) {
@@ -584,7 +654,8 @@ public class SiegeCombatEngine {
      * into the deck, and — if a further stage exists — unlocks its Evolution
      * card (3 AP) to draw.
      */
-    private PlayResult playEvolution(SiegeRun run, SiegeBattle battle, Combatant member, AbilitySpec spec, Random rng) {
+    private PlayResult playEvolution(SiegeRun run, SiegeBattle battle, Combatant member, AbilitySpec spec,
+                                     String playedInstanceId, Random rng) {
         if (member.getSide() != Side.PLAYER || member.isKnight()) {
             return PlayResult.fail("Only a Siegeling can evolve.");
         }
@@ -624,12 +695,15 @@ public class SiegeCombatEngine {
         if (added > 0) {
             battle.log(evolved.getName() + "'s new move" + (added == 1 ? " is" : "s are") + " shuffled into the deck.");
         }
-        // …and evolving unlocks the next stage's Evolution card, if one exists.
-        content.evolutionOf(evo.getId()).ifPresent(next -> {
-            battle.getDeck().add(new SiegeCard("evo-" + evolved.getId() + "-3", evolved.getId(),
-                    content.evolveCardSpec(evolved.getName(), next, 3)));
-            battle.log("The path to " + next.getName() + " opens — its Evolution card joins the deck.");
-        });
+        // …and evolving unlocks the next stage's Evolution card, or the Signature
+        // Ultimate when this was the last stage. The card being played is skipped:
+        // it is consumed, and the unlock is dealt from the deck.
+        content.evolutionOf(evo.getId()).ifPresent(next ->
+                battle.log("The path to " + next.getName() + " opens — its Evolution card joins the deck."));
+        if (content.evolutionOf(evo.getId()).isEmpty()) {
+            battle.log(evolved.getName() + " reaches its final form — its Signature Ultimate joins the deck.");
+        }
+        refreshSpecialCard(battle, evolved, playedInstanceId);
         battle.event("cardUpdate", "targetId", evolved.getId(), "previewMoves",
                 upgradeHandCards(battle, evolved, rng));
         Collections.shuffle(battle.getDeck(), rng);

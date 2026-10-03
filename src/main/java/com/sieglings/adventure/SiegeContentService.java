@@ -225,6 +225,53 @@ public class SiegeContentService {
                         + ownerName + " spends " + SiegeBattle.EVOLVE_GAUGE + " AP of its own moves.");
     }
 
+    /** Spec-id prefix that marks a Signature Ultimate card. */
+    static final String SIGNATURE_PREFIX = "sig:";
+
+    static boolean isSignature(AbilitySpec spec) {
+        return spec != null && spec.id() != null && spec.id().startsWith(SIGNATURE_PREFIX);
+    }
+
+    /**
+     * The Signature Ultimate a fully evolved Siegeling carries in place of an
+     * Evolution card: its type's ultimate, named after the individual, with any
+     * dashboard edits for the type and for that Siegeling layered on top.
+     */
+    AbilitySpec signatureCardSpec(SieglingCard card) {
+        SiegeEffectTuningService.SignatureSpec sig = effectTuning != null
+                ? effectTuning.signatureFor(card.getElement(), card.getId(), card.getName())
+                : signatureFallback(card);
+        String description = "ULTIMATE · once per battle, after " + card.getName() + " spends "
+                + SiegeBattle.EVOLVE_GAUGE + " AP of its own moves. " + sig.description();
+        return new AbilitySpec(SIGNATURE_PREFIX + card.getId(), sig.name(), card.getElement(), sig.effect(),
+                sig.value(), sig.target(), sig.actionCost(), description.trim(),
+                sig.status(), sig.status() == null ? 0 : sig.statusChance());
+    }
+
+    private static SiegeEffectTuningService.SignatureSpec signatureFallback(SieglingCard card) {
+        SiegeEffectTuningService.SignatureSpec type = SiegeEffectTuningService.builtInSignature(card.getElement());
+        return new SiegeEffectTuningService.SignatureSpec(
+                SiegeEffectTuningService.defaultIndividualName(card.getName(), type.name()), type.effect(),
+                type.value(), type.target(), type.actionCost(), type.status(), type.statusChance(),
+                type.description());
+    }
+
+    /** One fully evolved Siegeling as the Signature editor lists it. */
+    public record SignatureRow(String cardId, String name, String element, int stage, String artUrl) {}
+
+    /** Every Siegeling that sits at the end of its line — the ones a Signature applies to. */
+    List<SignatureRow> listSignatureSiegelings() {
+        List<SignatureRow> out = new ArrayList<>();
+        for (Card card : cardDefs.getDeckBuilderCatalog()) {
+            if (!(card instanceof SieglingCard s) || playableMoves(s).isEmpty()) continue;
+            if (evolutionOf(s.getId()).isPresent()) continue;
+            out.add(new SignatureRow(s.getId(), s.getName(),
+                    s.getElement() == null ? "NEUTRAL" : s.getElement().name(), stageOf(s), s.getCardArtUrl()));
+        }
+        out.sort(java.util.Comparator.comparing(SignatureRow::element).thenComparing(SignatureRow::name));
+        return out;
+    }
+
     /**
      * Evolves a party member in place: same combatant id (so its deck cards
      * stay owned), new name/element/art, bigger HP pool, an evolution surge
@@ -1648,7 +1695,7 @@ public class SiegeContentService {
      * to the new art, so the underlying cards have to change with them — otherwise the next
      * render pulls the untouched precursor cards straight back.
      *
-     * <p>Evolution cards are left alone: the next stage's unlock is dealt from the deck.
+     * <p>Evolution and Signature cards are left alone: the next stage's unlock is dealt from the deck.
      * Instance ids are preserved so the morph animation keeps the same DOM nodes.</p>
      */
     List<Map<String, Object>> upgradeHandCards(SieglingCard evo, String ownerId,
@@ -1658,7 +1705,8 @@ public class SiegeContentService {
         List<Map<String, Object>> out = new ArrayList<>();
         for (int i = 0; i < hand.size(); i++) {
             SiegeCard card = hand.get(i);
-            if (!ownerId.equals(card.getOwnerId()) || card.getSpec().effect() == Effect.EVOLVE) continue;
+            if (!ownerId.equals(card.getOwnerId()) || card.getSpec().effect() == Effect.EVOLVE
+                    || isSignature(card.getSpec())) continue;
             AbilitySpec spec = toSpec(moves.get(rng.nextInt(moves.size())));
             hand.set(i, new SiegeCard(card.getInstanceId(), ownerId, spec));
             out.add(specToPreviewMap(spec));

@@ -573,6 +573,104 @@ public class SiegeController {
         return new SiegeEffectTuningService.MovePatch(moveId, fields, reset);
     }
 
+    /**
+     * Dashboard: Signature Ultimates — one row per element (the type-wide card)
+     * and one per fully evolved Siegeling (its individual card), each with what
+     * it inherits, what is stored for it, and what it resolves to.
+     */
+    @GetMapping("/api/siege/signatures")
+    public Map<String, Object> listSignatures() {
+        return serializeSignatures();
+    }
+
+    /**
+     * Dashboard: publish Signature edits (editor-authenticated). Body:
+     * { signatures: [ { key, name?, effect?, value?, target?, actionCost?, status?,
+     * statusChance?, description?, reset? } ] }. A field sent blank returns it to
+     * inherited; {@code key} is {@code element:FIRE} or a Siegeling card id.
+     */
+    @PostMapping("/api/siege/signatures/bulk")
+    public Map<String, Object> saveSignatures(
+            @RequestHeader(value = "X-Card-Editor-Token", required = false) String editorToken,
+            @RequestBody Map<String, Object> body) {
+        String email = editorAuth.requireEditor(editorToken).email();
+        List<SiegeEffectTuningService.SignaturePatch> patches = new java.util.ArrayList<>();
+        if (body.get("signatures") instanceof List<?> list) {
+            for (Object raw : list) {
+                if (!(raw instanceof Map<?, ?> row)) continue;
+                boolean reset = Boolean.TRUE.equals(row.get("reset"));
+                Map<String, Object> fields = new java.util.LinkedHashMap<>();
+                if (!reset) {
+                    for (String field : SiegeEffectTuningService.SIGNATURE_FIELDS) {
+                        if (row.containsKey(field)) fields.put(field, row.get(field));
+                    }
+                }
+                patches.add(new SiegeEffectTuningService.SignaturePatch(str(row.get("key")), fields, reset));
+            }
+        }
+        effectTuning.applySignatureChanges(patches, email);
+        return serializeSignatures();
+    }
+
+    private Map<String, Object> serializeSignatures() {
+        List<Map<String, Object>> elements = new java.util.ArrayList<>();
+        for (com.sieglings.model.enums.Element element : com.sieglings.model.enums.Element.values()) {
+            String key = SiegeEffectTuningService.elementKey(element);
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("key", key);
+            m.put("element", element.name());
+            m.put("inherited", signatureMap(SiegeEffectTuningService.builtInSignature(element)));
+            m.put("override", effectTuning.signatureOverride(key));
+            m.put("resolved", signatureMap(effectTuning.elementSignature(element)));
+            elements.add(m);
+        }
+        List<Map<String, Object>> sieglings = new java.util.ArrayList<>();
+        for (SiegeContentService.SignatureRow row : content.listSignatureSiegelings()) {
+            com.sieglings.model.enums.Element element = com.sieglings.model.enums.Element.valueOf(row.element());
+            SiegeEffectTuningService.SignatureSpec type = effectTuning.elementSignature(element);
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("key", row.cardId());
+            m.put("name", row.name());
+            m.put("element", row.element());
+            m.put("stage", row.stage());
+            m.put("artUrl", row.artUrl());
+            m.put("inherited", signatureMap(new SiegeEffectTuningService.SignatureSpec(
+                    SiegeEffectTuningService.defaultIndividualName(row.name(), type.name()), type.effect(),
+                    type.value(), type.target(), type.actionCost(), type.status(), type.statusChance(),
+                    type.description())));
+            m.put("override", effectTuning.signatureOverride(row.cardId()));
+            m.put("resolved", signatureMap(effectTuning.signatureFor(element, row.cardId(), row.name())));
+            sieglings.add(m);
+        }
+        SiegeEffectTuningService.Snapshot snapshot = effectTuning.buildSnapshot();
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("elements", elements);
+        out.put("sieglings", sieglings);
+        out.put("effects", SiegeEffectTuningService.SIGNATURE_EFFECTS.stream().map(Enum::name).toList());
+        out.put("targets", java.util.Arrays.stream(TargetKind.values()).map(Enum::name).toList());
+        out.put("statuses", java.util.Arrays.stream(StatusKind.values()).map(Enum::name).toList());
+        out.put("gauge", SiegeBattle.EVOLVE_GAUGE);
+        out.put("maxValue", SiegeEffectTuningService.MAX_MOVE_VALUE);
+        out.put("maxActionCost", SiegeEffectTuningService.MAX_ACTION_COST);
+        out.put("source", snapshot.backend() == null ? null : snapshot.backend().name());
+        out.put("updatedBy", snapshot.updatedBy());
+        out.put("updatedAt", snapshot.updatedAt());
+        return out;
+    }
+
+    private static Map<String, Object> signatureMap(SiegeEffectTuningService.SignatureSpec spec) {
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("name", spec.name());
+        m.put("effect", spec.effect().name());
+        m.put("value", spec.value());
+        m.put("target", spec.target().name());
+        m.put("actionCost", spec.actionCost());
+        m.put("status", spec.status() == null ? "NONE" : spec.status().name());
+        m.put("statusChance", spec.statusChance());
+        m.put("description", spec.description());
+        return m;
+    }
+
     private Map<String, Object> serializeMoves() {
         List<Map<String, Object>> moves = new java.util.ArrayList<>();
         for (SiegeContentService.MoveTuningRow row : content.listMoveTuning()) {

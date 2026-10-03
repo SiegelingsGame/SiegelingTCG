@@ -58,7 +58,8 @@ class SiegePileViewTest {
         // A starter hand can swallow the whole deck, so play a card to be sure
         // there is something in each list worth reading.
         SiegeCard played = battle.getHand().stream()
-                .filter(c -> c.getSpec().effect() != Effect.EVOLVE).findFirst().orElseThrow();
+                .filter(c -> c.getSpec().effect() != Effect.EVOLVE && !SiegeContentService.isSignature(c.getSpec()))
+                .findFirst().orElseThrow();
         String foe = battle.living(Side.ENEMY).getFirst().getId();
         siegeService.playCard(token, played.getInstanceId(), foe);
 
@@ -105,7 +106,7 @@ class SiegePileViewTest {
         SiegeBattle battle = run.getBattle();
         String foe = battle.living(Side.ENEMY).getFirst().getId();
         List<SiegeCard> plays = battle.getHand().stream()
-                .filter(c -> c.getSpec().effect() != Effect.EVOLVE
+                .filter(c -> c.getSpec().effect() != Effect.EVOLVE && !SiegeContentService.isSignature(c.getSpec())
                         && c.getSpec().actionCost() == 0).limit(2).toList();
         assertTrue(plays.size() >= 2, "the starter hand has two free plays");
         for (SiegeCard c : plays) siegeService.playCard(token, c.getInstanceId(), foe);

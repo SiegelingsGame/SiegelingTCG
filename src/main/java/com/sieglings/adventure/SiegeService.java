@@ -1332,6 +1332,7 @@ public class SiegeService {
         m.put("leader", c.isLeader());
         m.put("itemId", c.getItemId());
         m.put("apSpent", c.getApSpent());
+        if (c.isSignatureUsed()) m.put("signatureUsed", true);
         // Battle evolutions are battle-scoped: without the pre-evolution form the
         // post-battle revert in SiegeCombatEngine#clearBattleBuffs has nothing to
         // walk back to, and a run resumed mid-battle would keep the evolved form
@@ -1440,6 +1441,7 @@ public class SiegeService {
         c.setLeader(Boolean.TRUE.equals(m.get("leader")));
         if (m.get("itemId") != null) c.setItemId(String.valueOf(m.get("itemId")));
         c.setApSpent(intVal(m.get("apSpent"), 0));
+        c.setSignatureUsed(Boolean.TRUE.equals(m.get("signatureUsed")));
         if (m.get("evolvedFrom") instanceof Map) {
             // Battle evolutions set max HP from the evolved form's formula and only
             // copy level/XP (no applyLevel). loadLeveling above would re-scale that
@@ -4651,9 +4653,11 @@ public class SiegeService {
             int displayCost = engine.effectiveCost(battle, spec, swinging);
             boolean affordable = battle.getActionPoints() >= displayCost;
             // Evolution cards also require the owner's gauge (5 AP of own moves).
-            boolean gaugeOk = spec.effect() != Effect.EVOLVE
+            boolean signature = SiegeContentService.isSignature(spec);
+            boolean gaugeOk = (spec.effect() != Effect.EVOLVE
                     || (owner != null && owner.getApSpent() >= SiegeBattle.EVOLVE_GAUGE
-                    && !owner.has(StatusKind.CURSE));
+                    && !owner.has(StatusKind.CURSE)))
+                    && (!signature || (owner != null && owner.getApSpent() >= SiegeBattle.EVOLVE_GAUGE));
             Map<String, Object> h = new LinkedHashMap<>();
             h.put("instanceId", card.getInstanceId());
             h.put("name", spec.name());
@@ -4685,10 +4689,11 @@ public class SiegeService {
             h.put("advantaged", advantaged);
             if (advantaged) h.put("advantageText", SiegeAdvantage.riderText(spec.element(), spec.target()));
             h.put("needsTarget", spec.needsExplicitTarget());
-            if (spec.effect() == Effect.EVOLVE && owner != null) {
+            if (signature) h.put("signature", true);
+            if ((spec.effect() == Effect.EVOLVE || signature) && owner != null) {
                 h.put("gauge", Math.min(owner.getApSpent(), SiegeBattle.EVOLVE_GAUGE));
                 h.put("gaugeMax", SiegeBattle.EVOLVE_GAUGE);
-                if (owner.has(StatusKind.CURSE)) {
+                if (!signature && owner.has(StatusKind.CURSE)) {
                     h.put("blockedBy", "CURSE");
                 }
             }
@@ -4715,6 +4720,11 @@ public class SiegeService {
         return b;
     }
 
+    /** Whether this final-form unit still has a Signature Ultimate to charge this battle. */
+    private boolean battleHasSignatureFor(Combatant c) {
+        return !c.isSignatureUsed() && content.findAnySiegling(c.getSourceCardId()).isPresent();
+    }
+
     /** A card in the draw or discard pile: the same face the hand shows, minus
      *  everything that only means something for a card you could play now. */
     private Map<String, Object> pileCard(SiegeRun run, SiegeBattle battle, SiegeCard card) {
@@ -4737,6 +4747,7 @@ public class SiegeService {
         }
         m.put("ownerId", card.getOwnerId());
         m.put("ownerName", knightCard ? run.getKnightName() : (owner == null ? "" : owner.getName()));
+        if (SiegeContentService.isSignature(spec)) m.put("signature", true);
         return m;
     }
 
@@ -4929,7 +4940,10 @@ public class SiegeService {
             boolean hasEvolution = content.evolutionOf(c.getSourceCardId()).isPresent();
             m.put("hasEvolution", hasEvolution);
             m.put("hasStage3Evolution", content.hasStage3EvolutionChain(c.getSourceCardId()));
-            if (hasEvolution) {
+            // A final form keeps the same gauge, now charging its Signature Ultimate.
+            boolean hasSignature = !hasEvolution && battleHasSignatureFor(c);
+            m.put("hasSignature", hasSignature);
+            if (hasEvolution || hasSignature) {
                 m.put("evoGauge", Math.min(c.getApSpent(), SiegeBattle.EVOLVE_GAUGE));
                 m.put("evoGaugeMax", SiegeBattle.EVOLVE_GAUGE);
                 m.put("evoReady", c.getApSpent() >= SiegeBattle.EVOLVE_GAUGE);

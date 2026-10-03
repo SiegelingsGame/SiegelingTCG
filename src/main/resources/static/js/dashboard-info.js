@@ -289,6 +289,17 @@
             '<p>Saves apply to <em>battles started afterwards</em> — a run already mid-battle keeps the numbers it started with, because its cards were built when the battle opened.</p>'
     };
 
+    topics['siege-signatures'] = {
+        title: 'Signature Ultimates (Siege)',
+        html: '<p>When a Siegeling reaches its <strong>final form</strong> in a Siege battle — by playing its Evolution card, from a Marshal Ultimate, or from an Evolution sigil — the Evolution card it no longer needs becomes its <strong>Signature Ultimate</strong>. A Siegeling that starts a battle already at its final form carries the Signature from the start.</p>' +
+            '<p>The Signature is <em>once per battle</em> and locked until that Siegeling spends 5 AP of its own moves (the same gauge an Evolution card uses). Playing it does not refill the gauge and the card is consumed, not discarded.</p>' +
+            table([
+                row(['<strong>Type ultimates</strong>', 'One per element. Every Siegeling of that element inherits it, named after the individual (e.g. <em>Strikehawk\'s Skybreaker Gale</em>). Edit here to retune a whole type at once.']),
+                row(['<strong>Individual ultimates</strong>', 'One per final-form Siegeling. Any box you fill wins over the type row for that Siegeling only; blank boxes keep following the type.'])
+            ], ['Layer', 'What it sets']) +
+            '<p>A strike (damage, slow, stun, destroy) must aim at foes; a blessing (heal, shield, buffs) at the warband; draw and AP gain at self. Changing the effect without a target re-aims it sensibly. Status <strong>NONE</strong> removes an inherited status. Saves apply to battles started afterwards.</p>'
+    };
+
     topics['shop-prices'] = {
         title: 'Shop Prices',
         html: '<p>Each card\'s shop price is looked up by <strong>rarity + card type</strong>. Set an override for a cell to replace the default for every card of that combination; reset it to fall back to the default again.</p>' +
