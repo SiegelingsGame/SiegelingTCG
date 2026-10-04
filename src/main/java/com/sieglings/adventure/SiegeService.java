@@ -1307,6 +1307,7 @@ public class SiegeService {
         m.put("shield", c.getShield());
         m.put("shieldExpiryRound", c.getShieldExpiryRound());
         m.put("battleMaxHpBonus", c.getBattleMaxHpBonus());
+        if (c.getWitheredMaxHp() > 0) m.put("witheredMaxHp", c.getWitheredMaxHp());
         m.put("speed", c.getSpeed());
         m.put("baseSpeed", c.getBaseSpeed());
         m.put("baseMaxHp", c.getBaseMaxHp());
@@ -1412,6 +1413,7 @@ public class SiegeService {
         // A health_boost widens max HP for the battle, so it has to be back in place
         // before HP is applied or the snapshotted HP clamps down to the unboosted max.
         c.setBattleMaxHpBonus(intVal(m.get("battleMaxHpBonus"), 0));
+        c.setWitheredMaxHp(intVal(m.get("witheredMaxHp"), 0));
         c.setHp(snapHp);
         c.setShield(intVal(m.get("shield"), 0));
         c.setShieldExpiryRound(intVal(m.get("shieldExpiryRound"), 0));
@@ -4654,11 +4656,8 @@ public class SiegeService {
             boolean affordable = battle.getActionPoints() >= displayCost;
             // Evolution cards also require the owner's gauge (5 AP of own moves).
             boolean signature = SiegeContentService.isSignature(spec);
-            boolean gaugeOk = (spec.effect() != Effect.EVOLVE
-                    || (owner != null && owner.getApSpent() >= SiegeBattle.EVOLVE_GAUGE
-                    && !owner.has(StatusKind.CURSE)))
-                    && (!signature || (owner != null && owner.getApSpent() >= SiegeBattle.EVOLVE_GAUGE
-                    && !owner.has(StatusKind.CURSE)));
+            boolean gaugeOk = (spec.effect() != Effect.EVOLVE && !signature)
+                    || (owner != null && owner.getApSpent() >= SiegeBattle.EVOLVE_GAUGE);
             Map<String, Object> h = new LinkedHashMap<>();
             h.put("instanceId", card.getInstanceId());
             h.put("name", spec.name());
@@ -4694,9 +4693,6 @@ public class SiegeService {
             if ((spec.effect() == Effect.EVOLVE || signature) && owner != null) {
                 h.put("gauge", Math.min(owner.getApSpent(), SiegeBattle.EVOLVE_GAUGE));
                 h.put("gaugeMax", SiegeBattle.EVOLVE_GAUGE);
-                if (owner.has(StatusKind.CURSE)) {
-                    h.put("blockedBy", "CURSE");
-                }
             }
             h.put("playable", playerTurn && ownerAlive && ownerReady && affordable && gaugeOk);
             hand.add(h);

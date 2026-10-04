@@ -270,6 +270,25 @@ class Combatant {
 
     int getBattleMaxHpBonus() { return battleMaxHpBonus; }
 
+    /** Max HP lost to Wither this battle (the Undead status shrinks the ceiling). */
+    private int witheredMaxHp;
+
+    int getWitheredMaxHp() { return witheredMaxHp; }
+
+    /** Wither: shrinks max HP for the rest of the battle; current HP clamps down with it. */
+    void addWitheredMaxHp(int amount) {
+        if (amount <= 0) return;
+        witheredMaxHp += amount;
+        applyLevel();
+    }
+
+    void setWitheredMaxHp(int amount) {
+        int next = Math.max(0, amount);
+        if (next == witheredMaxHp) return;
+        witheredMaxHp = next;
+        applyLevel();
+    }
+
     /**
      * Battle-table {@code health_boost}: raises max HP and heals the same amount.
      * {@link #applyLevel()} does the healing, since the boost widens the derived max.
@@ -298,7 +317,7 @@ class Combatant {
         int oldMax = maxHp;
         maxHp = Math.max(1, (knight
                 ? SiegeTuning.scaledKnightMaxHp(baseMaxHp, level)
-                : SiegeTuning.scaledMaxHp(baseMaxHp, level)) + battleMaxHpBonus);
+                : SiegeTuning.scaledMaxHp(baseMaxHp, level)) + battleMaxHpBonus - witheredMaxHp);
         int delta = maxHp - oldMax;
         if (delta > 0) hp = Math.min(maxHp, hp + delta);
         else if (hp > maxHp) hp = maxHp;

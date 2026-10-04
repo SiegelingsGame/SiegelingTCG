@@ -666,15 +666,15 @@ public class SiegeEffectTuningService {
         sig(com.sieglings.model.enums.Element.ELECTRIC, "Thunderlord's Verdict", Effect.DAMAGE, 16,
                 TargetKind.ENEMY_SINGLE, 2, StatusKind.SHOCK, 100, "One colossal bolt, aimed true.");
         sig(com.sieglings.model.enums.Element.METAL, "Iron Judgement", Effect.DAMAGE, 16, TargetKind.ENEMY_SINGLE, 2,
-                StatusKind.RUST, 100, "A crushing strike that leaves the target rusting.");
+                StatusKind.RUST, 100, "A crushing strike that rusts the target's armor — it cannot gain Shield.");
         sig(com.sieglings.model.enums.Element.POISON, "Plague Bloom", Effect.DAMAGE, 7, TargetKind.ALL_ENEMIES, 2,
-                StatusKind.POISON, 100, "Toxic spores choke the entire enemy line.");
+                StatusKind.POISON, 100, "Toxic spores choke the enemy line — their next heals are wasted.");
         sig(com.sieglings.model.enums.Element.PSYCHIC, "Mindstorm", Effect.DAMAGE, 8, TargetKind.ALL_ENEMIES, 2,
                 StatusKind.INSIGHT, 100, "A psychic tempest that lays every mind bare.");
         sig(com.sieglings.model.enums.Element.LIGHT, "Radiant Dawn", Effect.HEAL, 12, TargetKind.ALLY_ALL, 2,
                 null, 0, "A blinding sunrise that mends the whole warband.");
         sig(com.sieglings.model.enums.Element.SHADOW, "Eclipse", Effect.DAMAGE, 15, TargetKind.ENEMY_SINGLE, 2,
-                StatusKind.CURSE, 100, "Swallows one foe in darkness — a cursed foe cannot heal or shield.");
+                StatusKind.CURSE, 100, "Swallows one foe in darkness — its Advantage is cursed.");
         sig(com.sieglings.model.enums.Element.UNDEAD, "Grave Tide", Effect.DAMAGE, 8, TargetKind.ALL_ENEMIES, 2,
                 StatusKind.WITHER, 100, "The dead rise and wither every foe.");
         sig(com.sieglings.model.enums.Element.NEUTRAL, "Final Form", Effect.BUFF_ATK, 3, TargetKind.ALLY_ALL, 2,

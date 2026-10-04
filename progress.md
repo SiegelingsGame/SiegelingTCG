@@ -1,4 +1,36 @@
 Original prompt: Merge and deploy
+- October 4, 2026 **Siege statuses: one effect per status, identical on Siegelings and foes, each in its own territory.**
+  - **Why.** The previous pass gave foes their own versions of Disorient, Shock and Curse. That made the same badge mean two things, and several statuses overlapped:
+    - heal-blocking: Poison and foe Curse;
+    - HP loss: Burn, Poison and Wither;
+    - damage taken: Soak and Rust;
+    - output: Shock and Blind.
+  - **Now** (`StatusKind` docs, `SiegeCombatEngine`, the `docs/ELEMENTAL_STATUS_EFFECTS.md` Siege table). Unchanged:
+    - Burn: damage over time.
+    - Slow: speed, and reapplying it freezes.
+    - Stun: skips the next action.
+    - Leech: lifesteal.
+    - Soak: +1 damage taken.
+    - Blind: −1 to ability values.
+  - **Changed:**
+    - **Poison:** heal block only; the end-round tick is gone.
+    - **Wither:** −`WITHER_MAX_HP` (2) max HP for the battle via `Combatant.witheredMaxHp`, which is checkpointed and carried through evolution.
+    - **Rust:** `rustBlocksShield` stops Shield gains (cards, swap riders, foe intents, Advantage); the Metal +1 is gone.
+    - **Shock:** `afterUnitActs` deals `SHOCK_BACKLASH` (2) when the unit next acts; the party AP drain and foe −2 are gone.
+    - **Disorient:** `disorientRetarget` / foe notch re-roll sends the next single-target action to a random valid target; the +1 AP cost and foe miss chance are gone.
+    - **Curse:** `advantageFires` stops a cursed unit's Advantage riders; the evolve/Signature block and foe heal-block are gone.
+    - **Insight:** the unit's next action inflicts no statuses; the 2nd-hit draw/heal payoff is gone.
+  - **Client.** One `STATUS_META` tip per status (the foe-only text is gone), plus new event playback: `shock`, `disoriented`, `rusted`, `cursed`, `insightBlock`. The Disorient cost strike-through and its CSS are removed. Signature flavour text for Shadow, Metal and Poison is updated. `adventure.css` v102, `adventure.js` v115.
+- Verification:
+  - `SiegeElementalStatusEffectsTest` rewritten around both sides:
+    - Rust blocks Shield for a Siegeling and a foe, and adds no damage;
+    - Shock backlashes both sides and drains no AP;
+    - Disorient scatters both sides' single-target actions across 30 seeds, and cost is unchanged;
+    - Curse fizzles both sides' Advantage and no longer blocks heals;
+    - Insight blocks both sides' status rolls, then lifts;
+    - Wither shrinks both sides' max HP.
+  - Full `./mvnw test`: 750 tests, 0 failures. `node --check`.
+  - Headless Chromium against `spring-boot:run` at 390x844, with the same 7 statuses on a foe and a Siegeling: the two detail modals show identical status text, and the layout fits.
 - October 3, 2026 **Siege statuses: every status now does something to whichever side it lands on.**
   - **Audit.** Every `StatusKind` was checked against both sides in `SiegeCombatEngine`. Three were inert on a foe:
     - **Disorient:** taxes AP, and foes have none.

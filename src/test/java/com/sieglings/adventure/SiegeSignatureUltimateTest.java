@@ -100,10 +100,6 @@ class SiegeSignatureUltimateTest {
                 "an empty gauge keeps the Signature locked");
 
         ally.setApSpent(SiegeBattle.EVOLVE_GAUGE);
-        ally.applyStatus(StatusKind.CURSE, 2);
-        assertFalse(engine.playCard(run, sig.getInstanceId(), target, new Random(3)).ok,
-                "Curse blocks a final form's Signature as it blocks evolving");
-        ally.clearStatus(StatusKind.CURSE);
         assertTrue(engine.playCard(run, sig.getInstanceId(), target, new Random(3)).ok);
         assertTrue(ally.isSignatureUsed());
         assertTrue(specialCards(battle, ally.getId()).isEmpty(), "the Signature is consumed, not discarded");

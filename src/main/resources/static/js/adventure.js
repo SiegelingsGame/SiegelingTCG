@@ -53,26 +53,24 @@
     SHADOW: '#9a63d6', ELECTRIC: '#ffe63c', METAL: '#a0aab4', UNDEAD: '#8c78a0',
     PSYCHIC: '#c896ff', POISON: '#78dc50', LIGHT: '#fff0b0', NEUTRAL: '#95a5a6'
   };
-  /** Enemies have no AP and never evolve, so a few statuses do something
-   *  different to a foe — mirrored from SiegeCombatEngine (foeTip). */
-  function statusTip(meta, side) {
-    return side === 'ENEMY' && meta.foeTip ? meta.foeTip : meta.tip;
-  }
+  // One effect per status, identical on your Siegelings and on foes, and each
+  // owns a territory no other status touches — mirrored from SiegeCombatEngine.
   var STATUS_META = {
-    BURN: { icon: '🔥', label: 'Burn', tip: '1 damage at end of round' },
+    BURN: { icon: '🔥', label: 'Burn', tip: '1 damage at end of each round' },
     SLOW: { icon: '❄️', label: 'Slow', timed: true, tip: '−2 Speed; reapply freezes' },
-    STUN: { icon: '💫', label: 'Stun', tip: 'Skips next action' },
+    STUN: { icon: '💫', label: 'Stun', tip: 'Skips its next action' },
     LEECH: { icon: '💚', label: 'Leech', tip: 'Heals the attacker for HP damage dealt' },
-    SHOCK: { icon: '⚡', label: 'Shock', tip: 'Party loses 1 AP next turn', foeTip: 'Next action −2 (hit, heal or shield)' },
-    DISORIENT: { icon: '🌬️', label: 'Disorient', tip: 'Cards cost +1 AP', foeTip: '50% chance its next action misses' },
-    POISON: { icon: '☠️', label: 'Poison', tip: 'End-round DoT; blocks heals' },
-    SOAK: { icon: '💧', label: 'Soak', timed: true, tip: 'Takes +1 from attacks' },
-    RUST: { icon: '⚙️', label: 'Rust', timed: true, tip: 'Next Metal hit +1, then clears' },
-    CURSE: { icon: '🌑', label: 'Curse', timed: true, tip: 'Cannot evolve or use its Signature', foeTip: 'Cannot heal or gain Shield' },
-    INSIGHT: { icon: '👁️', label: 'Insight', tip: 'Second hit draws / pays off' },
-    BLIND: { icon: '✨', label: 'Blind', tip: 'Ability values −1' },
-    WITHER: { icon: '💀', label: 'Wither', timed: true, tip: '−1 HP at turn start' }
+    SHOCK: { icon: '⚡', label: 'Shock', tip: 'Takes 2 damage when it next acts' },
+    DISORIENT: { icon: '🌬️', label: 'Disorient', tip: 'Next single-target action hits a random target' },
+    POISON: { icon: '☠️', label: 'Poison', tip: 'Next heal is absorbed (cures it)' },
+    SOAK: { icon: '💧', label: 'Soak', timed: true, tip: 'Takes +1 from every hit' },
+    RUST: { icon: '⚙️', label: 'Rust', timed: true, tip: 'Cannot gain Shield' },
+    CURSE: { icon: '🌑', label: 'Curse', timed: true, tip: 'Its Advantage riders do not fire' },
+    INSIGHT: { icon: '👁️', label: 'Insight', tip: 'Its next action applies no statuses' },
+    BLIND: { icon: '✨', label: 'Blind', tip: 'Its ability values −1' },
+    WITHER: { icon: '💀', label: 'Wither', timed: true, tip: '−2 max HP at its turn start' }
   };
+
   // Reference copy for a card's potential Advantage rider. The server remains
   // authoritative when a card is actually played; this table lets every
   // Siegeling detail sheet explain the rider before that unit holds the token.
@@ -1843,22 +1841,12 @@
     var art = u.artUrl
       ? '<div class="um-art" style="background-image:url(\'' + artCss(u.artUrl) + '\')"></div>'
       : '<div class="um-art um-art-fallback">' + icon(u.element) + '</div>';
-    var tax = Number(u.costTax) || 0;
-    var cards = (u.cards || []).map(function (printed) {
-      // A taxed card reads "<s>0</s> 1": the printed price struck, the real one beside it.
-      var spec = printed;
-      var costHtml = String(printed.actionCost);
-      if (tax > 0) {
-        var real = Number(printed.actionCost || 0) + tax;
-        costHtml = '<s class="um-cost-was">' + printed.actionCost + '</s>' + real;
-        spec = Object.assign({}, printed, { actionCost: '<s>' + printed.actionCost + '</s> <b class="um-cost-tax">' + real + '</b>' });
-      }
+    var cards = (u.cards || []).map(function (spec) {
       var status = spec.status && spec.statusChance
         ? '<span class="um-status">' + (STATUS_META[spec.status] || {}).icon + ' ' + spec.statusChance + '% ' + (STATUS_META[spec.status] || {}).label + '</span>'
         : '';
       return '<div class="um-card ' + elClass(spec.element) + '">' +
-        '<span class="um-cost' + (tax > 0 ? ' is-taxed' : '') + '"' +
-        (tax > 0 ? ' title="Disorient: +' + tax + ' AP"' : '') + '>' + costHtml + '</span>' +
+        '<span class="um-cost">' + spec.actionCost + '</span>' +
         '<div class="um-card-main"><div class="um-card-name">' + icon(spec.element) + ' ' + esc(spec.name) + '</div>' +
         '<div class="um-card-eff">' + specSummary(spec) + ' ' + status + '</div>' +
         (advantageRiderText(spec) ? '<div class="um-card-advantage"><b>◆ Advantage</b> ' + esc(advantageRiderText(spec)) + '</div>' : '') +
@@ -3818,12 +3806,6 @@
     return (u.statuses || []).indexOf('STUN') >= 0;
   }
 
-  /** AP a Siegeling's cards cost on top of their printed price — mirrors
-   *  SiegeCombatEngine#effectiveCost (Disorient +1). Foes spend no AP, so on
-   *  them Disorient is a miss chance instead (see STATUS_META.foeTip). */
-  function cardCostTax(u) {
-    return u && u.side !== 'ENEMY' && (u.statuses || []).indexOf('DISORIENT') >= 0 ? 1 : 0;
-  }
 
   /**
    * The notches an enemy attack is actually aimed at. Recomputed from the foes
@@ -3883,8 +3865,7 @@
       var statusChips = (u.statuses || []).map(function (s) {
         var meta = STATUS_META[s];
         if (!meta) return '';
-        var tipText = statusTip(meta, u.side);
-        var tip = tipText ? (meta.label + ' — ' + tipText) : meta.label;
+        var tip = meta.tip ? (meta.label + ' — ' + meta.tip) : meta.label;
         return '<span class="sp-status st-' + s + '" title="' + tip + '">' + meta.icon + '</span>';
       }).join('');
       var body = u.artUrl
@@ -4121,7 +4102,7 @@
     round: 620, card: 380, enemyAct: 440, ultimate: 560, whiff: 440, loot: 520,
     swapStart: 420, swap: 460, evolve: 760, cardUpdate: 560,
     reshuffle: 560, discardHand: 380, apCharge: 500, actionPoints: 380,
-    buff: 380, gaugeReady: 380, signature: 620, cardTransform: 420, cursed: 380
+    buff: 380, gaugeReady: 380, signature: 620, cardTransform: 420, cursed: 380, rusted: 380, disoriented: 380, insightBlock: 340, shock: 380
   };
 
   function playEvent(ev, stage) {
@@ -4196,7 +4177,7 @@
       case 'wither':
         elementBorder(ev.targetId, 'UNDEAD');
         flashSprite(ev.targetId, 'hurt');
-        floatText(ev.targetId, (ev.amount ? ('-' + ev.amount + ' ') : '') + '💀', 'dmg');
+        floatText(ev.targetId, (ev.amount ? ('-' + ev.amount + ' max ') : '') + '💀', 'dmg');
         commitVitalsAfter(ev, 200);
         return 400;
       case 'heal':
@@ -4313,17 +4294,28 @@
         showBanner('📦 ' + ev.name, 'you');
         return 700;
       case 'whiff':
-        if (ev.reason === 'DISORIENT') {
-          floatText(ev.sourceId, '🌬️ Missed!', 'status');
-          showBanner(nameOf(ev.sourceId) + ' is disoriented — ' + ev.name + ' goes astray!', 'them');
-          return 620;
-        }
         showBanner(nameOf(ev.sourceId) + '\'s ' + ev.name + ' hits empty ground!', 'them');
         return 620;
       case 'cursed':
         flashSprite(ev.targetId, 'statused');
-        floatText(ev.targetId, '🌑 Cursed — no recovery', 'status');
+        floatText(ev.targetId, '🌑 Advantage cursed', 'status');
         return 480;
+      case 'rusted':
+        flashSprite(ev.targetId, 'statused');
+        floatText(ev.targetId, '⚙️ Rusted — no Shield', 'status');
+        return 420;
+      case 'disoriented':
+        floatText(ev.sourceId, '🌬️ Veers off!', 'status');
+        return 420;
+      case 'insightBlock':
+        floatText(ev.sourceId, '👁️ Read — no status', 'status');
+        return 380;
+      case 'shock':
+        elementBorder(ev.targetId, 'ELECTRIC');
+        flashSprite(ev.targetId, 'hurt');
+        floatText(ev.targetId, '-' + ev.amount + ' ⚡', 'dmg');
+        commitVitalsAfter(ev, 200);
+        return 420;
       case 'stunned':
         flashSprite(ev.sourceId, 'statused');
         floatText(ev.sourceId, '💫 Stunned!', 'status');
@@ -5481,7 +5473,7 @@
       // ones sit behind a 2-round safety net, so showing either reads as a
       // promise the engine never made ("Burn · 99 rounds").
       var clock = meta.timed && rounds > 0 ? ' · ' + rounds + ' round' + (rounds === 1 ? '' : 's') : '';
-      effects.push({ icon: meta.icon, label: meta.label, detail: statusTip(meta, u.side) + clock, negative: true });
+      effects.push({ icon: meta.icon, label: meta.label, detail: meta.tip + clock, negative: true });
     });
     return effects;
   }
@@ -5523,7 +5515,7 @@
     showUnitModal({
       name: u.name, element: u.element, artUrl: u.artUrl,
       subtitle: 'HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + evoNote,
-      cards: member ? (member.cards || []) : [], effects: battleUnitEffects(u), costTax: cardCostTax(u)
+      cards: member ? (member.cards || []) : [], effects: battleUnitEffects(u)
     });
   }
 
