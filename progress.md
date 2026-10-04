@@ -1,4 +1,71 @@
 Original prompt: Merge and deploy
+- October 4, 2026 **Siege statuses: one effect per status, identical on Siegelings and foes, each in its own territory.**
+  - **Why.** The previous pass gave foes their own versions of Disorient, Shock and Curse. That made the same badge mean two things, and several statuses overlapped:
+    - heal-blocking: Poison and foe Curse;
+    - HP loss: Burn, Poison and Wither;
+    - damage taken: Soak and Rust;
+    - output: Shock and Blind.
+  - **Now** (`StatusKind` docs, `SiegeCombatEngine`, the `docs/ELEMENTAL_STATUS_EFFECTS.md` Siege table). Unchanged:
+    - Burn: damage over time.
+    - Slow: speed, and reapplying it freezes.
+    - Stun: skips the next action.
+    - Leech: lifesteal.
+    - Soak: +1 damage taken.
+    - Blind: −1 to ability values.
+  - **Changed:**
+    - **Poison:** heal block only; the end-round tick is gone.
+    - **Wither:** −`WITHER_MAX_HP` (2) max HP for the battle via `Combatant.witheredMaxHp`, which is checkpointed and carried through evolution.
+    - **Rust:** `rustBlocksShield` stops Shield gains (cards, swap riders, foe intents, Advantage); the Metal +1 is gone.
+    - **Shock:** `afterUnitActs` deals `SHOCK_BACKLASH` (2) when the unit next acts; the party AP drain and foe −2 are gone.
+    - **Disorient:** `disorientRetarget` / foe notch re-roll sends the next single-target action to a random valid target; the +1 AP cost and foe miss chance are gone.
+    - **Curse:** `advantageFires` stops a cursed unit's Advantage riders; the evolve/Signature block and foe heal-block are gone.
+    - **Insight:** the unit's next action inflicts no statuses; the 2nd-hit draw/heal payoff is gone.
+  - **Client.** One `STATUS_META` tip per status (the foe-only text is gone), plus new event playback: `shock`, `disoriented`, `rusted`, `cursed`, `insightBlock`. The Disorient cost strike-through and its CSS are removed. Signature flavour text for Shadow, Metal and Poison is updated. `adventure.css` v102, `adventure.js` v115.
+- Verification:
+  - `SiegeElementalStatusEffectsTest` rewritten around both sides:
+    - Rust blocks Shield for a Siegeling and a foe, and adds no damage;
+    - Shock backlashes both sides and drains no AP;
+    - Disorient scatters both sides' single-target actions across 30 seeds, and cost is unchanged;
+    - Curse fizzles both sides' Advantage and no longer blocks heals;
+    - Insight blocks both sides' status rolls, then lifts;
+    - Wither shrinks both sides' max HP.
+  - Full `./mvnw test`: 750 tests, 0 failures. `node --check`.
+  - Headless Chromium against `spring-boot:run` at 390x844, with the same 7 statuses on a foe and a Siegeling: the two detail modals show identical status text, and the layout fits.
+- October 3, 2026 **Siege statuses: every status now does something to whichever side it lands on.**
+  - **Audit.** Every `StatusKind` was checked against both sides in `SiegeCombatEngine`. Three were inert on a foe:
+    - **Disorient:** taxes AP, and foes have none.
+    - **Curse:** blocks evolving, and foes never evolve. The new Shadow Signature even applied it to foes.
+    - **Shock:** only blunted a foe's damage, so a foe that healed or shielded ignored it.
+    - **Curse on a final-form ally** also did nothing, because the Signature card ignored it.
+    - All other statuses already act on both sides: Burn, Slow, Stun, Leech, Poison, Soak, Rust, Insight, Blind, Wither.
+  - **Now.**
+    - **Disorient on a foe:** `DISORIENT_FOE_MISS_PERCENT` (50%) chance its next action misses (a `whiff` event with reason DISORIENT), then the status clears.
+    - **Shock on a foe:** `shockPenalty` takes −2 from its next action of any kind: hit, heal or shield.
+    - **Curse on a foe:** `curseBlocksRecovery` stops all foe healing and Shield, including Advantage riders, the Insight payoff and Leech, with a `cursed` event.
+    - **Curse on an ally:** now also blocks the Signature Ultimate, on the server and in the hand's `playable`/`blockedBy` flags.
+    - **Client:** `STATUS_META.foeTip` + `statusTip()` give foes their own tooltip and modal text. The Disorient AP strike-through now applies to allies only, since foes spend no AP. `adventure.js` v114.
+    - **Docs:** the Siege table in `docs/ELEMENTAL_STATUS_EFFECTS.md` gains the Enemy column wording.
+- Verification:
+  - `SiegeElementalStatusEffectsTest` +3:
+    - over 40 seeds, a disoriented foe both misses and lands, and always spends the status;
+    - a shocked heal and shield each lose 2;
+    - a cursed foe neither heals nor shields.
+  - `SiegeSignatureUltimateTest`: Curse refuses the Signature.
+  - Full `./mvnw test`: 751 tests, 0 failures. `node --check`.
+  - Headless Chromium against `spring-boot:run` at 390x844 and 1920x1080, with a foe given Disorient, Shock and Curse. The modal reads "50% chance its next action misses", "Next action −2 (hit, heal or shield)" and "Cannot heal or gain Shield", and the foe ability cost shows a plain "0".
+- October 3, 2026 **Siege unit preview: Disorient shows the real card cost, with the printed price struck through.**
+  - **Change.** The unit detail modal (enemy abilities and an ally's cards) now applies Disorient's +1 AP. `cardCostTax(u)` mirrors `SiegeCombatEngine#effectiveCost` (Disorient adds 1 for any unit but the Knight). `showUnitModal` takes a `costTax` and renders the badge and the summary line as `<s>0</s> 1`, with a red `.um-cost.is-taxed` pill. Untaxed cards render exactly as before. `adventure.css` v101, `adventure.js` v113.
+  - **Caveat.** In Siege, enemies do not spend AP (`resolveEnemyTurn` acts once per foe regardless of cost), so on a foe the +1 is informational only. Disorient only changes play costs for the player's Siegelings.
+- Verification:
+  - `node --check`; staticassets JS tests pass.
+  - Headless Chromium against `spring-boot:run` at 390x844 and 1920x1080, with `/api/siege/**` intercepted to add DISORIENT to the first foe. Tapping it shows the Disorient tile, and Strike reads badge "0̶ 1" and "⚔ 3 dmg · 0̶ 1 AP". No page errors.
+- October 3, 2026 **Siege: a fully evolved Siegeling's spent Evolve card becomes its Signature Ultimate (type + per-Siegeling, dashboard-editable).**
+  - **Bug.** The Marshal Ultimate (and sigils) evolve through `SiegeCombatEngine#forceEvolve`, which never touched the Evolution card already in hand/deck/discard. After Squire Bob's Ultimate evolved Strikehawk, "Evolve: Strikehawk" stayed in hand with nowhere to go; a stage-1→2 free evolution also left the stage-2 card and never dealt the stage-3 one.
+  - **Fix.** New `refreshSpecialCard` keeps exactly one special card per Siegeling across hand/deck/discard: the Evolution card for its next stage, or its **Signature Ultimate** on a final form. A stale card is rewritten in place (same slot and instance id), so a card in hand visibly turns into the new one (`cardTransform` event). It runs at battle start (final forms carry their Signature from the start), after every `forceEvolve`, and after a played evolution (skipping the card being played). Signatures (`sig:<cardId>` spec ids) use existing effects, are locked behind the same 5-AP gauge, are once per battle (consumed, `Combatant.signatureUsed`, checkpointed), and do not fill the gauge. Defaults are one per element in `SiegeEffectTuningService` (Inferno Crown, Skybreaker Gale, Worldroot Bastion, Radiant Dawn…), named per individual ("Dracoil's Inferno Crown").
+  - **Dashboard.** Siege Mode → *Signature Ultimates* (`siege-signature-admin.js`, `GET /api/siege/signatures`, `POST /api/siege/signatures/bulk`, editor token). Type rows retune every Siegeling of an element; individual rows (all 76 final forms) override any field for one Siegeling. Blank = inherit (card → type → built-in). Stored as `signatures` on `appConfig/siegeEffectTuning`. Effect/target pairs are validated (strikes at foes, blessings at allies, draw/AP at self); EVOLVE/SWAP are refused. Client: magenta `.sig-card` face with an "✦ ULTIMATE" tag and gauge, and a `✦ n/5` / "ULT READY" nameplate gauge. `adventure.css` v100, `adventure.js` v112, `card-dashboard.css` v48, `dashboard-info.js` v13.
+- Verification:
+  - New `SiegeSignatureUltimateTest` (4): repeated Marshal Ultimates rewrite the in-hand Evolve card in place until it becomes the Signature, with exactly one special card per Siegeling; the Signature is refused at 0/5 gauge, plays at 5/5, and is consumed; type then individual dashboard edits layer correctly, with validation and reset; every element's built-in is legal. `SiegePileViewTest` now skips gauge-locked Signature cards when it picks a card to play. Full `./mvnw test`: 748 tests, 0 failures. `node --check` on all touched JS.
+  - Live app (`spring-boot:run`) drove a Squire Bob (Marshal) run through `/api/siege/**`. After Ultimate 1, Draco's in-hand "Evolve: Dracoil" became "Dracoil's Inferno Crown" and Falcool's became "Evolve: Peatbeak". After Ultimate 2, that became "Peatbeak's Absolute Zero". Headless Chromium at 390x844, 844x390 and 1920x1080: the Signature card and magenta gauge render, with no page scroll and no page errors. The dashboard panel renders 89 rows (13 types + 76 Siegelings) and tracks edits. An unauthenticated publish is rejected.
 - October 3, 2026 **Siege result screen: the Run Score card is collapsed by default; tap it for the breakdown.**
   - **Change.** `resultScoreCard` now renders a `<details>`: the summary shows the total with a "See breakdown ▾" toggle, and the itemized lines open on tap ("Hide breakdown ▴"). This keeps spoils, new starter unlocks, the extracted Battlegrounds team and Save-for-Endless in view without scrolling past the breakdown. Nothing else on the result screen changed.
 - Verification:

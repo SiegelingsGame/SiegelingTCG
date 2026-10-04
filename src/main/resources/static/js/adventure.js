@@ -53,21 +53,24 @@
     SHADOW: '#9a63d6', ELECTRIC: '#ffe63c', METAL: '#a0aab4', UNDEAD: '#8c78a0',
     PSYCHIC: '#c896ff', POISON: '#78dc50', LIGHT: '#fff0b0', NEUTRAL: '#95a5a6'
   };
+  // One effect per status, identical on your Siegelings and on foes, and each
+  // owns a territory no other status touches — mirrored from SiegeCombatEngine.
   var STATUS_META = {
-    BURN: { icon: '🔥', label: 'Burn', tip: '1 damage at end of round' },
+    BURN: { icon: '🔥', label: 'Burn', tip: '1 damage at end of each round' },
     SLOW: { icon: '❄️', label: 'Slow', timed: true, tip: '−2 Speed; reapply freezes' },
-    STUN: { icon: '💫', label: 'Stun', tip: 'Skips next action' },
+    STUN: { icon: '💫', label: 'Stun', tip: 'Skips its next action' },
     LEECH: { icon: '💚', label: 'Leech', tip: 'Heals the attacker for HP damage dealt' },
-    SHOCK: { icon: '⚡', label: 'Shock', tip: 'Drains AP / weakens next hit' },
-    DISORIENT: { icon: '🌬️', label: 'Disorient', tip: 'Cards cost +1 AP' },
-    POISON: { icon: '☠️', label: 'Poison', tip: 'End-round DoT; blocks heals' },
-    SOAK: { icon: '💧', label: 'Soak', timed: true, tip: 'Takes +1 from attacks' },
-    RUST: { icon: '⚙️', label: 'Rust', timed: true, tip: 'Next Metal hit +1, then clears' },
-    CURSE: { icon: '🌑', label: 'Curse', timed: true, tip: 'Cannot evolve' },
-    INSIGHT: { icon: '👁️', label: 'Insight', tip: 'Second hit draws / pays off' },
-    BLIND: { icon: '✨', label: 'Blind', tip: 'Ability values −1' },
-    WITHER: { icon: '💀', label: 'Wither', timed: true, tip: '−1 HP at turn start' }
+    SHOCK: { icon: '⚡', label: 'Shock', tip: 'Takes 2 damage when it next acts' },
+    DISORIENT: { icon: '🌬️', label: 'Disorient', tip: 'Next single-target action hits a random target' },
+    POISON: { icon: '☠️', label: 'Poison', tip: 'Next heal is absorbed (cures it)' },
+    SOAK: { icon: '💧', label: 'Soak', timed: true, tip: 'Takes +1 from every hit' },
+    RUST: { icon: '⚙️', label: 'Rust', timed: true, tip: 'Cannot gain Shield' },
+    CURSE: { icon: '🌑', label: 'Curse', timed: true, tip: 'Its Advantage riders do not fire' },
+    INSIGHT: { icon: '👁️', label: 'Insight', tip: 'Its next action applies no statuses' },
+    BLIND: { icon: '✨', label: 'Blind', tip: 'Its ability values −1' },
+    WITHER: { icon: '💀', label: 'Wither', timed: true, tip: '−2 max HP at its turn start' }
   };
+
   // Reference copy for a card's potential Advantage rider. The server remains
   // authoritative when a card is actually played; this table lets every
   // Siegeling detail sheet explain the rider before that unit holds the token.
@@ -3803,6 +3806,7 @@
     return (u.statuses || []).indexOf('STUN') >= 0;
   }
 
+
   /**
    * The notches an enemy attack is actually aimed at. Recomputed from the foes
    * on screen rather than taken from the server's list alone, so the ring
@@ -3900,7 +3904,13 @@
       }
       // Evolution gauge: fills as this Siegeling spends AP on its own moves.
       var gaugeLine = '';
-      if (side === 'ally' && u.alive && u.hasEvolution) {
+      if (side === 'ally' && u.alive && u.hasSignature) {
+        gaugeLine = u.evoReady
+          ? '<div class="sp-gauge ready sig" title="Signature Ultimate ready!">✦ ULT READY</div>'
+          : '<div class="sp-gauge sig" title="Signature gauge: spend ' + u.evoGaugeMax + ' AP of its moves">' +
+            '<div class="sp-gaugefill" style="width:' + Math.round(100 * u.evoGauge / Math.max(1, u.evoGaugeMax)) + '%"></div>' +
+            '<span class="sp-gaugetext">✦ ' + u.evoGauge + '/' + u.evoGaugeMax + '</span></div>';
+      } else if (side === 'ally' && u.alive && u.hasEvolution) {
         gaugeLine = u.evoReady
           ? '<div class="sp-gauge ready" title="Evolution ready!">🌟 EVO READY</div>'
           : '<div class="sp-gauge" title="Evolution gauge: spend ' + u.evoGaugeMax + ' AP of its moves">' +
@@ -4092,7 +4102,7 @@
     round: 620, card: 380, enemyAct: 440, ultimate: 560, whiff: 440, loot: 520,
     swapStart: 420, swap: 460, evolve: 760, cardUpdate: 560,
     reshuffle: 560, discardHand: 380, apCharge: 500, actionPoints: 380,
-    buff: 380, gaugeReady: 380
+    buff: 380, gaugeReady: 380, signature: 620, cardTransform: 420, cursed: 380, rusted: 380, disoriented: 380, insightBlock: 340, shock: 380
   };
 
   function playEvent(ev, stage) {
@@ -4167,7 +4177,7 @@
       case 'wither':
         elementBorder(ev.targetId, 'UNDEAD');
         flashSprite(ev.targetId, 'hurt');
-        floatText(ev.targetId, (ev.amount ? ('-' + ev.amount + ' ') : '') + '💀', 'dmg');
+        floatText(ev.targetId, (ev.amount ? ('-' + ev.amount + ' max ') : '') + '💀', 'dmg');
         commitVitalsAfter(ev, 200);
         return 400;
       case 'heal':
@@ -4247,6 +4257,14 @@
       case 'cardUpdate':
         refreshHandCards(ev.targetId, ev.previewMoves);
         return 950;
+      case 'signature':
+        showBanner('✦ ' + nameOf(ev.sourceId) + ' unleashes ' + ev.name + '!', 'you', ev.element);
+        flashSprite(ev.sourceId, 'evolving');
+        return 760;
+      // A free evolution rewrites the spent Evolve card already in hand.
+      case 'cardTransform':
+        floatText(ev.targetId, '✦ ' + ev.to, 'status');
+        return 520;
       case 'gaugeReady':
         flashSprite(ev.targetId, 'evolving');
         floatText(ev.targetId, '🌟 Gauge full!', 'status');
@@ -4278,6 +4296,26 @@
       case 'whiff':
         showBanner(nameOf(ev.sourceId) + '\'s ' + ev.name + ' hits empty ground!', 'them');
         return 620;
+      case 'cursed':
+        flashSprite(ev.targetId, 'statused');
+        floatText(ev.targetId, '🌑 Advantage cursed', 'status');
+        return 480;
+      case 'rusted':
+        flashSprite(ev.targetId, 'statused');
+        floatText(ev.targetId, '⚙️ Rusted — no Shield', 'status');
+        return 420;
+      case 'disoriented':
+        floatText(ev.sourceId, '🌬️ Veers off!', 'status');
+        return 420;
+      case 'insightBlock':
+        floatText(ev.sourceId, '👁️ Read — no status', 'status');
+        return 380;
+      case 'shock':
+        elementBorder(ev.targetId, 'ELECTRIC');
+        flashSprite(ev.targetId, 'hurt');
+        floatText(ev.targetId, '-' + ev.amount + ' ⚡', 'dmg');
+        commitVitalsAfter(ev, 200);
+        return 420;
       case 'stunned':
         flashSprite(ev.sourceId, 'statused');
         floatText(ev.sourceId, '💫 Stunned!', 'status');
@@ -4699,6 +4737,7 @@
   function playCardClass(card) {
     return 'playcard ' + elClass(card.element) +
       (card.effect === 'EVOLVE' ? ' evo-card' : '') +
+      (card.signature ? ' sig-card' : '') +
       (card.advantaged ? ' advantaged' : '') +
       (card.playable ? '' : ' unplayable') +
       (card.instanceId === state.selectedCardId ? ' selected' : '');
@@ -4710,15 +4749,16 @@
       var meta = STATUS_META[card.status] || { icon: '', label: card.status };
       statusLine = '<div class="pc-status">' + meta.icon + ' ' + card.statusChance + '% ' + meta.label + '</div>';
     }
-    // A locked evolution card shows its gauge instead of the description.
+    // A locked evolution or Signature card shows its gauge instead of the description.
     var gaugeLine = '';
-    if (card.effect === 'EVOLVE' && card.gauge != null && card.gauge < card.gaugeMax) {
+    if ((card.effect === 'EVOLVE' || card.signature) && card.gauge != null && card.gauge < card.gaugeMax) {
       gaugeLine = '<div class="pc-gauge"><div class="pc-gaugefill" style="width:' +
         Math.round(100 * card.gauge / Math.max(1, card.gaugeMax)) + '%"></div>' +
-        '<span>🌟 ' + card.gauge + '/' + card.gaugeMax + ' AP</span></div>';
+        '<span>' + (card.signature ? '✦ ' : '🌟 ') + card.gauge + '/' + card.gaugeMax + ' AP</span></div>';
     }
+    var sigTag = card.signature ? '<div class="pc-sig">✦ ULTIMATE</div>' : '';
     return '<div class="pc-cost' + (card.actionCost === 0 ? ' free' : '') + '">' + card.actionCost + '</div>' +
-      '<div class="pc-name">' + esc(card.name) + '</div>' +
+      sigTag + '<div class="pc-name">' + esc(card.name) + '</div>' +
       '<div class="pc-owner">' + icon(card.element) + ' ' + esc(card.ownerName) + '</div>' +
       '<div class="pc-eff ' + effectClass(card.effect) + '">' + effectLabel(card) + '</div>' +
       statusLine + gaugeLine +
@@ -5468,6 +5508,9 @@
       var target = member && member.evolvesTo ? ' → ' + member.evolvesTo : '';
       evoNote = u.evoReady ? ' · 🌟 Evolution ready' + target
         : ' · 🌟 Gauge ' + u.evoGauge + '/' + u.evoGaugeMax + target;
+    } else if (u.hasSignature) {
+      evoNote = u.evoReady ? ' · ✦ Signature Ultimate ready'
+        : ' · ✦ Ultimate gauge ' + u.evoGauge + '/' + u.evoGaugeMax;
     }
     showUnitModal({
       name: u.name, element: u.element, artUrl: u.artUrl,

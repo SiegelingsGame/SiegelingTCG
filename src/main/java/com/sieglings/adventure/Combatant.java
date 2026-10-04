@@ -89,6 +89,8 @@ class Combatant {
     private Combatant evolvedFrom;
     /** Battle-scoped evolution gauge: AP spent on this unit's own moves. */
     private int apSpent;
+    /** Set once this battle's Signature Ultimate has been played; cleared with the gauge. */
+    private boolean signatureUsed;
 
     /** Equipped item id (one carried item per Siegeling), or null. */
     private String itemId;
@@ -181,6 +183,8 @@ class Combatant {
     int getApSpent() { return apSpent; }
     void setApSpent(int apSpent) { this.apSpent = Math.max(0, apSpent); }
     void addApSpent(int amount) { setApSpent(apSpent + amount); }
+    boolean isSignatureUsed() { return signatureUsed; }
+    void setSignatureUsed(boolean signatureUsed) { this.signatureUsed = signatureUsed; }
 
     // ---- Leveling ---------------------------------------------------------
 
@@ -266,6 +270,25 @@ class Combatant {
 
     int getBattleMaxHpBonus() { return battleMaxHpBonus; }
 
+    /** Max HP lost to Wither this battle (the Undead status shrinks the ceiling). */
+    private int witheredMaxHp;
+
+    int getWitheredMaxHp() { return witheredMaxHp; }
+
+    /** Wither: shrinks max HP for the rest of the battle; current HP clamps down with it. */
+    void addWitheredMaxHp(int amount) {
+        if (amount <= 0) return;
+        witheredMaxHp += amount;
+        applyLevel();
+    }
+
+    void setWitheredMaxHp(int amount) {
+        int next = Math.max(0, amount);
+        if (next == witheredMaxHp) return;
+        witheredMaxHp = next;
+        applyLevel();
+    }
+
     /**
      * Battle-table {@code health_boost}: raises max HP and heals the same amount.
      * {@link #applyLevel()} does the healing, since the boost widens the derived max.
@@ -294,7 +317,7 @@ class Combatant {
         int oldMax = maxHp;
         maxHp = Math.max(1, (knight
                 ? SiegeTuning.scaledKnightMaxHp(baseMaxHp, level)
-                : SiegeTuning.scaledMaxHp(baseMaxHp, level)) + battleMaxHpBonus);
+                : SiegeTuning.scaledMaxHp(baseMaxHp, level)) + battleMaxHpBonus - witheredMaxHp);
         int delta = maxHp - oldMax;
         if (delta > 0) hp = Math.min(maxHp, hp + delta);
         else if (hp > maxHp) hp = maxHp;

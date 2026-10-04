@@ -37,19 +37,20 @@ enum Effect {
  * timing/numbers stay Siege-specific.
  */
 enum StatusKind {
-    BURN,       // Fire:     1 damage at the end of each round
-    SLOW,       // Ice:      -2 Speed for 2 rounds; reapply freezes (Stun)
-    STUN,       // Freeze:   skip the next action
-    LEECH,      // Earth:    heals the attacker for HP damage dealt when it triggers
-    SHOCK,      // Electric: −1 party AP (player) / next hit −2 (enemy)
-    DISORIENT,  // Wind:     owner's cards cost +1 AP
-    POISON,     // Poison:   end-round DoT; heals clear the toxin instead
-    SOAK,       // Water:    +1 damage taken from attacks
-    RUST,       // Metal:    next Metal hit +1, then clear
-    CURSE,      // Shadow:   cannot evolve
-    INSIGHT,    // Psychic:  second hit draws (player) / heals 2 (enemy)
-    BLIND,      // Light:    outgoing ability values −1
-    WITHER      // Undead:   −1 HP at turn open, then clear
+    // Each does the same thing to a Siegeling and to a foe, and owns one territory.
+    BURN,       // Fire:     damage over time — 1 at the end of each round
+    SLOW,       // Ice:      speed — −2 Speed for 2 rounds; reapply freezes (Stun)
+    STUN,       // Freeze:   actions — skip the next one
+    LEECH,      // Earth:    lifesteal — the attacker heals for the HP damage dealt
+    SHOCK,      // Electric: acting — takes 2 damage when it next acts, then clears
+    DISORIENT,  // Wind:     targeting — next single-target action hits a random target
+    POISON,     // Poison:   healing — the next heal is absorbed and cures it
+    SOAK,       // Water:    damage taken — +1 from every hit
+    RUST,       // Metal:    Shield — cannot gain Shield
+    CURSE,      // Shadow:   Advantage — its Advantage riders do not fire
+    INSIGHT,    // Psychic:  inflicting — its next action applies no statuses
+    BLIND,      // Light:    ability values — outgoing values −1
+    WITHER      // Undead:   max HP — −2 max HP at its turn open, then clears
 }
 
 /** Who a card / enemy ability can be aimed at. */

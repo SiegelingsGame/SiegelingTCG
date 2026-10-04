@@ -245,20 +245,25 @@ Siege uses `StatusKind` with its own timing (chance on damage cards, round
 durations). `statusFor(Element)` reads this catalog. **All rows below are wired
 in `SiegeCombatEngine`.**
 
-| Element | Siege `StatusKind` | Siege contract |
-|---|---|---|
-| FIRE | `BURN` | End-of-round 1 dmg while active |
-| ICE | `SLOW` | −2 Speed for 2 rounds; **reapply while Slow → also Stun** (freeze) |
-| EARTH | `LEECH` | First hit marks; second hit heals the attacker for HP damage dealt, then clear |
-| WIND | `DISORIENT` | Owner's cards cost +1 AP while active |
-| ELECTRIC | `SHOCK` | Player: −1 party AP then clear; Enemy: next hit −2 dmg then clear |
-| WATER | `SOAK` | Incoming attacks deal +1 while soaked |
-| METAL | `RUST` | Next **Metal** hit +1, then clear Rust |
-| POISON | `POISON` | End-of-round 1 DoT; heals / max-HP surges clear Poison instead of restoring HP |
-| SHADOW | `CURSE` | Cannot evolve while Cursed |
-| PSYCHIC | `INSIGHT` | First hit marks; second hit → inflicter draws 1 (player) or heals 2 (enemy), then clear |
-| LIGHT | `BLIND` | Outgoing ability values −1 while blinded |
-| UNDEAD | `WITHER` | On owner's turn open: −1 current HP (min 1 left), then clear |
+Every Siege status does **the same thing to a Siegeling and to a foe**, and each
+owns one **territory** no other status touches — so a badge always means one
+thing, and two statuses never stack the same lever.
+
+| Element | Siege `StatusKind` | Territory | Siege contract (both sides) |
+|---|---|---|---|
+| FIRE | `BURN` | Damage over time | 1 damage at the end of each round while active |
+| ICE | `SLOW` | Speed | −2 Speed for 2 rounds; **reapply while Slow → also Stun** (freeze) |
+| — | `STUN` | Actions | Skips its next action |
+| EARTH | `LEECH` | Lifesteal | The attacker heals for the HP damage the hit dealt |
+| ELECTRIC | `SHOCK` | Acting | Takes 2 damage when it next acts (plays a card / performs its intent), then clears |
+| WIND | `DISORIENT` | Targeting | Its next single-target action lands on a random valid target, then clears |
+| POISON | `POISON` | Healing | Its next heal (or max-HP surge) is absorbed and cures the Poison instead |
+| WATER | `SOAK` | Damage taken | +1 damage from every hit |
+| METAL | `RUST` | Shield | Cannot gain Shield while Rusted |
+| SHADOW | `CURSE` | Advantage | Its Advantage riders do not fire while Cursed |
+| PSYCHIC | `INSIGHT` | Inflicting | Its next action applies no statuses, then clears |
+| LIGHT | `BLIND` | Ability values | Its outgoing ability values −1 while Blinded |
+| UNDEAD | `WITHER` | Max HP | At its turn open: −2 max HP for the rest of the battle (min 1), then clears |
 
 Battle badge stacks and Siege round durations stay different cadences of the
 same fantasy.

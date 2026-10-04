@@ -43,10 +43,15 @@ enemy notch targets). Design intent and system maps are in
   `usesValue`) ignore a pinned value.
 - Admin JS pages exist for content: `js/siege-class-admin.js`,
   `siege-event-admin.js`, `siege-item-admin.js`, `siege-effect-admin.js`
-  (shared effect knobs), `siege-move-admin.js` (per-move cost/damage). Each
+  (shared effect knobs), `siege-move-admin.js` (per-move cost/damage),
+  `siege-signature-admin.js` (Signature Ultimates, per element + per Siegeling). Each
   renders into a `<div id="siege*Panel">` inside a `<details>` section on the
   dashboard's Siege Mode page and publishes through `/api/siege/**` with the
   `X-Card-Editor-Token` header.
+- Special cards: every Siegeling carries exactly one — its next-stage Evolution
+  card, or on a final form its Signature Ultimate (`sig:<cardId>`, gauge-gated,
+  once per battle). Any code path that evolves a unit must call
+  `SiegeCombatEngine#refreshSpecialCard`, or a stale Evolve card is left behind.
 
 This mode intentionally does **not** reuse the TCG board engine — do not try
 to route Siege combat through `BattleService`/`EffectService`.

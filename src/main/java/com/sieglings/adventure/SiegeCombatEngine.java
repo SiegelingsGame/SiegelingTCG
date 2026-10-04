@@ -72,6 +72,18 @@ public class SiegeCombatEngine {
      * instead: this fraction of their max HP.
      */
     static final double EXECUTE_BOSS_FRACTION = 0.25;
+    /*
+     * Every status does the same thing to a Siegeling and to a foe, and each owns
+     * one territory no other status touches (docs/ELEMENTAL_STATUS_EFFECTS.md):
+     * Burn = damage over time, Poison = healing, Wither = max HP, Slow = speed,
+     * Stun = skipping actions, Leech = lifesteal, Soak = damage taken,
+     * Blind = ability values, Rust = Shield, Shock = acting, Disorient = targeting,
+     * Curse = Advantage, Insight = inflicting statuses.
+     */
+    /** Shock: damage the unit takes the next time it acts. */
+    static final int SHOCK_BACKLASH = 2;
+    /** Wither: max HP lost for the rest of the battle each time it ticks. */
+    static final int WITHER_MAX_HP = 2;
 
     // ---- Battle setup ---------------------------------------------------
 
@@ -93,11 +105,13 @@ public class SiegeCombatEngine {
             ally.setShield(0);
             ally.setShieldExpiryRound(BATTLE_START_SHIELD_EXPIRY);
             ally.setBattleMaxHpBonus(0);
+            ally.setWitheredMaxHp(0);
             ally.setSpeed(ally.leveledBaseSpeed());
             ally.addAttackBuff(-ally.getBaseAttackBuff());
             ally.clearTimedBuffs();
             ally.clearStatuses();
             ally.setApSpent(0);
+            ally.setSignatureUsed(false);
             ally.setLeveledRecently(false);
             ally.setPosition(pos++);
             if (knight != null && passive != null) {
@@ -125,6 +139,7 @@ public class SiegeCombatEngine {
             knight.setShield(0);
             knight.setShieldExpiryRound(BATTLE_START_SHIELD_EXPIRY);
             knight.setBattleMaxHpBonus(0);
+            knight.setWitheredMaxHp(0);
             knight.clearStatuses();
             knight.setPosition(-1);
             knight.setLeveledRecently(false);
@@ -136,6 +151,7 @@ public class SiegeCombatEngine {
             merc.setShield(0);
             merc.setShieldExpiryRound(BATTLE_START_SHIELD_EXPIRY);
             merc.setBattleMaxHpBonus(0);
+            merc.setWitheredMaxHp(0);
             merc.clearStatuses();
             merc.setApSpent(0);
             merc.setPosition(pos++);
@@ -159,12 +175,11 @@ public class SiegeCombatEngine {
         // Evolution sigils transform the holder before EVOLVE cards are injected.
         applySigilEvolutions(run, battle, rng);
         // Each member with a next stage gets its Evolution card in the deck —
-        // evolution happens in battle by drawing and playing it (2 AP).
+        // evolution happens in battle by drawing and playing it (2 AP). A member
+        // already at the end of its line carries its Signature Ultimate instead.
         for (Combatant ally : battle.living(Side.PLAYER)) {
             if (ally.isKnight()) continue;
-            content.evolutionOf(ally.getSourceCardId()).ifPresent(evo ->
-                    battle.getDeck().add(new SiegeCard("evo-" + ally.getId(), ally.getId(),
-                            content.evolveCardSpec(ally.getName(), evo, content.stageOf(evo)))));
+            refreshSpecialCard(battle, ally, null);
         }
         Collections.shuffle(battle.getDeck(), rng);
 
@@ -272,6 +287,7 @@ public class SiegeCombatEngine {
         evolved.setShield(member.getShield());
         evolved.setShieldExpiryRound(member.getShieldExpiryRound());
         evolved.addBattleMaxHp(member.getBattleMaxHpBonus());
+        evolved.addWitheredMaxHp(member.getWitheredMaxHp());
         evolved.addAttackBuff(member.getBaseAttackBuff());
         // Timed buffs carry over on their own clocks: evolving mid-buff must not
         // refresh them, and must not silently drop the buff the player just paid for.
@@ -289,8 +305,62 @@ public class SiegeCombatEngine {
         battle.log("🌟 " + member.getName() + " evolves into " + evolved.getName() + "!");
 
         content.addNewStageCards(evo, evolved.getId(), battle.getDeck());
+        // A free evolution (Marshal Ultimate, sigil) skips the Evolution card, so
+        // whatever copy of it sits in hand/deck/discard is now stale: it becomes
+        // the next stage's card, or the Signature Ultimate on a final form.
+        refreshSpecialCard(battle, evolved, null);
         if (shuffleDeck) Collections.shuffle(battle.getDeck(), rng);
         return evolved;
+    }
+
+    /**
+     * Keeps exactly one "special" card per Siegeling across hand, deck and
+     * discard: the Evolution card for its next stage, or — once nothing is left
+     * to evolve into — its Signature Ultimate. A stale card is rewritten in place
+     * (same pile, same slot, same instance id) so a card already in hand visibly
+     * turns into the new one instead of vanishing.
+     *
+     * @param excludeInstanceId a card being played right now, which must not be
+     *                          rewritten (it leaves the hand once this returns)
+     */
+    void refreshSpecialCard(SiegeBattle battle, Combatant ally, String excludeInstanceId) {
+        if (ally == null || ally.isKnight() || ally.getSide() != Side.PLAYER) return;
+        String ownerId = ally.getId();
+        AbilitySpec desired = content.evolutionOf(ally.getSourceCardId())
+                .map(next -> content.evolveCardSpec(ally.getName(), next, content.stageOf(next)))
+                .orElseGet(() -> content.findAnySiegling(ally.getSourceCardId())
+                        .map(content::signatureCardSpec).orElse(null));
+
+        List<List<SiegeCard>> piles = List.of(battle.getHand(), battle.getDeck(), battle.getDiscard());
+        boolean placed = false;
+        for (List<SiegeCard> pile : piles) {
+            for (int i = 0; i < pile.size(); i++) {
+                SiegeCard card = pile.get(i);
+                if (!ownerId.equals(card.getOwnerId()) || !isSpecial(card.getSpec())
+                        || card.getInstanceId().equals(excludeInstanceId)) continue;
+                if (!placed && desired != null) {
+                    placed = true;
+                    if (card.getSpec().id().equals(desired.id())) continue;
+                    pile.set(i, new SiegeCard(card.getInstanceId(), ownerId, desired));
+                    if (pile == battle.getHand()) {
+                        battle.event("cardTransform", "targetId", ownerId, "instanceId", card.getInstanceId(),
+                                "from", card.getSpec().name(), "to", desired.name());
+                    }
+                    battle.log("✦ " + card.getSpec().name() + " becomes " + desired.name()
+                            + (SiegeContentService.isSignature(desired) ? " (Signature Ultimate)!" : "."));
+                } else {
+                    pile.remove(i--);
+                }
+            }
+        }
+        if (!placed && desired != null) {
+            String prefix = SiegeContentService.isSignature(desired) ? "sig-" : "evo-";
+            battle.getDeck().add(new SiegeCard(prefix + ownerId + "-" + desired.id(), ownerId, desired));
+        }
+    }
+
+    private static boolean isSpecial(AbilitySpec spec) {
+        return spec.effect() == Effect.EVOLVE || SiegeContentService.isSignature(spec);
     }
 
     /**
@@ -413,20 +483,11 @@ public class SiegeCombatEngine {
             tickWither(battle, ally);
         }
 
-        // Shock: each shocked Siegeling drains 1 AP from the shared pool.
         int ap = SiegeBattle.ACTIONS_PER_TURN + applyLandBoons(run, battle);
         // Boon (Vanguard Rush): +2 AP on the first round of each battle.
         if (battle.getRoundNumber() <= 1 && battle.hasBoon(SiegeBoon.FIRST_ROUND_AP)) {
             ap += SiegeBoon.FIRST_ROUND_AP_BONUS;
             battle.log("⚡ Vanguard Rush — +" + SiegeBoon.FIRST_ROUND_AP_BONUS + " AP this opening round.");
-        }
-        for (Combatant ally : battle.living(Side.PLAYER)) {
-            if (ally.has(StatusKind.SHOCK)) {
-                ap = Math.max(0, ap - 1);
-                ally.clearStatus(StatusKind.SHOCK);
-                battle.log(ally.getName() + " is shocked — the party loses 1 AP.");
-                battle.event("status-consumed", "targetId", ally.getId(), "status", "SHOCK");
-            }
         }
         battle.setActionPoints(ap);
         // The HUD fills its pips off this: a refill is the one AP change that
@@ -507,23 +568,19 @@ public class SiegeCombatEngine {
         }
 
         if (spec.effect() == Effect.EVOLVE) {
-            // Curse (Shadow): cannot evolve while the badge remains.
-            if (attacker.has(StatusKind.CURSE)) {
-                return PlayResult.fail(attacker.getName() + " is cursed and cannot evolve.");
-            }
             // The evolution gauge must be filled first: 5 AP spent on this
             // Siegeling's own moves this battle.
             if (attacker.getApSpent() < SiegeBattle.EVOLVE_GAUGE) {
                 return PlayResult.fail(attacker.getName() + " must spend " + SiegeBattle.EVOLVE_GAUGE
                         + " AP of moves before evolving (" + attacker.getApSpent() + "/" + SiegeBattle.EVOLVE_GAUGE + ").");
             }
-            PlayResult evolved = playEvolution(run, battle, attacker, spec, rng);
+            PlayResult evolved = playEvolution(run, battle, attacker, spec, card.getInstanceId(), rng);
             if (!evolved.ok) return evolved;
             battle.getHand().remove(card);
             // Evolution cards are consumed for the battle — they do not reshuffle.
             battle.setActionPoints(battle.getActionPoints() - cost);
             Combatant evolvedOwner = battle.findCombatant(card.getOwnerId());
-            if (SiegeAdvantage.holds(battle, evolvedOwner)) {
+            if (advantageFires(battle, evolvedOwner)) {
                 applyAdvantageRider(battle, evolvedOwner, spec, List.of(evolvedOwner), rng);
             }
             if (checkEnd(run)) return PlayResult.okay();
@@ -533,8 +590,23 @@ public class SiegeCombatEngine {
             return PlayResult.okay();
         }
 
+        boolean signature = SiegeContentService.isSignature(spec);
+        // A Signature Ultimate is gated by the same gauge an Evolution card is:
+        // a final form earns its ultimate by fighting, not on turn one.
+        if (signature && attacker.getApSpent() < SiegeBattle.EVOLVE_GAUGE) {
+            return PlayResult.fail(attacker.getName() + " must spend " + SiegeBattle.EVOLVE_GAUGE
+                    + " AP of moves before its Signature Ultimate (" + attacker.getApSpent() + "/"
+                    + SiegeBattle.EVOLVE_GAUGE + ").");
+        }
+
         List<Combatant> targets = resolveTargets(battle, spec, attacker, targetId);
         if (targets.isEmpty()) return PlayResult.fail("No valid target.");
+        targets = disorientRetarget(battle, attacker, spec, targets, rng);
+        if (signature) {
+            battle.event("signature", "sourceId", attacker.getId(), "name", spec.name(),
+                    "element", spec.element() == null ? null : spec.element().name());
+            battle.log("✦ " + attacker.getName() + " unleashes " + spec.name() + "!");
+        }
 
         battle.event("card", "sourceId", attacker.getId(), "name", spec.name(),
                 "element", spec.element() == null ? null : spec.element().name());
@@ -547,15 +619,18 @@ public class SiegeCombatEngine {
                 spec.name() + " → " + targetNames);
         battle.beginTally();
         applyEffect(battle, attacker, spec, targets, rng);
-        if (SiegeAdvantage.holds(battle, attacker)) {
+        if (advantageFires(battle, attacker)) {
             applyAdvantageRider(battle, attacker, spec, targets, rng);
         }
         battle.stampTally(entry);
-        battle.getDiscard().add(card);
+        afterUnitActs(battle, attacker);
+        // A Signature Ultimate is once per battle: consumed like an Evolution card.
+        if (signature) attacker.setSignatureUsed(true);
+        else battle.getDiscard().add(card);
         battle.setActionPoints(battle.getActionPoints() - cost);
 
         // Playing a Siegeling's own move fills its evolution gauge.
-        if (!card.getOwnerId().startsWith(KNIGHT_OWNER_PREFIX) && !attacker.isKnight()) {
+        if (!signature && !card.getOwnerId().startsWith(KNIGHT_OWNER_PREFIX) && !attacker.isKnight()) {
             boolean wasReady = attacker.getApSpent() >= SiegeBattle.EVOLVE_GAUGE;
             attacker.addApSpent(spec.actionCost());
             if (!wasReady && attacker.getApSpent() >= SiegeBattle.EVOLVE_GAUGE) {
@@ -584,7 +659,8 @@ public class SiegeCombatEngine {
      * into the deck, and — if a further stage exists — unlocks its Evolution
      * card (3 AP) to draw.
      */
-    private PlayResult playEvolution(SiegeRun run, SiegeBattle battle, Combatant member, AbilitySpec spec, Random rng) {
+    private PlayResult playEvolution(SiegeRun run, SiegeBattle battle, Combatant member, AbilitySpec spec,
+                                     String playedInstanceId, Random rng) {
         if (member.getSide() != Side.PLAYER || member.isKnight()) {
             return PlayResult.fail("Only a Siegeling can evolve.");
         }
@@ -599,6 +675,7 @@ public class SiegeCombatEngine {
         evolved.setShield(member.getShield());
         evolved.setShieldExpiryRound(member.getShieldExpiryRound());
         evolved.addBattleMaxHp(member.getBattleMaxHpBonus());
+        evolved.addWitheredMaxHp(member.getWitheredMaxHp());
         evolved.addAttackBuff(member.getBaseAttackBuff());
         // Timed buffs carry over on their own clocks: evolving mid-buff must not
         // refresh them, and must not silently drop the buff the player just paid for.
@@ -624,12 +701,15 @@ public class SiegeCombatEngine {
         if (added > 0) {
             battle.log(evolved.getName() + "'s new move" + (added == 1 ? " is" : "s are") + " shuffled into the deck.");
         }
-        // …and evolving unlocks the next stage's Evolution card, if one exists.
-        content.evolutionOf(evo.getId()).ifPresent(next -> {
-            battle.getDeck().add(new SiegeCard("evo-" + evolved.getId() + "-3", evolved.getId(),
-                    content.evolveCardSpec(evolved.getName(), next, 3)));
-            battle.log("The path to " + next.getName() + " opens — its Evolution card joins the deck.");
-        });
+        // …and evolving unlocks the next stage's Evolution card, or the Signature
+        // Ultimate when this was the last stage. The card being played is skipped:
+        // it is consumed, and the unlock is dealt from the deck.
+        content.evolutionOf(evo.getId()).ifPresent(next ->
+                battle.log("The path to " + next.getName() + " opens — its Evolution card joins the deck."));
+        if (content.evolutionOf(evo.getId()).isEmpty()) {
+            battle.log(evolved.getName() + " reaches its final form — its Signature Ultimate joins the deck.");
+        }
+        refreshSpecialCard(battle, evolved, playedInstanceId);
         battle.event("cardUpdate", "targetId", evolved.getId(), "previewMoves",
                 upgradeHandCards(battle, evolved, rng));
         Collections.shuffle(battle.getDeck(), rng);
@@ -658,7 +738,7 @@ public class SiegeCombatEngine {
                 .orElse(List.of());
     }
 
-    /** 0-AP cards keep the turn open even at 0 AP (after Disorient taxes). */
+    /** 0-AP cards keep the turn open even at 0 AP. */
     private boolean hasPlayableFreeCard(SiegeBattle battle) {
         for (SiegeCard c : battle.getHand()) {
             Combatant owner = attackerFor(battle, c);
@@ -799,8 +879,6 @@ public class SiegeCombatEngine {
         List<Combatant> candidates = new ArrayList<>();
         for (Combatant ally : battle.living(Side.PLAYER)) {
             if (ally.isKnight()) continue;
-            // Curse (Shadow) blocks evolution here exactly as it blocks the card.
-            if (ally.has(StatusKind.CURSE)) continue;
             if (content.evolutionOf(ally.getSourceCardId()).isPresent()) candidates.add(ally);
         }
         candidates.sort(Comparator.comparingInt(a ->
@@ -907,9 +985,6 @@ public class SiegeCombatEngine {
             if (c.has(StatusKind.BURN)) {
                 applyEndRoundDot(battle, c, StatusKind.BURN, "burns for 1.", "succumbs to the flames!");
             }
-            if (c.isAlive() && c.has(StatusKind.POISON)) {
-                applyEndRoundDot(battle, c, StatusKind.POISON, "takes 1 poison damage.", "succumbs to the toxin!");
-            }
         }
         for (Combatant c : battle.getCombatants()) {
             c.tickStatuses();
@@ -977,6 +1052,7 @@ public class SiegeCombatEngine {
             case SHIELD -> {
                 int amount = effectValue(attacker, spec.value());
                 for (Combatant t : targets) {
+                    if (rustBlocksShield(battle, t)) continue;
                     t.addShield(amount, shieldExpiryFor(battle, t));
                     battle.event("shield", "sourceId", attacker.getId(), "targetId", t.getId(), "amount", amount);
                     battle.log(attacker.getName() + " uses " + spec.name() + " → " + t.getName() + " gains " + amount
@@ -1099,6 +1175,7 @@ public class SiegeCombatEngine {
             switch (spec.rider()) {
                 case HEAL -> applyHeal(battle, a, unit, amount, spec.name());
                 case SHIELD -> {
+                    if (rustBlocksShield(battle, unit)) continue;
                     unit.addShield(amount, shieldExpiryFor(battle, unit));
                     battle.event("shield", "sourceId", a.getId(), "targetId", unit.getId(), "amount", amount);
                     battle.log(unit.getName() + " lands braced — " + amount + " shield.");
@@ -1221,24 +1298,12 @@ public class SiegeCombatEngine {
         return v;
     }
 
-    /**
-     * Soak (+1 taken) and Rust (next Metal hit +1 then clear) ride on resolved
-     * attack damage after the attacker's own modifiers.
-     */
+    /** Soak (+1 taken) rides on resolved attack damage after the attacker's own modifiers. */
     private int resolveAttackDamage(SiegeBattle battle, Combatant attacker, AbilitySpec spec,
                                     Combatant target, int baseDmg) {
         int dmg = Math.max(0, baseDmg);
         if (target.has(StatusKind.SOAK)) {
             dmg += 1;
-        }
-        Element el = spec != null && spec.element() != null
-                ? spec.element()
-                : (attacker == null ? null : attacker.getElement());
-        if (target.has(StatusKind.RUST) && el == Element.METAL) {
-            dmg += 1;
-            target.clearStatus(StatusKind.RUST);
-            battle.event("status-consumed", "targetId", target.getId(), "status", "RUST");
-            battle.log(target.getName() + "'s rust flakes — the Metal strike bites deeper.");
         }
         return dmg;
     }
@@ -1266,6 +1331,11 @@ public class SiegeCombatEngine {
     private void rollStatus(SiegeBattle battle, AbilitySpec spec, Combatant target, Combatant inflicter,
                             Random rng, int hpDamageDealt) {
         if (spec.status() == null || spec.statusChance() <= 0) return;
+        // Insight (Psychic): the unit's intent is read, so its next action inflicts no status.
+        if (inflicter != null && inflicter.has(StatusKind.INSIGHT)) {
+            battle.event("insightBlock", "sourceId", inflicter.getId(), "targetId", target.getId());
+            return;
+        }
         if (rng.nextInt(100) < spec.statusChance()) {
             applyStatus(battle, target, spec.status(), inflicter, rng, hpDamageDealt);
         }
@@ -1296,29 +1366,6 @@ public class SiegeCombatEngine {
         if (!target.isAlive()) {
             return;
         }
-        // Insight (Psychic): first hit marks; a second hit draws for the
-        // inflicter's side and clears the mark (Siege's stack-cap payoff).
-        if (status == StatusKind.INSIGHT && target.has(StatusKind.INSIGHT)) {
-            target.clearStatus(StatusKind.INSIGHT);
-            battle.event("status-consumed", "targetId", target.getId(), "status", "INSIGHT");
-            if (inflicter != null && inflicter.getSide() == Side.PLAYER && rng != null) {
-                int before = battle.getHand().size();
-                draw(battle, 1, rng);
-                int drawn = battle.getHand().size() - before;
-                if (drawn > 0) {
-                    battle.event("draw", "count", drawn, "reason", "INSIGHT");
-                    battle.log(inflicter.getName() + " reads the Insight and draws " + drawn + ".");
-                }
-            } else if (inflicter != null && inflicter.getSide() == Side.ENEMY) {
-                inflicter.heal(2);
-                battle.event("heal", "sourceId", inflicter.getId(), "targetId", inflicter.getId(), "amount", 2);
-                battle.log(inflicter.getName() + " reads the Insight and recovers 2.");
-            } else {
-                battle.log(target.getName() + "'s Insight clears.");
-            }
-            return;
-        }
-
         // Ice Slow reapplication freezes (Stun) — Siege's stand-in for Chill→Freeze.
         boolean freezeFromSlow = status == StatusKind.SLOW && target.has(StatusKind.SLOW);
 
@@ -1369,17 +1416,20 @@ public class SiegeCombatEngine {
         }
     }
 
-    /** Wither (Undead): lose 1 current HP (as if max shrank), then clear. */
+    /**
+     * Wither (Undead): at the unit's turn open its max HP shrinks by
+     * {@link #WITHER_MAX_HP} for the rest of the battle (never below 1), then the
+     * status clears. Max HP is Wither's alone — Burn owns damage over time.
+     */
     private void tickWither(SiegeBattle battle, Combatant c) {
         if (c == null || !c.isAlive() || !c.has(StatusKind.WITHER)) return;
-        int before = c.getHp();
-        if (before > 1) {
-            c.setHp(before - 1);
-        }
+        int before = c.getMaxHp();
+        c.addWitheredMaxHp(Math.min(WITHER_MAX_HP, Math.max(0, before - 1)));
         c.clearStatus(StatusKind.WITHER);
-        battle.event("wither", "targetId", c.getId(), "amount", Math.max(0, before - c.getHp()));
+        int lost = before - c.getMaxHp();
+        battle.event("wither", "targetId", c.getId(), "amount", lost, "hp", c.getHp(), "maxHp", c.getMaxHp());
         battle.event("status-consumed", "targetId", c.getId(), "status", "WITHER");
-        battle.log(c.getName() + " withers" + (before > c.getHp() ? " (−1 HP)." : "."));
+        battle.log(c.getName() + " withers" + (lost > 0 ? " (−" + lost + " max HP)." : "."));
     }
 
     private String statusVerb(StatusKind status) {
@@ -1438,7 +1488,19 @@ public class SiegeCombatEngine {
             }
             AbilitySpec choice = foe.getIntent() != null ? foe.getIntent() : pickEnemyAbility(foe, rng);
             if (choice == null) continue;
-            executeEnemyAbility(battle, foe, choice, foe.getIntentPosition(), rng);
+            int targetPos = foe.getIntentPosition();
+            if (foe.has(StatusKind.DISORIENT) && choice.target() == TargetKind.ENEMY_SINGLE
+                    && choice.effect() == Effect.DAMAGE) {
+                // Disorient: the telegraphed notch is lost — any occupied notch may take the blow.
+                List<Combatant> line = battle.living(Side.PLAYER);
+                if (!line.isEmpty()) {
+                    Combatant pick = line.get(rng.nextInt(line.size()));
+                    spendDisorient(battle, foe, pick.getPosition() != targetPos ? pick : null);
+                    targetPos = pick.getPosition();
+                }
+            }
+            executeEnemyAbility(battle, foe, choice, targetPos, rng);
+            afterUnitActs(battle, foe);
         }
 
         SiegeAdvantage.advanceAfterTeamTurn(battle, Side.ENEMY);
@@ -1479,9 +1541,11 @@ public class SiegeCombatEngine {
             case SHIELD -> {
                 advantageTargets.add(foe);
                 int amount = effectValue(foe, choice.value());
-                foe.addShield(amount, shieldExpiryFor(battle, foe));
-                battle.event("shield", "sourceId", foe.getId(), "targetId", foe.getId(), "amount", amount);
-                battle.log(foe.getName() + " uses " + choice.name() + " and braces.");
+                if (!rustBlocksShield(battle, foe)) {
+                    foe.addShield(amount, shieldExpiryFor(battle, foe));
+                    battle.event("shield", "sourceId", foe.getId(), "targetId", foe.getId(), "amount", amount);
+                    battle.log(foe.getName() + " uses " + choice.name() + " and braces.");
+                }
             }
             case DAMAGE -> {
                 int dmg = enemyDamage(battle, foe, choice);
@@ -1514,7 +1578,7 @@ public class SiegeCombatEngine {
             }
             default -> battle.log(foe.getName() + " readies itself.");
         }
-        if (SiegeAdvantage.holds(battle, foe)) {
+        if (advantageFires(battle, foe)) {
             applyAdvantageRider(battle, foe, choice, advantageTargets, rng);
         }
         battle.stampTally(entry);
@@ -1618,7 +1682,7 @@ public class SiegeCombatEngine {
     }
 
     private void advantageShield(SiegeBattle battle, Combatant source, Combatant target, int amount) {
-        if (target == null || !target.isAlive()) return;
+        if (target == null || !target.isAlive() || rustBlocksShield(battle, target)) return;
         target.setShield(target.getShield() + amount);
         battle.event("shield", "sourceId", source.getId(), "targetId", target.getId(), "amount", amount,
                 "advantage", true);
@@ -1680,9 +1744,6 @@ public class SiegeCombatEngine {
         int cost = spec.actionCost();
         if (battle.getNodeType() == NodeType.BOSS && battle.hasBoon(SiegeBoon.BOSS_AP_DISCOUNT)) {
             cost = Math.max(0, cost - SiegeBoon.BOSS_AP_DISCOUNT_AMOUNT);
-        }
-        if (owner != null && !owner.isKnight() && owner.has(StatusKind.DISORIENT)) {
-            cost += 1;
         }
         return cost;
     }
@@ -1747,14 +1808,79 @@ public class SiegeCombatEngine {
 
     /** A shocked enemy's next hit is blunted (its "lost AP"); Blind also softens it. */
     private int enemyDamage(SiegeBattle battle, Combatant foe, AbilitySpec spec) {
-        int dmg = effectValue(foe, spec.value());
-        if (foe.has(StatusKind.SHOCK)) {
-            foe.clearStatus(StatusKind.SHOCK);
-            dmg = Math.max(0, dmg - 2);
-            battle.event("status-consumed", "targetId", foe.getId(), "status", "SHOCK");
-            battle.log(foe.getName() + " is shocked — its blow is weakened.");
+        return effectValue(foe, spec.value());
+    }
+
+    /** Curse (Shadow): a cursed unit's Advantage riders do not fire, on either side. */
+    private boolean advantageFires(SiegeBattle battle, Combatant unit) {
+        if (unit == null || !SiegeAdvantage.holds(battle, unit)) return false;
+        if (unit.has(StatusKind.CURSE)) {
+            battle.event("cursed", "targetId", unit.getId());
+            battle.log(unit.getName() + " is cursed — its Advantage fizzles.");
+            return false;
         }
-        return dmg;
+        return true;
+    }
+
+    /** Rust (Metal): a rusted unit cannot gain Shield, on either side. True when blocked. */
+    private boolean rustBlocksShield(SiegeBattle battle, Combatant target) {
+        if (target == null || !target.has(StatusKind.RUST)) return false;
+        battle.event("rusted", "targetId", target.getId());
+        battle.log(target.getName() + " is rusted — the Shield will not hold.");
+        return true;
+    }
+
+    /**
+     * Disorient (Wind): a disoriented unit's next single-target action lands on
+     * a random valid target instead of the chosen one, on either side. Group,
+     * self and swap actions are unaffected and leave the status in place.
+     */
+    private List<Combatant> disorientRetarget(SiegeBattle battle, Combatant actor, AbilitySpec spec,
+                                              List<Combatant> chosen, Random rng) {
+        if (actor == null || !actor.has(StatusKind.DISORIENT) || chosen.size() != 1) return chosen;
+        if (spec.target() != TargetKind.ENEMY_SINGLE && spec.target() != TargetKind.ALLY_SINGLE) return chosen;
+        if (spec.effect() == Effect.SWAP) return chosen;
+        List<Combatant> pool = new ArrayList<>(battle.living(chosen.get(0).getSide()));
+        if (pool.isEmpty()) return chosen;
+        Combatant pick = pool.get(rng.nextInt(pool.size()));
+        spendDisorient(battle, actor, pick == chosen.get(0) ? null : pick);
+        return List.of(pick);
+    }
+
+    private void spendDisorient(SiegeBattle battle, Combatant actor, Combatant strayTarget) {
+        actor.clearStatus(StatusKind.DISORIENT);
+        battle.event("status-consumed", "targetId", actor.getId(), "status", "DISORIENT");
+        if (strayTarget != null) {
+            battle.event("disoriented", "sourceId", actor.getId(), "targetId", strayTarget.getId());
+            battle.log(actor.getName() + " is disoriented — it veers toward " + strayTarget.getName() + "!");
+        } else {
+            battle.log(actor.getName() + " is disoriented but stays on target.");
+        }
+    }
+
+    /**
+     * Runs once a unit has finished an action (a Siegeling's card, a foe's
+     * intent): Insight's fog lifts and Shock's backlash lands. Same on both sides.
+     */
+    private void afterUnitActs(SiegeBattle battle, Combatant actor) {
+        if (actor == null || actor.isKnight()) return;
+        if (actor.has(StatusKind.INSIGHT)) {
+            actor.clearStatus(StatusKind.INSIGHT);
+            battle.event("status-consumed", "targetId", actor.getId(), "status", "INSIGHT");
+        }
+        if (actor.isAlive() && actor.has(StatusKind.SHOCK)) {
+            actor.clearStatus(StatusKind.SHOCK);
+            battle.event("status-consumed", "targetId", actor.getId(), "status", "SHOCK");
+            int dealt = actor.takeDamage(SHOCK_BACKLASH);
+            battle.event("shock", "targetId", actor.getId(), "amount", dealt, "ko", !actor.isAlive());
+            battle.log(actor.getName() + " is shocked by its own action — takes " + dealt + "!");
+            if (!actor.isAlive()) {
+                battle.log(actor.getName() + " is overloaded and falls!");
+                if (actor.getSide() == Side.PLAYER && !maybeReviveOnFall(battle, actor)) {
+                    hitKnightForKo(battle, actor);
+                }
+            }
+        }
     }
 
     // ---- Enemy AI / telegraphs ------------------------------------------
@@ -1843,6 +1969,7 @@ public class SiegeCombatEngine {
             ally.setShield(0);
             ally.setShieldExpiryRound(0);
             ally.setBattleMaxHpBonus(0);
+            ally.setWitheredMaxHp(0);
             ally.setSpeed(ally.leveledBaseSpeed());
             ally.addAttackBuff(-ally.getBaseAttackBuff());
             ally.clearTimedBuffs();

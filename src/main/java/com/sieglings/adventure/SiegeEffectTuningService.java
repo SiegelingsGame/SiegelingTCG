@@ -73,8 +73,38 @@ public class SiegeEffectTuningService {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record MoveOverride(String moveId, Integer value, Integer actionCost) {}
 
+    /**
+     * A Signature Ultimate override — the card a fully evolved Siegeling carries
+     * in place of its spent Evolution card. {@code key} is either
+     * {@code element:FIRE} (the type-wide default every Fire Siegeling inherits)
+     * or a Siegeling card id (that one individual). Every field is optional: null
+     * means "inherit" — card row → element row → built-in element default — so a
+     * designer can rename one Siegeling's ultimate and keep its type's numbers.
+     * {@code status} "NONE" explicitly drops the inherited status.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record TuningFile(List<EffectOverride> effects, GlobalOverride globals, List<MoveOverride> moves) {}
+    public record SignatureOverride(String key, String name, String effect, Integer value, String target,
+                                    Integer actionCost, String status, Integer statusChance,
+                                    String description) {
+        boolean isEmpty() {
+            return name == null && effect == null && value == null && target == null && actionCost == null
+                    && status == null && statusChance == null && description == null;
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record TuningFile(List<EffectOverride> effects, GlobalOverride globals, List<MoveOverride> moves,
+                             List<SignatureOverride> signatures) {
+        /** Documents written before Signature Ultimates existed carry no `signatures`. */
+        public TuningFile(List<EffectOverride> effects, GlobalOverride globals, List<MoveOverride> moves) {
+            this(effects, globals, moves, List.of());
+        }
+
+        @Override
+        public List<SignatureOverride> signatures() {
+            return signatures == null ? List.of() : signatures;
+        }
+    }
 
     /**
      * The knobs an effect actually uses. A row only offers the fields its effect
@@ -470,7 +500,7 @@ public class SiegeEffectTuningService {
         }
 
         return save(new TuningFile(List.copyOf(merged.values()), globalsOut,
-                List.copyOf(mergedMoves.values())), updatedByEmail);
+                List.copyOf(mergedMoves.values()), current.signatures()), updatedByEmail);
     }
 
     private Integer mergeMoveField(Integer current, Map<String, Integer> fields, String field, int max) {
@@ -596,6 +626,309 @@ public class SiegeEffectTuningService {
         }
     }
 
+    // ---- Signature Ultimates ---------------------------------------------
+
+    /** Guard rails for the Signature Ultimate editor. */
+    public static final int MAX_SIGNATURE_NAME = 40;
+    public static final int MAX_SIGNATURE_DESCRIPTION = 220;
+
+    /** A fully resolved Signature Ultimate, before it becomes a card. */
+    public record SignatureSpec(String name, Effect effect, int value, TargetKind target, int actionCost,
+                                StatusKind status, int statusChance, String description) {}
+
+    /**
+     * Effects a Signature may use. EVOLVE has nowhere left to go on a final form,
+     * and SWAP has no magnitude to make it feel like an ultimate.
+     */
+    public static final List<Effect> SIGNATURE_EFFECTS = List.of(
+            Effect.DAMAGE, Effect.HEAL, Effect.SHIELD, Effect.MAX_HP_BOOST, Effect.BUFF_ATK,
+            Effect.BUFF_SPD, Effect.SLOW, Effect.STUN, Effect.DRAW, Effect.GAIN_AP, Effect.EXECUTE);
+
+    /**
+     * The built-in, type-wide ultimates. Each leans on its element's status so the
+     * type reads at a glance — and each is bigger than any ordinary move, since it
+     * is once a battle and gated behind a full gauge.
+     */
+    private static final Map<com.sieglings.model.enums.Element, SignatureSpec> SIGNATURE_DEFAULTS =
+            new EnumMap<>(com.sieglings.model.enums.Element.class);
+
+    static {
+        sig(com.sieglings.model.enums.Element.FIRE, "Inferno Crown", Effect.DAMAGE, 9, TargetKind.ALL_ENEMIES, 2,
+                StatusKind.BURN, 100, "Engulfs every foe in flame — all of them catch fire.");
+        sig(com.sieglings.model.enums.Element.WATER, "Tidal Requiem", Effect.DAMAGE, 8, TargetKind.ALL_ENEMIES, 2,
+                StatusKind.SOAK, 100, "A crashing wave soaks the whole enemy line.");
+        sig(com.sieglings.model.enums.Element.ICE, "Absolute Zero", Effect.DAMAGE, 8, TargetKind.ALL_ENEMIES, 2,
+                StatusKind.SLOW, 100, "A killing frost slows every foe.");
+        sig(com.sieglings.model.enums.Element.WIND, "Skybreaker Gale", Effect.DAMAGE, 8, TargetKind.ALL_ENEMIES, 2,
+                StatusKind.DISORIENT, 100, "A cyclone that leaves every foe reeling.");
+        sig(com.sieglings.model.enums.Element.EARTH, "Worldroot Bastion", Effect.SHIELD, 12, TargetKind.ALLY_ALL, 2,
+                null, 0, "The earth rises to wall in the whole warband.");
+        sig(com.sieglings.model.enums.Element.ELECTRIC, "Thunderlord's Verdict", Effect.DAMAGE, 16,
+                TargetKind.ENEMY_SINGLE, 2, StatusKind.SHOCK, 100, "One colossal bolt, aimed true.");
+        sig(com.sieglings.model.enums.Element.METAL, "Iron Judgement", Effect.DAMAGE, 16, TargetKind.ENEMY_SINGLE, 2,
+                StatusKind.RUST, 100, "A crushing strike that rusts the target's armor — it cannot gain Shield.");
+        sig(com.sieglings.model.enums.Element.POISON, "Plague Bloom", Effect.DAMAGE, 7, TargetKind.ALL_ENEMIES, 2,
+                StatusKind.POISON, 100, "Toxic spores choke the enemy line — their next heals are wasted.");
+        sig(com.sieglings.model.enums.Element.PSYCHIC, "Mindstorm", Effect.DAMAGE, 8, TargetKind.ALL_ENEMIES, 2,
+                StatusKind.INSIGHT, 100, "A psychic tempest that lays every mind bare.");
+        sig(com.sieglings.model.enums.Element.LIGHT, "Radiant Dawn", Effect.HEAL, 12, TargetKind.ALLY_ALL, 2,
+                null, 0, "A blinding sunrise that mends the whole warband.");
+        sig(com.sieglings.model.enums.Element.SHADOW, "Eclipse", Effect.DAMAGE, 15, TargetKind.ENEMY_SINGLE, 2,
+                StatusKind.CURSE, 100, "Swallows one foe in darkness — its Advantage is cursed.");
+        sig(com.sieglings.model.enums.Element.UNDEAD, "Grave Tide", Effect.DAMAGE, 8, TargetKind.ALL_ENEMIES, 2,
+                StatusKind.WITHER, 100, "The dead rise and wither every foe.");
+        sig(com.sieglings.model.enums.Element.NEUTRAL, "Final Form", Effect.BUFF_ATK, 3, TargetKind.ALLY_ALL, 2,
+                null, 0, "Rallies the whole warband to strike harder.");
+    }
+
+    private static void sig(com.sieglings.model.enums.Element element, String name, Effect effect, int value,
+                            TargetKind target, int cost, StatusKind status, int chance, String description) {
+        SIGNATURE_DEFAULTS.put(element, new SignatureSpec(name, effect, value, target, cost, status, chance,
+                description));
+    }
+
+    public static String elementKey(com.sieglings.model.enums.Element element) {
+        return "element:" + (element == null ? com.sieglings.model.enums.Element.NEUTRAL : element).name();
+    }
+
+    /** The built-in ultimate for a type, before any dashboard edit. */
+    public static SignatureSpec builtInSignature(com.sieglings.model.enums.Element element) {
+        SignatureSpec spec = SIGNATURE_DEFAULTS.get(element == null ? com.sieglings.model.enums.Element.NEUTRAL : element);
+        return spec != null ? spec : SIGNATURE_DEFAULTS.get(com.sieglings.model.enums.Element.NEUTRAL);
+    }
+
+    /** The stored override for a key (element key or card id), or null. */
+    public SignatureOverride signatureOverride(String key) {
+        String id = normalizeMoveId(key);
+        if (id == null) return null;
+        for (SignatureOverride row : load().file().signatures()) {
+            if (row != null && id.equalsIgnoreCase(normalizeMoveId(row.key()))) return row;
+        }
+        return null;
+    }
+
+    /** The type-wide ultimate after the element row's edits. */
+    public SignatureSpec elementSignature(com.sieglings.model.enums.Element element) {
+        return overlay(builtInSignature(element), signatureOverride(elementKey(element)));
+    }
+
+    /**
+     * One Siegeling's ultimate: its type's (edited) ultimate, renamed after the
+     * Siegeling so no two individuals share a card name, then that Siegeling's
+     * own edits on top.
+     */
+    public SignatureSpec signatureFor(com.sieglings.model.enums.Element element, String cardId, String cardName) {
+        SignatureSpec type = elementSignature(element);
+        SignatureSpec individual = new SignatureSpec(defaultIndividualName(cardName, type.name()), type.effect(),
+                type.value(), type.target(), type.actionCost(), type.status(), type.statusChance(),
+                type.description());
+        return overlay(individual, signatureOverride(cardId));
+    }
+
+    public static String defaultIndividualName(String cardName, String typeName) {
+        if (cardName == null || cardName.isBlank()) return typeName;
+        return cardName.trim() + "'s " + typeName;
+    }
+
+    /** Applies one override row's non-null fields onto a base spec. */
+    private static SignatureSpec overlay(SignatureSpec base, SignatureOverride o) {
+        if (o == null) return base;
+        Effect effect = o.effect() == null ? base.effect() : parseSignatureEffect(o.effect(), base.effect());
+        TargetKind target = o.target() == null ? base.target() : parseTarget(o.target(), base.target());
+        if (o.effect() != null && o.target() == null && !targetFits(effect, target)) {
+            // Changing a heal into a strike must not leave it aimed at the warband.
+            target = defaultTargetFor(effect);
+        }
+        StatusKind status = base.status();
+        if (o.status() != null) status = parseStatus(o.status());
+        int chance = o.statusChance() != null ? o.statusChance() : base.statusChance();
+        if (o.status() != null && o.statusChance() == null && status != null && chance == 0) chance = 100;
+        return new SignatureSpec(
+                o.name() != null && !o.name().isBlank() ? o.name().trim() : base.name(),
+                effect,
+                o.value() != null ? o.value() : base.value(),
+                target,
+                o.actionCost() != null ? o.actionCost() : base.actionCost(),
+                status,
+                status == null ? 0 : chance,
+                o.description() != null && !o.description().isBlank() ? o.description().trim() : base.description());
+    }
+
+    private static Effect parseSignatureEffect(String raw, Effect fallback) {
+        try {
+            Effect e = Effect.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+            return SIGNATURE_EFFECTS.contains(e) ? e : fallback;
+        } catch (IllegalArgumentException ex) {
+            return fallback;
+        }
+    }
+
+    private static TargetKind parseTarget(String raw, TargetKind fallback) {
+        try {
+            return TargetKind.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return fallback;
+        }
+    }
+
+    private static StatusKind parseStatus(String raw) {
+        String v = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
+        if (v.isEmpty() || v.equals("NONE")) return null;
+        try {
+            return StatusKind.valueOf(v);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    /** Whether a target makes sense for an effect: strikes go at foes, blessings at friends. */
+    public static boolean targetFits(Effect effect, TargetKind target) {
+        if (effect == null || target == null) return false;
+        return switch (effect) {
+            case DAMAGE, SLOW, STUN, EXECUTE -> target == TargetKind.ENEMY_SINGLE || target == TargetKind.ALL_ENEMIES;
+            case DRAW, GAIN_AP -> target == TargetKind.SELF;
+            default -> target == TargetKind.ALLY_SINGLE || target == TargetKind.ALLY_ALL || target == TargetKind.SELF;
+        };
+    }
+
+    public static TargetKind defaultTargetFor(Effect effect) {
+        return switch (effect) {
+            case DAMAGE, SLOW, STUN, EXECUTE -> TargetKind.ALL_ENEMIES;
+            case DRAW, GAIN_AP -> TargetKind.SELF;
+            default -> TargetKind.ALLY_ALL;
+        };
+    }
+
+    /** Every stored signature row — for the dashboard listing. */
+    public List<SignatureOverride> signatureOverrides() {
+        return load().file().signatures();
+    }
+
+    /**
+     * One signature's pending edit. A field present with a null/blank value
+     * clears it back to inherited; {@code reset} drops the whole row.
+     */
+    public record SignaturePatch(String key, Map<String, Object> fields, boolean reset) {}
+
+    public static final List<String> SIGNATURE_FIELDS = List.of(
+            "name", "effect", "value", "target", "actionCost", "status", "statusChance", "description");
+
+    /**
+     * Writes Signature Ultimate edits in one save, validating every row first so
+     * a bad target in the last row cannot half-publish the batch.
+     */
+    public Snapshot applySignatureChanges(List<SignaturePatch> patches, String updatedByEmail) {
+        if (patches == null || patches.isEmpty()) throw new IllegalArgumentException("No signatures were sent.");
+        TuningFile current = load().file();
+        Map<String, SignatureOverride> merged = new LinkedHashMap<>();
+        for (SignatureOverride row : current.signatures()) {
+            String id = normalizeMoveId(row == null ? null : row.key());
+            if (id != null) merged.put(id.toLowerCase(Locale.ROOT), row);
+        }
+        for (SignaturePatch patch : patches) {
+            String key = normalizeMoveId(patch == null ? null : patch.key());
+            if (key == null) throw new IllegalArgumentException("A signature key is required.");
+            if (key.toLowerCase(Locale.ROOT).startsWith("element:")) {
+                String el = key.substring("element:".length()).trim().toUpperCase(Locale.ROOT);
+                try {
+                    key = elementKey(com.sieglings.model.enums.Element.valueOf(el));
+                } catch (IllegalArgumentException ex) {
+                    throw new IllegalArgumentException("Unknown element: " + el);
+                }
+            }
+            String lower = key.toLowerCase(Locale.ROOT);
+            if (patch.reset()) {
+                merged.remove(lower);
+                continue;
+            }
+            SignatureOverride existing = merged.get(lower);
+            Map<String, Object> f = patch.fields() == null ? Map.of() : patch.fields();
+            SignatureOverride next = new SignatureOverride(key,
+                    textField(f, "name", existing == null ? null : existing.name(), MAX_SIGNATURE_NAME),
+                    enumField(f, "effect", existing == null ? null : existing.effect(), true),
+                    intField(f, "value", existing == null ? null : existing.value(), MAX_MOVE_VALUE),
+                    enumField(f, "target", existing == null ? null : existing.target(), false),
+                    intField(f, "actionCost", existing == null ? null : existing.actionCost(), MAX_ACTION_COST),
+                    statusField(f, existing == null ? null : existing.status()),
+                    intField(f, "statusChance", existing == null ? null : existing.statusChance(), 100),
+                    textField(f, "description", existing == null ? null : existing.description(),
+                            MAX_SIGNATURE_DESCRIPTION));
+            if (next.target() != null) {
+                // The effect a row ends up with may be inherited, so check the pair
+                // against what the row will actually resolve to.
+                Effect effect = next.effect() != null ? Effect.valueOf(next.effect())
+                        : existing != null && existing.effect() != null ? Effect.valueOf(existing.effect()) : null;
+                if (effect != null && !targetFits(effect, TargetKind.valueOf(next.target()))) {
+                    throw new IllegalArgumentException(effect.name() + " cannot target " + next.target() + ".");
+                }
+            }
+            if (next.isEmpty()) merged.remove(lower);
+            else merged.put(lower, next);
+        }
+        return save(new TuningFile(current.effects(), current.globals(), current.moves(),
+                List.copyOf(merged.values())), updatedByEmail);
+    }
+
+    private static String textField(Map<String, Object> f, String field, String current, int max) {
+        if (!f.containsKey(field)) return current;
+        Object raw = f.get(field);
+        String v = raw == null ? "" : String.valueOf(raw).trim();
+        if (v.isEmpty()) return null;
+        if (v.length() > max) throw new IllegalArgumentException(field + " must be at most " + max + " characters.");
+        return v;
+    }
+
+    private static Integer intField(Map<String, Object> f, String field, Integer current, int max) {
+        if (!f.containsKey(field)) return current;
+        Object raw = f.get(field);
+        if (raw == null || String.valueOf(raw).isBlank()) return null;
+        int v;
+        try {
+            v = raw instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(raw).trim());
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(field + " must be a whole number.");
+        }
+        if (v < MIN_FIELD_VALUE || v > max) {
+            throw new IllegalArgumentException(field + " must be between " + MIN_FIELD_VALUE + " and " + max + ".");
+        }
+        return v;
+    }
+
+    private static String enumField(Map<String, Object> f, String field, String current, boolean effect) {
+        if (!f.containsKey(field)) return current;
+        Object raw = f.get(field);
+        String v = raw == null ? "" : String.valueOf(raw).trim().toUpperCase(Locale.ROOT);
+        if (v.isEmpty()) return null;
+        try {
+            if (effect) {
+                Effect e = Effect.valueOf(v);
+                if (!SIGNATURE_EFFECTS.contains(e)) {
+                    throw new IllegalArgumentException(e.name() + " cannot be a Signature Ultimate.");
+                }
+            } else {
+                TargetKind.valueOf(v);
+            }
+        } catch (IllegalArgumentException ex) {
+            if (ex.getMessage() != null && ex.getMessage().contains("Signature")) throw ex;
+            throw new IllegalArgumentException("Unknown " + field + ": " + v);
+        }
+        return v;
+    }
+
+    private static String statusField(Map<String, Object> f, String current) {
+        if (!f.containsKey("status")) return current;
+        Object raw = f.get("status");
+        String v = raw == null ? "" : String.valueOf(raw).trim().toUpperCase(Locale.ROOT);
+        if (v.isEmpty()) return null;
+        if (v.equals("NONE")) return v;
+        try {
+            StatusKind.valueOf(v);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Unknown status: " + v);
+        }
+        return v;
+    }
+
     // ---- Storage ----------------------------------------------------------
 
     private StoredData load() {
@@ -628,7 +961,8 @@ public class SiegeEffectTuningService {
                             "globals", snapshot.get("globals") == null ? Map.of() : snapshot.get("globals"),
                             // A document written before per-move tuning existed has
                             // no `moves` field; that reads as "nothing pinned".
-                            "moves", snapshot.get("moves") == null ? List.of() : snapshot.get("moves"))))
+                            "moves", snapshot.get("moves") == null ? List.of() : snapshot.get("moves"),
+                            "signatures", snapshot.get("signatures") == null ? List.of() : snapshot.get("signatures"))))
                     : emptyFile();
             return new StoredData(file, CardOverrideStorageService.StorageBackend.FIRESTORE,
                     snapshot.getString("updatedBy"), resolveTimestamp(snapshot));
@@ -675,6 +1009,7 @@ public class SiegeEffectTuningService {
             payload.put("effects", objectMapper.convertValue(file.effects(), Object.class));
             payload.put("globals", objectMapper.convertValue(file.globals(), Object.class));
             payload.put("moves", objectMapper.convertValue(file.moves(), Object.class));
+            payload.put("signatures", objectMapper.convertValue(file.signatures(), Object.class));
             String by = updatedByEmail == null || updatedByEmail.isBlank()
                     ? "unknown" : updatedByEmail.trim().toLowerCase(Locale.ROOT);
             payload.put("updatedBy", by);
@@ -706,7 +1041,7 @@ public class SiegeEffectTuningService {
             TuningFile file = objectMapper.treeToValue(data, TuningFile.class);
             if (file == null) return emptyFile();
             return new TuningFile(file.effects() == null ? List.of() : file.effects(), file.globals(),
-                    file.moves() == null ? List.of() : file.moves());
+                    file.moves() == null ? List.of() : file.moves(), file.signatures());
         } catch (Exception ex) {
             // Malformed stored data falls back to defaults instead of breaking
             // every Siege battle until someone fixes the document.
@@ -715,7 +1050,7 @@ public class SiegeEffectTuningService {
     }
 
     private static TuningFile emptyFile() {
-        return new TuningFile(List.of(), null, List.of());
+        return new TuningFile(List.of(), null, List.of(), List.of());
     }
 
     private DocumentReference docRef() {

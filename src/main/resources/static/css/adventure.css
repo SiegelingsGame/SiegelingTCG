@@ -1392,6 +1392,9 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .sprite .sp-gaugefill{height:100%; background:linear-gradient(90deg,#8a6d1a,#ffd066); transition:width .35s;}
 .sprite .sp-gaugetext{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:7.5px; font-weight:800; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.85);}
 .sprite .sp-gauge.ready{display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:800; color:#ffd066; background:rgba(255,208,102,.12); animation:threatpulse 1.2s ease-in-out infinite; border-color:#ffd066;}
+.sprite .sp-gauge.sig{border-color:rgba(255,106,213,.4);}
+.sprite .sp-gauge.sig .sp-gaugefill{background:linear-gradient(90deg,#7a1f63,#ff6ad5);}
+.sprite .sp-gauge.sig.ready{color:#ff9be4; background:rgba(255,106,213,.14); border-color:#ff6ad5;}
 
 /* notch number badge */
 .sprite .sp-notch{
@@ -1691,6 +1694,12 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 .playcard .pc-gauge{position:relative; height:12px; border-radius:6px; background:#0c1017; margin-top:4px; overflow:hidden; border:1px solid rgba(255,208,102,.4);}
 .playcard .pc-gaugefill{height:100%; background:linear-gradient(90deg,#8a6d1a,#ffd066);}
 .playcard .pc-gauge span{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:8.5px; font-weight:800; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.85);}
+/* Signature Ultimates (a final form's once-per-battle card) glow magenta so
+   they never read as a spent Evolve card. */
+.playcard.sig-card{border-top-color:#ff6ad5; box-shadow:0 6px 16px rgba(0,0,0,.35), 0 0 14px rgba(255,106,213,.45);}
+.playcard .pc-sig{flex:0 0 auto; font-size:8px; font-weight:900; letter-spacing:.6px; color:#ff9be4; line-height:1.1;}
+.playcard.sig-card .pc-gauge{border-color:rgba(255,106,213,.5);}
+.playcard.sig-card .pc-gaugefill{background:linear-gradient(90deg,#7a1f63,#ff6ad5);}
 
 /* hand animations: dealing, discarding, evolution transform */
 .playcard.dealt{animation:dealin .4s ease backwards; animation-delay:calc(var(--deal-i,0) * .07s);}
