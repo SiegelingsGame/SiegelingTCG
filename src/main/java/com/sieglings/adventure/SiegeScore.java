@@ -115,6 +115,15 @@ final class SiegeScore {
     int battlesWon() { return battlesWon; }
     int flawlessWins() { return flawlessWins; }
 
+    /** Each line's points by key, for the journal to diff a stop's share of the score. */
+    Map<String, Long> pointsByKey(SiegeRun run) {
+        Map<String, Long> out = new LinkedHashMap<>();
+        for (Map<String, Object> line : lines(run)) {
+            out.put(String.valueOf(line.get("key")), ((Number) line.get("points")).longValue());
+        }
+        return out;
+    }
+
     /** The unmultiplied total; never negative. */
     long base(SiegeRun run) {
         long total = 0;

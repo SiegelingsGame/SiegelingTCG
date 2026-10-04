@@ -135,13 +135,35 @@
     if (b) { b.textContent = '▶'; b.setAttribute('aria-label', 'Play'); }
   }
 
+  // A step "acts" when something visible moves: the board, either side's HP or
+  // either hand, or the line is a key moment. Narration ("AI Draw phase.", the
+  // coin flip, deck announcements) changes nothing, so playback and the step
+  // buttons pass over it; it stays in the move list and on the scrubber.
   function buildSteps(replay) {
-    var board = [];
-    return replay.frames.map(function (f) {
+    var board = [], hands = null, prev = null;
+    return replay.frames.map(function (f, n) {
       if (f.b) board = f.b;
-      return { t: f.t, p: f.p, m: f.m || '', ph: f.ph, eh: f.eh, b: board, key: KEY_LINE.test(f.m || '') };
+      if (f.hd) hands = f.hd;
+      var key = KEY_LINE.test(f.m || '');
+      var acts = key || (n > 0 && (f.b || f.hd || f.ph !== prev.ph || f.eh !== prev.eh));
+      var step = { t: f.t, p: f.p, m: f.m || '', ph: f.ph, eh: f.eh, b: board, hd: hands, key: key, acts: !!acts };
+      prev = step;
+      return step;
     });
   }
+
+  // Card ids in `now` that were not in `before`, counting copies.
+  function added(before, now) {
+    var left = {};
+    (before || []).forEach(function (id) { left[id] = (left[id] || 0) + 1; });
+    var out = {};
+    (now || []).forEach(function (id, n) {
+      if (left[id]) left[id]--; else out[n] = true;
+    });
+    return out;
+  }
+
+  var TYPE_ICON = { SIEGLING: '◆', SPELL: '✧', TRAP: '✦', TRAINER: '♛' };
 
   function cellKey(c) { return c.s + c.r + c.c; }
 
@@ -151,7 +173,12 @@
     var cards = replay.cards || {};
     var start = replay.startingHealth || 50;
     var steps = buildSteps(replay);
+    var hasHands = steps.some(function (s) { return s.hd; });
     var i = 0;
+    function nextAct(from, dir) {
+      for (var j = from + dir; j >= 0 && j < steps.length; j += dir) if (steps[j].acts) return j;
+      return -1;
+    }
 
     setHead(resultHead(match.result,
       '<b>' + esc(match.loadoutLabel || 'Loadout') + '</b> vs ' + esc(replay.opponentName || match.opponentName || 'Opponent') +
@@ -191,7 +218,7 @@
         html += '<div class="mr-turn"><b>Turn ' + esc(s.t) + '</b>';
         lastTurn = s.t;
       }
-      html += '<button type="button" class="mr-mv' + (s.key ? ' key' : '') + '" data-i="' + n + '">' +
+      html += '<button type="button" class="mr-mv' + (s.key ? ' key' : '') + (s.acts ? '' : ' info') + '" data-i="' + n + '">' +
         '<span class="ph">' + esc(String(s.p || '').slice(0, 6)) + '</span><span>' + esc(s.m) + '</span></button>';
     });
     moves.innerHTML = html + (lastTurn !== null ? '</div>' : '');
@@ -297,16 +324,35 @@
         '" stroke="' + col + '" stroke-width="3" stroke-linecap="round" opacity=".85" marker-end="url(#mrah)"/>';
     }
 
+    // One side's hand as a strip of small cards; cards new since the last step
+    // are lit, so a draw reads as a draw.
+    function handRow(side, step, prev) {
+      if (!hasHands) return '';
+      var ids = (step.hd && step.hd[side]) || [];
+      var fresh = prev ? added(prev.hd && prev.hd[side], ids) : {};
+      return '<div class="mr-hand' + (side === you ? ' mine' : ' theirs') + '" aria-label="' +
+        (side === you ? 'Your' : 'Opponent') + ' hand, ' + ids.length + ' cards">' +
+        '<span class="mr-hand-n">✋' + ids.length + '</span>' +
+        (ids.length ? ids.map(function (id, n) {
+          var info = cards[id] || { name: id, element: 'NEUTRAL' };
+          return '<span class="mr-hc' + (fresh[n] ? ' new' : '') + '" style="--el:' + color(info.element) + '" title="' + esc(info.name) + '">' +
+            '<i>' + (TYPE_ICON[info.type] || '◆') + '</i>' + esc(info.name) + '</span>';
+        }).join('') : '<span class="mr-hand-empty">Empty</span>') +
+        '</div>';
+    }
+
     function render() {
       var step = steps[i], prev = i > 0 ? steps[i - 1] : null;
       var changes = diff(step, prev);
       var actor = actorOf(step);
       arena.innerHTML =
+        handRow(opp, step, prev) +
         hpHead('', replay.opponentName || match.opponentName || 'Opponent', oppHp(step), prev ? oppHp(prev) : null, true) +
         grid(opp, step, changes, actor) +
         '<div class="mr-divider">Turn ' + esc(step.t) + ' · ' + esc(title(step.p)) + '</div>' +
         grid(you, step, changes, actor) +
         hpHead('', 'You', yourHp(step), prev ? yourHp(prev) : null, false) +
+        handRow(you, step, prev) +
         '<svg class="mr-arrows"></svg>';
       cap.innerHTML = '<small>Step ' + (i + 1) + ' of ' + steps.length + '</small>' + esc(step.m);
       scrub.value = i;
@@ -320,12 +366,14 @@
         on.classList.add('on');
         moves.scrollTop = on.offsetTop - moves.clientHeight / 2;
       }
-      body.querySelector('[data-r="prev"]').disabled = i === 0;
-      body.querySelector('[data-r="next"]').disabled = i === steps.length - 1;
+      body.querySelector('[data-r="prev"]').disabled = nextAct(i, -1) < 0;
+      body.querySelector('[data-r="next"]').disabled = nextAct(i, 1) < 0;
       drawArrow(actor, changes);
     }
 
     function go(n) { i = Math.max(0, Math.min(steps.length - 1, n)); render(); }
+    function stepBy(dir) { var j = nextAct(i, dir); if (j >= 0) go(j); }
+    var firstAct = steps.length && steps[0].acts ? 0 : Math.max(0, nextAct(0, 1));
     function turnJump(dir) {
       var t = steps[i].t, j = i;
       if (dir < 0) {
@@ -333,6 +381,11 @@
         if (j === i && j > 0) { t = steps[j - 1].t; j--; while (j > 0 && steps[j - 1].t === t) j--; }
       } else {
         while (j < steps.length - 1 && steps[j].t === t) j++;
+      }
+      // Land on the turn's first action rather than its phase announcement.
+      if (!steps[j].acts) {
+        var k = nextAct(j, 1);
+        if (k >= 0 && steps[k].t === steps[j].t) j = k;
       }
       go(j);
     }
@@ -347,16 +400,16 @@
           return;
         }
         if (r !== 'play') stopPlay();
-        if (r === 'prev') go(i - 1);
-        if (r === 'next') go(i + 1);
+        if (r === 'prev') stepBy(-1);
+        if (r === 'next') stepBy(1);
         if (r === 'first') turnJump(-1);
         if (r === 'last') turnJump(1);
         if (r === 'play') {
           if (timer) { stopPlay(); return; }
-          if (i === steps.length - 1) go(0);
+          if (nextAct(i, 1) < 0) go(firstAct);
           b.textContent = '❚❚';
           b.setAttribute('aria-label', 'Pause');
-          timer = setInterval(function () { if (i >= steps.length - 1) stopPlay(); else go(i + 1); }, 1000);
+          timer = setInterval(function () { var j = nextAct(i, 1); if (j < 0) stopPlay(); else go(j); }, 1000);
         }
         return;
       }
@@ -366,13 +419,14 @@
     scrub.addEventListener('input', function () { stopPlay(); go(+scrub.value); });
     var prevKey = keyHandler;
     keyHandler = function (e) {
-      if (e.key === 'ArrowLeft') { stopPlay(); go(i - 1); }
-      else if (e.key === 'ArrowRight') { stopPlay(); go(i + 1); }
+      if (e.key === 'ArrowLeft') { stopPlay(); stepBy(-1); }
+      else if (e.key === 'ArrowRight') { stopPlay(); stepBy(1); }
       else if (prevKey) prevKey(e);
     };
     document.removeEventListener('keydown', prevKey);
     document.addEventListener('keydown', keyHandler);
-    go(0);
+    // Open on the first thing that happens, not on the opening narration.
+    go(firstAct);
   }
 
   /* ---------- log-only review ---------- */
@@ -522,23 +576,128 @@
     return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
-  // Runs recorded before itemized scoring carry only a total (or nothing), so
-  // the panel degrades to the number alone rather than inventing lines.
-  function scorePanel(run) {
+  // One color per kind of point, shared by the score panel, its bar and the
+  // per-stop chips, so a stop's chips read against the run's breakdown.
+  var SCORE_KIND = {
+    route:      { label: 'Route',       chip: 'Route',   color: '#54a8f0' },
+    battles:    { label: 'Battles',     chip: 'Battle',  color: '#ff7a5c' },
+    mastery:    { label: 'Mastery',     chip: 'Mastery', color: '#b48cff' },
+    fallen:     { label: 'Fallen',      chip: 'Fallen',  color: '#ff5d73' },
+    revived:    { label: 'Revived',     chip: 'Revived', color: '#4fd07a' },
+    goldEarned: { label: 'Gold earned', chip: 'Gold',    color: '#ffd97a' },
+    goldSpent:  { label: 'Gold spent',  chip: 'Spent',   color: '#e8a33a' },
+    victory:    { label: 'Victory',     chip: 'Victory', color: '#3fd8d1' },
+    carried:    { label: 'Earlier',     chip: 'Earlier', color: '#a4a3d6' }
+  };
+  var SCORE_ORDER = ['route', 'battles', 'mastery', 'fallen', 'revived', 'goldEarned', 'goldSpent', 'victory', 'carried'];
+  function kind(key) { return SCORE_KIND[key] || { label: key, chip: key, color: '#a4a3d6' }; }
+
+  // Mirrors SiegeScore on the server. Used only for runs recorded before stops
+  // carried their own points: the journal already holds every input (stop types,
+  // battles with rounds and survivors, purse and warband before/after), so the
+  // run can be re-scored with today's rules and shown as an estimate.
+  var ROUTE_PTS = { BOSS: 60, ELITE: 40, EVENT: 20, RIFT: 20, BATTLE: 15, TREASURE: 10, BROKER: 10, SMITH: 10, CARAVAN: 10, REST: 5 };
+  function estimateStops(run) {
+    var stops = run.stops || [], bosses = 0, spentTotal = 0;
+    var per = stops.map(function (s, idx) {
+      var pts = {};
+      function add(k, v) { if (v) pts[k] = (pts[k] || 0) + v; }
+      add('route', ROUTE_PTS[s.type] || 0);
+      (s.events || []).forEach(function (e) {
+        if (e.k !== 'battle' || e.result !== 'WIN') return;
+        var foes = (e.foes || []).length, depth = Number(s.floor) || 1, rounds = Math.max(1, Number(e.rounds) || 1);
+        var p = foes * (10 + depth) + 5;
+        if (s.type === 'BOSS') { bosses++; p += 100 + 50 * bosses; }
+        add('battles', p);
+        var flawless = !(e.allies || []).some(function (a) { return !a.knight && Number(a.hp) <= 0; });
+        add('mastery', Math.max(0, 6 - rounds) * 10 + (flawless ? 25 : 0));
+      });
+      var before = {};
+      (s.partyBefore || []).forEach(function (u) { if (!u.knight) before[u.name] = Number(u.hp) || 0; });
+      (s.partyAfter || []).forEach(function (u) {
+        if (u.knight || before[u.name] == null) return;
+        var hp = Number(u.hp) || 0;
+        if (before[u.name] > 0 && hp <= 0) add('fallen', -40);
+        if (before[u.name] <= 0 && hp > 0) add('revived', 20);
+      });
+      if (s.goldAfter != null && s.goldBefore != null) {
+        var d = s.goldAfter - s.goldBefore;
+        if (d > 0) add('goldEarned', d);
+        if (d < 0) {
+          // Half of all gold spent, rounded once across the run as the server does.
+          var was = Math.floor(spentTotal / 2);
+          spentTotal -= d;
+          add('goldSpent', Math.floor(spentTotal / 2) - was);
+        }
+      }
+      if (idx === stops.length - 1 && String(run.result || '').toUpperCase() === 'WIN') add('victory', 500);
+      return pts;
+    });
+    return per;
+  }
+
+  // Per-stop points: recorded on the stop when the run had them, else estimated.
+  function stopPoints(run) {
+    var stops = run.stops || [];
+    var recorded = stops.length && stops.every(function (s) { return s.score && typeof s.score === 'object'; });
+    return { per: recorded ? stops.map(function (s) { return s.score; }) : estimateStops(run), estimated: !recorded };
+  }
+
+  function sumLines(per) {
+    var totals = {};
+    per.forEach(function (pts) { Object.keys(pts || {}).forEach(function (k) { totals[k] = (totals[k] || 0) + Number(pts[k] || 0); }); });
+    return SCORE_ORDER.filter(function (k) { return totals[k]; }).map(function (k) {
+      return { key: k, label: kind(k).label, detail: '', points: totals[k] };
+    });
+  }
+
+  // Positive lines as one stacked bar, so where the score came from is visible
+  // before the panel is opened.
+  function scoreBar(lines) {
+    var pos = lines.filter(function (l) { return Number(l.points) > 0; });
+    var sum = pos.reduce(function (n, l) { return n + Number(l.points); }, 0);
+    if (!sum) return '';
+    return '<div class="mr-score-bar" aria-hidden="true">' + pos.map(function (l) {
+      return '<i style="flex:' + Number(l.points) + ';background:' + kind(l.key).color + '"></i>';
+    }).join('') + '</div>';
+  }
+
+  function scorePanel(run, pts) {
     var b = run.scoreBreakdown;
     var total = b ? b.total : run.score;
-    if (total == null) return '';
-    var lines = (b && b.lines) || [];
-    var head = '<span>Run score</span><b>' + num(total) + '</b>';
+    if (total == null && !pts.per.length) return '';
+    var lines = (b && b.lines) ? b.lines.filter(function (l) { return Number(l.points); }) : sumLines(pts.per);
+    var estTotal = lines.reduce(function (n, l) { return n + Number(l.points || 0); }, 0);
+    var head = '<span>Run score</span><b>' + num(total != null ? total : estTotal) + '</b>';
     if (!lines.length) return '<div class="mr-score"><div class="mr-score-head">' + head + '</div></div>';
-    return '<details class="mr-score"><summary class="mr-score-head">' + head + '<i aria-hidden="true">›</i></summary>' +
+    return '<details class="mr-score"><summary><div class="mr-score-head">' + head + '<i aria-hidden="true">›</i></div>' +
+      scoreBar(lines) +
+      '<div class="mr-score-legend">' + lines.filter(function (l) { return Number(l.points) > 0; }).map(function (l) {
+        return '<em style="--k:' + kind(l.key).color + '">' + esc(kind(l.key).chip) + '</em>';
+      }).join('') + '</div></summary>' +
       '<div class="mr-score-lines">' + lines.map(function (l) {
         var p = Number(l.points) || 0;
-        return '<div class="' + (p < 0 ? 'neg' : '') + '"><span>' + esc(l.label) + '<small>' + esc(l.detail || '') +
-          '</small></span><b>' + (p > 0 ? '+' : p < 0 ? '−' : '') + num(Math.abs(p)) + '</b></div>';
+        return '<div style="--k:' + kind(l.key).color + '"><span>' + esc(l.label || kind(l.key).label) +
+          (l.detail ? '<small>' + esc(l.detail) + '</small>' : '') +
+          '</span><b>' + (p > 0 ? '+' : p < 0 ? '−' : '') + num(Math.abs(p)) + '</b></div>';
       }).join('') +
-      (b.multiplier > 1 ? '<p>Battlegrounds ×' + (Math.round(b.multiplier * 100) / 100) + ' on ' + num(b.base) + '</p>' : '') +
+      (b && b.multiplier > 1 ? '<p>Battlegrounds ×' + (Math.round(b.multiplier * 100) / 100) + ' on ' + num(b.base) + '</p>' : '') +
+      (pts.estimated
+        ? '<p>Recorded before scores were itemized, so each stop is re-scored with today’s rules (≈ ' + num(estTotal) +
+          ')' + (total != null ? '; the ' + num(total) + ' above is the score this run banked.' : '.') + '</p>'
+        : '') +
       '</div></details>';
+  }
+
+  // A stop's points as colored chips plus its total.
+  function stopChips(pts, estimated) {
+    var keys = SCORE_ORDER.filter(function (k) { return pts && Number(pts[k]); });
+    if (!keys.length) return '';
+    var sum = keys.reduce(function (n, k) { return n + Number(pts[k]); }, 0);
+    return '<div class="mr-pts">' + keys.map(function (k) {
+      var v = Number(pts[k]);
+      return '<span style="--k:' + kind(k).color + '">' + esc(kind(k).chip) + ' ' + (v > 0 ? '+' : '−') + num(Math.abs(v)) + '</span>';
+    }).join('') + '<b class="' + (sum < 0 ? 'neg' : '') + '">' + (estimated ? '≈ ' : '') + (sum >= 0 ? '+' : '−') + num(Math.abs(sum)) + ' pts</b></div>';
   }
 
   function renderSiege(body, run) {
@@ -611,6 +770,7 @@
     svg += '</svg>';
 
     var gold = null;
+    var pts = stopPoints(run);
     var ledger = stops.map(function (s, idx) {
       var ty = NODE[s.type] || NODE.BATTLE;
       var delta = (s.goldAfter != null && s.goldBefore != null) ? s.goldAfter - s.goldBefore : 0;
@@ -619,7 +779,8 @@
         '<div class="c"><div class="hd"><span class="st"><small>F' + esc(s.floor) + ' · ' + esc(ty[2]) +
         (s.land ? ' · ' + esc(s.land) : '') + '</small><h5>' + esc(s.title || ty[2]) + '</h5></span>' +
         '<span class="bal">' + (delta ? '<span class="amt ' + (delta < 0 ? 'neg' : 'pos') + '">' + gl(delta) + '</span>' : '') +
-        (gold != null ? '<small>' + esc(gold) + 'g</small>' : '') + '</span></div>' + stopBody(s) + '</div></article>';
+        (gold != null ? '<small>' + esc(gold) + 'g</small>' : '') + '</span></div>' + stopBody(s) +
+        stopChips(pts.per[idx], pts.estimated) + '</div></article>';
     }).join('');
 
     body.innerHTML =
@@ -631,7 +792,7 @@
           '<div><span>Spent</span><b>' + (run.goldSpent != null ? esc(run.goldSpent) : spent) + '</b></div>' +
         '</div>' +
         (run.outcome ? '<p class="mr-out mr-run-out ' + (won ? 'w' : 'r') + '">' + esc(run.outcome) + '</p>' : '') +
-        scorePanel(run) +
+        scorePanel(run, pts) +
         (map.length ? '<div class="mr-map">' + svg + labels + '</div>' : '') +
         '<div class="mr-ledger">' + (ledger || '<div class="mr-state">No stops were recorded for this run.</div>') + '</div>' +
       '</div>';

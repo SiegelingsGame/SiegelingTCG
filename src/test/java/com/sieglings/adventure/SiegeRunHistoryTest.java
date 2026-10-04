@@ -103,6 +103,14 @@ class SiegeRunHistoryTest {
         assertTrue(list(battle.get("allies")).stream().anyMatch(a -> "Sprout".equals(a.get("name"))));
         assertTrue(fight.containsKey("goldAfter"), "the last stop is closed when the run ends");
 
+        // Each stop carries its share of the score, and the shares add up to the run's.
+        assertEquals(5L, ((Map<?, ?>) rest.get("score")).get("route"), "a camp is worth 5 route points");
+        assertEquals(15L, ((Map<?, ?>) fight.get("score")).get("route"));
+        assertFalse(rest.containsKey("scoreStart"), "the opening snapshot is not stored");
+        long shares = stops.stream().flatMap(st -> ((Map<?, ?>) st.get("score")).values().stream())
+                .mapToLong(v -> ((Number) v).longValue()).sum();
+        assertEquals(((Number) doc.get("score")).longValue(), shares);
+
         // A second end-of-run pass (e.g. the rewards retry) does not record again.
         service.continueRun(run.getToken(), null);
         assertEquals(1, saved.size());

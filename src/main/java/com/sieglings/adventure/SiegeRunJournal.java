@@ -43,6 +43,8 @@ final class SiegeRunJournal {
         }
         stop.put("goldBefore", run.getGold());
         stop.put("partyBefore", partySnapshot(run));
+        run.getScoreTally().syncWarband(run);
+        stop.put("scoreStart", new LinkedHashMap<>(run.getScoreTally().pointsByKey(run)));
         stop.put("events", new ArrayList<Map<String, Object>>());
         stops.add(stop);
         if (stops.size() > MAX_STOPS) {
@@ -58,6 +60,25 @@ final class SiegeRunJournal {
         }
         stop.put("goldAfter", run.getGold());
         stop.put("partyAfter", partySnapshot(run));
+        Object start = stop.remove("scoreStart");
+        // A stop opened by an older build has no snapshot to diff against.
+        if (start instanceof Map<?, ?>) stop.put("score", scoreDelta(run, start));
+    }
+
+    /**
+     * The points this stop added to each score line (only lines that moved), so
+     * the review can show where the run's score came from stop by stop.
+     */
+    private static Map<String, Object> scoreDelta(SiegeRun run, Object start) {
+        run.getScoreTally().syncWarband(run);
+        Map<String, Object> out = new LinkedHashMap<>();
+        Map<?, ?> before = (Map<?, ?>) start;
+        run.getScoreTally().pointsByKey(run).forEach((key, now) -> {
+            Object was = before.get(key);
+            long delta = now - (was instanceof Number n ? n.longValue() : 0L);
+            if (delta != 0) out.put(key, delta);
+        });
+        return out;
     }
 
     void event(Map<String, Object> event) {
