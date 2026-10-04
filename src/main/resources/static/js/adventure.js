@@ -5954,6 +5954,10 @@
 
   // The server itemizes the score (route, battles, mastery, falls, revives,
   // gold, victory) so the player can see what the run was worth and why.
+  // Same per-kind colors as the profile run review (match-review.js SCORE_KIND).
+  var SCORE_COLOR = { route: '#54a8f0', battles: '#ff7a5c', mastery: '#b48cff', fallen: '#ff5d73', revived: '#4fd07a',
+    goldEarned: '#ffd97a', goldSpent: '#e8a33a', victory: '#3fd8d1', carried: '#a4a3d6' };
+
   function resultScoreCard(breakdown, fallbackTotal) {
     if (!breakdown && fallbackTotal == null) return null;
     var total = breakdown ? breakdown.total : fallbackTotal;
@@ -5970,7 +5974,8 @@
       '<summary>' + head + '<span class="score-toggle">See breakdown</span></summary>' +
       ('<div class="score-lines">' + lines.map(function (l) {
         var pts = Number(l.points) || 0;
-        return '<div class="score-line' + (pts < 0 ? ' neg' : '') + '"><span class="score-label">' + esc(l.label) +
+        return '<div class="score-line' + (pts < 0 ? ' neg' : '') + '" style="--k:' + (SCORE_COLOR[l.key] || 'var(--good)') +
+          '"><span class="score-label">' + esc(l.label) +
           '<small>' + esc(l.detail || '') + '</small></span><b>' + (pts > 0 ? '+' : pts < 0 ? '−' : '') +
           fmtNum(Math.abs(pts)) + '</b></div>';
       }).join('') + '</div>') +

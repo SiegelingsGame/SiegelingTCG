@@ -15,8 +15,10 @@ import java.util.Map;
  * notches, art) is written once per card id in {@link #cards()} instead of on
  * every cell.
  *
- * <p>Only board state and log lines are captured, and both are already sent to
- * both sides of an online match, so a replay never reveals a hand or deck.
+ * <p>Both hands ride along the same way (only on frames where either changed),
+ * so the review can show what each side drew and held. A replay is only opened
+ * after the match is over, by its owner or their mutual friends, so showing the
+ * opponent's hand there reveals nothing that still matters; decks stay private.
  */
 public class MatchReplayRecorder {
 
@@ -26,6 +28,7 @@ public class MatchReplayRecorder {
     private final List<Map<String, Object>> frames = new ArrayList<>();
     private final Map<String, Map<String, Object>> cards = new LinkedHashMap<>();
     private String lastBoardSignature;
+    private String lastHandSignature;
 
     public void record(GameState state, String message) {
         if (state == null || frames.size() >= MAX_FRAMES) {
@@ -46,6 +49,16 @@ public class MatchReplayRecorder {
         if (!sig.equals(lastBoardSignature)) { // null on the first frame, so it always carries the board
             frame.put("b", board);
             lastBoardSignature = sig;
+        }
+        List<String> playerHand = handIds(state.getPlayer());
+        List<String> enemyHand = handIds(state.getEnemy());
+        String handSig = playerHand + "|" + enemyHand;
+        if (!handSig.equals(lastHandSignature)) {
+            Map<String, Object> hands = new LinkedHashMap<>();
+            hands.put("p", playerHand);
+            hands.put("e", enemyHand);
+            frame.put("hd", hands);
+            lastHandSignature = handSig;
         }
         frames.add(frame);
     }
@@ -77,7 +90,21 @@ public class MatchReplayRecorder {
         }
     }
 
-    private void rememberCard(SieglingCard card) {
+    private List<String> handIds(Player player) {
+        List<String> ids = new ArrayList<>();
+        if (player == null || player.getHand() == null) {
+            return ids;
+        }
+        for (Card card : player.getHand()) {
+            if (card != null && card.getId() != null) {
+                rememberCard(card);
+                ids.add(card.getId());
+            }
+        }
+        return ids;
+    }
+
+    private void rememberCard(Card card) {
         if (card.getId() == null || cards.containsKey(card.getId())) {
             return;
         }
@@ -85,16 +112,19 @@ public class MatchReplayRecorder {
         info.put("name", card.getName());
         info.put("element", card.getElement() == null ? "NEUTRAL" : card.getElement().name());
         info.put("rarity", card.getRarity() == null ? null : card.getRarity().name());
-        info.put("speed", card.getSpeed());
-        List<String> notches = new ArrayList<>();
-        if (card.getNotches() != null) {
-            for (Notch notch : card.getNotches()) {
-                if (notch != null && notch.direction() != null) {
-                    notches.add(notch.direction().name() + ":" + (notch.element() == null ? "NEUTRAL" : notch.element().name()));
+        info.put("type", card.getCardType() == null ? null : card.getCardType().name());
+        if (card instanceof SieglingCard siegling) {
+            info.put("speed", siegling.getSpeed());
+            List<String> notches = new ArrayList<>();
+            if (siegling.getNotches() != null) {
+                for (Notch notch : siegling.getNotches()) {
+                    if (notch != null && notch.direction() != null) {
+                        notches.add(notch.direction().name() + ":" + (notch.element() == null ? "NEUTRAL" : notch.element().name()));
+                    }
                 }
             }
+            info.put("notches", notches);
         }
-        info.put("notches", notches);
         if (card.getCardArtUrl() != null && !card.getCardArtUrl().isBlank()) {
             info.put("art", card.getCardArtUrl());
         }

@@ -67,4 +67,27 @@ class MatchReplayRecorderTest {
         assertEquals(150, state.getReplay().frames().size());
         assertEquals("line 0", state.getReplay().frames().getFirst().get("m"));
     }
+
+    @Test
+    void bothHandsRideOnlyWhenEitherChanges() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("You", true));
+        state.setEnemy(new Player("AI", false));
+        SieglingCard bearby = new SieglingCard("bearby", "Bearby", Element.FIRE, Rarity.COMMON, 11, 3, List.of(), null);
+        SieglingCard shellpack = new SieglingCard("shellpack", "Shellpack", Element.WATER, Rarity.COMMON, 14, 2, List.of(), null);
+
+        state.log("Game started!");
+        state.getPlayer().getHand().add(bearby);
+        state.log("You draw a card.");
+        state.log("AI Setup phase.");
+        state.getEnemy().getHand().add(shellpack);
+        state.log("AI draws a card.");
+
+        List<Map<String, Object>> frames = state.getReplay().frames();
+        assertEquals(Map.of("p", List.of(), "e", List.of()), frames.get(0).get("hd"), "the first frame carries both hands");
+        assertEquals(Map.of("p", List.of("bearby"), "e", List.of()), frames.get(1).get("hd"));
+        assertFalse(frames.get(2).containsKey("hd"), "unchanged hands are carried forward");
+        assertEquals(Map.of("p", List.of("bearby"), "e", List.of("shellpack")), frames.get(3).get("hd"));
+        assertEquals("SIEGLING", state.getReplay().cards().get("shellpack").get("type"));
+    }
 }
