@@ -20,12 +20,15 @@
     SHADOW: '#7832b4', ELECTRIC: '#ffe63c', METAL: '#a0aab4', UNDEAD: '#8c78a0',
     PSYCHIC: '#c896ff', POISON: '#9b59b6', LIGHT: '#fff5b4', NEUTRAL: '#b8b8c8'
   };
+  // One color per stop type. It paints the map node, the timeline dot and the
+  // whole stop card, so a run's shape reads at a glance: red fights, purple
+  // elites, the boss in fire orange, camps green, shops and caches in their own.
   var NODE = {
-    BATTLE: ['#ff8a5c', '⚔', 'Battle'], ELITE: ['#ff5d7a', '☠', 'Elite'],
-    BOSS: ['#ff501e', '♛', 'Boss'], REST: ['#6ee07f', '⛺', 'Rest'],
+    BATTLE: ['#ff5d5d', '⚔', 'Battle'], ELITE: ['#b36bff', '☠', 'Elite'],
+    BOSS: ['#ff8a1e', '♛', 'Boss'], REST: ['#6ee07f', '⛺', 'Rest'],
     TREASURE: ['#ffd97a', '✦', 'Cache'], BROKER: ['#63d6d0', '⚖', 'Broker'],
     SMITH: ['#a0aab4', '⚒', 'Smith'], CARAVAN: ['#3296ff', '⇄', 'Caravan'],
-    EVENT: ['#c896ff', '?', 'Event'], RIFT: ['#b48cff', '◎', 'Rift']
+    EVENT: ['#f06ec0', '?', 'Event'], RIFT: ['#7c8cff', '◎', 'Rift']
   };
   // Lines worth a star in the move list: the swings a player scrubs back to.
   var KEY_LINE = /defeated|bounty|wins|win!|springs trap|fell in battle|forfeit|evolv|ultimate/i;
@@ -775,7 +778,7 @@
       var ty = NODE[s.type] || NODE.BATTLE;
       var delta = (s.goldAfter != null && s.goldBefore != null) ? s.goldAfter - s.goldBefore : 0;
       gold = s.goldAfter != null ? s.goldAfter : gold;
-      return '<article class="mr-stop" data-stop-card="' + idx + '"><span class="dot" style="background:' + ty[0] + '">' + ty[1] + '</span>' +
+      return '<article class="mr-stop" data-stop-card="' + idx + '" style="--nc:' + ty[0] + '"><span class="dot" style="background:' + ty[0] + '">' + ty[1] + '</span>' +
         '<div class="c"><div class="hd"><span class="st"><small>F' + esc(s.floor) + ' · ' + esc(ty[2]) +
         (s.land ? ' · ' + esc(s.land) : '') + '</small><h5>' + esc(s.title || ty[2]) + '</h5></span>' +
         '<span class="bal">' + (delta ? '<span class="amt ' + (delta < 0 ? 'neg' : 'pos') + '">' + gl(delta) + '</span>' : '') +

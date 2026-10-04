@@ -181,7 +181,15 @@ div.mr-score > .mr-score-head { padding-bottom: 10px; }
 .mr-stop { position: relative; display: flex; gap: 10px; margin-bottom: 12px; scroll-margin-top: 12px; }
 .mr-stop > .dot { position: relative; z-index: 1; flex: 0 0 auto; width: 32px; height: 32px; margin-top: 10px; border-radius: 50%; display: grid; place-items: center; color: #120c30; font-size: 15px; }
 .mr-stop .c { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 14px; background: var(--mr-panel); border: 1px solid var(--mr-line-soft); transition: border-color .2s, box-shadow .2s; }
-.mr-stop.on .c { border-color: var(--mr-gold-bright); box-shadow: 0 0 0 1px var(--mr-gold-bright); }
+/* The whole card wears its stop type's color (--nc, set per card from NODE). */
+.mr-stop[style*="--nc"] .c {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--nc) 24%, rgba(24, 18, 70, .9)) 0%, color-mix(in srgb, var(--nc) 9%, rgba(24, 18, 70, .9)) 55%, rgba(24, 18, 70, .9) 100%);
+  border-color: color-mix(in srgb, var(--nc) 55%, transparent);
+  box-shadow: inset 3px 0 0 var(--nc);
+}
+.mr-stop[style*="--nc"] .st small { color: var(--nc); }
+.mr-stop[style*="--nc"] > .dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--nc) 30%, transparent), 0 0 14px color-mix(in srgb, var(--nc) 45%, transparent); }
+.mr-stop.on .c, .mr-stop.on[style*="--nc"] .c { border-color: var(--mr-gold-bright); box-shadow: inset 3px 0 0 var(--nc, var(--mr-gold-bright)), 0 0 0 1px var(--mr-gold-bright); }
 .mr-stop .hd { display: flex; gap: 10px; align-items: flex-start; }
 .mr-stop .st { flex: 1; min-width: 0; }
 .mr-stop .st small { font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--mr-gold); }
