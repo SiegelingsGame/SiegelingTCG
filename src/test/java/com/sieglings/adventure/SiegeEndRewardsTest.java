@@ -142,7 +142,7 @@ class SiegeEndRewardsTest {
         run.setStatus(RunStatus.LOST);
         run.setNodesCleared(3);
         run.setBossKills(0);
-        run.setScore(40L);
+        run.getScoreTally().restore(null, 40L);
         return run;
     }
 

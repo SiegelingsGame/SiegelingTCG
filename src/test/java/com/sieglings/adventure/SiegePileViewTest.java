@@ -49,6 +49,32 @@ class SiegePileViewTest {
         return (List<Map<String, Object>>) battle.get(key);
     }
 
+    /**
+     * Ordinary move cards to play, pulled from hand and draw pile alike. The
+     * opening hand is a random draw, and Evolution / Signature cards (gauge-locked)
+     * share it, so a test that needs N plays must not bet on the shuffle. The
+     * picked cards are put in hand, AP is topped up, and the foe is made too
+     * sturdy to die so the battle stays open for the assertions.
+     */
+    private static List<SiegeCard> ordinaryPlays(SiegeBattle battle, int count, boolean freeOnly) {
+        List<SiegeCard> pool = new ArrayList<>(battle.getHand());
+        pool.addAll(battle.getDeck());
+        List<SiegeCard> picks = pool.stream()
+                .filter(c -> c.getSpec().effect() != Effect.EVOLVE && !SiegeContentService.isSignature(c.getSpec())
+                        && !c.getOwnerId().startsWith(SiegeCombatEngine.KNIGHT_OWNER_PREFIX)
+                        && (!freeOnly || c.getSpec().actionCost() == 0))
+                .limit(count).toList();
+        for (SiegeCard c : picks) {
+            if (battle.getDeck().remove(c)) battle.getHand().add(c);
+        }
+        battle.setActionPoints(20);
+        for (Combatant foe : battle.living(Side.ENEMY)) {
+            foe.setMaxHp(999);
+            foe.setHp(999);
+        }
+        return picks;
+    }
+
     @Test
     void deckAndDiscardAreSerializedAsReadableCards() {
         String token = startRunInBattle();
@@ -57,9 +83,7 @@ class SiegePileViewTest {
 
         // A starter hand can swallow the whole deck, so play a card to be sure
         // there is something in each list worth reading.
-        SiegeCard played = battle.getHand().stream()
-                .filter(c -> c.getSpec().effect() != Effect.EVOLVE && !SiegeContentService.isSignature(c.getSpec()))
-                .findFirst().orElseThrow();
+        SiegeCard played = ordinaryPlays(battle, 1, false).getFirst();
         String foe = battle.living(Side.ENEMY).getFirst().getId();
         siegeService.playCard(token, played.getInstanceId(), foe);
 
@@ -105,10 +129,8 @@ class SiegePileViewTest {
         SiegeRun run = siegeService.lookup(token).orElseThrow();
         SiegeBattle battle = run.getBattle();
         String foe = battle.living(Side.ENEMY).getFirst().getId();
-        List<SiegeCard> plays = battle.getHand().stream()
-                .filter(c -> c.getSpec().effect() != Effect.EVOLVE && !SiegeContentService.isSignature(c.getSpec())
-                        && c.getSpec().actionCost() == 0).limit(2).toList();
-        assertTrue(plays.size() >= 2, "the starter hand has two free plays");
+        List<SiegeCard> plays = ordinaryPlays(battle, 2, false);
+        assertEquals(2, plays.size(), "the warband carries at least two ordinary moves");
         for (SiegeCard c : plays) siegeService.playCard(token, c.getInstanceId(), foe);
 
         List<Map<String, Object>> discard = pile(battle(siegeService.state(token)), "discard");

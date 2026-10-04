@@ -119,6 +119,7 @@ public class MatchReviewService {
         row.put("knightName", run.get("knightName"));
         row.put("floorReached", run.get("floorReached"));
         row.put("floorTotal", run.get("floorTotal"));
+        row.put("score", run.get("score"));
         return row;
     }
 
