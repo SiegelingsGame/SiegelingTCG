@@ -4103,3 +4103,71 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-nav, .sg-more-sheet, .sg-rail { max-width:none; margin-inline:var(--sg-gutter); }
   .sg-nav { padding-inline:clamp(14px, 2vw, 48px); }
 }
+
+/* ==========================================================================
+   LANDSCAPE PHONE (short and wide, below the desktop layer)
+   A phone on its side is ~900px wide and ~400px tall, but it got the portrait
+   phone layout: one stacked column, so Play needed three screens of scrolling
+   for three plates, the shop's offers sat in a strip with half the row empty,
+   and the profile put the signature a full scroll below the showcase.
+   ========================================================================== */
+@media (orientation:landscape) and (max-height:600px) and (min-width:560px) and (max-width:1023px) {
+  /* --- play: three upright plates side by side, sized to the window ---
+     Same idea as the desktop columns, but the height comes from the viewport
+     minus the top bar and the tab bar so all three fit without scrolling. */
+  .sg-modes {
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px;
+  }
+  .sg-mode, .sg-mode.is-primary {
+    height:clamp(210px, calc(100dvh - 58px - var(--sg-sat) - 104px), 420px); border-radius:20px;
+  }
+  .sg-mode-bg { object-position:center 28%; }
+  .sg-mode-veil {
+    background:
+      linear-gradient(180deg, rgba(5,8,15,.08) 0%, rgba(5,8,15,.2) 36%, rgba(5,8,15,.86) 72%, rgba(5,8,15,.96) 100%),
+      linear-gradient(180deg, color-mix(in srgb, var(--el,#f05b2f) 20%, transparent), transparent 46%);
+  }
+  .sg-mode-body {
+    inset:auto 0 0 0; justify-content:flex-end; max-width:100%;
+    padding:0 14px 58px; gap:5px;
+  }
+  .sg-mode-body h3, .sg-mode.is-primary .sg-mode-body h3 { font-size:26px; }
+  .sg-mode-body p { font-size:11.5px; line-height:1.4; }
+  .sg-mode-go, .sg-mode.is-primary .sg-mode-go { left:14px; right:auto; bottom:14px; }
+
+  /* --- shop: the daily offers share the row instead of scrolling a strip ---
+     Each offer takes an equal column and its card grows to the column width,
+     whatever the day's offer count. */
+  .sg-offer-rail {
+    display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0, 1fr);
+    gap:14px; overflow:visible; scroll-snap-type:none;
+  }
+  .sg-offer .sg-card-tile { height:auto; aspect-ratio:var(--card-aspect-ratio, 2.5 / 3.5); }
+  .sg-offer-meta b { font-size:13px; }
+  .sg-offer-meta i { font-size:10px; }
+
+  /* --- profile: showcase and signature side by side ---
+     The wrapper is display:contents on a phone; here it becomes the grid the
+     desktop layer uses, with the showcase and signature sharing one row. */
+  .sg-prof-layout {
+    display:grid; grid-template-columns:minmax(0, 3fr) minmax(0, 2fr); align-items:start;
+  }
+  .sg-prof-layout > [data-prof-block="crest"],
+  .sg-prof-layout > [data-prof-block="tiles"],
+  .sg-prof-layout > [data-prof-block="recent"] { grid-column:1 / -1; }
+  .sg-prof-layout > [data-prof-block="showcase"] { grid-column:1; grid-row:3; min-width:0; }
+  .sg-prof-layout > [data-prof-block="signature"] { grid-column:2; grid-row:3; min-width:0; }
+  .sg-prof-layout > [data-prof-block="recent"] { grid-row:4; }
+  /* Always three showcase cards, so three columns fill the half exactly. */
+  .sg-prof-layout [data-prof-block="showcase"] .sg-swipe {
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px;
+    overflow:visible; scroll-snap-type:none; padding-right:0;
+  }
+  .sg-prof-layout [data-prof-block="showcase"] .sg-feat {
+    flex:none; width:auto; height:auto; aspect-ratio:150 / 196;
+  }
+  .sg-prof-layout [data-prof-block="showcase"] .sg-section-head { padding-right:0; }
+  .sg-prof-layout .sg-sig { max-width:none; gap:10px; }
+  .sg-prof-layout .sg-sig-slot { padding:12px 8px; }
+  .sg-prof-layout .sg-sig-art, .sg-prof-layout .sg-sig-back { width:min(100%, 130px); }
+}
