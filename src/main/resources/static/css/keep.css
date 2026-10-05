@@ -47,10 +47,16 @@
 
 * { box-sizing: border-box; }
 
+/* Not height:100%. That is the layout viewport, which an installed iOS web app
+   can launch short of the glass; the document is then clipped there and
+   anything below - the dock - is cut off over a dead band in the theme colour.
+   Same rule as the hub (home-next.html) and arena (style.css body): --sg-vh
+   from viewport-unit.js wins only where dvh under-reports. */
 html,
 body {
     width: 100%;
-    height: 100%;
+    height: var(--sg-vh, 100vh);
+    height: max(100dvh, var(--sg-vh, 0px));
     margin: 0;
     overflow: hidden;
     overscroll-behavior: none;
@@ -65,16 +71,13 @@ button { border: 0; }
 a { text-decoration: none; }
 .hidden { display: none !important; }
 
-/* Fixed to the visual viewport: iOS Safari can scroll the document during
-   portrait/landscape rotation even with overflow hidden, which pushed the
-   header (and its exit link) off-screen. Anchoring the app shell keeps the
-   header reachable in every orientation. */
-/* Explicit height rather than inset:0: a fixed box's containing block is the
-   layout viewport, which an installed iOS web app can report shorter than the
-   glass, stranding the dock above a dead band. Same max() as the arena/hub
-   shells: --sg-vh (viewport-unit.js) only wins where dvh under-reports. */
+/* Absolute against the full-height document, like the hub's .sg-app. A fixed
+   box sizes to the layout viewport, which is exactly the short measure that
+   left the dock above a dead band. iOS rotation scroll drift (the reason this
+   was once fixed) is now undone by keep.js and viewport-unit.js pinning the
+   document scroll to 0. */
 .keep-app {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
     right: 0;
