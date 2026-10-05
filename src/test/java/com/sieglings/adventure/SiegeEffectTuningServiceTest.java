@@ -4,9 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sieglings.service.CardOverrideStorageService;
 import org.junit.jupiter.api.Test;
 
+import com.sieglings.model.enums.Element;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -267,9 +270,98 @@ class SiegeEffectTuningServiceTest {
         assertEquals(5, service.valueBonus(Effect.DAMAGE), "clearing a move must not clear the effect knobs");
     }
 
+    /**
+     * A Firestore read failure falls back to an empty local document so combat
+     * keeps running. Publishing a Signature Ultimate must not write that fallback
+     * back: the save replaces the whole tuning document, and the fallback does
+     * not contain the live effect, global or move pins.
+     */
+    @Test
+    void signaturePublishRefusesToReplaceFirestoreWithTheReadFallback() {
+        AtomicInteger saves = new AtomicInteger();
+        SiegeEffectTuningService service = firestorePublish(saves, new AtomicReference<>(
+                new SiegeEffectTuningService.StoredData(
+                        new SiegeEffectTuningService.TuningFile(List.of(), null, List.of()),
+                        CardOverrideStorageService.StorageBackend.CLASSPATH_RESOURCE, null, null)));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.applySignatureChanges(
+                List.of(new SiegeEffectTuningService.SignaturePatch("element:FIRE",
+                        Map.of("value", 12), false)),
+                "editor@example.com"));
+
+        assertTrue(ex.getMessage().contains("not published"));
+        assertEquals(0, saves.get(), "the fallback document must not be written to Firestore");
+    }
+
+    @Test
+    void signaturePublishAfterACachedFallbackRereadsFirestoreAndKeepsExistingPins() {
+        AtomicInteger saves = new AtomicInteger();
+        AtomicReference<SiegeEffectTuningService.StoredData> stored = new AtomicReference<>(
+                new SiegeEffectTuningService.StoredData(
+                        new SiegeEffectTuningService.TuningFile(List.of(), null, List.of()),
+                        CardOverrideStorageService.StorageBackend.CLASSPATH_RESOURCE, null, null));
+        SiegeEffectTuningService service = firestorePublish(saves, stored);
+        service.buildSnapshot(); // caches the fallback the way a combat read would
+
+        stored.set(new SiegeEffectTuningService.StoredData(
+                new SiegeEffectTuningService.TuningFile(
+                        List.of(new SiegeEffectTuningService.EffectOverride("DAMAGE", 9, null, null, null)),
+                        null,
+                        List.of(new SiegeEffectTuningService.MoveOverride("fire-spark", 12, null))),
+                CardOverrideStorageService.StorageBackend.FIRESTORE, "editor@example.com", null));
+
+        service.applySignatureChanges(List.of(new SiegeEffectTuningService.SignaturePatch("element:FIRE",
+                Map.of("value", 11), false)), "editor@example.com");
+
+        assertEquals(1, saves.get());
+        assertEquals(9, service.valueBonus(Effect.DAMAGE));
+        assertEquals(12, service.moveValue("fire-spark"));
+        assertEquals(11, service.signatureFor(Element.FIRE, "fire-x", "Dracoil").value());
+    }
+
+    @Test
+    void tuningFileWithoutSignaturesStillReadsTheOtherPins() throws Exception {
+        String json = "{\"effects\":[{\"effect\":\"DAMAGE\",\"valueBonus\":9}],"
+                + "\"moves\":[{\"moveId\":\"fire-spark\",\"value\":12}]}";
+        SiegeEffectTuningService.TuningFile file = new ObjectMapper()
+                .readValue(json, SiegeEffectTuningService.TuningFile.class);
+
+        assertEquals(9, file.effects().get(0).valueBonus());
+        assertEquals("fire-spark", file.moves().get(0).moveId());
+        assertTrue(file.signatures().isEmpty());
+    }
+
     private static SiegeEffectTuningService.EffectRow row(
             List<SiegeEffectTuningService.EffectRow> rows, Effect effect) {
         return rows.stream().filter(r -> r.effect() == effect).findFirst().orElseThrow();
+    }
+
+    /**
+     * Firestore is the publish target, but {@code loadStored} is still in-memory
+     * so the test can hand back a read-fallback document or a live one.
+     */
+    private SiegeEffectTuningService firestorePublish(
+            AtomicInteger saves, AtomicReference<SiegeEffectTuningService.StoredData> stored) {
+        return new SiegeEffectTuningService(new ObjectMapper(), null, "appConfig", "siegeEffectTuning") {
+            @Override
+            protected boolean publishesToFirestore() {
+                return true;
+            }
+
+            @Override
+            protected StoredData loadStored() {
+                return stored.get();
+            }
+
+            @Override
+            protected StoredData saveStored(TuningFile file, String updatedByEmail) {
+                saves.incrementAndGet();
+                StoredData written = new StoredData(file,
+                        CardOverrideStorageService.StorageBackend.FIRESTORE, updatedByEmail, null);
+                stored.set(written);
+                return written;
+            }
+        };
     }
 
     /**
