@@ -352,12 +352,11 @@
     }
 
     // Reciprocal links: two live neighbours whose notches point at each other,
-    // the same test EnergyService runs. Each half of the bridge takes its own
-    // notch's element color so a mixed link reads as mixed.
+    // the same test EnergyService runs, colored by the notches' elements.
     function drawLinks(step) {
       var svgL = arena.querySelector('.mr-links');
       var box = arena.getBoundingClientRect();
-      var out = '';
+      var out = '', linkN = 0;
       [opp, you].forEach(function (side) {
         var at = {};
         step.b.forEach(function (c) {
@@ -389,12 +388,24 @@
             x2 += dx / len * reach; y2 += dy / len * reach;
             var mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
             var ca = color(n.el), cb = color(m.el);
+            // A same-element link is one solid color; a mixed one blends from
+            // each notch's element to the other's. userSpaceOnUse keeps the
+            // gradient along the link even when it is perfectly vertical.
+            var paint = ca;
+            if (ca !== cb) {
+              var gid = 'mrlk' + (linkN++);
+              out += '<defs><linearGradient id="' + gid + '" gradientUnits="userSpaceOnUse" x1="' + x1 + '" y1="' + y1 +
+                '" x2="' + x2 + '" y2="' + y2 + '"><stop offset="0" stop-color="' + ca + '"/><stop offset="1" stop-color="' + cb +
+                '"/></linearGradient></defs>';
+              paint = 'url(#' + gid + ')';
+            }
+            var seg = 'x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke-linecap="round"';
             out += '<g class="ln">' +
-              '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="rgba(8,6,28,.85)" stroke-width="6" stroke-linecap="round"/>' +
-              '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + mx + '" y2="' + my + '" stroke="' + ca + '" stroke-width="3" stroke-linecap="round"/>' +
-              '<line x1="' + mx + '" y1="' + my + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + cb + '" stroke-width="3" stroke-linecap="round"/>' +
-              '<circle cx="' + x1 + '" cy="' + y1 + '" r="2.6" fill="' + ca + '"/>' +
-              '<circle cx="' + x2 + '" cy="' + y2 + '" r="2.6" fill="' + cb + '"/></g>';
+              '<line ' + seg + ' stroke="' + paint + '" stroke-width="10" opacity=".35"/>' +
+              '<line ' + seg + ' stroke="rgba(8,6,28,.9)" stroke-width="6"/>' +
+              '<line ' + seg + ' stroke="' + paint + '" stroke-width="4"/>' +
+              '<circle cx="' + x1 + '" cy="' + y1 + '" r="3.2" fill="' + ca + '" stroke="rgba(8,6,28,.9)" stroke-width="1"/>' +
+              '<circle cx="' + x2 + '" cy="' + y2 + '" r="3.2" fill="' + cb + '" stroke="rgba(8,6,28,.9)" stroke-width="1"/></g>';
           });
         });
       });

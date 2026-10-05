@@ -1,0 +1,12 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="/css/match-review.css"><style>body{margin:0;background:#1a1040;color:#fff;font-family:system-ui}</style></head><body>
+<script>
+var cards={
+ a:{name:'Staticap',element:'ELECTRIC',type:'SIEGLING',speed:8,notches:['RIGHT:ELECTRIC','TOP:FIRE']},
+ b:{name:'Monkeyspark',element:'ELECTRIC',type:'SIEGLING',speed:10,notches:['LEFT:WATER','TOP_RIGHT:ELECTRIC']},
+ c:{name:'Torqlander',element:'WATER',type:'SIEGLING',speed:8,notches:['BOTTOM:WATER']},
+ d:{name:'Ceepodon',element:'WATER',type:'SIEGLING',speed:10,notches:['TOP:WATER','BOTTOM_LEFT:WATER']}};
+var B=[{s:'p',r:0,c:0,id:'a',hp:16,mx:16},{s:'p',r:0,c:1,id:'b',hp:12,mx:12},{s:'e',r:0,c:0,id:'c',hp:16,mx:16},{s:'e',r:1,c:0,id:'d',hp:8,mx:12}];
+var frames=[{t:1,p:'SETUP',m:'Game started!',ph:50,eh:50,b:B},{t:1,p:'SETUP',m:'Roc places Staticap',ph:50,eh:50,b:B}];
+window.SiegelingsHomeLive={get:function(){return Promise.resolve({kind:'BATTLE',match:{result:'WIN'},replay:{viewerSide:'p',cards:cards,frames:frames,startingHealth:50}});}};
+</script><script src="/js/match-review.js"></script><script>SiegelingsMatchReview.open('x');</script></body></html>
