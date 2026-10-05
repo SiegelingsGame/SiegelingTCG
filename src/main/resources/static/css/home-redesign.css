@@ -138,6 +138,16 @@ body.concept-board {
   color:var(--muted); position:relative; font-size:14px; cursor:pointer; padding:0;
 }
 .sg-bell svg { display:block; }
+/* Music on/off. The slash only shows while muted; a playing note glows gold. */
+.sg-music {
+  width:32px; height:32px; border-radius:50%; display:grid; place-items:center; flex:0 0 auto;
+  border:1px solid var(--steel-soft); background:rgba(10,16,28,.88);
+  color:var(--muted); cursor:pointer; padding:0;
+}
+.sg-music svg { display:block; }
+.sg-music .sg-music-slash { display:none; }
+.sg-music.is-muted .sg-music-slash { display:inline; }
+.sg-music.is-playing { color:var(--gold-bright); border-color:rgba(200,165,79,.4); }
 .sg-bell.active, .sg-bell:hover { color:var(--gold-bright); border-color:rgba(200,165,79,.4); }
 .sg-bell::after { display:none; }
 .sg-notif-badge {
@@ -4210,6 +4220,33 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 
   /* Bottom-left: what is on the wall, and the controls for it. */
   .sg-stage-deck { grid-area:deck; align-self:end; display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .sg-stage-music {
+    align-self:flex-start; display:flex; align-items:center; gap:2px; max-width:100%;
+    padding:2px 4px 2px 2px; border-radius:999px;
+    background:linear-gradient(90deg, rgba(84,168,240,.38), rgba(180,92,255,.30));
+    border:1px solid rgba(255,255,255,.2);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  }
+  .sg-stage-music button {
+    flex:0 0 auto; width:30px; height:30px; border:none; background:none; border-radius:50%;
+    color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0;
+  }
+  .sg-stage-music button svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.9;
+    stroke-linecap:round; stroke-linejoin:round; }
+  .sg-stage-music button:active { background:rgba(255,255,255,.14); }
+  .sg-stage-music-title {
+    min-width:0; padding:0 6px 0 2px; font-size:12px; font-weight:700; letter-spacing:.02em;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 2px rgba(0,0,0,.6);
+  }
+  /* Level bars: they dance while a song plays and lie flat when muted. */
+  .sg-stage-eq { display:inline-flex; align-items:flex-end; gap:2px; height:13px; }
+  .sg-stage-eq i { width:3px; height:4px; border-radius:1px; background:currentColor; }
+  .sg-stage-music-toggle.is-playing .sg-stage-eq i { animation:sgStageEq .9s ease-in-out infinite alternate; }
+  .sg-stage-music-toggle.is-playing .sg-stage-eq i:nth-child(2) { animation-delay:-.3s; }
+  .sg-stage-music-toggle.is-playing .sg-stage-eq i:nth-child(3) { animation-delay:-.6s; }
+  .sg-stage-music-toggle.is-muted { opacity:.55; }
+  @keyframes sgStageEq { from { height:3px; } to { height:13px; } }
+
   .sg-stage-caption { min-width:0; text-shadow:0 1px 3px #000, 0 0 12px rgba(0,0,0,.7); }
   .sg-stage-caption strong {
     display:block; font-family:var(--serif); font-size:19px; font-weight:600; line-height:1.15;
@@ -4319,5 +4356,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   @media (prefers-reduced-motion:reduce) {
     .sg-stage-plate.is-on { animation:none; transform:none; }
     .sg-app a.sg-stage-play::after { animation:none; }
+    .sg-stage-music-toggle.is-playing .sg-stage-eq i { animation:none; height:9px; }
   }
 }

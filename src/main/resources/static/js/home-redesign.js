@@ -928,6 +928,8 @@
   // decorative sparkle that read as a cosmetic chip instead of an alert button.
   var BELL_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>';
 
+  var MUSIC_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle><path class="sg-music-slash" d="M3 3l18 18"></path></svg>';
+
   function topMarkup(opts) {
     var guest = Boolean(opts && opts.guest);
     var unread = unreadNotifCount(opts);
@@ -936,6 +938,8 @@
       '<span class="sg-top-spacer"></span>' +
       '<span class="sg-chip coin"><img src="/img/ui/home-stats/siegecoin.png" alt="">' +
         esc(formatCoins(opts, guest)) + '</span>' +
+      // hub-music.js owns the state and repaints this on every change.
+      '<button class="sg-music" type="button" data-music-toggle aria-label="Mute music">' + MUSIC_ICON + '</button>' +
       (guest
         ? '<a class="sg-signin" href="/login" data-screen="auth">Sign In</a>'
         // The badge used to read a `level` the backend has never had: there is
@@ -1182,6 +1186,14 @@
           '<a class="sg-stage-play" href="' + HREF.battle + '">Battle</a>' +
         '</div>' +
         '<div class="sg-stage-deck">' +
+          // The soundtrack's own pill, like the lobby jukebox it is modelled on.
+          '<div class="sg-stage-music">' +
+            '<button type="button" class="sg-stage-music-toggle" data-music-toggle aria-label="Mute music">' +
+              '<span class="sg-stage-eq" aria-hidden="true"><i></i><i></i><i></i></span></button>' +
+            '<span class="sg-stage-music-title" data-music-title></span>' +
+            '<button type="button" data-music-prev aria-label="Previous song">' + STAGE_ICON.prev + '</button>' +
+            '<button type="button" data-music-next aria-label="Next song">' + STAGE_ICON.next + '</button>' +
+          '</div>' +
           '<div class="sg-stage-caption" data-stage-caption></div>' +
           '<div class="sg-stage-player">' +
             '<button type="button" data-stage-prev aria-label="Previous art">' + STAGE_ICON.prev + '</button>' +
@@ -7039,6 +7051,7 @@
     if (screen === 'auth') mountAuth(app);
     mountBottom(app);
     mountNotifs(app, opts);
+    if (window.SiegelingsHubMusic) window.SiegelingsHubMusic.sync();
     mountArtFit(app);
     scheduleFit(app);
     return app;
