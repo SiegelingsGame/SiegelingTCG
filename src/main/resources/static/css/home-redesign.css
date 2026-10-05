@@ -138,6 +138,16 @@ body.concept-board {
   color:var(--muted); position:relative; font-size:14px; cursor:pointer; padding:0;
 }
 .sg-bell svg { display:block; }
+/* Music on/off. The slash only shows while muted; a playing note glows gold. */
+.sg-music {
+  width:32px; height:32px; border-radius:50%; display:grid; place-items:center; flex:0 0 auto;
+  border:1px solid var(--steel-soft); background:rgba(10,16,28,.88);
+  color:var(--muted); cursor:pointer; padding:0;
+}
+.sg-music svg { display:block; }
+.sg-music .sg-music-slash { display:none; }
+.sg-music.is-muted .sg-music-slash { display:inline; }
+.sg-music.is-playing { color:var(--gold-bright); border-color:rgba(200,165,79,.4); }
 .sg-bell.active, .sg-bell:hover { color:var(--gold-bright); border-color:rgba(200,165,79,.4); }
 .sg-bell::after { display:none; }
 .sg-notif-badge {
@@ -4104,6 +4114,250 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-nav { padding-inline:clamp(14px, 2vw, 48px); }
 }
 
+/* ---------- landscape stage (experiment) ----------
+   On a phone on its side Home is one screen of rotating artwork with every
+   destination floating over it; nothing scrolls. Portrait and desktop never see
+   the stage - it only exists inside this query, which matches the landscape
+   breakpoint the card sheet already uses. The scroller stays in the DOM (its
+   sections are lent to the stage's panel) but is retired from layout. */
+.sg-stage { display:none; }
+@media (orientation:landscape) and (max-height:500px) {
+  .sg-stage ~ .sg-scroll { display:none; }
+  .sg-stage {
+    display:block; position:absolute; inset:0; z-index:2; overflow:hidden;
+    --sal:env(safe-area-inset-left, 0px); --sar:env(safe-area-inset-right, 0px);
+    --stage-top:calc(max(6px, var(--sg-sat)) + 44px);
+    --stage-bottom:calc(58px + max(8px, calc(var(--sg-sab) * 0.4)));
+    background:#0d0a26;
+  }
+  .sg-stage-art { position:absolute; inset:0; }
+  .sg-stage-plate {
+    position:absolute; inset:0; background-size:cover; background-position:center 40%;
+    opacity:0; transition:opacity 1.3s ease; transform:scale(1.06);
+  }
+  .sg-stage-plate.is-on { opacity:1; animation:sgStageDrift 14s ease-out forwards; }
+  @keyframes sgStageDrift { from { transform:scale(1.08); } to { transform:scale(1.0); } }
+  /* Only the edges are shaded, where the controls sit; the middle stays the art. */
+  .sg-stage-veil {
+    position:absolute; inset:0; pointer-events:none;
+    background:
+      linear-gradient(90deg, rgba(13,10,38,.62) 0%, rgba(13,10,38,0) 26%, rgba(13,10,38,0) 70%, rgba(13,10,38,.5) 100%),
+      linear-gradient(180deg, rgba(13,10,38,0) 58%, rgba(13,10,38,.72) 100%);
+    transition:opacity .4s ease;
+  }
+  .sg-stage-reveal { position:absolute; inset:0; z-index:1; border:none; background:none; padding:0; display:none; cursor:pointer; }
+
+  .sg-stage-ui {
+    position:absolute; inset:0; z-index:2; pointer-events:none;
+    padding:var(--stage-top) max(14px, var(--sar)) calc(var(--stage-bottom) + 8px) max(14px, var(--sal));
+    display:grid; grid-template-columns:auto 1fr auto; grid-template-rows:1fr auto;
+    grid-template-areas:"left . right" "deck deck right";
+    gap:10px 16px; transition:opacity .35s ease;
+  }
+  .sg-stage-ui > * { pointer-events:auto; }
+
+  /* Shortcut icons, three to a row, labelled underneath like a launcher. */
+  .sg-stage-left {
+    grid-area:left; align-self:start;
+    display:grid; grid-template-columns:repeat(3, 58px); gap:6px 4px;
+  }
+  .sg-stage-tile {
+    position:relative; display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:0; border:none; background:none; cursor:pointer; color:var(--ink);
+    text-decoration:none; font:inherit;
+  }
+  .sg-stage-tile-ico {
+    width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    background:rgba(13,10,38,.58); border:1px solid rgba(255,255,255,.22);
+    box-shadow:0 4px 14px rgba(0,0,0,.35);
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    transition:transform .15s ease, border-color .2s ease;
+  }
+  .sg-stage-tile svg, .sg-stage-player svg {
+    width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.9;
+    stroke-linecap:round; stroke-linejoin:round;
+  }
+  .sg-stage-tile:active .sg-stage-tile-ico { transform:scale(.92); border-color:var(--el, var(--gold)); }
+  .sg-stage-tile-label {
+    font-size:10.5px; font-weight:700; letter-spacing:.02em; white-space:nowrap;
+    text-shadow:0 1px 2px #000, 0 0 8px rgba(0,0,0,.8);
+  }
+  .sg-stage-badge {
+    position:absolute; top:-2px; right:6px; min-width:16px; height:16px; padding:0 4px;
+    border-radius:999px; background:#ff5a3c; color:#fff; font-style:normal;
+    font-size:9.5px; font-weight:800; line-height:16px; text-align:center;
+    box-shadow:0 0 0 1.5px #0d0a26;
+  }
+
+  /* Modes on the right, Battle as the one loud button. */
+  .sg-stage-right {
+    grid-area:right; align-self:end; display:flex; flex-direction:column; align-items:stretch; gap:8px;
+    width:min(200px, 26vw);
+  }
+  .sg-app a.sg-stage-mode {
+    display:flex; flex-direction:column; justify-content:center; padding:7px 14px; min-height:44px;
+    border-radius:14px; text-decoration:none; color:var(--ink);
+    background:linear-gradient(100deg, rgba(13,10,38,.82), rgba(40,22,96,.62));
+    border:1px solid rgba(180,140,255,.36); box-shadow:0 6px 18px rgba(0,0,0,.35);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  }
+  .sg-app a.sg-stage-mode.is-keep { border-color:rgba(84,168,240,.36); }
+  .sg-stage-mode-kicker { font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); }
+  .sg-stage-mode strong { font-family:var(--serif); font-size:16px; font-weight:600; line-height:1.15; }
+  .sg-app a.sg-stage-play {
+    display:flex; align-items:center; justify-content:center; height:52px; border-radius:999px;
+    font-family:var(--serif); font-size:19px; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
+    text-decoration:none; color:#2b0d02; position:relative; overflow:hidden;
+    background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
+    box-shadow:0 10px 30px rgba(255,120,45,.5), 0 0 0 1px rgba(255,236,190,.7) inset;
+  }
+  .sg-app a.sg-stage-play::after {
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(105deg, transparent 38%, rgba(255,255,255,.55) 50%, transparent 62%);
+    transform:translateX(-130%); animation:sgShimmer 4.6s ease-in-out infinite;
+  }
+  .sg-app a.sg-stage-play:active { transform:translateY(1px); }
+
+  /* Bottom-left: what is on the wall, and the controls for it. */
+  .sg-stage-deck { grid-area:deck; align-self:end; display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .sg-stage-music {
+    align-self:flex-start; display:flex; align-items:center; gap:2px; max-width:100%;
+    padding:2px 4px 2px 2px; border-radius:999px;
+    background:linear-gradient(90deg, rgba(84,168,240,.38), rgba(180,92,255,.30));
+    border:1px solid rgba(255,255,255,.2);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  }
+  .sg-stage-music button {
+    flex:0 0 auto; width:30px; height:30px; border:none; background:none; border-radius:50%;
+    color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0;
+  }
+  .sg-stage-music button svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.9;
+    stroke-linecap:round; stroke-linejoin:round; }
+  .sg-stage-music button:active { background:rgba(255,255,255,.14); }
+  .sg-stage-music-title {
+    min-width:0; padding:0 6px 0 2px; font-size:12px; font-weight:700; letter-spacing:.02em;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 2px rgba(0,0,0,.6);
+  }
+  /* Level bars: they dance while a song plays and lie flat when muted. */
+  .sg-stage-eq { display:inline-flex; align-items:flex-end; gap:2px; height:13px; }
+  .sg-stage-eq i { width:3px; height:4px; border-radius:1px; background:currentColor; }
+  .sg-stage-music-toggle.is-playing .sg-stage-eq i { animation:sgStageEq .9s ease-in-out infinite alternate; }
+  .sg-stage-music-toggle.is-playing .sg-stage-eq i:nth-child(2) { animation-delay:-.3s; }
+  .sg-stage-music-toggle.is-playing .sg-stage-eq i:nth-child(3) { animation-delay:-.6s; }
+  .sg-stage-music-toggle.is-muted { opacity:.55; }
+  @keyframes sgStageEq { from { height:3px; } to { height:13px; } }
+
+  .sg-stage-caption { min-width:0; text-shadow:0 1px 3px #000, 0 0 12px rgba(0,0,0,.7); }
+  .sg-stage-caption strong {
+    display:block; font-family:var(--serif); font-size:19px; font-weight:600; line-height:1.15;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .sg-stage-caption span {
+    display:block; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:rgba(255,255,255,.88); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  /* The element rides as a pip: element-coloured text vanished on art of the
+     same element (Fire captions on Emberwaste plates). */
+  .sg-stage-caption span::before {
+    content:''; display:inline-block; width:7px; height:7px; margin:0 7px 1px 0; border-radius:50%;
+    background:var(--el, var(--gold-bright)); box-shadow:0 0 6px var(--el, var(--gold-bright));
+  }
+  .sg-stage-player {
+    align-self:flex-start; display:flex; align-items:center; gap:2px; padding:3px 6px;
+    border-radius:999px; background:rgba(13,10,38,.62); border:1px solid rgba(255,255,255,.16);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); max-width:100%;
+  }
+  .sg-stage-player button {
+    flex:0 0 auto; height:34px; min-width:34px; padding:0 8px; border:none; background:none; border-radius:999px;
+    color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    font:inherit; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  }
+  .sg-stage-player button svg { width:16px; height:16px; }
+  .sg-stage-player button:active { background:rgba(255,255,255,.12); }
+  .sg-stage-player button.is-wide { border-left:1px solid rgba(255,255,255,.14); border-radius:0 999px 999px 0; margin-left:4px; }
+  .sg-stage-dots { display:inline-flex; gap:4px; padding:0 6px; }
+  .sg-stage-dots i { width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,.3); transition:all .3s ease; }
+  .sg-stage-dots i.on { width:14px; border-radius:3px; background:var(--el, var(--gold-bright)); }
+
+  /* On-demand panels. Its body is the one region that scrolls. */
+  .sg-stage-panel {
+    position:absolute; z-index:3; top:var(--stage-top);
+    left:50%; transform:translateX(-50%); width:min(600px, calc(100% - 2 * max(14px, var(--sal), var(--sar))));
+    display:flex; animation:sgStagePanel .22s ease-out;
+  }
+  .sg-stage-panel[hidden] { display:none; }
+  @keyframes sgStagePanel { from { opacity:0; transform:translate(-50%, 8px); } to { opacity:1; transform:translate(-50%, 0); } }
+  .sg-stage-panel-card {
+    flex:1 1 auto; min-height:0; display:flex; flex-direction:column; border-radius:20px; overflow:hidden;
+    /* Sized to its content up to the gap between the top chrome and the tab bar. */
+    max-height:calc(var(--sg-vh, 100dvh) - var(--stage-top) - var(--stage-bottom) - 6px);
+    background:rgba(13,10,38,.9); border:1px solid rgba(180,140,255,.3);
+    box-shadow:0 18px 50px rgba(0,0,0,.6);
+    backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  }
+  .sg-stage-panel-card > header {
+    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:10px 10px 6px 18px;
+  }
+  .sg-stage-panel-card h3 { margin:0; font-family:var(--serif); font-size:19px; font-weight:600; }
+  .sg-stage-close {
+    width:34px; height:34px; border-radius:50%; border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.06); color:var(--ink); font-size:20px; line-height:1; cursor:pointer;
+  }
+  .sg-stage-panel-body {
+    flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch; padding:0 0 12px;
+  }
+  /* Lent sections bring their own titles; the panel header already says it. */
+  /* An empty strip is nothing but its head ("Sign in to track them"), so it keeps it. */
+  .sg-stage-panel-body .sg-section-head h3,
+  .sg-stage-panel-body .sg-strip:not(.is-empty) .sg-strip-head { display:none; }
+  .sg-stage-panel-body .sg-section-head { justify-content:flex-end; padding-top:0; }
+  .sg-stage-panel-body .sg-strip { margin:0 14px; cursor:default; }
+  .sg-stage-panel-body .sg-exps { margin:4px 14px 0; }
+  .sg-stage-panel-body .sg-lb-empty { margin:0 18px; height:150px; }
+
+  .sg-stage-pick-note { margin:0 18px 10px; font-size:12px; color:var(--muted); }
+  .sg-stage-pick-note b { color:var(--gold-bright); margin-left:4px; display:inline-block; }
+  .sg-stage-pick-note b.is-full { animation:sgStageNudge .4s ease; color:#ff7a5c; }
+  @keyframes sgStageNudge { 25% { transform:translateX(-3px); } 75% { transform:translateX(3px); } }
+  .sg-stage-pick-grid {
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; padding:0 14px;
+  }
+  .sg-stage-pick {
+    position:relative; aspect-ratio:16 / 9; border-radius:12px; overflow:hidden; padding:0; cursor:pointer;
+    border:2px solid rgba(255,255,255,.12); background:#1a1440;
+  }
+  .sg-stage-pick img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .sg-stage-pick.on { border-color:var(--gold-bright, #ffd83d); box-shadow:0 0 0 2px rgba(255,216,61,.25); }
+  .sg-stage-pick.is-locked { cursor:not-allowed; }
+  .sg-stage-pick.is-locked img { filter:grayscale(.85) brightness(.45); }
+  .sg-stage-pick-order {
+    position:absolute; top:6px; right:6px; width:22px; height:22px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800;
+    border:1.5px solid rgba(255,255,255,.7); background:rgba(13,10,38,.55); color:#fff;
+  }
+  .sg-stage-pick.on .sg-stage-pick-order { background:var(--gold-bright, #ffd83d); border-color:transparent; color:#2b0d02; }
+  .sg-stage-pick-foot {
+    position:absolute; left:0; right:0; bottom:0; padding:14px 8px 5px; text-align:left;
+    background:linear-gradient(180deg, transparent, rgba(0,0,0,.8));
+    color:#fff; font-size:11px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .sg-stage-pick-foot em { display:flex; align-items:center; gap:4px; font-style:normal; font-weight:500; font-size:9.5px; color:var(--muted); }
+
+  /* Art-only view: every overlay steps aside until the art is tapped. */
+  .sg-app.is-stage-bare .sg-stage-ui,
+  .sg-app.is-stage-bare .sg-stage-veil,
+  .sg-app.is-stage-bare .sg-top,
+  .sg-app.is-stage-bare .sg-bottom { opacity:0; pointer-events:none; }
+  .sg-app.is-stage-bare .sg-stage-ui > *, .sg-app.is-stage-bare .sg-top > *, .sg-app.is-stage-bare .sg-bottom > * { pointer-events:none; }
+  .sg-app.is-stage-bare .sg-stage-reveal { display:block; }
+  .sg-app .sg-top, .sg-app .sg-bottom { transition:opacity .35s ease; }
+
+  @media (prefers-reduced-motion:reduce) {
+    .sg-stage-plate.is-on { animation:none; transform:none; }
+    .sg-app a.sg-stage-play::after { animation:none; }
+    .sg-stage-music-toggle.is-playing .sg-stage-eq i { animation:none; height:9px; }
+  }
 /* ==========================================================================
    LANDSCAPE PHONE (short and wide, below the desktop layer)
    A phone on its side is ~900px wide and ~400px tall, but it got the portrait
