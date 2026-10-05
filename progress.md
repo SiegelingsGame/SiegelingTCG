@@ -6,6 +6,7 @@ Original prompt: Merge and deploy
   - `/api/cards/editor` returns `source=FIRESTORE`, `liveEditingEnabled=true` and `firestoreAvailable=true`, through Hosting and directly on Cloud Run.
   - `config.js` has `apiBaseUrl: ''` and `/api/game/options` returns 200.
   - `/siege` still served `adventure.css?v=104` / `adventure.js?v=117`.
+  - Run 1005 (from #1019) then failed the same way: both jobs sat queued for 15 minutes with no runner and were cancelled. Neither job ever started, so this points at GitHub Actions runner availability or account limits, not the code. A follow-up push retries after the account owner settled billing.
 - October 5, 2026 **Siege team select fits one landscape phone screen, with the choices first and swipe rails.**
   - **Change.** On a landscape phone (`(orientation:landscape) and (max-height:600px)`), `#setupScreen` used to be a scrolling document. At 1000x460 the mode page ran 325px past the fold, the first knight card started at y 300, and the first Siegeling card started at y 443. Now the shell is a fixed `100dvh` flex column and `#setupScreen` is a grid:
     - **Top row:** the account pill and step chips share one row.
