@@ -267,39 +267,138 @@
       return best;
     }
 
-    function grid(side, step, changes, actor) {
-      var rows = side === you ? [2, 1, 0] : [0, 1, 2];
+    // Notch slot on the card's perimeter, as fractions of the cell. Directions
+    // read the same on screen for both sides: the server flips the row delta for
+    // the player so TOP always points up the table (EnergyService.getBoardRowDelta).
+    var NOTCH = {
+      TOP: [0, -1], TOP_RIGHT: [1, -1], RIGHT: [1, 0], BOTTOM_RIGHT: [1, 1],
+      BOTTOM: [0, 1], BOTTOM_LEFT: [-1, 1], LEFT: [-1, 0], TOP_LEFT: [-1, -1]
+    };
+    function notchesOf(id) {
+      return ((cards[id] || {}).notches || []).map(function (n) {
+        var parts = String(n).split(':');
+        return { d: parts[0], el: parts[1] || 'NEUTRAL', v: NOTCH[parts[0]] };
+      }).filter(function (n) { return n.v; });
+    }
+    function screenRow(side, r) { return side === you ? 2 - r : r; }
+
+    function cardInner(c) {
+      var info = cards[c.id] || { name: c.id, element: 'NEUTRAL' };
+      return '<div class="mr-card' + (info.rarity === 'LEGENDARY' ? ' leg' : '') + '" style="--el:' + color(info.element) + '">' +
+        (info.art ? '<img src="' + esc(info.art) + '" alt="" decoding="async">' : '') +
+        '<span class="nm">' + esc(info.name) + '</span>' +
+        '<span class="st"><i class="hp"><b>♥</b><span></span></i>' +
+          (info.speed != null ? '<i class="sp"><b>⚡</b>' + esc(info.speed) + '</i>' : '') + '</span>' +
+        '<span class="bar"><i></i></span></div>' +
+        notchesOf(c.id).map(function (n) {
+          return '<span class="mr-notch" style="left:' + (50 + n.v[0] * 50) + '%;top:' + (50 + n.v[1] * 50) +
+            '%;--nc:' + color(n.el) + '"></span>';
+        }).join('');
+    }
+
+    // Restarts a one-shot CSS animation on an element that stays in the DOM.
+    function flash(el, cls, on) {
+      el.classList.remove(cls);
+      if (on) { void el.offsetWidth; el.classList.add(cls); }
+    }
+
+    // Cells are built once and patched per step: a card that stays put keeps
+    // its node (and its art), so only its numbers move. Rebuilding the arena
+    // every step re-decoded every image and made the art blink.
+    function paintGrid(side, step, changes, actor) {
       var bySpot = {};
       step.b.forEach(function (c) { if (c.s === side) bySpot[c.r + ',' + c.c] = c; });
-      var out = '';
-      rows.forEach(function (r) {
+      for (var r = 0; r < 3; r++) {
         for (var col = 0; col < 3; col++) {
-          var c = bySpot[r + ',' + col];
           var k = side + r + col;
+          var cell = arena.querySelector('[data-cell="' + k + '"]');
+          var c = bySpot[r + ',' + col];
           var ch = changes[k] || {};
-          var cls = 'mr-cell';
-          if (actor && cellKey(actor) === k) cls += ' actor';
-          if (ch.dmg) cls += ' hit';
-          if (ch.placed) cls += ' placed';
-          var inner = '';
-          if (c) {
-            var info = cards[c.id] || { name: c.id, element: 'NEUTRAL' };
-            var max = c.mx || c.hp || 1;
-            var pct = Math.max(0, Math.min(100, Math.round(c.hp / max * 100)));
-            var dead = c.dead || c.hp <= 0;
-            inner = '<div class="mr-card' + (dead ? ' dead' : '') + (pct <= 40 ? ' low' : '') +
-              (info.rarity === 'LEGENDARY' ? ' leg' : '') + '" style="--el:' + color(info.element) + '">' +
-              (info.art ? '<img src="' + esc(info.art) + '" alt="" loading="lazy">' : '') +
-              '<span class="nm">' + esc(info.name) + '</span>' +
-              '<span class="st"><i>♥' + esc(c.hp) + '</i>' + (info.speed != null ? '<i>⚡' + esc(info.speed) + '</i>' : '') + '</span>' +
-              '<span class="bar"><i style="width:' + pct + '%"></i></span></div>' +
-              (ch.dmg ? '<span class="mr-chip dmg">−' + ch.dmg + '</span>' : '') +
-              (ch.heal ? '<span class="mr-chip heal">+' + ch.heal + '</span>' : '');
+          var want = c ? c.id : '';
+          if (cell.getAttribute('data-card') !== want) {
+            cell.innerHTML = c ? cardInner(c) : '';
+            cell.setAttribute('data-card', want);
           }
-          out += '<div class="' + cls + '" data-cell="' + k + '">' + inner + '</div>';
+          var old = cell.querySelectorAll('.mr-chip');
+          for (var o = 0; o < old.length; o++) old[o].parentNode.removeChild(old[o]);
+          cell.classList.toggle('actor', !!(actor && cellKey(actor) === k));
+          cell.classList.toggle('hit', !!ch.dmg);
+          flash(cell, 'placed', !!ch.placed);
+          if (!c) continue;
+          var card = cell.querySelector('.mr-card');
+          var max = c.mx || c.hp || 1;
+          var pct = Math.max(0, Math.min(100, Math.round(c.hp / max * 100)));
+          card.classList.toggle('dead', !!(c.dead || c.hp <= 0));
+          card.classList.toggle('low', pct <= 40);
+          if (ch.dmg) flash(card, 'shake', true);
+          cell.querySelector('.hp span').textContent = c.hp;
+          cell.querySelector('.bar i').style.width = pct + '%';
+          if (ch.dmg || ch.heal) {
+            cell.insertAdjacentHTML('beforeend', ch.dmg
+              ? '<span class="mr-chip dmg">−' + ch.dmg + '</span>'
+              : '<span class="mr-chip heal">+' + ch.heal + '</span>');
+          }
         }
-      });
+      }
+    }
+
+    function gridShell(side) {
+      var out = '';
+      for (var sr = 0; sr < 3; sr++) {
+        var r = screenRow(side, sr);
+        for (var col = 0; col < 3; col++) out += '<div class="mr-cell" data-cell="' + side + r + col + '" data-card=""></div>';
+      }
       return '<div class="mr-grid">' + out + '</div>';
+    }
+
+    // Reciprocal links: two live neighbours whose notches point at each other,
+    // the same test EnergyService runs. Each half of the bridge takes its own
+    // notch's element color so a mixed link reads as mixed.
+    function drawLinks(step) {
+      var svgL = arena.querySelector('.mr-links');
+      var box = arena.getBoundingClientRect();
+      var out = '';
+      [opp, you].forEach(function (side) {
+        var at = {};
+        step.b.forEach(function (c) {
+          if (c.s === side && !(c.dead || c.hp <= 0)) at[screenRow(side, c.r) + ',' + c.c] = c;
+        });
+        Object.keys(at).forEach(function (pos) {
+          var a = at[pos], ar = screenRow(side, a.r);
+          notchesOf(a.id).forEach(function (n) {
+            var br = ar + n.v[1], bc = a.c + n.v[0];
+            var b = at[br + ',' + bc];
+            // Each pair once: only walk links that point right, down or down-left.
+            if (!b || n.v[1] < 0 || (n.v[1] === 0 && n.v[0] < 0)) return;
+            var m = null;
+            notchesOf(b.id).forEach(function (bn) { if (bn.v[0] === -n.v[0] && bn.v[1] === -n.v[1]) m = bn; });
+            if (!m) return;
+            var ea = arena.querySelector('[data-cell="' + cellKey(a) + '"]');
+            var eb = arena.querySelector('[data-cell="' + cellKey(b) + '"]');
+            if (!ea || !eb) return;
+            var ra = ea.getBoundingClientRect(), rb = eb.getBoundingClientRect();
+            var x1 = ra.left - box.left + ra.width * (0.5 + n.v[0] / 2);
+            var y1 = ra.top - box.top + ra.height * (0.5 + n.v[1] / 2);
+            var x2 = rb.left - box.left + rb.width * (0.5 + m.v[0] / 2);
+            var y2 = rb.top - box.top + rb.height * (0.5 + m.v[1] / 2);
+            // The notches sit a grid gap apart; reach into each card so the
+            // bridge reads as a connection rather than a speck.
+            var dx = x2 - x1, dy = y2 - y1, len = Math.sqrt(dx * dx + dy * dy) || 1;
+            var reach = ra.width * 0.07;
+            x1 -= dx / len * reach; y1 -= dy / len * reach;
+            x2 += dx / len * reach; y2 += dy / len * reach;
+            var mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+            var ca = color(n.el), cb = color(m.el);
+            out += '<g class="ln">' +
+              '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="rgba(8,6,28,.85)" stroke-width="6" stroke-linecap="round"/>' +
+              '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + mx + '" y2="' + my + '" stroke="' + ca + '" stroke-width="3" stroke-linecap="round"/>' +
+              '<line x1="' + mx + '" y1="' + my + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + cb + '" stroke-width="3" stroke-linecap="round"/>' +
+              '<circle cx="' + x1 + '" cy="' + y1 + '" r="2.6" fill="' + ca + '"/>' +
+              '<circle cx="' + x2 + '" cy="' + y2 + '" r="2.6" fill="' + cb + '"/></g>';
+          });
+        });
+      });
+      svgL.innerHTML = out;
     }
 
     function hpHead(label, name, v, prevV, isOpp) {
@@ -311,6 +410,7 @@
 
     function drawArrow(actor, changes) {
       var svgA = arena.querySelector('.mr-arrows');
+      if (svgA) svgA.innerHTML = '';
       if (!svgA || !actor) return;
       var targetKey = null;
       Object.keys(changes).forEach(function (k) { if (!targetKey && changes[k].dmg && k !== cellKey(actor)) targetKey = k; });
@@ -344,19 +444,32 @@
         '</div>';
     }
 
+    arena.innerHTML =
+      '<div class="mr-hand-slot" data-a="hand-' + opp + '"></div>' +
+      '<div data-a="head-' + opp + '"></div>' +
+      gridShell(opp) +
+      '<div class="mr-divider"></div>' +
+      gridShell(you) +
+      '<div data-a="head-' + you + '"></div>' +
+      '<div class="mr-hand-slot" data-a="hand-' + you + '"></div>' +
+      '<svg class="mr-links" aria-hidden="true"></svg>' +
+      '<svg class="mr-arrows" aria-hidden="true"></svg>';
+    function slot(name, html) {
+      var el = arena.querySelector('[data-a="' + name + '"]');
+      if (el.innerHTML !== html) el.innerHTML = html;
+    }
+
     function render() {
       var step = steps[i], prev = i > 0 ? steps[i - 1] : null;
       var changes = diff(step, prev);
       var actor = actorOf(step);
-      arena.innerHTML =
-        handRow(opp, step, prev) +
-        hpHead('', replay.opponentName || match.opponentName || 'Opponent', oppHp(step), prev ? oppHp(prev) : null, true) +
-        grid(opp, step, changes, actor) +
-        '<div class="mr-divider">Turn ' + esc(step.t) + ' · ' + esc(title(step.p)) + '</div>' +
-        grid(you, step, changes, actor) +
-        hpHead('', 'You', yourHp(step), prev ? yourHp(prev) : null, false) +
-        handRow(you, step, prev) +
-        '<svg class="mr-arrows"></svg>';
+      slot('hand-' + opp, handRow(opp, step, prev));
+      slot('head-' + opp, hpHead('', replay.opponentName || match.opponentName || 'Opponent', oppHp(step), prev ? oppHp(prev) : null, true));
+      slot('head-' + you, hpHead('', 'You', yourHp(step), prev ? yourHp(prev) : null, false));
+      slot('hand-' + you, handRow(you, step, prev));
+      arena.querySelector('.mr-divider').textContent = 'Turn ' + step.t + ' · ' + title(step.p);
+      paintGrid(opp, step, changes, actor);
+      paintGrid(you, step, changes, actor);
       cap.innerHTML = '<small>Step ' + (i + 1) + ' of ' + steps.length + '</small>' + esc(step.m);
       scrub.value = i;
       var x = (i / Math.max(1, steps.length - 1) * 358).toFixed(1);
@@ -371,6 +484,7 @@
       }
       body.querySelector('[data-r="prev"]').disabled = nextAct(i, -1) < 0;
       body.querySelector('[data-r="next"]').disabled = nextAct(i, 1) < 0;
+      drawLinks(step);
       drawArrow(actor, changes);
     }
 
@@ -428,6 +542,14 @@
     };
     document.removeEventListener('keydown', prevKey);
     document.addEventListener('keydown', keyHandler);
+    // The overlays are positioned in pixels, so a rotate or resize redraws them.
+    var onResize = function () {
+      if (!overlay || !arena.isConnected) { window.removeEventListener('resize', onResize); return; }
+      var step = steps[i];
+      drawLinks(step);
+      drawArrow(actorOf(step), diff(step, i > 0 ? steps[i - 1] : null));
+    };
+    window.addEventListener('resize', onResize);
     // Open on the first thing that happens, not on the opening narration.
     go(firstAct);
   }
