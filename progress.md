@@ -1,4 +1,26 @@
 Original prompt: Merge and deploy
+- October 5, 2026 **Siege team select fits one landscape phone screen, with the choices first and swipe rails.**
+  - **Change.** On a landscape phone (`(orientation:landscape) and (max-height:600px)`), `#setupScreen` used to be a scrolling document. At 1000x460 the mode page ran 325px past the fold, the first knight card started at y 300, and the first Siegeling card started at y 443. Now the shell is a fixed `100dvh` flex column and `#setupScreen` is a grid:
+    - **Top row:** the account pill and step chips share one row.
+    - **Each step:** a grid whose single `1fr` row is the choice, with the footer as a plain row underneath instead of a sticky overlay.
+    - **Mode:** the three cards sit side by side, sized to the screen, with descriptions clamped to 4 lines.
+    - **Knights:** one horizontal, snap-scrolling, swipeable rail of columns (`clamp(220px,27%,300px)`). The availability band becomes a slim vertical tab, and a long knight scrolls inside its own card.
+    - **Siegelings:** a rail of cards (`clamp(124px,17vw,168px)`) whose art flexes to the rail height while the text rows keep their size. Title, counts and both filter rows (each a horizontal scroller) fit in two short rows above it.
+    - **Hidden on landscape phones:** `.siege-sub`, `.warband-help` and the Battlegrounds entry (Battlegrounds is already a mode card).
+    - **`adventure.js`:** `renderKnightStep` and `renderSieglingGrid` now carry `scrollLeft` across their re-render, so a pick far along a rail no longer jumps back to the first card.
+    - Portrait and desktop are untouched. `adventure.css` is now `?v=105` and `adventure.js` `?v=118`.
+- Verification:
+  - `node --check`; `GameJavaScriptRegressionTest` passes.
+  - Headless Chromium against static `adventure.html` with a mocked roster (10 knights, 43 Siegelings), no errors on the page.
+  - At 1000x460, 844x390 and 667x375, the mode, knight and warband pages all have page scroll 0:
+    - Mode cards fill y 87–452 at 1000x460.
+    - The knight rail starts at y 85, the warband rail at y 123, and the footer sits below each.
+  - Two Siegelings select and enable Begin Expedition.
+  - At 844x390:
+    - A touch swipe scrolls the knight rail to `scrollLeft` 1554 while the page `scrollTop` stays 0.
+    - Picking the 4th knight at 720 keeps 720, and so does a warband pick at 616.
+    - An element filter narrows the rail.
+  - At 390x844 and 1920x1080 the document layout is unchanged: the pages scroll as before and the instructions are visible.
 - October 5, 2026 **Hub music resumes across page loads.**
   - **Change.** A full navigation (the gacha return to `/shop`, a sign-in redirect, going to Siege and back, a reload) used to tear the player down, and the next load reshuffled from 0:00. `hub-music.js` now saves the shuffle order, current song and position in `localStorage.sgHubMusicResume`:
     - The save happens every ~3s of playback, on each song change, on `visibilitychange` (hidden) and on `pagehide`, which is iOS's reliable leave signal.
