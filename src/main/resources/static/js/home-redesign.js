@@ -939,7 +939,7 @@
       '<span class="sg-chip coin"><img src="/img/ui/home-stats/siegecoin.png" alt="">' +
         esc(formatCoins(opts, guest)) + '</span>' +
       // hub-music.js owns the state and repaints this on every change.
-      '<button class="sg-music" type="button" data-music-toggle aria-label="Mute music">' + MUSIC_ICON + '</button>' +
+      '<button class="sg-music" type="button" data-music-open aria-label="Music" aria-haspopup="dialog" aria-expanded="false">' + MUSIC_ICON + '</button>' +
       (guest
         ? '<a class="sg-signin" href="/login" data-screen="auth">Sign In</a>'
         // The badge used to read a `level` the backend has never had: there is
