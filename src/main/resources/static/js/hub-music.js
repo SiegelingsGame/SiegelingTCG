@@ -31,6 +31,48 @@
   var pos = 0;
   var on = true;
   var started = false;   // true once a gesture has let play() through
+  var pendingSeek = 0;   // where a restored song picks up, applied once it loads
+
+  /* Resume across page loads. A full navigation (the gacha return to /shop, a
+     sign-in redirect, Siege and back) tears the player down, and restarting a
+     fresh shuffle from 0:00 every time made the soundtrack feel like it reset.
+     The shuffle order, the song and its position are saved as the page goes
+     and restored on the next load, so the same song carries on from the same
+     second. Stale state (a visit hours later) starts a fresh shuffle instead.
+     The browser still decides when sound may start: a new page needs its own
+     tap before it plays, and the song then continues from where it was. */
+  var RESUME_KEY = 'sgHubMusicResume';
+  var RESUME_TTL_MS = 30 * 60 * 1000;
+  var lastSave = 0;
+
+  function saveResume() {
+    if (!order.length) return;
+    try {
+      localStorage.setItem(RESUME_KEY, JSON.stringify({
+        order: order, pos: pos,
+        t: audio && audio.currentTime ? Math.floor(audio.currentTime) : pendingSeek,
+        at: Date.now()
+      }));
+    } catch (e) { /* private mode */ }
+  }
+
+  function restoreResume() {
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem(RESUME_KEY) || 'null'); } catch (e) { saved = null; }
+    if (!saved || !Array.isArray(saved.order) || Date.now() - (saved.at || 0) > RESUME_TTL_MS) return false;
+    // The track list may have changed since the save; only an exact permutation is trusted.
+    if (saved.order.length !== TRACKS.length) return false;
+    var seen = {};
+    for (var i = 0; i < saved.order.length; i++) {
+      var n = saved.order[i];
+      if (typeof n !== 'number' || n < 0 || n >= TRACKS.length || seen[n]) return false;
+      seen[n] = true;
+    }
+    order = saved.order.slice();
+    pos = Math.max(0, Math.min(order.length - 1, Number(saved.pos) || 0));
+    pendingSeek = Math.max(0, Number(saved.t) || 0);
+    return true;
+  }
 
   function readPref() {
     try { return (localStorage.getItem(KEY) || '1') === '1'; } catch (e) { return true; }
@@ -56,6 +98,19 @@
     audio.preload = 'none';
     audio.volume = VOLUME;
     audio.addEventListener('ended', function () { step(1); });
+    audio.addEventListener('loadedmetadata', function () {
+      if (!pendingSeek) return;
+      var to = pendingSeek;
+      pendingSeek = 0;
+      // A position at the very end would just fire 'ended'; start that song over.
+      if (isFinite(audio.duration) && to < audio.duration - 2) {
+        try { audio.currentTime = to; } catch (e) { /* not seekable yet */ }
+      }
+    });
+    audio.addEventListener('timeupdate', function () {
+      var now = Date.now();
+      if (now - lastSave > 3000) { lastSave = now; saveResume(); }
+    });
     audio.addEventListener('play', paint);
     audio.addEventListener('pause', paint);
     // A missing or undecodable file skips on rather than leaving silence.
@@ -81,7 +136,9 @@
   function step(delta) {
     ensureAudio();
     pos = (pos + delta + order.length) % order.length;
+    pendingSeek = 0;
     load();
+    saveResume();
     if (on) play(); else paint();
   }
 
@@ -149,7 +206,9 @@
     if (at === pos && playing()) return;
     ensureAudio();
     pos = at;
+    pendingSeek = 0;
     load();
+    saveResume();
     play();
     paint();
   }
@@ -241,8 +300,10 @@
     ensureAudio();
     document.addEventListener('click', onClick);
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePanel(); });
+    // pagehide is the reliable "leaving" signal on iOS, where unload never fires.
+    window.addEventListener('pagehide', saveResume);
     document.addEventListener('visibilitychange', function () {
-      if (document.hidden) { if (audio) audio.pause(); }
+      if (document.hidden) { saveResume(); if (audio) audio.pause(); }
       else if (on && started) play();
     });
     if (on) { play(); armGestureStart(); }
@@ -252,7 +313,7 @@
   // Settled at load, not in init(): the shell paints its controls (sync) before
   // init() runs, and they should already show the right state and song.
   on = readPref();
-  shuffle();
+  if (!restoreResume()) shuffle();
 
   window.SiegelingsHubMusic = {
     init: init,

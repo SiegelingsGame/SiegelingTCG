@@ -1,4 +1,16 @@
 Original prompt: Merge and deploy
+- October 5, 2026 **Hub music resumes across page loads.**
+  - **Change.** A full navigation (the gacha return to `/shop`, a sign-in redirect, going to Siege and back, a reload) used to tear the player down, and the next load reshuffled from 0:00. `hub-music.js` now saves the shuffle order, current song and position in `localStorage.sgHubMusicResume`:
+    - The save happens every ~3s of playback, on each song change, on `visibilitychange` (hidden) and on `pagehide`, which is iOS's reliable leave signal.
+    - On load, a save under 30 minutes old (`RESUME_TTL_MS`) is restored, and the song seeks to its saved second on `loadedmetadata`. A position within 2s of the end restarts that song rather than firing `ended`.
+    - A stale or malformed save (anything that isn't an exact permutation of the track list) falls back to a fresh shuffle.
+    - Browsers still require a tap per page before sound starts, so the song continues from its saved second once that tap lands.
+    - `hub-music.js` is now `?v=3`.
+- Verification:
+  - `node --check`. Headless Chromium against a local Range-capable static server (Hosting serves 206s; Python's server can't seek).
+  - A song played to 65.4s, the page navigated to `adventure.html` and back: the same song (water) was restored before the tap and played on from ~66s after it.
+  - A seeded 1-minute-old save resumed its song (fire) at 90s; a 1-hour-old one started a fresh shuffle at 0:00.
+  - The Now Playing panel checks still pass at 390x844, 375x667, 844x390 and 1920x1080, with no errors on the page.
 - October 5, 2026 **Hub music: a Now Playing panel to change songs from any screen, portrait included.**
   - **Change.** In portrait the hub's only music control was the top-bar note, which just muted. The note now opens a Now Playing panel (`hub-music.js`). The panel is built on open into the current `.sg-app`, under the top bar like the notification tray. It shows the current song with level bars, previous / play-pause / next, and all seven tracks, each with its element pip. Tapping a track plays it and unmutes. The list is the panel's one scrolling region, so in landscape (bottom 312 vs tab bar 337) it scrolls inside the panel. Tapping outside, ×, or Esc closes it, and a screen change re-renders the shell and so closes it too. Opening the panel still counts as the first gesture that starts the music. The landscape stage pill is unchanged. Bumped `home-redesign.css` to `?v=74`, `.js` to `?v=66` and `hub-music.js` to `?v=2` in `home-next.html`.
 - Verification:
