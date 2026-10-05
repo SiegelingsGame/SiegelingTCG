@@ -1,4 +1,26 @@
 Original prompt: Merge and deploy
+- October 5, 2026 **Siege team select fits one landscape phone screen, with the choices first and swipe rails.**
+  - **Change.** On a landscape phone (`(orientation:landscape) and (max-height:600px)`), `#setupScreen` used to be a scrolling document. At 1000x460 the mode page ran 325px past the fold, the first knight card started at y 300, and the first Siegeling card started at y 443. Now the shell is a fixed `100dvh` flex column and `#setupScreen` is a grid:
+    - **Top row:** the account pill and step chips share one row.
+    - **Each step:** a grid whose single `1fr` row is the choice, with the footer as a plain row underneath instead of a sticky overlay.
+    - **Mode:** the three cards sit side by side, sized to the screen, with descriptions clamped to 4 lines.
+    - **Knights:** one horizontal, snap-scrolling, swipeable rail of columns (`clamp(220px,27%,300px)`). The availability band becomes a slim vertical tab, and a long knight scrolls inside its own card.
+    - **Siegelings:** a rail of cards (`clamp(124px,17vw,168px)`) whose art flexes to the rail height while the text rows keep their size. Title, counts and both filter rows (each a horizontal scroller) fit in two short rows above it.
+    - **Hidden on landscape phones:** `.siege-sub`, `.warband-help` and the Battlegrounds entry (Battlegrounds is already a mode card).
+    - **`adventure.js`:** `renderKnightStep` and `renderSieglingGrid` now carry `scrollLeft` across their re-render, so a pick far along a rail no longer jumps back to the first card.
+    - Portrait and desktop are untouched. `adventure.css` is now `?v=105` and `adventure.js` `?v=118`.
+- Verification:
+  - `node --check`; `GameJavaScriptRegressionTest` passes.
+  - Headless Chromium against static `adventure.html` with a mocked roster (10 knights, 43 Siegelings), no errors on the page.
+  - At 1000x460, 844x390 and 667x375, the mode, knight and warband pages all have page scroll 0:
+    - Mode cards fill y 87–452 at 1000x460.
+    - The knight rail starts at y 85, the warband rail at y 123, and the footer sits below each.
+  - Two Siegelings select and enable Begin Expedition.
+  - At 844x390:
+    - A touch swipe scrolls the knight rail to `scrollLeft` 1554 while the page `scrollTop` stays 0.
+    - Picking the 4th knight at 720 keeps 720, and so does a warband pick at 616.
+    - An element filter narrows the rail.
+  - At 390x844 and 1920x1080 the document layout is unchanged: the pages scroll as before and the instructions are visible.
 - October 5, 2026 **Hub: Siegelings biome music plays across the hub.**
   - **Change.** Seven biome themes were added under `static/audio/biomes/`: fire, water, wind, electric, desert, cave and jungle, about 39 MB in total. The new `js/hub-music.js` shuffles them once per visit and moves to the next on `ended`. A track that fails to load is skipped. Volume is 0.32, the same as the Keep. The on/off choice is saved in `localStorage.sgHubMusicOn` and defaults to on. Browsers block sound until the first tap, so a capture-phase starter begins playback on that tap. If autoplay was blocked, the first tap on the music button starts the music instead of muting it. Music pauses while the tab is hidden. The `<audio>` element is never attached to the DOM, because `mountApp` switches screens by emptying `document.body` and removing a media element pauses it. Playback therefore continues between Home, Cards, Shop and the other hub screens. Controls are plain `data-music-toggle/-next/-prev/-title` elements, wired by delegation and repainted through `SiegelingsHubMusic.sync()` after each render. Every hub screen has a round music button in the top bar, next to the coins (it shows a slash when muted and turns gold while playing). The landscape stage adds a music pill above the art caption, modelled on the BD2 lobby: animated level bars that work as the toggle, the song title, and previous/next. Song URLs carry `?v=1` because Hosting caches mp3 files as immutable. `home-next.html` loads `hub-music.js?v=1` and calls `init()` after mount. Bumped `home-redesign.css` to `?v=72` (`?v=73` after merging #1015) and `.js` to `?v=65`.
 - Verification:
