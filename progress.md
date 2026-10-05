@@ -1,4 +1,11 @@
 Original prompt: Merge and deploy
+- October 5, 2026 **Deploy record: #1016 and #1017 live; #1018 redeployed after a cancelled Hosting job.**
+  - **What happened.** Run 1002 (#1016) shipped both surfaces. In run 1003 (#1017), the Cloud Run job was cancelled after 15 minutes and the run ended as `failure`, but its Hosting step still succeeded. In run 1004 (#1018), the Cloud Run deploy succeeded in 3.5 minutes, but its Firebase Deploy job sat queued for 15 minutes without a runner and was cancelled, so #1018's `adventure.css?v=105` / `adventure.js?v=118` never reached Hosting. The agent's GitHub integration cannot re-run jobs or dispatch the workflow (403), so this entry is the push that redeploys main.
+- Verification (before this push):
+  - Live `/home`, `hub-music.js?v=3`, `home-redesign.js?v=66` and `home-redesign.css?v=74` are byte-identical to main.
+  - `/api/cards/editor` returns `source=FIRESTORE`, `liveEditingEnabled=true` and `firestoreAvailable=true`, through Hosting and directly on Cloud Run.
+  - `config.js` has `apiBaseUrl: ''` and `/api/game/options` returns 200.
+  - `/siege` still served `adventure.css?v=104` / `adventure.js?v=117`.
 - October 5, 2026 **Siege team select fits one landscape phone screen, with the choices first and swipe rails.**
   - **Change.** On a landscape phone (`(orientation:landscape) and (max-height:600px)`), `#setupScreen` used to be a scrolling document. At 1000x460 the mode page ran 325px past the fold, the first knight card started at y 300, and the first Siegeling card started at y 443. Now the shell is a fixed `100dvh` flex column and `#setupScreen` is a grid:
     - **Top row:** the account pill and step chips share one row.
