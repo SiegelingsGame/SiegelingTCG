@@ -1,4 +1,8 @@
 Original prompt: Merge and deploy
+- October 5, 2026 **Keep: the shell fills the whole portrait screen, like the Arena.**
+  - **Change.** `.keep-app` in `keep.css` was `position:fixed; inset:0`. A fixed box sizes to the layout viewport, and an installed iOS web app can report that shorter than the glass, so the dock stopped above a dead band. The shell now uses `top/left/right:0` with `height: max(100dvh, var(--sg-vh, 0px))`, the same rule the Arena (`style.css` body) and hub (`.sg-app`) already use. `keep.html` already loads `viewport-unit.js`, which supplies the corrected `--sg-vh`. Bumped `keep.css` to `?v=58`.
+- Verification:
+  - Headless Chromium at 390x844 and 1920x1080: the shell and dock bottoms are still 844/1080, so nothing changes when the viewport reports correctly. With `--sg-vh` set 120px taller than `innerHeight` (simulating the standalone under-report), the shell grows to 964/1200 and the dock follows it to the bottom.
 - October 4, 2026 **Siege recap: each stop card is color-coded by stop type.**
   - **Change.** `match-review.js` NODE colors are now Battle red `#ff5d5d`, Elite purple `#b36bff`, Boss fire orange `#ff8a1e`, Event magenta `#f06ec0` (moved off purple so it doesn't read as Elite), Rift indigo `#7c8cff`. Rest, Cache, Broker, Smith and Caravan are unchanged. Each stop card carries its color as `--nc`. `match-review.css` tints the whole card: a gradient wash, a 55% border, a 3px left accent and the type label in that color, plus a glow on the timeline dot. The selected card keeps its gold ring. The review map uses the same NODE colors, so map nodes and cards match.
 - Verification:
