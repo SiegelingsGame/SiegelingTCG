@@ -69,9 +69,17 @@ a { text-decoration: none; }
    portrait/landscape rotation even with overflow hidden, which pushed the
    header (and its exit link) off-screen. Anchoring the app shell keeps the
    header reachable in every orientation. */
+/* Explicit height rather than inset:0: a fixed box's containing block is the
+   layout viewport, which an installed iOS web app can report shorter than the
+   glass, stranding the dock above a dead band. Same max() as the arena/hub
+   shells: --sg-vh (viewport-unit.js) only wins where dvh under-reports. */
 .keep-app {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--sg-vh, 100vh);
+    height: max(100dvh, var(--sg-vh, 0px));
     display: flex;
     flex-direction: column;
     overflow: hidden;
