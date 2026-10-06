@@ -5081,31 +5081,56 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-lt, .sg-tour-claim { animation:none; }
 }
 
-/* Landscape phone: the same blocks as one side-scrolling rail. */
+.sg-lobby-switch { display:none; }
+
+/* Landscape phone: two columns, no sideways scrolling. The tournament stays
+   pinned on the left; the right column shows one section at a time, picked
+   with the switch above it, and only that section scrolls (vertically). */
 @media (orientation: landscape) and (max-height: 600px) {
   .sg-app[data-screen="lobbies"] > .sg-scroll {
-    display:grid; grid-auto-flow:column; grid-template-rows:auto minmax(0, 1fr); grid-auto-columns:max-content;
-    column-gap:16px; row-gap:10px; overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain;
-    padding:var(--lh-top) var(--lh-right) var(--lh-bottom) var(--lh-left); touch-action:pan-x; scrollbar-width:none;
+    display:grid; grid-template-columns:clamp(270px, 38vw, 430px) minmax(0, 1fr);
+    grid-template-rows:auto auto minmax(0, 1fr); column-gap:16px; row-gap:8px; overflow:hidden;
+    padding:var(--lh-top) var(--lh-right) var(--lh-bottom) var(--lh-left);
   }
   .sg-app[data-screen="lobbies"] > .sg-scroll > div[style*="height:96px"] { display:none; }
-  .sg-app[data-screen="lobbies"] .sg-lobbies-tour { grid-column:1; grid-row:1 / -1; width:clamp(300px, 40vw, 440px); min-height:0; margin:0; }
+  .sg-app[data-screen="lobbies"] .sg-lobbies-tour { grid-column:1; grid-row:1 / -1; min-height:0; margin:0;
+    overflow-y:auto; overscroll-behavior:contain; scrollbar-width:none; }
+  .sg-app[data-screen="lobbies"] .sg-lobbies-tour::-webkit-scrollbar { display:none; }
   .sg-app[data-screen="lobbies"] .sg-tour-body { padding:14px 16px; gap:4px; }
   .sg-app[data-screen="lobbies"] .sg-tour-body h2 { font-size:24px; }
-  .sg-app[data-screen="lobbies"] .sg-lobbies-claims { grid-row:1 / -1; width:260px; margin:0; overflow-y:auto; }
-  .sg-app[data-screen="lobbies"] .sg-section { grid-row:1 / -1; min-height:0; display:flex; flex-direction:column; margin:0; padding:0; }
-  .sg-app[data-screen="lobbies"] .sg-section > .sg-section-head { flex:0 0 auto; padding:0 0 8px; }
-  .sg-app[data-screen="lobbies"] .sg-tour-board { width:clamp(240px, 28vw, 300px); }
-  .sg-app[data-screen="lobbies"] .sg-tour-rows { margin:0; overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y; }
+  .sg-app[data-screen="lobbies"] .sg-tour-cta { margin-top:8px; }
+
+  .sg-app[data-screen="lobbies"] .sg-lobby-switch { grid-column:2; grid-row:1; display:flex; gap:6px; min-width:0; }
+  .sg-lobby-switch button { flex:1 1 0; min-width:0; height:36px; padding:0 10px; border-radius:999px; cursor:pointer;
+    font:inherit; font-size:12px; font-weight:800; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    color:var(--muted); background:rgba(13,10,38,.6); border:1px solid var(--steel-soft); }
+  .sg-lobby-switch button[hidden] { display:none; }
+  .sg-lobby-switch button.on { color:#2b0d02; border-color:transparent;
+    background:linear-gradient(135deg, #ffe066 0%, var(--amber) 55%, #ff7a3c 100%); box-shadow:0 6px 16px rgba(255,120,45,.35); }
+  .sg-lobby-switch b { display:inline-block; min-width:18px; margin-left:4px; padding:0 5px; border-radius:999px; font-size:10.5px;
+    line-height:18px; background:rgba(255,255,255,.12); }
+  .sg-lobby-switch button.on b { background:rgba(43,13,2,.18); }
+
+  .sg-app[data-screen="lobbies"] .sg-lobbies-claims { grid-column:2; grid-row:2; margin:0; max-height:96px; overflow-y:auto; }
+  /* One section on screen; the switch already names it, so its heading goes. */
+  .sg-app[data-screen="lobbies"] .sg-section { grid-column:2; grid-row:3; min-height:0; margin:0; padding:0;
+    display:none; flex-direction:column; overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y; scrollbar-width:none; }
+  .sg-app[data-screen="lobbies"] .sg-section::-webkit-scrollbar { display:none; }
+  .sg-app[data-screen="lobbies"] [data-lobby-view="tables"] > .sg-lobbies-tables,
+  .sg-app[data-screen="lobbies"] [data-lobby-view="board"] > .sg-tour-board:not([hidden]),
+  .sg-app[data-screen="lobbies"] [data-lobby-view="next"] > .sg-tour-next:not([hidden]) { display:flex; }
+  .sg-app[data-screen="lobbies"] .sg-section > .sg-section-head h3 { display:none; }
+  .sg-app[data-screen="lobbies"] .sg-section > .sg-section-head { padding:0 0 6px; }
+  .sg-app[data-screen="lobbies"] .sg-lobbies-tables > .sg-section-head { display:none; }
+  .sg-app[data-screen="lobbies"] .sg-tour-rows { margin:0; }
   .sg-app[data-screen="lobbies"] .sg-tour-row.is-below { margin:6px 0 0; }
   .sg-app[data-screen="lobbies"] .sg-lobbies-actions { flex-wrap:nowrap; padding:0 0 8px; }
-  .sg-app[data-screen="lobbies"] .sg-lobby-code { flex:0 0 220px; }
-  .sg-app[data-screen="lobbies"] .sg-lobbies-grid { flex:1 1 auto; min-height:0; display:grid; grid-auto-flow:column;
-    grid-template-columns:none; grid-template-rows:minmax(0, 1fr); grid-auto-columns:clamp(150px, 19vw, 180px); padding:0; }
-  .sg-app[data-screen="lobbies"] .sg-lt { height:auto; }
-  .sg-app[data-screen="lobbies"] .sg-lobbies-grid > .sg-empty-plate { width:clamp(260px, 32vw, 340px); height:100%; }
-  .sg-app[data-screen="lobbies"] .sg-tour-next-list { flex:1 1 auto; display:flex; flex-direction:column; padding:0; width:220px; overflow-y:auto; }
-  .sg-app[data-screen="lobbies"] .sg-tour-card { flex:0 0 auto; }
+  .sg-app[data-screen="lobbies"] .sg-lobby-code { flex:1 1 auto; }
+  .sg-app[data-screen="lobbies"] a.sg-lobby-host { flex:0 0 auto; white-space:nowrap; padding:0 16px; }
+  .sg-app[data-screen="lobbies"] .sg-lobbies-grid { padding:0; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px; }
+  .sg-app[data-screen="lobbies"] .sg-lt { height:190px; }
+  .sg-app[data-screen="lobbies"] .sg-lobbies-grid > .sg-empty-plate { min-height:150px; }
+  .sg-app[data-screen="lobbies"] .sg-tour-next-list { padding:0; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); }
 }
 
 /* ---------- Room screen ----------

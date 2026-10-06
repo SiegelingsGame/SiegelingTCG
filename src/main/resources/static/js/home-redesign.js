@@ -5916,14 +5916,36 @@
     '</article>';
   }
 
+  /* On a landscape phone the screen is two columns: the tournament pinned on
+     the left, and on the right one section at a time, chosen with these
+     buttons. It used to be one long side-scrolling rail, which hid the open
+     tables and the standings off the edge of the screen. Portrait and desktop
+     have the height to stack every section, so the buttons are CSS-hidden there. */
+  var LOBBY_VIEWS = [['tables', 'Tables'], ['board', 'Standings'], ['next', 'Coming up']];
+  var lobbyView = 'tables';
+
+  function lobbySwitch(rooms) {
+    return '<nav class="sg-lobby-switch" data-lobby-switch aria-label="Lobby sections">' +
+      LOBBY_VIEWS.map(function (v) {
+        var on = v[0] === lobbyView;
+        return '<button type="button" data-lobby-view="' + v[0] + '" class="' + (on ? 'on' : '') + '" aria-pressed="' + on + '"' +
+          (v[0] === 'tables' ? '' : ' hidden') + '>' + esc(v[1]) +
+          (v[0] === 'tables' ? ' <b data-table-count-pill>' + esc(rooms.length) + '</b>' : '') + '</button>';
+      }).join('') +
+    '</nav>';
+  }
+
   function lobbiesScreen(opts) {
     opts = opts || {};
     var rooms = (opts.live && opts.live.rooms) || [];
+    // Standings and Coming up only exist once the tournament feed arrives.
+    lobbyView = 'tables';
     return topMarkup(opts) +
-      '<div class="sg-scroll" data-lobbies>' +
+      '<div class="sg-scroll" data-lobbies data-lobby-view="' + lobbyView + '">' +
         '<section class="sg-lobbies-tour" data-tour>' +
           '<div class="sg-tour-loading">Loading today’s tournament…</div>' +
         '</section>' +
+        lobbySwitch(rooms) +
         '<div class="sg-lobbies-claims" data-tour-claims hidden></div>' +
         '<section class="sg-section sg-tour-board" data-tour-board hidden></section>' +
         '<section class="sg-section sg-lobbies-tables" data-tables>' +
@@ -6028,6 +6050,23 @@
     var api = liveApi();
     var tour = null;
 
+    function setLobbyView(view) {
+      lobbyView = view;
+      root.setAttribute('data-lobby-view', view);
+      root.querySelectorAll('[data-lobby-view]').forEach(function (b) {
+        if (b === root) return;
+        var on = b.getAttribute('data-lobby-view') === view;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
+    }
+
+    function setSwitchAvailable(view, available) {
+      var btn = root.querySelector('button[data-lobby-view="' + view + '"]');
+      if (btn) btn.hidden = !available;
+      if (!available && lobbyView === view) setLobbyView('tables');
+    }
+
     function paintTour(data) {
       var t = data && data.current;
       var hero = root.querySelector('[data-tour]');
@@ -6047,6 +6086,8 @@
       var claims = root.querySelector('[data-tour-claims]');
       claims.innerHTML = tourClaims(data.claimable);
       claims.hidden = !(data.claimable && data.claimable.length);
+      setSwitchAvailable('board', true);
+      setSwitchAvailable('next', !next.hidden);
     }
 
     function paintTables(rooms) {
@@ -6055,6 +6096,8 @@
       list.innerHTML = rooms.length ? rooms.map(function (r, i) { return lobbyTable(r, i, opts); }).join('') : emptyLobbies();
       var count = root.querySelector('[data-table-count]');
       if (count) count.textContent = String(rooms.length);
+      var pill = root.querySelector('[data-table-count-pill]');
+      if (pill) pill.textContent = String(rooms.length);
     }
 
     function loadTour() {
@@ -6081,6 +6124,8 @@
     });
 
     root.addEventListener('click', function (e) {
+      var viewBtn = e.target.closest && e.target.closest('button[data-lobby-view]');
+      if (viewBtn) { setLobbyView(viewBtn.getAttribute('data-lobby-view')); return; }
       var btn = e.target.closest && e.target.closest('[data-tour-claim]');
       if (!btn || !api) return;
       btn.disabled = true;
