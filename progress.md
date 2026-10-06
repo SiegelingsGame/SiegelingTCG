@@ -1,4 +1,10 @@
 Original prompt: Merge and deploy
+- October 6, 2026 **Hub music stops skipping once every biome track has failed.**
+  - **Change.** `hub-music.js` skipped a file that failed to load by calling `step()` from the audio `error` handler. `step()` points the element at the next file and plays it, so when every URL fails the handler re-enters immediately. That happens after a song has actually started (`started` is true) and the phone then goes offline, or when the whole set 404s. Measured before the fix: 523 error events in 1.5s, and each `step()` writes `localStorage.sgHubMusicResume`. The handler now spends one pass through the seven tracks (`skipsLeft`), then pauses. A song that reaches `playing`, or a tap that asks to hear music, refills the budget. An aborted load (`MEDIA_ERR_ABORTED`, code 1) is not counted. `home-next.html` loads `hub-music.js?v=4`.
+  - **Verification.** `node --check` on `hub-music.js`. `GameJavaScriptRegressionTest.hubMusicGivesUpAfterOnePassWhenEveryTrackFails` passes. Headless Chrome against the static hub, after a gesture had started playback:
+    - Every track URL broken: 7 error events, then the element stayed paused (0 further errors over the next 0.8s). The same setup before the fix produced 523 errors in 1.5s.
+    - Six URLs broken and one left intact: playback settled on that track and kept playing.
+    - The Next control on valid files fired `abort` only and advanced to the next song.
 - October 5, 2026 **Deploy record: #1016 and #1017 live; #1018 redeployed after a cancelled Hosting job.**
   - **What happened.** Run 1002 (#1016) shipped both surfaces. In run 1003 (#1017), the Cloud Run job was cancelled after 15 minutes and the run ended as `failure`, but its Hosting step still succeeded. In run 1004 (#1018), the Cloud Run deploy succeeded in 3.5 minutes, but its Firebase Deploy job sat queued for 15 minutes without a runner and was cancelled, so #1018's `adventure.css?v=105` / `adventure.js?v=118` never reached Hosting. The agent's GitHub integration cannot re-run jobs or dispatch the workflow (403), so this entry is the push that redeploys main.
 - Verification (before this push):

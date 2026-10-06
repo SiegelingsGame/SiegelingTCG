@@ -32,6 +32,13 @@
   var on = true;
   var started = false;   // true once a gesture has let play() through
   var pendingSeek = 0;   // where a restored song picks up, applied once it loads
+  // A failed file skips to the next one. If every URL fails (the player walked
+  // offline after the first song, or the whole set 404s), the error handler's
+  // step() loads another file that errors immediately, and that loop runs
+  // hundreds of times a second — each pass also writes the resume snapshot.
+  // One pass through the shuffle is enough; a song that actually starts, or a
+  // tap that asks to hear something, refills the budget.
+  var skipsLeft = TRACKS.length;
 
   /* Resume across page loads. A full navigation (the gacha return to /shop, a
      sign-in redirect, Siege and back) tears the player down, and restarting a
@@ -108,13 +115,34 @@
       }
     });
     audio.addEventListener('timeupdate', function () {
+      // A 404 never advances currentTime, so this cannot refill the budget
+      // mid-storm the way the 'play' event would.
+      if (audio.currentTime > 0) skipsLeft = TRACKS.length;
       var now = Date.now();
       if (now - lastSave > 3000) { lastSave = now; saveResume(); }
     });
     audio.addEventListener('play', paint);
     audio.addEventListener('pause', paint);
+    // 'play' also fires for a load that is about to fail, so only real
+    // playback refills the skip budget. 'playing' does not fire for a 404.
+    audio.addEventListener('playing', function () { skipsLeft = TRACKS.length; });
     // A missing or undecodable file skips on rather than leaving silence.
-    audio.addEventListener('error', function () { if (on && started) step(1); });
+    // MEDIA_ERR_ABORTED (1) is a load we cancelled by choosing another src.
+    audio.addEventListener('error', function () {
+      if (!on || !started) return;
+      if (audio.error && audio.error.code === 1) return;
+      if (skipsLeft <= 0) {
+        try { audio.pause(); } catch (e) { /* already stopped */ }
+        return;
+      }
+      skipsLeft--;
+      if (skipsLeft <= 0) {
+        try { audio.pause(); } catch (e) { /* already stopped */ }
+        paint();
+        return;
+      }
+      step(1);
+    });
     load();
     return audio;
   }
@@ -123,7 +151,10 @@
     audio.src = current().src;
   }
 
-  function play() {
+  function play(fromUser) {
+    // A tap that asks to hear music gets a fresh pass. The error handler's
+    // own play() must not refill, or a total miss never runs out of skips.
+    if (fromUser) skipsLeft = TRACKS.length;
     if (!on || document.hidden) return;
     var p = ensureAudio().play();
     if (p && p.then) {
@@ -133,7 +164,8 @@
     }
   }
 
-  function step(delta) {
+  function step(delta, fromUser) {
+    if (fromUser) skipsLeft = TRACKS.length;
     ensureAudio();
     pos = (pos + delta + order.length) % order.length;
     pendingSeek = 0;
@@ -145,7 +177,7 @@
   function setOn(next) {
     on = next;
     writePref();
-    if (on) play(); else if (audio) audio.pause();
+    if (on) play(true); else if (audio) audio.pause();
     paint();
   }
 
@@ -209,7 +241,7 @@
     pendingSeek = 0;
     load();
     saveResume();
-    play();
+    play(true);
     paint();
   }
 
@@ -266,13 +298,13 @@
     if (el.hasAttribute('data-music-toggle')) {
       // Still silent because autoplay was refused: the control reads "on", so
       // the player's tap means "start", not "mute".
-      if (on && !playing()) { play(); return; }
+      if (on && !playing()) { play(true); return; }
       setOn(!on);
       return;
     }
     // Skipping a track is asking to hear one, so it also unmutes.
     if (!on) { on = true; writePref(); }
-    step(el.hasAttribute('data-music-next') ? 1 : -1);
+    step(el.hasAttribute('data-music-next') ? 1 : -1, true);
   }
 
   function armGestureStart() {
