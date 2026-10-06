@@ -192,6 +192,18 @@ Original prompt: Merge and deploy
     - Picking the 4th knight at 720 keeps 720, and so does a warband pick at 616.
     - An element filter narrows the rail.
   - At 390x844 and 1920x1080 the document layout is unchanged: the pages scroll as before and the instructions are visible.
+- October 6, 2026 **Landscape: uniform card sizes in the Shop's daily offers and the Collection binder.**
+  - **Cause.** `style.css` caps `.mulligan-card-slot` by the viewport height in landscape (`max-width: calc(... 100dvh)` under `(orientation: landscape) and (max-width: 979px)`), for the battle table's mulligan row. In the hub, that cap shrank Siegeling, Strategy and Deception faces inside their tiles. Binder sleeves (drawn on the tile) stood wider than their cards; on a 667px phone a 299px sleeve held a 105px card. SiegeKnight cards use different markup, escaped the cap, and dwarfed the other daily offers.
+  - **Change** (`home-redesign.css` only):
+    - In that same media range, `.sg-card-tile .mulligan-card-slot` drops the cap, so the tile decides the size for every card type.
+    - Full-art SiegeKnights (printed 639:919; art is `object-fit:cover`) take the shared 5:7 card shape inside hub tiles. Overlay-template knights are untouched.
+    - On landscape phones (`max-height:600px`): the binder packs `minmax(128px, 156px)` columns instead of two 1fr columns below 700px. Each daily-offer card is one width, derived from the viewport height, so the card, its name and its price fit between the top bar and the tab bar.
+  - `home-redesign.css` is now `?v=83`.
+  - **Verification.** Against a local `spring-boot:run`, with a SiegeKnight offer (Lady Pyla) injected into `/api/shop/packs` beside the real offers, as on live with Hera:
+    - **Shop:** framed cards and the knight are identical at every size: 143x200 (932x430), 114x160 (844x390), 104x146 (667x375), 118x172 (390x844), 168x244 (1920x1080). Every face fills its tile. In landscape, card + name + price is 282/242/233px against 319/279/264px of room.
+    - **Binder:** tile width equals card width at all five sizes (maxGap 0). Portrait and desktop sizes are unchanged.
+    - No page errors. Screenshots inspected.
+    - Locally, cards with no art in this environment's mirror still render the unframed fallback; production frames them.
 - October 6, 2026 **Lobbies on a landscape phone: section buttons instead of a side-scrolling rail.**
   - **Change.** In landscape (`max-height:600px`) the Lobbies screen used to be one horizontal rail. The tournament, standings, open tables and coming-up days sat side by side, so the tables and the standings were off the edge of the screen. It is now two columns with no sideways scrolling:
     - The tournament hero is pinned on the left, and scrolls vertically if it is taller than the screen.
