@@ -5939,7 +5939,7 @@
     var rooms = live.rooms || [];
     return '<div class="sg-social-pad">' +
       // Adding someone is the first thing a new player needs, so it leads.
-      '<section class="sg-section">' +
+      '<section class="sg-section" data-friends-block="add">' +
         '<div class="sg-section-head"><h3>Add a friend</h3></div>' +
         '<form class="sg-add-friend" data-add-friend>' +
           '<input type="email" name="email" placeholder="Their account email" ' +
@@ -5949,7 +5949,7 @@
         '<p class="sg-social-note" data-friend-note hidden></p>' +
       '</section>' +
       (incoming.length
-        ? '<section class="sg-section">' +
+        ? '<section class="sg-section" data-friends-block="requests">' +
             '<div class="sg-section-head"><h3>Requests</h3></div>' +
             '<div class="sg-stack sg-stack-tight">' + incoming.map(function (r) {
               var id = r.fromUserId || r.userId || r.id || '';
@@ -5965,7 +5965,7 @@
             }).join('') + '</div>' +
           '</section>'
         : '') +
-      '<section class="sg-section">' +
+      '<section class="sg-section" data-friends-block="friends">' +
         '<div class="sg-section-head"><h3>Friends</h3>' +
           (friends.length ? '<span class="sg-count">' + esc(friends.length) + '</span>' : '') + '</div>' +
         (friends.length
@@ -5973,7 +5973,7 @@
           : '<div class="sg-empty-row">No friends yet. Add someone by their account email above.</div>') +
       '</section>' +
       (outgoing.length
-        ? '<section class="sg-section">' +
+        ? '<section class="sg-section" data-friends-block="sent">' +
             '<div class="sg-section-head"><h3>Sent</h3></div>' +
             '<div class="sg-stack sg-stack-tight">' + outgoing.map(function (r) {
               return '<div class="sg-friend is-pending">' +
@@ -5984,7 +5984,7 @@
             }).join('') + '</div>' +
           '</section>'
         : '') +
-      '<section class="sg-section">' +
+      '<section class="sg-section" data-friends-block="tables">' +
         '<div class="sg-section-head"><h3>Open tables</h3></div>' +
         (rooms.length
           ? '<div class="sg-stack">' + rooms.slice(0, 8).map(lobbyRow).join('') + '</div>'
@@ -5994,12 +5994,27 @@
     '</div>';
   }
 
+  /* A friend has no element of their own in the payload, so each one is given
+     a land by a stable hash of their id: the landscape Friends rail paints
+     friends as art tiles, and the same friend keeps the same plate every visit. */
+  var FRIEND_LANDS = ['FIRE', 'WATER', 'WIND', 'EARTH', 'ICE', 'ELECTRIC', 'METAL', 'POISON', 'PSYCHIC', 'SHADOW', 'LIGHT', 'UNDEAD'];
+  function friendElement(f) {
+    var key = String((f && (f.favoriteElement || (f.presence && f.presence.favoriteElement))) || '').toUpperCase();
+    if (FRIEND_LANDS.indexOf(key) >= 0) return key;
+    var id = String((f && (f.id || f.userId || f.email)) || friendName(f));
+    var h = 0;
+    for (var i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    return FRIEND_LANDS[h % FRIEND_LANDS.length];
+  }
+
   function friendRow(f) {
     var p = f.presence || {};
     var id = f.id || f.userId || '';
     var email = f.email || '';
     var status = p.online ? title(p.status || 'ONLINE') : 'Offline';
-    return '<div class="sg-friend' + (p.online ? ' is-on' : '') + '" data-friend-id="' + esc(id) + '">' +
+    var el = friendElement(f);
+    return '<div class="sg-friend' + (p.online ? ' is-on' : '') + '" data-friend-id="' + esc(id) + '" ' +
+      'style="--el:' + color(el) + ';--friend-land:url(\'' + land(el) + '\')">' +
       '<button class="sg-friend-crest is-link" type="button" data-friend-view="' + esc(id) + '" ' +
         'aria-label="View ' + esc(friendName(f)) + '\'s profile">' + esc(friendInitial(f)) + '</button>' +
       '<button class="sg-friend-body is-link" type="button" data-friend-view="' + esc(id) + '">' +
@@ -6121,7 +6136,7 @@
   /* Re-renders the Social screen in place, carrying whatever the server just
      told us about friends and requests so the list is never a tap behind. */
   function paintSocialTabs(app, opts) {
-    app.setAttribute('data-social-tab', socialTab);
+    app.setAttribute('data-social-view', socialTab);
     var unread = unreadThreadCount(opts);
     var fabBadge = app.querySelector('[data-fab-badge]');
     if (fabBadge) {
@@ -7026,9 +7041,10 @@
                      auth: authScreen, art: artScreen };
     // Screen-scoped layout hooks: the landscape-phone layout in
     // home-redesign.css lays each screen out differently, and the Social
-    // screen's three tabs share one shell.
+    // screen's three tabs share one shell. Not data-social-tab: that attribute
+    // marks the tab buttons, and mountSocial treats anything carrying it as one.
     app.setAttribute('data-screen', builders[screen] ? screen : 'home');
-    if (screen === 'social') app.setAttribute('data-social-tab', socialTab);
+    if (screen === 'social') app.setAttribute('data-social-view', socialTab);
     app.innerHTML = builders[screen] ? builders[screen](opts) : homeScreen(opts);
     host.appendChild(app);
     // Every screen carries the same chrome, so the rail and the tab bar are

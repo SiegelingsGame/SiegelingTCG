@@ -1,4 +1,24 @@
 Original prompt: Merge and deploy
+- October 6, 2026 **Landscape hub: Collection, Shop and Profile go back to their pages; Friends becomes an art-led rail.**
+  - **Change.** On review, the side-scrolling rail was taken off Collection, where the filter column cost too much width, and off Shop and Profile. All three are back to their original scrolling pages. The rail now covers only My Decks, the Deck Builder and Social > Friends.
+  - **Scoping fix.** The shared rail rules used a bare `.sg-app[data-screen]` selector, so they also reached Messages, Settings and Help. They are now scoped to the three rail screens.
+  - **Friends.**
+    - The first column is "find people": the title, the add-by-email search, and Requests directly under it, scrolling inside the column.
+    - Friends are two rows of tall art tiles. `friendRow` gives each friend a land plate and colour from a stable hash of their id (`friendElement`; a favourite element wins when the payload carries one).
+    - Each tile has a glowing crest in that colour, a breathing emerald ring when the friend is online, and offline friends slightly desaturated.
+    - Sent is a dashed compact column, and the open tables (lobbies) are tall scene tiles with the creature standing in its land.
+    - Tiles rise in with a short stagger, and the motion is disabled under `prefers-reduced-motion`.
+    - Under 400px tall, the crest and buttons shrink.
+    - Sections carry `data-friends-block` hooks.
+  - **Bug fixed on the way.** The first pass tagged `.sg-app` with `data-social-tab`, but `mountSocial` treats any element carrying that attribute as a tab button. Every click on Social was read as a tab switch, which swallowed Accept, Message and the rest. The hook is now `data-social-view`.
+  - `home-redesign.css` is now `?v=76` and `.js` `?v=68`.
+- Verification:
+  - `node --check`. Headless Chromium with the mocked signed-in account, no errors on the page.
+  - Collection, Shop and Profile scroll heights at 1000x460, 844x390 and 667x375 equal `origin/main`'s exactly (e.g. 1508/972/593 at 1000x460).
+  - Friends, My Decks and the Deck Builder have vertical scroll 0 at all three sizes.
+  - At 667x375 each friend tile's crest and buttons sit inside the tile (tile 80–189, crest 87–119, buttons 160–182).
+  - At 844x390, Accept POSTs `/api/profile/friends/accept`, and Message switches Social to the Messages view.
+  - Portrait 390x844 and desktop 1920x1080 scroll heights are unchanged for every screen.
 - October 6, 2026 **Hub screens on a landscape phone: one screen each, scrolling sideways.**
   - **Change.** On a phone on its side, the hub's My Decks, Deck Builder, Collection, Shop, Profile and Friends (with its open-table lobbies) were portrait documents that scrolled 593–3,366px down at 1000x460, between a top bar and tab bar that leave under 300px of view. A new block in `home-redesign.css` (`(orientation: landscape) and (max-height: 600px)`) turns each screen's `.sg-scroll` into a horizontal rail. It is a column-flow grid: the title and primary actions form a fixed-width first column, and every section after it is a full-height panel side by side. Inside a panel, lists flow into columns or a single row of cards sized from the rail height (`--lh-h`). Wrapper divs (`[data-social-body]`, `.sg-prof-layout`, `.sg-social-pad`) step aside with `display:contents`, and the portrait 96px tab-bar spacers are hidden.
   - **Per screen:**
