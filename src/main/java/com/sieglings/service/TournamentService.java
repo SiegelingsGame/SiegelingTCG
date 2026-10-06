@@ -77,7 +77,8 @@ public class TournamentService {
 
     /**
      * Seven rules, so each one comes round on the same weekday. Every rule can be
-     * entered with at least one free preset deck, so no one is locked out of a day.
+     * entered with at least one free preset deck (Fire, Earth, Wind or Ice - Water
+     * and Electric are purchases), so no one is locked out of a day.
      */
     static final List<Rule> ROTATION = List.of(
             new Rule("open", "Open Arena", "Bring anything. Every deck, every element.",
@@ -90,8 +91,10 @@ public class TournamentService {
                     "WIND", EnumSet.of(Element.WIND, Element.EARTH), false, false),
             new Rule("mono", "Purebred Masters", "One element per deck. Commit to it.",
                     "LIGHT", null, false, true),
-            new Rule("tide-storm", "Tide & Storm Trials", "Water and Electric decks only.",
-                    "WATER", EnumSet.of(Element.WATER, Element.ELECTRIC), false, false),
+            // Water and Electric are bought, not free, so Wind rides along: the
+            // day must stay enterable with a free preset (Gale Talons).
+            new Rule("tide-storm", "Tide & Storm Trials", "Water, Electric and Wind decks only.",
+                    "WATER", EnumSet.of(Element.WATER, Element.ELECTRIC, Element.WIND), false, false),
             new Rule("elemental-four", "Founders' Four", "Fire, Earth, Wind and Ice - the four that started it.",
                     "EARTH", EnumSet.of(Element.FIRE, Element.EARTH, Element.WIND, Element.ICE), false, false)
     );

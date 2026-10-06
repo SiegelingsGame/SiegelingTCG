@@ -78,8 +78,9 @@ class TournamentServiceTest {
 
     @Test
     void everyRuleCanBeEnteredWithAFreePresetDeck() {
-        // Fire, Earth, Wind and Ice are the always-free single-element presets.
-        List<Element> free = List.of(Element.FIRE, Element.EARTH, Element.WIND, Element.ICE, Element.WATER);
+        // The game's own free set, so this cannot drift from what players actually
+        // own: Water and Electric are purchases, which a hand-written list once missed.
+        List<Element> free = List.copyOf(PlayerProgressionService.FREE_DECK_ELEMENTS);
         for (TournamentService.Rule rule : TournamentService.ROTATION) {
             TournamentService.Tournament t = byRule(rule.id());
             boolean ok = free.stream().anyMatch(e -> {
