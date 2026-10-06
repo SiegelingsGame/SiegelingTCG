@@ -10,6 +10,7 @@ import com.sieglings.service.GameService;
 import com.sieglings.service.MultiplayerRoom;
 import com.sieglings.service.MultiplayerService;
 import com.sieglings.service.PlayerProgressionService;
+import com.sieglings.service.TournamentService;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -66,6 +67,60 @@ class GameControllerTest {
 
         assertEquals(true, closed.get("ok"));
         assertNull(multiplayerService.getRoom(session.roomId()));
+    }
+
+    @Test
+    void roomStatusCarriesTheTournamentRuleAndARoomPageInviteLink() throws Exception {
+        MultiplayerService multiplayerService = new MultiplayerService();
+        TournamentService tournamentService = new TournamentService();
+        TournamentService.Tournament today = tournamentService.current(java.time.Instant.now());
+        MultiplayerService.RoomSession session = multiplayerService.createRoom(
+                "Host",
+                new GameService.StartOptions("deck_fire", "trainer02", null, ""),
+                "host-user",
+                today.id()
+        );
+        GameController controller = createController(multiplayerService, accountServiceReturning(null));
+        setField(controller, "tournamentService", tournamentService);
+        org.springframework.mock.web.MockHttpServletRequest request = new org.springframework.mock.web.MockHttpServletRequest();
+        request.addHeader("Origin", "https://example.test");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> meta = (Map<String, Object>) invoke(
+                controller,
+                "buildRoomMeta",
+                new Class<?>[] { MultiplayerRoom.class, MultiplayerService.RoomSession.class, jakarta.servlet.http.HttpServletRequest.class },
+                new Object[] { multiplayerService.requireRoom(session.roomId()), session, request }
+        );
+
+        // The room page themes itself and filters its deck picker from this.
+        assertEquals(today.id(), meta.get("tournamentId"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> tournament = (Map<String, Object>) meta.get("tournament");
+        assertEquals(today.rule().name(), tournament.get("name"));
+        assertEquals(today.rule().element(), tournament.get("element"));
+        // Invite links open the room page, not the old hub's waiting room.
+        assertEquals("https://example.test/room/" + session.roomId(), meta.get("shareUrl"));
+    }
+
+    @Test
+    void openTableStatusHasNoTournament() throws Exception {
+        MultiplayerService multiplayerService = new MultiplayerService();
+        MultiplayerService.RoomSession session = multiplayerService.createRoom(
+                "Host", new GameService.StartOptions("deck_fire", "trainer02", null, ""), null);
+        GameController controller = createController(multiplayerService, accountServiceReturning(null));
+        setField(controller, "tournamentService", new TournamentService());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> meta = (Map<String, Object>) invoke(
+                controller,
+                "buildRoomMeta",
+                new Class<?>[] { MultiplayerRoom.class, MultiplayerService.RoomSession.class, jakarta.servlet.http.HttpServletRequest.class },
+                new Object[] { multiplayerService.requireRoom(session.roomId()), session, new org.springframework.mock.web.MockHttpServletRequest() }
+        );
+
+        assertNull(meta.get("tournamentId"));
+        assertNull(meta.get("tournament"));
     }
 
     @Test

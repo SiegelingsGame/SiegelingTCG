@@ -292,7 +292,7 @@ function writePlayCache(key, data) {
     }
     params.delete('room');
     const query = params.toString();
-    window.location.replace(`/social/lobby/${encodeURIComponent(room.trim().toUpperCase())}${query ? `?${query}` : ''}`);
+    window.location.replace(`/room/${encodeURIComponent(room.trim().toUpperCase())}${query ? `?${query}` : ''}`);
 })();
 // /battle is the hub's direct link to the Battle loadout: same page as /play,
 // but the welcome/mode screen is skipped because the player already chose Battle
@@ -12388,7 +12388,7 @@ async function createRoom() {
     } catch (_error) {
         // ignore storage failures
     }
-    window.location.href = `/social/lobby/${encodeURIComponent(data.roomId)}`;
+    window.location.href = `/room/${encodeURIComponent(data.roomId)}`;
     return true;
 }
 
@@ -12439,7 +12439,7 @@ async function joinRoom() {
         applyStartedMultiplayerState(data);
         return true;
     }
-    window.location.href = `/social/lobby/${encodeURIComponent(data.roomId)}`;
+    window.location.href = `/room/${encodeURIComponent(data.roomId)}`;
     return true;
 }
 

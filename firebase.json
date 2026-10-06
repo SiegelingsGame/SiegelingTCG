@@ -42,7 +42,16 @@
         ]
       },
       {
-        "source": "/@(landing|home|login|social|cards|decks|lobbies|profile|achievements|deck-builder|shop|play|battle|siege|keep|help|legacy|settings|next|gallery)",
+        "source": "/@(landing|home|login|social|cards|decks|lobbies|profile|achievements|deck-builder|shop|play|battle|siege|keep|help|legacy|settings|next|gallery|room)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/room/**",
         "headers": [
           {
             "key": "Cache-Control",
@@ -209,6 +218,14 @@
       },
       {
         "source": "/lobbies",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/room",
+        "destination": "/home-next.html"
+      },
+      {
+        "source": "/room/**",
         "destination": "/home-next.html"
       },
       {
