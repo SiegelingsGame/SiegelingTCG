@@ -1131,6 +1131,15 @@ public class GameController {
         resp.put("shareUrl", buildShareUrl(request, room.getRoomId()));
         resp.put("expiresAt", room.getExpiresAt() == null ? null : room.getExpiresAt().toString());
         resp.put("format", room.getFormat() == null ? "PVP" : room.getFormat());
+        // The room page themes itself on the table's tournament and filters the
+        // deck picker by its rule, so the full rule rides along with the id.
+        if (room.getTournamentId() != null) {
+            resp.put("tournamentId", room.getTournamentId());
+            if (tournamentService != null) {
+                tournamentService.find(room.getTournamentId())
+                        .ifPresent(t -> resp.put("tournament", tournamentService.describe(t)));
+            }
+        }
         return resp;
     }
 
@@ -1161,7 +1170,7 @@ public class GameController {
 
     private String buildShareUrl(HttpServletRequest request, String roomId) {
         String baseUrl = resolveRequestOrigin(request);
-        return baseUrl + "/social/lobby/" + roomId;
+        return baseUrl + "/room/" + roomId;
     }
 
     private Map<String, Object> serializeOpenRoom(MultiplayerRoom room) {

@@ -301,9 +301,15 @@
   };
   function screenForPath(pathname) {
     var clean = String(pathname || '/home').replace(/\/+$/, '') || '/home';
+    // A table's room carries its code in the path: /room/AB12CD.
+    if (clean === '/room' || /^\/room\/[A-Za-z0-9]+$/.test(clean)) return 'room';
     return PATH_SCREEN[clean] || null;
   }
-  function pathForScreen(screen) { return SCREEN_PATH[screen] || ('/home'); }
+  function pathForScreen(screen) {
+    // The room's path is its table, so it is never rebuilt from the screen name.
+    if (screen === 'room') return location.pathname + location.search;
+    return SCREEN_PATH[screen] || ('/home');
+  }
 
   // Two kinds of destination, and conflating them is what made the new HUD feel
   // broken: tapping Cards or Shop bounced the player back into the OLD hub.
@@ -5870,20 +5876,13 @@
   /* ---------- Lobbies ----------
      Its own screen: the day's rotating tournament (rule, countdown, prizes,
      live standings) and every open table, with Host and Join. Hosting and
-     joining hand off to the Battle loadout (/battle?online=...), which already
-     owns deck and SiegeKnight choice and the waiting-room handoff; a tournament
-     table carries its id so the loadout applies the rule and the server
-     enforces it. The tournament feed is fetched when the screen mounts, so the
+     joining open the Room screen (/room, /room/CODE), which owns deck and
+     SiegeKnight choice and the wait for an opponent; a tournament table
+     carries its id so the room applies the rule and the server enforces it. The tournament feed is fetched when the screen mounts, so the
      hub's boot payload does not grow. */
   var LOBBY_POLL_MS = 15000;
   var lobbyPoll = null;
   var lobbyTick = null;
-
-  function battleHref(params) {
-    var q = [];
-    for (var k in params) if (params[k]) q.push(k + '=' + encodeURIComponent(params[k]));
-    return '/battle' + (q.length ? '?' + q.join('&') : '');
-  }
 
   function countdown(endsAt) {
     var ms = Date.parse(endsAt) - Date.now();
@@ -5902,8 +5901,7 @@
     var mine = me && room.hostUserId === me;
     var tour = room.tournamentId ? room.tournamentName || 'Tournament' : '';
     var full = room.status === 'Started' || Number(room.playerCount) >= 2;
-    var href = mine ? '/social/lobby/' + encodeURIComponent(code)
-      : battleHref({ online: 'join', join: code, tournament: room.tournamentId || '' });
+    var href = '/room/' + encodeURIComponent(code);
     return '<article class="sg-lt' + (tour ? ' is-tour' : '') + (full ? ' is-full' : '') + '" style="--el:' + color(lead && lead.element) + '">' +
       '<div class="sg-lt-bg" style="background-image:url(\'' + land(lead && lead.element) + '\')"></div>' +
       (lead ? '<div class="sg-lt-art"><img ' + artAttrs(lead.cardArtUrl) + ' alt="" loading="lazy"></div>' : '') +
@@ -5931,7 +5929,7 @@
         '<section class="sg-section sg-lobbies-tables" data-tables>' +
           '<div class="sg-section-head"><h3>Open tables</h3><span class="sg-count" data-table-count>' + esc(rooms.length) + '</span></div>' +
           '<div class="sg-lobbies-actions">' +
-            '<a class="sg-lobby-host" href="' + battleHref({ online: 'host' }) + '">+ Host open table</a>' +
+            '<a class="sg-lobby-host" href="/room">+ Host open table</a>' +
             '<form class="sg-lobby-code" data-join-code>' +
               '<input name="code" maxlength="6" placeholder="Room code" autocomplete="off" autocapitalize="characters" spellcheck="false">' +
               '<button type="submit">Join</button>' +
@@ -5964,7 +5962,7 @@
         '<div class="sg-tour-cta">' +
           (guest
             ? '<a class="sg-tour-host" href="/login" data-screen="auth">Sign in to compete</a>'
-            : '<a class="sg-tour-host" href="' + battleHref({ online: 'host', tournament: t.id }) + '">Host tournament table</a>') +
+            : '<a class="sg-tour-host" href="/room?tournament=' + encodeURIComponent(t.id) + '">Host tournament table</a>') +
           (me ? '<span class="sg-tour-me">You’re #' + esc(me.place) + ' · ' + esc(me.points) + ' pts</span>'
               : (guest ? '' : '<span class="sg-tour-me">Win a table to get on the board</span>')) +
         '</div>' +
@@ -6079,8 +6077,7 @@
       e.preventDefault();
       var code = String(form.code.value || '').trim().toUpperCase();
       if (!code) return;
-      var room = ((opts.live && opts.live.rooms) || []).filter(function (r) { return (r.roomId || r.id) === code; })[0];
-      window.location.href = battleHref({ online: 'join', join: code, tournament: room && room.tournamentId || '' });
+      window.location.href = '/room/' + encodeURIComponent(code);
     });
 
     root.addEventListener('click', function (e) {
@@ -6116,6 +6113,776 @@
       // The day rolled over: fetch the new tournament.
       if (tour && Date.parse(tour.endsAt) <= Date.now()) { tour = null; loadTour(); }
     }, 30000);
+  }
+
+  /* ---------- Room ----------
+     One table's waiting room, for tournament and open tables alike. It replaced
+     a hand-off to the old hub's /social/lobby page, which shared nothing with
+     this design. Three ways in:
+       /room?tournament=ID  host a table for today's tournament (or /room for an
+                            open table): pick a loadout, then Open table.
+       /room/CODE           a table you host or joined (the session is in
+                            localStorage), or someone's invite link, which
+                            shows the table and a Join button.
+     The server owns everything about the table: who is in it, readiness, the
+     tournament's deck rule (create, join and ready all re-check it). This
+     screen polls /api/match/status and, once both players are ready and the
+     server starts the match, hands the session to /play exactly as the old
+     waiting room did. Session keys are the old hub's own, so a table opened
+     from either page resumes on the other. */
+  var ROOM_POLL_MS = 2000;
+  var ROOM_HOST_KEY = 'sieglingsHostLobby';
+  var ROOM_SESSION_KEY = 'sieglingsLobbySession';
+  var ROOM_MATCH_KEY = 'sieglingsMultiplayerSession';
+  var ROOM_PENDING_KEY = 'sieglingsPendingLoadout';
+  var ROOM_NAME_KEY = 'sieglingsPlayerName';
+  var GUEST_KNIGHTS = ['squire-bob', 'pyla', 'ser-airek'];
+  var roomPoll = null;
+  var roomTick = null;
+  var rv = null;
+
+  function readJson(key) {
+    try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; }
+  }
+  function writeJson(key, value) {
+    try {
+      if (value == null) localStorage.removeItem(key);
+      else localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) { /* private mode: the table still works for this page */ }
+  }
+
+  function roomCodeFromPath() {
+    var m = /^\/room\/([A-Za-z0-9]{3,12})\/?$/.exec(location.pathname);
+    return m ? m[1].toUpperCase() : '';
+  }
+
+  // The room endpoints authenticate the table with X-Room-Id / X-Player-Token,
+  // which the shared live helper does not send, so these carry their own headers.
+  function roomFetch(url, method, body, session) {
+    var headers = { Accept: 'application/json' };
+    if (body) headers['Content-Type'] = 'application/json';
+    try {
+      var token = localStorage.getItem('sieglingsAuthToken');
+      if (token && token !== 'cookie') headers.Authorization = 'Bearer ' + token;
+    } catch (e) { /* no stored token: the session cookie still rides along */ }
+    if (session) {
+      headers['X-Room-Id'] = session.roomId;
+      headers['X-Player-Token'] = session.playerToken;
+    }
+    return fetch(url, {
+      method: method || 'GET', credentials: 'same-origin', cache: 'no-store', headers: headers,
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return r.ok ? {} : { error: 'Request failed.' }; });
+    }).catch(function () { return { error: 'Network error. Check your connection and try again.' }; });
+  }
+
+  function roomPlayerName(opts) {
+    var live = opts.live || {};
+    if (live.displayName) return live.displayName;
+    try { return localStorage.getItem(ROOM_NAME_KEY) || 'Guest'; } catch (e) { return 'Guest'; }
+  }
+
+  // Same three tests the battle loadout and the server apply.
+  function tourDeckProblem(t, els, custom) {
+    if (!t) return '';
+    if (t.presetOnly && custom) return 'Preset decks only';
+    if (t.monoElement && els.length !== 1) return 'Needs a single-element deck';
+    var allowed = t.allowedElements;
+    if (Array.isArray(allowed) && els.some(function (e) { return allowed.indexOf(String(e).toUpperCase()) === -1; })) {
+      return 'Off today’s rule';
+    }
+    return '';
+  }
+
+  // Every deck this account may bring: saved custom decks, then unlocked presets.
+  // Off-rule decks stay listed but disabled, so the rule reads as a reason.
+  function roomDecks(opts) {
+    var groups = deckGroups(opts);
+    var saved = (opts.live && opts.live.savedDecks) || [];
+    var out = [];
+    groups.saved.forEach(function (d) {
+      var raw = saved.filter(function (s) { return s.id === d.id; })[0] || {};
+      var list = Array.isArray(raw.customDeckCards) && raw.customDeckCards.length ? raw.customDeckCards
+        : Array.isArray(raw.cards) ? raw.cards.map(function (c) { return c.id || c; }) : [];
+      if (!list.length) return;
+      out.push({ key: 'saved:' + d.id, name: d.name, els: d.els, lead: d.lead, custom: true,
+        customDeckCards: list, trainerId: d.trainerId });
+    });
+    groups.owned.forEach(function (d) {
+      out.push({ key: 'preset:' + d.id, deckId: d.id, name: d.name, els: d.els, lead: d.lead, custom: false });
+    });
+    out.forEach(function (d) { d.problem = tourDeckProblem(rv && rv.tournament, d.els || [], d.custom); });
+    return out;
+  }
+
+  function roomKnights(opts) {
+    var live = opts.live || {};
+    return (live.trainers || []).filter(function (t) {
+      if (!t || !t.id || t.active === false) return false;
+      return opts.guest ? GUEST_KNIGHTS.indexOf(t.id) !== -1 : t.owned !== false;
+    });
+  }
+
+  function chosenDeck(opts) {
+    var decks = roomDecks(opts);
+    var pick = decks.filter(function (d) { return d.key === rv.deckKey && !d.problem; })[0];
+    if (!pick) pick = decks.filter(function (d) { return !d.problem; })[0] || null;
+    if (pick) rv.deckKey = pick.key;
+    return pick;
+  }
+
+  function chosenKnight(opts) {
+    var knights = roomKnights(opts);
+    var pick = knights.filter(function (k) { return k.id === rv.trainerId; })[0];
+    if (!pick) {
+      var live = opts.live || {};
+      pick = knights.filter(function (k) { return k.id === live.defaultTrainerId; })[0] || knights[0] || null;
+    }
+    if (pick) rv.trainerId = pick.id;
+    return pick;
+  }
+
+  function loadoutBody(opts) {
+    var deck = chosenDeck(opts);
+    var knight = chosenKnight(opts);
+    if (!deck || !knight) return null;
+    var body = { playerName: roomPlayerName(opts), trainerId: knight.id, loadoutLabel: deck.custom ? deck.name : '' };
+    if (deck.custom) { body.deckId = 'deck_fire_earth'; body.customDeckCards = deck.customDeckCards; }
+    else body.deckId = deck.deckId;
+    return body;
+  }
+
+  function roomRole() {
+    if (!rv.session) return 'visitor';
+    if (rv.session.role === 'host' || (rv.status && rv.status.viewerIsHost)) return 'host';
+    return 'guest';
+  }
+
+  // A tournament table wears the tournament's element; an open table wears its
+  // host's deck, so every table on the board looks like whoever is hosting it.
+  function roomTheme(opts) {
+    var t = rv.tournament;
+    var el = t && t.element;
+    if (!el) {
+      var hostSeat = ((rv.status && rv.status.players) || []).filter(function (p) { return p.role === 'host'; })[0];
+      var deckId = hostSeat ? hostSeat.deckId : rv.preview ? rv.preview.deckId : '';
+      if (!deckId && rv.mode === 'host' && !rv.session) {
+        var mine = chosenDeck(opts);
+        el = mine && mine.els && mine.els[0];
+      } else {
+        el = deckElsById(opts, deckId)[0];
+      }
+    }
+    return { el: el || 'NEUTRAL', tour: Boolean(t || rv.tournamentId) };
+  }
+
+  function knightById(opts, id) {
+    var list = (opts.live && opts.live.trainers) || [];
+    return list.filter(function (t) { return t.id === id; })[0] || null;
+  }
+
+  function deckNameById(opts, id) {
+    var d = ((opts.live && opts.live.decks) || []).filter(function (x) { return x.id === id; })[0];
+    return d ? d.name : '';
+  }
+
+  function deckElsById(opts, id) {
+    var d = ((opts.live && opts.live.decks) || []).filter(function (x) { return x.id === id; })[0];
+    return (d && d.elements) || [];
+  }
+
+  /* ---- markup ---- */
+
+  function roomScreen(opts) {
+    opts = opts || {};
+    return topMarkup(opts) +
+      '<div class="sg-scroll sg-room" data-room>' +
+        '<section class="sg-room-hero" data-room-hero></section>' +
+        '<section class="sg-room-stage" data-room-stage>' +
+          '<div class="sg-room-loading">Opening the table…</div>' +
+        '</section>' +
+        '<section class="sg-room-panel" data-room-panel hidden></section>' +
+        '<div class="sg-room-spacer"></div>' +
+      '</div>' +
+      bottomMarkup('play', opts);
+  }
+
+  function roomHeroHtml(opts) {
+    var t = rv.tournament;
+    var theme = roomTheme(opts);
+    var st = rv.status || {};
+    var code = rv.code || '';
+    var title = t ? t.name : (roomRole() === 'host' || rv.mode === 'host' ? 'Your Table' : ((st.hostName || (rv.preview && rv.preview.hostName) || 'Open') + '’s Table'));
+    var kicker = t ? 'Tournament Table' : 'Open 1v1 Table';
+    var bits = [];
+    if (t && t.endsAt) bits.push('<b data-room-clock>' + esc(countdown(t.endsAt)) + '</b>');
+    if (st.expiresAt && !st.guestJoined) bits.push('<span data-room-expiry>' + esc(roomExpiry(st.expiresAt)) + '</span>');
+    return '<div class="sg-room-hero-bg" style="background-image:url(\'' + land(theme.el) + '\')"></div>' +
+      '<div class="sg-room-hero-veil"></div>' +
+      '<div class="sg-room-hero-body">' +
+        '<span class="sg-room-kicker">' + esc(kicker) + (bits.length ? ' · ' + bits.join(' · ') : '') + '</span>' +
+        '<h2>' + esc(title) + '</h2>' +
+        (t ? '<p>' + esc(t.tagline || '') + '</p><div class="sg-room-rule">' + esc(t.rule) + '</div>' : '<p>Best of one. Winner takes the table.</p>') +
+        (t && t.prizes ? '<div class="sg-room-prizes">' + t.prizes.map(function (p, i) {
+          return '<span><i>' + MEDAL[i] + '</i>' + esc(p) + '</span>';
+        }).join('') + '</div>' : '') +
+        (code ? '<button type="button" class="sg-room-code" data-room-copy="code" aria-label="Copy room code ' + esc(code) + '">' +
+          '<em>Room</em><strong>' + esc(code) + '</strong><i data-room-copied>Copy</i></button>' : '') +
+      '</div>';
+  }
+
+  function roomExpiry(expiresAt) {
+    var ms = Date.parse(expiresAt) - Date.now();
+    if (!(ms > 0)) return 'Closing';
+    return 'Open ' + Math.ceil(ms / 60000) + ' min';
+  }
+
+  function seatHtml(opts, p, side, label) {
+    if (!p) {
+      return '<div class="sg-seat is-open" data-side="' + side + '">' +
+        '<div class="sg-seat-art"><span class="sg-seat-pulse"></span><span class="sg-seat-q">?</span></div>' +
+        '<strong>Open seat</strong><em>' + (roomRole() === 'host' ? 'Invite a challenger' : 'Waiting') + '</em></div>';
+    }
+    var knight = knightById(opts, p.trainerId);
+    var els = p.els || deckElsById(opts, p.deckId);
+    var deckName = p.loadoutLabel || deckNameById(opts, p.deckId) || (p.deckId ? 'Custom deck' : '');
+    var el = (knight && knight.element) || els[0] || 'NEUTRAL';
+    return '<div class="sg-seat' + (p.ready ? ' is-ready' : '') + (p.me ? ' is-me' : '') + '" data-side="' + side + '" style="--el:' + color(el) + '">' +
+      '<div class="sg-seat-art">' +
+        (knight && knight.cardArtUrl ? '<img ' + artAttrs(knight.cardArtUrl, 320) + ' alt="">' : '<span class="sg-seat-q">' + esc(String(p.name || '?').charAt(0).toUpperCase()) + '</span>') +
+        '<span class="sg-seat-flag">' + esc(label) + '</span>' +
+      '</div>' +
+      '<strong>' + esc(p.name || label) + (p.me ? ' <small>(you)</small>' : '') + '</strong>' +
+      '<em>' + esc(knight ? knight.name : 'Choosing a knight') + (deckName ? ' · ' + esc(deckName) : '') + '</em>' +
+      '<span class="sg-seat-state">' + (p.ready ? 'Ready' : 'Choosing loadout') + '</span>' +
+    '</div>';
+  }
+
+  function stageHtml(opts) {
+    var st = rv.status || {};
+    var role = roomRole();
+    var host = null, guest = null;
+    if (rv.session) {
+      (st.players || []).forEach(function (p) {
+        var seat = { name: p.name, ready: p.ready, deckId: p.deckId, trainerId: p.trainerId, loadoutLabel: p.loadoutLabel,
+          me: (p.role === 'host') === (role === 'host') };
+        // Your own seat previews the loadout you are choosing, not the one last sent.
+        if (seat.me && !p.ready) {
+          var d = chosenDeck(opts), k = chosenKnight(opts);
+          if (d) { seat.deckId = d.deckId; seat.loadoutLabel = d.custom ? d.name : ''; seat.els = d.els; }
+          if (k) seat.trainerId = k.id;
+        }
+        if (p.role === 'host') host = seat; else guest = seat;
+      });
+    } else if (rv.mode === 'host') {
+      var dk = chosenDeck(opts), kn = chosenKnight(opts);
+      host = { name: roomPlayerName(opts), me: true, deckId: dk && dk.deckId, loadoutLabel: dk && dk.custom ? dk.name : '',
+        els: dk && dk.els, trainerId: kn && kn.id };
+    } else if (rv.preview) {
+      host = { name: rv.preview.hostName, deckId: rv.preview.deckId, trainerId: rv.preview.trainerId };
+      var dv = chosenDeck(opts), kv = chosenKnight(opts);
+      guest = { name: roomPlayerName(opts), me: true, deckId: dv && dv.deckId, loadoutLabel: dv && dv.custom ? dv.name : '',
+        els: dv && dv.els, trainerId: kv && kv.id };
+    }
+    return '<div class="sg-room-vs">' +
+        seatHtml(opts, host, 'host', 'Host') +
+        '<div class="sg-room-vs-mark"><span>VS</span></div>' +
+        seatHtml(opts, guest, 'guest', 'Rival') +
+      '</div>' +
+      '<p class="sg-room-status" data-room-status role="status">' + esc(statusLine(opts)) + '</p>' +
+      ctaHtml(opts) +
+      (rv.error ? '<p class="sg-room-error" role="alert">' + esc(rv.error) + '</p>' : '');
+  }
+
+  function statusLine(opts) {
+    var st = rv.status || {};
+    var role = roomRole();
+    if (rv.gone) return rv.gone;
+    if (!lockedLoadout()) {
+      if (!chosenDeck(opts)) return rv.tournament ? 'None of your decks fits today’s rule. Unlock one in Decks.' : 'Unlock a deck in Decks to play.';
+      if (!chosenKnight(opts)) return 'You need a SiegeKnight to play. Unlock one in Shop.';
+    }
+    if (rv.mode === 'host' && !rv.session) return 'Choose your deck and knight, then open the table.';
+    if (role === 'visitor') return rv.preview ? 'Pick a loadout and take the open seat.' : 'Looking for this table…';
+    if (st.started) return 'Match starting…';
+    if (!st.guestJoined) return 'Share the code or invite a friend. The match starts once they join and you both ready up.';
+    var meReady = role === 'host' ? st.hostReady : st.guestReady;
+    var themReady = role === 'host' ? st.guestReady : st.hostReady;
+    if (meReady && !themReady) return 'Ready. Waiting for your opponent to lock in.';
+    if (!meReady && themReady) return 'Your opponent is ready. Lock in to start the match.';
+    return 'Opponent joined. Lock in your loadout to start.';
+  }
+
+  function ctaHtml(opts) {
+    var st = rv.status || {};
+    var role = roomRole();
+    var guestNeedsAuth = rv.tournament && opts.guest;
+    var label, attr = '', disabled = rv.busy;
+    if (rv.gone) {
+      return '<div class="sg-room-cta"><a class="sg-room-go" href="/lobbies" data-screen="lobbies">Back to Lobbies</a></div>';
+    }
+    if (guestNeedsAuth) {
+      return '<div class="sg-room-cta"><a class="sg-room-go" href="/login" data-screen="auth">Sign in to play this tournament</a></div>';
+    }
+    if (role === 'visitor') {
+      if (rv.mode === 'host') { label = 'Open table'; attr = 'data-room-act="create"'; }
+      else { label = 'Join table'; attr = 'data-room-act="join"'; disabled = disabled || !rv.preview; }
+    } else {
+      var meReady = role === 'host' ? st.hostReady : st.guestReady;
+      if (st.started) { label = 'Entering the arena…'; disabled = true; }
+      else if (meReady) { label = 'Locked in'; disabled = true; }
+      else if (role === 'host' && !st.guestJoined) { label = 'Waiting for a challenger'; disabled = true; }
+      else { label = role === 'host' ? 'Start match' : 'Ready up'; attr = 'data-room-act="ready"'; }
+    }
+    if (!loadoutBody(opts) && attr) { disabled = true; }
+    var secondary = role === 'host'
+      ? '<button type="button" class="sg-room-ghost" data-room-act="close">Close table</button>'
+      : role === 'guest'
+        ? '<button type="button" class="sg-room-ghost" data-room-act="leave">Leave table</button>'
+        : '';
+    return '<div class="sg-room-cta">' +
+      '<button type="button" class="sg-room-go' + (st.guestJoined && !disabled ? ' is-hot' : '') + '" ' + attr + (disabled ? ' disabled' : '') + '>' +
+        esc(rv.busy ? 'Working…' : label) + '</button>' +
+      secondary +
+      '<a class="sg-room-ghost" href="/lobbies" data-screen="lobbies">Lobbies</a>' +
+    '</div>';
+  }
+
+  var ROOM_TABS = [['deck', 'Deck'], ['knight', 'Knight'], ['invite', 'Invite'], ['chat', 'Chat']];
+
+  function panelHtml(opts) {
+    var tabs = ROOM_TABS.filter(function (t) {
+      // Invite and chat need a table; before one exists there is nothing to share.
+      return rv.session || (t[0] !== 'invite' && t[0] !== 'chat');
+    });
+    if (!tabs.some(function (t) { return t[0] === rv.tab; })) rv.tab = tabs[0][0];
+    return '<div class="sg-room-tabs" role="tablist">' + tabs.map(function (t) {
+        var on = t[0] === rv.tab;
+        return '<button type="button" role="tab" data-room-tab="' + t[0] + '" class="' + (on ? 'on' : '') + '" aria-selected="' + on + '">' +
+          esc(t[1]) + (t[0] === 'chat' && rv.unread ? '<i class="sg-room-dot"></i>' : '') + '</button>';
+      }).join('') + '</div>' +
+      '<div class="sg-room-pane" data-room-pane>' + paneHtml(opts) + '</div>';
+  }
+
+  function lockedLoadout() {
+    var st = rv.status || {};
+    var role = roomRole();
+    return Boolean(st.started || (role === 'host' ? st.hostReady : role === 'guest' ? st.guestReady : false));
+  }
+
+  function paneHtml(opts) {
+    if (rv.tab === 'deck') {
+      var decks = roomDecks(opts);
+      var current = chosenDeck(opts);
+      var locked = lockedLoadout();
+      if (!decks.length) return '<p class="sg-room-empty">No decks available. Unlock a preset in Decks.</p>';
+      return (rv.tournament ? '<p class="sg-room-note">' + esc(rv.tournament.rule) + '</p>' : '') +
+        '<div class="sg-room-picks">' + decks.map(function (d) {
+          var lead = byIdIn(ALL_CARDS, d.lead) || byId(d.lead);
+          var on = current && d.key === current.key;
+          return '<button type="button" class="sg-room-pick' + (on ? ' on' : '') + (d.problem ? ' is-off' : '') + '"' +
+            ' data-room-deck="' + esc(d.key) + '" style="--el:' + color((d.els || [])[0]) + '"' +
+            (d.problem || locked ? ' disabled' : '') + ' aria-pressed="' + Boolean(on) + '">' +
+            '<span class="sg-room-pick-art">' + (lead && lead.cardArtUrl ? '<img ' + artAttrs(lead.cardArtUrl, 200) + ' alt="" loading="lazy">' : '') + '</span>' +
+            '<span class="sg-room-pick-copy"><strong>' + esc(d.name) + '</strong>' +
+              '<em>' + (d.els || []).map(function (e) { return '<img src="' + icon(e) + '" alt="' + esc(title(e)) + '">'; }).join('') +
+              (d.custom ? '<b>Custom</b>' : '') + '</em>' +
+              (d.problem ? '<small>' + esc(d.problem) + '</small>' : '') + '</span>' +
+          '</button>';
+        }).join('') + '</div>';
+    }
+    if (rv.tab === 'knight') {
+      var knights = roomKnights(opts);
+      var k = chosenKnight(opts);
+      var lockedK = lockedLoadout();
+      if (!knights.length) return '<p class="sg-room-empty">No SiegeKnights available yet.</p>';
+      return '<div class="sg-room-picks is-knights">' + knights.map(function (t) {
+        var on = k && t.id === k.id;
+        return '<button type="button" class="sg-room-pick' + (on ? ' on' : '') + '" data-room-knight="' + esc(t.id) + '"' +
+          ' style="--el:' + color(t.element) + '"' + (lockedK ? ' disabled' : '') + ' aria-pressed="' + Boolean(on) + '">' +
+          '<span class="sg-room-pick-art">' + (t.cardArtUrl ? '<img ' + artAttrs(t.cardArtUrl, 200) + ' alt="" loading="lazy">' : '') + '</span>' +
+          '<span class="sg-room-pick-copy"><strong>' + esc(t.name) + '</strong>' +
+            '<em><img src="' + icon(t.element) + '" alt="' + esc(title(t.element)) + '">' + esc(title(t.rarity || '')) + '</em></span>' +
+        '</button>';
+      }).join('') + '</div>';
+    }
+    if (rv.tab === 'invite') {
+      var url = (rv.status && rv.status.shareUrl) || (location.origin + '/room/' + rv.code);
+      var friends = ((opts.live && opts.live.friends) || []).slice().sort(function (a, b) {
+        return Number(Boolean(b.presence && b.presence.online)) - Number(Boolean(a.presence && a.presence.online));
+      });
+      return '<div class="sg-room-invite">' +
+        '<div class="sg-room-link"><input readonly value="' + esc(url) + '" aria-label="Invite link" data-room-link>' +
+          '<button type="button" data-room-copy="link">Copy</button></div>' +
+        (navigator.share ? '<button type="button" class="sg-room-share" data-room-act="share">Share invite…</button>' : '') +
+        '<h4>Invite a friend</h4>' +
+        (opts.guest ? '<p class="sg-room-empty">Sign in to invite friends directly.</p>'
+          : friends.length ? '<ul class="sg-room-friends">' + friends.map(function (f) {
+              var id = f.id || f.userId || '';
+              var online = f.presence && f.presence.online;
+              var sent = rv.invited[id];
+              return '<li><i class="sg-room-presence' + (online ? ' on' : '') + '"></i><span>' + esc(friendName(f)) +
+                '<em>' + (online ? 'Online' : 'Offline') + '</em></span>' +
+                '<button type="button" data-room-invite="' + esc(id) + '"' + (sent ? ' disabled' : '') + '>' + (sent ? 'Sent' : 'Invite') + '</button></li>';
+            }).join('') + '</ul>'
+          : '<p class="sg-room-empty">No friends yet. Add some from Social, or share the link.</p>') +
+      '</div>';
+    }
+    return '<div class="sg-room-chat">' +
+      '<div class="sg-room-chat-log" data-room-chat-log>' + chatLogHtml() + '</div>' +
+      '<form class="sg-room-chat-form" data-room-chat>' +
+        '<input name="message" maxlength="120" placeholder="Say something…" autocomplete="off" aria-label="Message the table">' +
+        '<button type="submit">Send</button></form>' +
+    '</div>';
+  }
+
+  function chatLogHtml() {
+    var lines = ((rv.status && rv.status.lobbyChat) || []).slice(-30);
+    if (!lines.length) return '<p class="sg-room-empty">Say hello while you wait.</p>';
+    return lines.map(function (l) {
+      return '<p class="' + (l.role === 'system' ? 'is-system' : '') + '"><b>' + esc(l.author || 'Player') + '</b>' + esc(l.text || '') + '</p>';
+    }).join('');
+  }
+
+  /* ---- behaviour ---- */
+
+  function stopRoomTimers() {
+    if (roomPoll) { clearInterval(roomPoll); roomPoll = null; }
+    if (roomTick) { clearInterval(roomTick); roomTick = null; }
+  }
+
+  function mountRoom(app, opts) {
+    var root = app.querySelector('[data-room]');
+    if (!root) return;
+    var params = new URLSearchParams(location.search);
+    var code = roomCodeFromPath();
+    rv = {
+      code: code, mode: code ? 'table' : 'host', session: null, status: null, preview: null,
+      tournament: null, tournamentId: code ? '' : (params.get('tournament') || ''),
+      deckKey: '', trainerId: '', tab: 'deck', busy: false, error: '', gone: '',
+      invited: {}, chatSeen: 0, unread: false, launched: false
+    };
+    stopRoomTimers();
+
+    function paintHero() {
+      var hero = root.querySelector('[data-room-hero]');
+      var theme = roomTheme(opts);
+      root.style.setProperty('--el', color(theme.el));
+      hero.classList.toggle('is-tour', theme.tour);
+      hero.innerHTML = roomHeroHtml(opts);
+    }
+    function paintStage() {
+      root.querySelector('[data-room-stage]').innerHTML = stageHtml(opts);
+    }
+    function paintPanel() {
+      var panel = root.querySelector('[data-room-panel]');
+      panel.hidden = Boolean(rv.gone);
+      if (rv.gone) return;
+      var pane = panel.querySelector('[data-room-pane]');
+      var scroll = pane ? pane.scrollTop : 0;
+      panel.innerHTML = panelHtml(opts);
+      pane = panel.querySelector('[data-room-pane]');
+      if (pane) pane.scrollTop = scroll;
+      scrollChat();
+    }
+    function paintAll() {
+      app.setAttribute('data-room-role', roomRole());
+      paintHero(); paintStage(); paintPanel();
+    }
+    function scrollChat() {
+      var log = root.querySelector('[data-room-chat-log]');
+      if (log) log.scrollTop = log.scrollHeight;
+    }
+    // A poll repaints only what can change under the player: the seats, the
+    // status line and the chat. The pickers and a half-typed message survive.
+    function paintLive() {
+      paintStage();
+      var log = root.querySelector('[data-room-chat-log]');
+      if (log) {
+        var stick = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+        log.innerHTML = chatLogHtml();
+        if (stick) scrollChat();
+      }
+      var chatTab = root.querySelector('[data-room-tab="chat"]');
+      if (chatTab) {
+        var dot = chatTab.querySelector('.sg-room-dot');
+        if (rv.unread && !dot) chatTab.insertAdjacentHTML('beforeend', '<i class="sg-room-dot"></i>');
+        if (!rv.unread && dot) dot.remove();
+      }
+      var expiry = root.querySelector('[data-room-expiry]');
+      if (expiry && rv.status && rv.status.guestJoined) paintHero();
+    }
+
+    function adopt(status, session) {
+      rv.session = session;
+      rv.status = status;
+      rv.code = status.roomId || rv.code;
+      if (status.tournament) rv.tournament = status.tournament;
+      var chat = (status.lobbyChat || []).length;
+      if (rv.tab === 'chat') rv.chatSeen = chat;
+      rv.unread = chat > rv.chatSeen && rv.tab !== 'chat';
+      writeJson(ROOM_SESSION_KEY, session);
+      if (location.pathname !== '/room/' + rv.code) {
+        try { history.replaceState({ screen: 'room' }, '', '/room/' + rv.code); } catch (e) { /* sandboxed */ }
+      }
+    }
+
+    function launch() {
+      if (rv.launched || !rv.session) return;
+      rv.launched = true;
+      stopRoomTimers();
+      var s = rv.session;
+      writeJson(ROOM_MATCH_KEY, { roomId: s.roomId, playerToken: s.playerToken,
+        viewerSide: (rv.status && rv.status.viewerSide) || (roomRole() === 'host' ? 'PLAYER' : 'ENEMY') });
+      var body = loadoutBody(opts) || {};
+      writeJson(ROOM_PENDING_KEY, { createdAt: Date.now(), mode: 'online', onlineRoomMode: 'join', roomId: s.roomId,
+        battleLaunch: true, deckId: body.deckId || '', trainerId: body.trainerId || '', playerName: roomPlayerName(opts),
+        customDeckCards: body.customDeckCards || null, loadoutLabel: body.loadoutLabel || '' });
+      if (roomRole() === 'host') writeJson(ROOM_HOST_KEY, null);
+      paintStage();
+      window.location.href = '/play';
+    }
+
+    function closed(message) {
+      stopRoomTimers();
+      var s = rv.session;
+      if (s) {
+        var host = readJson(ROOM_HOST_KEY);
+        if (host && host.roomId === s.roomId) writeJson(ROOM_HOST_KEY, null);
+        var saved = readJson(ROOM_SESSION_KEY);
+        if (saved && saved.roomId === s.roomId) writeJson(ROOM_SESSION_KEY, null);
+      }
+      rv.session = null;
+      rv.gone = message || 'This table has closed.';
+      paintAll();
+    }
+
+    function poll() {
+      if (!root.isConnected) { stopRoomTimers(); return; }
+      if (!rv.session || rv.launched) return;
+      roomFetch('/api/match/status', 'GET', null, rv.session).then(function (st) {
+        if (!root.isConnected || rv.launched) return;
+        if (!st || st.error || st.closed) {
+          // A network blip keeps the table; a server answer that it is gone ends it.
+          if (st && (st.closed || /not found|closed|expired|no longer/i.test(st.error || ''))) closed(st.error || 'The host closed this table.');
+          return;
+        }
+        adopt(st, rv.session);
+        if (st.started) { launch(); return; }
+        paintLive();
+      });
+    }
+
+    function startPolling() {
+      stopRoomTimers();
+      roomPoll = setInterval(poll, ROOM_POLL_MS);
+      roomTick = setInterval(function () {
+        if (!root.isConnected) { stopRoomTimers(); return; }
+        var clock = root.querySelector('[data-room-clock]');
+        if (clock && rv.tournament) clock.textContent = countdown(rv.tournament.endsAt);
+        var exp = root.querySelector('[data-room-expiry]');
+        if (exp && rv.status && rv.status.expiresAt) exp.textContent = roomExpiry(rv.status.expiresAt);
+      }, 15000);
+    }
+
+    // Which seat, if any, this browser already holds at this table.
+    function findSession(code) {
+      var candidates = [];
+      var host = readJson(ROOM_HOST_KEY);
+      if (host && String(host.roomId).toUpperCase() === code && host.playerToken) {
+        candidates.push({ roomId: host.roomId, playerToken: host.playerToken, role: 'host' });
+      }
+      var saved = readJson(ROOM_SESSION_KEY);
+      if (saved && String(saved.roomId).toUpperCase() === code && saved.playerToken) candidates.push(saved);
+      var match = readJson(ROOM_MATCH_KEY);
+      if (match && String(match.roomId).toUpperCase() === code && match.playerToken) {
+        candidates.push({ roomId: match.roomId, playerToken: match.playerToken, role: match.viewerSide === 'ENEMY' ? 'guest' : 'host' });
+      }
+      function next(i) {
+        if (i >= candidates.length) {
+          if (opts.guest) return Promise.resolve(null);
+          // A signed-in host on a new device: the server knows the table is theirs.
+          return roomFetch('/api/match/reconnect-host', 'POST', { roomId: code }).then(function (res) {
+            if (!res || res.error || !res.playerToken) return null;
+            var s = { roomId: res.roomId, playerToken: res.playerToken, role: 'host' };
+            writeJson(ROOM_HOST_KEY, { roomId: res.roomId, playerToken: res.playerToken, expiresAt: res.expiresAt || null });
+            return roomFetch('/api/match/status', 'GET', null, s).then(function (st) {
+              return st && !st.error ? { session: s, status: st } : null;
+            });
+          });
+        }
+        var c = candidates[i];
+        return roomFetch('/api/match/status', 'GET', null, c).then(function (st) {
+          if (st && !st.error && !st.closed) return { session: c, status: st };
+          return next(i + 1);
+        });
+      }
+      return next(0);
+    }
+
+    function loadPreview() {
+      return roomFetch('/api/match/rooms', 'GET').then(function (res) {
+        var list = (res && res.rooms) || [];
+        var hit = list.filter(function (r) { return String(r.roomId || '').toUpperCase() === rv.code; })[0];
+        if (!hit) { rv.gone = 'Table ' + rv.code + ' is not open any more. It may have started or closed.'; return; }
+        if (hit.status === 'Started' || Number(hit.playerCount) >= 2) { rv.gone = 'Table ' + rv.code + ' is already full.'; return; }
+        rv.preview = hit;
+        rv.tournamentId = hit.tournamentId || '';
+        if (rv.tournamentId) return loadTournament();
+      });
+    }
+
+    function loadTournament() {
+      return roomFetch('/api/tournaments', 'GET').then(function (data) {
+        var t = data && data.current;
+        if (t && t.id === rv.tournamentId) rv.tournament = t;
+        else if (rv.mode === 'host') {
+          rv.tournamentId = '';
+          rv.error = 'That tournament has ended. This will be an open table.';
+        }
+      });
+    }
+
+    function boot() {
+      if (rv.mode === 'host') {
+        var ready = rv.tournamentId ? loadTournament() : Promise.resolve();
+        return ready.then(paintAll);
+      }
+      return findSession(rv.code).then(function (found) {
+        if (found) {
+          adopt(found.status, found.session);
+          if (found.status.started) { launch(); return; }
+          paintAll();
+          startPolling();
+          return;
+        }
+        return loadPreview().then(paintAll);
+      });
+    }
+
+    function act(kind) {
+      if (rv.busy) return;
+      var body = loadoutBody(opts);
+      if (kind === 'share') {
+        var url = (rv.status && rv.status.shareUrl) || (location.origin + '/room/' + rv.code);
+        navigator.share({ title: 'Siegelings table ' + rv.code,
+          text: (rv.tournament ? rv.tournament.name + ' table' : 'Join my Siegelings table') + ' — code ' + rv.code, url: url })
+          .catch(function () { /* dismissed */ });
+        return;
+      }
+      rv.error = '';
+      var request;
+      if (kind === 'create') {
+        if (!body) return;
+        if (rv.tournamentId) body.tournamentId = rv.tournamentId;
+        request = roomFetch('/api/match/create', 'POST', body).then(function (res) {
+          if (!res || res.error) throw new Error((res && res.error) || 'Could not open the table.');
+          var s = { roomId: res.roomId, playerToken: res.playerToken, role: 'host' };
+          writeJson(ROOM_HOST_KEY, { roomId: res.roomId, playerToken: res.playerToken, expiresAt: res.expiresAt || null, shareUrl: res.shareUrl || '' });
+          rv.mode = 'table';
+          rv.tab = 'invite';
+          adopt(res, s);
+          startPolling();
+        });
+      } else if (kind === 'join') {
+        if (!body) return;
+        body.roomId = rv.code;
+        request = roomFetch('/api/match/join', 'POST', body).then(function (res) {
+          if (!res || res.error) throw new Error((res && res.error) || 'Could not join this table.');
+          adopt(res, { roomId: res.roomId, playerToken: res.playerToken, role: 'guest' });
+          if (res.started) { launch(); return; }
+          startPolling();
+        });
+      } else if (kind === 'ready') {
+        if (!body) return;
+        body.roomId = rv.session.roomId;
+        request = roomFetch('/api/match/ready', 'POST', body, rv.session).then(function (res) {
+          if (!res || res.error) throw new Error((res && res.error) || 'Could not lock in.');
+          adopt(res, rv.session);
+          if (res.started) launch();
+        });
+      } else if (kind === 'leave' || kind === 'close') {
+        if (kind === 'close' && !window.confirm('Close this table? Anyone waiting in it will be sent back.')) return;
+        var s = rv.session;
+        request = roomFetch(kind === 'close' ? '/api/match/close' : '/api/match/leave', 'POST', { roomId: s.roomId }, s)
+          .then(function (res) {
+            if (res && res.error && !/not found|closed/i.test(res.error)) throw new Error(res.error);
+            writeJson(ROOM_MATCH_KEY, null);
+            closed(kind === 'close' ? 'Table closed.' : 'You left the table.');
+          });
+      }
+      if (!request) return;
+      rv.busy = true;
+      paintStage();
+      request.catch(function (err) { rv.error = err.message; }).then(function () {
+        rv.busy = false;
+        if (!rv.launched) paintAll();
+      });
+    }
+
+    root.addEventListener('click', function (e) {
+      var t = e.target.closest ? e.target : null;
+      if (!t) return;
+      var btn = t.closest('[data-room-act]');
+      if (btn && !btn.disabled) { act(btn.getAttribute('data-room-act')); return; }
+      var tab = t.closest('[data-room-tab]');
+      if (tab) {
+        rv.tab = tab.getAttribute('data-room-tab');
+        if (rv.tab === 'chat') { rv.chatSeen = ((rv.status && rv.status.lobbyChat) || []).length; rv.unread = false; }
+        paintPanel();
+        return;
+      }
+      var deck = t.closest('[data-room-deck]');
+      if (deck && !deck.disabled) { rv.deckKey = deck.getAttribute('data-room-deck'); paintAll(); return; }
+      var knight = t.closest('[data-room-knight]');
+      if (knight && !knight.disabled) { rv.trainerId = knight.getAttribute('data-room-knight'); paintPanel(); paintStage(); return; }
+      var copy = t.closest('[data-room-copy]');
+      if (copy) {
+        var what = copy.getAttribute('data-room-copy');
+        var text = what === 'code' ? rv.code : ((rv.status && rv.status.shareUrl) || (location.origin + '/room/' + rv.code));
+        var done = function () {
+          var label = what === 'code' ? copy.querySelector('[data-room-copied]') : copy;
+          if (label) { label.textContent = 'Copied'; setTimeout(function () { label.textContent = 'Copy'; }, 1600); }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { window.prompt('Copy this:', text); });
+        else window.prompt('Copy this:', text);
+        return;
+      }
+      var invite = t.closest('[data-room-invite]');
+      if (invite && !invite.disabled) {
+        var id = invite.getAttribute('data-room-invite');
+        var url = (rv.status && rv.status.shareUrl) || (location.origin + '/room/' + rv.code);
+        invite.disabled = true;
+        invite.textContent = 'Sending…';
+        roomFetch('/api/social/messages/send', 'POST', { recipientId: id,
+          text: (rv.tournament ? 'Join my ' + rv.tournament.name + ' table' : 'Join my table') + ' — room ' + rv.code + ': ' + url })
+          .then(function (res) {
+            if (!res || res.error) { invite.disabled = false; invite.textContent = 'Retry'; return; }
+            rv.invited[id] = true;
+            invite.textContent = 'Sent';
+          });
+      }
+    });
+
+    root.addEventListener('submit', function (e) {
+      var form = e.target.closest && e.target.closest('[data-room-chat]');
+      if (!form) return;
+      e.preventDefault();
+      var text = String(form.message.value || '').trim();
+      if (!text || !rv.session) return;
+      form.message.value = '';
+      roomFetch('/api/match/lobby-chat', 'POST', { roomId: rv.session.roomId, message: text }, rv.session).then(function (res) {
+        if (!res || res.error) { form.message.value = text; return; }
+        if (rv.status) rv.status.lobbyChat = res.lobbyChat || [];
+        rv.chatSeen = (rv.status && rv.status.lobbyChat || []).length;
+        paintLive();
+        scrollChat();
+      });
+    });
+
+    paintAll();
+    boot();
   }
 
   /* The Profile / Friends / Messages switch used to be a row of three pills
@@ -7284,7 +8051,7 @@
     var builders = { collection: galleryScreen, decks: decksScreen, shop: shopScreen,
                      profile: profileScreen, play: playScreen, builder: builderScreen,
                      social: socialScreen, settings: settingsScreen, help: helpScreen,
-                     auth: authScreen, art: artScreen, lobbies: lobbiesScreen };
+                     auth: authScreen, art: artScreen, lobbies: lobbiesScreen, room: roomScreen };
     // Screen-scoped layout hooks: the landscape-phone layout in
     // home-redesign.css lays each screen out differently, and the Social
     // screen's three tabs share one shell. Not data-social-tab: that attribute
@@ -7301,6 +8068,7 @@
     if (screen === 'builder') mountBuilder(app, opts);
     if (screen === 'art') mountArt(app);
     if (screen === 'lobbies') mountLobbies(app, opts); else stopLobbyTimers();
+    if (screen === 'room') mountRoom(app, opts); else stopRoomTimers();
     if (screen === 'profile') { mountSheet(app, opts); mountProfile(app, opts); }
     if (screen === 'social') { mountSheet(app, opts); mountProfile(app, opts); mountSocial(app, opts); }
     if (screen !== 'social') { openThread = null; stopThreadPoll(); }

@@ -5107,3 +5107,222 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-app[data-screen="lobbies"] .sg-tour-next-list { flex:1 1 auto; display:flex; flex-direction:column; padding:0; width:220px; overflow-y:auto; }
   .sg-app[data-screen="lobbies"] .sg-tour-card { flex:0 0 auto; }
 }
+
+/* ---------- Room screen ----------
+   One table's waiting room (home-redesign.js mountRoom). Portrait: a
+   scrolling stack of the themed hero, the VS stage with its call to action,
+   and a tabbed Deck / Knight / Invite / Chat panel. Landscape phone: the same
+   three blocks side by side on one screen, nothing scrolls but the panel's own
+   pane. Desktop: hero and stage on the left, the panel on the right. The
+   table's element (the tournament's, or the host deck's) themes every block
+   through --el. */
+.sg-app[data-screen="room"] .sg-scroll { padding-top:calc(58px + var(--sg-sat)); }
+.sg-room { --el:var(--gold); }
+.sg-room-spacer { height:104px; }
+
+.sg-room-hero {
+  position:relative; margin:4px 18px 14px; min-height:188px; border-radius:24px; overflow:hidden; background:#1a1150;
+  border:1px solid color-mix(in srgb, var(--el, var(--gold)) 55%, transparent);
+  box-shadow:0 20px 44px rgba(0,0,0,.5), 0 0 40px color-mix(in srgb, var(--el, var(--gold)) 22%, transparent);
+}
+.sg-room-hero.is-tour { border-color:rgba(255,216,61,.6); }
+.sg-room-hero-bg { position:absolute; inset:0; background-size:cover; background-position:center;
+  filter:saturate(1.3) brightness(.85); animation:sgTourDrift 22s ease-in-out infinite alternate; }
+.sg-room-hero-veil { position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 70% 80% at 100% 0%, color-mix(in srgb, var(--el, var(--gold)) 38%, transparent), transparent 70%),
+    linear-gradient(100deg, rgba(13,10,38,.94) 0%, rgba(13,10,38,.72) 55%, rgba(13,10,38,.3) 100%); }
+.sg-room-hero-body { position:relative; padding:18px 20px 16px; display:flex; flex-direction:column; gap:5px; }
+.sg-room-kicker { font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:var(--gold-bright); }
+.sg-room-kicker b, .sg-room-kicker span { color:#fff; font-weight:700; letter-spacing:.12em; }
+.sg-room-hero-body h2 { margin:2px 0 0; font-family:var(--serif); font-size:28px; line-height:1.05; color:#fff;
+  text-shadow:0 4px 18px rgba(0,0,0,.6); }
+.sg-room-hero-body p { margin:0; font-size:12.5px; color:#d8d2f0; }
+.sg-room-rule { align-self:flex-start; margin-top:3px; padding:5px 12px; border-radius:999px; font-size:11.5px; font-weight:700;
+  color:#fff; background:color-mix(in srgb, var(--el, var(--gold)) 38%, rgba(13,10,38,.6));
+  border:1px solid color-mix(in srgb, var(--el, var(--gold)) 70%, transparent); }
+.sg-room-prizes { display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+.sg-room-prizes span { display:inline-flex; align-items:center; gap:4px; padding:3px 9px 3px 5px; border-radius:999px;
+  background:rgba(13,10,38,.62); border:1px solid rgba(255,216,61,.35); color:var(--gold-bright); font-weight:800; font-size:12px; }
+.sg-room-prizes i { font-style:normal; font-size:14px; }
+.sg-room-code { align-self:flex-start; margin-top:8px; display:inline-flex; align-items:baseline; gap:10px; padding:8px 14px;
+  border-radius:14px; cursor:pointer; color:#fff; font:inherit;
+  background:rgba(13,10,38,.72); border:1px dashed color-mix(in srgb, var(--el, var(--gold)) 75%, #fff 10%); }
+.sg-room-code em { font-style:normal; font-size:9.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
+.sg-room-code strong { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-size:22px; letter-spacing:.24em; }
+.sg-room-code i { font-style:normal; font-size:10.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--gold-bright); }
+
+.sg-room-stage { margin:0 18px 14px; }
+.sg-room-loading { padding:30px 0; text-align:center; color:var(--muted); font-size:13px; }
+.sg-room-vs { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:stretch; gap:8px; }
+.sg-seat { --el:var(--steel-soft); position:relative; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:10px 8px 12px; border-radius:20px; text-align:center;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--el) 22%, rgba(26,17,80,.9)), rgba(13,10,38,.88));
+  border:1px solid color-mix(in srgb, var(--el) 55%, transparent); box-shadow:0 12px 28px rgba(0,0,0,.4);
+  animation:sgFriendRise .4s cubic-bezier(.2,.8,.25,1) both; }
+.sg-seat.is-me { box-shadow:0 12px 28px rgba(0,0,0,.4), 0 0 0 2px color-mix(in srgb, var(--el) 70%, #fff 10%) inset; }
+.sg-seat.is-ready { box-shadow:0 12px 28px rgba(0,0,0,.4), 0 0 26px rgba(79,208,122,.45), 0 0 0 2px rgba(79,208,122,.8) inset; }
+.sg-seat-art { position:relative; width:100%; aspect-ratio:1 / 1; max-width:150px; border-radius:16px; overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+  background:radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--el) 45%, transparent), rgba(13,10,38,.6) 70%); }
+.sg-seat-art img { width:100%; height:100%; object-fit:cover; object-position:center 20%; }
+.sg-seat-q { font-family:var(--serif); font-size:44px; color:rgba(255,255,255,.75); }
+.sg-seat-flag { position:absolute; left:6px; top:6px; padding:2px 7px; border-radius:999px; font-size:9px; font-weight:800;
+  letter-spacing:.14em; text-transform:uppercase; color:#fff; background:rgba(13,10,38,.78); }
+.sg-seat strong { max-width:100%; margin-top:4px; font-family:var(--serif); font-size:16px; color:#fff;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-seat strong small { font-family:inherit; font-size:11px; color:var(--muted); }
+.sg-seat em { max-width:100%; font-style:normal; font-size:10.5px; color:#d8d2f0; line-height:1.3;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.sg-seat-state { margin-top:3px; padding:2px 9px; border-radius:999px; font-size:9.5px; font-weight:800; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted); background:rgba(255,255,255,.07); }
+.sg-seat.is-ready .sg-seat-state { color:#0d2a17; background:var(--acc-emerald, #4fd07a); }
+.sg-seat.is-open { --el:rgba(143,162,189,.6); border-style:dashed; background:rgba(13,10,38,.55); }
+.sg-seat.is-open em { color:var(--muted); }
+.sg-seat-pulse { position:absolute; inset:18%; border-radius:50%; border:2px solid rgba(143,162,189,.55);
+  animation:sgSeatPulse 1.8s ease-out infinite; }
+@keyframes sgSeatPulse { from { transform:scale(.6); opacity:.9; } to { transform:scale(1.25); opacity:0; } }
+.sg-room-vs-mark { display:flex; align-items:center; }
+.sg-room-vs-mark span { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-family:var(--serif); font-weight:800; font-size:17px; color:#2b0d02;
+  background:linear-gradient(135deg, #ffe066 0%, var(--amber) 50%, #ff5a3c 100%);
+  box-shadow:0 0 0 3px rgba(13,10,38,.9), 0 0 24px rgba(255,140,60,.55); }
+.sg-room-status { margin:12px 2px 0; text-align:center; font-size:12.5px; color:#d8d2f0; line-height:1.4; }
+.sg-room-error { margin:8px 2px 0; text-align:center; font-size:12px; font-weight:700; color:#ff9a8a; }
+.sg-room-cta { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:12px; }
+.sg-app .sg-room-go { flex:1 1 100%; height:52px; border:none; border-radius:999px; cursor:pointer; text-decoration:none;
+  display:flex; align-items:center; justify-content:center; font:inherit; font-weight:800; font-size:13px; letter-spacing:.16em;
+  text-transform:uppercase; color:#2b0d02; background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
+  box-shadow:0 10px 26px rgba(255,120,45,.45), 0 0 0 1px rgba(255,236,190,.7) inset; }
+.sg-app .sg-room-go:disabled { cursor:default; color:var(--muted); background:rgba(255,255,255,.08); box-shadow:none; }
+.sg-app .sg-room-go.is-hot { animation:sgRoomHot 1.6s ease-in-out infinite; }
+@keyframes sgRoomHot { 50% { box-shadow:0 10px 34px rgba(255,120,45,.75), 0 0 0 1px rgba(255,236,190,.9) inset; } }
+.sg-app .sg-room-ghost { flex:1 1 0; min-width:0; height:40px; padding:0 14px; border-radius:999px; cursor:pointer; text-decoration:none;
+  display:flex; align-items:center; justify-content:center; font:inherit; font-weight:700; font-size:12px; color:var(--ink);
+  background:rgba(255,255,255,.05); border:1px solid var(--steel-soft); }
+
+.sg-room-panel { margin:0 18px; border-radius:22px; overflow:hidden; display:flex; flex-direction:column;
+  background:rgba(13,10,38,.72); border:1px solid var(--steel-soft); }
+.sg-room-panel[hidden] { display:none; }
+.sg-room-tabs { flex:0 0 auto; display:flex; gap:4px; padding:6px; border-bottom:1px solid var(--steel-soft); }
+.sg-room-tabs button { position:relative; flex:1 1 0; height:36px; border:none; border-radius:12px; cursor:pointer; font:inherit;
+  font-size:12px; font-weight:700; letter-spacing:.06em; color:var(--muted); background:none; }
+.sg-room-tabs button.on { color:#fff; background:color-mix(in srgb, var(--el, var(--gold)) 30%, rgba(255,255,255,.06)); }
+.sg-room-dot { position:absolute; top:7px; right:10px; width:7px; height:7px; border-radius:50%; background:#ff5a3c; }
+.sg-room-pane { flex:1 1 auto; min-height:0; padding:12px; }
+.sg-room-note { margin:0 0 10px; font-size:11.5px; color:var(--gold-bright); }
+.sg-room-empty { margin:6px 0; font-size:12px; color:var(--muted); }
+.sg-room-picks { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; }
+.sg-room-pick { position:relative; display:flex; align-items:center; gap:10px; min-width:0; padding:8px; border-radius:14px;
+  cursor:pointer; text-align:left; font:inherit; color:var(--ink);
+  background:rgba(36,26,96,.45); border:1px solid color-mix(in srgb, var(--el, var(--steel-soft)) 35%, transparent); }
+.sg-room-pick.on { background:color-mix(in srgb, var(--el) 28%, rgba(13,10,38,.8));
+  border-color:color-mix(in srgb, var(--el) 85%, #fff 10%); box-shadow:0 0 18px color-mix(in srgb, var(--el) 35%, transparent); }
+.sg-room-pick:disabled { cursor:default; }
+.sg-room-pick.is-off { opacity:.45; }
+.sg-room-pick-art { flex:0 0 auto; width:44px; height:44px; border-radius:10px; overflow:hidden;
+  background:radial-gradient(circle, color-mix(in srgb, var(--el) 45%, transparent), rgba(13,10,38,.6)); }
+.sg-room-pick-art img { width:100%; height:100%; object-fit:cover; object-position:center 25%; }
+.sg-room-pick-copy { min-width:0; display:flex; flex-direction:column; gap:2px; }
+.sg-room-pick-copy strong { font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-room-pick-copy em { display:flex; align-items:center; gap:3px; font-style:normal; font-size:10px; color:var(--muted); }
+.sg-room-pick-copy em img { width:14px; height:14px; }
+.sg-room-pick-copy em b { margin-left:3px; font-weight:700; color:var(--acc-sky, #7cc6ff); }
+.sg-room-pick-copy small { font-size:10px; color:#ff9a8a; }
+
+.sg-room-invite h4 { margin:14px 0 8px; font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-bright); }
+.sg-room-link { display:flex; gap:6px; }
+.sg-room-link input { flex:1 1 auto; min-width:0; height:40px; padding:0 12px; border-radius:12px; border:1px solid var(--steel-soft);
+  background:rgba(10,16,28,.88); color:var(--ink); font:inherit; font-size:12px; }
+.sg-room-link button, .sg-room-share, .sg-room-friends button, .sg-room-chat-form button {
+  flex:0 0 auto; height:40px; padding:0 16px; border-radius:12px; cursor:pointer; font:inherit; font-weight:800; font-size:12px;
+  color:#fff; background:rgba(124,92,255,.3); border:1px solid rgba(180,140,255,.5); }
+.sg-room-share { width:100%; margin-top:8px; }
+.sg-room-friends { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.sg-room-friends li { display:flex; align-items:center; gap:10px; padding:6px 6px 6px 12px; border-radius:12px; background:rgba(36,26,96,.4); }
+.sg-room-friends span { flex:1 1 auto; min-width:0; font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-room-friends em { display:block; font-style:normal; font-weight:400; font-size:10.5px; color:var(--muted); }
+.sg-room-friends button { height:32px; padding:0 14px; }
+.sg-room-friends button:disabled { color:var(--acc-emerald, #4fd07a); background:rgba(79,208,122,.15); border-color:rgba(79,208,122,.4); cursor:default; }
+.sg-room-presence { width:9px; height:9px; border-radius:50%; background:rgba(143,162,189,.5); flex:0 0 auto; }
+.sg-room-presence.on { background:var(--acc-emerald, #4fd07a); box-shadow:0 0 8px rgba(79,208,122,.8); }
+
+.sg-room-chat { display:flex; flex-direction:column; gap:8px; height:100%; }
+.sg-room-chat-log { flex:1 1 auto; min-height:120px; max-height:260px; overflow-y:auto; overscroll-behavior:contain;
+  display:flex; flex-direction:column; gap:6px; }
+.sg-room-chat-log p { margin:0; font-size:12.5px; line-height:1.35; color:var(--ink); }
+.sg-room-chat-log p b { margin-right:6px; color:var(--gold-bright); }
+.sg-room-chat-log p.is-system { color:var(--muted); font-style:italic; }
+.sg-room-chat-form { flex:0 0 auto; display:flex; gap:6px; }
+.sg-room-chat-form input { flex:1 1 auto; min-width:0; height:40px; padding:0 12px; border-radius:12px; border:1px solid var(--steel-soft);
+  background:rgba(10,16,28,.88); color:var(--ink); font:inherit; font-size:16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-room-hero-bg, .sg-seat, .sg-seat-pulse, .sg-app .sg-room-go.is-hot { animation:none; }
+}
+
+/* Desktop: hero and stage on the left, the panel beside them. */
+@media (min-width: 1024px) and (min-height: 601px) {
+  .sg-app[data-screen="room"] .sg-room { display:grid; grid-template-columns:minmax(0, 1.25fr) minmax(340px, 1fr);
+    grid-template-rows:auto auto 1fr; column-gap:20px; max-width:1180px; margin:0 auto; width:100%; padding-left:18px; padding-right:18px; }
+  .sg-app[data-screen="room"] .sg-room-hero { grid-column:1; grid-row:1; margin:4px 0 14px; }
+  .sg-app[data-screen="room"] .sg-room-stage { grid-column:1; grid-row:2; margin:0; }
+  .sg-app[data-screen="room"] .sg-room-panel { grid-column:2; grid-row:1 / span 3; align-self:start; margin:4px 0 0; }
+  .sg-app[data-screen="room"] .sg-room-spacer { grid-column:1; }
+  .sg-app[data-screen="room"] .sg-room-pane { max-height:calc(var(--sg-vh, 100dvh) - 260px); overflow-y:auto; }
+  .sg-app[data-screen="room"] .sg-seat-art { max-width:190px; }
+  .sg-app[data-screen="room"] .sg-room-cta .sg-room-go { flex:1 1 auto; }
+}
+
+/* Landscape phone: one screen, three columns, no page scroll. Only the
+   panel's pane (deck list, friends, chat) scrolls, inside its column. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .sg-app[data-screen="room"] > .sg-scroll.sg-room {
+    display:grid; grid-template-columns:clamp(176px, 25vw, 280px) minmax(236px, 1fr) clamp(214px, 32vw, 340px);
+    grid-template-rows:minmax(0, 1fr); column-gap:12px; overflow:hidden;
+    padding:var(--lh-top) var(--lh-right) var(--lh-bottom) var(--lh-left);
+  }
+  .sg-app[data-screen="room"] .sg-room-spacer { display:none; }
+  .sg-app[data-screen="room"] .sg-room-hero { grid-column:1; grid-row:1; margin:0; min-height:0; overflow-y:auto; scrollbar-width:none; }
+  .sg-app[data-screen="room"] .sg-room-hero-body { padding:12px 14px; gap:4px; }
+  .sg-app[data-screen="room"] .sg-room-hero-body h2 { font-size:21px; }
+  .sg-app[data-screen="room"] .sg-room-hero-body p { font-size:11.5px; }
+  .sg-app[data-screen="room"] .sg-room-code strong { font-size:18px; }
+  .sg-app[data-screen="room"] .sg-room-stage { grid-column:2; grid-row:1; margin:0; min-height:0;
+    display:flex; flex-direction:column; justify-content:safe center; overflow-y:auto; scrollbar-width:none; }
+  .sg-app[data-screen="room"] .sg-room-stage::-webkit-scrollbar { display:none; }
+  .sg-app[data-screen="room"] .sg-room-stage > * { flex:0 0 auto; }
+  .sg-app[data-screen="room"] .sg-seat { padding:8px 6px 9px; }
+  .sg-app[data-screen="room"] .sg-seat-art { max-width:min(118px, calc(var(--lh-h) - 190px)); }
+  .sg-app[data-screen="room"] .sg-seat strong { font-size:14px; }
+  .sg-app[data-screen="room"] .sg-room-status { margin-top:8px; font-size:11.5px; }
+  .sg-app[data-screen="room"] .sg-room-cta { margin-top:8px; gap:6px; }
+  .sg-app[data-screen="room"] .sg-room-go { flex:1 1 100%; height:42px; font-size:11.5px; letter-spacing:.12em; }
+  .sg-app[data-screen="room"] .sg-room-ghost { height:32px; padding:0 10px; font-size:11px; }
+  /* The tab bar already reaches Lobbies; the column keeps its room for the seats. */
+  .sg-app[data-screen="room"] .sg-room-cta a.sg-room-ghost:not(:only-child) { display:none; }
+  .sg-app[data-screen="room"] .sg-room-hero-body > p { display:none; }
+  .sg-app[data-screen="room"] .sg-room-prizes span { font-size:11px; padding:2px 7px 2px 4px; }
+  .sg-app[data-screen="room"] .sg-room-code { margin-top:4px; padding:6px 10px; gap:6px; }
+  .sg-app[data-screen="room"] .sg-room-code em { display:none; }
+  .sg-app[data-screen="room"] .sg-seat em { -webkit-line-clamp:1; white-space:nowrap; display:block; text-overflow:ellipsis; }
+  .sg-app[data-screen="room"] .sg-seat-flag { font-size:8px; letter-spacing:.1em; }
+  .sg-app[data-screen="room"] .sg-room-vs-mark span { width:34px; height:34px; font-size:14px; }
+  .sg-app[data-screen="room"] .sg-room-panel { grid-column:3; grid-row:1; margin:0; min-height:0; }
+  .sg-app[data-screen="room"] .sg-room-panel[hidden] { display:none; }
+  .sg-app[data-screen="room"] .sg-room-pane { overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y; padding:10px; }
+  .sg-app[data-screen="room"] .sg-room-tabs button { height:32px; font-size:11px; }
+  .sg-app[data-screen="room"] .sg-room-picks { grid-template-columns:1fr; gap:6px; }
+  .sg-app[data-screen="room"] .sg-room-chat-log { max-height:none; min-height:0; }
+}
+/* Short landscape phones (iPhone SE/mini): the middle column trades the seat
+   captions for room, and scrolls rather than overlapping if it still overflows. */
+@media (orientation: landscape) and (max-height: 420px) {
+  .sg-app[data-screen="room"] .sg-seat em { display:none; }
+  .sg-app[data-screen="room"] .sg-seat-art { max-width:min(96px, calc(var(--lh-h) - 170px)); }
+  .sg-app[data-screen="room"] .sg-room-status { margin-top:6px; font-size:11px; line-height:1.3; }
+  .sg-app[data-screen="room"] .sg-room-kicker { letter-spacing:.14em; }
+  .sg-app[data-screen="room"] .sg-room-cta { flex-wrap:nowrap; }
+  .sg-app[data-screen="room"] .sg-room-go { flex:2 1 0; min-width:0; letter-spacing:.08em; }
+  .sg-app[data-screen="room"] .sg-room-ghost { flex:1 1 0; height:42px; white-space:nowrap; }
+}
