@@ -104,7 +104,18 @@ body {
 .kart-line .kpassive-chip { font-size:.9em; padding:0 .6em; margin:0; background:rgba(10,8,30,.55); text-shadow:none; }
 .kart-ult { color:#ffd066; font-weight:750; }
 .knight-card.has-kart .kxp { margin:8px 2px 2px; }
-.knight-card.has-kart .kdesc { margin-top:5px; padding:0 2px; }
+.knight-card.has-kart .kdesc { display:none; margin-top:5px; padding:0 2px; }
+.knight-card.has-kart.open .kdesc { display:block; }
+/* An open card grows; its row-mates keep their own height. */
+#knightGrid { align-items:start; }
+.kmore {
+    display:flex; align-items:center; gap:5px; width:100%; margin-top:6px; padding:4px 2px;
+    border:0; border-top:1px solid var(--border); background:none; color:var(--dim);
+    font:inherit; font-size:11px; font-weight:750; letter-spacing:.3px; cursor:pointer; text-align:left;
+}
+.kmore::after { content:'▸'; margin-left:auto; }
+.knight-card.open .kmore { color:var(--accent); }
+.knight-card.open .kmore::after { content:'▾'; }
 .kdesc-tag {
     display:inline-block; margin-right:5px; padding:0 5px; border-radius:6px; vertical-align:1px;
     font-size:9px; font-weight:800; letter-spacing:.4px; text-transform:uppercase;
@@ -123,6 +134,9 @@ body {
         flex:1 1 auto; min-width:0; overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y;
     }
     #knightGrid .knight-card.has-kart .kxp { margin-top:2px; }
+    #knightGrid { align-items:stretch; }
+    #knightGrid .knight-card.has-kart:not(.open) { flex-basis:auto; }
+    #knightGrid .knight-card.has-kart:not(.open) .knotes { flex:0 0 92px; }
 }
 
 .siege-screen h1 {

@@ -37,6 +37,7 @@
     warbandLoading: false,
     warbandLoadToken: 0,
     warbandArtShown: false,
+    knightDetailId: null,
     interactionResult: null,
     pendingKnightUnlock: null,
     campMenu: null,
@@ -1458,16 +1459,26 @@
         knightCardArtHtml(k, summary, passiveChip) +
         '<div class="knotes">' +
           knightXpHtml(k) +
+          '<button class="kmore" type="button" aria-expanded="false">Details</button>' +
           (k.activeDesc ? '<div class="kdesc"><span class="kdesc-tag">Active</span>' + esc(k.activeDesc) + '</div>' : '') +
           (k.passive ? '<div class="kdesc"><span class="kdesc-tag">Passive</span>' + esc(k.passive) + '</div>' : '') +
           (k.ultimateDesc ? '<div class="kdesc"><span class="kdesc-tag kdesc-ult">Ultimate</span>' + esc(k.ultimateDesc) + '</div>' : '') +
           lockNote +
         '</div>';
       c.setAttribute('data-kid', k.id);
+      if (k.id === state.knightDetailId) c.classList.add('open');
+      // Locked knights can't be picked, but their kit can still be read.
+      c.querySelector('.kmore').addEventListener('click', function (e) {
+        e.stopPropagation();
+        setKnightDetail(state.knightDetailId === k.id ? null : k.id);
+      });
       if (!locked) {
         c.addEventListener('click', function () {
+          // First tap picks the knight and opens its notes; tapping it again folds them.
+          var reselect = state.knightId === k.id;
           state.knightId = k.id;
           trimPartyToNeed();
+          setKnightDetail(reselect && state.knightDetailId === k.id ? null : k.id);
           // Restyle in place: rebuilding would re-fetch and re-decode every card's art.
           refreshKnightFooter();
         });
@@ -1506,6 +1517,18 @@
     trimPartyToNeed();
     Array.prototype.forEach.call($('knightGrid').querySelectorAll('.knight-card[data-kid]'), function (n) {
       n.classList.toggle('sel', n.getAttribute('data-kid') === state.knightId);
+    });
+  }
+
+  /* One knight's notes open at a time: the cards are art-first and the
+   * Active/Passive/Ultimate text only unfolds on the card being looked at. */
+  function setKnightDetail(id) {
+    state.knightDetailId = id;
+    Array.prototype.forEach.call($('knightGrid').querySelectorAll('.knight-card[data-kid]'), function (n) {
+      var open = n.getAttribute('data-kid') === id;
+      n.classList.toggle('open', open);
+      var btn = n.querySelector('.kmore');
+      if (btn) btn.setAttribute('aria-expanded', String(open));
     });
   }
 
