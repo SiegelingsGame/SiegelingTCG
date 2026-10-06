@@ -1,4 +1,29 @@
 Original prompt: Merge and deploy
+- October 6, 2026 **Battle loadout on a landscape phone: one vivid screen with sideways swipe rails.**
+  - **Change.** On a phone on its side, the `/battle` loadout was a portrait page turned 90 degrees. The 208px art band took half the height and every step scrolled vertically (the deck step by up to ~1,000px). At 1000x460 the first deck started at y 549, below the screen, because `style.css`'s two-pane landscape grid only covers widths under 980px.
+  - A new `play-next.css` block (`(orientation: landscape) and (max-height: 600px)`) makes `.loadout-box` a fixed three-row grid:
+    - **Top bar:** one slim row with the kicker, title, pill step chips and the close button pinned to the corner.
+    - **Middle:** the active step fills the space.
+    - **Bottom:** a one-row action bar laid out as a grid (Back · summary · primary).
+  - The Battle artwork moves from the band to the backdrop of the whole screen, washed with fire and violet radial accents. Panels become blurred glass on top of it.
+  - **Setup:** the name card is on the left. On the right, the three battle modes become tall coloured tiles (Solo fire-orange ⚔, Online violet 🌐, Tutorial emerald 🎓) with glowing orbs, and the active tile lifts and glows. The online/tutorial panel sits under the name card and scrolls inside itself.
+  - **Deck and SiegeKnight:** full-height 5:7 cards on an edge-to-edge horizontal snap rail, with the selected card lifted in its element glow. The deck source tabs and the account line share one row above the rail.
+  - **Loadout review:** the summary's sections (deck, opening keeps, evolutions, recommended knights, commander) become side-by-side columns that scroll sideways.
+  - The Deck Builder is an editor and keeps its scrolling body.
+  - Below 780px wide, the kicker hides and inactive chips show only their number.
+  - `play-next.css` is now `?v=9`.
+- Verification:
+  - Headless Chromium against `/battle` with the live `/api/game/options` and `/api/cards/editor` payloads replayed, no errors on the page.
+  - At 1000x460, 844x390, 667x375 and 740x360, the box, core and page vertical scroll are 0 on all four steps. Before, the box scrolled up to 576px at 1000x460 and the core up to 1078px at 844x390.
+  - At 844x390:
+    - The Tutorial and Online tiles reveal their panels without any scroll.
+    - The primary button advances to Deck.
+    - With the rail overfilled, a touch swipe scrolls the deck rail sideways (scrollLeft 524 of 2106) while the box `scrollTop` stays 0.
+    - Tapping Stone Garden selects `deck_earth`.
+    - The Deck Builder still scrolls its step (`overflow-y:auto`).
+    - The review columns scroll sideways (1254 vs 818 wide).
+  - `GameJavaScriptRegressionTest` passes.
+  - The media query is landscape-only and at most 600px tall, so portrait and desktop are untouched.
 - October 5, 2026 **Deploy record: #1016 and #1017 live; #1018 redeployed after a cancelled Hosting job.**
   - **What happened.** Run 1002 (#1016) shipped both surfaces. In run 1003 (#1017), the Cloud Run job was cancelled after 15 minutes and the run ended as `failure`, but its Hosting step still succeeded. In run 1004 (#1018), the Cloud Run deploy succeeded in 3.5 minutes, but its Firebase Deploy job sat queued for 15 minutes without a runner and was cancelled, so #1018's `adventure.css?v=105` / `adventure.js?v=118` never reached Hosting. The agent's GitHub integration cannot re-run jobs or dispatch the workflow (403), so this entry is the push that redeploys main.
 - Verification (before this push):
