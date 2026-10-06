@@ -39,9 +39,11 @@ Siegelings TCG is a tactical elemental card game with two playable modes:
 Supporting surfaces: landing (`/` and `/landing` → `index.html`), hub
 (`/home` → `home-next.html`, driven by `home-redesign.js` — also serves `/cards`,
 `/decks`, `/profile`, `/shop`, `/social`, `/achievements`, `/deck-builder` via
-rewrites; contains gacha packs, binder, deck builder). The legacy hub
-`home.html` still answers `/legacy/*` and, importantly, `/social/lobby/*` —
-the live multiplayer lobby — so it is not dead code. Then the **live card dashboard**
+rewrites; contains gacha packs, binder, deck builder). Multiplayer tables
+(tournament and open) wait in the hub's Room screen at `/room` (host) and
+`/room/CODE` (`roomScreen`/`mountRoom` in `home-redesign.js`). The legacy hub
+`home.html` still answers `/legacy/*` and `/social/lobby/*` (the old waiting
+room, kept for old invite links), so it is not dead code. Then the **live card dashboard**
 (`/card-dashboard.html`) where designers edit card/deck data persisted in
 Firestore.
 
