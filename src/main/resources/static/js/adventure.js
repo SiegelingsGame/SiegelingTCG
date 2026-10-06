@@ -227,7 +227,7 @@
     // only their own internal regions, like the map canvas, scroll).
     document.body.dataset.screen = id;
     applyLandLocation(id);
-    syncBattleMusic(id);
+    syncSiegeMusic(id);
     // Every screen opens at its top. Arriving from a scrolled screen used to
     // carry that offset over, which on the puzzle screen meant landing halfway
     // down the board with the title hidden under the top bar.
@@ -288,9 +288,9 @@
           return { id: s.id, name: s.name, owned: s.owned, ready: s.expeditionStarter !== false };
         }) } : null,
       busy: !!state.busy,
-      music: { on: battleMusic.on, active: battleMusic.active,
-        track: battleMusic.audio ? battleMusic.audio.getAttribute('src') : null,
-        playing: !!(battleMusic.audio && !battleMusic.audio.paused) },
+      music: { on: siegeMusic.on, mode: siegeMusic.mode,
+        track: currentSiegeAudio() ? currentSiegeAudio().getAttribute('src') : null,
+        playing: !!(currentSiegeAudio() && !currentSiegeAudio().paused) },
       campMenu: state.campMenu,
       gold: Number(run.gold || 0),
       land: run.land || null,
@@ -912,8 +912,8 @@
     $('runMenuSave').addEventListener('click', saveRunFromMenu);
     $('runMenuRestart').addEventListener('click', restartRun);
     $('runMenuQuit').addEventListener('click', quitRun);
-    $('runMenuMusic').addEventListener('click', function () { setBattleMusicOn(!battleMusic.on); });
-    paintBattleMusicToggle();
+    $('runMenuMusic').addEventListener('click', function () { setSiegeMusicOn(!siegeMusic.on); });
+    paintSiegeMusicToggle();
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('runMenu').classList.contains('hidden')) closeRunMenu();
     });
@@ -926,21 +926,46 @@
     });
   }
 
-  /* Battle music. Fights play a battle track; every other Siege screen is
-     silent, so the music itself marks "you are in combat". Elites and bosses
-     get the gym themes, matched to the Land's element where one exists. The
-     on/off choice is the hub player's own preference, so muting in one place
-     mutes both. One detached <audio> for the page: re-renders never touch it. */
+  /* Siege music. The map and the run's other stops play the current Land's
+     biome theme (Emberfall gets the fire song, Frostveil the ice song, and so
+     on); fights cut to a battle track, and elites and bosses to a gym theme
+     matched to the Land's element where one exists. Setup, loading and the
+     run summary stay silent. The Land and battle songs are separate detached
+     <audio> elements, so leaving a fight picks the Land song up where it
+     paused instead of restarting it. On/off is the hub player's own
+     preference, so muting in one place mutes both. */
+  var BIOME_TRACK = {
+    FIRE: 'fire', ICE: 'ice', WIND: 'wind', EARTH: 'earth', WATER: 'water', ELECTRIC: 'electric',
+    METAL: 'metal', SHADOW: 'cave', UNDEAD: 'undead', POISON: 'poison', LIGHT: 'light'
+  };
   var BATTLE_TRACKS = {
     normal: ['/audio/sieglings-battle-theme.mp3?v=1', '/audio/battle/sieglings-battle-theme-2.mp3?v=1'],
     gym: { EARTH: '/audio/battle/desert-gym-battle.mp3?v=1', ELECTRIC: '/audio/battle/electric-gym-battle.mp3?v=1' }
   };
-  var BATTLE_MUSIC_KEY = 'sgHubMusicOn';
-  var BATTLE_MUSIC_VOLUME = 0.32;
-  var battleMusic = { audio: null, on: readBattleMusicPref(), active: false, armed: false };
+  var LAND_MUSIC_SCREENS = {
+    mapScreen: 1, campScreen: 1, cacheScreen: 1, brokerScreen: 1, smithScreen: 1, caravanScreen: 1,
+    eventScreen: 1, riftScreen: 1, minigameScreen: 1, interactionResultScreen: 1, recruitScreen: 1,
+    ampScreen: 1, rewardScreen: 1
+  };
+  var SIEGE_MUSIC_KEY = 'sgHubMusicOn';
+  var SIEGE_MUSIC_VOLUME = 0.32;
+  var siegeMusic = { on: readSiegeMusicPref(), mode: null, land: null, battle: null, armed: false };
 
-  function readBattleMusicPref() {
-    try { return (localStorage.getItem(BATTLE_MUSIC_KEY) || '1') === '1'; } catch (e) { return true; }
+  function readSiegeMusicPref() {
+    try { return (localStorage.getItem(SIEGE_MUSIC_KEY) || '1') === '1'; } catch (e) { return true; }
+  }
+
+  function landMusicTrack() {
+    var land = state.run && state.run.land;
+    if (!land) return null;
+    var elements = land.elements || [];
+    // A rare two-element Land (Obsidian Grove, Aurora Expanse) takes its first element's song.
+    for (var i = 0; i < elements.length; i++) {
+      if (BIOME_TRACK[elements[i]]) return '/audio/biomes/' + BIOME_TRACK[elements[i]] + '.mp3?v=1';
+    }
+    // No biome song of its own: Dreamfold (Psychic) gets the main theme; the
+    // elementless Gilded Hollow and Badlands get the desert ruins.
+    return elements.length ? '/audio/sieglings-theme.mp3?v=1' : '/audio/biomes/desert.mp3?v=1';
   }
 
   function pickBattleTrack() {
@@ -957,65 +982,76 @@
     return BATTLE_TRACKS.normal[Math.floor(Math.random() * BATTLE_TRACKS.normal.length)];
   }
 
-  function battleMusicAudio() {
-    if (battleMusic.audio) return battleMusic.audio;
+  function siegeAudio(kind) {
+    if (siegeMusic[kind]) return siegeMusic[kind];
     var a = document.createElement('audio');
     a.preload = 'none';
     a.loop = true;
-    a.volume = BATTLE_MUSIC_VOLUME;
-    battleMusic.audio = a;
+    a.volume = SIEGE_MUSIC_VOLUME;
+    siegeMusic[kind] = a;
     return a;
   }
 
-  function playBattleMusic() {
-    if (!battleMusic.on || !battleMusic.active || document.hidden) return;
-    var p = battleMusicAudio().play();
-    // Refused without a gesture (a reload straight into a fight): the next tap starts it.
-    if (p && p.catch) p.catch(armBattleMusicGesture);
+  function currentSiegeAudio() {
+    return siegeMusic.mode ? siegeMusic[siegeMusic.mode] : null;
   }
 
-  function armBattleMusicGesture() {
-    if (battleMusic.armed) return;
-    battleMusic.armed = true;
+  function playSiegeMusic() {
+    ['land', 'battle'].forEach(function (kind) {
+      if (kind !== siegeMusic.mode && siegeMusic[kind]) siegeMusic[kind].pause();
+    });
+    var a = currentSiegeAudio();
+    if (!a) return;
+    if (!siegeMusic.on || document.hidden) { a.pause(); return; }
+    var p = a.play();
+    // Refused without a gesture (a reload straight into the run): the next tap starts it.
+    if (p && p.catch) p.catch(armSiegeMusicGesture);
+  }
+
+  function armSiegeMusicGesture() {
+    if (siegeMusic.armed) return;
+    siegeMusic.armed = true;
     var events = ['pointerdown', 'touchend', 'keydown'];
     function starter() {
       events.forEach(function (n) { document.removeEventListener(n, starter, true); });
-      battleMusic.armed = false;
-      playBattleMusic();
+      siegeMusic.armed = false;
+      playSiegeMusic();
     }
     events.forEach(function (n) { document.addEventListener(n, starter, true); });
   }
 
-  // showScreen calls this on every screen change. A fight re-renders through
-  // showScreen many times, so the track is only chosen when a fight begins.
-  function syncBattleMusic(screen) {
-    var inBattle = screen === 'battleScreen';
-    if (inBattle === battleMusic.active) return;
-    battleMusic.active = inBattle;
-    if (inBattle) {
-      battleMusicAudio().src = pickBattleTrack();
-      playBattleMusic();
-    } else if (battleMusic.audio) {
-      battleMusic.audio.pause();
+  // showScreen calls this on every screen change, and a fight re-renders
+  // through showScreen many times, so the battle track is only chosen when a
+  // fight begins. The Land song is re-checked each time, which is what swaps
+  // it when a boss or Rift moves the run to a new Land.
+  function syncSiegeMusic(screen) {
+    var mode = screen === 'battleScreen' ? 'battle' : LAND_MUSIC_SCREENS[screen] ? 'land' : null;
+    if (mode === 'battle' && siegeMusic.mode !== 'battle') {
+      siegeAudio('battle').src = pickBattleTrack();
     }
+    if (mode === 'land') {
+      var want = landMusicTrack();
+      if (!want) mode = null;
+      else if (siegeAudio('land').getAttribute('src') !== want) siegeMusic.land.src = want;
+    }
+    if (mode === siegeMusic.mode && (!mode || !currentSiegeAudio().paused)) return;
+    siegeMusic.mode = mode;
+    playSiegeMusic();
   }
 
-  function setBattleMusicOn(on) {
-    battleMusic.on = on;
-    try { localStorage.setItem(BATTLE_MUSIC_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
-    if (on) playBattleMusic(); else if (battleMusic.audio) battleMusic.audio.pause();
-    paintBattleMusicToggle();
+  function setSiegeMusicOn(on) {
+    siegeMusic.on = on;
+    try { localStorage.setItem(SIEGE_MUSIC_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
+    playSiegeMusic();
+    paintSiegeMusicToggle();
   }
 
-  function paintBattleMusicToggle() {
-    $('runMenuMusic').setAttribute('aria-pressed', String(battleMusic.on));
-    $('runMenuMusicLabel').textContent = 'Battle Music: ' + (battleMusic.on ? 'On' : 'Off');
+  function paintSiegeMusicToggle() {
+    $('runMenuMusic').setAttribute('aria-pressed', String(siegeMusic.on));
+    $('runMenuMusicLabel').textContent = 'Music: ' + (siegeMusic.on ? 'On' : 'Off');
   }
 
-  document.addEventListener('visibilitychange', function () {
-    if (document.hidden) { if (battleMusic.audio) battleMusic.audio.pause(); }
-    else playBattleMusic();
-  });
+  document.addEventListener('visibilitychange', playSiegeMusic);
 
   function updateRunMenu(show) {
     $('runMenuBtn').classList.toggle('hidden', !show);
