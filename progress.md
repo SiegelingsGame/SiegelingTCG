@@ -177,6 +177,18 @@ Original prompt: Merge and deploy
     - Picking the 4th knight at 720 keeps 720, and so does a warband pick at 616.
     - An element filter narrows the rail.
   - At 390x844 and 1920x1080 the document layout is unchanged: the pages scroll as before and the instructions are visible.
+- October 6, 2026 **Lobbies on a landscape phone: section buttons instead of a side-scrolling rail.**
+  - **Change.** In landscape (`max-height:600px`) the Lobbies screen used to be one horizontal rail. The tournament, standings, open tables and coming-up days sat side by side, so the tables and the standings were off the edge of the screen. It is now two columns with no sideways scrolling:
+    - The tournament hero is pinned on the left, and scrolls vertically if it is taller than the screen.
+    - The right column shows one section at a time, picked by a **Tables (count) · Standings · Coming up** button row. Only that section scrolls, vertically.
+    - The switch names the section, so the section headings are hidden. Standings and Coming up only appear once the tournament feed has loaded, and a section that disappears falls back to Tables.
+    - Tables wrap into a vertical grid, and the host button stays on one line.
+    - Portrait and desktop are unchanged: the switch is CSS-hidden there, and every section stacks as before.
+  - `home-redesign.js` is now `?v=74` and `home-redesign.css` `?v=82`.
+  - **Verification.** `node --check` passes. Against a local `spring-boot:run` with three real open tables and the real tournament feed:
+    - At 1000x461, 844x390 and 667x375: the scroller has no horizontal or page-level vertical overflow, the switch shows Tables 3 / Standings / Coming up, and each button shows exactly its own section (Tables → back to Tables included). Every section ends above the tab bar.
+    - At 390x844 and 1920x1080: the switch is hidden and all three sections render stacked.
+    - No page errors. Screenshots were inspected.
 - October 6, 2026 **Room page: full-screen Land background art.**
   - **Change.** The Room screen now stands in the table's Land. A `.sg-room-backdrop` behind the scroller shows the Siege location scene in landscape and on desktop: `img/lands/locations/{land}-boss.webp` for a tournament table, `{land}-elite.webp` for an open table. A portrait phone gets the Land's tall painting (`img/lands/{land}.webp`), because a 3:2 scene would only crop to a sliver there. The Land comes from the tournament's element, or from the host deck's element. The art is dimmed, tinted with the element colour and drifts slowly (static under reduced motion). The panel and seats are now frosted glass (`backdrop-filter`), so the scene reads through them, and the status line has a text shadow for contrast. `home-redesign.js` is now `?v=73` and `home-redesign.css` `?v=81`.
   - **Verification.** `node --check` passes. Against a local `spring-boot:run`, a mocked Tide & Storm tournament table resolved `water-boss.webp` at 844x390, 667x375 and 1920x1080, and `water.webp` at 390x844 (the computed `::before` background was checked). The layout assertions from the previous entry still pass at all four sizes. A real host-and-guest run of an open fire table resolved `fire-elite.webp` and still went all the way into a live match (MULLIGAN), with no page errors. Screenshots were inspected.
