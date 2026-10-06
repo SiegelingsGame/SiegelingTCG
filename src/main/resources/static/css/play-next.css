@@ -1009,8 +1009,13 @@
         padding: 14px;
         border-radius: 18px;
         border: 1px solid color-mix(in srgb, var(--mode-hue) 55%, transparent);
+        /* Each mode wears its own scene (img/modes, 600x900 portrait crops of the
+           gallery plates): a fade to ink at the foot keeps the label readable,
+           and a wash in the mode's hue ties the art to its colour. */
         background:
-            radial-gradient(ellipse 90% 70% at 50% 0%, color-mix(in srgb, var(--mode-hue) 55%, transparent), transparent 72%),
+            linear-gradient(180deg, transparent 38%, rgba(13, 10, 38, 0.55) 62%, rgba(13, 10, 38, 0.94) 100%),
+            linear-gradient(180deg, color-mix(in srgb, var(--mode-hue) 28%, transparent), transparent 46%),
+            var(--mode-art, none) center 22% / cover no-repeat,
             linear-gradient(180deg, color-mix(in srgb, var(--mode-hue) 22%, #1a1150), #0d0a26);
         color: #fff;
         font-size: 1rem;
@@ -1040,12 +1045,18 @@
         box-shadow: 0 0 22px var(--mode-hue);
     }
 
-    #soloMatchTab { --mode-hue: #ff6b35; }
-    #onlineMatchTab { --mode-hue: #7c5cff; }
-    #tutorialMatchTab { --mode-hue: #2fd17a; }
+    /* Solo: Draco facing his whole brood. Online: Skydon over the open sky.
+       Tutorial: Frostag's morning drills. */
+    #soloMatchTab { --mode-hue: #ff6b35; --mode-art: url('/img/modes/mode-solo.webp'); }
+    #onlineMatchTab { --mode-hue: #7c5cff; --mode-art: url('/img/modes/mode-online.webp'); }
+    #tutorialMatchTab { --mode-hue: #2fd17a; --mode-art: url('/img/modes/mode-tutorial.webp'); }
     #soloMatchTab::before { content: '\2694'; }
     #onlineMatchTab::before { content: '\1F310'; }
     #tutorialMatchTab::before { content: '\1F393'; }
+
+    .loadout-overlay[data-loadout-step="setup"] .match-mode-tabs .loadout-tab:not(.active) {
+        filter: saturate(0.8) brightness(0.86);
+    }
 
     .loadout-overlay[data-loadout-step="setup"] .match-mode-tabs .loadout-tab.active {
         border-color: #ffe9c4;

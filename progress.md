@@ -11,7 +11,12 @@ Original prompt: Merge and deploy
   - **Loadout review:** the summary's sections (deck, opening keeps, evolutions, recommended knights, commander) become side-by-side columns that scroll sideways.
   - The Deck Builder is an editor and keeps its scrolling body.
   - Below 780px wide, the kicker hides and inactive chips show only their number.
-  - `play-next.css` is now `?v=9`.
+  - **Mode art.** Each Setup mode tile now shows its own scene, from new 600x900 portrait crops in `img/modes/` cut from the gallery plates (49–92 KB each):
+    - Solo vs AI: Draco facing his whole brood (`draco-brood`).
+    - Online: Skydon over the open sky (`skydon-skyreach`).
+    - Tutorial: Frostag's morning drills (`frostag-training-portrait`).
+    - Each tile layers a wash in the mode's colour over its art, with a fade to ink at the foot for the label. Inactive tiles are slightly desaturated so the picked one stands out.
+  - `play-next.css` is now `?v=10`.
 - Verification:
   - Headless Chromium against `/battle` with the live `/api/game/options` and `/api/cards/editor` payloads replayed, no errors on the page.
   - At 1000x460, 844x390, 667x375 and 740x360, the box, core and page vertical scroll are 0 on all four steps. Before, the box scrolled up to 576px at 1000x460 and the core up to 1078px at 844x390.
@@ -22,6 +27,7 @@ Original prompt: Merge and deploy
     - Tapping Stone Garden selects `deck_earth`.
     - The Deck Builder still scrolls its step (`overflow-y:auto`).
     - The review columns scroll sideways (1254 vs 818 wide).
+  - With the mode art, re-run at 1000x460 and 667x375: still no scroll on any step and no errors on the page. The screenshots show all three scenes under readable labels.
   - `GameJavaScriptRegressionTest` passes.
   - The media query is landscape-only and at most 600px tall, so portrait and desktop are untouched.
 - October 5, 2026 **Deploy record: #1016 and #1017 live; #1018 redeployed after a cancelled Hosting job.**
