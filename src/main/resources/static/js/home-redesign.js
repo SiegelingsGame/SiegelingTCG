@@ -325,11 +325,20 @@
     'Featured Packs': 'shop', 'Open Packs': 'shop', 'Siegelcoins': 'shop'
   };
   var HREF = { battle: '/battle', siege: '/siege', keep: '/keep',
-               lobbies: '/social', login: '/login', help: '/help' };
+               lobbies: '/lobbies', login: '/login', help: '/help' };
+
+  // The open tables live on Social's Friends tab, not on Social's landing
+  // (Profile). Every "Lobbies" control used to point at /social and so opened
+  // the player's own profile; these attributes swap to Friends in place and
+  // land on the Open tables section.
+  function lobbiesAttrs() {
+    return ' href="' + HREF.lobbies + '" data-screen="social" data-social-goto="friends" data-social-section="tables"';
+  }
 
   // Returns the anchor attributes for a label: an in-app screen swap where this
   // design owns the destination, a real navigation where it does not.
   function linkAttrs(label) {
+    if (label === 'Social Lobbies') return lobbiesAttrs();
     if (INTERNAL[label]) return ' href="' + pathForScreen(INTERNAL[label]) + '" data-screen="' + INTERNAL[label] + '"';
     var ext = EXTERNAL[label];
     if (!ext) return '';
@@ -1022,6 +1031,21 @@
 
   var onNavigate = null;
 
+  // Brings a Friends-tab section into view: down the page in portrait, along
+  // the rail on a landscape phone (scrollIntoView handles either axis).
+  function scrollToSocialSection(host, name) {
+    if (!host || !name) return;
+    requestAnimationFrame(function () {
+      var target = host.querySelector('[data-friends-block="' + name.replace(/"/g, '') + '"]');
+      if (!target) return;
+      try {
+        target.scrollIntoView({ block: 'start', inline: 'start', behavior: 'smooth' });
+      } catch (e) {
+        target.scrollIntoView(true);
+      }
+    });
+  }
+
   function mountBottom(app) {
     var bottom = app.querySelector('[data-bottom]');
     if (!bottom) return;
@@ -1175,7 +1199,7 @@
           tile('expedition', 'Expedition', 'data-stage-panel="Continue Playing"', runs.length ? '!' : '') +
           link('featured', 'Featured', pathForScreen('collection'), ' data-screen="collection"') +
           link('gallery', 'Gallery', pathForScreen('art'), ' data-screen="art"') +
-          link('lobbies', 'Lobbies', HREF.lobbies) +
+          link('lobbies', 'Lobbies', HREF.lobbies, lobbiesAttrs().replace(' href="' + HREF.lobbies + '"', '')) +
         '</nav>' +
         '<div class="sg-stage-right">' +
           '<a class="sg-stage-mode" href="' + HREF.siege + '">' +
@@ -2363,7 +2387,7 @@
           // rather than showing the "11 open" the concept shipped with.
           var open = opts.lobbies != null ? opts.lobbies : (opts.live && opts.live.lobbies);
           var label = open == null ? 'Browse' : (open + ' open');
-          return '<a class="sg-lobbies" href="' + HREF.lobbies + '">' +
+          return '<a class="sg-lobbies"' + lobbiesAttrs() + '>' +
             '<span class="sg-lobbies-dot"></span>Social Lobbies<em>' +
             esc(label) + '</em><span class="go">›</span></a>';
         })() +
@@ -7294,10 +7318,17 @@
       var socialTabAttr = link.getAttribute('data-social-goto');
       if (socialTabAttr) setSocialTab(socialTabAttr);
       var homeSection = link.getAttribute('data-home-goto');
+      var socialSection = link.getAttribute('data-social-section');
       show(link.getAttribute('data-screen'), true);
       // show() re-renders Home and resets the scroller, so the section can only
       // be found - and only stays put - after that has happened.
       if (homeSection) scrollToHomeSection(host, homeSection);
+      if (socialSection) scrollToSocialSection(host, socialSection);
+      // show() pushed /social, which reloads onto Profile; keep the lobbies
+      // address so a refresh or a shared link lands on the open tables again.
+      if (socialSection === 'tables') {
+        try { history.replaceState({ screen: 'social' }, '', HREF.lobbies); } catch (err) { /* file:// */ }
+      }
     });
 
     // Rotation and width changes re-flow the tiles, so the fit has to be redone.
@@ -7307,13 +7338,18 @@
     }
 
     window.addEventListener('popstate', function (e) {
+      if (/^\/lobbies\/?$/.test(location.pathname)) setSocialTab('friends');
       show((e.state && e.state.screen) || screenForPath(location.pathname) ||
            new URLSearchParams(location.search).get('screen') || 'home', false);
     });
 
+    // /lobbies is the Social screen opened on Friends, at the open tables.
+    var landingOnLobbies = /^\/lobbies\/?$/.test(location.pathname);
+    if (landingOnLobbies) setSocialTab('friends');
     // ?screen= still works so existing links and the preview board keep going.
     show(opts.screen || new URLSearchParams(location.search).get('screen') ||
          screenForPath(location.pathname) || 'home', false);
+    if (landingOnLobbies) scrollToSocialSection(host, 'tables');
     warmBinderArt(current);
     return { show: show, currentScreen: function () { return current; } };
   }

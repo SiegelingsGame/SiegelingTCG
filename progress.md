@@ -3,6 +3,20 @@ Original prompt: Merge and deploy
   - **Change.** On the phone, #1012 alone made things worse. The band stayed, and the dock was cut in half at its top edge. The Keep still had `html, body { height:100% }`, which in the installed app is the short layout viewport, so the page was clipped there. A taller `position:fixed` shell only pushed the dock into the clipped region. `keep.css` now matches the hub (`home-next.html`) and Arena (`style.css` body). `html`/`body` are `max(100dvh, var(--sg-vh, 0px))` tall, and `.keep-app` is `position:absolute` at that height, like `.sg-app`, instead of fixed. Rotation scroll drift, the original reason it was fixed, is already undone by `keep.js` `resetViewportScroll` and `viewport-unit.js`'s scroll pin. `keep.css` -> `?v=59`.
 - Verification:
   - Headless Chromium with `screen` set and `navigator.standalone` stubbed, `keep.html`. At 390x844 and 1920x1080, body, shell and dock bottoms are all 844 and 1080. With a standalone viewport 54px short (390x790 on a 390x844 screen), `--sg-vh` is 844, body is 844, and the shell and dock bottoms are 844. `scrollY` is 0 throughout. Chromium cannot reproduce the iOS clip itself, so the phone remains the final check.
+- October 6, 2026 **Lobbies links open the open tables, not the player's profile.**
+  - **Change.** Every "Lobbies" control linked to `/social`, and Social always opens on its Profile tab, so tapping Social Lobbies showed the player's own profile. The open tables live on the Friends tab. The affected controls were the Play screen banner, the Play tray row, the Home stage tile, and on other pages the Battle page's Lobbies button and "Browse Social Lobbies", and the landing page's "Browse Arenas" / "Arenas".
+  - In `home-redesign.js`:
+    - `HREF.lobbies` is now `/lobbies`, already a Hosting rewrite to `home-next.html`.
+    - A new `lobbiesAttrs()` adds `data-screen="social" data-social-goto="friends" data-social-section="tables"`, so in-app taps swap to Friends without a reload. A new `scrollToSocialSection` brings Open tables into view on either axis.
+    - The address is replaced with `/lobbies` after the swap, so a refresh or a shared link lands there again.
+    - Loading `/lobbies` directly, and popstate onto it, selects the Friends tab.
+  - `play.html` and `index.html` lobby links now point at `/lobbies`. Plain "Social" nav links are unchanged.
+  - `home-redesign.js` is now `?v=70`.
+- Verification:
+  - `node --check`. Headless Chromium with a mocked signed-in account (3 open tables) at 1000x460 and 390x844.
+  - The Play banner, the Play tray row and a direct `/lobbies` load each end on `data-screen=social`, `data-social-view=friends`, with the Open tables section inside the viewport and all 3 lobby tiles rendered. The Home stage tile does the same at 844x390.
+  - After a tap the path is `/lobbies`, a reload stays on Friends, and Back returns to Home.
+  - No errors on the page.
 - October 6, 2026 **Landscape hub: Collection, Shop and Profile go back to their pages; Friends becomes an art-led rail.**
   - **Change.** On review, the side-scrolling rail was taken off Collection, where the filter column cost too much width, and off Shop and Profile. All three are back to their original scrolling pages. The rail now covers only My Decks, the Deck Builder and Social > Friends.
   - **Scoping fix.** The shared rail rules used a bare `.sg-app[data-screen]` selector, so they also reached Messages, Settings and Help. They are now scoped to the three rail screens.
