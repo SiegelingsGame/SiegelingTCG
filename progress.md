@@ -1,4 +1,42 @@
 Original prompt: Merge and deploy
+- October 6, 2026 **Battle loadout on a landscape phone: one vivid screen with sideways swipe rails.**
+  - **Change.** On a phone on its side, the `/battle` loadout was a portrait page turned 90 degrees. The 208px art band took half the height and every step scrolled vertically (the deck step by up to ~1,000px). At 1000x460 the first deck started at y 549, below the screen, because `style.css`'s two-pane landscape grid only covers widths under 980px.
+  - A new `play-next.css` block (`(orientation: landscape) and (max-height: 600px)`) makes `.loadout-box` a fixed three-row grid:
+    - **Top bar:** one slim row with the kicker, title, pill step chips and the close button pinned to the corner.
+    - **Middle:** the active step fills the space.
+    - **Bottom:** a one-row action bar laid out as a grid (Back · summary · primary).
+  - The Battle artwork moves from the band to the backdrop of the whole screen, washed with fire and violet radial accents. Panels become blurred glass on top of it.
+  - **Setup:** the name card is on the left. On the right, the three battle modes become tall coloured tiles (Solo fire-orange ⚔, Online violet 🌐, Tutorial emerald 🎓) with glowing orbs, and the active tile lifts and glows. The online/tutorial panel sits under the name card and scrolls inside itself.
+  - **Deck and SiegeKnight:** full-height 5:7 cards on an edge-to-edge horizontal snap rail, with the selected card lifted in its element glow. The deck source tabs and the account line share one row above the rail.
+  - **Loadout review:** the summary's sections (deck, opening keeps, evolutions, recommended knights, commander) become side-by-side columns that scroll sideways.
+  - **Deck Builder.** It used to scroll 452–1,495px. It now fills the screen as an editor:
+    - Source tabs and the account line share one row.
+    - The element and type filters form one swipeable row.
+    - Card Pool, Deck List and Card Preview are three full-height panes side by side.
+    - The card pool's rows (`grid-template-rows: repeat(auto-fill, 66px)`) flow into columns that swipe sideways.
+    - The deck list and preview scroll inside their own panes.
+  - Below 780px wide, the kicker hides and inactive chips show only their number.
+  - **Mode art.** Each Setup mode tile now shows its own scene, from new 600x900 portrait crops in `img/modes/` cut from loading-art scenes (62–108 KB each):
+    - Solo vs AI: Solgator roaring alone against the eruption (`art/loading/solgator-eruption`).
+    - Online: two sides clashing over the sky nest (`art/loading/air-battle`).
+    - Tutorial: Cozycub's den, a gentle place to learn (`art/loading/cozycub-den`).
+    - These replaced a first pass cut from the hub gallery plates (Draco's brood, Skydon, Frostag), because those creatures already appear across the hub. None of the new scenes is used anywhere else. URLs carry `?v=2` because Hosting caches images as immutable.
+    - Each tile layers a wash in the mode's colour over its art, with a fade to ink at the foot for the label. Inactive tiles are slightly desaturated so the picked one stands out.
+  - `play-next.css` is now `?v=12`.
+- Verification:
+  - Headless Chromium against `/battle` with the live `/api/game/options` and `/api/cards/editor` payloads replayed, no errors on the page.
+  - At 1000x460, 844x390, 667x375 and 740x360, the box, core and page vertical scroll are 0 on all four steps. Before, the box scrolled up to 576px at 1000x460 and the core up to 1078px at 844x390.
+  - At 844x390:
+    - The Tutorial and Online tiles reveal their panels without any scroll.
+    - The primary button advances to Deck.
+    - With the rail overfilled, a touch swipe scrolls the deck rail sideways (scrollLeft 524 of 2106) while the box `scrollTop` stays 0.
+    - Tapping Stone Garden selects `deck_earth`.
+    - The Deck Builder still scrolls its step (`overflow-y:auto`).
+    - The review columns scroll sideways (1254 vs 818 wide).
+  - Deck Builder, signed in (mocked account): the step and box vertical scroll is 0 at 1000x460, 844x390 and 667x375. Pressing + twice on Applehead lists "Applehead x2" in the Deck List, and the card pool swipes sideways (`scrollWidth` 17,700 vs 385). No errors on the page.
+  - With the mode art, re-run at 1000x460 and 667x375: still no scroll on any step and no errors on the page. The screenshots show all three scenes under readable labels.
+  - `GameJavaScriptRegressionTest` passes.
+  - The media query is landscape-only and at most 600px tall, so portrait and desktop are untouched.
 - October 5, 2026 **Deploy record: #1016 and #1017 live; #1018 redeployed after a cancelled Hosting job.**
   - **What happened.** Run 1002 (#1016) shipped both surfaces. In run 1003 (#1017), the Cloud Run job was cancelled after 15 minutes and the run ended as `failure`, but its Hosting step still succeeded. In run 1004 (#1018), the Cloud Run deploy succeeded in 3.5 minutes, but its Firebase Deploy job sat queued for 15 minutes without a runner and was cancelled, so #1018's `adventure.css?v=105` / `adventure.js?v=118` never reached Hosting. The agent's GitHub integration cannot re-run jobs or dispatch the workflow (403), so this entry is the push that redeploys main.
 - Verification (before this push):
