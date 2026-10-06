@@ -27,6 +27,7 @@ import com.sieglings.service.MovesPoolService;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.MultiplayerRoom;
 import com.sieglings.service.MultiplayerService;
+import com.sieglings.service.TournamentService;
 import com.sieglings.service.PlayerProgressionService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.net.URI;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -74,6 +76,9 @@ public class GameController {
 
     @Autowired
     private MatchHistoryService matchHistoryService;
+
+    @Autowired
+    private TournamentService tournamentService;
 
     @Autowired
     private PlayerProgressionService playerProgressionService;
@@ -214,10 +219,16 @@ public class GameController {
             GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer05");
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
+            String tournamentId = req == null ? null : (String) req.get("tournamentId");
+            if (tournamentId != null && tournamentId.isBlank()) tournamentId = null;
+            if (tournamentId != null) {
+                checkTournamentLoadout(user, tournamentService.requireOpen(tournamentId, Instant.now()), options);
+            }
             // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
             // leveling glue (withPlayerTrainerLevel) is kept for the upcoming Siege
             // roguelike mode, where levels will carry into every fight.
-            MultiplayerService.RoomSession session = multiplayerService.createRoom(playerName, options, user == null ? null : user.getId());
+            MultiplayerService.RoomSession session = multiplayerService.createRoom(
+                    playerName, options, user == null ? null : user.getId(), tournamentId);
             return buildRoomMeta(multiplayerService.requireRoom(session.roomId()), session, request);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());
@@ -238,6 +249,7 @@ public class GameController {
             GameService.StartOptions options = parseStartOptions(req, "deck_fire_earth", "trainer06");
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
+            checkRoomTournament(user, multiplayerService.getRoom(roomId), options);
             // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
             // leveling glue (withPlayerTrainerLevel) is kept for the upcoming Siege
             // roguelike mode, where levels will carry into every fight.
@@ -276,6 +288,8 @@ public class GameController {
             GameService.StartOptions options = parseStartOptions(req, fallbackDeck, fallbackTrainer);
             AccountUser user = accountService.findUser(authorizationHeader);
             validateStartOwnership(user, options);
+            // A loadout swapped in the waiting room is held to the table's rule too.
+            checkRoomTournament(user, existingRoom, options);
             // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
             // leveling glue (withPlayerTrainerLevel) is kept for the upcoming Siege
             // roguelike mode, where levels will carry into every fight.
@@ -1163,6 +1177,11 @@ public class GameController {
         out.put("updatedAt", room.getUpdatedAt() == null ? null : room.getUpdatedAt().toString());
         out.put("expiresAt", room.getExpiresAt() == null ? null : room.getExpiresAt().toString());
         out.put("format", room.getFormat() == null ? "PVP" : room.getFormat());
+        if (room.getTournamentId() != null) {
+            out.put("tournamentId", room.getTournamentId());
+            tournamentService.find(room.getTournamentId())
+                    .ifPresent(t -> out.put("tournamentName", t.rule().name()));
+        }
         if (room.getHostOptions() != null) {
             out.put("deckId", room.getHostOptions().playerDeckId());
             out.put("trainerId", room.getHostOptions().playerTrainerId());
@@ -1714,6 +1733,23 @@ public class GameController {
                 customDeckCards,
                 loadoutLabel
         );
+    }
+
+    /** Tournament tables score on accounts and must fit the day's deck rule. */
+    private void checkTournamentLoadout(AccountUser user, TournamentService.Tournament tournament,
+                                        GameService.StartOptions options) {
+        if (user == null) {
+            throw new IllegalArgumentException("Sign in to play tournament tables - results score on your account.");
+        }
+        GameService.LoadoutProfile profile = gameService.profileLoadout(options);
+        tournamentService.checkLoadout(tournament, profile.elements(), profile.customDeck());
+    }
+
+    private void checkRoomTournament(AccountUser user, MultiplayerRoom room, GameService.StartOptions options) {
+        if (room == null || room.getTournamentId() == null || options == null) return;
+        TournamentService.Tournament tournament = tournamentService.find(room.getTournamentId())
+                .orElseThrow(() -> new IllegalArgumentException("That tournament table is no longer valid."));
+        checkTournamentLoadout(user, tournament, options);
     }
 
     private void validateStartOwnership(AccountUser user, GameService.StartOptions options) {

@@ -297,6 +297,61 @@ function writePlayCache(key, data) {
 // /battle is the hub's direct link to the Battle loadout: same page as /play,
 // but the welcome/mode screen is skipped because the player already chose Battle
 // on the screen they came from. Read once — the path does not change mid-session.
+// The hub's Lobbies page hands players here to host or join a table:
+// /battle?online=host[&tournament=<id>] or /battle?online=join&join=<CODE>[&tournament=<id>].
+// The loadout opens in that online mode on the deck step; a tournament table
+// also carries the day's deck rule, which the picker applies and the server
+// enforces. `join`, not `room`: ?room= is still redirected to the legacy lobby.
+const LOBBY_INTENT = (function () {
+    const params = new URLSearchParams(window.location.search);
+    const online = params.get('online');
+    if (online !== 'host' && online !== 'join') return null;
+    return {
+        online,
+        join: (params.get('join') || '').trim().toUpperCase(),
+        tournament: (params.get('tournament') || '').trim()
+    };
+})();
+let lobbyTournament = null;
+
+// Mirror of TournamentService.checkLoadout, so the picker never offers a deck
+// the server will refuse. Returns '' when allowed, otherwise the reason.
+function tournamentDeckProblem(tournament, elements, customDeck) {
+    if (!tournament) return '';
+    if (tournament.presetOnly && customDeck) return `${tournament.name} is preset decks only.`;
+    const els = [...new Set((elements || []).map((e) => String(e).toUpperCase()).filter((e) => e && e !== 'NEUTRAL'))];
+    if (tournament.monoElement && els.length !== 1) return `${tournament.name} needs a single-element deck.`;
+    const allowed = Array.isArray(tournament.allowedElements) ? tournament.allowedElements : null;
+    if (allowed) {
+        const bad = els.find((e) => !allowed.includes(e));
+        if (bad) return `${tournament.name}: ${tournament.rule}.`;
+    }
+    return '';
+}
+
+async function applyLobbyIntent() {
+    if (!LOBBY_INTENT) return;
+    welcomeDismissed = true;
+    matchMode = 'online';
+    onlineRoomMode = LOBBY_INTENT.online === 'join' ? 'join' : 'create';
+    loadoutStep = 'deck';
+    const codeInput = document.getElementById('roomCodeInput');
+    if (codeInput && LOBBY_INTENT.join) codeInput.value = LOBBY_INTENT.join;
+    if (!LOBBY_INTENT.tournament) return;
+    const data = await fetchJson(apiUrls('/api/tournaments'), {}, LOADOUT_ACTION_TIMEOUT_MS);
+    const current = data && data.current;
+    if (!current || current.id !== LOBBY_INTENT.tournament) {
+        showErrorToast('That tournament has ended. Pick a table from today\'s Lobbies.');
+        return;
+    }
+    lobbyTournament = current;
+    const selected = gameOptions?.decks?.find((d) => d.id === selectedDeckId);
+    if (!selected || tournamentDeckProblem(lobbyTournament, selected.elements, false)) {
+        const fit = getVisibleLoadoutDecks().find((d) => !isPremadeDeckLocked(d) && !tournamentDeckProblem(lobbyTournament, d.elements, false));
+        if (fit) selectedDeckId = fit.id;
+    }
+}
+
 const DIRECT_BATTLE_ENTRY = (function () {
     const path = String(window.location.pathname || '').replace(/\/+$/, '');
     return path === '/battle' || path === '/battle.html';
@@ -10324,6 +10379,7 @@ async function loadGameOptions() {
         loadoutMode = 'preset';
         applyPendingHomeLoadout();
         ensureOwnedTrainerSelected();
+        await applyLobbyIntent();
         hydrateOnlineStateFromUrl();
         hydrateSavedPlayerName();
         renderWelcomeTutorial();
@@ -10600,7 +10656,13 @@ function returnToPlayMain() {
 }
 
 function selectDeckOption(deckId) {
-    if (isPremadeDeckLocked(gameOptions?.decks?.find((deck) => deck.id === deckId))) {
+    const deck = gameOptions?.decks?.find((d) => d.id === deckId);
+    if (isPremadeDeckLocked(deck)) {
+        return;
+    }
+    const problem = matchMode === 'online' ? tournamentDeckProblem(lobbyTournament, deck?.elements, false) : '';
+    if (problem) {
+        showErrorToast(problem);
         return;
     }
     detachSavedDeckSelection();
@@ -11464,6 +11526,7 @@ function renderLoadoutOptions() {
 
     deckEl.innerHTML = getVisibleLoadoutDecks().map(deck => {
         const selected = deck.id === selectedDeckId ? ' selected' : '';
+        const offRule = matchMode === 'online' && tournamentDeckProblem(lobbyTournament, deck.elements, false) ? ' is-off-rule' : '';
         const bg = buildDeckBackground(deck.elements);
         const borderColor = buildDeckBorderColors(deck.elements);
         const elementLabels = deck.elements.map(formatElementLabel).join(' / ');
@@ -11482,10 +11545,10 @@ function renderLoadoutOptions() {
         const faceSigils = deckArt ? '' : buildDeckFaceSigils(deck.elements);
         const artStyle = deckArt?.back ? `;--deck-art:url('${deckArt.back}')` : '';
 
-        return `<button type="button" class="deck-card${selected} ${elClasses}${deckArt ? ' has-deck-art' : ''}" style="--deck-bg:${bg};--deck-border:${borderColor};--deck-accent:${primaryHex};--deck-glow:${hexToRgba(primaryHex, 0.28)};--deck-glow-strong:${hexToRgba(primaryHex, 0.58)}${artStyle}" onclick="selectDeckOption('${deck.id}')" aria-pressed="${deck.id === selectedDeckId ? 'true' : 'false'}">
+        return `<button type="button" class="deck-card${selected}${offRule} ${elClasses}${deckArt ? ' has-deck-art' : ''}" style="--deck-bg:${bg};--deck-border:${borderColor};--deck-accent:${primaryHex};--deck-glow:${hexToRgba(primaryHex, 0.28)};--deck-glow-strong:${hexToRgba(primaryHex, 0.58)}${artStyle}" onclick="selectDeckOption('${deck.id}')" aria-pressed="${deck.id === selectedDeckId ? 'true' : 'false'}">
             <div class="deck-card-spine">${spineBands}</div>
             ${faceSigils}
-            <span class="deck-card-state">${deck.id === selectedDeckId ? 'Selected' : escapeHtml(deckTheme.playstyle)}</span>
+            <span class="deck-card-state">${deck.id === selectedDeckId ? 'Selected' : offRule ? 'Not allowed today' : escapeHtml(deckTheme.playstyle)}</span>
             <div class="deck-card-body">
                 <span class="deck-card-name">${escapeHtml(deck.name)}</span>
                 <span class="deck-card-elements">${escapeHtml(elementLabels)}</span>
@@ -11597,6 +11660,11 @@ function renderLoadoutOptions() {
             loadoutSubtitle.textContent = onlineRoomMode === 'create'
                 ? 'Enter your name, pick your favorite deck, and choose the SiegeKnight you want to lead your room.'
                 : 'Enter your name, choose the build you want to bring, and then join the room.';
+        }
+        if (lobbyTournament) {
+            loadoutKicker.textContent = onlineRoomMode === 'create' ? 'Host a Tournament Table' : 'Join a Tournament Table';
+            loadoutTitle.textContent = lobbyTournament.name;
+            loadoutSubtitle.textContent = `${lobbyTournament.rule}. Wins score on today's standings.`;
         }
         inviteRoomBadge.classList.add('hidden');
         playerIdentityNote.textContent = 'This name is shown in online matches and saved on this device.';
@@ -12288,7 +12356,8 @@ async function createRoom() {
     savePlayerName(getCurrentPlayerName());
     const body = {
         ...getSelectedLoadoutBody(),
-        playerName: getCurrentPlayerName()
+        playerName: getCurrentPlayerName(),
+        ...(lobbyTournament ? { tournamentId: lobbyTournament.id } : {})
     };
     const data = await fetchJson(apiUrls('/api/match/create'), {
         method: 'POST',

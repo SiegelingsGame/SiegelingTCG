@@ -63,6 +63,23 @@ class PlayerProgressionServiceTest {
     }
 
     @Test
+    void tournamentPrizePaysOncePerTournament() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setGold(100);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        assertEquals(500, service.claimTournamentPrize(user(), "open@2026-10-05", 500, 90));
+        assertEquals(0, service.claimTournamentPrize(user(), "open@2026-10-05", 500, 90));
+        assertEquals(300, service.claimTournamentPrize(user(), "mono@2026-10-04", 300, 90));
+
+        assertEquals(100 + 500 + 300, store.saved.getGold());
+        assertEquals(java.util.List.of("mono@2026-10-04", "open@2026-10-05"), store.saved.getClaimedTournamentIds());
+    }
+
+    @Test
     void repeatedPackOpenRequestDoesNotChargeAgain() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         PlayerProgressionEntity progression = new PlayerProgressionEntity();

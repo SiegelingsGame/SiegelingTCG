@@ -430,6 +430,26 @@ public class PlayerProgressionService {
         }
     }
 
+    /**
+     * Pays a tournament prize once per account and tournament. A repeat claim
+     * returns 0 and changes nothing, so a double tap cannot pay twice.
+     */
+    public int claimTournamentPrize(AccountUser user, String tournamentId, int coins, int historyLimit) {
+        synchronized (progressionWriteLock(user)) {
+            PlayerProgressionEntity progression = getOrCreate(user);
+            if (progression.getClaimedTournamentIds().contains(tournamentId)) {
+                return 0;
+            }
+            progression.setGold(progression.getGold() + coins);
+            List<String> claimed = new ArrayList<>(progression.getClaimedTournamentIds());
+            claimed.add(0, tournamentId);
+            progression.setClaimedTournamentIds(claimed.stream().limit(historyLimit).toList());
+            progression.setUpdatedAt(Instant.now());
+            store.save(progression);
+            return coins;
+        }
+    }
+
     public PlayerProgressionEntity purchaseDailyOffer(AccountUser user, String offerId) {
         synchronized (progressionWriteLock(user)) {
             PlayerProgressionEntity progression = getOrCreate(user);

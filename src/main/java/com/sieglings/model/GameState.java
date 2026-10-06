@@ -66,6 +66,11 @@ public class GameState {
     private boolean playerMulliganUsed = false;
     private boolean enemyMulliganUsed = false;
     private String matchHistoryId = UUID.randomUUID().toString();
+    // The tournament an online match counts toward, carried into match history.
+    private String tournamentId;
+
+    public String getTournamentId() { return tournamentId; }
+    public void setTournamentId(String tournamentId) { this.tournamentId = tournamentId; }
     private boolean matchHistoryRecorded = false;
     /** NORMAL or FORFEIT when the match ends. */
     private String endReason = "NORMAL";

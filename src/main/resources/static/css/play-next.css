@@ -1496,3 +1496,11 @@
         display: none;
     }
 }
+
+/* Tournament tables (opened from the hub's Lobbies page) only take decks that
+   fit the day's rule; the rest stay visible but read as out of play. */
+.deck-card.is-off-rule {
+    filter: grayscale(0.85) brightness(0.6);
+    opacity: 0.75;
+    cursor: not-allowed;
+}

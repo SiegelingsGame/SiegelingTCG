@@ -25,6 +25,11 @@ public class MatchHistoryEntity {
     private List<String> gameLog = new ArrayList<>();
     /** True when a board replay was saved for this row (MatchReviewStore#findReplay). */
     private boolean hasReplay;
+    // Set on online matches played at a tournament table; standings are read back by it.
+    private String tournamentId;
+
+    public String getTournamentId() { return tournamentId; }
+    public void setTournamentId(String tournamentId) { this.tournamentId = tournamentId; }
 
     public boolean isHasReplay() {
         return hasReplay;
