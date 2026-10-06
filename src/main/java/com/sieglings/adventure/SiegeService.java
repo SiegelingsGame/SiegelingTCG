@@ -181,6 +181,8 @@ public class SiegeService {
             m.put("unlockCost", unlockCost);
             m.put("canUnlock", canUnlock);
             putKnightCardArt(m, k);
+            // Card description doubles as the spine's flavor line on team select.
+            if (k.getDescription() != null && !k.getDescription().isBlank()) m.put("flavor", k.getDescription().trim());
             knights.add(m);
         }
         resp.put("siegelings", List.copyOf(siegelings));

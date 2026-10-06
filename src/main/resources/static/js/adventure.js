@@ -1383,7 +1383,37 @@
     return ' style="transform:translate(' + tx + ',' + ty + ') scale(' + scale + ') rotate(' + rot + 'deg);transform-origin:center center"';
   }
 
-  function knightCardArtHtml(k, summary, passiveChip) {
+  /* One line of character for the card's spine, shown down the visible strip
+   * when the knights stack on the landscape rail. A dashboard description wins;
+   * otherwise a written line per knight, then one per passive. */
+  var KNIGHT_FLAVOR = {
+    'squire-bob': 'Brick-wall stubborn. Never leaves a friend behind.',
+    'squirebobsp': 'Off duty. Never off guard.',
+    'new-siegeknight-2': 'Grew up. Never grew out of it.',
+    'pyla': 'Kindles courage where the cold creeps in.',
+    'trainer10': 'The ember-crowned lady of the forge.',
+    'ser-airek': 'Rides the high winds over the ramparts.',
+    'aldera': 'The desert remembers every step.',
+    'cera': 'The tide rises at her word.',
+    'hera': 'Her name rides every gale.',
+    'isaac-tesla': 'Every storm answers to the coil.',
+    'lady-clarice': 'Frost-sworn and ever watchful.',
+    'new-siegeknight': 'Light through stained glass, mercy in the storm.',
+    'new-siegeknight-3': 'Her prayer is a siege of its own.'
+  };
+  var PASSIVE_FLAVOR = {
+    SHIELD: 'The wall that walks.',
+    ATTACK: 'First into the breach.',
+    SPEED: 'Gone before the drums stop.',
+    HEALTH: 'Keeps the warband standing.',
+    LOOT: 'Every road pays its toll.',
+    MARSHAL: 'Musters the line, holds the line.'
+  };
+  function knightFlavor(k) {
+    return (k.flavor && String(k.flavor).trim()) || KNIGHT_FLAVOR[k.id] || PASSIVE_FLAVOR[k.passiveKind] || 'Sworn to the Siege.';
+  }
+
+  function knightCardArtHtml(k, summary, passiveChip, lockNote) {
     var mode = knightArtMode(k);
     var layers;
     if (mode === 'FULL_CARD') {
@@ -1398,6 +1428,10 @@
         (mode ? '' : '<div class="kart-sigil" aria-hidden="true">' + icon(k.element) + '</div>');
     }
     return '<div class="kart kart-' + (mode ? mode.toLowerCase().replace('_', '-') : 'back') + '">' + layers +
+      '<div class="kspine" aria-hidden="true"><span class="kspine-icon">' + icon(k.element) + '</span>' +
+        '<span class="kspine-name">' + esc(k.name) + '</span>' +
+        '<span class="kspine-flavor">' + esc(knightFlavor(k)) + '</span></div>' +
+      (lockNote ? '<div class="kart-unlock">' + lockNote + '</div>' : '') +
       '<div class="kart-box">' +
         '<div class="kart-name">' + esc(k.name) + knightLevelHtml(k) + '</div>' +
         '<div class="kart-line"><span class="kart-act">' + esc(k.activeName) + '</span>' +
@@ -1442,7 +1476,7 @@
       var lockNote = '';
       if (locked) {
         if (k.canUnlock) {
-          lockNote = '<div class="klock-note">Owned in collection — unlock for raids</div>' +
+          lockNote = '<div class="klock-note">Owned · unlock for raids</div>' +
             '<button class="kunlock-btn" type="button" data-knight="' + esc(k.id) + '"' +
             (canAffordUnlock ? '' : ' disabled') + '>Unlock · 🪙 ' + k.unlockCost + '</button>';
         } else if (!r.loggedIn) {
@@ -1456,14 +1490,13 @@
       c.className += ' has-kart';
       c.innerHTML =
         (locked ? '<div class="knight-lock">🔒</div>' : '') +
-        knightCardArtHtml(k, summary, passiveChip) +
+        knightCardArtHtml(k, summary, passiveChip, lockNote) +
         '<div class="knotes">' +
           knightXpHtml(k) +
           '<button class="kmore" type="button" aria-expanded="false">Details</button>' +
           (k.activeDesc ? '<div class="kdesc"><span class="kdesc-tag">Active</span>' + esc(k.activeDesc) + '</div>' : '') +
           (k.passive ? '<div class="kdesc"><span class="kdesc-tag">Passive</span>' + esc(k.passive) + '</div>' : '') +
           (k.ultimateDesc ? '<div class="kdesc"><span class="kdesc-tag kdesc-ult">Ultimate</span>' + esc(k.ultimateDesc) + '</div>' : '') +
-          lockNote +
         '</div>';
       c.setAttribute('data-kid', k.id);
       if (k.id === state.knightDetailId) c.classList.add('open');
@@ -1491,8 +1524,11 @@
             else showKnightLockModal(k);
           });
         }
+        // First tap brings the card forward (its unlock sits on the art); a
+        // second tap explains what the lock needs.
         c.addEventListener('click', function () {
-          showKnightLockModal(k);
+          if (state.knightDetailId !== k.id) setKnightDetail(k.id);
+          else showKnightLockModal(k);
         });
       }
       kg.appendChild(c);
@@ -1520,10 +1556,22 @@
     });
   }
 
+  /* On the landscape rail a tapped card grows from a spine to its full width;
+   * keep it on screen once the width transition has settled. */
+  function railRevealKnight(id) {
+    var kg = $('knightGrid');
+    if (!id || !kg || getComputedStyle(kg).display !== 'flex') return;
+    setTimeout(function () {
+      var n = kg.querySelector('.knight-card[data-kid="' + id + '"]');
+      if (n && n.scrollIntoView) n.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }, 280);
+  }
+
   /* One knight's notes open at a time: the cards are art-first and the
    * Active/Passive/Ultimate text only unfolds on the card being looked at. */
   function setKnightDetail(id) {
     state.knightDetailId = id;
+    railRevealKnight(id);
     Array.prototype.forEach.call($('knightGrid').querySelectorAll('.knight-card[data-kid]'), function (n) {
       var open = n.getAttribute('data-kid') === id;
       n.classList.toggle('open', open);

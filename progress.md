@@ -1,4 +1,19 @@
 Original prompt: Merge and deploy
+- October 6, 2026 **Siege knights stack on the landscape rail with vertical name spines; unlock moves onto the card art.**
+  - **Change.**
+    - **Landscape rail.** Knights now stack like a fanned hand. Each unselected knight shows only its spine, the left 34% of its card. A dark gradient covers the spine, with the element icon, the knight's name running up it, and an italic flavor line beside the name. The selected knight steps out to its full card. An opened knight also unfolds its notes beside the card. Width changes animate, and a newly opened card scrolls into view.
+    - **Sizing.** Sizes come from the rail's height in container units (`#knightGrid { container-type:size }`). The old `flex-basis:auto` with a percentage art height let iOS Safari size ready cards narrower than their art, which clipped them as in the screenshot.
+    - **Flavor text.** The roster sends a knight's dashboard `description` as `flavor`. Otherwise `KNIGHT_FLAVOR` has a written line for each of the 13 live knights, with a per-passive line as a final fallback.
+    - **Unlock on the art.** The unlock note and button are now drawn over the card art (`.kart-unlock`) on every layout, instead of inside the folded notes. The button is gold when affordable. When it isn't, it reads as a dark price pill rather than a faded ghost.
+    - **Locked cards.** The first tap on a locked knight opens it; a second tap shows the lock explainer. Only the art image is greyed, not the button over it.
+  - `adventure.js` -> `?v=123`, `siege-next.css` -> `?v=11`.
+- Verification:
+  - `node --check`, `./mvnw -q -DskipTests compile`, and `SiegeRosterIntegrationTest` (4 tests) pass.
+  - Headless Chromium against a signed-in mock (3,400 Siegecoins; Catherine unlockable at 1,500; Aldera at 5,000) at 932x430, 844x390, 390x844 and 1920x1080, with no page errors:
+    - **Rail.** At 932x430, unselected cards are 76px spines with the spine showing, over 188x271 art that fits the rail's height. Selected Squire Bob is 200px.
+    - **First tap on Catherine.** It opens her card at 430px wide with the spine hidden and the unlock overlay shown. The "Unlock · 1500" button sits fully inside the art, and the lock modal stays closed.
+    - **Phone.** Every unlock overlay ends above the card's name box, and the disabled 5,000 button has opacity 1.
+    - Screenshots were reviewed at each size.
 - October 6, 2026 **Siege knight cards: the details unfold one at a time.**
   - **Change.** The Active/Passive/Ultimate notes under each SiegeKnight card are now collapsed behind a "Details ▸" row, so the step stays art-first. Tapping a knight selects it and opens its notes; tapping it again folds them; selecting another knight closes the previous one (`setKnightDetail`, one `.open` card at a time). Locked knights can't be picked, but their Details row still opens their notes without triggering the unlock modal. The portrait grid aligns rows to the top so an open card doesn't stretch its neighbour; on landscape phones a collapsed card narrows to art + a slim column. `adventure.js` -> `?v=122`, `siege-next.css` -> `?v=10`.
 - Verification:
