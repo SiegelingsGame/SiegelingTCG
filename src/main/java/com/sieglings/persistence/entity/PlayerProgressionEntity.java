@@ -26,6 +26,8 @@ public class PlayerProgressionEntity {
     private List<String> rewardedMatchIds = new ArrayList<>();
     private List<String> purchasedDeckIds = new ArrayList<>();
     private List<String> purchasedDailyOfferIds = new ArrayList<>();
+    // Tournament prizes already paid, by tournament id, so a claim pays once.
+    private List<String> claimedTournamentIds = new ArrayList<>();
     private List<String> completedPackOpenRequestIds = new ArrayList<>();
     private List<Map<String, Object>> packHistory = new ArrayList<>();
     private int soloWinStreak;
@@ -95,6 +97,11 @@ public class PlayerProgressionEntity {
     public void setPurchasedDeckIds(List<String> purchasedDeckIds) {
         this.purchasedDeckIds = purchasedDeckIds == null ? new ArrayList<>() : new ArrayList<>(purchasedDeckIds);
     }
+    public List<String> getClaimedTournamentIds() { return claimedTournamentIds; }
+    public void setClaimedTournamentIds(List<String> claimedTournamentIds) {
+        this.claimedTournamentIds = claimedTournamentIds == null ? new ArrayList<>() : new ArrayList<>(claimedTournamentIds);
+    }
+
     public List<String> getPurchasedDailyOfferIds() { return purchasedDailyOfferIds; }
     public void setPurchasedDailyOfferIds(List<String> purchasedDailyOfferIds) {
         this.purchasedDailyOfferIds = purchasedDailyOfferIds == null ? new ArrayList<>() : new ArrayList<>(purchasedDailyOfferIds);

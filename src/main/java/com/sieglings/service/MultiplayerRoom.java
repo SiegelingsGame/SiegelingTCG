@@ -64,6 +64,11 @@ public class MultiplayerRoom {
     public void setHostLoadoutReady(boolean hostLoadoutReady) { this.hostLoadoutReady = hostLoadoutReady; }
     public boolean isGuestLoadoutReady() { return guestLoadoutReady; }
     public void setGuestLoadoutReady(boolean guestLoadoutReady) { this.guestLoadoutReady = guestLoadoutReady; }
+    // Tournament id this table plays under, or null for an open table.
+    private String tournamentId;
+    public String getTournamentId() { return tournamentId; }
+    public void setTournamentId(String tournamentId) { this.tournamentId = tournamentId; }
+
     public String getFormat() { return format; }
     public void setFormat(String format) { this.format = format; }
     public boolean isClosed() { return closed; }

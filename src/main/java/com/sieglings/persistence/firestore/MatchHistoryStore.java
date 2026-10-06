@@ -97,6 +97,27 @@ public class MatchHistoryStore {
         }
     }
 
+    /** Every match recorded at one tournament's tables (a single-field equality query, indexed by default). */
+    public List<MatchHistoryEntity> findByTournamentId(String tournamentId) {
+        if (tournamentId == null || tournamentId.isBlank()) {
+            return List.of();
+        }
+        try {
+            QuerySnapshot snapshot = client.requireFirestore()
+                    .collection(client.matchesCollection())
+                    .whereEqualTo("tournamentId", tournamentId)
+                    .get()
+                    .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            List<MatchHistoryEntity> out = new ArrayList<>();
+            for (QueryDocumentSnapshot doc : snapshot.getDocuments()) {
+                out.add(toMatch(doc.getId(), doc));
+            }
+            return out;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to load tournament matches from Firestore.", ex);
+        }
+    }
+
     public java.util.Optional<MatchHistoryEntity> findById(String id) {
         if (id == null || id.isBlank()) {
             return java.util.Optional.empty();
@@ -137,6 +158,9 @@ public class MatchHistoryStore {
         }
         payload.put("gameLog", log == null ? List.of() : log);
         payload.put("hasReplay", match.isHasReplay());
+        if (match.getTournamentId() != null) {
+            payload.put("tournamentId", match.getTournamentId());
+        }
         try {
             matchDoc(match.getId()).set(payload).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             return match;
@@ -189,6 +213,7 @@ public class MatchHistoryStore {
         match.setPlayerEnergyRemaining(readInt(snapshot, "playerEnergyRemaining"));
         match.setGameLog(readStringList(snapshot, "gameLog"));
         match.setHasReplay(Boolean.TRUE.equals(snapshot.getBoolean("hasReplay")));
+        match.setTournamentId(snapshot.getString("tournamentId"));
         return match;
     }
 

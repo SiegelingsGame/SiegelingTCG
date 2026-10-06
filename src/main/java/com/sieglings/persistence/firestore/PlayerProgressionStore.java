@@ -67,6 +67,7 @@ public class PlayerProgressionStore {
         payload.put("rewardedMatchIds", progression.getRewardedMatchIds());
         payload.put("purchasedDeckIds", progression.getPurchasedDeckIds());
         payload.put("purchasedDailyOfferIds", progression.getPurchasedDailyOfferIds());
+        payload.put("claimedTournamentIds", progression.getClaimedTournamentIds());
         payload.put("completedPackOpenRequestIds", progression.getCompletedPackOpenRequestIds());
         payload.put("purchasedTitleIds", progression.getPurchasedTitleIds());
         payload.put("craftCount", progression.getCraftCount());
@@ -128,6 +129,7 @@ public class PlayerProgressionStore {
         progression.setRewardedMatchIds(readStringList(snapshot.get("rewardedMatchIds")));
         progression.setPurchasedDeckIds(readStringList(snapshot.get("purchasedDeckIds")));
         progression.setPurchasedDailyOfferIds(readStringList(snapshot.get("purchasedDailyOfferIds")));
+        progression.setClaimedTournamentIds(readStringList(snapshot.get("claimedTournamentIds")));
         progression.setPurchasedTitleIds(readStringList(snapshot.get("purchasedTitleIds")));
         Long craftCount = snapshot.getLong("craftCount");
         progression.setCraftCount(craftCount == null ? 0 : craftCount.intValue());

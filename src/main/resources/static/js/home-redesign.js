@@ -292,12 +292,12 @@
     // Sign-in used to leave the new design entirely: /login forwarded to the old
     // hub, so tapping Sign In dropped the player onto the page this redesign
     // replaced. It is a screen here now.
-    '/login': 'auth', '/lobbies': 'social', '/gallery': 'art'
+    '/login': 'auth', '/lobbies': 'lobbies', '/gallery': 'art'
   };
   var SCREEN_PATH = {
     home: '/home', collection: '/cards', decks: '/decks', builder: '/deck-builder',
     shop: '/shop', profile: '/profile', social: '/social', settings: '/settings',
-    help: '/help', play: '/home', auth: '/login', art: '/gallery'
+    help: '/help', play: '/home', auth: '/login', art: '/gallery', lobbies: '/lobbies'
   };
   function screenForPath(pathname) {
     var clean = String(pathname || '/home').replace(/\/+$/, '') || '/home';
@@ -325,11 +325,19 @@
     'Featured Packs': 'shop', 'Open Packs': 'shop', 'Siegelcoins': 'shop'
   };
   var HREF = { battle: '/battle', siege: '/siege', keep: '/keep',
-               lobbies: '/social', login: '/login', help: '/help' };
+               lobbies: '/lobbies', login: '/login', help: '/help' };
+
+  // Every "Lobbies" control opens the Lobbies screen (open tables plus the
+  // day's tournament). They used to point at /social, which lands on the
+  // player's own profile.
+  function lobbiesAttrs() {
+    return ' href="' + HREF.lobbies + '" data-screen="lobbies"';
+  }
 
   // Returns the anchor attributes for a label: an in-app screen swap where this
   // design owns the destination, a real navigation where it does not.
   function linkAttrs(label) {
+    if (label === 'Social Lobbies' || label === 'Lobbies & Tournaments') return lobbiesAttrs();
     if (INTERNAL[label]) return ' href="' + pathForScreen(INTERNAL[label]) + '" data-screen="' + INTERNAL[label] + '"';
     var ext = EXTERNAL[label];
     if (!ext) return '';
@@ -368,7 +376,7 @@
       // modes are Battle and Siege.
       { id: 'play', ico: '⚔', label: 'Play', screen: 'play', items: [
           ['Battle', ''], ['Siege', runs ? 'Saved' : ''],
-          ['Social Lobbies', n(rooms) ? n(rooms) + ' open' : ''], ['Keep', '']] },
+          ['Lobbies & Tournaments', n(rooms) ? n(rooms) + ' open' : ''], ['Keep', '']] },
       { id: 'collection', ico: '◈', label: 'Collection', screen: 'collection', items: [
           ['Cards', n(live.ownedTotal != null ? live.ownedTotal : (ALL_CARDS.length || null))],
           ['Decks', n(saved)], ['Deck Builder', '']] },
@@ -1175,7 +1183,7 @@
           tile('expedition', 'Expedition', 'data-stage-panel="Continue Playing"', runs.length ? '!' : '') +
           link('featured', 'Featured', pathForScreen('collection'), ' data-screen="collection"') +
           link('gallery', 'Gallery', pathForScreen('art'), ' data-screen="art"') +
-          link('lobbies', 'Lobbies', HREF.lobbies) +
+          link('lobbies', 'Lobbies', HREF.lobbies, lobbiesAttrs().replace(' href="' + HREF.lobbies + '"', '')) +
         '</nav>' +
         '<div class="sg-stage-right">' +
           '<a class="sg-stage-mode" href="' + HREF.siege + '">' +
@@ -2363,8 +2371,8 @@
           // rather than showing the "11 open" the concept shipped with.
           var open = opts.lobbies != null ? opts.lobbies : (opts.live && opts.live.lobbies);
           var label = open == null ? 'Browse' : (open + ' open');
-          return '<a class="sg-lobbies" href="' + HREF.lobbies + '">' +
-            '<span class="sg-lobbies-dot"></span>Social Lobbies<em>' +
+          return '<a class="sg-lobbies"' + lobbiesAttrs() + '>' +
+            '<span class="sg-lobbies-dot"></span>Lobbies &amp; Tournaments<em>' +
             esc(label) + '</em><span class="go">›</span></a>';
         })() +
         (guest ? guestBand() : '') +
@@ -5859,6 +5867,257 @@
     return n;
   }
 
+  /* ---------- Lobbies ----------
+     Its own screen: the day's rotating tournament (rule, countdown, prizes,
+     live standings) and every open table, with Host and Join. Hosting and
+     joining hand off to the Battle loadout (/battle?online=...), which already
+     owns deck and SiegeKnight choice and the waiting-room handoff; a tournament
+     table carries its id so the loadout applies the rule and the server
+     enforces it. The tournament feed is fetched when the screen mounts, so the
+     hub's boot payload does not grow. */
+  var LOBBY_POLL_MS = 15000;
+  var lobbyPoll = null;
+  var lobbyTick = null;
+
+  function battleHref(params) {
+    var q = [];
+    for (var k in params) if (params[k]) q.push(k + '=' + encodeURIComponent(params[k]));
+    return '/battle' + (q.length ? '?' + q.join('&') : '');
+  }
+
+  function countdown(endsAt) {
+    var ms = Date.parse(endsAt) - Date.now();
+    if (!(ms > 0)) return 'Ending now';
+    var h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+    return h > 0 ? h + 'h ' + (m < 10 ? '0' : '') + m + 'm left' : m + 'm left';
+  }
+
+  var MEDAL = ['🥇', '🥈', '🥉'];
+
+  function lobbyTable(room, i, opts) {
+    var lead = CARDS[i % Math.max(1, CARDS.length)] || CARDS[0];
+    var code = room.roomId || room.id || '';
+    var host = room.hostName || room.playerName || 'Open table';
+    var me = opts && opts.live && opts.live.accountId;
+    var mine = me && room.hostUserId === me;
+    var tour = room.tournamentId ? room.tournamentName || 'Tournament' : '';
+    var full = room.status === 'Started' || Number(room.playerCount) >= 2;
+    var href = mine ? '/social/lobby/' + encodeURIComponent(code)
+      : battleHref({ online: 'join', join: code, tournament: room.tournamentId || '' });
+    return '<article class="sg-lt' + (tour ? ' is-tour' : '') + (full ? ' is-full' : '') + '" style="--el:' + color(lead && lead.element) + '">' +
+      '<div class="sg-lt-bg" style="background-image:url(\'' + land(lead && lead.element) + '\')"></div>' +
+      (lead ? '<div class="sg-lt-art"><img ' + artAttrs(lead.cardArtUrl) + ' alt="" loading="lazy"></div>' : '') +
+      '<div class="sg-lt-veil"></div>' +
+      '<div class="sg-lt-body">' +
+        '<span class="sg-lt-tag">' + esc(tour || 'Open 1v1') + '</span>' +
+        '<strong>' + esc(host) + '</strong>' +
+        '<em>' + esc(code) + (full ? ' · In progress' : ' · Waiting') + '</em>' +
+      '</div>' +
+      (full ? '<span class="sg-lt-go is-off">Full</span>'
+            : '<a class="sg-lt-go" href="' + href + '">' + (mine ? 'Open' : 'Join') + ' ›</a>') +
+    '</article>';
+  }
+
+  function lobbiesScreen(opts) {
+    opts = opts || {};
+    var rooms = (opts.live && opts.live.rooms) || [];
+    return topMarkup(opts) +
+      '<div class="sg-scroll" data-lobbies>' +
+        '<section class="sg-lobbies-tour" data-tour>' +
+          '<div class="sg-tour-loading">Loading today’s tournament…</div>' +
+        '</section>' +
+        '<div class="sg-lobbies-claims" data-tour-claims hidden></div>' +
+        '<section class="sg-section sg-tour-board" data-tour-board hidden></section>' +
+        '<section class="sg-section sg-lobbies-tables" data-tables>' +
+          '<div class="sg-section-head"><h3>Open tables</h3><span class="sg-count" data-table-count>' + esc(rooms.length) + '</span></div>' +
+          '<div class="sg-lobbies-actions">' +
+            '<a class="sg-lobby-host" href="' + battleHref({ online: 'host' }) + '">+ Host open table</a>' +
+            '<form class="sg-lobby-code" data-join-code>' +
+              '<input name="code" maxlength="6" placeholder="Room code" autocomplete="off" autocapitalize="characters" spellcheck="false">' +
+              '<button type="submit">Join</button>' +
+            '</form>' +
+          '</div>' +
+          '<div class="sg-lobbies-grid" data-table-list>' +
+            (rooms.length ? rooms.map(function (r, i) { return lobbyTable(r, i, opts); }).join('') : emptyLobbies()) +
+          '</div>' +
+        '</section>' +
+        '<section class="sg-section sg-tour-next" data-tour-next hidden></section>' +
+        '<div style="height:96px"></div>' +
+      '</div>' +
+      bottomMarkup('play', opts);
+  }
+
+  function tourHero(t, data, opts) {
+    var guest = !data.signedIn;
+    var prizes = (t.prizes || []).map(function (p, i) {
+      return '<span class="sg-tour-prize"><i>' + MEDAL[i] + '</i>' + esc(p) + '</span>';
+    }).join('');
+    var me = t.me;
+    return '<div class="sg-tour-bg" style="background-image:url(\'' + land(t.element) + '\')"></div>' +
+      '<div class="sg-tour-veil"></div>' +
+      '<div class="sg-tour-body">' +
+        '<span class="sg-tour-kicker">Today’s Tournament · <b data-tour-clock>' + esc(countdown(t.endsAt)) + '</b></span>' +
+        '<h2>' + esc(t.name) + '</h2>' +
+        '<p>' + esc(t.tagline) + '</p>' +
+        '<div class="sg-tour-rule">' + esc(t.rule) + '</div>' +
+        '<div class="sg-tour-prizes">' + prizes + '<em>Siegecoins to the top 3</em></div>' +
+        '<div class="sg-tour-cta">' +
+          (guest
+            ? '<a class="sg-tour-host" href="/login" data-screen="auth">Sign in to compete</a>'
+            : '<a class="sg-tour-host" href="' + battleHref({ online: 'host', tournament: t.id }) + '">Host tournament table</a>') +
+          (me ? '<span class="sg-tour-me">You’re #' + esc(me.place) + ' · ' + esc(me.points) + ' pts</span>'
+              : (guest ? '' : '<span class="sg-tour-me">Win a table to get on the board</span>')) +
+        '</div>' +
+      '</div>';
+  }
+
+  function tourBoard(t) {
+    var rows = t.standings || [];
+    var me = t.me;
+    var body;
+    if (t.standingsAvailable === false) {
+      body = '<div class="sg-empty-row">Standings are warming up. Check back in a moment.</div>';
+    } else if (!rows.length) {
+      body = '<div class="sg-empty-row">No results yet today. The first win takes the top spot.</div>';
+    } else {
+      body = '<ol class="sg-tour-rows">' + rows.map(function (r) {
+        var isMe = me && me.userId === r.userId;
+        return '<li class="sg-tour-row' + (r.place <= 3 ? ' is-podium p' + r.place : '') + (isMe ? ' is-me' : '') + '">' +
+          '<span class="sg-tour-place">' + (r.place <= 3 ? MEDAL[r.place - 1] : esc(r.place)) + '</span>' +
+          '<span class="sg-tour-name">' + esc(r.displayName) + '<em>' + esc(r.wins) + 'W · ' + esc(r.losses) + 'L</em></span>' +
+          '<b>' + esc(r.points) + '</b>' +
+        '</li>';
+      }).join('') + '</ol>' +
+      (me && me.place > rows.length
+        ? '<div class="sg-tour-row is-me is-below"><span class="sg-tour-place">' + esc(me.place) + '</span>' +
+            '<span class="sg-tour-name">You<em>' + esc(me.wins) + 'W · ' + esc(me.losses) + 'L</em></span><b>' + esc(me.points) + '</b></div>'
+        : '');
+    }
+    return '<div class="sg-section-head"><h3>Standings</h3><span class="sg-section-note">' +
+      esc(t.entrants || 0) + ' playing · win 3 · loss 1</span></div>' + body;
+  }
+
+  function tourNext(list) {
+    return '<div class="sg-section-head"><h3>Coming up</h3></div>' +
+      '<div class="sg-tour-next-list">' + (list || []).map(function (t, i) {
+        return '<div class="sg-tour-card" style="--el:' + color(t.element) + '">' +
+          '<div class="sg-tour-card-bg" style="background-image:url(\'' + land(t.element) + '\')"></div>' +
+          '<span>' + (i === 0 ? 'Tomorrow' : esc(new Date(t.startsAt).toLocaleDateString(undefined, { weekday: 'long' }))) + '</span>' +
+          '<strong>' + esc(t.name) + '</strong><em>' + esc(t.rule) + '</em>' +
+        '</div>';
+      }).join('') + '</div>';
+  }
+
+  function tourClaims(list) {
+    return (list || []).map(function (c) {
+      return '<div class="sg-tour-claim">' +
+        '<span class="sg-tour-claim-medal">' + (MEDAL[c.place - 1] || '') + '</span>' +
+        '<span class="sg-tour-claim-copy"><strong>You placed #' + esc(c.place) + ' in ' + esc(c.name) + '</strong>' +
+          '<em>' + esc(c.day) + '</em></span>' +
+        '<button type="button" class="sg-tour-claim-btn" data-tour-claim="' + esc(c.tournamentId) + '">Claim ' + esc(c.prize) + '</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  function stopLobbyTimers() {
+    if (lobbyPoll) { clearInterval(lobbyPoll); lobbyPoll = null; }
+    if (lobbyTick) { clearInterval(lobbyTick); lobbyTick = null; }
+  }
+
+  function mountLobbies(app, opts) {
+    var root = app.querySelector('[data-lobbies]');
+    if (!root) return;
+    var api = liveApi();
+    var tour = null;
+
+    function paintTour(data) {
+      var t = data && data.current;
+      var hero = root.querySelector('[data-tour]');
+      if (!t) {
+        hero.innerHTML = '<div class="sg-tour-loading">Tournaments are unavailable right now.</div>';
+        return;
+      }
+      tour = t;
+      hero.style.setProperty('--el', color(t.element));
+      hero.innerHTML = tourHero(t, data, opts);
+      var board = root.querySelector('[data-tour-board]');
+      board.innerHTML = tourBoard(t);
+      board.hidden = false;
+      var next = root.querySelector('[data-tour-next]');
+      next.innerHTML = tourNext(data.upcoming);
+      next.hidden = !(data.upcoming && data.upcoming.length);
+      var claims = root.querySelector('[data-tour-claims]');
+      claims.innerHTML = tourClaims(data.claimable);
+      claims.hidden = !(data.claimable && data.claimable.length);
+    }
+
+    function paintTables(rooms) {
+      var list = root.querySelector('[data-table-list]');
+      if (!list) return;
+      list.innerHTML = rooms.length ? rooms.map(function (r, i) { return lobbyTable(r, i, opts); }).join('') : emptyLobbies();
+      var count = root.querySelector('[data-table-count]');
+      if (count) count.textContent = String(rooms.length);
+    }
+
+    function loadTour() {
+      if (!api) return;
+      api.get('/api/tournaments').then(paintTour).catch(function () { paintTour(null); });
+    }
+
+    function loadTables() {
+      if (!api) return;
+      api.get('/api/match/rooms').then(function (res) {
+        var rooms = (res && res.rooms) || [];
+        if (opts.live) { opts.live.rooms = rooms; opts.live.lobbies = rooms.length; }
+        paintTables(rooms);
+      }).catch(function () { /* keep what is shown */ });
+    }
+
+    root.addEventListener('submit', function (e) {
+      var form = e.target.closest && e.target.closest('[data-join-code]');
+      if (!form) return;
+      e.preventDefault();
+      var code = String(form.code.value || '').trim().toUpperCase();
+      if (!code) return;
+      var room = ((opts.live && opts.live.rooms) || []).filter(function (r) { return (r.roomId || r.id) === code; })[0];
+      window.location.href = battleHref({ online: 'join', join: code, tournament: room && room.tournamentId || '' });
+    });
+
+    root.addEventListener('click', function (e) {
+      var btn = e.target.closest && e.target.closest('[data-tour-claim]');
+      if (!btn || !api) return;
+      btn.disabled = true;
+      api.post('/api/tournaments/claim', { tournamentId: btn.getAttribute('data-tour-claim') }).then(function (res) {
+        if (!res || res.error) {
+          btn.disabled = false;
+          btn.textContent = (res && res.error) || 'Try again';
+          return;
+        }
+        btn.textContent = res.alreadyClaimed ? 'Claimed' : '+' + res.awarded + ' claimed';
+        btn.classList.add('is-done');
+        if (opts.live && res.awarded) {
+          opts.live.gold = (Number(opts.live.gold) || 0) + res.awarded;
+          var chip = app.querySelector('.sg-chip.coin');
+          if (chip) chip.lastChild.textContent = formatCoins(opts);
+        }
+      });
+    });
+
+    stopLobbyTimers();
+    loadTour();
+    lobbyPoll = setInterval(function () {
+      if (!root.isConnected) { stopLobbyTimers(); return; }
+      loadTables();
+    }, LOBBY_POLL_MS);
+    lobbyTick = setInterval(function () {
+      if (!root.isConnected) { stopLobbyTimers(); return; }
+      var clock = root.querySelector('[data-tour-clock]');
+      if (clock && tour) clock.textContent = countdown(tour.endsAt);
+      // The day rolled over: fetch the new tournament.
+      if (tour && Date.parse(tour.endsAt) <= Date.now()) { tour = null; loadTour(); }
+    }, 30000);
+  }
+
   /* The Profile / Friends / Messages switch used to be a row of three pills
      across the top of the screen, which pushed the profile's artwork down and
      read as part of the profile. It is a floating button now: the profile gets
@@ -7025,7 +7284,7 @@
     var builders = { collection: galleryScreen, decks: decksScreen, shop: shopScreen,
                      profile: profileScreen, play: playScreen, builder: builderScreen,
                      social: socialScreen, settings: settingsScreen, help: helpScreen,
-                     auth: authScreen, art: artScreen };
+                     auth: authScreen, art: artScreen, lobbies: lobbiesScreen };
     // Screen-scoped layout hooks: the landscape-phone layout in
     // home-redesign.css lays each screen out differently, and the Social
     // screen's three tabs share one shell. Not data-social-tab: that attribute
@@ -7041,6 +7300,7 @@
     if (screen === 'decks') mountDecks(app, opts);
     if (screen === 'builder') mountBuilder(app, opts);
     if (screen === 'art') mountArt(app);
+    if (screen === 'lobbies') mountLobbies(app, opts); else stopLobbyTimers();
     if (screen === 'profile') { mountSheet(app, opts); mountProfile(app, opts); }
     if (screen === 'social') { mountSheet(app, opts); mountProfile(app, opts); mountSocial(app, opts); }
     if (screen !== 'social') { openThread = null; stopThreadPoll(); }

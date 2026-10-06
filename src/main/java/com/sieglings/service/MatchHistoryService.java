@@ -78,6 +78,9 @@ public class MatchHistoryService {
         history.setFinishedAt(Instant.now());
         history.setResult(resolveResult(state, player.getName()));
         history.setMatchType(state.isEnemyHumanControlled() ? "ONLINE" : "SOLO");
+        if (state.isEnemyHumanControlled()) {
+            history.setTournamentId(state.getTournamentId());
+        }
         history.setOpponentName(opponent.getName());
         history.setLoadoutLabel(player.getLoadoutLabel() == null || player.getLoadoutLabel().isBlank()
                 ? "Custom Loadout"

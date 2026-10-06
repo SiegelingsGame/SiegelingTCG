@@ -3,6 +3,45 @@ Original prompt: Merge and deploy
   - **Change.** On the phone, #1012 alone made things worse. The band stayed, and the dock was cut in half at its top edge. The Keep still had `html, body { height:100% }`, which in the installed app is the short layout viewport, so the page was clipped there. A taller `position:fixed` shell only pushed the dock into the clipped region. `keep.css` now matches the hub (`home-next.html`) and Arena (`style.css` body). `html`/`body` are `max(100dvh, var(--sg-vh, 0px))` tall, and `.keep-app` is `position:absolute` at that height, like `.sg-app`, instead of fixed. Rotation scroll drift, the original reason it was fixed, is already undone by `keep.js` `resetViewportScroll` and `viewport-unit.js`'s scroll pin. `keep.css` -> `?v=59`.
 - Verification:
   - Headless Chromium with `screen` set and `navigator.standalone` stubbed, `keep.html`. At 390x844 and 1920x1080, body, shell and dock bottoms are all 844 and 1080. With a standalone viewport 54px short (390x790 on a 390x844 screen), `--sg-vh` is 844, body is 844, and the shell and dock bottoms are 844. `scrollY` is 0 throughout. Chromium cannot reproduce the iOS clip itself, so the phone remains the final check.
+- October 6, 2026 **Lobbies & Tournaments: its own screen, with rotating daily tournaments.**
+  - **Server.**
+    - The new `TournamentService` runs a 7-rule rotation keyed by UTC day (`<ruleId>@<yyyy-MM-dd>`, a pure function of the date, no scheduler and no stored tournament docs). The rules are Open Arena, Ember & Frost Cup (Fire/Ice), Preset Clash (no custom decks), Gale & Stone Open (Wind/Earth), Purebred Masters (single element), Tide & Storm Trials (Water/Electric) and Founders' Four (Fire/Earth/Wind/Ice). Each can be entered with a free preset.
+    - Tables are ordinary 1v1 rooms. `/api/match/create` accepts `tournamentId`: only today's tournament, signed in only, and the host loadout is checked against the rule via the new `GameService.profileLoadout`. Join and ready re-check the guest's or swapped loadout against the room's rule.
+    - The room passes `tournamentId` into `GameState`, and `MatchHistoryService` stamps it on both ONLINE history rows. `MatchHistoryStore` saves and reads it and adds `findByTournamentId`.
+    - Standings are ranked from match history: 3 points per win and 1 per loss or draw, then wins, then earliest. They are cached for 60s. Matches finishing after the day closes (a late rematch) are excluded, so final places and prizes can't move.
+    - Prizes are 500/300/150 Siegecoins for the top 3, claimed after the day ends through `POST /api/tournaments/claim`. `PlayerProgressionService.claimTournamentPrize` records the id in the new `claimedTournamentIds` field, so a prize pays once.
+    - `GET /api/tournaments` returns today's tournament with its top 10, the player's own place, the next 3 days and claimable prizes from the last 7 days. `/api/match/rooms` rows now carry `tournamentId` and `tournamentName`.
+  - **Hub (`home-redesign.js`).** `/lobbies` is now its own `lobbies` screen instead of Social > Friends.
+    - A tournament hero has land art in the rule's element, a live countdown, the rule chip, prize chips and "Host tournament table" ("Sign in to compete" for guests), plus your place.
+    - Prize claim cards update the coin chip.
+    - The standings show podium medals and highlight you.
+    - The open tables are art tiles with an Open 1v1 or tournament tag. They link to Join, to Open for your own table (`/social/lobby/CODE`), or show Full. There is also "+ Host open table" and Join by code.
+    - "Coming up" previews the next three days.
+    - Tables re-poll every 15s and the clock ticks.
+    - Every Lobbies entry point opens this screen: the Play banner and tray (renamed "Lobbies & Tournaments"), the Home stage tile, the Battle page and the landing page.
+    - Portrait and desktop scroll as a page; landscape phones get a side-scrolling rail.
+  - **Battle loadout (`game.js`).** `/battle?online=host|join[&join=CODE][&tournament=ID]` opens the loadout in that online mode on the Deck step. A tournament intent fetches the rule, retitles the loadout, dims decks that break it ("Not allowed today", which won't select), and sends `tournamentId` on create. It uses `?join=` because `?room=` is still redirected to the legacy lobby.
+  - **CSS fix.** The landscape Home stage block in `home-redesign.css` (#1016) never closed its `@media` brace, a casualty of that day's merge-conflict resolution. Every rule after it, including #1015's and #1022's landscape layouts, was nested inside `(max-height:500px)`, and the new Lobbies base styles vanished in portrait. It is closed now, and the file's braces balance. (`style.css` has one pre-existing stray `}` from before this work, which browsers ignore.)
+  - Bumped `home-redesign.css` to v78 and `.js` to v71, `game.js` to v311 (play, home-next, home and card-dashboard), and `play-next.css` to v13.
+- Verification:
+  - The new `TournamentServiceTest` (8 tests) covers:
+    - the 7-day rotation;
+    - id round-trip and rejection of a forged id;
+    - only today accepting tables;
+    - each rule's deck check;
+    - every rule having a free preset that fits;
+    - standings order (with SOLO ignored);
+    - post-close matches excluded;
+    - no claim before the day ends.
+  - `PlayerProgressionServiceTest.tournamentPrizePaysOncePerTournament` covers the once-only payment. The full `./mvnw test` passes.
+  - Headless Chromium against the static pages with mocked APIs:
+    - `/lobbies` renders the hero, a 9h-51m countdown, 5 standings rows, 4 tables (one tagged tournament) and 3 upcoming days.
+    - Join links carry the room's tournament id, your own table links to its waiting room, and a full table shows Full.
+    - Claim POSTs and the coin chip goes 3,400 → 3,700. Join by code "tour01" navigates to `/battle?online=join&join=TOUR01&tournament=…`.
+    - Landscape (1000x460, 844x390, 667x375) has no vertical scroll and scrolls sideways; portrait and desktop scroll as a styled page. The Play banner lands on `/lobbies`.
+    - `/battle?online=host&tournament=…` opens on Deck in host mode titled "Ember & Frost Cup". Stone Garden and Gale Talons are dimmed and clicking one doesn't select it, and create sends `tournamentId`. A join intent fills the code.
+    - Every other hub screen's scroll height matches the previous run at 1000x460, 667x375, 390x844 and 1920x1080.
+    - No errors on any page.
 - October 6, 2026 **Landscape hub: Collection, Shop and Profile go back to their pages; Friends becomes an art-led rail.**
   - **Change.** On review, the side-scrolling rail was taken off Collection, where the filter column cost too much width, and off Shop and Profile. All three are back to their original scrolling pages. The rail now covers only My Decks, the Deck Builder and Social > Friends.
   - **Scoping fix.** The shared rail rules used a bare `.sg-app[data-screen]` selector, so they also reached Messages, Settings and Help. They are now scoped to the three rail screens.

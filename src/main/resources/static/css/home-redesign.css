@@ -4430,6 +4430,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     .sg-app a.sg-stage-play::after { animation:none; }
     .sg-stage-music-toggle.is-playing .sg-stage-eq i { animation:none; height:9px; }
   }
+}
+
 /* ==========================================================================
    LANDSCAPE PHONE (short and wide, below the desktop layer)
    A phone on its side is ~900px wide and ~400px tall, but it got the portrait
@@ -4959,4 +4961,145 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-mini-btn {
     height: 22px;
   }
+}
+
+/* ---------- Lobbies & Tournaments screen ----------
+   Portrait/desktop: a scrolling page led by the day's tournament hero, then
+   prize claims, standings, open tables and the days coming up. On a landscape
+   phone the same blocks become one side-scrolling rail (bottom of this block). */
+.sg-app[data-screen="lobbies"] .sg-scroll { padding-top:calc(58px + var(--sg-sat)); }
+
+.sg-lobbies-tour {
+  position:relative; margin:4px 18px 16px; min-height:250px; border-radius:24px; overflow:hidden;
+  border:1px solid color-mix(in srgb, var(--el, var(--gold)) 55%, transparent);
+  box-shadow:0 20px 44px rgba(0,0,0,.5), 0 0 40px color-mix(in srgb, var(--el, var(--gold)) 22%, transparent);
+  background:#1a1150;
+}
+.sg-tour-loading { padding:40px 22px; color:var(--muted); font-size:13px; }
+.sg-tour-bg { position:absolute; inset:0; background-size:cover; background-position:center; filter:saturate(1.3) brightness(.85);
+  animation:sgTourDrift 22s ease-in-out infinite alternate; }
+@keyframes sgTourDrift { from { transform:scale(1.04); } to { transform:scale(1.12) translateX(-2%); } }
+.sg-tour-veil { position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 70% 80% at 100% 0%, color-mix(in srgb, var(--el, var(--gold)) 38%, transparent), transparent 70%),
+    linear-gradient(100deg, rgba(13,10,38,.94) 0%, rgba(13,10,38,.72) 52%, rgba(13,10,38,.25) 100%); }
+.sg-tour-body { position:relative; padding:20px 20px 18px; display:flex; flex-direction:column; gap:6px; max-width:560px; }
+.sg-tour-kicker { font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:var(--gold-bright); }
+.sg-tour-kicker b { color:#fff; font-weight:700; letter-spacing:.12em; }
+.sg-tour-body h2 { margin:2px 0 0; font-family:var(--serif); font-size:30px; line-height:1.05; color:#fff;
+  text-shadow:0 4px 18px rgba(0,0,0,.6); }
+.sg-tour-body p { margin:0; font-size:13px; color:#d8d2f0; }
+.sg-tour-rule { align-self:flex-start; margin-top:4px; padding:5px 12px; border-radius:999px; font-size:11.5px; font-weight:700;
+  color:#fff; background:color-mix(in srgb, var(--el, var(--gold)) 38%, rgba(13,10,38,.6));
+  border:1px solid color-mix(in srgb, var(--el, var(--gold)) 70%, transparent); }
+.sg-tour-prizes { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:6px; }
+.sg-tour-prize { display:inline-flex; align-items:center; gap:5px; padding:4px 10px 4px 6px; border-radius:999px;
+  background:rgba(13,10,38,.62); border:1px solid rgba(255,216,61,.35); color:var(--gold-bright); font-weight:800; font-size:13px; }
+.sg-tour-prize i { font-style:normal; font-size:16px; }
+.sg-tour-prizes em { font-style:normal; font-size:10.5px; color:var(--muted); }
+.sg-tour-cta { display:flex; align-items:center; flex-wrap:wrap; gap:10px 14px; margin-top:12px; }
+.sg-app a.sg-tour-host { display:inline-flex; align-items:center; height:44px; padding:0 22px; border-radius:999px; text-decoration:none;
+  font-weight:800; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#2b0d02;
+  background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
+  box-shadow:0 10px 26px rgba(255,120,45,.45), 0 0 0 1px rgba(255,236,190,.7) inset; }
+.sg-tour-me { font-size:12px; font-weight:700; color:#fff; text-shadow:0 1px 3px #000; }
+
+.sg-lobbies-claims { display:flex; flex-direction:column; gap:8px; margin:0 18px 16px; }
+.sg-lobbies-claims[hidden] { display:none; }
+.sg-tour-claim { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:16px;
+  background:linear-gradient(100deg, rgba(255,216,61,.18), rgba(13,10,38,.7)); border:1px solid rgba(255,216,61,.45);
+  animation:sgFriendRise .45s ease both; }
+.sg-tour-claim-medal { font-size:26px; }
+.sg-tour-claim-copy { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
+.sg-tour-claim-copy strong { font-size:13px; }
+.sg-tour-claim-copy em { font-style:normal; font-size:11px; color:var(--muted); }
+.sg-tour-claim-btn { flex:0 0 auto; height:36px; padding:0 16px; border:none; border-radius:999px; cursor:pointer;
+  font-weight:800; font-size:12px; color:#2b0d02; background:linear-gradient(135deg, #ffe066, var(--amber)); }
+.sg-tour-claim-btn.is-done { background:rgba(79,208,122,.25); color:var(--acc-emerald); }
+
+.sg-tour-board[hidden], .sg-tour-next[hidden] { display:none; }
+.sg-tour-rows { list-style:none; margin:0 18px; padding:0; display:flex; flex-direction:column; gap:6px; }
+.sg-tour-row { display:flex; align-items:center; gap:12px; padding:9px 14px; border-radius:14px;
+  background:rgba(36,26,96,.45); border:1px solid var(--steel-soft); }
+.sg-tour-row.is-podium { border-color:color-mix(in srgb, var(--pod,#ffd83d) 55%, transparent);
+  background:linear-gradient(100deg, color-mix(in srgb, var(--pod,#ffd83d) 16%, rgba(13,10,38,.7)), rgba(13,10,38,.6)); }
+.sg-tour-row.p1 { --pod:#ffd83d; } .sg-tour-row.p2 { --pod:#d6dbe8; } .sg-tour-row.p3 { --pod:#e08a4a; }
+.sg-tour-row.is-me { box-shadow:0 0 0 2px var(--acc-sky) inset; }
+.sg-tour-row.is-below { margin:8px 18px 0; }
+.sg-tour-place { width:28px; text-align:center; font-size:16px; font-weight:800; color:var(--muted); }
+.sg-tour-name { flex:1 1 auto; min-width:0; font-weight:700; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-tour-name em { display:block; font-style:normal; font-weight:400; font-size:11px; color:var(--muted); }
+.sg-tour-row b { font-family:var(--serif); font-size:18px; color:var(--gold-bright); }
+
+.sg-lobbies-actions { display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 12px; }
+.sg-app a.sg-lobby-host { display:inline-flex; align-items:center; height:42px; padding:0 18px; border-radius:999px; text-decoration:none;
+  font-weight:800; font-size:12px; letter-spacing:.08em; color:#fff; background:linear-gradient(135deg, #7c5cff, #4f8bff);
+  box-shadow:0 8px 22px rgba(124,92,255,.4); }
+.sg-lobby-code { display:flex; gap:6px; flex:1 1 200px; min-width:0; }
+.sg-lobby-code input { flex:1 1 auto; min-width:0; height:42px; padding:0 14px; border-radius:999px; border:1px solid var(--steel-soft);
+  background:rgba(10,16,28,.88); color:var(--ink); font:inherit; font-size:14px; letter-spacing:.18em; text-transform:uppercase; }
+.sg-lobby-code button { flex:0 0 auto; height:42px; padding:0 18px; border-radius:999px; border:1px solid rgba(180,140,255,.5);
+  background:rgba(124,92,255,.22); color:#fff; font-weight:800; cursor:pointer; }
+
+.sg-lobbies-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:12px; padding:0 18px; }
+.sg-lobbies-grid > .sg-empty-plate { grid-column:1 / -1; margin:0; }
+.sg-lt { position:relative; height:220px; border-radius:20px; overflow:hidden; background:#1a1150;
+  border:1px solid color-mix(in srgb, var(--el) 50%, transparent); box-shadow:0 12px 28px rgba(0,0,0,.45);
+  animation:sgFriendRise .45s cubic-bezier(.2,.8,.25,1) both; }
+.sg-lt.is-tour { border-color:rgba(255,216,61,.65); box-shadow:0 12px 28px rgba(0,0,0,.45), 0 0 24px rgba(255,216,61,.22); }
+.sg-lt.is-full { filter:saturate(.55); }
+.sg-lt-bg { position:absolute; inset:0; background-size:cover; background-position:center; filter:saturate(1.3) brightness(.8); }
+.sg-lt-art { position:absolute; left:50%; top:8px; width:80%; height:58%; transform:translateX(-50%); }
+.sg-lt-art img { width:100%; height:100%; object-fit:contain; object-position:center bottom; filter:drop-shadow(0 8px 14px rgba(0,0,0,.7)); }
+.sg-lt-veil { position:absolute; inset:0; background:linear-gradient(180deg, rgba(13,10,38,0) 30%, rgba(13,10,38,.94) 100%); }
+.sg-lt-body { position:absolute; left:12px; right:12px; bottom:52px; display:flex; flex-direction:column; gap:2px; }
+.sg-lt-tag { align-self:flex-start; padding:2px 8px; border-radius:999px; font-size:9.5px; font-weight:800; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--acc-emerald); background:rgba(13,10,38,.7); border:1px solid rgba(79,208,122,.45); }
+.sg-lt.is-tour .sg-lt-tag { color:var(--gold-bright); border-color:rgba(255,216,61,.5); }
+.sg-lt-body strong { font-family:var(--serif); font-size:17px; color:#fff; }
+.sg-lt-body em { font-style:normal; font-size:10.5px; color:var(--muted); letter-spacing:.06em; }
+.sg-app a.sg-lt-go, .sg-lt-go { position:absolute; left:12px; right:12px; bottom:12px; height:32px; border-radius:999px;
+  display:flex; align-items:center; justify-content:center; text-decoration:none; font-weight:800; font-size:11px;
+  letter-spacing:.14em; text-transform:uppercase; color:#2b0d02; background:linear-gradient(135deg, #ffe066, var(--amber)); }
+.sg-lt-go.is-off { background:rgba(255,255,255,.1); color:var(--muted); }
+
+.sg-tour-next-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:10px; padding:0 18px; }
+.sg-tour-card { position:relative; overflow:hidden; padding:12px 14px; border-radius:16px; min-height:96px;
+  border:1px solid color-mix(in srgb, var(--el) 45%, transparent); display:flex; flex-direction:column; justify-content:flex-end; gap:2px; }
+.sg-tour-card-bg { position:absolute; inset:0; background-size:cover; background-position:center; filter:saturate(1.1) brightness(.5); z-index:0; }
+.sg-tour-card > :not(.sg-tour-card-bg) { position:relative; }
+.sg-tour-card span { font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--gold-bright); }
+.sg-tour-card strong { font-family:var(--serif); font-size:16px; color:#fff; }
+.sg-tour-card em { font-style:normal; font-size:11px; color:#d8d2f0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-tour-bg { animation:none; }
+  .sg-lt, .sg-tour-claim { animation:none; }
+}
+
+/* Landscape phone: the same blocks as one side-scrolling rail. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .sg-app[data-screen="lobbies"] > .sg-scroll {
+    display:grid; grid-auto-flow:column; grid-template-rows:auto minmax(0, 1fr); grid-auto-columns:max-content;
+    column-gap:16px; row-gap:10px; overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain;
+    padding:var(--lh-top) var(--lh-right) var(--lh-bottom) var(--lh-left); touch-action:pan-x; scrollbar-width:none;
+  }
+  .sg-app[data-screen="lobbies"] > .sg-scroll > div[style*="height:96px"] { display:none; }
+  .sg-app[data-screen="lobbies"] .sg-lobbies-tour { grid-column:1; grid-row:1 / -1; width:clamp(300px, 40vw, 440px); min-height:0; margin:0; }
+  .sg-app[data-screen="lobbies"] .sg-tour-body { padding:14px 16px; gap:4px; }
+  .sg-app[data-screen="lobbies"] .sg-tour-body h2 { font-size:24px; }
+  .sg-app[data-screen="lobbies"] .sg-lobbies-claims { grid-row:1 / -1; width:260px; margin:0; overflow-y:auto; }
+  .sg-app[data-screen="lobbies"] .sg-section { grid-row:1 / -1; min-height:0; display:flex; flex-direction:column; margin:0; padding:0; }
+  .sg-app[data-screen="lobbies"] .sg-section > .sg-section-head { flex:0 0 auto; padding:0 0 8px; }
+  .sg-app[data-screen="lobbies"] .sg-tour-board { width:clamp(240px, 28vw, 300px); }
+  .sg-app[data-screen="lobbies"] .sg-tour-rows { margin:0; overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y; }
+  .sg-app[data-screen="lobbies"] .sg-tour-row.is-below { margin:6px 0 0; }
+  .sg-app[data-screen="lobbies"] .sg-lobbies-actions { flex-wrap:nowrap; padding:0 0 8px; }
+  .sg-app[data-screen="lobbies"] .sg-lobby-code { flex:0 0 220px; }
+  .sg-app[data-screen="lobbies"] .sg-lobbies-grid { flex:1 1 auto; min-height:0; display:grid; grid-auto-flow:column;
+    grid-template-columns:none; grid-template-rows:minmax(0, 1fr); grid-auto-columns:clamp(150px, 19vw, 180px); padding:0; }
+  .sg-app[data-screen="lobbies"] .sg-lt { height:auto; }
+  .sg-app[data-screen="lobbies"] .sg-lobbies-grid > .sg-empty-plate { width:clamp(260px, 32vw, 340px); height:100%; }
+  .sg-app[data-screen="lobbies"] .sg-tour-next-list { flex:1 1 auto; display:flex; flex-direction:column; padding:0; width:220px; overflow-y:auto; }
+  .sg-app[data-screen="lobbies"] .sg-tour-card { flex:0 0 auto; }
 }

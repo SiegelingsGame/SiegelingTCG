@@ -1110,6 +1110,14 @@ public class GameService {
         return false;
     }
 
+    /** What a loadout brings, for rule checks made before a match exists (tournament tables). */
+    public record LoadoutProfile(List<Element> elements, boolean customDeck) {}
+
+    public LoadoutProfile profileLoadout(StartOptions options) {
+        ResolvedLoadout loadout = resolveLoadout(options, "deck_fire_earth", "trainer05");
+        return new LoadoutProfile(loadout.elements(), loadout.custom());
+    }
+
     private ResolvedLoadout resolveLoadout(StartOptions options, String fallbackDeckId, String fallbackTrainerId) {
         StartOptions safeOptions = options == null
                 ? new StartOptions(fallbackDeckId, fallbackTrainerId, null, null)

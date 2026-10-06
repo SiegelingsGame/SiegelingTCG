@@ -31,11 +31,18 @@ public class MultiplayerService {
     private LobbyPersistenceService lobbyPersistenceService;
 
     public synchronized RoomSession createRoom(String playerName, GameService.StartOptions options, String accountUserId) {
+        return createRoom(playerName, options, accountUserId, null);
+    }
+
+    /** A tournament table is an ordinary room carrying the tournament id; the rule check is the caller's. */
+    public synchronized RoomSession createRoom(String playerName, GameService.StartOptions options, String accountUserId,
+                                               String tournamentId) {
         String roomId = generateRoomId();
         String token = generateToken();
         MultiplayerRoom room = new MultiplayerRoom(roomId, token, safeName(playerName, "Host"), options);
         room.setHostUserId(accountUserId);
-        room.setFormat("PVP");
+        room.setFormat(tournamentId == null ? "PVP" : "TOURNAMENT");
+        room.setTournamentId(tournamentId);
         rooms.put(roomId, room);
         if (lobbyPersistenceService != null) {
             try {
@@ -171,6 +178,7 @@ public class MultiplayerService {
         if (room.getGuestUserId() != null) {
             gameState.getEnemy().setAccountUserId(room.getGuestUserId());
         }
+        gameState.setTournamentId(room.getTournamentId());
         room.setGameState(gameState);
         if (lobbyPersistenceService != null) {
             try {
@@ -431,6 +439,7 @@ public class MultiplayerService {
         if (room.getGuestUserId() != null) {
             gameState.getEnemy().setAccountUserId(room.getGuestUserId());
         }
+        gameState.setTournamentId(room.getTournamentId());
         room.setGameState(gameState);
         room.clearEndGameSession();
         room.touch();
