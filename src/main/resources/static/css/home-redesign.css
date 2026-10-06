@@ -5369,3 +5369,29 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-app[data-screen="room"] .sg-room-go { flex:2 1 0; min-width:0; letter-spacing:.08em; }
   .sg-app[data-screen="room"] .sg-room-ghost { flex:1 1 0; height:42px; white-space:nowrap; }
 }
+
+/* ---------- Landscape card sizing ----------
+   style.css caps .mulligan-card-slot by the viewport HEIGHT in landscape (for
+   the battle table's mulligan row). In the hub that cap shrank Siegeling,
+   Strategy and Deception faces inside their tiles while SiegeKnight cards
+   (different markup) escaped it: binder sleeves stood wider than their cards
+   and a knight in the shop dwarfed the offers beside it. Here the tile decides
+   the size, so every card type fills its tile the same way. */
+/* A full-art SiegeKnight is printed 639:919, a hair taller than the 5:7 of
+   every other card, so a knight stood taller in a row of offers or a binder
+   page. Its art is object-fit:cover (built for 5:7 sources), so it takes the
+   shared card shape here. */
+.sg-card-tile .knight-card.knight-full-card-art:not(.knight-overlay-art) { aspect-ratio:var(--card-aspect-ratio, 5 / 7); }
+@media (orientation: landscape) and (max-width: 979px) {
+  .sg-card-tile .mulligan-card-slot { max-width:none; }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  /* Small landscape phones fall below the desktop binder's 700px breakpoint,
+     where two 1fr columns made each card ~300px wide. Pack card-width columns. */
+  .sg-gal-grid { grid-template-columns:repeat(auto-fill, minmax(128px, 156px)); justify-content:center; gap:22px 16px; }
+  /* Every offer card is one size, and small enough that the card, its name
+     and its price fit between the top bar and the tab bar. */
+  .sg-offer { --offer-card-w:clamp(104px, calc((var(--sg-vh, 100dvh) - 230px) * 5 / 7), 170px); align-items:center; }
+  .sg-offer .sg-card-tile { width:var(--offer-card-w); height:auto; aspect-ratio:auto; }
+  .sg-offer-meta { max-width:100%; }
+}
