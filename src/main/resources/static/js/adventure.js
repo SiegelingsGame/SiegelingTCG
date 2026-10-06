@@ -27,13 +27,17 @@
     knightId: null,
     party: [],          // selected siegeling ids (max 3)
     elementFilter: 'ALL',
-    rosterFilter: 'ALL',
+    // Ready-to-use first: the long tail of locked Siegelings (and their art)
+    // only loads behind the grid's "View more" tile or the All chip.
+    rosterFilter: 'READY',
     setupStep: 'mode',
     selectedCardId: null,
     knightSelectedItem: null,
     busy: false,
     warbandLoading: false,
     warbandLoadToken: 0,
+    warbandArtShown: false,
+    knightDetailId: null,
     interactionResult: null,
     pendingKnightUnlock: null,
     campMenu: null,
@@ -205,6 +209,116 @@
    * HTML/CSS-escape them. */
   function artAttr(url) { return esc(url); }
   function artCss(url) { return esc(String(url == null ? '' : url).replace(/'/g, '%27').replace(/\)/g, '%29')); }
+
+  /* Dashboard creature art is a 1024x1536 Firebase Storage PNG of ~2 MB, but no
+   * Siege surface draws it wider than a few hundred device px. Every art file
+   * has ready-made WebP cuts stored beside it under its download token
+   * (functions/artThumbs.js); the art mirror builds a missing cut, and the
+   * original is the last resort. Mirrors game.js sgArtThumbChain — keep the
+   * prefix and widths in step. Anything not in Storage passes through as-is. */
+  var STORAGE_ART_PREFIX = 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/';
+  var ART_THUMB_WIDTHS = [160, 240, 320, 480, 640, 960];
+  function artThumbChain(url, width) {
+    var u = String(url == null ? '' : url);
+    if (!u) return [];
+    // Bundled art ships a .webp twin beside each PNG (see CLAUDE.md "Images").
+    var local = u.match(/^(\/(?:img|assets)\/[^?#]+)\.png$/i);
+    if (local) return [local[1] + '.webp', u];
+    if (!width || u.indexOf(STORAGE_ART_PREFIX) !== 0) return [u];
+    var mirror = '/api/cards/art-mirror?w=' + width + '&url=' + encodeURIComponent(u);
+    var token = (u.match(/[?&]token=([0-9A-Za-z-]{8,64})(?:&|$)/) || [])[1];
+    if (!token) return [mirror, u];
+    var bucket = ART_THUMB_WIDTHS[ART_THUMB_WIDTHS.length - 1];
+    for (var i = 0; i < ART_THUMB_WIDTHS.length; i++) {
+      if (ART_THUMB_WIDTHS[i] >= width) { bucket = ART_THUMB_WIDTHS[i]; break; }
+    }
+    return [STORAGE_ART_PREFIX + encodeURIComponent('art-thumbs/' + token + '/w' + bucket + '.webp') +
+      '?alt=media&token=' + token, mirror, u];
+  }
+  // Which link of the chain last worked (or is next to try) per url+width, so
+  // re-renders and background layers skip a cut already known to be missing.
+  var artChainPos = {};
+  function artKey(url, width) { return width + '|' + url; }
+  function artSrc(url, width) {
+    var chain = artThumbChain(url, width);
+    return chain[Math.min(artChainPos[artKey(url, width)] || 0, chain.length - 1)] || '';
+  }
+  /** `src` + fallback hooks for an <img>; onFail runs only once the chain is spent. */
+  function artImgAttrs(url, width, onFail) {
+    return 'src="' + artAttr(artSrc(url, width)) + '" data-art-url="' + artAttr(url) + '" data-art-w="' + (width || 0) + '"' +
+      ' onerror="if(!window.siegeArtNext(this)){' + (onFail || 'this.onerror=null') + '}"';
+  }
+  window.siegeArtNext = function (img) {
+    var url = img.getAttribute('data-art-url');
+    var width = Number(img.getAttribute('data-art-w')) || 0;
+    var chain = artThumbChain(url, width);
+    var key = artKey(url, width);
+    var pos = (artChainPos[key] || 0) + 1;
+    var cur = chain.indexOf(img.getAttribute('src'));
+    if (cur >= 0) pos = cur + 1;
+    if (pos >= chain.length) return false;
+    artChainPos[key] = pos;
+    img.setAttribute('src', chain[pos]);
+    return true;
+  };
+  /* CSS backgrounds have no onerror, so a probe walks the chain and repaints
+   * every layer tagged with the same key once it settles on a working link. */
+  var artProbes = {};
+  function probeBgArt(url, width) {
+    var key = artKey(url, width);
+    if (artProbes[key] || typeof Image === 'undefined') return;
+    artProbes[key] = true;
+    var chain = artThumbChain(url, width);
+    var tryAt = function (pos) {
+      if (pos >= chain.length) return;
+      var img = new Image();
+      img.onload = function () {
+        if ((artChainPos[key] || 0) === pos && pos === 0) return;
+        artChainPos[key] = pos;
+        Array.prototype.forEach.call(document.querySelectorAll('[data-bg-art]'), function (node) {
+          if (node.getAttribute('data-bg-art') === key) node.style.backgroundImage = 'url("' + chain[pos].replace(/"/g, '%22') + '")';
+        });
+      };
+      img.onerror = function () { tryAt(pos + 1); };
+      img.src = chain[pos];
+    };
+    tryAt(artChainPos[key] || 0);
+  }
+  /** `style` + key for a background-image art layer. */
+  function bgArtAttrs(url, width) {
+    probeBgArt(url, width);
+    return 'style="background-image:url(\'' + artCss(artSrc(url, width)) + '\')" data-bg-art="' + artAttr(artKey(url, width)) + '"';
+  }
+  /* Warm the cache (and decoder) for art about to be shown, so the next screen
+   * paints with its art in place instead of popping in tile by tile. Resolves
+   * when every image settled or `capMs` passed — never rejects. */
+  var artWarmed = {};
+  function warmArt(urls, width, capMs) {
+    if (typeof Image === 'undefined') return Promise.resolve();
+    var jobs = urls.filter(Boolean).map(function (url) {
+      var key = artKey(url, width);
+      if (artWarmed[key]) return artWarmed[key];
+      artWarmed[key] = new Promise(function (resolve) {
+        var chain = artThumbChain(url, width);
+        var tryAt = function (pos) {
+          if (pos >= chain.length) { resolve(); return; }
+          var img = new Image();
+          img.decoding = 'async';
+          img.onload = function () {
+            artChainPos[key] = pos;
+            if (img.decode) img.decode().then(resolve, resolve); else resolve();
+          };
+          img.onerror = function () { tryAt(pos + 1); };
+          img.src = chain[pos];
+        };
+        tryAt(artChainPos[key] || 0);
+      });
+      return artWarmed[key];
+    });
+    var all = Promise.all(jobs);
+    if (!capMs) return all;
+    return Promise.race([all, new Promise(function (resolve) { setTimeout(resolve, capMs); })]);
+  }
   function elClass(element) { return 'el-' + (element || 'NEUTRAL'); }
   function icon(element) { return EL_ICON[element] || '◇'; }
   function elColor(element) { return EL_COLOR[element] || '#95a5a6'; }
@@ -387,6 +501,10 @@
   function applyRoster(data) {
     state.roster = data;
     renderSiegeAccount();
+    // The roster lands on the mode step; fetching the knight cards and the
+    // ready Siegelings' art now means both later steps open fully painted.
+    warmKnightArt(data);
+    warmWarbandArt(data);
     if (!state.knightId) {
       var starter = (data.knights || []).find(function (k) { return k.selectable && k.expeditionStarter; })
         || (data.knights || []).find(function (k) { return k.selectable; });
@@ -1238,6 +1356,58 @@
       '<span class="kxp-text">' + have + '/' + span + ' XP</span></div>';
   }
 
+  /* SiegeKnight cards: the knight's own dashboard card (same frame the Battle
+   * Table shows), but the description box carries the Siege kit — active,
+   * passive and Ultimate — instead of the arena passive/active text. */
+  var KNIGHT_ART_WIDTH = 480;
+  var KNIGHT_TEMPLATE_URL = '/img/knights/siegeknight-card-template.webp';
+  var KNIGHT_BACK_URL = '/img/knights/card-back-siegeknight.webp';
+
+  function knightArtMode(k) {
+    var mode = String((k && k.artMode) || '').toUpperCase();
+    return k && k.artUrl && (mode === 'FULL_CARD' || mode === 'OVERLAY') ? mode : '';
+  }
+  function knightHasCardArt(k) { return !!knightArtMode(k); }
+
+  /** Dashboard crop for the art — mirrors card-binder-visual buildArtTransformStyle. */
+  function knightArtTransform(k) {
+    var num = function (v) { var n = Number(v); return isFinite(n) && v !== null && v !== '' ? n : null; };
+    var clamp = function (v, lo, hi) { return Math.min(hi, Math.max(lo, v)); };
+    var xPct = num(k.artOffsetXPct), yPct = num(k.artOffsetYPct);
+    var usePct = xPct !== null || yPct !== null;
+    var tx = usePct ? clamp(xPct || 0, -200, 200) + '%' : (num(k.artOffsetX) || 0) + 'px';
+    var ty = usePct ? clamp(yPct || 0, -200, 200) + '%' : (num(k.artOffsetY) || 0) + 'px';
+    var scale = num(k.artScale) === null ? 1 : clamp(num(k.artScale), 0.25, 3);
+    var rot = num(k.artRotation) === null ? 0 : clamp(num(k.artRotation), -180, 180);
+    if (!parseFloat(tx) && !parseFloat(ty) && scale === 1 && !rot) return '';
+    return ' style="transform:translate(' + tx + ',' + ty + ') scale(' + scale + ') rotate(' + rot + 'deg);transform-origin:center center"';
+  }
+
+  function knightCardArtHtml(k, summary, passiveChip) {
+    var mode = knightArtMode(k);
+    var layers;
+    if (mode === 'FULL_CARD') {
+      layers = '<img class="kart-img" ' + artImgAttrs(k.artUrl, KNIGHT_ART_WIDTH) + ' alt="" decoding="async"' + knightArtTransform(k) + '>';
+    } else {
+      // OVERLAY art (or no art: the shared card back) shows through the
+      // template's transparent window, so frame and box match card to card.
+      var src = mode === 'OVERLAY' ? k.artUrl : KNIGHT_BACK_URL;
+      layers = '<div class="kart-window"><img class="kart-img" ' + artImgAttrs(src, KNIGHT_ART_WIDTH) + ' alt="" decoding="async"' +
+        (mode === 'OVERLAY' ? knightArtTransform(k) : '') + '></div>' +
+        '<div class="kart-template" aria-hidden="true"></div>' +
+        (mode ? '' : '<div class="kart-sigil" aria-hidden="true">' + icon(k.element) + '</div>');
+    }
+    return '<div class="kart kart-' + (mode ? mode.toLowerCase().replace('_', '-') : 'back') + '">' + layers +
+      '<div class="kart-box">' +
+        '<div class="kart-name">' + esc(k.name) + knightLevelHtml(k) + '</div>' +
+        '<div class="kart-line"><span class="kart-act">' + esc(k.activeName) + '</span>' +
+          (summary ? ' <span class="kart-sum">' + summary + '</span>' : '') + '</div>' +
+        (passiveChip ? '<div class="kart-line">' + passiveChip + '</div>' : '') +
+        (k.ultimateDesc ? '<div class="kart-line kart-ult">⚡ ' + esc(k.ultimateName || 'Ultimate') + '</div>' : '') +
+      '</div>' +
+    '</div>';
+  }
+
   function renderKnightStep() {
     var r = state.roster;
     // Picking a knight re-renders the grid; on the landscape rail that would
@@ -1283,24 +1453,34 @@
           lockNote = '<div class="klock-note">🔒 Locked for expeditions</div>';
         }
       }
+      c.className += ' has-kart';
       c.innerHTML =
         (locked ? '<div class="knight-lock">🔒</div>' : '') +
-        '<div class="kname">' + icon(k.element) + ' ' + esc(k.name) + knightLevelHtml(k) + '</div>' +
-        knightXpHtml(k) +
-        '<div class="kability"><span class="kability-name">' + esc(k.activeName) + '</span>' +
-        (summary ? ' <span class="kability-sum">' + summary + '</span>' : '') + '</div>' +
-        (k.activeDesc ? '<div class="kdesc">' + esc(k.activeDesc) + '</div>' : '') +
-        '<div class="kpassive">' + passiveChip + ' ' + esc(k.passive || '') + '</div>' +
-        (k.ultimateDesc
-          ? '<div class="kult"><span class="kult-name">⚡ ' + esc(k.ultimateName || 'Ultimate') + '</span> ' +
-            esc(k.ultimateDesc) + '</div>'
-          : '') +
-        lockNote;
+        knightCardArtHtml(k, summary, passiveChip) +
+        '<div class="knotes">' +
+          knightXpHtml(k) +
+          '<button class="kmore" type="button" aria-expanded="false">Details</button>' +
+          (k.activeDesc ? '<div class="kdesc"><span class="kdesc-tag">Active</span>' + esc(k.activeDesc) + '</div>' : '') +
+          (k.passive ? '<div class="kdesc"><span class="kdesc-tag">Passive</span>' + esc(k.passive) + '</div>' : '') +
+          (k.ultimateDesc ? '<div class="kdesc"><span class="kdesc-tag kdesc-ult">Ultimate</span>' + esc(k.ultimateDesc) + '</div>' : '') +
+          lockNote +
+        '</div>';
+      c.setAttribute('data-kid', k.id);
+      if (k.id === state.knightDetailId) c.classList.add('open');
+      // Locked knights can't be picked, but their kit can still be read.
+      c.querySelector('.kmore').addEventListener('click', function (e) {
+        e.stopPropagation();
+        setKnightDetail(state.knightDetailId === k.id ? null : k.id);
+      });
       if (!locked) {
         c.addEventListener('click', function () {
+          // First tap picks the knight and opens its notes; tapping it again folds them.
+          var reselect = state.knightId === k.id;
           state.knightId = k.id;
           trimPartyToNeed();
-          renderKnightStep();
+          setKnightDetail(reselect && state.knightDetailId === k.id ? null : k.id);
+          // Restyle in place: rebuilding would re-fetch and re-decode every card's art.
+          refreshKnightFooter();
         });
       } else {
         var unlockBtn = c.querySelector('.kunlock-btn');
@@ -1318,6 +1498,12 @@
       kg.appendChild(c);
     });
     kg.scrollLeft = keepX;
+    refreshKnightFooter();
+  }
+
+  function refreshKnightFooter() {
+    var r = state.roster;
+    var gold = r.gold || 0;
     var kn = r.knights.find(function (k) { return k.id === state.knightId; });
     if (kn && !kn.selectable) {
       state.knightId = (r.knights.find(function (k) { return k.selectable; }) || {}).id || null;
@@ -1329,6 +1515,21 @@
       ? (kn.name + ' — ' + kn.activeName + warbandNote + (r.loggedIn ? ' · 🪙 ' + gold : ''))
       : 'Select a SiegeKnight.';
     trimPartyToNeed();
+    Array.prototype.forEach.call($('knightGrid').querySelectorAll('.knight-card[data-kid]'), function (n) {
+      n.classList.toggle('sel', n.getAttribute('data-kid') === state.knightId);
+    });
+  }
+
+  /* One knight's notes open at a time: the cards are art-first and the
+   * Active/Passive/Ultimate text only unfolds on the card being looked at. */
+  function setKnightDetail(id) {
+    state.knightDetailId = id;
+    Array.prototype.forEach.call($('knightGrid').querySelectorAll('.knight-card[data-kid]'), function (n) {
+      var open = n.getAttribute('data-kid') === id;
+      n.classList.toggle('open', open);
+      var btn = n.querySelector('.kmore');
+      if (btn) btn.setAttribute('aria-expanded', String(open));
+    });
   }
 
   function closeKnightLockModal() {
@@ -1731,11 +1932,49 @@
     updateWarbandMeta();
     if (!hasWarbandData(state.roster)) {
       ensureWarbandLoaded().then(function () {
-        renderPartyStepContent();
+        return warbandArtGate();
+      }).then(function () {
+        if (state.setupStep === 'party') renderPartyStepContent();
       }).catch(function (e) { toast(e.message); });
       return;
     }
-    renderPartyStepContent();
+    if (state.warbandArtShown) { renderPartyStepContent(); return; }
+    warbandArtGate().then(function () {
+      if (state.setupStep === 'party') renderPartyStepContent();
+    });
+  }
+
+  function readySiegelingArt(roster) {
+    return rosterSiegelings(roster).filter(function (s) { return s.expeditionStarter !== false; })
+      .map(function (s) { return s.artUrl; });
+  }
+
+  function warmWarbandArt(roster) {
+    return warmArt(readySiegelingArt(roster), 240);
+  }
+
+  function warmKnightArt(roster) {
+    var urls = ((roster && roster.knights) || []).filter(knightHasCardArt).map(function (k) { return k.artUrl; });
+    warmArt(urls, KNIGHT_ART_WIDTH);
+    if (urls.length) warmArt([KNIGHT_TEMPLATE_URL], 0);
+  }
+
+  /* First visit to the warband step waits (briefly) for the ready Siegelings'
+   * art so the grid paints whole rather than tile by tile. Capped, so a slow
+   * network still gets the grid — the art then streams in as before. */
+  function warbandArtGate() {
+    if (state.warbandArtShown) return Promise.resolve();
+    var panel = $('warbandLoadPanel');
+    var text = $('warbandLoadText');
+    var showPanel = setTimeout(function () {
+      if (panel) panel.classList.remove('hidden');
+      if (text) text.textContent = 'Loading Siegeling art...';
+    }, 150);
+    return warmArt(readySiegelingArt(state.roster), 240, 3500).then(function () {
+      clearTimeout(showPanel);
+      if (panel && !state.warbandLoading) panel.classList.add('hidden');
+      state.warbandArtShown = true;
+    });
   }
 
   function renderPartyStepContent() {
@@ -1743,7 +1982,7 @@
     var availability = $('warbandStatusFilter');
     if (availability) {
       availability.innerHTML = '';
-      [['ALL', 'All'], ['READY', 'Ready to use'], ['OWNED', 'Owned cards']].forEach(function (filter) {
+      [['READY', 'Ready to use'], ['OWNED', 'Owned cards'], ['ALL', 'All']].forEach(function (filter) {
         var button = el('button', 'filter-chip' + (state.rosterFilter === filter[0] ? ' active' : ''), filter[1]);
         button.type = 'button';
         button.setAttribute('aria-pressed', String(state.rosterFilter === filter[0]));
@@ -1782,65 +2021,136 @@
     updateWarbandMeta();
   }
 
+  /* Built cards are kept per Siegeling and reused across picks and filter
+   * changes. Rebuilding them threw away decoded <img>s, so every tap blanked
+   * and re-painted the whole grid (the flicker on iOS). The cache only resets
+   * when the roster object or the Siegecoin balance (which changes the unlock
+   * buttons) does. */
+  var sieglingCards = { roster: null, gold: null, nodes: {}, order: '' };
+
+  function sieglingCardFor(s) {
+    var gold = (state.roster && state.roster.gold) || 0;
+    if (sieglingCards.roster !== state.roster || sieglingCards.gold !== gold) {
+      sieglingCards = { roster: state.roster, gold: gold, nodes: {}, order: '' };
+    }
+    if (!sieglingCards.nodes[s.id]) sieglingCards.nodes[s.id] = buildSieglingCard(s, gold);
+    return sieglingCards.nodes[s.id];
+  }
+
+  function buildSieglingCard(s, gold) {
+    var locked = s.expeditionStarter === false;
+    var canAffordUnlock = s.canUnlock && gold >= (s.unlockCost || 0);
+    var c = el('div', 'sgl-card ' + elClass(s.element) + (locked ? ' locked' : ''));
+    c.setAttribute('data-sid', s.id);
+    // Ready cards were warmed before this step opened, so they load eagerly and
+    // paint at once; locked ones only fetch when scrolled near.
+    var art = s.artUrl
+      ? '<div class="sart"><img ' + artImgAttrs(s.artUrl, 240,
+          'var h=this.parentNode;h.classList.add(\'sart-fallback\');h.textContent=\'' + icon(s.element) + '\'') +
+        ' alt="" decoding="async"' + (locked ? ' loading="lazy"' : '') + '></div>'
+      : '<div class="sart sart-fallback">' + icon(s.element) + '</div>';
+    c.innerHTML =
+      (locked ? '<div class="sgl-lock" title="' + esc(sieglingLockMessage(s)) + '">🔒</div>' : '') +
+      '<button class="info-btn" type="button" title="View cards">ⓘ</button>' +
+      art +
+      '<div class="sname">' + esc(s.name) + (s.evolves ? ' <span class="evo-tag" title="Its Evolution card joins your battle deck — play it for 2 AP to evolve">EVO ↑</span>' : '') + '</div>' +
+      '<div class="schips">' +
+        '<span class="schip">' + icon(s.element) + ' ' + esc(s.element) + '</span>' +
+        '<span class="schip availability">' + (locked ? 'Siege locked' : 'Ready') + '</span>' +
+        (s.owned ? '<span class="schip collection-owned">Card owned</span>' : '') +
+        '<span class="rarity-tag rarity-' + rarityKey(s.rarity) + '">' + esc(rarityLabel(s.rarity)) + '</span>' +
+      '</div>' +
+      '<div class="sstats"><span>❤ ' + s.hp + '</span><span>⚡ ' + s.speed + '</span><span>🃏 ' + s.moveCount + '</span></div>' +
+      sieglingLockNote(s, canAffordUnlock);
+    if (!locked) {
+      c.addEventListener('click', function () { toggleSiegling(s.id); });
+    } else {
+      c.addEventListener('click', function () { toast(sieglingLockMessage(s)); });
+    }
+    var unlockBtn = c.querySelector('.sunlock-btn');
+    if (unlockBtn) {
+      unlockBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        unlockSiegling(s);
+      });
+    }
+    c.querySelector('.info-btn').addEventListener('click', function (e) {
+      e.stopPropagation();
+      showUnitModal({
+        name: s.name, element: s.element, artUrl: s.artUrl,
+        subtitle: '❤ ' + s.hp + ' · ⚡ ' + s.speed + (s.evolves ? ' · Evolution card in battle deck (2 AP)' : '') + (locked ? ' · ' + sieglingLockMessage(s) : ''),
+        cards: s.moves || []
+      });
+    });
+    return c;
+  }
+
+  /** Pick order badges and highlight only — the cards themselves stay put. */
+  function syncSieglingSelection() {
+    var grid = $('sieglingGrid');
+    if (!grid) return;
+    Array.prototype.forEach.call(grid.querySelectorAll('.sgl-card[data-sid]'), function (c) {
+      var picked = state.party.indexOf(c.getAttribute('data-sid'));
+      c.classList.toggle('sel', picked >= 0);
+      var badge = c.querySelector('.selorder');
+      if (picked < 0) {
+        if (badge) badge.parentNode.removeChild(badge);
+        return;
+      }
+      if (!badge) {
+        badge = el('div', 'selorder');
+        c.insertBefore(badge, c.firstChild);
+      }
+      badge.textContent = String(picked + 1);
+    });
+  }
+
+  /** Siegelings the status filter hides that the element filter would show. */
+  function hiddenByStatusFilter() {
+    if (state.rosterFilter === 'ALL') return [];
+    return rosterSiegelings(state.roster).filter(function (s) {
+      return (state.elementFilter === 'ALL' || s.element === state.elementFilter) && !visibleWarbandSiegling(s);
+    });
+  }
+
   function renderSieglingGrid() {
-    // Same as the knight rail: a pick re-renders, the scroll position must not reset.
-    var grid = $('sieglingGrid'); var keepX = grid.scrollLeft; grid.innerHTML = '';
-    if (!state.roster || !hasWarbandData(state.roster)) return;
-    rosterSiegelings(state.roster).filter(visibleWarbandSiegling).sort(function (a, b) {
+    var grid = $('sieglingGrid');
+    if (!grid) return;
+    if (!state.roster || !hasWarbandData(state.roster)) { grid.innerHTML = ''; sieglingCards.order = ''; return; }
+    var list = rosterSiegelings(state.roster).filter(visibleWarbandSiegling).sort(function (a, b) {
       if (a.expeditionStarter !== b.expeditionStarter) return a.expeditionStarter ? -1 : 1;
       return a.name.localeCompare(b.name);
-    }).forEach(function (s) {
-      var picked = state.party.indexOf(s.id);
-      var locked = s.expeditionStarter === false;
-      var gold = (state.roster && state.roster.gold) || 0;
-      var canAffordUnlock = s.canUnlock && gold >= (s.unlockCost || 0);
-      var c = el('div', 'sgl-card ' + elClass(s.element) + (picked >= 0 ? ' sel' : '') + (locked ? ' locked' : ''));
-      var art = s.artUrl
-        ? '<div class="sart"><img src="' + artAttr(s.artUrl) + '" alt="" loading="lazy"></div>'
-        : '<div class="sart sart-fallback">' + icon(s.element) + '</div>';
-      c.innerHTML =
-        (picked >= 0 ? '<div class="selorder">' + (picked + 1) + '</div>' : '') +
-        (locked ? '<div class="sgl-lock" title="' + esc(sieglingLockMessage(s)) + '">🔒</div>' : '') +
-        '<button class="info-btn" type="button" title="View cards">ⓘ</button>' +
-        art +
-        '<div class="sname">' + esc(s.name) + (s.evolves ? ' <span class="evo-tag" title="Its Evolution card joins your battle deck — play it for 2 AP to evolve">EVO ↑</span>' : '') + '</div>' +
-        '<div class="schips">' +
-          '<span class="schip">' + icon(s.element) + ' ' + esc(s.element) + '</span>' +
-          '<span class="schip availability">' + (locked ? 'Siege locked' : 'Ready') + '</span>' +
-          (s.owned ? '<span class="schip collection-owned">Card owned</span>' : '') +
-          '<span class="rarity-tag rarity-' + rarityKey(s.rarity) + '">' + esc(rarityLabel(s.rarity)) + '</span>' +
-        '</div>' +
-        '<div class="sstats"><span>❤ ' + s.hp + '</span><span>⚡ ' + s.speed + '</span><span>🃏 ' + s.moveCount + '</span></div>' +
-        sieglingLockNote(s, canAffordUnlock);
-      var artImage = c.querySelector('.sart img');
-      if (artImage) artImage.addEventListener('error', function () {
-        var holder = artImage.parentNode;
-        holder.classList.add('sart-fallback');
-        holder.textContent = icon(s.element);
-      });
-      if (!locked) {
-        c.addEventListener('click', function () { toggleSiegling(s.id); });
-      } else {
-        c.addEventListener('click', function () { toast(sieglingLockMessage(s)); });
-      }
-      var unlockBtn = c.querySelector('.sunlock-btn');
-      if (unlockBtn) {
-        unlockBtn.addEventListener('click', function (e) {
-          e.stopPropagation();
-          unlockSiegling(s);
-        });
-      }
-      c.querySelector('.info-btn').addEventListener('click', function (e) {
-        e.stopPropagation();
-        showUnitModal({
-          name: s.name, element: s.element, artUrl: s.artUrl,
-          subtitle: '❤ ' + s.hp + ' · ⚡ ' + s.speed + (s.evolves ? ' · Evolution card in battle deck (2 AP)' : '') + (locked ? ' · ' + sieglingLockMessage(s) : ''),
-          cards: s.moves || []
-        });
-      });
-      grid.appendChild(c);
     });
-    if (!grid.children.length) grid.appendChild(el('p', 'warband-help', 'No Siegelings match these filters. Try All or another element.'));
+    var hidden = hiddenByStatusFilter();
+    var order = list.map(function (s) { return s.id; }).join(',') + '|' + hidden.length;
+    // Same cards in the same order: leave the DOM alone, just restyle the picks.
+    if (sieglingCards.roster === state.roster && sieglingCards.order === order && grid.children.length) {
+      syncSieglingSelection();
+      return;
+    }
+    // Same as the knight rail: a pick re-renders, the scroll position must not reset.
+    var keepX = grid.scrollLeft;
+    var frag = document.createDocumentFragment();
+    list.forEach(function (s) { frag.appendChild(sieglingCardFor(s)); });
+    sieglingCards.order = order;
+    if (hidden.length) {
+      // Locked Siegelings stay out of the first paint (and their art out of the
+      // download) until the player asks for them.
+      var more = el('button', 'sgl-card sgl-more',
+        '<span class="sgl-more-icon">🔒</span>' +
+        '<span class="sgl-more-title">View ' + hidden.length + ' more</span>' +
+        '<span class="sgl-more-sub">Locked &amp; unowned Siegelings</span>');
+      more.type = 'button';
+      more.addEventListener('click', function () {
+        state.rosterFilter = 'ALL';
+        renderPartyStepContent();
+      });
+      frag.appendChild(more);
+    }
+    if (!list.length && !hidden.length) frag.appendChild(el('p', 'warband-help', 'No Siegelings match these filters. Try All or another element.'));
+    grid.innerHTML = '';
+    grid.appendChild(frag);
+    syncSieglingSelection();
     grid.scrollLeft = keepX;
   }
 
@@ -1977,7 +2287,7 @@
   function showUnitModal(u) {
     var body = $('unitModalBody');
     var art = u.artUrl
-      ? '<div class="um-art" style="background-image:url(\'' + artCss(u.artUrl) + '\')"></div>'
+      ? '<div class="um-art" ' + bgArtAttrs(u.artUrl, 480) + '></div>'
       : '<div class="um-art um-art-fallback">' + icon(u.element) + '</div>';
     var cards = (u.cards || []).map(function (spec) {
       var status = spec.status && spec.statusChance
@@ -2568,7 +2878,7 @@
       // The knight has card art like anyone else — the shield glyph is the fallback
       // for a trainer the catalog has no art for, not the default.
       var kthumb = knight.artUrl
-        ? '<div class="pthumb" style="background-image:url(\'' + artCss(knight.artUrl) + '\')"></div>'
+        ? '<div class="pthumb" ' + bgArtAttrs(knight.artUrl, 160) + '></div>'
         : '<div class="pthumb pthumb-fallback">🛡️</div>';
       kchip.innerHTML = kthumb +
         '<div class="pbody">' +
@@ -2590,7 +2900,7 @@
       var chip = el('div', 'party-chip ' + elClass(p.element) + (p.alive ? '' : ' dead') + (p.merc ? ' merc' : ''));
       var pct = Math.max(0, Math.round(100 * p.hp / Math.max(1, p.maxHp)));
       var thumb = p.artUrl
-        ? '<div class="pthumb" style="background-image:url(\'' + artCss(p.artUrl) + '\')"></div>'
+        ? '<div class="pthumb" ' + bgArtAttrs(p.artUrl, 160) + '></div>'
         : '<div class="pthumb pthumb-fallback">' + icon(p.element) + '</div>';
       // A merc's level/XP are the rental's, not the run's — badge the contract
       // instead so it never reads as a warband member the player is growing.
@@ -2634,7 +2944,7 @@
       var caption = '<span>' + esc(label) + '</span>' +
         (p.merc ? '<em class="loc-merc">Merc</em>' : '');
       fig.innerHTML = (p.artUrl
-        ? '<img src="' + artAttr(p.artUrl) + '" alt="">'
+        ? '<img ' + artImgAttrs(p.artUrl, 320) + ' alt="">'
         : '<b>' + icon(p.element) + '</b>') + caption;
       fig.addEventListener('click', function () {
         showUnitModal({
@@ -2660,7 +2970,7 @@
     var canUse = !opt.used && opt.affordable;
     var c = el('div', 'camp-card ' + elClass(opt.element) + ' kind-' + opt.kind + (opt.used ? ' used' : '') + (canUse ? '' : ' locked'));
     var art = opt.artUrl
-      ? '<div class="camp-art" style="background-image:url(\'' + artCss(opt.artUrl) + '\')"></div>'
+      ? '<div class="camp-art" ' + bgArtAttrs(opt.artUrl, 320) + '></div>'
       : '<div class="camp-glyph">' + (CAMP_ICON[opt.kind] || '🎁') + '</div>';
     var costChip = opt.cost > 0 ? '<span class="camp-cost' + (opt.affordable ? '' : ' broke') + '">🪙 ' + opt.cost + '</span>' : '<span class="camp-cost free">FREE</span>';
     c.innerHTML =
@@ -2687,7 +2997,7 @@
     var choices = el('div', 'learner-choices');
     (state.run.party || []).filter(function (p) { return p.alive; }).forEach(function (p) {
       var b = el('button', 'siege-btn learner-btn ' + elClass(p.element),
-        (p.artUrl ? '<img src="' + artAttr(p.artUrl) + '" alt="">' : '<b>' + icon(p.element) + '</b>') +
+        (p.artUrl ? '<img ' + artImgAttrs(p.artUrl, 160) + ' alt="">' : '<b>' + icon(p.element) + '</b>') +
         '<span>' + esc(partyDisplayName(p) || p.name) + '</span>');
       b.type = 'button';
       b.addEventListener('click', function (e) { e.stopPropagation(); onPick(p.id); });
@@ -2857,7 +3167,7 @@
     (b.offers || []).forEach(function (offer) {
       var c = el('div', 'camp-card broker-offer ' + elClass(offer.element) + (offer.used ? ' used' : ''));
       var art = offer.artUrl
-        ? '<div class="camp-art" style="background-image:url(\'' + artCss(offer.artUrl) + '\')"></div>'
+        ? '<div class="camp-art" ' + bgArtAttrs(offer.artUrl, 320) + '></div>'
         : '<div class="camp-glyph">' + icon(offer.element) + '</div>';
       var stats = offer.hp != null ? '<div class="camp-card-desc">❤ ' + offer.hp + ' · ⚡ ' + offer.speed +
         (offer.evolves ? ' · <span class="evo-tag">EVO ↑</span>' : '') + '</div>' : '';
@@ -4007,8 +4317,9 @@
         return '<span class="sp-status st-' + s + '" title="' + tip + '">' + meta.icon + '</span>';
       }).join('');
       var body = u.artUrl
-        ? '<div class="sp-art"><img src="' + artAttr(u.artUrl) + '" alt="" draggable="false" ' +
-          'onerror="this.parentNode.className=\'sp-art sp-art-fallback\';this.outerHTML=\'<span>' + icon(u.element) + '</span>\'"></div>'
+        ? '<div class="sp-art"><img ' + artImgAttrs(u.artUrl, 320,
+          'this.parentNode.className=\'sp-art sp-art-fallback\';this.outerHTML=\'<span>' + icon(u.element) + '</span>\'') +
+          ' alt="" draggable="false"></div>'
         : '<div class="sp-art sp-art-fallback"><span>' + icon(u.element) + '</span></div>';
       // Intent lives inside the plate so it can never clip off-screen.
       var intentLine = '';
@@ -5922,7 +6233,7 @@
       var c = el('button', 'reward-card ' + elClass(opt.element) + ' kind-' + opt.kind);
       c.type = 'button';
       var art = opt.artUrl
-        ? '<div class="reward-art" style="background-image:url(\'' + artCss(opt.artUrl) + '\')"></div>'
+        ? '<div class="reward-art" ' + bgArtAttrs(opt.artUrl, 320) + '></div>'
         : '<div class="reward-glyph">' + esc(opt.itemIcon || REWARD_ICON[opt.kind] || '🎁') + '</div>';
       var meta = '';
       if (opt.kind === 'CARD' && opt.cardEffect) {
@@ -5956,7 +6267,7 @@
       ' max HP. Now pick the card this level makes stronger.';
 
     var art = offer.artUrl
-      ? '<div class="amp-art" style="background-image:url(\'' + artCss(offer.artUrl) + '\')"></div>'
+      ? '<div class="amp-art" ' + bgArtAttrs(offer.artUrl, 320) + '></div>'
       : '<div class="amp-glyph">' + icon(offer.element) + '</div>';
     $('ampUnit').className = 'amp-unit ' + elClass(offer.element);
     $('ampUnit').innerHTML = art +
@@ -6034,7 +6345,7 @@
 
     var art = $('gachaArt');
     art.innerHTML = r.artUrl
-      ? '<img src="' + artAttr(r.artUrl) + '" alt="" onerror="this.parentNode.innerHTML=\'<span class=&quot;gacha-fallback&quot;>' + icon(r.element) + '</span>\'">'
+      ? '<img ' + artImgAttrs(r.artUrl, 480, 'this.parentNode.innerHTML=\'<span class=&quot;gacha-fallback&quot;>' + icon(r.element) + '</span>\'') + ' alt="">'
       : '<span class="gacha-fallback">' + icon(r.element) + '</span>';
 
     // Sparkle field

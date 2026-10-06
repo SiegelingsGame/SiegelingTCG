@@ -180,6 +180,7 @@ public class SiegeService {
             m.put("selectable", knightSelectable);
             m.put("unlockCost", unlockCost);
             m.put("canUnlock", canUnlock);
+            putKnightCardArt(m, k);
             knights.add(m);
         }
         resp.put("siegelings", List.copyOf(siegelings));
@@ -204,6 +205,27 @@ public class SiegeService {
         resp.put("battlegroundsUnlockedTier", Math.min(SiegeTuning.BG_MAX_TIER, clearedTier + 1));
         resp.put("battlegroundsUnlocks", progression == null ? new ArrayList<>() : progression.getBattlegroundsUnlocks());
         return resp;
+    }
+
+    /**
+     * The knight's dashboard card art, so team select can print the Siege
+     * abilities on the knight's own card instead of a text-only tile. Mode and
+     * crop travel with it because OVERLAY art is a bare illustration that sits
+     * behind the shared template, while FULL_CARD art already is the frame.
+     */
+    private static void putKnightCardArt(Map<String, Object> m, TrainerCard k) {
+        String url = k.getCardArtUrl();
+        if (url == null || url.isBlank()) return;
+        m.put("artUrl", url.trim());
+        String mode = k.getCardArtMode();
+        // REPLACE/blank means "no knight-shaped art": the client keeps the template.
+        m.put("artMode", mode == null ? "" : mode.trim().toUpperCase(java.util.Locale.ROOT));
+        if (k.getCardArtScale() != null) m.put("artScale", k.getCardArtScale());
+        if (k.getCardArtOffsetXPct() != null) m.put("artOffsetXPct", k.getCardArtOffsetXPct());
+        if (k.getCardArtOffsetYPct() != null) m.put("artOffsetYPct", k.getCardArtOffsetYPct());
+        if (k.getCardArtOffsetX() != null) m.put("artOffsetX", k.getCardArtOffsetX());
+        if (k.getCardArtOffsetY() != null) m.put("artOffsetY", k.getCardArtOffsetY());
+        if (k.getCardArtRotation() != null) m.put("artRotation", k.getCardArtRotation());
     }
 
     /** The authenticated user's banked veteran teams (newest first); empty for guests. */
