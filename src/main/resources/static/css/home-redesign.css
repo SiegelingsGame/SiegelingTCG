@@ -138,6 +138,88 @@ body.concept-board {
   color:var(--muted); position:relative; font-size:14px; cursor:pointer; padding:0;
 }
 .sg-bell svg { display:block; }
+/* Music on/off. The slash only shows while muted; a playing note glows gold. */
+.sg-music {
+  width:32px; height:32px; border-radius:50%; display:grid; place-items:center; flex:0 0 auto;
+  border:1px solid var(--steel-soft); background:rgba(10,16,28,.88);
+  color:var(--muted); cursor:pointer; padding:0;
+}
+.sg-music svg { display:block; }
+.sg-music .sg-music-slash { display:none; }
+.sg-music.is-muted .sg-music-slash { display:inline; }
+.sg-music.is-playing { color:var(--gold-bright); border-color:rgba(200,165,79,.4); }
+.sg-music[aria-expanded="true"] { border-color:rgba(200,165,79,.6); }
+
+/* Music panel (hub-music.js): opens under the top bar from the note button. */
+.hm-panel {
+  position:absolute; top:calc(max(6px, var(--sg-sat)) + 42px); right:12px; z-index:52;
+  width:min(300px, calc(100% - 24px)); max-height:calc(100% - max(6px, var(--sg-sat)) - 120px);
+  display:flex; flex-direction:column; overflow:hidden;
+  border-radius:18px; border:1px solid rgba(200,165,79,.28);
+  background:rgba(9,14,26,.96); box-shadow:0 22px 48px rgba(0,0,0,.55);
+  backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  animation:hmIn .18s ease-out;
+}
+@keyframes hmIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+.hm-head { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:10px 10px 4px 16px; }
+.hm-head strong { font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-bright); }
+.hm-close {
+  width:30px; height:30px; border-radius:50%; border:none; background:rgba(255,255,255,.06);
+  color:var(--ink); font-size:18px; line-height:1; cursor:pointer;
+}
+.hm-now { flex:0 0 auto; display:flex; align-items:center; gap:9px; padding:2px 16px 6px; min-width:0; }
+.hm-now-title { font-family:var(--serif); font-size:19px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hm-controls { flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:18px; padding:4px 0 12px; }
+.hm-controls button {
+  width:40px; height:40px; border-radius:50%; border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.05); color:var(--ink); cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; padding:0;
+}
+.hm-controls button.hm-main {
+  width:52px; height:52px; border:none; color:#2b0d02;
+  background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
+  box-shadow:0 8px 22px rgba(255,120,45,.4);
+}
+.hm-panel svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.hm-controls .hm-main svg { width:20px; height:20px; fill:currentColor; }
+.hm-main .hm-ic-pause { display:none; }
+.hm-panel.is-playing .hm-main .hm-ic-pause { display:block; }
+.hm-panel.is-playing .hm-main .hm-ic-play { display:none; }
+.hm-controls button:active { transform:scale(.94); }
+/* The track list is the panel's one scrolling region. */
+.hm-list {
+  flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
+  list-style:none; margin:0; padding:6px 8px 10px; border-top:1px solid rgba(112,142,180,.16);
+}
+.hm-list button {
+  width:100%; display:flex; align-items:center; gap:10px; padding:9px 10px; min-height:40px;
+  border:none; border-radius:11px; background:none; color:var(--ink); cursor:pointer;
+  font:inherit; font-size:13px; text-align:left;
+}
+.hm-list button span { flex:1 1 auto; min-width:0; }
+.hm-list button:active { background:rgba(255,255,255,.08); }
+.hm-list button.on { background:rgba(200,165,79,.13); color:var(--gold-bright); font-weight:700; }
+.hm-pip { width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:var(--pip, var(--neutral)); }
+.hm-list [data-el="FIRE"] { --pip:var(--fire); }
+.hm-list [data-el="WATER"] { --pip:var(--water); }
+.hm-list [data-el="WIND"] { --pip:var(--wind); }
+.hm-list [data-el="ELECTRIC"] { --pip:var(--electric); }
+.hm-list [data-el="EARTH"] { --pip:var(--earth); }
+.hm-list [data-el="SHADOW"] { --pip:var(--shadow); }
+.hm-list [data-el="POISON"] { --pip:var(--poison); }
+.hm-list .hm-eq { visibility:hidden; }
+.hm-list button.on .hm-eq { visibility:visible; }
+.hm-eq { display:inline-flex; align-items:flex-end; gap:2px; height:12px; flex:0 0 auto; color:var(--gold-bright); }
+.hm-eq i { width:3px; height:4px; border-radius:1px; background:currentColor; }
+.hm-panel.is-playing .hm-now .hm-eq i,
+.hm-list button.is-playing .hm-eq i { animation:hmEq .9s ease-in-out infinite alternate; }
+.hm-eq i:nth-child(2) { animation-delay:-.3s !important; }
+.hm-eq i:nth-child(3) { animation-delay:-.6s !important; }
+@keyframes hmEq { from { height:3px; } to { height:12px; } }
+@media (prefers-reduced-motion:reduce) {
+  .hm-panel { animation:none; }
+  .hm-panel.is-playing .hm-now .hm-eq i, .hm-list button.is-playing .hm-eq i { animation:none; height:8px; }
+}
 .sg-bell.active, .sg-bell:hover { color:var(--gold-bright); border-color:rgba(200,165,79,.4); }
 .sg-bell::after { display:none; }
 .sg-notif-badge {
@@ -4102,4 +4184,779 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   /* Bottom chrome spans the window like the top bar does. */
   .sg-nav, .sg-more-sheet, .sg-rail { max-width:none; margin-inline:var(--sg-gutter); }
   .sg-nav { padding-inline:clamp(14px, 2vw, 48px); }
+}
+
+/* ---------- landscape stage (experiment) ----------
+   On a phone on its side Home is one screen of rotating artwork with every
+   destination floating over it; nothing scrolls. Portrait and desktop never see
+   the stage - it only exists inside this query, which matches the landscape
+   breakpoint the card sheet already uses. The scroller stays in the DOM (its
+   sections are lent to the stage's panel) but is retired from layout. */
+.sg-stage { display:none; }
+@media (orientation:landscape) and (max-height:500px) {
+  .sg-stage ~ .sg-scroll { display:none; }
+  .sg-stage {
+    display:block; position:absolute; inset:0; z-index:2; overflow:hidden;
+    --sal:env(safe-area-inset-left, 0px); --sar:env(safe-area-inset-right, 0px);
+    --stage-top:calc(max(6px, var(--sg-sat)) + 44px);
+    --stage-bottom:calc(58px + max(8px, calc(var(--sg-sab) * 0.4)));
+    background:#0d0a26;
+  }
+  .sg-stage-art { position:absolute; inset:0; }
+  .sg-stage-plate {
+    position:absolute; inset:0; background-size:cover; background-position:center 40%;
+    opacity:0; transition:opacity 1.3s ease; transform:scale(1.06);
+  }
+  .sg-stage-plate.is-on { opacity:1; animation:sgStageDrift 14s ease-out forwards; }
+  @keyframes sgStageDrift { from { transform:scale(1.08); } to { transform:scale(1.0); } }
+  /* Only the edges are shaded, where the controls sit; the middle stays the art. */
+  .sg-stage-veil {
+    position:absolute; inset:0; pointer-events:none;
+    background:
+      linear-gradient(90deg, rgba(13,10,38,.62) 0%, rgba(13,10,38,0) 26%, rgba(13,10,38,0) 70%, rgba(13,10,38,.5) 100%),
+      linear-gradient(180deg, rgba(13,10,38,0) 58%, rgba(13,10,38,.72) 100%);
+    transition:opacity .4s ease;
+  }
+  .sg-stage-reveal { position:absolute; inset:0; z-index:1; border:none; background:none; padding:0; display:none; cursor:pointer; }
+
+  .sg-stage-ui {
+    position:absolute; inset:0; z-index:2; pointer-events:none;
+    padding:var(--stage-top) max(14px, var(--sar)) calc(var(--stage-bottom) + 8px) max(14px, var(--sal));
+    display:grid; grid-template-columns:auto 1fr auto; grid-template-rows:1fr auto;
+    grid-template-areas:"left . right" "deck deck right";
+    gap:10px 16px; transition:opacity .35s ease;
+  }
+  .sg-stage-ui > * { pointer-events:auto; }
+
+  /* Shortcut icons, three to a row, labelled underneath like a launcher. */
+  .sg-stage-left {
+    grid-area:left; align-self:start;
+    display:grid; grid-template-columns:repeat(3, 58px); gap:6px 4px;
+  }
+  .sg-stage-tile {
+    position:relative; display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:0; border:none; background:none; cursor:pointer; color:var(--ink);
+    text-decoration:none; font:inherit;
+  }
+  .sg-stage-tile-ico {
+    width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    background:rgba(13,10,38,.58); border:1px solid rgba(255,255,255,.22);
+    box-shadow:0 4px 14px rgba(0,0,0,.35);
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    transition:transform .15s ease, border-color .2s ease;
+  }
+  .sg-stage-tile svg, .sg-stage-player svg {
+    width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.9;
+    stroke-linecap:round; stroke-linejoin:round;
+  }
+  .sg-stage-tile:active .sg-stage-tile-ico { transform:scale(.92); border-color:var(--el, var(--gold)); }
+  .sg-stage-tile-label {
+    font-size:10.5px; font-weight:700; letter-spacing:.02em; white-space:nowrap;
+    text-shadow:0 1px 2px #000, 0 0 8px rgba(0,0,0,.8);
+  }
+  .sg-stage-badge {
+    position:absolute; top:-2px; right:6px; min-width:16px; height:16px; padding:0 4px;
+    border-radius:999px; background:#ff5a3c; color:#fff; font-style:normal;
+    font-size:9.5px; font-weight:800; line-height:16px; text-align:center;
+    box-shadow:0 0 0 1.5px #0d0a26;
+  }
+
+  /* Modes on the right, Battle as the one loud button. */
+  .sg-stage-right {
+    grid-area:right; align-self:end; display:flex; flex-direction:column; align-items:stretch; gap:8px;
+    width:min(200px, 26vw);
+  }
+  .sg-app a.sg-stage-mode {
+    display:flex; flex-direction:column; justify-content:center; padding:7px 14px; min-height:44px;
+    border-radius:14px; text-decoration:none; color:var(--ink);
+    background:linear-gradient(100deg, rgba(13,10,38,.82), rgba(40,22,96,.62));
+    border:1px solid rgba(180,140,255,.36); box-shadow:0 6px 18px rgba(0,0,0,.35);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  }
+  .sg-app a.sg-stage-mode.is-keep { border-color:rgba(84,168,240,.36); }
+  .sg-stage-mode-kicker { font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); }
+  .sg-stage-mode strong { font-family:var(--serif); font-size:16px; font-weight:600; line-height:1.15; }
+  .sg-app a.sg-stage-play {
+    display:flex; align-items:center; justify-content:center; height:52px; border-radius:999px;
+    font-family:var(--serif); font-size:19px; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
+    text-decoration:none; color:#2b0d02; position:relative; overflow:hidden;
+    background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
+    box-shadow:0 10px 30px rgba(255,120,45,.5), 0 0 0 1px rgba(255,236,190,.7) inset;
+  }
+  .sg-app a.sg-stage-play::after {
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(105deg, transparent 38%, rgba(255,255,255,.55) 50%, transparent 62%);
+    transform:translateX(-130%); animation:sgShimmer 4.6s ease-in-out infinite;
+  }
+  .sg-app a.sg-stage-play:active { transform:translateY(1px); }
+
+  /* Bottom-left: what is on the wall, and the controls for it. */
+  .sg-stage-deck { grid-area:deck; align-self:end; display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .sg-stage-music {
+    align-self:flex-start; display:flex; align-items:center; gap:2px; max-width:100%;
+    padding:2px 4px 2px 2px; border-radius:999px;
+    background:linear-gradient(90deg, rgba(84,168,240,.38), rgba(180,92,255,.30));
+    border:1px solid rgba(255,255,255,.2);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  }
+  .sg-stage-music button {
+    flex:0 0 auto; width:30px; height:30px; border:none; background:none; border-radius:50%;
+    color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0;
+  }
+  .sg-stage-music button svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.9;
+    stroke-linecap:round; stroke-linejoin:round; }
+  .sg-stage-music button:active { background:rgba(255,255,255,.14); }
+  .sg-stage-music-title {
+    min-width:0; padding:0 6px 0 2px; font-size:12px; font-weight:700; letter-spacing:.02em;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 2px rgba(0,0,0,.6);
+  }
+  /* Level bars: they dance while a song plays and lie flat when muted. */
+  .sg-stage-eq { display:inline-flex; align-items:flex-end; gap:2px; height:13px; }
+  .sg-stage-eq i { width:3px; height:4px; border-radius:1px; background:currentColor; }
+  .sg-stage-music-toggle.is-playing .sg-stage-eq i { animation:sgStageEq .9s ease-in-out infinite alternate; }
+  .sg-stage-music-toggle.is-playing .sg-stage-eq i:nth-child(2) { animation-delay:-.3s; }
+  .sg-stage-music-toggle.is-playing .sg-stage-eq i:nth-child(3) { animation-delay:-.6s; }
+  .sg-stage-music-toggle.is-muted { opacity:.55; }
+  @keyframes sgStageEq { from { height:3px; } to { height:13px; } }
+
+  .sg-stage-caption { min-width:0; text-shadow:0 1px 3px #000, 0 0 12px rgba(0,0,0,.7); }
+  .sg-stage-caption strong {
+    display:block; font-family:var(--serif); font-size:19px; font-weight:600; line-height:1.15;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .sg-stage-caption span {
+    display:block; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:rgba(255,255,255,.88); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  /* The element rides as a pip: element-coloured text vanished on art of the
+     same element (Fire captions on Emberwaste plates). */
+  .sg-stage-caption span::before {
+    content:''; display:inline-block; width:7px; height:7px; margin:0 7px 1px 0; border-radius:50%;
+    background:var(--el, var(--gold-bright)); box-shadow:0 0 6px var(--el, var(--gold-bright));
+  }
+  .sg-stage-player {
+    align-self:flex-start; display:flex; align-items:center; gap:2px; padding:3px 6px;
+    border-radius:999px; background:rgba(13,10,38,.62); border:1px solid rgba(255,255,255,.16);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); max-width:100%;
+  }
+  .sg-stage-player button {
+    flex:0 0 auto; height:34px; min-width:34px; padding:0 8px; border:none; background:none; border-radius:999px;
+    color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    font:inherit; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  }
+  .sg-stage-player button svg { width:16px; height:16px; }
+  .sg-stage-player button:active { background:rgba(255,255,255,.12); }
+  .sg-stage-player button.is-wide { border-left:1px solid rgba(255,255,255,.14); border-radius:0 999px 999px 0; margin-left:4px; }
+  .sg-stage-dots { display:inline-flex; gap:4px; padding:0 6px; }
+  .sg-stage-dots i { width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,.3); transition:all .3s ease; }
+  .sg-stage-dots i.on { width:14px; border-radius:3px; background:var(--el, var(--gold-bright)); }
+
+  /* On-demand panels. Its body is the one region that scrolls. */
+  .sg-stage-panel {
+    position:absolute; z-index:3; top:var(--stage-top);
+    left:50%; transform:translateX(-50%); width:min(600px, calc(100% - 2 * max(14px, var(--sal), var(--sar))));
+    display:flex; animation:sgStagePanel .22s ease-out;
+  }
+  .sg-stage-panel[hidden] { display:none; }
+  @keyframes sgStagePanel { from { opacity:0; transform:translate(-50%, 8px); } to { opacity:1; transform:translate(-50%, 0); } }
+  .sg-stage-panel-card {
+    flex:1 1 auto; min-height:0; display:flex; flex-direction:column; border-radius:20px; overflow:hidden;
+    /* Sized to its content up to the gap between the top chrome and the tab bar. */
+    max-height:calc(var(--sg-vh, 100dvh) - var(--stage-top) - var(--stage-bottom) - 6px);
+    background:rgba(13,10,38,.9); border:1px solid rgba(180,140,255,.3);
+    box-shadow:0 18px 50px rgba(0,0,0,.6);
+    backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  }
+  .sg-stage-panel-card > header {
+    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:10px 10px 6px 18px;
+  }
+  .sg-stage-panel-card h3 { margin:0; font-family:var(--serif); font-size:19px; font-weight:600; }
+  .sg-stage-close {
+    width:34px; height:34px; border-radius:50%; border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.06); color:var(--ink); font-size:20px; line-height:1; cursor:pointer;
+  }
+  .sg-stage-panel-body {
+    flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch; padding:0 0 12px;
+  }
+  /* Lent sections bring their own titles; the panel header already says it. */
+  /* An empty strip is nothing but its head ("Sign in to track them"), so it keeps it. */
+  .sg-stage-panel-body .sg-section-head h3,
+  .sg-stage-panel-body .sg-strip:not(.is-empty) .sg-strip-head { display:none; }
+  .sg-stage-panel-body .sg-section-head { justify-content:flex-end; padding-top:0; }
+  .sg-stage-panel-body .sg-strip { margin:0 14px; cursor:default; }
+  .sg-stage-panel-body .sg-exps { margin:4px 14px 0; }
+  .sg-stage-panel-body .sg-lb-empty { margin:0 18px; height:150px; }
+
+  .sg-stage-pick-note { margin:0 18px 10px; font-size:12px; color:var(--muted); }
+  .sg-stage-pick-note b { color:var(--gold-bright); margin-left:4px; display:inline-block; }
+  .sg-stage-pick-note b.is-full { animation:sgStageNudge .4s ease; color:#ff7a5c; }
+  @keyframes sgStageNudge { 25% { transform:translateX(-3px); } 75% { transform:translateX(3px); } }
+  .sg-stage-pick-grid {
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; padding:0 14px;
+  }
+  .sg-stage-pick {
+    position:relative; aspect-ratio:16 / 9; border-radius:12px; overflow:hidden; padding:0; cursor:pointer;
+    border:2px solid rgba(255,255,255,.12); background:#1a1440;
+  }
+  .sg-stage-pick img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .sg-stage-pick.on { border-color:var(--gold-bright, #ffd83d); box-shadow:0 0 0 2px rgba(255,216,61,.25); }
+  .sg-stage-pick.is-locked { cursor:not-allowed; }
+  .sg-stage-pick.is-locked img { filter:grayscale(.85) brightness(.45); }
+  .sg-stage-pick-order {
+    position:absolute; top:6px; right:6px; width:22px; height:22px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800;
+    border:1.5px solid rgba(255,255,255,.7); background:rgba(13,10,38,.55); color:#fff;
+  }
+  .sg-stage-pick.on .sg-stage-pick-order { background:var(--gold-bright, #ffd83d); border-color:transparent; color:#2b0d02; }
+  .sg-stage-pick-foot {
+    position:absolute; left:0; right:0; bottom:0; padding:14px 8px 5px; text-align:left;
+    background:linear-gradient(180deg, transparent, rgba(0,0,0,.8));
+    color:#fff; font-size:11px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .sg-stage-pick-foot em { display:flex; align-items:center; gap:4px; font-style:normal; font-weight:500; font-size:9.5px; color:var(--muted); }
+
+  /* Art-only view: every overlay steps aside until the art is tapped. */
+  .sg-app.is-stage-bare .sg-stage-ui,
+  .sg-app.is-stage-bare .sg-stage-veil,
+  .sg-app.is-stage-bare .sg-top,
+  .sg-app.is-stage-bare .sg-bottom { opacity:0; pointer-events:none; }
+  .sg-app.is-stage-bare .sg-stage-ui > *, .sg-app.is-stage-bare .sg-top > *, .sg-app.is-stage-bare .sg-bottom > * { pointer-events:none; }
+  .sg-app.is-stage-bare .sg-stage-reveal { display:block; }
+  .sg-app .sg-top, .sg-app .sg-bottom { transition:opacity .35s ease; }
+
+  @media (prefers-reduced-motion:reduce) {
+    .sg-stage-plate.is-on { animation:none; transform:none; }
+    .sg-app a.sg-stage-play::after { animation:none; }
+    .sg-stage-music-toggle.is-playing .sg-stage-eq i { animation:none; height:9px; }
+  }
+/* ==========================================================================
+   LANDSCAPE PHONE (short and wide, below the desktop layer)
+   A phone on its side is ~900px wide and ~400px tall, but it got the portrait
+   phone layout: one stacked column, so Play needed three screens of scrolling
+   for three plates, the shop's offers sat in a strip with half the row empty,
+   and the profile put the signature a full scroll below the showcase.
+   ========================================================================== */
+@media (orientation:landscape) and (max-height:600px) and (min-width:560px) and (max-width:1023px) {
+  /* --- play: three upright plates side by side, sized to the window ---
+     Same idea as the desktop columns, but the height comes from the viewport
+     minus the top bar and the tab bar so all three fit without scrolling. */
+  .sg-modes {
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px;
+  }
+  .sg-mode, .sg-mode.is-primary {
+    height:clamp(210px, calc(100dvh - 58px - var(--sg-sat) - 104px), 420px); border-radius:20px;
+  }
+  .sg-mode-bg { object-position:center 28%; }
+  .sg-mode-veil {
+    background:
+      linear-gradient(180deg, rgba(5,8,15,.08) 0%, rgba(5,8,15,.2) 36%, rgba(5,8,15,.86) 72%, rgba(5,8,15,.96) 100%),
+      linear-gradient(180deg, color-mix(in srgb, var(--el,#f05b2f) 20%, transparent), transparent 46%);
+  }
+  .sg-mode-body {
+    inset:auto 0 0 0; justify-content:flex-end; max-width:100%;
+    padding:0 14px 58px; gap:5px;
+  }
+  .sg-mode-body h3, .sg-mode.is-primary .sg-mode-body h3 { font-size:26px; }
+  .sg-mode-body p { font-size:11.5px; line-height:1.4; }
+  .sg-mode-go, .sg-mode.is-primary .sg-mode-go { left:14px; right:auto; bottom:14px; }
+
+  /* --- shop: the daily offers share the row instead of scrolling a strip ---
+     Each offer takes an equal column and its card grows to the column width,
+     whatever the day's offer count. */
+  .sg-offer-rail {
+    display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0, 1fr);
+    gap:14px; overflow:visible; scroll-snap-type:none;
+  }
+  .sg-offer .sg-card-tile { height:auto; aspect-ratio:var(--card-aspect-ratio, 2.5 / 3.5); }
+  .sg-offer-meta b { font-size:13px; }
+  .sg-offer-meta i { font-size:10px; }
+
+  /* --- profile: showcase and signature side by side ---
+     The wrapper is display:contents on a phone; here it becomes the grid the
+     desktop layer uses, with the showcase and signature sharing one row. */
+  .sg-prof-layout {
+    display:grid; grid-template-columns:minmax(0, 3fr) minmax(0, 2fr); align-items:start;
+  }
+  .sg-prof-layout > [data-prof-block="crest"],
+  .sg-prof-layout > [data-prof-block="tiles"],
+  .sg-prof-layout > [data-prof-block="recent"] { grid-column:1 / -1; }
+  .sg-prof-layout > [data-prof-block="showcase"] { grid-column:1; grid-row:3; min-width:0; }
+  .sg-prof-layout > [data-prof-block="signature"] { grid-column:2; grid-row:3; min-width:0; }
+  .sg-prof-layout > [data-prof-block="recent"] { grid-row:4; }
+  /* Always three showcase cards, so three columns fill the half exactly. */
+  .sg-prof-layout [data-prof-block="showcase"] .sg-swipe {
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px;
+    overflow:visible; scroll-snap-type:none; padding-right:0;
+  }
+  .sg-prof-layout [data-prof-block="showcase"] .sg-feat {
+    flex:none; width:auto; height:auto; aspect-ratio:150 / 196;
+  }
+  .sg-prof-layout [data-prof-block="showcase"] .sg-section-head { padding-right:0; }
+  .sg-prof-layout .sg-sig { max-width:none; gap:10px; }
+  .sg-prof-layout .sg-sig-slot { padding:12px 8px; }
+  .sg-prof-layout .sg-sig-art, .sg-prof-layout .sg-sig-back { width:min(100%, 130px); }
+}
+
+/* ---------- Hub screens on a landscape phone: one screen, side-scrolling ----------
+   Same philosophy as the landscape Home stage, Siege setup and Battle loadout:
+   on a phone on its side (~360-460px tall) the hub's screens were portrait
+   documents that scrolled 600-3,400px down past a top bar and tab bar that
+   together leave under 300px of view. Here each screen's body becomes a
+   horizontal rail instead:
+     - the page title and its primary actions are the first, fixed-width column;
+     - every section after it is a full-height panel, laid side by side;
+     - inside a panel, lists flow into columns (rows fill top-to-bottom, then
+       the next column) or into a single row of height-sized cards,
+   so the page never scrolls vertically and a swipe sideways reaches the rest.
+   The Deck Builder is the exception that proves it: as an editor, its left
+   panes stay put and only the binder rail scrolls.
+   Scoped to My Decks, the Deck Builder and Social > Friends via the
+   data-screen / data-social-view attributes render() sets. Every other screen
+   (Home, Collection, Shop, Profile, Messages, Settings, Help) keeps its own
+   layout - Collection, Shop and Profile were tried on the rail and read
+   better as their original pages. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .sg-app {
+    --lh-top: calc(max(6px, var(--sg-sat)) + 46px);
+    --lh-bottom: calc(60px + max(8px, calc(var(--sg-sab) * 0.4)));
+    --lh-left: max(14px, env(safe-area-inset-left, 0px));
+    --lh-right: max(14px, env(safe-area-inset-right, 0px));
+    /* The height a rail actually gets between the two bars. */
+    --lh-h: calc(var(--sg-vh, 100dvh) - var(--lh-top) - var(--lh-bottom));
+    --lh-head-w: clamp(210px, 26vw, 260px);
+  }
+
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) > .sg-scroll {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    grid-auto-columns: max-content;
+    column-gap: 18px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    padding: var(--lh-top) var(--lh-right) var(--lh-bottom) var(--lh-left);
+    scroll-padding-inline: var(--lh-left);
+    scroll-snap-type: x proximity;
+    touch-action: pan-x;
+    scrollbar-width: none;
+  }
+
+  /* Wrapper divs between the scroller and its sections step out of the way,
+     so the sections themselves become the rail's columns. */
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll > [data-social-body],
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll > [data-social-body] > div,
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-social-pad {
+    display: contents;
+  }
+
+  /* The portrait pages end with a spacer that clears the tab bar; the rail's
+     own bottom padding does that here. */
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) .sg-scroll div[style*="height:96px"],
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-social-head {
+    display: none;
+  }
+
+  /* First column: the title and the primary actions. */
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) .sg-scroll :is(.sg-page-head, .sg-gal-head, .sg-social-title) {
+    grid-column: 1;
+    width: var(--lh-head-w);
+    margin: 0;
+    padding: 0 0 8px;
+    position: static;
+  }
+
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) .sg-scroll :is(.sg-page-head, .sg-gal-head, .sg-social-title) h2 {
+    font-size: 22px;
+  }
+
+  /* Every section is a full-height panel. */
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) > .sg-scroll .sg-section {
+    grid-row: 1 / -1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) > .sg-scroll .sg-section > .sg-section-head {
+    flex: 0 0 auto;
+    padding: 0 0 8px;
+  }
+
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) > .sg-scroll .sg-section > :not(.sg-section-head) {
+    min-height: 0;
+  }
+
+  /* ---- My Decks ---- */
+  .sg-app[data-screen="decks"] .sg-tool-row {
+    grid-column: 1;
+    width: var(--lh-head-w);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="decks"] .sg-deck-section > .sg-stack {
+    flex: 1 1 auto;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-auto-columns: clamp(240px, 32vw, 300px);
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="decks"] .sg-deckrow {
+    height: auto;
+    min-height: 0;
+  }
+
+  /* ---- Deck Builder: an editor with fixed panes; only the binder rail moves ---- */
+  .sg-app[data-screen="builder"] > .sg-scroll {
+    grid-auto-flow: row;
+    grid-template-columns: var(--lh-head-w) clamp(200px, 26vw, 280px) minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    column-gap: 14px;
+    row-gap: 6px;
+    overflow: hidden;
+    scroll-snap-type: none;
+  }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-page-head { grid-column: 1; grid-row: 1; padding: 0; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-build-bar { grid-column: 1; grid-row: 2; margin: 0; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-build-id { grid-column: 1; grid-row: 3; margin: 0; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(1) { grid-column: 1; grid-row: 4; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-build-actions { grid-column: 1; grid-row: 5; margin: 0; padding: 0; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(2) { grid-column: 2; grid-row: 1 / -1; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(3) { grid-column: 3; grid-row: 1 / -1; }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(1) {
+    justify-content: flex-start;
+  }
+
+  /* The deck so far: a column of its own that scrolls inside itself. */
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(2) > .sg-swipe {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: max-content;
+    align-content: start;
+    gap: 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin: 0;
+    padding: 0 2px 6px;
+    touch-action: pan-y;
+  }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(2) > .sg-swipe > * {
+    width: auto;
+    min-width: 0;
+    flex: none;
+  }
+
+  /* The binder: search on top, then two rows of cards that swipe sideways. */
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(3) .sg-build-search {
+    flex: 0 0 auto;
+    margin: 0 0 8px;
+  }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(3) > .sg-gal-grid {
+    flex: 1 1 auto;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-auto-columns: calc((var(--lh-h) - 80px) / 2 * 0.66);
+    justify-content: start;
+    align-items: center;
+    gap: 8px 10px;
+    padding: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+    scrollbar-width: none;
+  }
+
+  /* ---- Friends + open tables (lobbies): an art-led rail ----
+     The first column is "find people": the title, the add-by-email search and,
+     right under it, incoming requests - the two things that grow the list sit
+     together. Then the friends themselves as tall art tiles (a land plate per
+     friend, their crest glowing in its colour, a live ring when online), and
+     the open tables as tall scene tiles. Cards rise in with
+     a short stagger so the rail feels alive when it opens. */
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll {
+    grid-template-rows: auto auto minmax(0, 1fr);
+    background:
+      radial-gradient(ellipse 50% 60% at 0% 100%, rgba(240, 110, 192, 0.20), transparent 70%),
+      radial-gradient(ellipse 45% 55% at 100% 0%, rgba(84, 168, 240, 0.20), transparent 70%);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-social-title { grid-column: 1; grid-row: 1; }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="add"] {
+    grid-column: 1;
+    grid-row: 2;
+    width: var(--lh-head-w);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="add"] .sg-section-head { display: none; }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-add-friend {
+    padding: 0;
+    gap: 6px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-add-friend input {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-add-friend button {
+    flex: 0 0 auto;
+  }
+
+  /* Requests sit directly under the search and scroll inside their column. */
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="requests"] {
+    grid-column: 1;
+    grid-row: 3;
+    width: var(--lh-head-w);
+    margin-top: 10px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="requests"] > .sg-stack {
+    flex: 1 1 auto;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="requests"] .sg-friend {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    gap: 8px;
+    border-color: color-mix(in srgb, var(--acc-cyan) 45%, transparent);
+    background: linear-gradient(100deg, color-mix(in srgb, var(--acc-cyan) 16%, rgba(13, 10, 38, 0.8)), rgba(13, 10, 38, 0.7));
+    animation: sgFriendRise 0.4s ease both;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="requests"] .sg-friend-acts {
+    width: 100%;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="requests"] .sg-mini-btn {
+    flex: 1 1 0;
+  }
+
+  /* Friends: two rows of art tiles. */
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] > .sg-stack {
+    flex: 1 1 auto;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-auto-columns: clamp(132px, 17vw, 160px);
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    padding: 10px 8px 8px;
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--el) 55%, transparent);
+    background:
+      linear-gradient(180deg, rgba(13, 10, 38, 0.05) 0%, rgba(13, 10, 38, 0.55) 52%, rgba(13, 10, 38, 0.95) 100%),
+      var(--friend-land, none) center / cover no-repeat,
+      #1a1150;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    text-align: center;
+    animation: sgFriendRise 0.45s cubic-bezier(.2, .8, .25, 1) both;
+    transition: transform 0.18s ease, box-shadow 0.2s ease;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend:active {
+    transform: translateY(-3px) scale(1.02);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend-crest {
+    width: 46px;
+    height: 46px;
+    margin-bottom: auto;
+    font-family: var(--serif);
+    font-size: 20px;
+    color: #fff;
+    background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--el) 70%, #fff 10%), color-mix(in srgb, var(--el) 40%, #0d0a26));
+    border: 2px solid color-mix(in srgb, var(--el) 80%, #fff 20%);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--el) 60%, transparent);
+  }
+
+  /* Online friends get a live, breathing ring. */
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend.is-on .sg-friend-crest {
+    border-color: var(--acc-emerald);
+    animation: sgFriendLive 2.2s ease-in-out infinite;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend:not(.is-on) {
+    filter: saturate(0.6);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend-body {
+    flex: 0 0 auto;
+    width: 100%;
+    align-items: center;
+    text-shadow: 0 1px 4px #000;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend-acts {
+    width: 100%;
+    gap: 4px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-mini-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 4px;
+    height: 26px;
+    font-size: 9.5px;
+  }
+
+  /* Open tables: tall scene tiles, the creature standing in its land. */
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] > .sg-stack {
+    flex: 1 1 auto;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: minmax(0, 1fr);
+    grid-auto-columns: clamp(170px, 22vw, 210px);
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-lobby {
+    height: auto;
+    border-radius: 20px;
+    border: 1px solid color-mix(in srgb, var(--el) 50%, transparent);
+    animation: sgFriendRise 0.5s cubic-bezier(.2, .8, .25, 1) both;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-lobby-bg {
+    filter: saturate(1.3) brightness(0.8);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-lobby-veil {
+    background: linear-gradient(180deg, rgba(13, 10, 38, 0) 30%, rgba(13, 10, 38, 0.92) 100%);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-lobby-art {
+    left: 50%;
+    right: auto;
+    top: 10px;
+    bottom: auto;
+    width: 80%;
+    height: 58%;
+    transform: translateX(-50%);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-lobby-body {
+    justify-content: flex-end;
+    padding: 12px 14px 54px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-lobby-go {
+    top: auto;
+    bottom: 12px;
+    left: 14px;
+    right: 14px;
+    transform: none;
+    text-align: center;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-empty-plate {
+    width: clamp(240px, 30vw, 300px);
+    height: 100%;
+  }
+
+  /* Stagger: each tile rises a beat after the one before. */
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-stack > :nth-child(2) { animation-delay: 0.05s; }
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-stack > :nth-child(3) { animation-delay: 0.10s; }
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-stack > :nth-child(4) { animation-delay: 0.15s; }
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-stack > :nth-child(5) { animation-delay: 0.20s; }
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-stack > :nth-child(n+6) { animation-delay: 0.25s; }
+
+  @keyframes sgFriendRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes sgFriendLive {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(79, 208, 122, 0.55), 0 0 18px color-mix(in srgb, var(--el) 60%, transparent); }
+    50% { box-shadow: 0 0 0 7px rgba(79, 208, 122, 0), 0 0 18px color-mix(in srgb, var(--el) 60%, transparent); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sg-app[data-screen="social"][data-social-view="friends"] :is(.sg-friend, .sg-lobby, .sg-friend-crest) { animation: none !important; }
+  }
+}
+
+/* Shorter / narrower landscape phones: the builder's binder drops to one row of
+   larger cards, and its two fixed panes give the rail more of the width. */
+@media (orientation: landscape) and (max-height: 600px) and (max-width: 780px) {
+  .sg-app[data-screen="builder"] > .sg-scroll {
+    grid-template-columns: 190px 150px minmax(0, 1fr);
+  }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(2) > .sg-swipe {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 420px) {
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(3) > .sg-gal-grid {
+    grid-template-rows: minmax(0, 1fr);
+    grid-auto-columns: calc((var(--lh-h) - 70px) * 0.64);
+  }
+}
+
+/* Short landscape phones: friend tiles are ~110px tall, so the crest and
+   buttons shrink to keep the whole tile readable. */
+@media (orientation: landscape) and (max-height: 400px) {
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend {
+    padding: 6px 6px 6px;
+    gap: 2px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend-crest {
+    width: 32px;
+    height: 32px;
+    font-size: 15px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend-body strong {
+    font-size: 12px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend-body em {
+    font-size: 9.5px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-mini-btn {
+    height: 22px;
+  }
 }

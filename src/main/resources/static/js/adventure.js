@@ -1107,7 +1107,9 @@
 
   function renderKnightStep() {
     var r = state.roster;
-    var kg = $('knightGrid'); kg.innerHTML = '';
+    // Picking a knight re-renders the grid; on the landscape rail that would
+    // throw the player back to the first card, so the scroll position rides over.
+    var kg = $('knightGrid'); var keepX = kg.scrollLeft; kg.innerHTML = '';
     var gold = r.gold || 0;
     var lastTier = -1;
     r.knights.slice().sort(function (a, b) {
@@ -1182,6 +1184,7 @@
       }
       kg.appendChild(c);
     });
+    kg.scrollLeft = keepX;
     var kn = r.knights.find(function (k) { return k.id === state.knightId; });
     if (kn && !kn.selectable) {
       state.knightId = (r.knights.find(function (k) { return k.selectable; }) || {}).id || null;
@@ -1647,7 +1650,8 @@
   }
 
   function renderSieglingGrid() {
-    var grid = $('sieglingGrid'); grid.innerHTML = '';
+    // Same as the knight rail: a pick re-renders, the scroll position must not reset.
+    var grid = $('sieglingGrid'); var keepX = grid.scrollLeft; grid.innerHTML = '';
     if (!state.roster || !hasWarbandData(state.roster)) return;
     rosterSiegelings(state.roster).filter(visibleWarbandSiegling).sort(function (a, b) {
       if (a.expeditionStarter !== b.expeditionStarter) return a.expeditionStarter ? -1 : 1;
@@ -1704,6 +1708,7 @@
       grid.appendChild(c);
     });
     if (!grid.children.length) grid.appendChild(el('p', 'warband-help', 'No Siegelings match these filters. Try All or another element.'));
+    grid.scrollLeft = keepX;
   }
 
   /**

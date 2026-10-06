@@ -3,6 +3,159 @@ Original prompt: Merge and deploy
   - **Change.** On the phone, #1012 alone made things worse. The band stayed, and the dock was cut in half at its top edge. The Keep still had `html, body { height:100% }`, which in the installed app is the short layout viewport, so the page was clipped there. A taller `position:fixed` shell only pushed the dock into the clipped region. `keep.css` now matches the hub (`home-next.html`) and Arena (`style.css` body). `html`/`body` are `max(100dvh, var(--sg-vh, 0px))` tall, and `.keep-app` is `position:absolute` at that height, like `.sg-app`, instead of fixed. Rotation scroll drift, the original reason it was fixed, is already undone by `keep.js` `resetViewportScroll` and `viewport-unit.js`'s scroll pin. `keep.css` -> `?v=59`.
 - Verification:
   - Headless Chromium with `screen` set and `navigator.standalone` stubbed, `keep.html`. At 390x844 and 1920x1080, body, shell and dock bottoms are all 844 and 1080. With a standalone viewport 54px short (390x790 on a 390x844 screen), `--sg-vh` is 844, body is 844, and the shell and dock bottoms are 844. `scrollY` is 0 throughout. Chromium cannot reproduce the iOS clip itself, so the phone remains the final check.
+- October 6, 2026 **Landscape hub: Collection, Shop and Profile go back to their pages; Friends becomes an art-led rail.**
+  - **Change.** On review, the side-scrolling rail was taken off Collection, where the filter column cost too much width, and off Shop and Profile. All three are back to their original scrolling pages. The rail now covers only My Decks, the Deck Builder and Social > Friends.
+  - **Scoping fix.** The shared rail rules used a bare `.sg-app[data-screen]` selector, so they also reached Messages, Settings and Help. They are now scoped to the three rail screens.
+  - **Friends.**
+    - The first column is "find people": the title, the add-by-email search, and Requests directly under it, scrolling inside the column.
+    - Friends are two rows of tall art tiles. `friendRow` gives each friend a land plate and colour from a stable hash of their id (`friendElement`; a favourite element wins when the payload carries one).
+    - Each tile has a glowing crest in that colour, a breathing emerald ring when the friend is online, and offline friends slightly desaturated.
+    - The open tables (lobbies) are tall scene tiles with the creature standing in its land.
+    - The **Sent** section (outgoing friend requests) is removed from Friends in every layout, at the owner's request. The data still arrives in the payload but is no longer listed.
+    - Tiles rise in with a short stagger, and the motion is disabled under `prefers-reduced-motion`.
+    - Under 400px tall, the crest and buttons shrink.
+    - Sections carry `data-friends-block` hooks.
+  - **Bug fixed on the way.** The first pass tagged `.sg-app` with `data-social-tab`, but `mountSocial` treats any element carrying that attribute as a tab button. Every click on Social was read as a tab switch, which swallowed Accept, Message and the rest. The hook is now `data-social-view`.
+  - `home-redesign.css` is now `?v=77` and `.js` `?v=69`.
+- Verification:
+  - `node --check`. Headless Chromium with the mocked signed-in account, no errors on the page.
+  - Collection, Shop and Profile scroll heights at 1000x460, 844x390 and 667x375 equal `origin/main`'s exactly (e.g. 1508/972/593 at 1000x460).
+  - Friends, My Decks and the Deck Builder have vertical scroll 0 at all three sizes.
+  - At 667x375 each friend tile's crest and buttons sit inside the tile (tile 80–189, crest 87–119, buttons 160–182).
+  - At 844x390, Accept POSTs `/api/profile/friends/accept`, and Message switches Social to the Messages view.
+  - Portrait 390x844 and desktop 1920x1080 scroll heights are unchanged for every screen apart from Friends. Friends is 114px shorter in portrait (572 → 458) because the Sent section is gone; its headings now read Add a friend · Requests · Friends · Open tables, and the sent-to name no longer appears.
+- October 6, 2026 **Hub screens on a landscape phone: one screen each, scrolling sideways.**
+  - **Change.** On a phone on its side, the hub's My Decks, Deck Builder, Collection, Shop, Profile and Friends (with its open-table lobbies) were portrait documents that scrolled 593–3,366px down at 1000x460, between a top bar and tab bar that leave under 300px of view. A new block in `home-redesign.css` (`(orientation: landscape) and (max-height: 600px)`) turns each screen's `.sg-scroll` into a horizontal rail. It is a column-flow grid: the title and primary actions form a fixed-width first column, and every section after it is a full-height panel side by side. Inside a panel, lists flow into columns or a single row of cards sized from the rail height (`--lh-h`). Wrapper divs (`[data-social-body]`, `.sg-prof-layout`, `.sg-social-pad`) step aside with `display:contents`, and the portrait 96px tab-bar spacers are hidden.
+  - **Per screen:**
+    - **My Decks:** title, Deck Builder and Auto Build in the first column, then the Saved, Owned and Shop preset panels with deck tiles in two rows.
+    - **Collection:** title and search/filters, then the binder as one long leather sheet of full-height cards, with Load more at its end.
+    - **Deck Builder:** an editor with fixed panes. Name, SiegeKnight and Save on the left, the deck so far in its own scrolling column, and the binder as a two-row card rail (one row under 420px tall) that scrolls on its own.
+    - **Shop:** the featured-pack carousel as a hero column, then Daily Offerings, Titles and Packs.
+    - **Profile:** the crest as a hero column, then the stat tiles, Showcase, Signature and Recent. The 560–1023px layer's per-block grid pins are released.
+    - **Friends:** title and Add a friend, then Requests, Friends (rows fill columns), Sent and the open tables (lobbies) as tiles.
+  - **Unchanged:** Home (stage), Messages, Settings and Help keep their layouts.
+  - **JS:** `render()` now tags `.sg-app` with `data-screen`, and with `data-social-tab` (also updated in `paintSocialTabs`), to scope the rules. The binder rails use `justify-content:start`, because the desktop grid's centring spilled overflow off the left edge where no scroll could reach it.
+  - `home-redesign.css` is now `?v=75` and `.js` `?v=67`.
+- Verification:
+  - `node --check`. Headless Chromium against `home-next.html` with a fully mocked signed-in account: public payloads captured from live, plus fake progression, owned cards, 3 saved decks, 6 friends, request in and out, and 3 open tables. No errors on the page.
+  - At 1000x460, 844x390 and 667x375, all six screens have vertical scroll 0. The baseline was 593–3,366px.
+  - At 844x390:
+    - A touch swipe moves My Decks to `scrollLeft` 828 with `scrollTop` 0.
+    - Collection's Load more is reachable at the rail's end and takes the binder from 24 to 48 cards, and tapping a card opens the card sheet.
+    - Tapping a binder card in the Deck Builder adds it ("1 of 30") into the deck column.
+    - The open tables render as tiles at the rail's end.
+    - Messages keeps the block layout.
+  - At 390x844 and 1920x1080 every screen's scroll height is byte-for-byte the same as the unmodified tree, measured on a stash of these changes.
+- October 6, 2026 **Battle loadout on a landscape phone: one vivid screen with sideways swipe rails.**
+  - **Change.** On a phone on its side, the `/battle` loadout was a portrait page turned 90 degrees. The 208px art band took half the height and every step scrolled vertically (the deck step by up to ~1,000px). At 1000x460 the first deck started at y 549, below the screen, because `style.css`'s two-pane landscape grid only covers widths under 980px.
+  - A new `play-next.css` block (`(orientation: landscape) and (max-height: 600px)`) makes `.loadout-box` a fixed three-row grid:
+    - **Top bar:** one slim row with the kicker, title, pill step chips and the close button pinned to the corner.
+    - **Middle:** the active step fills the space.
+    - **Bottom:** a one-row action bar laid out as a grid (Back · summary · primary).
+  - The Battle artwork moves from the band to the backdrop of the whole screen, washed with fire and violet radial accents. Panels become blurred glass on top of it.
+  - **Setup:** the name card is on the left. On the right, the three battle modes become tall coloured tiles (Solo fire-orange ⚔, Online violet 🌐, Tutorial emerald 🎓) with glowing orbs, and the active tile lifts and glows. The online/tutorial panel sits under the name card and scrolls inside itself.
+  - **Deck and SiegeKnight:** full-height 5:7 cards on an edge-to-edge horizontal snap rail, with the selected card lifted in its element glow. The deck source tabs and the account line share one row above the rail.
+  - **Loadout review:** the summary's sections (deck, opening keeps, evolutions, recommended knights, commander) become side-by-side columns that scroll sideways.
+  - **Deck Builder.** It used to scroll 452–1,495px. It now fills the screen as an editor:
+    - Source tabs and the account line share one row.
+    - The element and type filters form one swipeable row.
+    - Card Pool, Deck List and Card Preview are three full-height panes side by side.
+    - The card pool's rows (`grid-template-rows: repeat(auto-fill, 66px)`) flow into columns that swipe sideways.
+    - The deck list and preview scroll inside their own panes.
+  - Below 780px wide, the kicker hides and inactive chips show only their number.
+  - **Mode art.** Each Setup mode tile now shows its own scene, from new 600x900 portrait crops in `img/modes/` cut from loading-art scenes (62–108 KB each):
+    - Solo vs AI: Solgator roaring alone against the eruption (`art/loading/solgator-eruption`).
+    - Online: two sides clashing over the sky nest (`art/loading/air-battle`).
+    - Tutorial: Cozycub's den, a gentle place to learn (`art/loading/cozycub-den`).
+    - These replaced a first pass cut from the hub gallery plates (Draco's brood, Skydon, Frostag), because those creatures already appear across the hub. None of the new scenes is used anywhere else. URLs carry `?v=2` because Hosting caches images as immutable.
+    - Each tile layers a wash in the mode's colour over its art, with a fade to ink at the foot for the label. Inactive tiles are slightly desaturated so the picked one stands out.
+  - `play-next.css` is now `?v=12`.
+- Verification:
+  - Headless Chromium against `/battle` with the live `/api/game/options` and `/api/cards/editor` payloads replayed, no errors on the page.
+  - At 1000x460, 844x390, 667x375 and 740x360, the box, core and page vertical scroll are 0 on all four steps. Before, the box scrolled up to 576px at 1000x460 and the core up to 1078px at 844x390.
+  - At 844x390:
+    - The Tutorial and Online tiles reveal their panels without any scroll.
+    - The primary button advances to Deck.
+    - With the rail overfilled, a touch swipe scrolls the deck rail sideways (scrollLeft 524 of 2106) while the box `scrollTop` stays 0.
+    - Tapping Stone Garden selects `deck_earth`.
+    - The Deck Builder still scrolls its step (`overflow-y:auto`).
+    - The review columns scroll sideways (1254 vs 818 wide).
+  - Deck Builder, signed in (mocked account): the step and box vertical scroll is 0 at 1000x460, 844x390 and 667x375. Pressing + twice on Applehead lists "Applehead x2" in the Deck List, and the card pool swipes sideways (`scrollWidth` 17,700 vs 385). No errors on the page.
+  - With the mode art, re-run at 1000x460 and 667x375: still no scroll on any step and no errors on the page. The screenshots show all three scenes under readable labels.
+  - `GameJavaScriptRegressionTest` passes.
+  - The media query is landscape-only and at most 600px tall, so portrait and desktop are untouched.
+- October 5, 2026 **Deploy record: #1016 and #1017 live; #1018 redeployed after a cancelled Hosting job.**
+  - **What happened.** Run 1002 (#1016) shipped both surfaces. In run 1003 (#1017), the Cloud Run job was cancelled after 15 minutes and the run ended as `failure`, but its Hosting step still succeeded. In run 1004 (#1018), the Cloud Run deploy succeeded in 3.5 minutes, but its Firebase Deploy job sat queued for 15 minutes without a runner and was cancelled, so #1018's `adventure.css?v=105` / `adventure.js?v=118` never reached Hosting. The agent's GitHub integration cannot re-run jobs or dispatch the workflow (403), so this entry is the push that redeploys main.
+- Verification (before this push):
+  - Live `/home`, `hub-music.js?v=3`, `home-redesign.js?v=66` and `home-redesign.css?v=74` are byte-identical to main.
+  - `/api/cards/editor` returns `source=FIRESTORE`, `liveEditingEnabled=true` and `firestoreAvailable=true`, through Hosting and directly on Cloud Run.
+  - `config.js` has `apiBaseUrl: ''` and `/api/game/options` returns 200.
+  - `/siege` still served `adventure.css?v=104` / `adventure.js?v=117`.
+  - Run 1005 (from #1019) then failed the same way: both jobs sat queued for 15 minutes with no runner and were cancelled. Neither job ever started, so this points at GitHub Actions runner availability or account limits, not the code. A follow-up push retries after the account owner settled billing.
+- October 5, 2026 **Siege team select fits one landscape phone screen, with the choices first and swipe rails.**
+  - **Change.** On a landscape phone (`(orientation:landscape) and (max-height:600px)`), `#setupScreen` used to be a scrolling document. At 1000x460 the mode page ran 325px past the fold, the first knight card started at y 300, and the first Siegeling card started at y 443. Now the shell is a fixed `100dvh` flex column and `#setupScreen` is a grid:
+    - **Top row:** the account pill and step chips share one row.
+    - **Each step:** a grid whose single `1fr` row is the choice, with the footer as a plain row underneath instead of a sticky overlay.
+    - **Mode:** the three cards sit side by side, sized to the screen, with descriptions clamped to 4 lines.
+    - **Knights:** one horizontal, snap-scrolling, swipeable rail of columns (`clamp(220px,27%,300px)`). The availability band becomes a slim vertical tab, and a long knight scrolls inside its own card.
+    - **Siegelings:** a rail of cards (`clamp(124px,17vw,168px)`) whose art flexes to the rail height while the text rows keep their size. Title, counts and both filter rows (each a horizontal scroller) fit in two short rows above it.
+    - **Hidden on landscape phones:** `.siege-sub`, `.warband-help` and the Battlegrounds entry (Battlegrounds is already a mode card).
+    - **`adventure.js`:** `renderKnightStep` and `renderSieglingGrid` now carry `scrollLeft` across their re-render, so a pick far along a rail no longer jumps back to the first card.
+    - Portrait and desktop are untouched. `adventure.css` is now `?v=105` and `adventure.js` `?v=118`.
+- Verification:
+  - `node --check`; `GameJavaScriptRegressionTest` passes.
+  - Headless Chromium against static `adventure.html` with a mocked roster (10 knights, 43 Siegelings), no errors on the page.
+  - At 1000x460, 844x390 and 667x375, the mode, knight and warband pages all have page scroll 0:
+    - Mode cards fill y 87–452 at 1000x460.
+    - The knight rail starts at y 85, the warband rail at y 123, and the footer sits below each.
+  - Two Siegelings select and enable Begin Expedition.
+  - At 844x390:
+    - A touch swipe scrolls the knight rail to `scrollLeft` 1554 while the page `scrollTop` stays 0.
+    - Picking the 4th knight at 720 keeps 720, and so does a warband pick at 616.
+    - An element filter narrows the rail.
+  - At 390x844 and 1920x1080 the document layout is unchanged: the pages scroll as before and the instructions are visible.
+- October 5, 2026 **Hub music resumes across page loads.**
+  - **Change.** A full navigation (the gacha return to `/shop`, a sign-in redirect, going to Siege and back, a reload) used to tear the player down, and the next load reshuffled from 0:00. `hub-music.js` now saves the shuffle order, current song and position in `localStorage.sgHubMusicResume`:
+    - The save happens every ~3s of playback, on each song change, on `visibilitychange` (hidden) and on `pagehide`, which is iOS's reliable leave signal.
+    - On load, a save under 30 minutes old (`RESUME_TTL_MS`) is restored, and the song seeks to its saved second on `loadedmetadata`. A position within 2s of the end restarts that song rather than firing `ended`.
+    - A stale or malformed save (anything that isn't an exact permutation of the track list) falls back to a fresh shuffle.
+    - Browsers still require a tap per page before sound starts, so the song continues from its saved second once that tap lands.
+    - `hub-music.js` is now `?v=3`.
+- Verification:
+  - `node --check`. Headless Chromium against a local Range-capable static server (Hosting serves 206s; Python's server can't seek).
+  - A song played to 65.4s, the page navigated to `adventure.html` and back: the same song (water) was restored before the tap and played on from ~66s after it.
+  - A seeded 1-minute-old save resumed its song (fire) at 90s; a 1-hour-old one started a fresh shuffle at 0:00.
+  - The Now Playing panel checks still pass at 390x844, 375x667, 844x390 and 1920x1080, with no errors on the page.
+- October 5, 2026 **Hub music: a Now Playing panel to change songs from any screen, portrait included.**
+  - **Change.** In portrait the hub's only music control was the top-bar note, which just muted. The note now opens a Now Playing panel (`hub-music.js`). The panel is built on open into the current `.sg-app`, under the top bar like the notification tray. It shows the current song with level bars, previous / play-pause / next, and all seven tracks, each with its element pip. Tapping a track plays it and unmutes. The list is the panel's one scrolling region, so in landscape (bottom 312 vs tab bar 337) it scrolls inside the panel. Tapping outside, ×, or Esc closes it, and a screen change re-renders the shell and so closes it too. Opening the panel still counts as the first gesture that starts the music. The landscape stage pill is unchanged. Bumped `home-redesign.css` to `?v=74`, `.js` to `?v=66` and `hub-music.js` to `?v=2` in `home-next.html`.
+- Verification:
+  - `node --check`. Headless Chromium at 390x844, 375x667, 844x390 and 1920x1080, with no errors on the page:
+    - The first tap on the note opens the panel and starts the music. All 7 tracks are listed.
+    - Picking a different track plays that track and highlights its row.
+    - Next advances the song. The big button pauses and resumes, and its label switches between "Pause music" and "Play music".
+    - A tap on bare art closes the panel, and so does Esc.
+  - The screenshots show the panel under the top bar in portrait and beside the stage in landscape.
+- October 5, 2026 **Hub: Siegelings biome music plays across the hub.**
+  - **Change.** Seven biome themes were added under `static/audio/biomes/`: fire, water, wind, electric, desert, cave and jungle, about 39 MB in total. The new `js/hub-music.js` shuffles them once per visit and moves to the next on `ended`. A track that fails to load is skipped. Volume is 0.32, the same as the Keep. The on/off choice is saved in `localStorage.sgHubMusicOn` and defaults to on. Browsers block sound until the first tap, so a capture-phase starter begins playback on that tap. If autoplay was blocked, the first tap on the music button starts the music instead of muting it. Music pauses while the tab is hidden. The `<audio>` element is never attached to the DOM, because `mountApp` switches screens by emptying `document.body` and removing a media element pauses it. Playback therefore continues between Home, Cards, Shop and the other hub screens. Controls are plain `data-music-toggle/-next/-prev/-title` elements, wired by delegation and repainted through `SiegelingsHubMusic.sync()` after each render. Every hub screen has a round music button in the top bar, next to the coins (it shows a slash when muted and turns gold while playing). The landscape stage adds a music pill above the art caption, modelled on the BD2 lobby: animated level bars that work as the toggle, the song title, and previous/next. Song URLs carry `?v=1` because Hosting caches mp3 files as immutable. `home-next.html` loads `hub-music.js?v=1` and calls `init()` after mount. Bumped `home-redesign.css` to `?v=72` (`?v=73` after merging #1015) and `.js` to `?v=65`.
+- Verification:
+  - `node --check` on both files. Headless Chromium against static `home-next.html`, with no errors on the page:
+    - At 667x375, 844x390, 390x844 and 1920x1080, the first tap starts playback and the top-bar button mutes it (pref `0`, class `is-muted`).
+    - On the stage, next changes the song and the title in the pill. The pill (y 177–213 at 667x375) sits clear of the shortcut grid (bottom 166).
+    - Switching Home → Cards keeps the same audio element playing, with `currentTime` still advancing.
+    - The mute is still in effect after a reload, and a later tap on the button resumes.
+    - Firing `ended` seven times visits all seven songs, then wraps to the first.
+    - With autoplay blocked, the first tap on the music button starts playback.
+- October 5, 2026 **Hub Home on a landscape phone is one screen of art with the menus over it (experiment).**
+  - **Change.** On a phone on its side (`(orientation: landscape) and (max-height: 500px)`), Home in `home-redesign.js` no longer scrolls. A new `.sg-stage` shows full-bleed gallery art that crossfades every 9s, with a slow zoom on each piece. The menus float over the art. Top-left: Objectives (open count), Hall, Expedition, Featured, Gallery and Lobbies. Right: Siege (Resume Siege when a run is saved), Keep and a big Battle button. Bottom-left: the art's title and card, plus a player pill with previous / pause / next, rotation dots, **Rotation** and an eye button that hides all menus until you tap the art. Swiping the art also steps through it. Objectives, Hall and Expedition open a panel. The panel borrows the section already built in the hidden scroller instead of building it again, so the leaderboard chips keep working, and returns it when closed. **Rotation** opens a picker of every gallery piece. You can pick up to 10 (`STAGE_MAX`), the order is numbered, and pieces still locked behind an achievement are greyed out. The choice is saved in `localStorage.sgStageRotation` and defaults to the four hero scenes. Portrait and desktop are unchanged: the stage is `display:none` outside the query. Bumped `home-redesign.css` to `?v=71` and `.js` to `?v=64` in `home-next.html`.
+- Verification:
+  - `node --check`. Headless Chromium against static `home-next.html` with no errors on the page.
+  - At 844x390, 932x430 and 667x375: the stage shows, the scroller is `display:none`, and the page does not scroll. Next and swipe change the caption. The picker lists 9 pieces with 4 selected. Adding one makes 5/10 and 5 dots, and the new piece is shown. Hall moves `.sg-lb` into the panel and puts it back on close. The eye button sets the menus to opacity 0, and tapping the art brings them back.
+  - With 5 extra pieces in the loading-art cache, selection stops at 10/10 and is still 10 after a reload. The panel stays above the tab bar (bottom 303 vs 322) and its body scrolls.
+  - At 390x844 and 1920x1080 the stage is hidden and the scrolling Home is unchanged.
+- October 5, 2026 **Hub on a phone held sideways: Play, Shop and Profile use the width.**
+  - **Change.** New `@media (orientation:landscape) and (max-height:600px) and (min-width:560px) and (max-width:1023px)` layer at the end of `home-redesign.css`. Play: the three mode plates sit side by side as upright panels (bottom-up veil, copy and button at the foot) sized from the viewport height, so all three show without scrolling. Shop: the daily-offer strip becomes equal grid columns and each card scales to its column width at card aspect, instead of fixed 118px tiles with half the row empty. Profile: `.sg-prof-layout` becomes a 3fr/2fr grid with the Showcase (three equal columns) and Signature (favorite card + card back) on one row; crest, stats and Recent stay full width. Portrait phones and the >=1024px desktop layer are untouched. Bumped `home-redesign.css` to `?v=71` in `home-next.html`.
+- Verification:
+  - Headless Chromium on `home-next.html?screen=play|shop|social` with `/api/**` stubbed (5 daily offers) at 932x430, 844x390 and 667x375: three mode plates in one row (e.g. 291x268 each at 932x430, ending above the tab bar); five offer cards spanning the row edge to edge (168x235 at 932x430); showcase and signature blocks share a row (showcase x 0-559, signature x 559-932). No horizontal overflow, no page errors. At 390x844 and 1920x1080 the measured boxes are identical to before (stacked plates / 118px offers on phone; desktop grid unchanged).
 - October 5, 2026 **Keep: the shell fills the whole portrait screen, like the Arena.**
   - **Change.** `.keep-app` in `keep.css` was `position:fixed; inset:0`. A fixed box sizes to the layout viewport, and an installed iOS web app can report that shorter than the glass, so the dock stopped above a dead band. The shell now uses `top/left/right:0` with `height: max(100dvh, var(--sg-vh, 0px))`, the same rule the Arena (`style.css` body) and hub (`.sg-app`) already use. `keep.html` already loads `viewport-unit.js`, which supplies the corrected `--sg-vh`. Bumped `keep.css` to `?v=58`.
 - Verification:

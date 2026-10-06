@@ -928,6 +928,8 @@
   // decorative sparkle that read as a cosmetic chip instead of an alert button.
   var BELL_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>';
 
+  var MUSIC_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle><path class="sg-music-slash" d="M3 3l18 18"></path></svg>';
+
   function topMarkup(opts) {
     var guest = Boolean(opts && opts.guest);
     var unread = unreadNotifCount(opts);
@@ -936,6 +938,8 @@
       '<span class="sg-top-spacer"></span>' +
       '<span class="sg-chip coin"><img src="/img/ui/home-stats/siegecoin.png" alt="">' +
         esc(formatCoins(opts, guest)) + '</span>' +
+      // hub-music.js owns the state and repaints this on every change.
+      '<button class="sg-music" type="button" data-music-open aria-label="Music" aria-haspopup="dialog" aria-expanded="false">' + MUSIC_ICON + '</button>' +
       (guest
         ? '<a class="sg-signin" href="/login" data-screen="auth">Sign In</a>'
         // The badge used to read a `level` the backend has never had: there is
@@ -1062,11 +1066,359 @@
     if (strip) strip.addEventListener('click', function () { strip.classList.toggle('open'); });
   }
 
+  /* ---------- landscape stage (experiment) ----------
+     A phone on its side has ~390px of height, so the scrolling Home became a
+     letterbox you thumb through to reach anything. On a landscape phone Home is
+     instead one screen of artwork with every destination floating over it, in
+     the manner of a gacha lobby: nothing scrolls, the art is the point, and the
+     panels that used to be sections (Objectives, Hall of Siege, Continue
+     Playing) open on demand over the art. Portrait and desktop keep the
+     scrolling Home - the stage is only shown by the landscape media query.
+
+     The player chooses which gallery pieces rotate behind it, up to
+     STAGE_MAX. Like the binder look this is a device preference (localStorage):
+     profileSettings is a fixed server contract and a wallpaper needs no round
+     trip. Earned-only pieces are offered but stay locked until earned. */
+  var STAGE_KEY = 'sgStageRotation';
+  var STAGE_MAX = 10;
+  var STAGE_DWELL_MS = 9000;
+  var STAGE_QUERY = '(orientation: landscape) and (max-height: 500px)';
+
+  function stagePieces() {
+    // Landscape art first: the stage is by definition a wide screen, and a tall
+    // plate cropped to a 2:1 band loses its subject.
+    var src = (window.SiegelingsLoadingArt && window.SiegelingsLoadingArt.pool()) || [];
+    var out = src.map(function (p) {
+      var art = p.landscape || p.portrait || '';
+      return { id: p.id, title: p.title || title(p.id), place: p.place || '', thumb: art, art: art };
+    }).filter(function (p) { return p.art; });
+    // The hub's own plates are not all in the loading pool (the Sunscar Ruins
+    // scene is hub-only), and the default rotation names them.
+    GALLERY.forEach(function (g) {
+      if (out.some(function (p) { return p.id === g.img; })) return;
+      out.push({ id: g.img, title: g.title, place: g.place, thumb: plate(g, true), art: plate(g) });
+    });
+    return out;
+  }
+
+  function readStageRotation() {
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem(STAGE_KEY) || 'null'); } catch (e) { saved = null; }
+    var pieces = stagePieces();
+    var known = {};
+    pieces.forEach(function (p) { known[p.id] = p; });
+    var ids = (Array.isArray(saved) ? saved : HERO_SCENES).filter(function (id) {
+      return known[id] && !galleryLock(id);
+    }).slice(0, STAGE_MAX);
+    // An emptied or fully-locked selection still needs something on the wall.
+    if (!ids.length) ids = HERO_SCENES.filter(function (id) { return known[id]; });
+    if (!ids.length && pieces.length) ids = [pieces[0].id];
+    return ids.map(function (id) { return known[id]; });
+  }
+
+  function writeStageRotation(ids) {
+    try { localStorage.setItem(STAGE_KEY, JSON.stringify(ids.slice(0, STAGE_MAX))); } catch (e) { /* private mode */ }
+  }
+
+  // The card a piece portrays, for the caption. Gallery scenes name it; API
+  // pieces usually open with the card id ("bearby-longfuse" -> bearby).
+  function stageCard(piece) {
+    for (var i = 0; i < GALLERY.length; i++) {
+      if (GALLERY[i].img === piece.id) return byId(GALLERY[i].card);
+    }
+    return byId(String(piece.id).split('-')[0]);
+  }
+
+  var STAGE_ICON = {
+    quests: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>',
+    hall: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>',
+    expedition: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20l6-11 4 6 3-4 5 9z"/><circle cx="17" cy="5" r="2"/></svg>',
+    featured: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg>',
+    gallery: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>',
+    lobbies: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 20c0-2 .8-3.8 2-5 2.2 0 4 2.2 4 5"/></svg>',
+    prev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M19 5l-10 7 10 7z"/></svg>',
+    next: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M5 5l10 7-10 7z"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>',
+    play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg>',
+    frames: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></svg>',
+    eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>'
+  };
+
+  function stageMarkup(opts) {
+    var runs = (opts && opts.siegeRuns) || [];
+    var quests = liveQuests(opts);
+    var openQuests = quests ? quests.filter(function (q) { return !q[2]; }).length : 0;
+    var run = runs[0];
+    function tile(key, label, attrs, badge) {
+      return '<button type="button" class="sg-stage-tile" ' + attrs + '>' +
+        '<span class="sg-stage-tile-ico">' + STAGE_ICON[key] + '</span>' +
+        '<span class="sg-stage-tile-label">' + esc(label) + '</span>' +
+        (badge ? '<i class="sg-stage-badge">' + esc(badge) + '</i>' : '') + '</button>';
+    }
+    function link(key, label, href, attrs) {
+      return '<a class="sg-stage-tile" href="' + href + '"' + (attrs || '') + '>' +
+        '<span class="sg-stage-tile-ico">' + STAGE_ICON[key] + '</span>' +
+        '<span class="sg-stage-tile-label">' + esc(label) + '</span></a>';
+    }
+    return '<section class="sg-stage" data-stage aria-label="Home">' +
+      '<div class="sg-stage-art" data-stage-art>' +
+        '<div class="sg-stage-plate is-on" data-stage-plate></div>' +
+        '<div class="sg-stage-plate" data-stage-plate></div>' +
+      '</div>' +
+      '<div class="sg-stage-veil"></div>' +
+      // Tapping bare art while the chrome is hidden brings it back.
+      '<button type="button" class="sg-stage-reveal" data-stage-reveal aria-label="Show menus"></button>' +
+      '<div class="sg-stage-ui">' +
+        '<nav class="sg-stage-left" aria-label="Home shortcuts">' +
+          tile('quests', 'Objectives', 'data-stage-panel="Daily Objectives"', openQuests ? String(openQuests) : '') +
+          tile('hall', 'Hall', 'data-stage-panel="Hall of Siege"') +
+          tile('expedition', 'Expedition', 'data-stage-panel="Continue Playing"', runs.length ? '!' : '') +
+          link('featured', 'Featured', pathForScreen('collection'), ' data-screen="collection"') +
+          link('gallery', 'Gallery', pathForScreen('art'), ' data-screen="art"') +
+          link('lobbies', 'Lobbies', HREF.lobbies) +
+        '</nav>' +
+        '<div class="sg-stage-right">' +
+          '<a class="sg-stage-mode" href="' + HREF.siege + '">' +
+            '<span class="sg-stage-mode-kicker">' + (run ? 'Expedition saved' : 'Roguelike') + '</span>' +
+            '<strong>' + (run ? 'Resume Siege' : 'Siege') + '</strong></a>' +
+          '<a class="sg-stage-mode is-keep" href="' + HREF.keep + '">' +
+            '<span class="sg-stage-mode-kicker">Your stronghold</span><strong>Keep</strong></a>' +
+          '<a class="sg-stage-play" href="' + HREF.battle + '">Battle</a>' +
+        '</div>' +
+        '<div class="sg-stage-deck">' +
+          // The soundtrack's own pill, like the lobby jukebox it is modelled on.
+          '<div class="sg-stage-music">' +
+            '<button type="button" class="sg-stage-music-toggle" data-music-toggle aria-label="Mute music">' +
+              '<span class="sg-stage-eq" aria-hidden="true"><i></i><i></i><i></i></span></button>' +
+            '<span class="sg-stage-music-title" data-music-title></span>' +
+            '<button type="button" data-music-prev aria-label="Previous song">' + STAGE_ICON.prev + '</button>' +
+            '<button type="button" data-music-next aria-label="Next song">' + STAGE_ICON.next + '</button>' +
+          '</div>' +
+          '<div class="sg-stage-caption" data-stage-caption></div>' +
+          '<div class="sg-stage-player">' +
+            '<button type="button" data-stage-prev aria-label="Previous art">' + STAGE_ICON.prev + '</button>' +
+            '<button type="button" data-stage-pause aria-label="Pause rotation">' + STAGE_ICON.pause + '</button>' +
+            '<button type="button" data-stage-next aria-label="Next art">' + STAGE_ICON.next + '</button>' +
+            '<span class="sg-stage-dots" data-stage-dots></span>' +
+            '<button type="button" class="is-wide" data-stage-pick aria-haspopup="dialog">' +
+              STAGE_ICON.frames + '<span>Rotation</span></button>' +
+            '<button type="button" data-stage-hide aria-label="Hide menus to view the art">' + STAGE_ICON.eye + '</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="sg-stage-panel" data-stage-sheet hidden role="dialog" aria-modal="false">' +
+        '<div class="sg-stage-panel-card">' +
+          '<header><h3 data-stage-sheet-title></h3>' +
+            '<button type="button" class="sg-stage-close" data-stage-close aria-label="Close">×</button></header>' +
+          '<div class="sg-stage-panel-body" data-stage-sheet-body></div>' +
+        '</div>' +
+      '</div>' +
+    '</section>';
+  }
+
+  function stagePickerMarkup(selected) {
+    var pieces = stagePieces();
+    return '<p class="sg-stage-pick-note">Choose up to ' + STAGE_MAX + ' pieces to rotate behind Home. ' +
+        '<b data-stage-count>' + selected.length + '/' + STAGE_MAX + '</b></p>' +
+      '<div class="sg-stage-pick-grid">' + pieces.map(function (p) {
+        var lock = galleryLock(p.id);
+        var order = selected.indexOf(p.id);
+        return '<button type="button" class="sg-stage-pick' + (order >= 0 ? ' on' : '') + (lock ? ' is-locked' : '') +
+          '" data-stage-piece="' + esc(p.id) + '"' + (lock ? ' disabled' : '') +
+          ' aria-pressed="' + (order >= 0) + '">' +
+          '<img ' + artAttrs(p.thumb, 320) + ' alt="" loading="lazy">' +
+          '<span class="sg-stage-pick-order">' + (order >= 0 ? order + 1 : '') + '</span>' +
+          '<span class="sg-stage-pick-foot">' + esc(p.title) +
+            (lock ? '<em>' + LOCK_ICON + esc(lock.achievement || 'Achievement') + '</em>' : '') + '</span>' +
+        '</button>';
+      }).join('') + '</div>';
+  }
+
+  function mountStage(app, opts) {
+    var stage = app.querySelector('[data-stage]');
+    if (!stage) return;
+    var mq = window.matchMedia ? window.matchMedia(STAGE_QUERY) : null;
+    var plates = [].slice.call(stage.querySelectorAll('[data-stage-plate]'));
+    var caption = stage.querySelector('[data-stage-caption]');
+    var dots = stage.querySelector('[data-stage-dots]');
+    var pauseBtn = stage.querySelector('[data-stage-pause]');
+    var sheet = stage.querySelector('[data-stage-sheet]');
+    var sheetTitle = stage.querySelector('[data-stage-sheet-title]');
+    var sheetBody = stage.querySelector('[data-stage-sheet-body]');
+    var rotation = readStageRotation();
+    var idx = 0, front = 0, timer = null, paused = false;
+    var borrowed = null;   // { node, marker } while a Home section is shown in the panel
+
+    function active() { return Boolean(mq && mq.matches); }
+
+    function paint(i, instant) {
+      if (!rotation.length) return;
+      idx = (i + rotation.length) % rotation.length;
+      var piece = rotation[idx];
+      var next = instant ? plates[front] : plates[1 - front];
+      next.style.backgroundImage = "url('" + piece.art + "')";
+      if (!instant) {
+        plates[front].classList.remove('is-on');
+        front = 1 - front;
+        // Restart the drift so each piece eases in from its own start.
+        next.classList.remove('is-on'); void next.offsetWidth;
+      }
+      next.classList.add('is-on');
+      var card = stageCard(piece);
+      stage.style.setProperty('--el', color(card && card.element));
+      caption.innerHTML = '<strong>' + esc(piece.title) + '</strong>' +
+        '<span>' + esc([card && card.name, piece.place].filter(Boolean).join(' · ')) + '</span>';
+      var d = '';
+      for (var k = 0; k < rotation.length; k++) d += '<i class="' + (k === idx ? 'on' : '') + '"></i>';
+      dots.innerHTML = d;
+      // Warm the next plate so the crossfade never lands on an unpainted box.
+      if (rotation.length > 1) { var pre = new Image(); pre.src = rotation[(idx + 1) % rotation.length].art; }
+    }
+
+    function schedule() {
+      clearInterval(timer); timer = null;
+      if (paused || rotation.length < 2 || !active()) return;
+      timer = setInterval(function () {
+        // Home re-renders on every screen change; a detached stage stops itself.
+        if (!stage.isConnected) { clearInterval(timer); return; }
+        paint(idx + 1);
+      }, STAGE_DWELL_MS);
+    }
+
+    function setPaused(on) {
+      paused = on;
+      pauseBtn.innerHTML = on ? STAGE_ICON.play : STAGE_ICON.pause;
+      pauseBtn.setAttribute('aria-label', on ? 'Resume rotation' : 'Pause rotation');
+      schedule();
+    }
+
+    function returnBorrowed() {
+      if (!borrowed) return;
+      borrowed.marker.parentNode.replaceChild(borrowed.node, borrowed.marker);
+      borrowed = null;
+    }
+
+    function closeSheet() {
+      returnBorrowed();
+      sheet.hidden = true;
+      sheetBody.innerHTML = '';
+      sheetBody.onclick = null;
+      stage.classList.remove('is-sheet-open');
+    }
+
+    function openSheet(name, html) {
+      returnBorrowed();
+      sheetBody.onclick = null;
+      sheetTitle.textContent = name;
+      sheetBody.innerHTML = '';
+      if (html != null) {
+        sheetBody.innerHTML = html;
+      } else {
+        // The section already rendered (and wired) in the portrait scroller is
+        // lent to the panel rather than rendered twice, so the leaderboard's
+        // chips and the objectives strip keep their handlers and their state.
+        var node = app.querySelector('.sg-scroll [data-home-section="' + name + '"]');
+        if (!node) return;
+        var marker = document.createComment('stage');
+        node.parentNode.replaceChild(marker, node);
+        borrowed = { node: node, marker: marker };
+        sheetBody.appendChild(node);
+        var strip = node.matches('[data-strip]') ? node : null;
+        if (strip) strip.classList.add('open');
+      }
+      sheet.hidden = false;
+      stage.classList.add('is-sheet-open');
+    }
+
+    function openPicker() {
+      var selected = rotation.map(function (p) { return p.id; });
+      openSheet('Home Rotation', stagePickerMarkup(selected));
+      sheetBody.onclick = function (e) {
+        var btn = e.target.closest && e.target.closest('[data-stage-piece]');
+        if (!btn || btn.disabled) return;
+        var id = btn.getAttribute('data-stage-piece');
+        var at = selected.indexOf(id);
+        if (at >= 0) {
+          if (selected.length === 1) return;   // the wall is never left bare
+          selected.splice(at, 1);
+        } else {
+          if (selected.length >= STAGE_MAX) {
+            var count = sheetBody.querySelector('[data-stage-count]');
+            count.classList.remove('is-full'); void count.offsetWidth; count.classList.add('is-full');
+            return;
+          }
+          selected.push(id);
+        }
+        writeStageRotation(selected);
+        sheetBody.querySelectorAll('[data-stage-piece]').forEach(function (b) {
+          var o = selected.indexOf(b.getAttribute('data-stage-piece'));
+          b.classList.toggle('on', o >= 0);
+          b.setAttribute('aria-pressed', String(o >= 0));
+          b.querySelector('.sg-stage-pick-order').textContent = o >= 0 ? String(o + 1) : '';
+        });
+        sheetBody.querySelector('[data-stage-count]').textContent = selected.length + '/' + STAGE_MAX;
+        var showing = rotation[idx] && rotation[idx].id;
+        rotation = readStageRotation();
+        var keep = -1;
+        rotation.forEach(function (p, i) { if (p.id === showing) keep = i; });
+        // Adding a piece shows it at once, so the choice is visibly made.
+        paint(at >= 0 ? (keep >= 0 ? keep : 0) : rotation.length - 1, false);
+        schedule();
+      };
+    }
+
+    stage.addEventListener('click', function (e) {
+      var t = e.target.closest ? e.target : null;
+      if (!t) return;
+      var panelBtn = t.closest('[data-stage-panel]');
+      if (panelBtn) { openSheet(panelBtn.getAttribute('data-stage-panel')); return; }
+      if (t.closest('[data-stage-close]')) { closeSheet(); return; }
+      if (t.closest('[data-stage-prev]')) { paint(idx - 1); schedule(); return; }
+      if (t.closest('[data-stage-next]')) { paint(idx + 1); schedule(); return; }
+      if (t.closest('[data-stage-pause]')) { setPaused(!paused); return; }
+      if (t.closest('[data-stage-pick]')) { openPicker(); return; }
+      if (t.closest('[data-stage-hide]')) { closeSheet(); app.classList.add('is-stage-bare'); return; }
+      if (t.closest('[data-stage-reveal]')) { app.classList.remove('is-stage-bare'); return; }
+    });
+
+    // Swiping the art steps through the rotation.
+    var sx = null, sy = 0;
+    stage.addEventListener('touchstart', function (e) {
+      if (e.target.closest('.sg-stage-panel, .sg-stage-ui a, .sg-stage-ui button')) { sx = null; return; }
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+    }, { passive: true });
+    stage.addEventListener('touchend', function (e) {
+      if (sx == null) return;
+      var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+      sx = null;
+      if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) { paint(idx + (dx < 0 ? 1 : -1)); schedule(); }
+    }, { passive: true });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && stage.isConnected && !sheet.hidden) closeSheet();
+    });
+
+    if (mq) {
+      var onChange = function () {
+        if (!stage.isConnected) return;
+        if (!mq.matches) { closeSheet(); app.classList.remove('is-stage-bare'); }
+        schedule();
+      };
+      if (mq.addEventListener) mq.addEventListener('change', onChange);
+      else if (mq.addListener) mq.addListener(onChange);
+    }
+
+    paint(0, true);
+    schedule();
+  }
+
   /* ---------- screens ---------- */
 
   function homeScreen(opts) {
     opts = opts || {};
-    return topMarkup(opts) +
+    // The stage precedes the scroller so the landscape rule can retire the
+    // scroller with a sibling selector rather than :has().
+    return topMarkup(opts) + stageMarkup(opts) +
       '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + expeditionsSection(opts) +
       '<div style="height:96px"></div></div>' +
       sheetHost() +
@@ -5583,11 +5935,10 @@
     var live = opts.live || {};
     var friends = live.friends || [];
     var incoming = live.incomingRequests || [];
-    var outgoing = live.outgoingRequests || [];
     var rooms = live.rooms || [];
     return '<div class="sg-social-pad">' +
       // Adding someone is the first thing a new player needs, so it leads.
-      '<section class="sg-section">' +
+      '<section class="sg-section" data-friends-block="add">' +
         '<div class="sg-section-head"><h3>Add a friend</h3></div>' +
         '<form class="sg-add-friend" data-add-friend>' +
           '<input type="email" name="email" placeholder="Their account email" ' +
@@ -5597,7 +5948,7 @@
         '<p class="sg-social-note" data-friend-note hidden></p>' +
       '</section>' +
       (incoming.length
-        ? '<section class="sg-section">' +
+        ? '<section class="sg-section" data-friends-block="requests">' +
             '<div class="sg-section-head"><h3>Requests</h3></div>' +
             '<div class="sg-stack sg-stack-tight">' + incoming.map(function (r) {
               var id = r.fromUserId || r.userId || r.id || '';
@@ -5613,26 +5964,14 @@
             }).join('') + '</div>' +
           '</section>'
         : '') +
-      '<section class="sg-section">' +
+      '<section class="sg-section" data-friends-block="friends">' +
         '<div class="sg-section-head"><h3>Friends</h3>' +
           (friends.length ? '<span class="sg-count">' + esc(friends.length) + '</span>' : '') + '</div>' +
         (friends.length
           ? '<div class="sg-stack sg-stack-tight">' + friends.map(friendRow).join('') + '</div>'
           : '<div class="sg-empty-row">No friends yet. Add someone by their account email above.</div>') +
       '</section>' +
-      (outgoing.length
-        ? '<section class="sg-section">' +
-            '<div class="sg-section-head"><h3>Sent</h3></div>' +
-            '<div class="sg-stack sg-stack-tight">' + outgoing.map(function (r) {
-              return '<div class="sg-friend is-pending">' +
-                '<span class="sg-friend-crest">' + esc(friendInitial(r)) + '</span>' +
-                '<span class="sg-friend-body"><strong>' + esc(friendName(r)) + '</strong>' +
-                  '<em>Waiting for them</em></span>' +
-              '</div>';
-            }).join('') + '</div>' +
-          '</section>'
-        : '') +
-      '<section class="sg-section">' +
+      '<section class="sg-section" data-friends-block="tables">' +
         '<div class="sg-section-head"><h3>Open tables</h3></div>' +
         (rooms.length
           ? '<div class="sg-stack">' + rooms.slice(0, 8).map(lobbyRow).join('') + '</div>'
@@ -5642,12 +5981,27 @@
     '</div>';
   }
 
+  /* A friend has no element of their own in the payload, so each one is given
+     a land by a stable hash of their id: the landscape Friends rail paints
+     friends as art tiles, and the same friend keeps the same plate every visit. */
+  var FRIEND_LANDS = ['FIRE', 'WATER', 'WIND', 'EARTH', 'ICE', 'ELECTRIC', 'METAL', 'POISON', 'PSYCHIC', 'SHADOW', 'LIGHT', 'UNDEAD'];
+  function friendElement(f) {
+    var key = String((f && (f.favoriteElement || (f.presence && f.presence.favoriteElement))) || '').toUpperCase();
+    if (FRIEND_LANDS.indexOf(key) >= 0) return key;
+    var id = String((f && (f.id || f.userId || f.email)) || friendName(f));
+    var h = 0;
+    for (var i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    return FRIEND_LANDS[h % FRIEND_LANDS.length];
+  }
+
   function friendRow(f) {
     var p = f.presence || {};
     var id = f.id || f.userId || '';
     var email = f.email || '';
     var status = p.online ? title(p.status || 'ONLINE') : 'Offline';
-    return '<div class="sg-friend' + (p.online ? ' is-on' : '') + '" data-friend-id="' + esc(id) + '">' +
+    var el = friendElement(f);
+    return '<div class="sg-friend' + (p.online ? ' is-on' : '') + '" data-friend-id="' + esc(id) + '" ' +
+      'style="--el:' + color(el) + ';--friend-land:url(\'' + land(el) + '\')">' +
       '<button class="sg-friend-crest is-link" type="button" data-friend-view="' + esc(id) + '" ' +
         'aria-label="View ' + esc(friendName(f)) + '\'s profile">' + esc(friendInitial(f)) + '</button>' +
       '<button class="sg-friend-body is-link" type="button" data-friend-view="' + esc(id) + '">' +
@@ -5769,6 +6123,7 @@
   /* Re-renders the Social screen in place, carrying whatever the server just
      told us about friends and requests so the list is never a tap behind. */
   function paintSocialTabs(app, opts) {
+    app.setAttribute('data-social-view', socialTab);
     var unread = unreadThreadCount(opts);
     var fabBadge = app.querySelector('[data-fab-badge]');
     if (fabBadge) {
@@ -6671,6 +7026,12 @@
                      profile: profileScreen, play: playScreen, builder: builderScreen,
                      social: socialScreen, settings: settingsScreen, help: helpScreen,
                      auth: authScreen, art: artScreen };
+    // Screen-scoped layout hooks: the landscape-phone layout in
+    // home-redesign.css lays each screen out differently, and the Social
+    // screen's three tabs share one shell. Not data-social-tab: that attribute
+    // marks the tab buttons, and mountSocial treats anything carrying it as one.
+    app.setAttribute('data-screen', builders[screen] ? screen : 'home');
+    if (screen === 'social') app.setAttribute('data-social-view', socialTab);
     app.innerHTML = builders[screen] ? builders[screen](opts) : homeScreen(opts);
     host.appendChild(app);
     // Every screen carries the same chrome, so the rail and the tab bar are
@@ -6688,6 +7049,7 @@
     } else if (!builders[screen]) {
       mountHero(app, opts);
       mountLeaderboard(app, opts);
+      mountStage(app, opts);
       mountStrip(app);
       mountSheet(app, opts);
       var strip = opts.questsOpen && app.querySelector('[data-strip]');
@@ -6698,6 +7060,7 @@
     if (screen === 'auth') mountAuth(app);
     mountBottom(app);
     mountNotifs(app, opts);
+    if (window.SiegelingsHubMusic) window.SiegelingsHubMusic.sync();
     mountArtFit(app);
     scheduleFit(app);
     return app;

@@ -3318,3 +3318,119 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
   }
   #mapScreen.has-land .map-scroll{ padding-top:120px; }
 }
+
+/* ---------- Team select on a landscape phone: one screen, options first ----------
+   The setup pages were a scrolling document: on a ~390-460px-tall phone the
+   mode cards ran 325px past the fold, the knight cards started in the lower
+   half and the warband's first Siegeling peeked in at the bottom edge, all
+   under paragraphs of instructions. Here the screen is a fixed flex column and
+   each page is a grid whose single 1fr row is the choice itself. Knights and
+   Siegelings ride one horizontal, snap-scrolling rail (swipe sideways), the
+   instructional copy steps aside, and the footer is a plain row in the flow
+   instead of a sticky overlay. Portrait and desktop keep the document layout. */
+@media (orientation:landscape) and (max-height:600px){
+  body[data-screen="setupScreen"]{ overflow:hidden; }
+  body[data-screen="setupScreen"] .siege-app{
+    height:100dvh; min-height:0; display:flex; flex-direction:column; overflow:hidden;
+    padding-bottom:0;
+  }
+  body[data-screen="setupScreen"] .siege-topbar{ flex:0 0 auto; position:static; padding:4px 0 2px; }
+  body[data-screen="setupScreen"] .siege-title{ font-size:13px; }
+  body[data-screen="setupScreen"] .siege-title span{ display:none; }
+
+  /* Account line and step chips share one row above the page. */
+  #setupScreen{
+    flex:1 1 auto; min-height:0; padding:0;
+    display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-rows:auto minmax(0,1fr);
+    column-gap:12px; align-items:center;
+  }
+  #setupScreen > .siege-account{
+    grid-column:1; grid-row:1; margin:0; padding:3px 4px 3px 12px; min-height:0;
+    font-size:12px; border-radius:999px; display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
+  #setupScreen > .siege-account .siege-btn{ padding:4px 12px; font-size:12px; min-height:0; }
+  #setupScreen > .setup-steps{ grid-column:2; grid-row:1; margin:0; overflow:visible; padding:0; }
+  #setupScreen .setup-step{ padding:3px 10px; font-size:10.5px; white-space:nowrap; }
+  #setupStepMode, #setupStepKnight, #setupStepParty{
+    grid-column:1 / -1; grid-row:2; align-self:stretch; min-height:0; padding-bottom:0;
+    display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:12px;
+    grid-template-rows:auto minmax(0,1fr) auto; align-items:center;
+  }
+  #setupStepMode.hidden, #setupStepKnight.hidden, #setupStepParty.hidden{ display:none; }
+  #setupScreen h1{ grid-column:1; grid-row:1; font-size:18px; margin:6px 0 4px; white-space:nowrap; }
+  /* Instructions give way to the choices; the step chip and title carry it. */
+  #setupScreen .siege-sub, #setupScreen .warband-help, #setupScreen .bg-entry{ display:none; }
+
+  /* ---- Mode: all three cards side by side, sized to the screen ---- */
+  #setupStepMode .mode-select-grid{
+    grid-column:1 / -1; grid-row:2 / 4; align-self:stretch; min-height:0; margin:2px 0 8px;
+    grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px;
+  }
+  #setupStepMode .mode-card{ min-height:0; height:100%; padding:12px 14px; gap:6px; overflow:hidden; }
+  #setupStepMode .mode-card-title{ font-size:21px; }
+  #setupStepMode .mode-card-desc{
+    font-size:12.5px; line-height:1.38;
+    display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:4; overflow:hidden;
+  }
+  #setupStepMode .mode-card-meta{ font-size:11.5px; }
+
+  /* ---- Shared horizontal rail ---- */
+  #knightGrid, #sieglingGrid{
+    grid-column:1 / -1; grid-row:2; align-self:stretch; min-height:0;
+    display:flex; align-items:stretch; flex-wrap:nowrap;
+    gap:10px; overflow-x:auto; overflow-y:hidden; padding:4px 2px 6px;
+    scroll-snap-type:x proximity; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch;
+    touch-action:pan-x; scrollbar-width:thin;
+  }
+  #knightGrid > *, #sieglingGrid > *{ scroll-snap-align:start; }
+
+  /* Knights: a column per knight; a long ability scrolls inside its own card. */
+  #knightGrid .knight-card{ flex:0 0 clamp(220px, 27%, 300px); overflow-y:auto; overscroll-behavior:contain; padding:10px 12px; touch-action:pan-x pan-y; }
+  /* Availability bands become a slim vertical tab between the columns. */
+  #knightGrid .knight-group{
+    flex:0 0 auto; grid-column:auto; margin:0; writing-mode:vertical-rl; transform:rotate(180deg);
+    justify-content:flex-start; font-size:9.5px; white-space:nowrap;
+  }
+  #knightGrid .knight-group::after{ width:1px; height:auto; flex:1 1 auto; }
+
+  /* Siegelings: art grows to fill the rail's height; the text block stays compact. */
+  #sieglingGrid .sgl-card{ flex:0 0 clamp(124px, 17vw, 168px); display:flex; flex-direction:column; padding:8px 9px; }
+  /* Only the art flexes; the text rows keep their height or they overprint. */
+  #sieglingGrid .sgl-card > :not(.sart){ flex:0 0 auto; }
+  #sieglingGrid .sgl-card .sart{ flex:1 1 auto; height:auto; min-height:40px; margin:-2px -4px 5px; }
+  #sieglingGrid .sgl-card .sart img{ width:100%; height:100%; object-fit:contain; object-position:center bottom; }
+  #sieglingGrid .sgl-card .sname{ font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #sieglingGrid .sgl-card .schips{ flex-wrap:nowrap; overflow:hidden; gap:4px; margin-top:3px; }
+  #sieglingGrid .sgl-card .schip, #sieglingGrid .sgl-card .rarity-tag{ white-space:nowrap; flex:0 0 auto; }
+  #sieglingGrid .sgl-card .schip.availability,
+  #sieglingGrid .sgl-card .schip.collection-owned{ display:none; }
+  #sieglingGrid .sgl-card .sstats{ font-size:11px; gap:8px; margin-top:4px; }
+  #sieglingGrid .sgl-card .slock-note{ display:none; }
+  #sieglingGrid .sgl-card .sunlock-btn{ margin-top:4px; padding:3px 6px; }
+  #sieglingGrid > .warband-help{ display:block; align-self:center; }
+
+  /* ---- Warband: title, counts and both filters fit in two short rows ---- */
+  #setupStepParty{
+    grid-template-columns:auto minmax(0,1fr);
+    grid-template-rows:auto auto minmax(0,1fr) auto;
+  }
+  #setupStepParty .warband-meta{ grid-column:2; grid-row:1; margin:0; min-height:0; font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #setupStepParty .filter-row{
+    grid-row:2; margin:0; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; gap:5px; padding-bottom:2px;
+  }
+  #setupStepParty .filter-row::-webkit-scrollbar{ display:none; }
+  #warbandStatusFilter{ grid-column:1; }
+  #elementFilter{ grid-column:2; }
+  #setupStepParty .filter-chip{ padding:3px 10px; font-size:11.5px; white-space:nowrap; flex:0 0 auto; }
+  #warbandLoadPanel{ grid-column:1 / -1; grid-row:3; padding:10px; }
+  #sieglingGrid{ grid-row:3; }
+  #setupScreen #setupStepParty .setup-footer{ grid-row:4; }
+
+  /* Footer: a row in the flow, not a sticky overlay over the rail. */
+  #setupScreen .setup-footer{
+    grid-column:1 / -1; grid-row:3; position:static; margin:0; flex-wrap:nowrap;
+    padding:6px 0 max(6px, env(safe-area-inset-bottom, 0px)); box-shadow:none; background:none;
+  }
+  #setupScreen .setup-footer .siege-btn{ padding:9px 16px; font-size:14px; min-height:0; }
+  #setupScreen .setup-summary{ font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+}
