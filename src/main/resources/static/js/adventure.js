@@ -227,6 +227,7 @@
     // only their own internal regions, like the map canvas, scroll).
     document.body.dataset.screen = id;
     applyLandLocation(id);
+    syncBattleMusic(id);
     // Every screen opens at its top. Arriving from a scrolled screen used to
     // carry that offset over, which on the puzzle screen meant landing halfway
     // down the board with the title hidden under the top bar.
@@ -287,6 +288,9 @@
           return { id: s.id, name: s.name, owned: s.owned, ready: s.expeditionStarter !== false };
         }) } : null,
       busy: !!state.busy,
+      music: { on: battleMusic.on, active: battleMusic.active,
+        track: battleMusic.audio ? battleMusic.audio.getAttribute('src') : null,
+        playing: !!(battleMusic.audio && !battleMusic.audio.paused) },
       campMenu: state.campMenu,
       gold: Number(run.gold || 0),
       land: run.land || null,
@@ -908,6 +912,8 @@
     $('runMenuSave').addEventListener('click', saveRunFromMenu);
     $('runMenuRestart').addEventListener('click', restartRun);
     $('runMenuQuit').addEventListener('click', quitRun);
+    $('runMenuMusic').addEventListener('click', function () { setBattleMusicOn(!battleMusic.on); });
+    paintBattleMusicToggle();
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('runMenu').classList.contains('hidden')) closeRunMenu();
     });
@@ -919,6 +925,97 @@
       loadRoster();
     });
   }
+
+  /* Battle music. Fights play a battle track; every other Siege screen is
+     silent, so the music itself marks "you are in combat". Elites and bosses
+     get the gym themes, matched to the Land's element where one exists. The
+     on/off choice is the hub player's own preference, so muting in one place
+     mutes both. One detached <audio> for the page: re-renders never touch it. */
+  var BATTLE_TRACKS = {
+    normal: ['/audio/sieglings-battle-theme.mp3?v=1', '/audio/battle/sieglings-battle-theme-2.mp3?v=1'],
+    gym: { EARTH: '/audio/battle/desert-gym-battle.mp3?v=1', ELECTRIC: '/audio/battle/electric-gym-battle.mp3?v=1' }
+  };
+  var BATTLE_MUSIC_KEY = 'sgHubMusicOn';
+  var BATTLE_MUSIC_VOLUME = 0.32;
+  var battleMusic = { audio: null, on: readBattleMusicPref(), active: false, armed: false };
+
+  function readBattleMusicPref() {
+    try { return (localStorage.getItem(BATTLE_MUSIC_KEY) || '1') === '1'; } catch (e) { return true; }
+  }
+
+  function pickBattleTrack() {
+    var node = ((state.run && state.run.map) || []).find(function (n) { return n.id === state.run.currentNodeId; });
+    var type = node && node.type;
+    if (type === 'ELITE' || type === 'BOSS') {
+      var elements = (state.run.land && state.run.land.elements) || [];
+      for (var i = 0; i < elements.length; i++) {
+        if (BATTLE_TRACKS.gym[elements[i]]) return BATTLE_TRACKS.gym[elements[i]];
+      }
+      var gyms = Object.keys(BATTLE_TRACKS.gym);
+      return BATTLE_TRACKS.gym[gyms[Math.floor(Math.random() * gyms.length)]];
+    }
+    return BATTLE_TRACKS.normal[Math.floor(Math.random() * BATTLE_TRACKS.normal.length)];
+  }
+
+  function battleMusicAudio() {
+    if (battleMusic.audio) return battleMusic.audio;
+    var a = document.createElement('audio');
+    a.preload = 'none';
+    a.loop = true;
+    a.volume = BATTLE_MUSIC_VOLUME;
+    battleMusic.audio = a;
+    return a;
+  }
+
+  function playBattleMusic() {
+    if (!battleMusic.on || !battleMusic.active || document.hidden) return;
+    var p = battleMusicAudio().play();
+    // Refused without a gesture (a reload straight into a fight): the next tap starts it.
+    if (p && p.catch) p.catch(armBattleMusicGesture);
+  }
+
+  function armBattleMusicGesture() {
+    if (battleMusic.armed) return;
+    battleMusic.armed = true;
+    var events = ['pointerdown', 'touchend', 'keydown'];
+    function starter() {
+      events.forEach(function (n) { document.removeEventListener(n, starter, true); });
+      battleMusic.armed = false;
+      playBattleMusic();
+    }
+    events.forEach(function (n) { document.addEventListener(n, starter, true); });
+  }
+
+  // showScreen calls this on every screen change. A fight re-renders through
+  // showScreen many times, so the track is only chosen when a fight begins.
+  function syncBattleMusic(screen) {
+    var inBattle = screen === 'battleScreen';
+    if (inBattle === battleMusic.active) return;
+    battleMusic.active = inBattle;
+    if (inBattle) {
+      battleMusicAudio().src = pickBattleTrack();
+      playBattleMusic();
+    } else if (battleMusic.audio) {
+      battleMusic.audio.pause();
+    }
+  }
+
+  function setBattleMusicOn(on) {
+    battleMusic.on = on;
+    try { localStorage.setItem(BATTLE_MUSIC_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
+    if (on) playBattleMusic(); else if (battleMusic.audio) battleMusic.audio.pause();
+    paintBattleMusicToggle();
+  }
+
+  function paintBattleMusicToggle() {
+    $('runMenuMusic').setAttribute('aria-pressed', String(battleMusic.on));
+    $('runMenuMusicLabel').textContent = 'Battle Music: ' + (battleMusic.on ? 'On' : 'Off');
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { if (battleMusic.audio) battleMusic.audio.pause(); }
+    else playBattleMusic();
+  });
 
   function updateRunMenu(show) {
     $('runMenuBtn').classList.toggle('hidden', !show);
