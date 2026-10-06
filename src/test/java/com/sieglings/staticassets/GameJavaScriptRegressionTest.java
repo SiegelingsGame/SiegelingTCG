@@ -2733,6 +2733,27 @@ class GameJavaScriptRegressionTest {
                 "A press must be acknowledged before any handler or request runs.");
     }
 
+    /**
+     * A track that 404s skips to the next one. If every file fails — the usual
+     * case is the phone going offline after the first song has started — that
+     * skip used to re-enter from the error handler with no ceiling. Each pass
+     * also writes the resume snapshot, fast enough to freeze the hub.
+     */
+    @Test
+    void hubMusicGivesUpAfterOnePassWhenEveryTrackFails() throws IOException {
+        String source = Files.readString(Path.of("src/main/resources/static/js/hub-music.js"));
+        assertFalse(source.contains("if (on && started) step(1)"),
+                "A failed track must not unconditionally load the next one.");
+        assertTrue(source.contains("var skipsLeft = TRACKS.length;"),
+                "Skip attempts have to be capped at one pass through the shuffle.");
+        assertTrue(source.contains("if (audio.error && audio.error.code === 1) return;"),
+                "A load cancelled by a newer src is not a broken file.");
+        assertTrue(source.contains("if (fromUser) skipsLeft = TRACKS.length;"),
+                "The error handler's own play() must not refill the skip budget.");
+        assertTrue(Files.readString(Path.of("src/main/resources/static/home-next.html")).contains("hub-music.js?v=4"),
+                "home-next.html must cache-bust hub-music.js after the skip guard.");
+    }
+
     /** The confirm dialog and the bulk controls have to exist in the page it runs on. */
     @Test
     void savedDeckDeleteDialogAndBulkControlsShipInTheHubMarkup() throws IOException {
