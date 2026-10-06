@@ -67,7 +67,7 @@ body {
 .knight-card.has-kart { padding:8px 8px 10px; border-left-width:1px; }
 .knight-card.has-kart .knight-lock { z-index:6; top:12px; right:12px; text-shadow:0 1px 3px rgba(0,0,0,.8); }
 .knight-card.has-kart.sel { outline:2px solid var(--accent); box-shadow:0 0 0 4px rgba(242,160,61,.18), 0 10px 26px rgba(0,0,0,.4); }
-.knight-card.locked .kart { filter:grayscale(.55) brightness(.8); }
+
 .kart {
     position:relative; width:100%; aspect-ratio:639 / 919; border-radius:7%/5%; overflow:hidden;
     background:#15171d; container-type:inline-size; box-shadow:0 8px 20px rgba(0,0,0,.4);
@@ -122,21 +122,85 @@ body {
     color:var(--accent); border:1px solid rgba(242,160,61,.45);
 }
 .kdesc-tag.kdesc-ult { color:#ffd066; border-color:rgba(255,208,102,.5); }
-/* Landscape-phone rail: the card is sized by the rail's height, not its width,
-   so the whole card shows and only the notes below scroll inside the column. */
+/* Unlock sits on the art, where the eye already is — not folded into the notes. */
+.kart-unlock {
+    position:absolute; z-index:7; left:8%; right:8%; top:36%;
+    display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center;
+}
+.kart-unlock .klock-note {
+    margin:0; padding:3px 8px; border-radius:8px; font-size:10.5px; font-weight:700; line-height:1.25;
+    color:#fff6d8; background:rgba(10,8,30,.78); box-shadow:0 2px 8px rgba(0,0,0,.45);
+}
+.kart-unlock .kunlock-btn {
+    margin:0; padding:6px 10px; min-height:32px; border-radius:10px; font-weight:800; font-size:12px; white-space:nowrap;
+    color:#22160a; border:1px solid #ffd58a;
+    background:linear-gradient(180deg, #ffd58a 0%, var(--accent) 55%, #c87a21 100%);
+    box-shadow:0 6px 18px rgba(0,0,0,.5), 0 0 0 3px rgba(242,160,61,.2);
+}
+/* Unaffordable still reads as a price, not a ghost: it's the goal to save toward. */
+.knight-card .kart-unlock .kunlock-btn:disabled {
+    opacity:1; filter:none; color:#e6cd8c; background:rgba(10,8,30,.85);
+    border-color:rgba(230,205,140,.55); box-shadow:0 4px 12px rgba(0,0,0,.45);
+}
+/* The art keeps its colour behind the unlock so the knight still sells itself. */
+.knight-card.locked .kart-img { filter:grayscale(.3) brightness(.85); }
+
+/* The spine only shows when the knights stack on the landscape rail. */
+.kspine { display:none; }
+
+/* Landscape-phone rail: the knights stack like a fanned hand. Each one shows a
+   spine (the left of its card, with its name and a line of flavour running up
+   it); the selected or opened knight steps out to its full card, and its notes
+   unfold beside it. Sizes come from the rail's own height (container units),
+   so no card depends on Safari resolving a percentage height in a flex row. */
 @media (orientation:landscape) and (max-height:600px) {
+    #knightGrid { align-items:stretch; container-type:size; gap:8px; }
     #knightGrid .knight-card.has-kart {
-        flex:0 0 clamp(300px, 48vw, 440px); padding:6px;
+        --kart-h: calc(100cqh - 12px);
+        --kart-w: calc(var(--kart-h) * 639 / 919);
+        --spine-w: calc(var(--kart-w) * .34);
+        flex:0 0 auto; width:calc(var(--spine-w) + 12px); padding:6px;
         display:flex; flex-direction:row; gap:10px; overflow:hidden;
+        transition:width .25s ease;
     }
-    #knightGrid .knight-card.has-kart .kart { flex:0 0 auto; width:auto; height:100%; }
-    #knightGrid .knight-card.has-kart .knotes {
-        flex:1 1 auto; min-width:0; overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y;
+    #knightGrid .knight-card.has-kart.sel,
+    #knightGrid .knight-card.has-kart.open { width:calc(var(--kart-w) + 12px); }
+    #knightGrid .knight-card.has-kart.open { width:calc(var(--kart-w) + 12px + 10px + min(220px, 30vw)); }
+    #knightGrid .knight-card.has-kart .kart { flex:0 0 auto; width:var(--kart-w); height:var(--kart-h); }
+    #knightGrid .knight-card.has-kart .knotes { display:none; }
+    #knightGrid .knight-card.has-kart.open .knotes {
+        display:block; flex:0 0 min(220px, 30vw); min-width:0;
+        overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y;
     }
     #knightGrid .knight-card.has-kart .kxp { margin-top:2px; }
-    #knightGrid { align-items:stretch; }
-    #knightGrid .knight-card.has-kart:not(.open) { flex-basis:auto; }
-    #knightGrid .knight-card.has-kart:not(.open) .knotes { flex:0 0 92px; }
+    #knightGrid .knight-card.has-kart .knight-lock { top:10px; right:auto; left:calc(var(--spine-w) - 18px); }
+    #knightGrid .knight-card.has-kart.sel .knight-lock,
+    #knightGrid .knight-card.has-kart.open .knight-lock { right:auto; left:calc(var(--kart-w) - 18px); }
+
+    /* Collapsed: the spine covers the visible strip; box and unlock wait for the full card. */
+    #knightGrid .knight-card.has-kart:not(.sel):not(.open) .kspine {
+        display:flex; position:absolute; z-index:6; left:0; top:0; bottom:0; width:var(--spine-w);
+        flex-direction:row; justify-content:center; align-items:stretch; gap:3px; padding:34px 0 12px;
+        background:
+            linear-gradient(90deg, rgba(10,8,30,.2), rgba(10,8,30,.78) 55%, rgba(10,8,30,.92)),
+            linear-gradient(180deg, transparent 40%, rgba(10,8,30,.55));
+        border-right:1px solid rgba(255,214,140,.28);
+    }
+    #knightGrid .knight-card.has-kart:not(.sel):not(.open) .kart-box,
+    #knightGrid .knight-card.has-kart:not(.sel):not(.open) .kart-unlock { display:none; }
+    .kspine-icon { position:absolute; top:10px; left:0; right:0; text-align:center; font-size:16px; line-height:1; filter:drop-shadow(0 1px 3px rgba(0,0,0,.8)); }
+    .kspine-name, .kspine-flavor {
+        writing-mode:vertical-rl; transform:rotate(180deg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        text-shadow:0 1px 3px rgba(0,0,0,.95);
+    }
+    .kspine-name {
+        flex:0 0 auto; max-height:100%; font-weight:850; font-size:clamp(15px, calc(var(--spine-w) * .3), 22px);
+        letter-spacing:.04em; color:#fff6d8;
+    }
+    .kspine-flavor {
+        flex:0 0 auto; max-height:100%; font-size:10.5px; font-style:italic; letter-spacing:.02em; color:#e6cd8c;
+    }
+    .kspine-flavor::before { content:'— '; font-style:normal; }
 }
 
 .siege-screen h1 {
