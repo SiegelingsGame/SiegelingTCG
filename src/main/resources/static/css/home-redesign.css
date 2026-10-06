@@ -4690,8 +4690,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
      The first column is "find people": the title, the add-by-email search and,
      right under it, incoming requests - the two things that grow the list sit
      together. Then the friends themselves as tall art tiles (a land plate per
-     friend, their crest glowing in its colour, a live ring when online), what
-     you have sent, and the open tables as tall scene tiles. Cards rise in with
+     friend, their crest glowing in its colour, a live ring when online), and
+     the open tables as tall scene tiles. Cards rise in with
      a short stagger so the rail feels alive when it opens. */
   .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll {
     grid-template-rows: auto auto minmax(0, 1fr);
@@ -4839,23 +4839,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     padding: 0 4px;
     height: 26px;
     font-size: 9.5px;
-  }
-
-  /* Sent: compact chips in a column. */
-  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="sent"] {
-    width: 170px;
-  }
-
-  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="sent"] > .sg-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    overflow-y: auto;
-  }
-
-  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="sent"] .sg-friend {
-    padding: 8px 10px;
-    border-style: dashed;
   }
 
   /* Open tables: tall scene tiles, the creature standing in its land. */

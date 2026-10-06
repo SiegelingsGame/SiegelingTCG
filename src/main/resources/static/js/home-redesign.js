@@ -5935,7 +5935,6 @@
     var live = opts.live || {};
     var friends = live.friends || [];
     var incoming = live.incomingRequests || [];
-    var outgoing = live.outgoingRequests || [];
     var rooms = live.rooms || [];
     return '<div class="sg-social-pad">' +
       // Adding someone is the first thing a new player needs, so it leads.
@@ -5972,18 +5971,6 @@
           ? '<div class="sg-stack sg-stack-tight">' + friends.map(friendRow).join('') + '</div>'
           : '<div class="sg-empty-row">No friends yet. Add someone by their account email above.</div>') +
       '</section>' +
-      (outgoing.length
-        ? '<section class="sg-section" data-friends-block="sent">' +
-            '<div class="sg-section-head"><h3>Sent</h3></div>' +
-            '<div class="sg-stack sg-stack-tight">' + outgoing.map(function (r) {
-              return '<div class="sg-friend is-pending">' +
-                '<span class="sg-friend-crest">' + esc(friendInitial(r)) + '</span>' +
-                '<span class="sg-friend-body"><strong>' + esc(friendName(r)) + '</strong>' +
-                  '<em>Waiting for them</em></span>' +
-              '</div>';
-            }).join('') + '</div>' +
-          '</section>'
-        : '') +
       '<section class="sg-section" data-friends-block="tables">' +
         '<div class="sg-section-head"><h3>Open tables</h3></div>' +
         (rooms.length
