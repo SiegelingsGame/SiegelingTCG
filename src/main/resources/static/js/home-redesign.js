@@ -6121,6 +6121,7 @@
   /* Re-renders the Social screen in place, carrying whatever the server just
      told us about friends and requests so the list is never a tap behind. */
   function paintSocialTabs(app, opts) {
+    app.setAttribute('data-social-tab', socialTab);
     var unread = unreadThreadCount(opts);
     var fabBadge = app.querySelector('[data-fab-badge]');
     if (fabBadge) {
@@ -7023,6 +7024,11 @@
                      profile: profileScreen, play: playScreen, builder: builderScreen,
                      social: socialScreen, settings: settingsScreen, help: helpScreen,
                      auth: authScreen, art: artScreen };
+    // Screen-scoped layout hooks: the landscape-phone layout in
+    // home-redesign.css lays each screen out differently, and the Social
+    // screen's three tabs share one shell.
+    app.setAttribute('data-screen', builders[screen] ? screen : 'home');
+    if (screen === 'social') app.setAttribute('data-social-tab', socialTab);
     app.innerHTML = builders[screen] ? builders[screen](opts) : homeScreen(opts);
     host.appendChild(app);
     // Every screen carries the same chrome, so the rail and the tab bar are

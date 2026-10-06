@@ -4497,3 +4497,407 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-prof-layout .sg-sig-slot { padding:12px 8px; }
   .sg-prof-layout .sg-sig-art, .sg-prof-layout .sg-sig-back { width:min(100%, 130px); }
 }
+
+/* ---------- Hub screens on a landscape phone: one screen, side-scrolling ----------
+   Same philosophy as the landscape Home stage, Siege setup and Battle loadout:
+   on a phone on its side (~360-460px tall) the hub's screens were portrait
+   documents that scrolled 600-3,400px down past a top bar and tab bar that
+   together leave under 300px of view. Here each screen's body becomes a
+   horizontal rail instead:
+     - the page title and its primary actions are the first, fixed-width column;
+     - every section after it is a full-height panel, laid side by side;
+     - inside a panel, lists flow into columns (rows fill top-to-bottom, then
+       the next column) or into a single row of height-sized cards,
+   so the page never scrolls vertically and a swipe sideways reaches the rest.
+   The Deck Builder is the exception that proves it: as an editor, its left
+   panes stay put and only the binder rail scrolls.
+   Scoped by .sg-app[data-screen] (and [data-social-tab] for Social), set in
+   render(); Home, Messages, Settings and Help keep their own layouts. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .sg-app {
+    --lh-top: calc(max(6px, var(--sg-sat)) + 46px);
+    --lh-bottom: calc(60px + max(8px, calc(var(--sg-sab) * 0.4)));
+    --lh-left: max(14px, env(safe-area-inset-left, 0px));
+    --lh-right: max(14px, env(safe-area-inset-right, 0px));
+    /* The height a rail actually gets between the two bars. */
+    --lh-h: calc(var(--sg-vh, 100dvh) - var(--lh-top) - var(--lh-bottom));
+    --lh-head-w: clamp(210px, 26vw, 260px);
+  }
+
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="collection"], [data-screen="shop"],
+             [data-screen="social"][data-social-tab="profile"], [data-screen="social"][data-social-tab="friends"]) > .sg-scroll {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    grid-auto-columns: max-content;
+    column-gap: 18px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    padding: var(--lh-top) var(--lh-right) var(--lh-bottom) var(--lh-left);
+    scroll-padding-inline: var(--lh-left);
+    scroll-snap-type: x proximity;
+    touch-action: pan-x;
+    scrollbar-width: none;
+  }
+
+  /* Wrapper divs between the scroller and its sections step out of the way,
+     so the sections themselves become the rail's columns. */
+  .sg-app[data-screen="social"]:is([data-social-tab="profile"], [data-social-tab="friends"]) > .sg-scroll > [data-social-body],
+  .sg-app[data-screen="social"]:is([data-social-tab="profile"], [data-social-tab="friends"]) > .sg-scroll > [data-social-body] > div,
+  .sg-app[data-screen="social"] .sg-prof-layout,
+  .sg-app[data-screen="social"][data-social-tab="friends"] .sg-social-pad {
+    display: contents;
+  }
+
+  /* The portrait pages end with a spacer that clears the tab bar; the rail's
+     own bottom padding does that here. */
+  .sg-app[data-screen] .sg-scroll div[style*="height:96px"],
+  .sg-app[data-screen="social"] .sg-social-head {
+    display: none;
+  }
+
+  /* First column: the title and the primary actions. */
+  .sg-app[data-screen] .sg-scroll :is(.sg-page-head, .sg-gal-head, .sg-social-title) {
+    grid-column: 1;
+    width: var(--lh-head-w);
+    margin: 0;
+    padding: 0 0 8px;
+    position: static;
+  }
+
+  .sg-app[data-screen] .sg-scroll :is(.sg-page-head, .sg-gal-head, .sg-social-title) h2 {
+    font-size: 22px;
+  }
+
+  /* Every section is a full-height panel. */
+  .sg-app[data-screen] > .sg-scroll .sg-section {
+    grid-row: 1 / -1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen] > .sg-scroll .sg-section > .sg-section-head {
+    flex: 0 0 auto;
+    padding: 0 0 8px;
+  }
+
+  .sg-app[data-screen] > .sg-scroll .sg-section > :not(.sg-section-head) {
+    min-height: 0;
+  }
+
+  /* ---- My Decks ---- */
+  .sg-app[data-screen="decks"] .sg-tool-row {
+    grid-column: 1;
+    width: var(--lh-head-w);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="decks"] .sg-deck-section > .sg-stack {
+    flex: 1 1 auto;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-auto-columns: clamp(240px, 32vw, 300px);
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="decks"] .sg-deckrow {
+    height: auto;
+    min-height: 0;
+  }
+
+  /* ---- Collection: the binder becomes one long sheet of full-height cards ---- */
+  .sg-app[data-screen="collection"] .sg-filter-chrome {
+    grid-column: 1;
+    grid-row: 2 / -1;
+    width: var(--lh-head-w);
+    position: static;
+    margin: 0;
+    padding: 0;
+    align-self: start;
+    max-height: calc(var(--lh-h) - 70px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transform: none;
+    opacity: 1;
+  }
+
+  .sg-app[data-screen="collection"] .sg-filter-chrome-inner {
+    padding: 8px;
+  }
+
+  .sg-app[data-screen="collection"] .sg-gal-tools {
+    flex-wrap: wrap;
+  }
+
+  .sg-app[data-screen="collection"] .sg-binder-page {
+    grid-row: 1 / -1;
+    margin: 0;
+    min-height: 0;
+    display: flex;
+  }
+
+  .sg-app[data-screen="collection"] .sg-binder-page > .sg-gal-grid {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    grid-template-rows: minmax(0, 1fr);
+    grid-auto-columns: calc((var(--lh-h) - 48px) * 0.64);
+    /* Start, not the desktop binder's centre: a centred track that overflows
+       spills off the left edge, where no scroll can reach it. */
+    justify-content: start;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 18px;
+  }
+
+  .sg-app[data-screen="collection"] .sg-gal-more {
+    grid-row: 1 / -1;
+    align-self: center;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* The compact/glass filter chrome reacts to vertical scroll, which this
+     layout never does; keep its floating copies out of the way. */
+  .sg-app[data-screen="collection"] .sg-filter-fab {
+    display: none !important;
+  }
+
+  /* ---- Deck Builder: an editor with fixed panes; only the binder rail moves ---- */
+  .sg-app[data-screen="builder"] > .sg-scroll {
+    grid-auto-flow: row;
+    grid-template-columns: var(--lh-head-w) clamp(200px, 26vw, 280px) minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    column-gap: 14px;
+    row-gap: 6px;
+    overflow: hidden;
+    scroll-snap-type: none;
+  }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-page-head { grid-column: 1; grid-row: 1; padding: 0; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-build-bar { grid-column: 1; grid-row: 2; margin: 0; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-build-id { grid-column: 1; grid-row: 3; margin: 0; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(1) { grid-column: 1; grid-row: 4; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-build-actions { grid-column: 1; grid-row: 5; margin: 0; padding: 0; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(2) { grid-column: 2; grid-row: 1 / -1; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(3) { grid-column: 3; grid-row: 1 / -1; }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(1) {
+    justify-content: flex-start;
+  }
+
+  /* The deck so far: a column of its own that scrolls inside itself. */
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(2) > .sg-swipe {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: max-content;
+    align-content: start;
+    gap: 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin: 0;
+    padding: 0 2px 6px;
+    touch-action: pan-y;
+  }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(2) > .sg-swipe > * {
+    width: auto;
+    min-width: 0;
+    flex: none;
+  }
+
+  /* The binder: search on top, then two rows of cards that swipe sideways. */
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(3) .sg-build-search {
+    flex: 0 0 auto;
+    margin: 0 0 8px;
+  }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(3) > .sg-gal-grid {
+    flex: 1 1 auto;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-auto-columns: calc((var(--lh-h) - 80px) / 2 * 0.66);
+    justify-content: start;
+    align-items: center;
+    gap: 8px 10px;
+    padding: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+    scrollbar-width: none;
+  }
+
+  /* ---- Shop: the featured pack is the hero column, then the offers ---- */
+  .sg-app[data-screen="shop"] .sg-feature {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    width: clamp(320px, 48vw, 520px);
+    height: auto;
+    margin: 0;
+    border-radius: 22px;
+  }
+
+  .sg-app[data-screen="shop"] .sg-feature :is(.sg-feature-track, .sg-feature-slide) {
+    height: 100%;
+  }
+
+  .sg-app[data-screen="shop"] .sg-offer-rail {
+    flex: 1 1 auto;
+    display: flex;
+    gap: 12px;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+    scroll-snap-type: none;
+  }
+
+  .sg-app[data-screen="shop"] .sg-offer {
+    flex: 0 0 auto;
+    width: calc((var(--lh-h) - 120px) * 0.68);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sg-app[data-screen="shop"] .sg-offer .sg-card-tile {
+    height: auto;
+    aspect-ratio: auto;
+  }
+
+  .sg-app[data-screen="shop"] .sg-shop-titles {
+    flex: 1 1 auto;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(auto-fill, 64px);
+    grid-auto-columns: 260px;
+    gap: 8px 10px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="shop"] .sg-pack-grid {
+    flex: 1 1 auto;
+    display: flex;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="shop"] .sg-pack-grid .sg-pack {
+    flex: 0 0 auto;
+    width: calc((var(--lh-h) - 110px) * 0.68);
+  }
+
+  /* ---- Profile: the crest is the hero column, then stats, showcase, signature ----
+     The 560-1023px landscape layer pins each profile block to a cell of its
+     own two-column grid; with the wrapper stepped out those pins would land
+     in the rail, so every block is released back onto it here. */
+  .sg-app[data-screen="social"][data-social-tab="profile"] .sg-prof-layout > [data-prof-block] {
+    grid-column: auto;
+    grid-row: 1 / -1;
+    min-width: 0;
+  }
+  .sg-app[data-screen="social"][data-social-tab="profile"] .sg-prof-layout > .sg-crest {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    width: clamp(280px, 38vw, 420px);
+    height: auto;
+    margin: 0;
+    border-radius: 22px;
+  }
+
+  .sg-app[data-screen="social"][data-social-tab="profile"] .sg-tiles {
+    grid-row: 1 / -1;
+    width: clamp(220px, 26vw, 280px);
+    align-content: center;
+    padding: 0;
+    margin: 0;
+  }
+
+  .sg-app[data-screen="social"][data-social-tab="profile"] .sg-section > .sg-swipe {
+    flex: 1 1 auto;
+    display: flex;
+    gap: 12px;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="social"][data-social-tab="profile"] .sg-section > .sg-swipe > * {
+    flex: 0 0 auto;
+    width: calc((var(--lh-h) - 50px) * 0.66);
+  }
+
+  .sg-app[data-screen="social"][data-social-tab="profile"] .sg-section > :is(.sg-sig, .sg-empty-row) {
+    width: clamp(260px, 34vw, 360px);
+  }
+
+  /* ---- Friends + open tables (lobbies) ---- */
+  .sg-app[data-screen="social"][data-social-tab="friends"] .sg-social-pad > .sg-section:first-child {
+    grid-column: 1;
+    grid-row: 2 / -1;
+    width: var(--lh-head-w);
+    margin-top: 6px;
+  }
+
+  .sg-app[data-screen="social"][data-social-tab="friends"] .sg-add-friend {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .sg-app[data-screen="social"][data-social-tab="friends"] .sg-section > .sg-stack {
+    flex: 1 1 auto;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(auto-fill, 68px);
+    /* Fixed: Message and Remove need the room, or the name collapses to a letter. */
+    grid-auto-columns: 300px;
+    gap: 8px 10px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="social"][data-social-tab="friends"] .sg-section > .sg-stack:not(.sg-stack-tight) {
+    grid-template-rows: repeat(auto-fill, 112px);
+  }
+
+  .sg-app[data-screen="social"][data-social-tab="friends"] .sg-section > .sg-empty-row,
+  .sg-app[data-screen="social"][data-social-tab="friends"] .sg-section > .sg-empty-lobbies {
+    width: clamp(240px, 30vw, 300px);
+  }
+}
+
+/* Shorter / narrower landscape phones: the builder's binder drops to one row of
+   larger cards, and its two fixed panes give the rail more of the width. */
+@media (orientation: landscape) and (max-height: 600px) and (max-width: 780px) {
+  .sg-app[data-screen="builder"] > .sg-scroll {
+    grid-template-columns: 190px 150px minmax(0, 1fr);
+  }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(2) > .sg-swipe {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 420px) {
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(3) > .sg-gal-grid {
+    grid-template-rows: minmax(0, 1fr);
+    grid-auto-columns: calc((var(--lh-h) - 70px) * 0.64);
+  }
+}
