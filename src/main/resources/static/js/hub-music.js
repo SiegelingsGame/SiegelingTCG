@@ -1,4 +1,4 @@
-/* Hub soundtrack: the biome themes, shuffled, behind one on/off preference.
+/* Hub soundtrack: the biome themes plus the main and battle tracks, shuffled, behind one on/off preference.
 
    The hub is a single page that re-renders its screens by emptying
    document.body, and removing a media element from the document pauses it. So
@@ -23,8 +23,22 @@
     { id: 'electric', title: 'Electric Biome', el: 'ELECTRIC' },
     { id: 'desert',   title: 'Desert Biome',   el: 'EARTH' },
     { id: 'cave',     title: 'Cave Biome',     el: 'SHADOW' },
-    { id: 'jungle',   title: 'Jungle',         el: 'POISON' }
-  ].map(function (t) { t.src = '/audio/biomes/' + t.id + '.mp3?v=1'; return t; });
+    { id: 'earth',    title: 'Earth Biome',    el: 'EARTH' },
+    { id: 'ice',      title: 'Ice Biome',      el: 'ICE' },
+    { id: 'poison',   title: 'Poison Biome',   el: 'POISON' },
+    { id: 'metal',    title: 'Metal Biome',    el: 'METAL' },
+    { id: 'light',    title: 'Light Biome',    el: 'LIGHT' },
+    { id: 'undead',   title: 'Undead Biome',   el: 'UNDEAD' }
+  ].map(function (t) { t.src = '/audio/biomes/' + t.id + '.mp3?v=1'; return t; }).concat([
+    // The rest of the soundtrack: the Keep and Siege play these in place, and
+    // the hub player is where every song can be heard on demand.
+    { id: 'main',          title: 'Sieglings Theme',     el: 'NEUTRAL',  src: '/audio/sieglings-theme.mp3?v=1' },
+    { id: 'loading',       title: 'Loading Theme',       el: 'NEUTRAL',  src: '/audio/sieglings-loading-theme.mp3?v=1' },
+    { id: 'battle',        title: 'Battle Theme',        el: 'NEUTRAL',  src: '/audio/sieglings-battle-theme.mp3?v=1' },
+    { id: 'battle-2',      title: 'Battle Theme II',     el: 'NEUTRAL',  src: '/audio/battle/sieglings-battle-theme-2.mp3?v=1' },
+    { id: 'desert-gym',    title: 'Desert Gym Battle',   el: 'EARTH',    src: '/audio/battle/desert-gym-battle.mp3?v=1' },
+    { id: 'electric-gym',  title: 'Electric Gym Battle', el: 'ELECTRIC', src: '/audio/battle/electric-gym-battle.mp3?v=1' }
+  ]);
 
   var audio = null;
   var order = [];
