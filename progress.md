@@ -1,4 +1,26 @@
 Original prompt: Merge and deploy
+- October 6, 2026 **Hub screens on a landscape phone: one screen each, scrolling sideways.**
+  - **Change.** On a phone on its side, the hub's My Decks, Deck Builder, Collection, Shop, Profile and Friends (with its open-table lobbies) were portrait documents that scrolled 593–3,366px down at 1000x460, between a top bar and tab bar that leave under 300px of view. A new block in `home-redesign.css` (`(orientation: landscape) and (max-height: 600px)`) turns each screen's `.sg-scroll` into a horizontal rail. It is a column-flow grid: the title and primary actions form a fixed-width first column, and every section after it is a full-height panel side by side. Inside a panel, lists flow into columns or a single row of cards sized from the rail height (`--lh-h`). Wrapper divs (`[data-social-body]`, `.sg-prof-layout`, `.sg-social-pad`) step aside with `display:contents`, and the portrait 96px tab-bar spacers are hidden.
+  - **Per screen:**
+    - **My Decks:** title, Deck Builder and Auto Build in the first column, then the Saved, Owned and Shop preset panels with deck tiles in two rows.
+    - **Collection:** title and search/filters, then the binder as one long leather sheet of full-height cards, with Load more at its end.
+    - **Deck Builder:** an editor with fixed panes. Name, SiegeKnight and Save on the left, the deck so far in its own scrolling column, and the binder as a two-row card rail (one row under 420px tall) that scrolls on its own.
+    - **Shop:** the featured-pack carousel as a hero column, then Daily Offerings, Titles and Packs.
+    - **Profile:** the crest as a hero column, then the stat tiles, Showcase, Signature and Recent. The 560–1023px layer's per-block grid pins are released.
+    - **Friends:** title and Add a friend, then Requests, Friends (rows fill columns), Sent and the open tables (lobbies) as tiles.
+  - **Unchanged:** Home (stage), Messages, Settings and Help keep their layouts.
+  - **JS:** `render()` now tags `.sg-app` with `data-screen`, and with `data-social-tab` (also updated in `paintSocialTabs`), to scope the rules. The binder rails use `justify-content:start`, because the desktop grid's centring spilled overflow off the left edge where no scroll could reach it.
+  - `home-redesign.css` is now `?v=75` and `.js` `?v=67`.
+- Verification:
+  - `node --check`. Headless Chromium against `home-next.html` with a fully mocked signed-in account: public payloads captured from live, plus fake progression, owned cards, 3 saved decks, 6 friends, request in and out, and 3 open tables. No errors on the page.
+  - At 1000x460, 844x390 and 667x375, all six screens have vertical scroll 0. The baseline was 593–3,366px.
+  - At 844x390:
+    - A touch swipe moves My Decks to `scrollLeft` 828 with `scrollTop` 0.
+    - Collection's Load more is reachable at the rail's end and takes the binder from 24 to 48 cards, and tapping a card opens the card sheet.
+    - Tapping a binder card in the Deck Builder adds it ("1 of 30") into the deck column.
+    - The open tables render as tiles at the rail's end.
+    - Messages keeps the block layout.
+  - At 390x844 and 1920x1080 every screen's scroll height is byte-for-byte the same as the unmodified tree, measured on a stash of these changes.
 - October 5, 2026 **Deploy record: #1016 and #1017 live; #1018 redeployed after a cancelled Hosting job.**
   - **What happened.** Run 1002 (#1016) shipped both surfaces. In run 1003 (#1017), the Cloud Run job was cancelled after 15 minutes and the run ended as `failure`, but its Hosting step still succeeded. In run 1004 (#1018), the Cloud Run deploy succeeded in 3.5 minutes, but its Firebase Deploy job sat queued for 15 minutes without a runner and was cancelled, so #1018's `adventure.css?v=105` / `adventure.js?v=118` never reached Hosting. The agent's GitHub integration cannot re-run jobs or dispatch the workflow (403), so this entry is the push that redeploys main.
 - Verification (before this push):
