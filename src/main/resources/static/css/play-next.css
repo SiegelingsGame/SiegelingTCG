@@ -1045,11 +1045,14 @@
         box-shadow: 0 0 22px var(--mode-hue);
     }
 
-    /* Solo: Draco facing his whole brood. Online: Skydon over the open sky.
-       Tutorial: Frostag's morning drills. */
-    #soloMatchTab { --mode-hue: #ff6b35; --mode-art: url('/img/modes/mode-solo.webp'); }
-    #onlineMatchTab { --mode-hue: #7c5cff; --mode-art: url('/img/modes/mode-online.webp'); }
-    #tutorialMatchTab { --mode-hue: #2fd17a; --mode-art: url('/img/modes/mode-tutorial.webp'); }
+    /* Scenes used nowhere else, so a mode reads as its own place rather than
+       a repeat of the hub's gallery plates. Solo: Solgator alone against the
+       eruption. Online: two sides clashing over the sky nest. Tutorial:
+       Cozycub's den, a gentle place to learn. ?v= because Hosting caches
+       images as immutable. */
+    #soloMatchTab { --mode-hue: #ff6b35; --mode-art: url('/img/modes/mode-solo.webp?v=2'); }
+    #onlineMatchTab { --mode-hue: #7c5cff; --mode-art: url('/img/modes/mode-online.webp?v=2'); }
+    #tutorialMatchTab { --mode-hue: #2fd17a; --mode-art: url('/img/modes/mode-tutorial.webp?v=2'); }
     #soloMatchTab::before { content: '\2694'; }
     #onlineMatchTab::before { content: '\1F310'; }
     #tutorialMatchTab::before { content: '\1F393'; }

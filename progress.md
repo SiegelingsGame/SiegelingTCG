@@ -16,12 +16,13 @@ Original prompt: Merge and deploy
     - The card pool's rows (`grid-template-rows: repeat(auto-fill, 66px)`) flow into columns that swipe sideways.
     - The deck list and preview scroll inside their own panes.
   - Below 780px wide, the kicker hides and inactive chips show only their number.
-  - **Mode art.** Each Setup mode tile now shows its own scene, from new 600x900 portrait crops in `img/modes/` cut from the gallery plates (49–92 KB each):
-    - Solo vs AI: Draco facing his whole brood (`draco-brood`).
-    - Online: Skydon over the open sky (`skydon-skyreach`).
-    - Tutorial: Frostag's morning drills (`frostag-training-portrait`).
+  - **Mode art.** Each Setup mode tile now shows its own scene, from new 600x900 portrait crops in `img/modes/` cut from loading-art scenes (62–108 KB each):
+    - Solo vs AI: Solgator roaring alone against the eruption (`art/loading/solgator-eruption`).
+    - Online: two sides clashing over the sky nest (`art/loading/air-battle`).
+    - Tutorial: Cozycub's den, a gentle place to learn (`art/loading/cozycub-den`).
+    - These replaced a first pass cut from the hub gallery plates (Draco's brood, Skydon, Frostag), because those creatures already appear across the hub. None of the new scenes is used anywhere else. URLs carry `?v=2` because Hosting caches images as immutable.
     - Each tile layers a wash in the mode's colour over its art, with a fade to ink at the foot for the label. Inactive tiles are slightly desaturated so the picked one stands out.
-  - `play-next.css` is now `?v=11`.
+  - `play-next.css` is now `?v=12`.
 - Verification:
   - Headless Chromium against `/battle` with the live `/api/game/options` and `/api/cards/editor` payloads replayed, no errors on the page.
   - At 1000x460, 844x390, 667x375 and 740x360, the box, core and page vertical scroll are 0 on all four steps. Before, the box scrolled up to 576px at 1000x460 and the core up to 1078px at 844x390.
