@@ -23,7 +23,12 @@
     { id: 'electric', title: 'Electric Biome', el: 'ELECTRIC' },
     { id: 'desert',   title: 'Desert Biome',   el: 'EARTH' },
     { id: 'cave',     title: 'Cave Biome',     el: 'SHADOW' },
-    { id: 'jungle',   title: 'Jungle',         el: 'POISON' }
+    { id: 'earth',    title: 'Earth Biome',    el: 'EARTH' },
+    { id: 'ice',      title: 'Ice Biome',      el: 'ICE' },
+    { id: 'poison',   title: 'Poison Biome',   el: 'POISON' },
+    { id: 'metal',    title: 'Metal Biome',    el: 'METAL' },
+    { id: 'light',    title: 'Light Biome',    el: 'LIGHT' },
+    { id: 'undead',   title: 'Undead Biome',   el: 'UNDEAD' }
   ].map(function (t) { t.src = '/audio/biomes/' + t.id + '.mp3?v=1'; return t; });
 
   var audio = null;

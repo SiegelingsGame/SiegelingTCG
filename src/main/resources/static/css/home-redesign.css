@@ -207,6 +207,10 @@ body.concept-board {
 .hm-list [data-el="EARTH"] { --pip:var(--earth); }
 .hm-list [data-el="SHADOW"] { --pip:var(--shadow); }
 .hm-list [data-el="POISON"] { --pip:var(--poison); }
+.hm-list [data-el="ICE"] { --pip:var(--ice); }
+.hm-list [data-el="METAL"] { --pip:var(--metal); }
+.hm-list [data-el="LIGHT"] { --pip:var(--light); }
+.hm-list [data-el="UNDEAD"] { --pip:var(--undead); }
 .hm-list .hm-eq { visibility:hidden; }
 .hm-list button.on .hm-eq { visibility:visible; }
 .hm-eq { display:inline-flex; align-items:flex-end; gap:2px; height:12px; flex:0 0 auto; color:var(--gold-bright); }
