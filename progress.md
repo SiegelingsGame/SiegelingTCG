@@ -1,4 +1,47 @@
 Original prompt: Merge and deploy
+- October 6, 2026 **Landscape hub: Collection, Shop and Profile go back to their pages; Friends becomes an art-led rail.**
+  - **Change.** On review, the side-scrolling rail was taken off Collection, where the filter column cost too much width, and off Shop and Profile. All three are back to their original scrolling pages. The rail now covers only My Decks, the Deck Builder and Social > Friends.
+  - **Scoping fix.** The shared rail rules used a bare `.sg-app[data-screen]` selector, so they also reached Messages, Settings and Help. They are now scoped to the three rail screens.
+  - **Friends.**
+    - The first column is "find people": the title, the add-by-email search, and Requests directly under it, scrolling inside the column.
+    - Friends are two rows of tall art tiles. `friendRow` gives each friend a land plate and colour from a stable hash of their id (`friendElement`; a favourite element wins when the payload carries one).
+    - Each tile has a glowing crest in that colour, a breathing emerald ring when the friend is online, and offline friends slightly desaturated.
+    - The open tables (lobbies) are tall scene tiles with the creature standing in its land.
+    - The **Sent** section (outgoing friend requests) is removed from Friends in every layout, at the owner's request. The data still arrives in the payload but is no longer listed.
+    - Tiles rise in with a short stagger, and the motion is disabled under `prefers-reduced-motion`.
+    - Under 400px tall, the crest and buttons shrink.
+    - Sections carry `data-friends-block` hooks.
+  - **Bug fixed on the way.** The first pass tagged `.sg-app` with `data-social-tab`, but `mountSocial` treats any element carrying that attribute as a tab button. Every click on Social was read as a tab switch, which swallowed Accept, Message and the rest. The hook is now `data-social-view`.
+  - `home-redesign.css` is now `?v=77` and `.js` `?v=69`.
+- Verification:
+  - `node --check`. Headless Chromium with the mocked signed-in account, no errors on the page.
+  - Collection, Shop and Profile scroll heights at 1000x460, 844x390 and 667x375 equal `origin/main`'s exactly (e.g. 1508/972/593 at 1000x460).
+  - Friends, My Decks and the Deck Builder have vertical scroll 0 at all three sizes.
+  - At 667x375 each friend tile's crest and buttons sit inside the tile (tile 80–189, crest 87–119, buttons 160–182).
+  - At 844x390, Accept POSTs `/api/profile/friends/accept`, and Message switches Social to the Messages view.
+  - Portrait 390x844 and desktop 1920x1080 scroll heights are unchanged for every screen apart from Friends. Friends is 114px shorter in portrait (572 → 458) because the Sent section is gone; its headings now read Add a friend · Requests · Friends · Open tables, and the sent-to name no longer appears.
+- October 6, 2026 **Hub screens on a landscape phone: one screen each, scrolling sideways.**
+  - **Change.** On a phone on its side, the hub's My Decks, Deck Builder, Collection, Shop, Profile and Friends (with its open-table lobbies) were portrait documents that scrolled 593–3,366px down at 1000x460, between a top bar and tab bar that leave under 300px of view. A new block in `home-redesign.css` (`(orientation: landscape) and (max-height: 600px)`) turns each screen's `.sg-scroll` into a horizontal rail. It is a column-flow grid: the title and primary actions form a fixed-width first column, and every section after it is a full-height panel side by side. Inside a panel, lists flow into columns or a single row of cards sized from the rail height (`--lh-h`). Wrapper divs (`[data-social-body]`, `.sg-prof-layout`, `.sg-social-pad`) step aside with `display:contents`, and the portrait 96px tab-bar spacers are hidden.
+  - **Per screen:**
+    - **My Decks:** title, Deck Builder and Auto Build in the first column, then the Saved, Owned and Shop preset panels with deck tiles in two rows.
+    - **Collection:** title and search/filters, then the binder as one long leather sheet of full-height cards, with Load more at its end.
+    - **Deck Builder:** an editor with fixed panes. Name, SiegeKnight and Save on the left, the deck so far in its own scrolling column, and the binder as a two-row card rail (one row under 420px tall) that scrolls on its own.
+    - **Shop:** the featured-pack carousel as a hero column, then Daily Offerings, Titles and Packs.
+    - **Profile:** the crest as a hero column, then the stat tiles, Showcase, Signature and Recent. The 560–1023px layer's per-block grid pins are released.
+    - **Friends:** title and Add a friend, then Requests, Friends (rows fill columns), Sent and the open tables (lobbies) as tiles.
+  - **Unchanged:** Home (stage), Messages, Settings and Help keep their layouts.
+  - **JS:** `render()` now tags `.sg-app` with `data-screen`, and with `data-social-tab` (also updated in `paintSocialTabs`), to scope the rules. The binder rails use `justify-content:start`, because the desktop grid's centring spilled overflow off the left edge where no scroll could reach it.
+  - `home-redesign.css` is now `?v=75` and `.js` `?v=67`.
+- Verification:
+  - `node --check`. Headless Chromium against `home-next.html` with a fully mocked signed-in account: public payloads captured from live, plus fake progression, owned cards, 3 saved decks, 6 friends, request in and out, and 3 open tables. No errors on the page.
+  - At 1000x460, 844x390 and 667x375, all six screens have vertical scroll 0. The baseline was 593–3,366px.
+  - At 844x390:
+    - A touch swipe moves My Decks to `scrollLeft` 828 with `scrollTop` 0.
+    - Collection's Load more is reachable at the rail's end and takes the binder from 24 to 48 cards, and tapping a card opens the card sheet.
+    - Tapping a binder card in the Deck Builder adds it ("1 of 30") into the deck column.
+    - The open tables render as tiles at the rail's end.
+    - Messages keeps the block layout.
+  - At 390x844 and 1920x1080 every screen's scroll height is byte-for-byte the same as the unmodified tree, measured on a stash of these changes.
 - October 6, 2026 **Battle loadout on a landscape phone: one vivid screen with sideways swipe rails.**
   - **Change.** On a phone on its side, the `/battle` loadout was a portrait page turned 90 degrees. The 208px art band took half the height and every step scrolled vertically (the deck step by up to ~1,000px). At 1000x460 the first deck started at y 549, below the screen, because `style.css`'s two-pane landscape grid only covers widths under 980px.
   - A new `play-next.css` block (`(orientation: landscape) and (max-height: 600px)`) makes `.loadout-box` a fixed three-row grid:

@@ -4497,3 +4497,466 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-prof-layout .sg-sig-slot { padding:12px 8px; }
   .sg-prof-layout .sg-sig-art, .sg-prof-layout .sg-sig-back { width:min(100%, 130px); }
 }
+
+/* ---------- Hub screens on a landscape phone: one screen, side-scrolling ----------
+   Same philosophy as the landscape Home stage, Siege setup and Battle loadout:
+   on a phone on its side (~360-460px tall) the hub's screens were portrait
+   documents that scrolled 600-3,400px down past a top bar and tab bar that
+   together leave under 300px of view. Here each screen's body becomes a
+   horizontal rail instead:
+     - the page title and its primary actions are the first, fixed-width column;
+     - every section after it is a full-height panel, laid side by side;
+     - inside a panel, lists flow into columns (rows fill top-to-bottom, then
+       the next column) or into a single row of height-sized cards,
+   so the page never scrolls vertically and a swipe sideways reaches the rest.
+   The Deck Builder is the exception that proves it: as an editor, its left
+   panes stay put and only the binder rail scrolls.
+   Scoped to My Decks, the Deck Builder and Social > Friends via the
+   data-screen / data-social-view attributes render() sets. Every other screen
+   (Home, Collection, Shop, Profile, Messages, Settings, Help) keeps its own
+   layout - Collection, Shop and Profile were tried on the rail and read
+   better as their original pages. */
+@media (orientation: landscape) and (max-height: 600px) {
+  .sg-app {
+    --lh-top: calc(max(6px, var(--sg-sat)) + 46px);
+    --lh-bottom: calc(60px + max(8px, calc(var(--sg-sab) * 0.4)));
+    --lh-left: max(14px, env(safe-area-inset-left, 0px));
+    --lh-right: max(14px, env(safe-area-inset-right, 0px));
+    /* The height a rail actually gets between the two bars. */
+    --lh-h: calc(var(--sg-vh, 100dvh) - var(--lh-top) - var(--lh-bottom));
+    --lh-head-w: clamp(210px, 26vw, 260px);
+  }
+
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) > .sg-scroll {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    grid-auto-columns: max-content;
+    column-gap: 18px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    padding: var(--lh-top) var(--lh-right) var(--lh-bottom) var(--lh-left);
+    scroll-padding-inline: var(--lh-left);
+    scroll-snap-type: x proximity;
+    touch-action: pan-x;
+    scrollbar-width: none;
+  }
+
+  /* Wrapper divs between the scroller and its sections step out of the way,
+     so the sections themselves become the rail's columns. */
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll > [data-social-body],
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll > [data-social-body] > div,
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-social-pad {
+    display: contents;
+  }
+
+  /* The portrait pages end with a spacer that clears the tab bar; the rail's
+     own bottom padding does that here. */
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) .sg-scroll div[style*="height:96px"],
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-social-head {
+    display: none;
+  }
+
+  /* First column: the title and the primary actions. */
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) .sg-scroll :is(.sg-page-head, .sg-gal-head, .sg-social-title) {
+    grid-column: 1;
+    width: var(--lh-head-w);
+    margin: 0;
+    padding: 0 0 8px;
+    position: static;
+  }
+
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) .sg-scroll :is(.sg-page-head, .sg-gal-head, .sg-social-title) h2 {
+    font-size: 22px;
+  }
+
+  /* Every section is a full-height panel. */
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) > .sg-scroll .sg-section {
+    grid-row: 1 / -1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) > .sg-scroll .sg-section > .sg-section-head {
+    flex: 0 0 auto;
+    padding: 0 0 8px;
+  }
+
+  .sg-app:is([data-screen="decks"], [data-screen="builder"], [data-screen="social"][data-social-view="friends"]) > .sg-scroll .sg-section > :not(.sg-section-head) {
+    min-height: 0;
+  }
+
+  /* ---- My Decks ---- */
+  .sg-app[data-screen="decks"] .sg-tool-row {
+    grid-column: 1;
+    width: var(--lh-head-w);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="decks"] .sg-deck-section > .sg-stack {
+    flex: 1 1 auto;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-auto-columns: clamp(240px, 32vw, 300px);
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="decks"] .sg-deckrow {
+    height: auto;
+    min-height: 0;
+  }
+
+  /* ---- Deck Builder: an editor with fixed panes; only the binder rail moves ---- */
+  .sg-app[data-screen="builder"] > .sg-scroll {
+    grid-auto-flow: row;
+    grid-template-columns: var(--lh-head-w) clamp(200px, 26vw, 280px) minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    column-gap: 14px;
+    row-gap: 6px;
+    overflow: hidden;
+    scroll-snap-type: none;
+  }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-page-head { grid-column: 1; grid-row: 1; padding: 0; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-build-bar { grid-column: 1; grid-row: 2; margin: 0; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-build-id { grid-column: 1; grid-row: 3; margin: 0; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(1) { grid-column: 1; grid-row: 4; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-build-actions { grid-column: 1; grid-row: 5; margin: 0; padding: 0; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(2) { grid-column: 2; grid-row: 1 / -1; }
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(3) { grid-column: 3; grid-row: 1 / -1; }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(1) {
+    justify-content: flex-start;
+  }
+
+  /* The deck so far: a column of its own that scrolls inside itself. */
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(2) > .sg-swipe {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: max-content;
+    align-content: start;
+    gap: 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin: 0;
+    padding: 0 2px 6px;
+    touch-action: pan-y;
+  }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(2) > .sg-swipe > * {
+    width: auto;
+    min-width: 0;
+    flex: none;
+  }
+
+  /* The binder: search on top, then two rows of cards that swipe sideways. */
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(3) .sg-build-search {
+    flex: 0 0 auto;
+    margin: 0 0 8px;
+  }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(3) > .sg-gal-grid {
+    flex: 1 1 auto;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-auto-columns: calc((var(--lh-h) - 80px) / 2 * 0.66);
+    justify-content: start;
+    align-items: center;
+    gap: 8px 10px;
+    padding: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+    scrollbar-width: none;
+  }
+
+  /* ---- Friends + open tables (lobbies): an art-led rail ----
+     The first column is "find people": the title, the add-by-email search and,
+     right under it, incoming requests - the two things that grow the list sit
+     together. Then the friends themselves as tall art tiles (a land plate per
+     friend, their crest glowing in its colour, a live ring when online), and
+     the open tables as tall scene tiles. Cards rise in with
+     a short stagger so the rail feels alive when it opens. */
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll {
+    grid-template-rows: auto auto minmax(0, 1fr);
+    background:
+      radial-gradient(ellipse 50% 60% at 0% 100%, rgba(240, 110, 192, 0.20), transparent 70%),
+      radial-gradient(ellipse 45% 55% at 100% 0%, rgba(84, 168, 240, 0.20), transparent 70%);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-social-title { grid-column: 1; grid-row: 1; }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="add"] {
+    grid-column: 1;
+    grid-row: 2;
+    width: var(--lh-head-w);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="add"] .sg-section-head { display: none; }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-add-friend {
+    padding: 0;
+    gap: 6px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-add-friend input {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-add-friend button {
+    flex: 0 0 auto;
+  }
+
+  /* Requests sit directly under the search and scroll inside their column. */
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="requests"] {
+    grid-column: 1;
+    grid-row: 3;
+    width: var(--lh-head-w);
+    margin-top: 10px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="requests"] > .sg-stack {
+    flex: 1 1 auto;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="requests"] .sg-friend {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    gap: 8px;
+    border-color: color-mix(in srgb, var(--acc-cyan) 45%, transparent);
+    background: linear-gradient(100deg, color-mix(in srgb, var(--acc-cyan) 16%, rgba(13, 10, 38, 0.8)), rgba(13, 10, 38, 0.7));
+    animation: sgFriendRise 0.4s ease both;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="requests"] .sg-friend-acts {
+    width: 100%;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="requests"] .sg-mini-btn {
+    flex: 1 1 0;
+  }
+
+  /* Friends: two rows of art tiles. */
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] > .sg-stack {
+    flex: 1 1 auto;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    grid-auto-columns: clamp(132px, 17vw, 160px);
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    padding: 10px 8px 8px;
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--el) 55%, transparent);
+    background:
+      linear-gradient(180deg, rgba(13, 10, 38, 0.05) 0%, rgba(13, 10, 38, 0.55) 52%, rgba(13, 10, 38, 0.95) 100%),
+      var(--friend-land, none) center / cover no-repeat,
+      #1a1150;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    text-align: center;
+    animation: sgFriendRise 0.45s cubic-bezier(.2, .8, .25, 1) both;
+    transition: transform 0.18s ease, box-shadow 0.2s ease;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend:active {
+    transform: translateY(-3px) scale(1.02);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend-crest {
+    width: 46px;
+    height: 46px;
+    margin-bottom: auto;
+    font-family: var(--serif);
+    font-size: 20px;
+    color: #fff;
+    background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--el) 70%, #fff 10%), color-mix(in srgb, var(--el) 40%, #0d0a26));
+    border: 2px solid color-mix(in srgb, var(--el) 80%, #fff 20%);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--el) 60%, transparent);
+  }
+
+  /* Online friends get a live, breathing ring. */
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend.is-on .sg-friend-crest {
+    border-color: var(--acc-emerald);
+    animation: sgFriendLive 2.2s ease-in-out infinite;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend:not(.is-on) {
+    filter: saturate(0.6);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend-body {
+    flex: 0 0 auto;
+    width: 100%;
+    align-items: center;
+    text-shadow: 0 1px 4px #000;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend-acts {
+    width: 100%;
+    gap: 4px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-mini-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 4px;
+    height: 26px;
+    font-size: 9.5px;
+  }
+
+  /* Open tables: tall scene tiles, the creature standing in its land. */
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] > .sg-stack {
+    flex: 1 1 auto;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: minmax(0, 1fr);
+    grid-auto-columns: clamp(170px, 22vw, 210px);
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-lobby {
+    height: auto;
+    border-radius: 20px;
+    border: 1px solid color-mix(in srgb, var(--el) 50%, transparent);
+    animation: sgFriendRise 0.5s cubic-bezier(.2, .8, .25, 1) both;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-lobby-bg {
+    filter: saturate(1.3) brightness(0.8);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-lobby-veil {
+    background: linear-gradient(180deg, rgba(13, 10, 38, 0) 30%, rgba(13, 10, 38, 0.92) 100%);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-lobby-art {
+    left: 50%;
+    right: auto;
+    top: 10px;
+    bottom: auto;
+    width: 80%;
+    height: 58%;
+    transform: translateX(-50%);
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-lobby-body {
+    justify-content: flex-end;
+    padding: 12px 14px 54px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-lobby-go {
+    top: auto;
+    bottom: 12px;
+    left: 14px;
+    right: 14px;
+    transform: none;
+    text-align: center;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="tables"] .sg-empty-plate {
+    width: clamp(240px, 30vw, 300px);
+    height: 100%;
+  }
+
+  /* Stagger: each tile rises a beat after the one before. */
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-stack > :nth-child(2) { animation-delay: 0.05s; }
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-stack > :nth-child(3) { animation-delay: 0.10s; }
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-stack > :nth-child(4) { animation-delay: 0.15s; }
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-stack > :nth-child(5) { animation-delay: 0.20s; }
+  .sg-app[data-screen="social"][data-social-view="friends"] .sg-stack > :nth-child(n+6) { animation-delay: 0.25s; }
+
+  @keyframes sgFriendRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes sgFriendLive {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(79, 208, 122, 0.55), 0 0 18px color-mix(in srgb, var(--el) 60%, transparent); }
+    50% { box-shadow: 0 0 0 7px rgba(79, 208, 122, 0), 0 0 18px color-mix(in srgb, var(--el) 60%, transparent); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sg-app[data-screen="social"][data-social-view="friends"] :is(.sg-friend, .sg-lobby, .sg-friend-crest) { animation: none !important; }
+  }
+}
+
+/* Shorter / narrower landscape phones: the builder's binder drops to one row of
+   larger cards, and its two fixed panes give the rail more of the width. */
+@media (orientation: landscape) and (max-height: 600px) and (max-width: 780px) {
+  .sg-app[data-screen="builder"] > .sg-scroll {
+    grid-template-columns: 190px 150px minmax(0, 1fr);
+  }
+
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(2) > .sg-swipe {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 420px) {
+  .sg-app[data-screen="builder"] .sg-scroll > .sg-section:nth-of-type(3) > .sg-gal-grid {
+    grid-template-rows: minmax(0, 1fr);
+    grid-auto-columns: calc((var(--lh-h) - 70px) * 0.64);
+  }
+}
+
+/* Short landscape phones: friend tiles are ~110px tall, so the crest and
+   buttons shrink to keep the whole tile readable. */
+@media (orientation: landscape) and (max-height: 400px) {
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend {
+    padding: 6px 6px 6px;
+    gap: 2px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend-crest {
+    width: 32px;
+    height: 32px;
+    font-size: 15px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend-body strong {
+    font-size: 12px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-friend-body em {
+    font-size: 9.5px;
+  }
+
+  .sg-app[data-screen="social"][data-social-view="friends"] > .sg-scroll .sg-section[data-friends-block="friends"] .sg-mini-btn {
+    height: 22px;
+  }
+}
