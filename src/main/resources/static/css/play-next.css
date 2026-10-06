@@ -1228,8 +1228,156 @@
         display: none;
     }
 
-    /* The Deck Builder is an editor: it keeps a scrolling body. */
+    /* ---- Deck Builder: an editor laid out across the screen ----
+       Source tabs and account on one row, the element and type filters on one
+       swipeable row, then the three panes side by side filling the rest. The
+       card pool's rows flow into columns that swipe sideways; the deck list
+       and preview scroll inside their own panes, as an editor's panes do. */
     .loadout-overlay[data-loadout-step="deck"] .loadout-box.loadout-mode-builder #loadoutStepDeck.active {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+        column-gap: 12px;
+        row-gap: 8px;
+        overflow: hidden;
+    }
+
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box.loadout-mode-builder #loadoutStepDeck > .loadout-toggle-set {
+        grid-column: 1;
+        grid-row: 1;
+        margin: 0;
+    }
+
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box.loadout-mode-builder #loadoutStepDeck .loadout-toggle-label {
+        display: none;
+    }
+
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box.loadout-mode-builder .loadout-tabs {
+        flex-wrap: nowrap;
+        gap: 6px;
+    }
+
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box.loadout-mode-builder .loadout-tabs .loadout-tab {
+        padding: 6px 12px;
+        font-size: 0.66rem;
+        white-space: nowrap;
+        border-radius: 999px;
+    }
+
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box.loadout-mode-builder #loadoutAccountNote {
+        grid-column: 2;
+        grid-row: 1;
+        flex-wrap: nowrap;
+        margin: 0;
+        padding: 3px 4px 3px 12px;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        min-width: 0;
+    }
+
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box.loadout-mode-builder #loadoutAccountNote > span {
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box.loadout-mode-builder #loadoutAccountNote .btn {
+        flex: 0 0 auto;
+        min-height: 0;
+        padding: 4px 10px;
+        border-radius: 999px;
+    }
+
+    .loadout-overlay[data-loadout-step="deck"] .loadout-box.loadout-mode-builder #builderLoadoutPanel {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        margin: 0;
+        padding: 10px 12px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(36, 26, 96, 0.62), rgba(13, 10, 38, 0.78));
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }
+
+    /* Both filter groups on one row that swipes. */
+    .loadout-overlay .loadout-box.loadout-mode-builder .builder-toolbar {
+        flex: 0 0 auto;
+        display: flex;
+        gap: 14px;
+        margin: 0 0 8px;
+        overflow-x: auto;
+        touch-action: pan-x;
+        scrollbar-width: none;
+    }
+
+    .loadout-overlay .loadout-box.loadout-mode-builder .builder-toolbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .loadout-overlay .loadout-box.loadout-mode-builder .builder-filter-group {
+        flex: 0 0 auto;
+        flex-wrap: nowrap;
+        gap: 6px;
+    }
+
+    .loadout-overlay .loadout-box.loadout-mode-builder .builder-filter {
+        white-space: nowrap;
+        padding: 5px 10px;
+    }
+
+    .loadout-overlay .loadout-box.loadout-mode-builder .builder-layout {
+        flex: 1 1 auto;
+        min-height: 0;
+        grid-template-columns: minmax(0, 1.7fr) minmax(0, 0.9fr) minmax(0, 0.8fr);
+        grid-template-rows: minmax(0, 1fr);
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .loadout-overlay .loadout-box.loadout-mode-builder .builder-layout > div {
+        min-height: 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .loadout-overlay .loadout-box.loadout-mode-builder .builder-layout h3 {
+        flex: 0 0 auto;
+        margin: 0 0 6px;
+        font-size: 0.9rem;
+    }
+
+    /* Card pool: rows fill a column top to bottom, then the next, sideways. */
+    .loadout-overlay .loadout-box.loadout-mode-builder #builderCatalog {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+        display: grid;
+        grid-auto-flow: column;
+        grid-template-rows: repeat(auto-fill, 66px);
+        grid-auto-columns: minmax(220px, 46%);
+        gap: 8px 10px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-x: contain;
+        touch-action: pan-x;
+        padding: 0 0 4px;
+    }
+
+    .loadout-overlay .loadout-box.loadout-mode-builder #builderCatalog > * {
+        min-height: 0;
+        overflow: hidden;
+        padding: 6px 8px;
+    }
+
+    .loadout-overlay .loadout-box.loadout-mode-builder :is(#builderDeckList, #builderCardPreview) {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
         overflow-y: auto;
         overscroll-behavior: contain;
     }
