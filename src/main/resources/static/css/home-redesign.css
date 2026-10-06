@@ -5117,6 +5117,22 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    table's element (the tournament's, or the host deck's) themes every block
    through --el. */
 .sg-app[data-screen="room"] .sg-scroll { padding-top:calc(58px + var(--sg-sat)); }
+/* Full-screen Land art behind the room. The scroller sits above it, and the
+   blocks on top are glass so the scene reads through them. */
+.sg-room-backdrop { position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; background:#0d0a26; }
+.sg-room-backdrop::before { content:""; position:absolute; inset:-3%;
+  background-image:var(--room-tall, none); background-size:cover; background-position:center 30%;
+  filter:saturate(1.15) brightness(.62); opacity:0; transition:opacity .6s ease;
+  animation:sgTourDrift 30s ease-in-out infinite alternate; }
+.sg-room-backdrop[data-src]::before { opacity:1; }
+.sg-room-backdrop::after { content:""; position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 80% 55% at 50% 0%, color-mix(in srgb, var(--el, var(--gold)) 26%, transparent), transparent 70%),
+    linear-gradient(180deg, rgba(13,10,38,.55) 0%, rgba(13,10,38,.25) 35%, rgba(13,10,38,.6) 75%, rgba(13,10,38,.92) 100%); }
+@media (orientation: landscape) {
+  .sg-room-backdrop::before { background-image:var(--room-wide, none); background-position:center; }
+}
+.sg-app[data-screen="room"] > .sg-scroll { position:relative; z-index:1; }
 .sg-room { --el:var(--gold); }
 .sg-room-spacer { height:104px; }
 
@@ -5157,8 +5173,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-room-vs { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:stretch; gap:8px; }
 .sg-seat { --el:var(--steel-soft); position:relative; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px;
   padding:10px 8px 12px; border-radius:20px; text-align:center;
-  background:linear-gradient(180deg, color-mix(in srgb, var(--el) 22%, rgba(26,17,80,.9)), rgba(13,10,38,.88));
+  background:linear-gradient(180deg, color-mix(in srgb, var(--el) 22%, rgba(26,17,80,.78)), rgba(13,10,38,.8));
   border:1px solid color-mix(in srgb, var(--el) 55%, transparent); box-shadow:0 12px 28px rgba(0,0,0,.4);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
   animation:sgFriendRise .4s cubic-bezier(.2,.8,.25,1) both; }
 .sg-seat.is-me { box-shadow:0 12px 28px rgba(0,0,0,.4), 0 0 0 2px color-mix(in srgb, var(--el) 70%, #fff 10%) inset; }
 .sg-seat.is-ready { box-shadow:0 12px 28px rgba(0,0,0,.4), 0 0 26px rgba(79,208,122,.45), 0 0 0 2px rgba(79,208,122,.8) inset; }
@@ -5177,7 +5194,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-seat-state { margin-top:3px; padding:2px 9px; border-radius:999px; font-size:9.5px; font-weight:800; letter-spacing:.12em;
   text-transform:uppercase; color:var(--muted); background:rgba(255,255,255,.07); }
 .sg-seat.is-ready .sg-seat-state { color:#0d2a17; background:var(--acc-emerald, #4fd07a); }
-.sg-seat.is-open { --el:rgba(143,162,189,.6); border-style:dashed; background:rgba(13,10,38,.55); }
+.sg-seat.is-open { --el:rgba(143,162,189,.6); border-style:dashed; background:rgba(13,10,38,.45); }
 .sg-seat.is-open em { color:var(--muted); }
 .sg-seat-pulse { position:absolute; inset:18%; border-radius:50%; border:2px solid rgba(143,162,189,.55);
   animation:sgSeatPulse 1.8s ease-out infinite; }
@@ -5187,7 +5204,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   font-family:var(--serif); font-weight:800; font-size:17px; color:#2b0d02;
   background:linear-gradient(135deg, #ffe066 0%, var(--amber) 50%, #ff5a3c 100%);
   box-shadow:0 0 0 3px rgba(13,10,38,.9), 0 0 24px rgba(255,140,60,.55); }
-.sg-room-status { margin:12px 2px 0; text-align:center; font-size:12.5px; color:#d8d2f0; line-height:1.4; }
+.sg-room-status { margin:12px 2px 0; text-align:center; font-size:12.5px; color:#e6e1fa; line-height:1.4; text-shadow:0 1px 4px rgba(0,0,0,.9); }
 .sg-room-error { margin:8px 2px 0; text-align:center; font-size:12px; font-weight:700; color:#ff9a8a; }
 .sg-room-cta { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:12px; }
 .sg-app .sg-room-go { flex:1 1 100%; height:52px; border:none; border-radius:999px; cursor:pointer; text-decoration:none;
@@ -5202,7 +5219,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   background:rgba(255,255,255,.05); border:1px solid var(--steel-soft); }
 
 .sg-room-panel { margin:0 18px; border-radius:22px; overflow:hidden; display:flex; flex-direction:column;
-  background:rgba(13,10,38,.72); border:1px solid var(--steel-soft); }
+  background:rgba(13,10,38,.66); border:1px solid var(--steel-soft);
+  backdrop-filter:blur(14px) saturate(1.2); -webkit-backdrop-filter:blur(14px) saturate(1.2); }
 .sg-room-panel[hidden] { display:none; }
 .sg-room-tabs { flex:0 0 auto; display:flex; gap:4px; padding:6px; border-bottom:1px solid var(--steel-soft); }
 .sg-room-tabs button { position:relative; flex:1 1 0; height:36px; border:none; border-radius:12px; cursor:pointer; font:inherit;
@@ -5258,7 +5276,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   background:rgba(10,16,28,.88); color:var(--ink); font:inherit; font-size:16px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .sg-room-hero-bg, .sg-seat, .sg-seat-pulse, .sg-app .sg-room-go.is-hot { animation:none; }
+  .sg-room-hero-bg, .sg-room-backdrop::before, .sg-seat, .sg-seat-pulse, .sg-app .sg-room-go.is-hot { animation:none; }
 }
 
 /* Desktop: hero and stage on the left, the panel beside them. */

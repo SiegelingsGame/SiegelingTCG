@@ -6296,7 +6296,8 @@
 
   function roomScreen(opts) {
     opts = opts || {};
-    return topMarkup(opts) +
+    return '<div class="sg-room-backdrop" data-room-backdrop aria-hidden="true"></div>' +
+      topMarkup(opts) +
       '<div class="sg-scroll sg-room" data-room>' +
         '<section class="sg-room-hero" data-room-hero></section>' +
         '<section class="sg-room-stage" data-room-stage>' +
@@ -6569,8 +6570,24 @@
       var hero = root.querySelector('[data-room-hero]');
       var theme = roomTheme(opts);
       root.style.setProperty('--el', color(theme.el));
+      paintBackdrop(theme);
       hero.classList.toggle('is-tour', theme.tour);
       hero.innerHTML = roomHeroHtml(opts);
+    }
+    // The whole screen stands in the table's Land: a tournament in that Land's
+    // boss arena, an open table in its elite arena (the Siege location scenes,
+    // 3:2), and a portrait phone in the Land's own tall painting, which a wide
+    // scene would only crop to a sliver.
+    function paintBackdrop(theme) {
+      var back = app.querySelector('[data-room-backdrop]');
+      if (!back) return;
+      var key = EL_LAND[String(theme.el || '').toUpperCase()] || 'relic';
+      var wide = '/img/lands/locations/' + key + (theme.tour ? '-boss' : '-elite') + '.webp';
+      if (back.getAttribute('data-src') === wide) return;
+      back.setAttribute('data-src', wide);
+      back.style.setProperty('--room-wide', 'url(\'' + wide + '\')');
+      back.style.setProperty('--room-tall', 'url(\'' + land(theme.el) + '\')');
+      back.style.setProperty('--el', color(theme.el));
     }
     function paintStage() {
       root.querySelector('[data-room-stage]').innerHTML = stageHtml(opts);
