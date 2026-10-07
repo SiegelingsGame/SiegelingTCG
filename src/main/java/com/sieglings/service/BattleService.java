@@ -624,12 +624,15 @@ public class BattleService {
         if (state.getPlayer().getHealth() <= 0 && state.getEnemy().getHealth() <= 0) {
             state.setGameOver(true);
             state.setWinner("Draw");
+            state.setPlayerSideWon(null);
         } else if (state.getPlayer().getHealth() <= 0) {
             state.setGameOver(true);
             state.setWinner(state.getEnemy().getName());
+            state.setPlayerSideWon(false);
         } else if (state.getEnemy().getHealth() <= 0) {
             state.setGameOver(true);
             state.setWinner(state.getPlayer().getName());
+            state.setPlayerSideWon(true);
         }
 
         if (state.isGameOver() && matchHistoryService != null) {

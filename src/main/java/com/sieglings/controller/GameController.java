@@ -1014,7 +1014,7 @@ public class GameController {
                                                Player viewer,
                                                Player opponent) {
         Map<String, Object> screen = new LinkedHashMap<>();
-        String result = resolveViewerResult(gs, viewer.getName());
+        String result = resolveViewerResult(gs, viewerIsPlayer, viewer.getName());
         screen.put("result", result);
         screen.put("endReason", gs.getEndReason() == null ? "NORMAL" : gs.getEndReason());
         screen.put("forfeitedBy", gs.getForfeitedBy());
@@ -1076,12 +1076,17 @@ public class GameController {
         return record;
     }
 
-    private String resolveViewerResult(GameState gs, String viewerName) {
+    private String resolveViewerResult(GameState gs, boolean viewerIsPlayer, String viewerName) {
         if (gs.getWinner() == null) {
             return "UNKNOWN";
         }
         if ("Draw".equalsIgnoreCase(gs.getWinner())) {
             return "DRAW";
+        }
+        // Same rule as match history: a shared display name must not show both
+        // players a win. The side flag is set on every finish path.
+        if (gs.getPlayerSideWon() != null) {
+            return gs.getPlayerSideWon() == viewerIsPlayer ? "WIN" : "LOSS";
         }
         return gs.getWinner().equalsIgnoreCase(viewerName) ? "WIN" : "LOSS";
     }

@@ -95,6 +95,29 @@ class MatchHistoryServiceTest {
     }
 
     @Test
+    void identicalDisplayNamesStillRecordOneWinAndOneLoss() throws Exception {
+        BlockingMatchHistoryStore matchHistoryStore = new BlockingMatchHistoryStore();
+        MatchHistoryService service = createService(matchHistoryStore, new RecordingProgressionService());
+        GameState state = completedOnlineGame();
+        state.getPlayer().setName("Alex");
+        state.getEnemy().setName("Alex");
+        state.setWinner("Alex");
+        state.setPlayerSideWon(true);
+        state.setTournamentId("open@2026-10-06");
+
+        service.recordCompletedGame(state);
+
+        MatchHistoryEntity playerRow = matchHistoryStore.saved.stream()
+                .filter(row -> row.getId().endsWith("-player")).findFirst().orElseThrow();
+        MatchHistoryEntity enemyRow = matchHistoryStore.saved.stream()
+                .filter(row -> row.getId().endsWith("-enemy")).findFirst().orElseThrow();
+        assertEquals("WIN", playerRow.getResult());
+        assertEquals("LOSS", enemyRow.getResult());
+        assertEquals("open@2026-10-06", playerRow.getTournamentId());
+        assertEquals("open@2026-10-06", enemyRow.getTournamentId());
+    }
+
+    @Test
     void aFailedReplayWriteStillRecordsTheMatch() throws Exception {
         BlockingMatchHistoryStore matchHistoryStore = new BlockingMatchHistoryStore();
         RecordingProgressionService progressionService = new RecordingProgressionService();
