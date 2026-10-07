@@ -1047,9 +1047,10 @@
   /* Siege music. The map and the run's other stops play the current Land's
      biome theme (Emberfall gets the fire song, Frostveil the ice song, and so
      on); fights cut to a battle track, and elites and bosses to the gym theme
-     of the Land's element (Fire, Water, Earth, Wind, Ice, Electric, Shadow's
-     cave, the desert for elementless Lands), or any gym where none exists yet. Setup, loading and the
-     run summary stay silent. The Land and battle songs are separate detached
+     of the Land's element (Shadow's is the cave gym; Psychic and the
+     elementless Lands take the desert gym), or any gym where none exists
+     yet. Setup, loading and the run summary stay silent. The Land and
+     battle songs are separate detached
      <audio> elements, so leaving a fight picks the Land song up where it
      paused instead of restarting it. On/off is the hub player's own
      preference, so muting in one place mutes both. */
@@ -1063,10 +1064,12 @@
       FIRE: '/audio/battle/fire-gym-battle.mp3?v=1', WATER: '/audio/battle/water-gym-battle.mp3?v=1',
       EARTH: '/audio/battle/earth-gym-battle.mp3?v=1', WIND: '/audio/battle/wind-gym-battle.mp3?v=1',
       ICE: '/audio/battle/ice-gym-battle.mp3?v=1', ELECTRIC: '/audio/battle/electric-gym-battle.mp3?v=1',
-      SHADOW: '/audio/battle/cave-gym-battle.mp3?v=1'
+      SHADOW: '/audio/battle/cave-gym-battle.mp3?v=1', METAL: '/audio/battle/metal-gym-battle.mp3?v=1',
+      POISON: '/audio/battle/poison-gym-battle.mp3?v=1', LIGHT: '/audio/battle/light-gym-battle.mp3?v=1',
+      PSYCHIC: '/audio/battle/desert-gym-battle.mp3?v=1'
     },
     // The elementless Gilded Hollow and Badlands walk to the desert biome song,
-    // so their elites and bosses fight to the desert gym.
+    // so their elites and bosses fight to the desert gym too.
     desertGym: '/audio/battle/desert-gym-battle.mp3?v=1'
   };
   var LAND_MUSIC_SCREENS = {
@@ -1104,8 +1107,8 @@
       for (var i = 0; i < elements.length; i++) {
         if (BATTLE_TRACKS.gym[elements[i]]) return BATTLE_TRACKS.gym[elements[i]];
       }
-      // A Land with no gym theme of its own yet (Metal, Undead, ...): any gym.
-      var gyms = Object.keys(BATTLE_TRACKS.gym).map(function (k) { return BATTLE_TRACKS.gym[k]; }).concat(BATTLE_TRACKS.desertGym);
+      // A Land with no gym theme of its own yet (Undead): any gym.
+      var gyms = Object.keys(BATTLE_TRACKS.gym).map(function (k) { return BATTLE_TRACKS.gym[k]; });
       return gyms[Math.floor(Math.random() * gyms.length)];
     }
     return BATTLE_TRACKS.normal[Math.floor(Math.random() * BATTLE_TRACKS.normal.length)];

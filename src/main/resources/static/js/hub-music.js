@@ -43,7 +43,10 @@
     { id: 'earth-gym',     title: 'Earth Gym Battle',    el: 'EARTH',    src: '/audio/battle/earth-gym-battle.mp3?v=1' },
     { id: 'wind-gym',      title: 'Wind Gym Battle',     el: 'WIND',     src: '/audio/battle/wind-gym-battle.mp3?v=1' },
     { id: 'ice-gym',       title: 'Ice Gym Battle',      el: 'ICE',      src: '/audio/battle/ice-gym-battle.mp3?v=1' },
-    { id: 'cave-gym',      title: 'Cave Gym Battle',     el: 'SHADOW',   src: '/audio/battle/cave-gym-battle.mp3?v=1' }
+    { id: 'cave-gym',      title: 'Cave Gym Battle',     el: 'SHADOW',   src: '/audio/battle/cave-gym-battle.mp3?v=1' },
+    { id: 'metal-gym',     title: 'Metal Gym Battle',    el: 'METAL',    src: '/audio/battle/metal-gym-battle.mp3?v=1' },
+    { id: 'poison-gym',    title: 'Poison Gym Battle',   el: 'POISON',   src: '/audio/battle/poison-gym-battle.mp3?v=1' },
+    { id: 'light-gym',     title: 'Light Gym Battle',    el: 'LIGHT',    src: '/audio/battle/light-gym-battle.mp3?v=1' }
   ]);
 
   var audio = null;
