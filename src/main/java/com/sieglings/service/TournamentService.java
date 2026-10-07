@@ -179,20 +179,33 @@ public class TournamentService {
     // ---- standings -----------------------------------------------------------
 
     public List<Standing> standings(String tournamentId, Instant now) {
+        Instant closes = find(tournamentId).map(Tournament::endsAt).orElse(Instant.MAX);
         CachedStandings cached = standingsCache.get(tournamentId);
-        if (cached != null && Duration.between(cached.builtAt(), now).compareTo(STANDINGS_TTL) < 0) {
+        if (cached != null && cacheFresh(cached, now, closes)) {
             return cached.standings();
         }
         List<MatchHistoryEntity> matches = matchHistoryStore == null
                 ? List.of() : matchHistoryStore.findByTournamentId(tournamentId);
         // A rematch started before midnight can finish after the day closes; it
         // must not move a final standing (and so a prize) after the fact.
-        Instant closes = find(tournamentId).map(Tournament::endsAt).orElse(Instant.MAX);
         List<Standing> built = rank(matches.stream()
                 .filter(m -> m.getFinishedAt() == null || m.getFinishedAt().isBefore(closes))
                 .toList());
         standingsCache.put(tournamentId, new CachedStandings(now, built));
         return built;
+    }
+
+    /**
+     * A board cached while the day was still open must not be reused once the
+     * day has closed. Claims pay from this list, and a match that finished in
+     * the last minute would otherwise be missing for the whole TTL — the
+     * Lobbies page offers the prize the moment the countdown hits zero.
+     */
+    private static boolean cacheFresh(CachedStandings cached, Instant now, Instant closes) {
+        if (Duration.between(cached.builtAt(), now).compareTo(STANDINGS_TTL) >= 0) {
+            return false;
+        }
+        return now.isBefore(closes) || !cached.builtAt().isBefore(closes);
     }
 
     /** Points first, then wins, then whoever got there first. Pure, so it is tested directly. */

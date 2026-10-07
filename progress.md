@@ -1,4 +1,9 @@
 Original prompt: Merge and deploy
+- October 7, 2026 **Tournament results no longer award a win to both players who share a name, and a prize claim after midnight no longer pays from the pre-close standings cache.**
+  - **Same-name matches.** Display names are not unique, and a table stores whatever name the client sends. The winner was that name string, so `MatchHistoryService` and the end screen both treated every side whose name matched as the winner. Two accounts named Alex in a tournament match were each recorded WIN (3 ladder points) and both saw victory. Finishes now store `GameState.playerSideWon`, and history plus the end screen use that side. A name compare remains only when the flag is absent.
+  - **Final standings.** `TournamentService.standings` caches for 60 seconds. A board built in the last minute of the UTC day was still served after midnight, so a claim as the countdown hit zero paid from standings that omitted a match finished before the close. A cache built before `endsAt` is not reused once the day has closed.
+- Verification:
+  - `MatchHistoryServiceTest.identicalDisplayNamesStillRecordOneWinAndOneLoss` and `TournamentServiceTest.aBoardCachedBeforeCloseIsRebuiltForTheFinalStanding`, plus the existing tests in both classes.
 - October 6, 2026 **Siege knights stack on the landscape rail with vertical name spines; unlock moves onto the card art.**
   - **Change.**
     - **Landscape rail.** Knights now stack like a fanned hand. Each unselected knight shows only its spine, the left 34% of its card. A dark gradient covers the spine, with the element icon, the knight's name running up it, and an italic flavor line beside the name. The selected knight steps out to its full card. An opened knight also unfolds its notes beside the card. Width changes animate, and a newly opened card scrolls into view.

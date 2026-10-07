@@ -108,6 +108,31 @@ class TournamentServiceTest {
     }
 
     @Test
+    void aBoardCachedBeforeCloseIsRebuiltForTheFinalStanding() throws Exception {
+        TournamentService.Tournament t = service.forDay(LocalDate.parse("2026-10-04"));
+        List<MatchHistoryEntity> stored = new ArrayList<>();
+        MatchHistoryEntity early = match("a", "WIN", "ONLINE");
+        early.setFinishedAt(Instant.parse("2026-10-04T12:00:00Z"));
+        stored.add(early);
+        inject(service, "matchHistoryStore", new MatchHistoryStore() {
+            @Override
+            public List<MatchHistoryEntity> findByTournamentId(String id) {
+                return id.equals(t.id()) ? List.copyOf(stored) : List.of();
+            }
+        });
+        // The Lobbies page reads the board during the day, which fills the 60s cache.
+        assertEquals(List.of("a"), service.standings(t.id(), Instant.parse("2026-10-04T23:59:20Z")).stream()
+                .map(TournamentService.Standing::userId).toList());
+        MatchHistoryEntity late = match("b", "WIN", "ONLINE");
+        late.setFinishedAt(Instant.parse("2026-10-04T23:59:50Z"));
+        stored.add(late);
+        // Claiming the moment the day ends must see that last match, not the cached board.
+        List<TournamentService.Standing> finalBoard = service.standings(t.id(), Instant.parse("2026-10-05T00:00:05Z"));
+        // Same points and wins: the earlier result stays ahead, but the last-minute win is on the board.
+        assertEquals(List.of("a", "b"), finalBoard.stream().map(TournamentService.Standing::userId).toList());
+    }
+
+    @Test
     void matchesFinishedAfterTheDayClosesDoNotCount() throws Exception {
         TournamentService.Tournament t = service.forDay(LocalDate.parse("2026-10-05"));
         List<MatchHistoryEntity> stored = new ArrayList<>();

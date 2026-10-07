@@ -76,7 +76,7 @@ public class MatchHistoryService {
         history.setUserId(user.getId());
         history.setUserDisplayName(user.getDisplayName());
         history.setFinishedAt(Instant.now());
-        history.setResult(resolveResult(state, player.getName()));
+        history.setResult(resolveResult(state, isPlayerSide));
         history.setMatchType(state.isEnemyHumanControlled() ? "ONLINE" : "SOLO");
         if (state.isEnemyHumanControlled()) {
             history.setTournamentId(state.getTournamentId());
@@ -141,13 +141,26 @@ public class MatchHistoryService {
                 + player.getPsychicEnergy();
     }
 
-    private String resolveResult(GameState state, String playerName) {
+    /**
+     * The side flag wins over the display name. Two accounts can share a name
+     * (it is not unique, and a table accepts whatever name the client sends),
+     * and a name compare then records a win for both — which is a tournament
+     * ladder win and a prize. Names are only the fallback for a match recorded
+     * before the side was stored.
+     */
+    private String resolveResult(GameState state, boolean isPlayerSide) {
         if (state.getWinner() == null) {
             return "UNKNOWN";
         }
         if ("Draw".equalsIgnoreCase(state.getWinner())) {
             return "DRAW";
         }
-        return state.getWinner().equalsIgnoreCase(playerName) ? "WIN" : "LOSS";
+        Boolean playerSideWon = state.getPlayerSideWon();
+        if (playerSideWon != null) {
+            return playerSideWon == isPlayerSide ? "WIN" : "LOSS";
+        }
+        Player side = isPlayerSide ? state.getPlayer() : state.getEnemy();
+        String name = side == null ? "" : side.getName();
+        return state.getWinner().equalsIgnoreCase(name) ? "WIN" : "LOSS";
     }
 }

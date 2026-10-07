@@ -27,6 +27,13 @@ public class GameState {
     private boolean playerTurn = true;
     private boolean gameOver = false;
     private String winner;
+    /**
+     * Which engine side won: true is the player side, false the enemy side,
+     * null on a draw or when only {@link #winner}'s display name is known.
+     * Display names are not unique, so a finished match must not decide who
+     * won by comparing that string once this is set.
+     */
+    private Boolean playerSideWon;
     private int nextPlacementOrder = 1;
     private List<String> battleQueue = new ArrayList<>();
     private int battleCursor = 0;
@@ -321,6 +328,8 @@ public class GameState {
     public void setGameOver(boolean gameOver) { this.gameOver = gameOver; }
     public String getWinner() { return winner; }
     public void setWinner(String winner) { this.winner = winner; }
+    public Boolean getPlayerSideWon() { return playerSideWon; }
+    public void setPlayerSideWon(Boolean playerSideWon) { this.playerSideWon = playerSideWon; }
     public int getNextPlacementOrder() { return nextPlacementOrder; }
     public int consumePlacementOrder() { return nextPlacementOrder++; }
     public List<String> getBattleQueue() { return battleQueue; }

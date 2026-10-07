@@ -1384,6 +1384,8 @@ public class GameService {
         state.setForfeitedBy(actor.getName());
         state.setGameOver(true);
         state.setWinner(opponent.getName());
+        // The quitter's name can match the opponent's; the side is what decides the loss.
+        state.setPlayerSideWon(!isPlayerSide);
         state.log(actor.getName() + " quit the match. " + opponent.getName() + " wins!");
         matchHistoryService.recordCompletedGame(state);
         return state;
@@ -1395,14 +1397,17 @@ public class GameService {
         if (state.getPlayer().getHealth() <= 0 && state.getEnemy().getHealth() <= 0) {
             state.setGameOver(true);
             state.setWinner("Draw");
+            state.setPlayerSideWon(null);
             state.log("Both players fell in battle!");
         } else if (state.getPlayer().getHealth() <= 0) {
             state.setGameOver(true);
             state.setWinner(state.getEnemy().getName());
+            state.setPlayerSideWon(false);
             state.log(state.getPlayer().getName() + " has fallen! " + state.getEnemy().getName() + " wins!");
         } else if (state.getEnemy().getHealth() <= 0) {
             state.setGameOver(true);
             state.setWinner(state.getPlayer().getName());
+            state.setPlayerSideWon(true);
             state.log(state.getEnemy().getName() + " has fallen! " + state.getPlayer().getName() + " wins!");
         }
 
