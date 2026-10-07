@@ -37,7 +37,13 @@
     { id: 'battle',        title: 'Battle Theme',        el: 'NEUTRAL',  src: '/audio/sieglings-battle-theme.mp3?v=1' },
     { id: 'battle-2',      title: 'Battle Theme II',     el: 'NEUTRAL',  src: '/audio/battle/sieglings-battle-theme-2.mp3?v=1' },
     { id: 'desert-gym',    title: 'Desert Gym Battle',   el: 'EARTH',    src: '/audio/battle/desert-gym-battle.mp3?v=1' },
-    { id: 'electric-gym',  title: 'Electric Gym Battle', el: 'ELECTRIC', src: '/audio/battle/electric-gym-battle.mp3?v=1' }
+    { id: 'electric-gym',  title: 'Electric Gym Battle', el: 'ELECTRIC', src: '/audio/battle/electric-gym-battle.mp3?v=1' },
+    { id: 'fire-gym',      title: 'Fire Gym Battle',     el: 'FIRE',     src: '/audio/battle/fire-gym-battle.mp3?v=1' },
+    { id: 'water-gym',     title: 'Water Gym Battle',    el: 'WATER',    src: '/audio/battle/water-gym-battle.mp3?v=1' },
+    { id: 'earth-gym',     title: 'Earth Gym Battle',    el: 'EARTH',    src: '/audio/battle/earth-gym-battle.mp3?v=1' },
+    { id: 'wind-gym',      title: 'Wind Gym Battle',     el: 'WIND',     src: '/audio/battle/wind-gym-battle.mp3?v=1' },
+    { id: 'ice-gym',       title: 'Ice Gym Battle',      el: 'ICE',      src: '/audio/battle/ice-gym-battle.mp3?v=1' },
+    { id: 'cave-gym',      title: 'Cave Gym Battle',     el: 'SHADOW',   src: '/audio/battle/cave-gym-battle.mp3?v=1' }
   ]);
 
   var audio = null;

@@ -192,6 +192,28 @@ Original prompt: Merge and deploy
     - Picking the 4th knight at 720 keeps 720, and so does a warband pick at 616.
     - An element filter narrows the rail.
   - At 390x844 and 1920x1080 the document layout is unchanged: the pages scroll as before and the instructions are visible.
+- October 7, 2026 **Six gym battle themes: Fire, Water, Earth, Wind, Ice and Cave.**
+  - **Change.** Added `audio/battle/{fire,water,earth,wind,ice,cave}-gym-battle.mp3` (Fire gym, Tropical Showdown, Clash of the Earth, Aerial Showdown, Glacier Duel, Cave Session).
+    - **Siege** (`adventure.js` `BATTLE_TRACKS`): elite and boss fights now play their Land's own gym. FIRE, WATER, EARTH, WIND, ICE and ELECTRIC each have one, and SHADOW (Gloamwood) gets the cave gym. Earth moves from the desert gym to its new theme. The desert gym now belongs to the elementless Gilded Hollow and Badlands, which already walk to the desert biome song. Two-element Lands use their first element. Lands with no gym theme yet (Metal, Undead, Poison, Light, Psychic) pick any gym at random. Normal fights are unchanged.
+    - **Hub player** (`hub-music.js`): lists all six, giving 24 tracks.
+  - `adventure.js` is now `?v=124` and `hub-music.js` `?v=5`.
+  - **Verification.** `node --check` passes on both files. Against a local `spring-boot:run`, real Siege runs had their node and Land forced, and `render_game_to_text().music` was read. Each case played the expected track:
+
+    | Land | Fight | Track |
+    |---|---|---|
+    | FIRE | boss | fire-gym |
+    | WATER | elite | water-gym |
+    | EARTH | boss | earth-gym |
+    | WIND | boss | wind-gym |
+    | ICE | boss | ice-gym |
+    | ELECTRIC | boss | electric-gym |
+    | SHADOW | boss | cave-gym |
+    | none | boss | desert-gym |
+    | ICE/WIND | boss | ice-gym |
+    | METAL | boss | a random gym |
+    | FIRE | normal BATTLE | a battle theme |
+
+    In the hub, all 24 tracks decode (the gyms run 150-203s), with no page errors.
 - October 6, 2026 **Landscape: uniform card sizes in the Shop's daily offers and the Collection binder.**
   - **Cause.** `style.css` caps `.mulligan-card-slot` by the viewport height in landscape (`max-width: calc(... 100dvh)` under `(orientation: landscape) and (max-width: 979px)`), for the battle table's mulligan row. In the hub, that cap shrank Siegeling, Strategy and Deception faces inside their tiles. Binder sleeves (drawn on the tile) stood wider than their cards; on a 667px phone a 299px sleeve held a 105px card. SiegeKnight cards use different markup, escaped the cap, and dwarfed the other daily offers.
   - **Change** (`home-redesign.css` only):
