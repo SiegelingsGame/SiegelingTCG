@@ -951,6 +951,38 @@ body.concept-board {
   background:linear-gradient(180deg, rgba(28,21,62,.70), rgba(10,7,28,.58));
   backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
 }
+/* Title and tools on one row: the tools ride beside "The Binder", bottom-
+   aligned with its subtitle, so the binder page starts ~70px higher. Too
+   narrow a screen simply wraps the chrome back under the title. */
+.sg-gal-headrow {
+  position:relative; z-index:20;
+  display:flex; flex-wrap:wrap; align-items:flex-end; column-gap:8px;
+}
+/* The cap keeps a long signed-out subtitle wrapping inside its column rather
+   than pushing the tools onto their own row. */
+.sg-gal-headrow > .sg-gal-head { flex:0 1 auto; min-width:0; max-width:50%; padding-right:0; padding-bottom:4px; }
+.sg-gal-headrow > .sg-filter-chrome { flex:1 1 144px; min-width:144px; }
+.sg-gal-headrow .sg-filter-chrome-inner { margin:0 10px 0 0; padding:0; }
+.sg-gal-headrow .sg-gal-tools { flex-wrap:wrap; row-gap:2px; padding:6px 4px 6px 8px; }
+.sg-gal-headrow .sg-count { padding:0 4px; }
+/* Beside the title on a phone the count would wrap into a second row and push
+   the tools above the heading. It returns with the full-width chrome, and an
+   active filter still shows on the toggle's badge. */
+@media (max-width:479px) {
+  .sg-gal-headrow:not(.is-wide) .sg-count { display:none; }
+}
+/* Below that, title and buttons don't share a row without the buttons
+   wrapping, so the old stacked layout is the tidier one. */
+@media (max-width:359px) {
+  .sg-gal-headrow > .sg-gal-head { max-width:none; }
+  .sg-gal-headrow > .sg-filter-chrome { flex-basis:100%; }
+  .sg-gal-headrow .sg-filter-chrome-inner { margin:6px 10px 2px; }
+  .sg-gal-headrow:not(.is-wide) .sg-count { display:inline; }
+}
+/* Search and the pill rows need the full width. */
+.sg-gal-headrow.is-wide > .sg-filter-chrome { flex-basis:100%; }
+.sg-gal-headrow.is-wide .sg-filter-chrome-inner { margin:8px 10px 2px; padding:2px 0 8px; }
+.sg-gal-headrow.is-wide .sg-gal-tools { flex-wrap:nowrap; padding:10px 18px 6px; }
 /* The index-tab rule under the label: it reads as a divider in a binder rather
    than a floating caption. */
 .sg-filter-label {
