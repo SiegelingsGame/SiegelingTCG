@@ -507,8 +507,12 @@ body.concept-board {
   --art-fit:scale(1);
   transform:var(--art-fit); transform-origin:center bottom;
   filter:drop-shadow(0 14px 18px rgba(0,0,0,.65));
-  transition:transform .32s cubic-bezier(.2,.8,.25,1);
+  transition:transform .32s cubic-bezier(.2,.8,.25,1), opacity .28s ease;
 }
+/* Hidden until home-redesign.js has measured and applied the fit, so the
+   art appears at its final size instead of visibly resizing. No transition
+   while hidden: the fit lands instantly and only the fade-in animates. */
+.sg-feat-art img:not([data-art-fit="done"]) { opacity:0; transition:none; }
 .sg-feat:active { transform:translateY(-6px); }
 /* Press lift, composed with whatever fit the tile ended up with. */
 .sg-feat:active .sg-feat-art img { transform:scale(1.04) var(--art-fit); }

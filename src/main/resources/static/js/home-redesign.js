@@ -587,13 +587,25 @@
     });
   }
 
+  /* The art stays hidden (CSS, until data-art-fit="done") so a player never
+     sees it at the scale(1) fallback and then jump to its fit. The transform is
+     applied while the image is still hidden and transition-less, and the style
+     flushed, so the reveal fades the art in at its final size rather than
+     animating the resize. */
+  function revealArtFit(img, transform) {
+    if (transform) {
+      img.style.setProperty('--art-fit', transform);
+      void img.offsetWidth;
+    }
+    img.dataset.artFit = 'done';
+  }
+
   function applyArtFit(img) {
     if (!img || img.dataset.artFit) return;
     img.dataset.artFit = 'pending';
     artBoxFor(img).then(function (box) {
-      img.dataset.artFit = 'done';
       var fit = box && artFitTransform(box, img);
-      if (fit) img.style.setProperty('--art-fit', artFitStyle(fit, fit.fill));
+      revealArtFit(img, fit && artFitStyle(fit, fit.fill));
     });
   }
 
@@ -620,15 +632,15 @@
     Promise.all(imgs.map(artBoxFor)).then(function (boxes) {
       var seats = [], k = Infinity;
       imgs.forEach(function (img, i) {
-        img.dataset.artFit = 'done';
         var fit = boxes[i] && artFitTransform(boxes[i], img);
         if (!fit) return;
         var authored = authoredArtScale(img);
         seats.push({ img: img, fit: fit, authored: authored });
         k = Math.min(k, fit.fill / authored);
       });
-      seats.forEach(function (seat) {
-        seat.img.style.setProperty('--art-fit', artFitStyle(seat.fit, k * seat.authored));
+      imgs.forEach(function (img) {
+        var seat = seats.filter(function (s) { return s.img === img; })[0];
+        revealArtFit(img, seat ? artFitStyle(seat.fit, k * seat.authored) : null);
       });
     });
   }
@@ -658,7 +670,16 @@
     var imgs = app.querySelectorAll('.sg-feat-art img');
     Array.prototype.forEach.call(imgs, function (img) {
       if (img.complete && img.naturalWidth) applyArtFit(img);
-      else img.addEventListener('load', function () { applyArtFit(img); });
+      else {
+        img.addEventListener('load', function () { applyArtFit(img); });
+        // Hidden-until-fitted must never mean hidden for good: once the
+        // fallback chain has run out, show whatever the browser has.
+        img.addEventListener('error', function () {
+          setTimeout(function () {
+            if (!img.dataset.artFit && !(img.complete && img.naturalWidth)) revealArtFit(img, null);
+          }, 4000);
+        });
+      }
     });
   }
 
