@@ -1884,6 +1884,9 @@
     return topMarkup(opts) +
       binderSkinMarkup() +
       '<div class="sg-scroll" data-gal-scroll>' +
+        // Title and tools share one row so the binder page starts higher; the
+        // tools drop to their own row only while search or the pills are open.
+        '<div class="sg-gal-headrow" data-gal-headrow>' +
         '<div class="sg-gal-head"><h2>The Binder</h2><p>' +
           (counts ? esc(counts.held) + ' of ' + esc(counts.total) + ' cards collected'
                   : esc(total) + ' cards — every Siegeling, Strategy, Deception and SiegeKnight') +
@@ -1900,6 +1903,7 @@
             '</div>' +
             '<div class="sg-filters" data-filters><div>' + filterRows + '</div></div>' +
           '</div>' +
+        '</div>' +
         '</div>' +
         '<div class="sg-binder-page"><div class="sg-gal-grid" data-grid></div></div>' +
         '<div class="sg-gal-more" data-more hidden><button type="button">Show more</button></div>' +
@@ -2124,6 +2128,7 @@
     var scroll = app.querySelector('[data-gal-scroll]') || app.querySelector('.sg-scroll');
     var tools = app.querySelector('[data-tools]');
     var filters = app.querySelector('[data-filters]');
+    var headrow = app.querySelector('[data-gal-headrow]');
     var glass = app.querySelector('[data-filter-glass]');
     var glassFilters = app.querySelector('[data-glass-filters]');
     var glassSearch = app.querySelector('[data-glass-search]');
@@ -2210,6 +2215,14 @@
       if (more) more.hidden = rows.length <= limit;
     }
 
+    // The inline tools are too narrow beside the title for a search field or
+    // the pill rows, so either one widens the chrome to a full row.
+    function syncHeadrow() {
+      if (!headrow) return;
+      headrow.classList.toggle('is-wide',
+        filters.classList.contains('open') || tools.classList.contains('searching'));
+    }
+
     function setCompact(on) {
       app.classList.toggle('is-filter-compact', on);
       if (fab) fab.hidden = !on;
@@ -2260,6 +2273,7 @@
       filterToggle.addEventListener('click', function () {
         filters.classList.toggle('open');
         this.classList.toggle('on', filters.classList.contains('open'));
+        syncHeadrow();
       });
     }
     var searchToggle = app.querySelector('[data-search-toggle]');
@@ -2267,6 +2281,7 @@
       searchToggle.addEventListener('click', function () {
         tools.classList.toggle('searching');
         this.classList.toggle('on', tools.classList.contains('searching'));
+        syncHeadrow();
         if (tools.classList.contains('searching')) {
           var input = app.querySelector('[data-search-input]');
           if (input) input.focus();
