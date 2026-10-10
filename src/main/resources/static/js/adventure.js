@@ -121,7 +121,7 @@
     ['cleared', 'Cleared', 'Marked ✓ and dimmed; already resolved.'],
     ['locked', 'Not connected', 'Dim, no ring — no route there from here.']
   ];
-  var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', SHOP_MENU: '🛒', BROKER: '🐾', BROKER_MENU: '♞' };
+  var CAMP_ICON = { REST: '🔥', SHOP_CARD: '🃏', SHOP_HEAL: '🍲', SHOP_UPGRADE: '⚒️', SHOP_MENU: '🛒', BROKER: '🐾', BROKER_SWAP: '⇄', MERC: '⚔️', BROKER_MENU: '♞' };
   var PASSIVE_META = {
     SHIELD: { icon: '🛡', name: 'Bulwark' },
     ATTACK: { icon: '⚔', name: 'Warlord' },
@@ -3024,7 +3024,7 @@
   function campOptionGroup(opt) {
     if (!opt) return 'CAMP';
     if (String(opt.kind || '').indexOf('SHOP_') === 0) return 'SHOP';
-    if (opt.kind === 'BROKER') return 'BROKER';
+    if (opt.kind === 'BROKER' || opt.kind === 'BROKER_SWAP' || opt.kind === 'MERC') return 'BROKER';
     return 'CAMP';
   }
 
@@ -3042,6 +3042,10 @@
       '<div class="camp-card-desc">' + esc(opt.desc) + '</div>';
     if (canUse && opt.chooseLearner) {
       attachLearnerPicker(c, opt, function (learnerId) { campChoose(opt.id, resultTitle, resultIcon, learnerId); });
+    } else if (canUse && opt.chooseLeaver) {
+      // The server reads learnerId as the member who leaves; fallen members can go too.
+      attachLearnerPicker(c, opt, function (leaverId) { campChoose(opt.id, resultTitle, resultIcon, leaverId); },
+        'Send away:', (state.run.party || []));
     } else if (canUse) {
       c.addEventListener('click', function () { campChoose(opt.id, resultTitle, resultIcon); });
     }
@@ -3053,11 +3057,11 @@
    * offer opens a "Teach to" row of the living warband, and the pick is what
    * actually pays. Mirrors the broker's Swap row, so a stray tap never spends gold.
    */
-  function attachLearnerPicker(card, opt, onPick) {
+  function attachLearnerPicker(card, opt, onPick, prompt, members) {
     var row = el('div', 'learner-row hidden');
-    row.appendChild(el('div', 'learner-prompt', 'Teach ' + esc(opt.title) + ' to:'));
+    row.appendChild(el('div', 'learner-prompt', prompt || ('Teach ' + esc(opt.title) + ' to:')));
     var choices = el('div', 'learner-choices');
-    (state.run.party || []).filter(function (p) { return p.alive; }).forEach(function (p) {
+    (members || (state.run.party || []).filter(function (p) { return p.alive; })).forEach(function (p) {
       var b = el('button', 'siege-btn learner-btn ' + elClass(p.element),
         (p.artUrl ? '<img ' + artImgAttrs(p.artUrl, 160) + ' alt="">' : '<b>' + icon(p.element) + '</b>') +
         '<span>' + esc(partyDisplayName(p) || p.name) + '</span>');
@@ -3225,6 +3229,20 @@
     $('brokerGold').textContent = '🪙 ' + (run.gold || 0);
     renderLocationParty('brokerParty', displayParty(run));
 
+    // A full warband can still deal: recruits swap in for a member, mercs fill
+    // in for one battle. An encounter is a lone wanderer met on the road — free,
+    // one take only, and walking on accepts its parting gift.
+    var taken = (b.offers || []).some(function (o) { return o.used; });
+    $('brokerNpc').textContent = b.encounter ? 'Wanderer' : 'Broker';
+    $('brokerKicker').textContent = b.encounter ? 'Roadside encounter' : 'Traveling service';
+    $('brokerTitle').textContent = b.encounter ? 'A Wandering Siegeling' : 'Mercenary Broker';
+    $('brokerNote').textContent = b.encounter
+      ? 'Your warband is full. Swap it in for a member, bring it along for one battle, or move on with its parting gift.'
+      : b.partyFull
+        ? 'Your warband is full. Swap a member for a recruit, or rent a temporary ally for the next battle.'
+        : 'Hire a companion for the next battle or reshape your warband.';
+    $('brokerLeaveBtn').textContent = b.encounter && !taken ? 'Take Gift & Move On' : 'Move On';
+
     var grid = $('brokerGrid'); grid.innerHTML = '';
     (b.offers || []).forEach(function (offer) {
       var c = el('div', 'camp-card broker-offer ' + elClass(offer.element) + (offer.used ? ' used' : ''));
@@ -3241,20 +3259,26 @@
       var swapCost = b.swapCost != null ? b.swapCost : hireCost;
       c.innerHTML =
         '<div class="camp-card-head"><button class="info-btn broker-info" type="button">ⓘ</button>' +
-        (offer.used ? '<span class="camp-used">✓ hired</span>' : '') + '</div>' +
+        (offer.used ? '<span class="camp-used">' + (b.encounter ? '✓ settled' : '✓ hired') + '</span>' : '') + '</div>' +
         art +
         '<div class="camp-card-title">' + esc(offer.name) + '</div>' +
         stats +
         (offer.used ? '' : isMerc
           ? '<div class="broker-actions">' +
             '<button class="siege-btn broker-btn hire" type="button"' +
-              ((run.gold >= hireCost && !b.mercUnderContract) ? '' : ' disabled') + '>Rent 🪙' + hireCost + '</button>' +
-            '</div><div class="camp-card-desc">Fights your NEXT battle with boon cards, then departs.</div>'
+              ((run.gold >= hireCost && !b.mercUnderContract) ? '' : ' disabled') + '>' +
+              (b.encounter ? 'Ally for 1 battle' : 'Rent 🪙' + hireCost) + '</button>' +
+            '</div><div class="camp-card-desc">' + (b.mercUnderContract
+              ? 'A mercenary is already under contract.'
+              : 'Temporary ally: fights your NEXT battle with boon cards, then departs.') + '</div>'
           : '<div class="broker-actions">' +
-            '<button class="siege-btn broker-btn hire" type="button"' +
-              ((run.gold >= hireCost && !b.partyFull) ? '' : ' disabled') + '>Hire 🪙' + hireCost + '</button>' +
-            '<button class="siege-btn broker-btn swap" type="button"' + (run.gold >= swapCost ? '' : ' disabled') + '>Swap 🪙' + swapCost + '</button>' +
-            '</div><div class="broker-swap-row hidden"></div>');
+            // Hire needs an open slot; a full warband only sees Swap.
+            (b.partyFull ? '' : '<button class="siege-btn broker-btn hire" type="button"' +
+              (run.gold >= hireCost ? '' : ' disabled') + '>Hire 🪙' + hireCost + '</button>') +
+            '<button class="siege-btn broker-btn swap" type="button"' + (run.gold >= swapCost ? '' : ' disabled') + '>' +
+              (b.encounter ? 'Swap in (free)' : 'Swap 🪙' + swapCost) + '</button>' +
+            '</div>' + (b.partyFull ? '<div class="camp-card-desc">Joins for good, replacing a member you send away.</div>' : '') +
+            '<div class="broker-swap-row hidden"></div>');
       c.querySelector('.broker-info').addEventListener('click', function (e) {
         e.stopPropagation();
         showUnitModal({

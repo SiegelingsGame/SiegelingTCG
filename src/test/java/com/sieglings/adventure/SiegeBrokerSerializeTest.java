@@ -85,13 +85,13 @@ class SiegeBrokerSerializeTest {
     }
 
     @Test
-    void openBrokerWhenFullSerializesMercOnlyStall() throws Exception {
+    void openBrokerWhenFullOffersSwapsAndTemporaryAllies() throws Exception {
         Map<String, Object> started = siegeService.newRun(
                 null, starterKnightId, starterWarband, "STANDARD");
         String token = (String) started.get("token");
         SiegeRun run = siegeService.lookup(token).orElseThrow();
 
-        // Fill the warband to party max so the stall is rental-only.
+        // Fill the warband to party max: recruits can then only swap in.
         List<SieglingCard> fillers = content.selectableSieglings().stream()
                 .filter(s -> !starterWarband.contains(s.getId()))
                 .toList();
@@ -110,14 +110,15 @@ class SiegeBrokerSerializeTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> broker = (Map<String, Object>) state.get("broker");
         assertNotNull(broker);
-        assertEquals(Boolean.TRUE, broker.get("merc"));
+        assertEquals(Boolean.FALSE, broker.get("merc"), "a full stall still sells swaps");
         assertEquals(Boolean.TRUE, broker.get("partyFull"));
-        assertEquals(55, ((Number) broker.get("hireCost")).intValue());
+        assertEquals(25, ((Number) broker.get("swapCost")).intValue());
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> offers = (List<Map<String, Object>>) broker.get("offers");
-        assertFalse(offers.isEmpty());
-        assertTrue(offers.stream().allMatch(o -> "MERC".equals(o.get("kind"))));
+        List<Map<String, Object>> allOffers = (List<Map<String, Object>>) broker.get("offers");
+        assertTrue(allOffers.stream().anyMatch(o -> "BROKER".equals(o.get("kind"))), "expected swap recruits: " + allOffers);
+        List<Map<String, Object>> offers = allOffers.stream().filter(o -> "MERC".equals(o.get("kind"))).toList();
+        assertFalse(offers.isEmpty(), "expected temporary-ally rentals: " + allOffers);
 
         // Mercs are stocked from evolved catalog stages, which the starter-only
         // lookup misses — the preview must still carry stats and cards.
