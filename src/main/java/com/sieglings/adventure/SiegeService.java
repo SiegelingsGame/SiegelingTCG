@@ -1783,30 +1783,86 @@ public class SiegeService {
 
     /**
      * Opens a broker stall. If the warband has room, Siegelings are for sale to
-     * add or swap; if it is already full (3), only mercenary rentals are offered.
+     * add or swap (plus one mercenary rental). If it is already full, the broker
+     * still deals: recruits can only be swapped in for a current member, and two
+     * mercenaries are up for rent as a temporary ally for the next battle.
      */
     private void openBroker(SiegeRun run) {
         run.setInBroker(true);
+        run.setBrokerEncounter(false);
         run.getBrokerOptions().clear();
         int oid = 0;
         boolean full = run.getParty().size() >= content.partyMax();
-        if (full) {
-            for (SieglingCard s : content.mercOffers(2, rng, run.getLand())) {
-                run.getBrokerOptions().add(CampOption.merc("b" + (oid++), s.getName(), s.getElement(),
-                        s.getCardArtUrl(), s.getId(), MERC_RENT_COST));
-            }
-        } else {
-            List<String> names = run.getParty().stream().map(Combatant::getName).toList();
-            for (SieglingCard s : content.randomRecruits(3, names, rng, run.getLand())) {
-                run.getBrokerOptions().add(CampOption.broker("b" + (oid++), s.getName(), s.getElement(),
-                        s.getCardArtUrl(), s.getId(), BROKER_HIRE_COST));
-            }
-            // One mercenary is always available as an alternative.
-            for (SieglingCard s : content.mercOffers(1, rng, run.getLand())) {
-                run.getBrokerOptions().add(CampOption.merc("b" + (oid++), s.getName(), s.getElement(),
-                        s.getCardArtUrl(), s.getId(), MERC_RENT_COST));
-            }
+        List<String> names = run.getParty().stream().map(Combatant::getName).toList();
+        int recruits = full ? 2 : 3;
+        for (SieglingCard s : content.randomRecruits(recruits, names, rng, run.getLand())) {
+            run.getBrokerOptions().add(CampOption.broker("b" + (oid++), s.getName(), s.getElement(),
+                    s.getCardArtUrl(), s.getId(), full ? BROKER_SWAP_COST : BROKER_HIRE_COST));
         }
+        for (SieglingCard s : content.mercOffers(full ? 2 : 1, rng, run.getLand())) {
+            run.getBrokerOptions().add(CampOption.merc("b" + (oid++), s.getName(), s.getElement(),
+                    s.getCardArtUrl(), s.getId(), MERC_RENT_COST));
+        }
+    }
+
+    /**
+     * A wandering Siegeling met on an event road when the warband is already
+     * full. Rather than silently converting it to an item, the player chooses:
+     * swap it in for a current member, take it along as a temporary ally for the
+     * next battle, or walk on and accept its parting gift. Both takes are free
+     * and the stranger only goes one way, so taking either spends the other.
+     */
+    private void openWandererEncounter(SiegeRun run, SieglingCard s) {
+        run.setInBroker(true);
+        run.setBrokerEncounter(true);
+        run.getBrokerOptions().clear();
+        run.getBrokerOptions().add(CampOption.broker("w0", s.getName(), s.getElement(), s.getCardArtUrl(), s.getId(), 0));
+        run.getBrokerOptions().add(CampOption.merc("w1", s.getName(), s.getElement(), s.getCardArtUrl(), s.getId(), 0));
+    }
+
+    /** Swap cost for a recruit offer: free from a wandering stranger, else the broker's rate. */
+    private int brokerSwapCost(SiegeRun run) {
+        return run.isBrokerEncounter() ? 0 : BROKER_SWAP_COST;
+    }
+
+    /** Broker recruits are starter forms, but an event wanderer may be an evolved stage. */
+    private Optional<SieglingCard> findRecruitCard(String id) {
+        return content.findSiegling(id).or(() -> content.findAnySiegling(id));
+    }
+
+    /**
+     * Rents {@code s} as the next battle's mercenary. Callers check the contract
+     * slot and charge any fee first.
+     */
+    private Combatant contractMercenary(SiegeRun run, SieglingCard s) {
+        Combatant merc = content.toMercCombatant(s);
+        run.setMercenary(merc);
+        run.getMercCards().clear();
+        run.getMercCards().addAll(content.mercBoonCards(merc, s));
+        return merc;
+    }
+
+    /**
+     * Releases {@code replaceId} from the warband and seats {@code s} in its slot.
+     * The leaver's gear goes back to the bag and its cards leave the deck.
+     */
+    private Combatant swapIntoWarband(SiegeRun run, SieglingCard s, String replaceId) {
+        Combatant leaving = run.getParty().stream()
+                .filter(m -> m.getId().equals(replaceId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown party member to swap out."));
+        int position = leaving.getPosition();
+        if (leaving.getItemId() != null) run.getInventory().add(leaving.getItemId());
+        run.getParty().remove(leaving);
+        run.getDeckTemplates().removeIf(c -> c.getOwnerId().equals(leaving.getId()));
+        Combatant member = content.toPartyCombatant(s, run.getParty().size());
+        member.setPosition(position >= 0 ? position : run.getParty().size());
+        applyJoinBonus(run, member);
+        run.getParty().add(member);
+        run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+        noteDiscovery(run, s.getId());
+        queueRecruitReveal(run, s, member);
+        run.setLastReward(s.getName() + " joins the warband — " + leaving.getName() + " parts ways.");
+        return member;
     }
 
     /**
@@ -1828,42 +1884,32 @@ public class SiegeService {
             SieglingCard s = content.findAnySiegling(pick.sieglingId)
                     .orElseThrow(() -> new IllegalArgumentException("That mercenary is gone."));
             run.addGold(-pick.cost);
-            Combatant merc = content.toMercCombatant(s);
-            run.setMercenary(merc);
-            run.getMercCards().clear();
-            run.getMercCards().addAll(content.mercBoonCards(merc, s));
-            run.setLastReward(merc.getName() + " is under contract — it fights your NEXT battle with boon cards, then departs.");
-            pick.used = true;
+            Combatant merc = contractMercenary(run, s);
+            run.setLastReward(run.isBrokerEncounter()
+                    ? s.getName() + " tags along — it fights your NEXT battle as a temporary ally, then goes its own way."
+                    : merc.getName() + " is under contract — it fights your NEXT battle with boon cards, then departs.");
+            markBrokerTaken(run, pick);
             return serialize(run);
         }
 
         // Siegeling hire (add to an open slot) or swap (release a current member).
-        SieglingCard s = content.findSiegling(pick.sieglingId)
+        SieglingCard s = findRecruitCard(pick.sieglingId)
                 .orElseThrow(() -> new IllegalArgumentException("That Siegeling is gone."));
         boolean swap = replaceId != null && !replaceId.isBlank() && !"null".equals(replaceId);
         if (!swap && run.getParty().size() >= content.partyMax()) {
             throw new IllegalArgumentException("The warband is full — swap a member or rent a mercenary instead.");
         }
-        int cost = swap ? BROKER_SWAP_COST : BROKER_HIRE_COST;
+        int cost = swap ? brokerSwapCost(run) : run.isBrokerEncounter() ? 0 : BROKER_HIRE_COST;
         if (run.getGold() < cost) throw new IllegalArgumentException("Not enough gold.");
-        run.addGold(-cost);
         if (swap) {
-            Combatant leaving = run.getParty().stream()
-                    .filter(m -> m.getId().equals(replaceId)).findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("Unknown party member to swap out."));
-            int position = leaving.getPosition();
-            if (leaving.getItemId() != null) run.getInventory().add(leaving.getItemId()); // keep their gear
-            run.getParty().remove(leaving);
-            run.getDeckTemplates().removeIf(c -> c.getOwnerId().equals(leaving.getId()));
-            Combatant member = content.toPartyCombatant(s, run.getParty().size());
-            member.setPosition(position >= 0 ? position : run.getParty().size());
-            applyJoinBonus(run, member);
-            run.getParty().add(member);
-            run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
-            noteDiscovery(run, s.getId());
-            run.setLastReward(s.getName() + " joins the warband — " + leaving.getName() + " returns to the broker.");
-            queueRecruitReveal(run, s, member);
+            // Validate the leaver before charging so a bad id never costs gold.
+            if (run.getParty().stream().noneMatch(m -> m.getId().equals(replaceId))) {
+                throw new IllegalArgumentException("Unknown party member to swap out.");
+            }
+            run.addGold(-cost);
+            swapIntoWarband(run, s, replaceId);
         } else {
+            run.addGold(-cost);
             Combatant member = content.toPartyCombatant(s, run.getParty().size());
             member.setPosition(run.getParty().size());
             applyJoinBonus(run, member);
@@ -1873,15 +1919,28 @@ public class SiegeService {
             run.setLastReward(s.getName() + " joined the warband!");
             queueRecruitReveal(run, s, member);
         }
-        pick.used = true;
+        markBrokerTaken(run, pick);
         return serialize(run);
+    }
+
+    /** A wandering stranger goes one way only; a broker's other offers stay open. */
+    private void markBrokerTaken(SiegeRun run, CampOption pick) {
+        pick.used = true;
+        if (run.isBrokerEncounter()) {
+            for (CampOption o : run.getBrokerOptions()) o.used = true;
+        }
     }
 
     /** Leaves the broker stall; the node is spent. */
     private Map<String, Object> brokerLeaveImpl(String token) {
         SiegeRun run = require(token);
         if (!run.isInBroker()) return serialize(run);
+        if (run.isBrokerEncounter() && run.getBrokerOptions().stream().noneMatch(o -> o.used)) {
+            SiegeItem it = grantRandomItem(run);
+            run.setLastReward("The wanderer goes its own way and leaves you " + (it == null ? "a parting gift" : it.name()) + ".");
+        }
         run.setInBroker(false);
+        run.setBrokerEncounter(false);
         run.getBrokerOptions().clear();
         SiegeNode node = run.currentNode();
         if (node != null) node.setCleared(true);
@@ -1907,7 +1966,8 @@ public class SiegeService {
         }
 
         boolean trader = rng.nextInt(100) < 65;
-        boolean broker = rng.nextInt(100) < 45 && run.getParty().size() < content.partyMax();
+        boolean broker = rng.nextInt(100) < 45;
+        boolean partyFull = run.getParty().size() >= content.partyMax();
 
         if (trader) {
             List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
@@ -1927,10 +1987,19 @@ public class SiegeService {
         }
         if (broker) {
             List<String> names = run.getParty().stream().map(Combatant::getName).toList();
-            String brokerId = "c" + oid;
+            String brokerId = "c" + (oid++);
+            // A full warband still gets a deal: swap a member out, or rent a
+            // temporary ally for the next battle.
             content.randomRecruit(names, rng, run.getLand()).ifPresent(s ->
-                    run.getCampOptions().add(CampOption.broker(brokerId, s.getName(), s.getElement(),
-                            s.getCardArtUrl(), s.getId(), 45)));
+                    run.getCampOptions().add(partyFull
+                            ? CampOption.brokerSwap(brokerId, s.getName(), s.getElement(), s.getCardArtUrl(), s.getId(), BROKER_SWAP_COST)
+                            : CampOption.broker(brokerId, s.getName(), s.getElement(), s.getCardArtUrl(), s.getId(), BROKER_HIRE_COST)));
+            if (partyFull && run.getMercenary() == null) {
+                String mercId = "c" + (oid++);
+                content.mercOffers(1, rng, run.getLand()).forEach(s ->
+                        run.getCampOptions().add(CampOption.merc(mercId, s.getName(), s.getElement(),
+                                s.getCardArtUrl(), s.getId(), MERC_RENT_COST)));
+            }
         }
 
         run.setCampNote(trader && broker ? "A wandering trader and a Siegeling broker share your fire tonight."
@@ -1949,6 +2018,12 @@ public class SiegeService {
         if (pick.used) throw new IllegalArgumentException("Already used this stop.");
         if (run.getGold() < pick.cost) throw new IllegalArgumentException("Not enough gold.");
         String campLearner = shopCardLearner(run, pick, learnerId);
+        if (pick.choosesLeaver() && (learnerId == null || run.getParty().stream().noneMatch(m -> m.getId().equals(learnerId)))) {
+            throw new IllegalArgumentException("Choose who leaves the warband.");
+        }
+        if ("MERC".equals(pick.kind) && run.getMercenary() != null) {
+            throw new IllegalArgumentException("A mercenary is already under contract.");
+        }
 
         switch (pick.kind) {
             case "REST" -> {
@@ -2021,6 +2096,19 @@ public class SiegeService {
                     run.setLastReward(s.getName() + " joined the warband!");
                     queueRecruitReveal(run, s, member);
                 });
+            }
+            case "BROKER_SWAP" -> {
+                SieglingCard s = findRecruitCard(pick.sieglingId)
+                        .orElseThrow(() -> new IllegalArgumentException("That Siegeling is gone."));
+                run.addGold(-pick.cost);
+                swapIntoWarband(run, s, learnerId);
+            }
+            case "MERC" -> {
+                SieglingCard s = content.findAnySiegling(pick.sieglingId)
+                        .orElseThrow(() -> new IllegalArgumentException("That mercenary is gone."));
+                run.addGold(-pick.cost);
+                Combatant merc = contractMercenary(run, s);
+                run.setLastReward(merc.getName() + " is under contract — it fights your NEXT battle with boon cards, then departs.");
             }
             default -> { }
         }
@@ -3447,8 +3535,20 @@ public class SiegeService {
                 run.setLastReward("You bleed for it — received " + (it == null ? "a relic" : it.name()) + "!");
             }
             case "RECRUIT_CHANCE" -> {
-                if (run.getParty().size() < content.partyMax()) joinStagedRecruit(run, " tags along and joins the warband!");
-                else { grantRandomItem(run); run.setLastReward("The warband is full — the Siegeling leaves you a parting gift instead."); }
+                if (run.getParty().size() < content.partyMax() || recruitsSuppressed(run)) {
+                    joinStagedRecruit(run, " tags along and joins the warband!");
+                } else {
+                    // A full warband meets the stranger at a free stall: swap, temporary ally, or gift.
+                    List<String> names = run.getParty().stream().map(Combatant::getName).toList();
+                    Optional<SieglingCard> wanderer = content.randomStagedRecruit(names, rng, run.getLand());
+                    if (wanderer.isPresent()) {
+                        openWandererEncounter(run, wanderer.get());
+                        run.setLastReward(wanderer.get().getName() + " wants to travel with you, but the warband is full.");
+                    } else {
+                        grantRandomItem(run);
+                        run.setLastReward("The warband is full — the Siegeling leaves you a parting gift instead.");
+                    }
+                }
             }
             case "SEARCH" -> {
                 int roll = rng.nextInt(100);
@@ -4344,6 +4444,7 @@ public class SiegeService {
                 om.put("affordable", run.getGold() >= o.cost);
                 if (o.cardSpec != null) om.put("card", serializeSpec(o.cardSpec));
                 if (o.choosesLearner()) om.put("chooseLearner", true);
+                if (o.choosesLeaver()) om.put("chooseLeaver", true);
                 options.add(om);
             }
             camp.put("options", options);
@@ -4378,19 +4479,20 @@ public class SiegeService {
             m.put("cache", null);
         }
 
-        // Broker stall: permanent recruits when the warband has room, mercenary
-        // rentals when it is full (and always one merc alternative while hiring).
+        // Broker stall: permanent recruits (hire into an open slot, or swap for a
+        // member when full) plus mercenary rentals. A wandering-stranger encounter
+        // uses the same stall with free offers and a parting gift for walking on.
         if (run.isInBroker()) {
             boolean partyFull = run.getParty().size() >= content.partyMax();
-            // Merc-only stalls (full party) expose rental prices; open stalls expose
-            // hire/swap prices. Per-offer cost/kind still win for mixed menus.
-            boolean mercOnly = partyFull;
+            boolean encounter = run.isBrokerEncounter();
+            boolean mercOnly = run.getBrokerOptions().stream().allMatch(o -> "MERC".equals(o.kind));
             Map<String, Object> broker = new LinkedHashMap<>();
-            broker.put("hireCost", mercOnly ? MERC_RENT_COST : BROKER_HIRE_COST);
-            broker.put("swapCost", mercOnly ? MERC_RENT_COST : BROKER_SWAP_COST);
+            broker.put("hireCost", encounter ? 0 : mercOnly ? MERC_RENT_COST : BROKER_HIRE_COST);
+            broker.put("swapCost", encounter ? 0 : mercOnly ? MERC_RENT_COST : BROKER_SWAP_COST);
             broker.put("merc", mercOnly);
             broker.put("mercUnderContract", run.getMercenary() != null);
             broker.put("partyFull", partyFull);
+            broker.put("encounter", encounter);
             List<Map<String, Object>> offers = new ArrayList<>();
             for (CampOption o : run.getBrokerOptions()) {
                 Map<String, Object> om = new LinkedHashMap<>();
@@ -4408,7 +4510,7 @@ public class SiegeService {
                 // starter-eligible stage-1 cards and would leave a merc statless.
                 SieglingCard src = mercOffer
                         ? content.findAnySiegling(o.sieglingId).orElse(null)
-                        : content.findSiegling(o.sieglingId).orElse(null);
+                        : findRecruitCard(o.sieglingId).orElse(null);
                 if (src != null) {
                     if (mercOffer) {
                         // Preview exactly what marches in: the rented body's stats and
