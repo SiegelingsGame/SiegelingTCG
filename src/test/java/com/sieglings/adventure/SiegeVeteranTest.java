@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -63,6 +64,27 @@ class SiegeVeteranTest {
         List<Map<String, Object>> teams = store.listTeams(USER);
         assertEquals(List.of("gamma", "beta", "alpha"),
                 teams.stream().map(t -> t.get("teamId")).toList());
+    }
+
+    @Test
+    void aFailedReadDoesNotReplaceTheBank() {
+        class FailingRead extends SiegeVeteranStore {
+            boolean persisted;
+
+            @Override
+            protected List<Map<String, Object>> loadRaw(String userId) {
+                return null;
+            }
+
+            @Override
+            protected void persistRaw(String userId, List<Map<String, Object>> teams) {
+                persisted = true;
+            }
+        }
+        FailingRead store = new FailingRead();
+        assertTrue(store.saveTeam(USER, teamSnapshot("new")).isEmpty());
+        assertFalse(store.persisted, "a timed-out read must not set the document to only the new team");
+        assertTrue(store.listTeams(USER).isEmpty());
     }
 
     @Test

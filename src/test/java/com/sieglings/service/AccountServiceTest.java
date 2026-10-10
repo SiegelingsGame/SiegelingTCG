@@ -1,5 +1,6 @@
 package com.sieglings.service;
 
+import com.sieglings.chronicles.ChroniclesStore;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.AuthSession;
 import com.sieglings.persistence.firestore.AccountUserStore;
@@ -82,6 +83,18 @@ class AccountServiceTest {
         assertTrue(sessionStore.deletedByUserId);
     }
 
+    @Test
+    void deleteAccountRemovesTheChronicleKeyedByEmail() throws Exception {
+        AccountUser user = newUser("player@example.com");
+        AccountService service = createDeletionService(new FakeAccountUserStore(user));
+        FakeChroniclesStore chronicles = new FakeChroniclesStore();
+        setField(service, "chroniclesStore", chronicles);
+
+        service.deleteAccount(user, "DELETE");
+
+        assertEquals("player@example.com", chronicles.deletedUserId);
+    }
+
     private AccountUser newUser(String email) {
         AccountUser user = new AccountUser();
         user.setId(email);
@@ -162,6 +175,15 @@ class AccountServiceTest {
         public void deleteById(String id) {
             deleted = true;
             deletedId = id;
+        }
+    }
+
+    private static class FakeChroniclesStore extends ChroniclesStore {
+        private String deletedUserId;
+
+        @Override
+        public void deleteByUserId(String userId) {
+            deletedUserId = userId;
         }
     }
 
