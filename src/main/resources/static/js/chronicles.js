@@ -754,20 +754,42 @@
               '" title="' + esc(r.blurb) + '">' + esc(r.name) + ' ×' + esc(r.qty) + '</button>';
           }).join('') + '</div>' : '') +
       '</section>' +
-      '<section class="ck-card"><h3>Destinations</h3><div class="ck-routes">' + s.routes.map(routeCard).join('') + '</div></section>';
+      [1, 2, 3, 4].map(function (tier) {
+        var routes = s.routes.filter(function (r) { return r.tier === tier; });
+        if (!routes.length) return '';
+        return '<section class="ck-card"><h3>' + esc(TIER_NAMES[tier]) + '</h3><div class="ck-routes">' + routes.map(routeCard).join('') + '</div>' +
+          (tier === 3 && s.sealedRoutes ? '<p class="ck-small ck-muted">' + esc(s.sealedRoutes) +
+            ' more lands are sealed until their Siegelings are discovered.</p>' : '') + '</section>';
+      }).join('');
   }
+
+  function s_rank() { return state.snap ? state.snap.knight.rank : 1; }
+
+  var TIER_NAMES = { 1: 'Tier I · The Inner Wilds', 2: 'Tier II · The Outer Frontiers',
+    3: 'Tier III · The Forgotten Regions', 4: 'Tier IV · Legendary Expeditions' };
 
   function routeCard(r) {
     return '<article class="ck-route' + (r.unlocked ? '' : ' is-locked') + '" style="--el:var(--' + elKey(r.element) + ')">' +
       '<div class="ck-row"><b>' + esc(r.name) + '</b>' + chip(r.type.charAt(0) + r.type.slice(1).toLowerCase(), 'is-type') + '</div>' +
-      '<span class="ck-chips">' + elChip(r.element, r.elementLabel) + chip(r.minutes + ' min') + chip('Lv ' + r.levels) +
+      '<span class="ck-chips">' + elChip(r.element, r.elementLabel) +
+        (r.extraElements || []).map(function (x) { return elChip(x.toUpperCase(), x); }).join('') +
+        chip(r.minutes >= 120 ? Math.round(r.minutes / 6) / 10 + ' h' : r.minutes + ' min') + chip('Lv ' + r.levels) +
+        (r.hidden ? chip('Discovered', 'is-rare') : '') +
         (r.taming ? chip('Taming', 'is-help') : '') + (r.boss ? chip('Boss: ' + r.boss, 'is-boss') : '') + '</span>' +
       '<span class="ck-small">' + esc(r.blurb) + '</span>' +
       (r.hazardText ? '<span class="ck-small ck-warn">' + esc(r.hazardText) + '</span>' : '') +
+      (r.twists || []).map(function (t) {
+        return '<span class="ck-small ' + (t.warded ? 'is-ready' : 'ck-warn') + '"><b>' + esc(t.name) + (t.warded ? ' (warded)' : '') + ':</b> ' +
+          esc(t.text) + ' Countered by ' + esc(t.counters.join(' or ')) + ' Siegelings or a ' + esc(t.relic) + '.</span>';
+      }).join('') +
+      ((r.requirements || []).length ? '<span class="ck-small">Needs ' + r.requirements.map(function (q) {
+        return '<span class="' + (q.met ? 'is-ready' : 'is-short') + '">' + esc(q.text) + '</span>';
+      }).join(', ') + '</span>' : '') +
       '<span class="ck-small ck-muted">Finds: ' + esc(r.loot.join(', ')) + '</span>' +
       '<div class="ck-actions">' + (r.unlocked
         ? '<button type="button" class="ck-btn is-primary is-sm" data-act="launch" data-id="' + esc(r.id) + '">Send the company</button>'
-        : '<span class="ck-small">Opens at Rank ' + esc(r.rankReq) + '</span>') + '</div></article>';
+        : '<span class="ck-small">' + (s_rank() < r.rankReq ? 'Opens at Rank ' + esc(r.rankReq) : 'Meet its needs to set out') + '</span>') +
+      '</div></article>';
   }
 
   // Wilds ──────────────────────────────────────────────────────────────────

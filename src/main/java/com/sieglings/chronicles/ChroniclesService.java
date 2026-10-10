@@ -298,9 +298,13 @@ public class ChroniclesService {
             ChroniclesState state = ctx.state;
             if (state.expedition != null) throw new IllegalArgumentException("The company is already on an expedition.");
             Route route = ChroniclesContent.ROUTES.get(routeId == null ? "" : routeId.trim());
-            if (route == null) throw new IllegalArgumentException("Unknown destination.");
+            if (route == null || !routeVisible(state, route)) throw new IllegalArgumentException("Unknown destination.");
             if (rank(state) < route.rankReq()) {
                 throw new IllegalArgumentException(route.name() + " opens at Siegeknight Rank " + route.rankReq() + ".");
+            }
+            List<String> unmet = route.requirements().stream().filter(req -> !meets(state, req)).map(this::reqText).toList();
+            if (!unmet.isEmpty()) {
+                throw new IllegalArgumentException(route.name() + " needs " + String.join(", ", unmet) + ".");
             }
             List<Companion> members = new ArrayList<>();
             for (String id : state.party) if (!id.isEmpty()) members.add(requireCompanion(state, id));
@@ -886,6 +890,16 @@ public class ChroniclesService {
         } else if (combo != null) {
             notes.add("Convergence: " + combo.name() + ".");
         }
+        java.util.Set<String> twists = new java.util.LinkedHashSet<>();
+        for (String id : route.twists()) {
+            ChroniclesContent.Twist t = ChroniclesContent.TWISTS.get(id);
+            if (t == null) continue;
+            if (twistWarded(state, t, elementCounts)) notes.add(t.name() + " is warded off.");
+            else {
+                twists.add(t.id());
+                notes.add(t.name() + ": " + t.text());
+            }
+        }
         boolean attuned = affinityLevel(state, route.element()) >= ChroniclesContent.ATTUNEMENT;
         if (attuned) notes.add("Attuned to " + ChroniclesContent.elementLabel(route.element()) + " lands.");
         List<CrossClass> crossClass = activeCrossClass(state, classCounts);
@@ -935,7 +949,8 @@ public class ChroniclesService {
                 ChroniclesContent.husbandryRest(profLevel(state, "husbandry"))
                         + ChroniclesContent.stableRest(buildingLevel(state, "stable")),
                 ChroniclesContent.tacticsGauge(profLevel(state, "class_tactics")),
-                ChroniclesContent.warRoomGauge(buildingLevel(state, "war_room")));
+                ChroniclesContent.warRoomGauge(buildingLevel(state, "war_room")),
+                hazardWards(state));
         CommandTrigger trigger = triggerFor(state, weapon.weaponType());
         long duration = Math.round(route.minutes() * 60_000L
                 * (1 - ChroniclesContent.pathfindingCut(profLevel(state, "pathfinding"))));
@@ -945,7 +960,16 @@ public class ChroniclesService {
         ChroniclesCombat.EnemyFactory enemies = (random, boss, elite) -> enemyGroup(route, random, boss, elite);
         return new ChroniclesCombat.Input(route, party, reserveUnit, knight, trigger, state.tactics.retreatAt,
                 state.tactics.potionAt, potions, field, notes, seed, enemies, duration,
-                combo == null ? ChroniclesContent.Arcana.NONE : combo.arcana(), signature);
+                combo == null ? ChroniclesContent.Arcana.NONE : combo.arcana(), signature, twists);
+    }
+
+    private java.util.Set<String> hazardWards(ChroniclesState state) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        String armor = ChroniclesContent.HAZARD_WARD_ITEMS.get(state.armorId);
+        if (armor != null) out.add(armor);
+        String relic = ChroniclesContent.HAZARD_WARD_ITEMS.get(state.relicId);
+        if (relic != null) out.add(relic);
+        return out;
     }
 
     private CommandTrigger triggerFor(ChroniclesState state, String weaponType) {
@@ -959,7 +983,7 @@ public class ChroniclesService {
     private List<Unit> enemyGroup(Route route, Random random, boolean boss, boolean elite) {
         List<Unit> out = new ArrayList<>();
         if (boss) {
-            Creature c = creature(route.bossId());
+            Creature c = bossOf(route);
             Unit unit = statUnit(c, route.bossLevel(), false, "boss-" + c.id());
             // Bosses are often epic final forms; their raw budget would dwarf a company of
             // first evolutions, so the boss's size comes from its multipliers, not its rarity.
@@ -968,6 +992,7 @@ public class ChroniclesService {
             unit.hp = unit.maxHp;
             unit.atk *= 0.95 * norm;
             unit.def *= norm;
+            scaleForTier(unit, route);
             unit.boss = true;
             out.add(unit);
             return out;
@@ -983,25 +1008,82 @@ public class ChroniclesService {
             unit.maxHp *= wild;
             unit.hp = unit.maxHp;
             unit.atk *= wild;
+            scaleForTier(unit, route);
             out.add(unit);
         }
         return out;
     }
 
-    /** Wild Siegelings for a route: its element, base forms for the open wilds, first evolutions in dungeons. */
+    /**
+     * Later lands field stronger wilds than their level alone gives: a company of final
+     * forms would otherwise stroll through Tier III and IV.
+     */
+    private static void scaleForTier(Unit unit, Route route) {
+        double hp = 1.0;
+        double atk = 1.0;
+        if (route.tier() == 3) { hp = 1.7; atk = 2.7; }
+        if (route.tier() >= 4) { hp = 1.6; atk = 2.3; }
+        unit.maxHp *= hp;
+        unit.hp = unit.maxHp;
+        unit.atk *= atk;
+        unit.def *= Math.sqrt(hp);
+    }
+
+    /**
+     * Wild Siegelings for a route, from its elements. The open wilds of Tier I hold base
+     * forms; dungeons and later tiers field evolved and rarer Siegelings. Taming only
+     * ever finds base forms, rarer the deeper the tier.
+     */
     List<Creature> enemyPool(Route route, boolean tameable) {
-        int maxStage = route.type() == RouteType.DUNGEON && !tameable ? 2 : 1;
-        int maxTier = route.type() == RouteType.DUNGEON ? 3 : 2;
+        List<Creature> pool = rawPool(route, tameable);
+        if (pool.isEmpty()) pool.add(creature(ChroniclesContent.STARTERS.get(0)));
+        return pool;
+    }
+
+    private List<Creature> rawPool(Route route, boolean tameable) {
+        boolean dungeon = route.type() == RouteType.DUNGEON;
+        int maxStage;
+        int maxTier;
+        switch (route.tier()) {
+            case 1 -> { maxStage = dungeon && !tameable ? 2 : 1; maxTier = dungeon ? 3 : 2; }
+            case 2 -> { maxStage = tameable ? 1 : dungeon ? 3 : 2; maxTier = 3; }
+            case 3 -> { maxStage = tameable ? 1 : 3; maxTier = tameable ? 3 : 4; }
+            default -> { maxStage = tameable ? 1 : 3; maxTier = tameable ? 5 : 4; }
+        }
         List<Creature> pool = new ArrayList<>();
         for (Creature c : CreatureRegistry.all()) {
-            if (c.element() != route.element()) continue;
+            if (!route.elements().contains(c.element())) continue;
             if (c.stage() > maxStage) continue;
             if (rarityTier(c.rarity()) > maxTier) continue;
             pool.add(c);
         }
-        if (pool.isEmpty()) pool.add(creature(ChroniclesContent.STARTERS.get(0)));
         pool.sort(Comparator.comparing(Creature::id));
         return pool;
+    }
+
+    /** The named boss, or for "auto" the strongest Siegeling of the route's element. */
+    Creature bossOf(Route route) {
+        if (!"auto".equals(route.bossId())) return creature(route.bossId());
+        return CreatureRegistry.all().stream().filter(c -> c.element() == route.element())
+                .max(Comparator.comparingInt((Creature c) -> rarityTier(c.rarity())).thenComparingInt(Creature::stage)
+                        .thenComparing(Creature::id))
+                .orElse(null);
+    }
+
+    /** A route is sealed while the catalog holds no Siegelings of its element (Light and Poison, for now). */
+    boolean routeSealed(Route route) {
+        if (rawPool(route, false).isEmpty()) return true;
+        return route.bossId() != null && (("auto".equals(route.bossId()) ? bossOf(route) : CreatureRegistry.find(route.bossId()).orElse(null)) == null);
+    }
+
+    boolean routeVisible(ChroniclesState state, Route route) {
+        if (routeSealed(route)) return false;
+        return !route.hidden() || route.requirements().stream().allMatch(req -> meets(state, req));
+    }
+
+    private boolean twistWarded(ChroniclesState state, ChroniclesContent.Twist t, Map<String, Integer> elementCounts) {
+        if (t.relicWard().equals(state.relicId)) return true;
+        return t.wards().stream().anyMatch(e -> elementCounts.containsKey(e.name()));
     }
 
     private Rewards rewardsFor(ChroniclesState state, Route route, ChroniclesCombat.Result result,
@@ -1349,7 +1431,9 @@ public class ChroniclesService {
         if (after > before) {
             events.add("Siegeknight Rank " + after + "!");
             for (Route route : ChroniclesContent.ROUTES.values()) {
-                if (route.rankReq() > before && route.rankReq() <= after) events.add("New destination: " + route.name() + ".");
+                if (route.rankReq() > before && route.rankReq() <= after && routeVisible(state, route)) {
+                    events.add("New destination: " + route.name() + ".");
+                }
             }
         }
     }
@@ -1936,9 +2020,32 @@ public class ChroniclesService {
         out.put("recipes", recipes);
 
         List<Map<String, Object>> routes = new ArrayList<>();
+        int sealed = 0;
         for (Route r : ChroniclesContent.ROUTES.values()) {
+            if (routeSealed(r)) { sealed++; continue; }
+            if (!routeVisible(state, r)) continue;
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", r.id());
+            row.put("tier", r.tier());
+            row.put("hidden", r.hidden());
+            row.put("extraElements", r.extraElements().stream().map(ChroniclesContent::elementLabel).toList());
+            List<Map<String, Object>> reqs = new ArrayList<>();
+            for (Req req : r.requirements()) reqs.add(Map.of("text", reqText(req), "met", meets(state, req)));
+            row.put("requirements", reqs);
+            List<Map<String, Object>> twistRows = new ArrayList<>();
+            Map<String, Integer> partyElements = new LinkedHashMap<>();
+            for (String pid : state.party) {
+                Companion pc = findCompanion(state, pid);
+                if (pc != null) partyElements.merge(creature(pc.speciesId).element().name(), 1, Integer::sum);
+            }
+            for (String tid : r.twists()) {
+                ChroniclesContent.Twist t = ChroniclesContent.TWISTS.get(tid);
+                if (t == null) continue;
+                twistRows.add(Map.of("name", t.name(), "text", t.text(), "warded", twistWarded(state, t, partyElements),
+                        "counters", t.wards().stream().map(ChroniclesContent::elementLabel).sorted().toList(),
+                        "relic", itemName(t.relicWard())));
+            }
+            row.put("twists", twistRows);
             row.put("name", r.name());
             row.put("region", r.region());
             row.put("type", r.type().name());
@@ -1948,15 +2055,16 @@ public class ChroniclesService {
             row.put("encounters", r.encounters());
             row.put("levels", r.levelMin() + "–" + r.levelMax());
             row.put("rankReq", r.rankReq());
-            row.put("unlocked", rank >= r.rankReq());
+            row.put("unlocked", rank >= r.rankReq() && r.requirements().stream().allMatch(req -> meets(state, req)));
             row.put("blurb", r.blurb());
             row.put("hazardText", r.hazardText() == null ? "" : r.hazardText());
-            row.put("boss", r.bossId() == null ? "" : creature(r.bossId()).name());
+            row.put("boss", r.bossId() == null ? "" : bossOf(r).name());
             row.put("taming", r.sightingChance() >= 0.2);
             row.put("loot", r.loot().stream().map(l -> itemName(l.item())).distinct().toList());
             routes.add(row);
         }
         out.put("routes", routes);
+        out.put("sealedRoutes", sealed);
 
         out.put("expedition", expeditionRow(state, now));
         List<Map<String, Object>> sightings = new ArrayList<>();

@@ -58,6 +58,18 @@ home base.
 - **Weapon disciplines.** Six. The knight does not attack: a command gauge fires the weapon's command on a chosen trigger (as soon as ready, ally low, elites, or bosses), and the gauge carries between battles.
 - **Individual bonds.** Each tamed Siegeling is its own individual, with a bond from 0 to 100 and milestones (Stranger → Knightbound). Bond 10, 25, 75 and 100 add stats. Bond 50 unlocks a class×element technique named from the element and class, e.g. Cinder Aegis (Fire Guardian) and Rooted Resolve (Earth Bruiser). Treats give bond; favourite foods give double, up to 5 treats a day.
 - **Expeditions.** Eleven routes: patrols, hunts, a resource haul, and two dungeons. Cinder Hollow has heat attrition; Old Rootcrypt has a maze and a hidden room unlocked by Foraging. Tactics cover retreat threshold, potion threshold, command trigger and the prepared technique. Each expedition is simulated at launch from a seed, and the server releases timeline entries only as their time passes.
+- **The wider world (Phase 4).** 32 routes across the design's four tiers.
+  - **Tier II, Outer Frontiers.** Tidewater Coast (Water) and Stormspire Peaks (Electric): patrols, hunts, the Sunken Grotto and Thunderhold dungeons. Each needs Survival 10–22, with tide and storm hazards warded by Water/Ice or Metal/Earth Siegelings and the Tidewarden or Stormward Cloak. Coral Shallows and Stormglass Vein are gathering nodes; the Pearl Staff and Stormglass Hammer are tier-3 gear.
+  - **Tier III, Forgotten Regions.** Umbral Caves (Shadow), Mirage Expanse (Psychic), Forge Wastes (Metal) and Ashen Crypts (Undead), each with a hunt and a dungeon. Each has a twist:
+    - Ambush: +30% enemy damage in round 1.
+    - Mirage: 1 company turn in 7 wasted.
+    - Plated Foes: +30% enemy defense.
+    - Restless Dead: enemies rise once at 30%.
+
+    Each twist is countered by the right element, or by a Runecrafting relic made from that region's material (Dawn Lantern, Clarity Charm, Alloy Breaker, Grave Ward). Sunspire Sanctum (Light, Radiance) and Blight Marsh (Poison, Blight) are defined but **sealed**: the catalog has no Light or Poison Siegelings yet, and they open on their own once it does (their bosses use `auto`, the strongest of the element).
+  - **Tier IV, Legendary Expeditions.** Multi-element trials gated on high affinities, against legendary bosses: Pylord, Thunderlord, Voidmaw, and Aerovane in the hidden Skyreach Ruins (Cartography 50).
+  - **Grand Expeditions** (4/6/8h) span every land of a tier. **Hidden routes** (Sunken Mossway at Cartography 10, Skyreach Ruins at 50) appear only once found.
+  - Later tiers field stronger wilds (Tier III ×1.7 health and ×2.7 attack, Tier IV ×1.6 and ×2.3), with mixed-element pools. Taming only ever finds base forms; rarer ones appear deeper in.
 - **Taming.** Hunts spot wild Siegelings, and each trail lasts 48h. There are three approaches: patient (uses Taming skill), lure (crafted, element-matched lures work best), and partner (a same-element Siegeling at Bond 10+). Odds shift by the RBX behaviour.
 - **Evolution.** Requires the level cap plus essences, and an Ancient Relic for final forms. It keeps the individual's id, bond and history, and the class can change.
 - **Idle.** One knight activity (gathering or repeatable crafting) runs alongside one company expedition. Offline accrual is capped at 12h, and a helper Siegeling speeds a matching activity and earns bond. A "While you were away" report opens only after a real absence (5+ minutes).
@@ -73,7 +85,6 @@ home base.
 
 ## Deferred (designed, not built yet)
 
-- Tier II–IV regions.
 - Guilds, Siege Operations, and a marketplace.
 
 Balance numbers are first-pass. `ChroniclesBalanceTest` pins the curve:

@@ -1,4 +1,26 @@
 Original prompt: Go with earth based art for endless
+- October 10, 2026 **Chronicles Phase 4: Tier II–IV regions, Grand Expeditions, hidden routes and region twists.**
+  - **Change.** 21 new routes take the total to 32.
+    - **Route model.** `Route` gains `requirements`, `hazardPct` with ward elements, `twists`, `extraElements` and `hidden`; the later regions are built with a fluent `R` builder. Tier I routes keep identical stats.
+    - **Hazards.** Generalized from Cinder Hollow's heat: tide, storm and forge use the same factor. A ward element in the company halves it, as does gear in `HAZARD_WARD_ITEMS` (Tidewarden/Stormward Cloak). Armor, Survival and Attunement also cut it.
+    - **Twists.** The six twists (`TWISTS`: ambush, mirage, plated, risen, radiance, blight) are new battle rules in `ChroniclesCombat.Battle`. A twist is dropped when a company element or the knight's relic wards it, and the road notes say so.
+    - **Pools and bosses.** Pools are tier-aware and multi-element. `bossOf` resolves `auto` bosses. `routeSealed` hides routes whose element has no Siegelings (Light and Poison today), and `routeVisible` hides `hidden` routes until their requirements are met. Launch enforces visibility, rank and requirements.
+    - **Enemy scaling.** Tier III and IV wilds are scaled (`scaleForTier`), because the companies that reach them are rare and epic final forms.
+    - **New content.** Coral Shallows and Stormglass Vein nodes; tide pearls, storm glass and four Forgotten-Region materials; the Pearl Staff and Stormglass Hammer; the Tidewarden and Stormward Cloaks; and the Dawn Lantern, Clarity Charm, Alloy Breaker and Grave Ward relics.
+    - **UI.** Destinations are grouped by tier with the design's band names, showing extra-element chips, hours for long routes, a "Discovered" chip, requirements met or unmet, and each twist with its counters. A note says how many lands are sealed. `chronicles.js` → `?v=5`, `chronicles.css` → `?v=4`.
+- Verification:
+  - `ChroniclesServiceTest` grows to 39 tests; all pass.
+    - Light and Poison routes are sealed: unlisted, launch refused, `sealedRoutes` = 2.
+    - Sunken Mossway is hidden until Cartography 10, then launches.
+    - Tidewater Patrol is locked, and its launch error names Survival 10 until it is met.
+    - The Tidewarden Cloak turns the first tide hit from "(4% health)" into "(2% health)".
+    - Restless Dead is active bare, warded by the Grave Ward (with a road note) and by a Fire Siegeling.
+    - Frontier Odyssey pools only Water and Electric, taming pools are base forms, and every unsealed boss resolves.
+  - `ChroniclesBalanceTest` grows to 5 tests; all pass.
+    - With a seasoned company (Bond 25, mastery at half its level): Tidewater Patrol ≥70% at L18, Sunken Grotto 15–80% at L24, Umbral Hunt 25–90% with rare finals at L30, Trial of the Ancient Eclipse ≤45% at L50.
+    - Over 150 seeds, the Grave Ward completes Lich Vault more often than going bare.
+  - Tuning came from a 200-seed probe per route (scratch, not committed). Before scaling, Tier III and IV were 100% trivial; after, bare rare companies complete Tier III dungeons about 15–50% of the time and Tier IV trials about 10–40%.
+  - Headless Chromium at 390x844 and 1920x1080 on a re-dumped late-game snapshot (rank 30, Survival 30, Cartography 15, Grave Ward): four tier sections, 32 routes, the sealed note, and twist and requirement lines rendered. No page scroll, overflow or page errors.
 - October 10, 2026 **Chronicles Phase 3: the home base (six buildings) and War Room loadouts.**
   - **Change.** `ChroniclesContent.BUILDINGS` adds the design's Sanctuary, Knight's Forge, Alchemy Garden, War Room, Expedition Stable and Research Library. Each has five levels; each level is gated on rank (2/6/12/20/30) and costs materials across professions, such as planks, bars, linen and rope, cooked food, rune stones and relics.
     - **Base settling.** `settleBase` runs before the knight's activity on every settle, under the offline cap. It grows garden yields, with per-item fractional remainders, and grants Sanctuary bond to resting Siegelings (not on the road or helping). A building upgrade settles first, so the new level never applies backwards.

@@ -525,7 +525,7 @@ class ChroniclesServiceTest {
     private static ChroniclesCombat.Input withArcana(ChroniclesCombat.Input in, ChroniclesContent.Arcana arcana) {
         return new ChroniclesCombat.Input(in.route(), in.party(), in.reserve(), in.knight(), in.trigger(), in.retreatAt(),
                 in.potionAt(), in.supplies(), in.fieldMods(), in.fieldNotes(), in.seed(), in.enemies(), in.durationMs(),
-                arcana, in.signature());
+                arcana, in.signature(), in.twists());
     }
 
     // ── Phase 3: the home base ───────────────────────────────────────────────
@@ -625,6 +625,100 @@ class ChroniclesServiceTest {
         store.state.companions.removeIf(c -> c.id.equals(fawny.id));
         service.applyLoadout(user, 1, null, -1);
         assertEquals(List.of(cacty, ""), store.state.party, "a Siegeling no longer here leaves its slot empty");
+    }
+
+    // ── Phase 4: the wider world ─────────────────────────────────────────────
+
+    @Test
+    void landsWithoutSiegelingsStaySealed() {
+        service.start(user, "cacty", "Ari", null);
+        store.state.rankXp = ChroniclesContent.xpForLevel(60);
+        Map<String, Object> snap = service.getSnapshot(user);
+        List<Object> ids = list(snap, "routes").stream().map(r -> r.get("id")).toList();
+        assertFalse(ids.contains("sunspire_hunt"), "no Light Siegelings in the catalog yet");
+        assertFalse(ids.contains("blight_hunt"), "no Poison Siegelings in the catalog yet");
+        assertEquals(2, snap.get("sealedRoutes"));
+        assertThrows(IllegalArgumentException.class, () -> service.launch(user, "sunspire_hunt", Map.of(), null, -1));
+    }
+
+    @Test
+    void cartographyRevealsHiddenRoutes() {
+        service.start(user, "cacty", "Ari", null);
+        store.state.rankXp = ChroniclesContent.xpForLevel(10);
+        List<Object> before = list(service.getSnapshot(user), "routes").stream().map(r -> r.get("id")).toList();
+        assertFalse(before.contains("sunken_mossway"));
+        assertThrows(IllegalArgumentException.class, () -> service.launch(user, "sunken_mossway", Map.of(), null, -1));
+        store.state.skillXp.put("pathfinding", ChroniclesContent.xpForLevel(5));
+        store.state.skillXp.put("cartography", ChroniclesContent.xpForLevel(10));
+        List<Object> after = list(service.getSnapshot(user), "routes").stream().map(r -> r.get("id")).toList();
+        assertTrue(after.contains("sunken_mossway"));
+        service.launch(user, "sunken_mossway", Map.of(), null, -1);
+        assertEquals("sunken_mossway", store.state.expedition.routeId);
+    }
+
+    @Test
+    void frontierRoutesNeedSurvival() {
+        service.start(user, "cacty", "Ari", null);
+        store.state.rankXp = ChroniclesContent.xpForLevel(14);
+        Map<String, Object> snap = service.getSnapshot(user);
+        Map<String, Object> tide = list(snap, "routes").stream().filter(r -> "tidewater_patrol".equals(r.get("id")))
+                .findFirst().orElseThrow();
+        assertEquals(false, tide.get("unlocked"));
+        assertEquals(2, tide.get("tier"));
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.launch(user, "tidewater_patrol", Map.of(), null, -1));
+        assertTrue(ex.getMessage().contains("Survival 10"), ex.getMessage());
+        store.state.skillXp.put("survival", ChroniclesContent.xpForLevel(10));
+        service.launch(user, "tidewater_patrol", Map.of(), null, -1);
+        assertNotNull(store.state.expedition);
+    }
+
+    @Test
+    void wardingGearHalvesItsHazard() {
+        ChroniclesState state = new ChroniclesState();
+        addCompanion(state, "cacty", 20);
+        state.party = List.of(state.companions.get(0).id);
+        ChroniclesContent.Route route = ChroniclesContent.ROUTES.get("tidewater_patrol");
+        var bare = ChroniclesCombat.simulate(service.buildInput(state, route, state.companions, null, Map.of(), 4));
+        state.armorId = "tidewarden_cloak";
+        var cloaked = ChroniclesCombat.simulate(service.buildInput(state, route, state.companions, null, Map.of(), 4));
+        String first = bare.timeline.stream().filter(e -> "hazard".equals(e.kind)).findFirst().orElseThrow().text;
+        String warded = cloaked.timeline.stream().filter(e -> "hazard".equals(e.kind)).findFirst().orElseThrow().text;
+        assertTrue(first.contains("(4% health)"), first);
+        assertTrue(warded.contains("(2% health)"), warded);
+    }
+
+    @Test
+    void twistsAreWardedByTheRightElementOrRelic() {
+        ChroniclesState state = new ChroniclesState();
+        addCompanion(state, "frostag", 30);
+        state.party = List.of(state.companions.get(0).id);
+        ChroniclesContent.Route crypts = ChroniclesContent.ROUTES.get("ashen_hunt");
+        var plain = service.buildInput(state, crypts, state.companions, null, Map.of(), 1);
+        assertEquals(java.util.Set.of("risen"), plain.twists());
+        state.relicId = "grave_ward";
+        var relic = service.buildInput(state, crypts, state.companions, null, Map.of(), 1);
+        assertTrue(relic.twists().isEmpty());
+        assertTrue(relic.fieldNotes().stream().anyMatch(n -> n.contains("Restless Dead is warded off")));
+        state.relicId = "";
+        ChroniclesState.Companion fire = addCompanion(state, "pyleer", 30);
+        state.party = List.of(state.companions.get(0).id, fire.id);
+        var element = service.buildInput(state, crypts, List.of(state.companions.get(0), fire), null, Map.of(), 1);
+        assertTrue(element.twists().isEmpty(), "a Fire Siegeling burns the dead down");
+    }
+
+    @Test
+    void laterTiersFieldTheirOwnElementsAndAutoBossesResolve() {
+        ChroniclesContent.Route odyssey = ChroniclesContent.ROUTES.get("frontier_odyssey");
+        var pool = service.enemyPool(odyssey, false);
+        assertTrue(pool.stream().allMatch(c -> c.element() == com.sieglings.model.enums.Element.WATER
+                || c.element() == com.sieglings.model.enums.Element.ELECTRIC));
+        assertTrue(pool.stream().anyMatch(c -> c.element() == com.sieglings.model.enums.Element.ELECTRIC));
+        assertTrue(service.enemyPool(ChroniclesContent.ROUTES.get("abyssal_hollow"), true).stream()
+                .allMatch(c -> c.stage() == 1), "taming only ever finds base forms");
+        for (ChroniclesContent.Route r : ChroniclesContent.ROUTES.values()) {
+            if (r.bossId() != null && !service.routeSealed(r)) assertNotNull(service.bossOf(r), r.id());
+        }
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

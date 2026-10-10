@@ -217,6 +217,12 @@ public final class ChroniclesContent {
                 material("rope", "Rope", "Twisted flax.", 1),
                 material("pine_plank", "Pine Plank", "Sawn pine.", 1),
                 material("oak_plank", "Oak Plank", "Sawn oak.", 2),
+                material("tide_pearl", "Tide Pearl", "Grown in Tidewater reefs.", 3),
+                material("storm_glass", "Storm Glass", "Sand fused by Stormspire lightning.", 3),
+                material("umbral_crystal", "Umbral Crystal", "Drinks light. Found in the Umbral Caves.", 4),
+                material("mind_prism", "Mind Prism", "Holds a thought. Found in the Mirage Expanse.", 4),
+                material("living_alloy", "Living Alloy", "Metal that remembers its shape. From the Forge Wastes.", 4),
+                material("grave_dust", "Grave Dust", "From the Ashen Crypts. It will not stay still.", 4),
                 potion("herb_tonic", "Herb Tonic", "Heals 35% of a Siegeling's health mid-battle.", 0.35, false),
                 potion("frostbloom_remedy", "Frostbloom Remedy",
                         "Heals 50% and cools heat hazards for the whole company.", 0.50, true),
@@ -248,6 +254,8 @@ public final class ChroniclesContent {
                 weapon("heartwood_staff", "Heartwood Staff", "staff", 2, "Living wood that hums with power."),
                 weapon("iron_hammer", "Iron Hammer", "hammer", 2, "Heavy enough to sunder plate."),
                 weapon("iron_daggers", "Iron Daggers", "daggers", 2, "Quick, quiet, sharp."),
+                weapon("pearl_staff", "Pearl Staff", "staff", 3, "Tide pearls on heartwood. Elemental advantage surges."),
+                weapon("stormglass_hammer", "Stormglass Hammer", "hammer", 3, "Every blow cracks like thunder."),
                 weapon("embersteel_lance", "Embersteel Lance", "spear", 3,
                         "Intercept also sears the attacker. Forged by Fire-attuned Guardian commanders."),
                 armor("travelers_coat", "Traveler's Coat", 0, 1, false, "Keeps the rain off."),
@@ -257,6 +265,13 @@ public final class ChroniclesContent {
                 armor("linen_robe", "Linen Robe", 1, 2, false, "A channeler's robe. Mage Siegelings deal 6% more damage."),
                 armor("ember_robe", "Ember Robe", 2, 4, true, "Ember-thread robe. Mages deal 12% more damage; wards off heat."),
                 armor("guardian_harness", "Guardian Harness", 2, 7, false, "Rope and plank bracing. Guardians gain 8% defense."),
+                armor("tidewarden_cloak", "Tidewarden Cloak", 3, 8, false, "Pearl-weighted linen. Halves tide hazards."),
+                armor("stormward_cloak", "Stormward Cloak", 3, 8, false, "Storm glass woven in. Halves storm hazards."),
+                relic("dawn_lantern", "Dawn Lantern", "ward:ambush", false,
+                        "Holds back the dark: wards off ambushes and an enemy's radiance."),
+                relic("clarity_charm", "Clarity Charm", "ward:mirage", false, "Sees through mirages."),
+                relic("alloy_breaker", "Alloy Breaker", "ward:plated", false, "Unmakes living metal: plated foes lose their plating."),
+                relic("grave_ward", "Grave Ward", "ward:risen", false, "The dead stay down; blight cannot take root."),
                 new Item("rune_warding", "Rune of Warding", ItemKind.RUNE, "The whole company gains 6% defense for one expedition.", 1,
                         0, null, 0, 0, Set.of(), null, 0, false, null),
                 new Item("rune_embers", "Rune of Embers", ItemKind.RUNE, "Fire Siegelings deal 12% more damage for one expedition.", 2,
@@ -301,6 +316,12 @@ public final class ChroniclesContent {
             "ember_robe", new ClassBoost("Mage", Mods.atk(0.12)),
             "guardian_harness", new ClassBoost("Guardian", Mods.def(0.08)));
 
+    /** Gear that halves one region hazard (heat keeps its own flag on the Item). */
+    public static final Map<String, String> HAZARD_WARD_ITEMS = Map.of(
+            "tidewarden_cloak", "tide",
+            "stormward_cloak", "storm",
+            "frostweave_cloak", "forge");
+
     public static String essenceId(Element element) {
         return "essence_" + element.name().toLowerCase();
     }
@@ -340,6 +361,10 @@ public final class ChroniclesContent {
                     "rune_stone", "relic_shard", 6, Set.of(Element.EARTH, Element.FIRE)),
             new Activity("dig_frozen_vault", "excavation", "Frozen Vault", "Frostfen", 30, 20, 34,
                     "rune_stone", "ancient_relic", 40, Set.of(Element.ICE, Element.METAL)),
+            new Activity("fish_coral", "fishing", "Coral Shallows", "Tidewater Coast", 25, 16, 30,
+                    "silverfin", "tide_pearl", 6, Set.of(Element.WATER, Element.ICE)),
+            new Activity("mine_stormglass", "mining", "Stormglass Vein", "Stormspire Peaks", 35, 20, 40,
+                    "iron_ore", "storm_glass", 5, Set.of(Element.METAL, Element.ELECTRIC)),
             new Activity("fish_river", "fishing", "Riverbank", "Mossroot Wilds", 1, 10, 8,
                     "minnow", null, 0, Set.of(Element.WATER, Element.ICE)),
             new Activity("fish_deep", "fishing", "Deep Pool", "Frostfen", 12, 14, 18,
@@ -482,6 +507,22 @@ public final class ChroniclesContent {
                     Map.of("rune_stone", 1, "essence_wind", 2), 16, 22, RUNE_HELPERS),
             repeatable("restore_ancient_relic", "runecrafting", "ancient_relic", 20, List.of(),
                     Map.of("relic_shard", 5, "rune_stone", 1), 30, 60, RUNE_HELPERS),
+            forge("forge_pearl_staff", "pearl_staff", 30, List.of(affinity(Element.WATER, 20)),
+                    Map.of("tide_pearl", 4, "heartwood", 3, "iron_bar", 4), 320),
+            forge("forge_stormglass_hammer", "stormglass_hammer", 35, List.of(affinity(Element.ELECTRIC, 20)),
+                    Map.of("storm_glass", 6, "iron_bar", 6, "oak_plank", 2), 360),
+            craftOnce("sew_tidewarden_cloak", "weaving", "tidewarden_cloak", 28, List.of(),
+                    Map.of("tide_pearl", 4, "linen", 10, "rope", 4), 300),
+            craftOnce("sew_stormward_cloak", "weaving", "stormward_cloak", 30, List.of(),
+                    Map.of("storm_glass", 4, "linen", 12, "rope", 4), 320),
+            craftOnce("inscribe_dawn_lantern", "runecrafting", "dawn_lantern", 30, List.of(),
+                    Map.of("umbral_crystal", 4, "rune_stone", 2, "copper_bar", 4), 380),
+            craftOnce("inscribe_clarity_charm", "runecrafting", "clarity_charm", 30, List.of(),
+                    Map.of("mind_prism", 4, "rune_stone", 2, "linen", 4), 380),
+            craftOnce("inscribe_alloy_breaker", "runecrafting", "alloy_breaker", 32, List.of(),
+                    Map.of("living_alloy", 4, "rune_stone", 2, "iron_bar", 4), 400),
+            craftOnce("inscribe_grave_ward", "runecrafting", "grave_ward", 32, List.of(),
+                    Map.of("grave_dust", 4, "rune_stone", 2, "fossil", 6), 400),
             study(Element.FIRE), study(Element.ICE), study(Element.WIND), study(Element.EARTH),
             study(Element.WATER), study(Element.ELECTRIC), study(Element.LIGHT), study(Element.SHADOW),
             study(Element.PSYCHIC), study(Element.METAL), study(Element.POISON), study(Element.UNDEAD)
@@ -910,21 +951,103 @@ public final class ChroniclesContent {
 
     // ── Expedition routes ────────────────────────────────────────────────────
 
-    public enum RouteType { PATROL, HUNT, RESOURCE, DUNGEON }
+    public enum RouteType { PATROL, HUNT, RESOURCE, DUNGEON, GRAND }
 
     public record Loot(String item, int min, int max, double chance) {}
 
+    /**
+     * An expedition destination. Beyond the basics, later regions add entry
+     * requirements, a per-battle hazard with the elements that ward it, combat twists
+     * (see {@link #TWISTS}), extra elements for mixed pools, and a hidden flag for
+     * routes that only appear once their requirements are met (Cartography's finds).
+     */
     public record Route(String id, String name, String region, RouteType type, Element element, int tier,
                         int minutes, int encounters, int levelMin, int levelMax, int groupMin, int groupMax,
                         int rankReq, double sightingChance, List<Loot> loot, String hazard, String hazardText,
-                        String bossId, int bossLevel, Req hiddenRoomReq, String blurb) {}
+                        String bossId, int bossLevel, Req hiddenRoomReq, String blurb,
+                        List<Req> requirements, double hazardPct, Set<Element> wards, List<String> twists,
+                        List<Element> extraElements, boolean hidden) {
+        public List<Element> elements() {
+            List<Element> out = new ArrayList<>();
+            out.add(element);
+            out.addAll(extraElements);
+            return out;
+        }
+    }
 
     private static Route route(String id, String name, String region, RouteType type, Element element,
                                int minutes, int encounters, int levelMin, int levelMax, int groupMin, int groupMax,
                                int rankReq, double sighting, List<Loot> loot, String blurb) {
         return new Route(id, name, region, type, element, 1, minutes, encounters, levelMin, levelMax,
-                groupMin, groupMax, rankReq, sighting, loot, null, null, null, 0, null, blurb);
+                groupMin, groupMax, rankReq, sighting, loot, null, null, null, 0, null, blurb,
+                List.of(), 0, Set.of(), List.of(), List.of(), false);
     }
+
+    /** Fluent builder for the later regions, whose routes carry many optional parts. */
+    static final class R {
+        private final String id, name, region;
+        private final RouteType type;
+        private final Element element;
+        private int tier = 1, minutes, encounters, levelMin, levelMax, groupMin = 1, groupMax = 2, rank = 1;
+        private double sighting;
+        private List<Loot> loot = List.of();
+        private String hazard, hazardText, bossId, blurb = "";
+        private int bossLevel;
+        private Req hiddenRoom;
+        private final List<Req> reqs = new ArrayList<>();
+        private double hazardPct;
+        private Set<Element> wards = Set.of();
+        private final List<String> twists = new ArrayList<>();
+        private List<Element> extra = List.of();
+        private boolean hidden;
+
+        R(String id, String name, String region, RouteType type, Element element) {
+            this.id = id; this.name = name; this.region = region; this.type = type; this.element = element;
+        }
+        R tier(int t) { tier = t; return this; }
+        R time(int min, int enc) { minutes = min; encounters = enc; return this; }
+        R levels(int lo, int hi) { levelMin = lo; levelMax = hi; return this; }
+        R groups(int lo, int hi) { groupMin = lo; groupMax = hi; return this; }
+        R rank(int r) { rank = r; return this; }
+        R sighting(double s) { sighting = s; return this; }
+        R loot(Loot... l) { loot = List.of(l); return this; }
+        R hazard(String id, double pct, String text, Element... wardEls) {
+            hazard = id; hazardPct = pct; hazardText = text; wards = Set.of(wardEls); return this;
+        }
+        R twist(String t) { twists.add(t); return this; }
+        R boss(String id, int level) { bossId = id; bossLevel = level; return this; }
+        R needs(Req r) { reqs.add(r); return this; }
+        R extra(Element... e) { extra = List.of(e); return this; }
+        R hidden() { hidden = true; return this; }
+        R blurb(String b) { blurb = b; return this; }
+        Route build() {
+            return new Route(id, name, region, type, element, tier, minutes, encounters, levelMin, levelMax, groupMin,
+                    groupMax, rank, sighting, loot, hazard, hazardText, bossId, bossLevel, hiddenRoom, blurb,
+                    List.copyOf(reqs), hazardPct, wards, List.copyOf(twists), extra, hidden);
+        }
+    }
+
+    private static R r(String id, String name, String region, RouteType type, Element element) {
+        return new R(id, name, region, type, element);
+    }
+
+    /** Region-wide combat twists of the Forgotten Regions, and what counters each. */
+    public record Twist(String id, String name, String text, Set<Element> wards, String relicWard) {}
+
+    public static final Map<String, Twist> TWISTS = ordered(List.of(
+            new Twist("ambush", "Ambush", "Enemies strike from the dark: +30% damage in the first round.",
+                    Set.of(Element.LIGHT, Element.SHADOW), "dawn_lantern"),
+            new Twist("mirage", "Mirage", "Shimmering mirages waste one company turn in seven.",
+                    Set.of(Element.PSYCHIC), "clarity_charm"),
+            new Twist("plated", "Plated Foes", "Enemies wear living metal: +30% defense.",
+                    Set.of(Element.ELECTRIC, Element.FIRE), "alloy_breaker"),
+            new Twist("risen", "Restless Dead", "Fallen enemies rise once at 30% health.",
+                    Set.of(Element.LIGHT, Element.FIRE), "grave_ward"),
+            new Twist("radiance", "Radiance", "Enemies recover 3% health each round.",
+                    Set.of(Element.SHADOW), "dawn_lantern"),
+            new Twist("blight", "Blight", "The company loses 3% health each round.",
+                    Set.of(Element.POISON, Element.LIGHT), "grave_ward")
+    ), Twist::id);
 
     public static final Map<String, Route> ROUTES = ordered(List.of(
             route("mossroot_patrol", "Mossroot Patrol", "Mossroot Wilds", RouteType.PATROL, Element.EARTH,
@@ -971,14 +1094,173 @@ public final class ChroniclesContent {
                     "heat", "Volcanic heat scorches the company for 6% health before each battle. "
                     + "Ice Siegelings, a Frostbloom Remedy, heat-warded armor or an Emberward Charm cut it.",
                     "solgator", 16, null,
-                    "A volcanic dungeon. Lingering heat wears the company down before the Solgator at its heart."),
+                    "A volcanic dungeon. Lingering heat wears the company down before the Solgator at its heart.",
+                    List.of(), 0.06, Set.of(Element.ICE), List.of(), List.of(), false),
             new Route("old_rootcrypt", "Old Rootcrypt", "Mossroot Deeps", RouteType.DUNGEON, Element.EARTH, 1,
                     90, 9, 14, 19, 3, 3, 10, 0.10,
                     List.of(new Loot("heartwood", 1, 3, 0.8), new Loot("iron_ore", 3, 6, 0.8),
                             new Loot("ancient_relic", 1, 2, 0.5)),
-                    "maze", "Root-choked halls. Knights with Foraging 20 find the hidden root cellar.",
+                    "maze", "Root-choked halls. Knights with Foraging 20 or Cartography 25 find the hidden root cellar; "
+                    + "Foraging 10 or Cartography 10 keeps the company from getting lost.",
                     "generoot", 20, skill("foraging", 20),
-                    "An ancient forest crypt. Patience and woodcraft reveal its secrets.")
+                    "An ancient forest crypt. Patience and woodcraft reveal its secrets.",
+                    List.of(), 0, Set.of(), List.of(), List.of(), false),
+            r("sunken_mossway", "Sunken Mossway", "Mossroot Deeps", RouteType.PATROL, Element.EARTH)
+                    .time(30, 5).levels(6, 10).groups(1, 2).rank(4).sighting(0.2).extra(Element.WATER)
+                    .needs(skill("cartography", 10)).hidden()
+                    .loot(new Loot("relic_shard", 1, 2, 0.4), new Loot("rune_stone", 1, 2, 0.4), new Loot("oak_log", 2, 4, 0.6))
+                    .blurb("A drowned path only a mapmaker could find. Shards and rune stones in the silt.").build(),
+            r("inner_wilds_circuit", "Grand Circuit of the Inner Wilds", "Tier I lands", RouteType.GRAND, Element.EARTH)
+                    .time(240, 16).levels(8, 14).groups(2, 3).rank(8).sighting(0.2)
+                    .extra(Element.FIRE, Element.ICE, Element.WIND)
+                    .loot(new Loot("iron_ore", 2, 5, 0.7), new Loot("oak_log", 2, 4, 0.6), new Loot("galeberry", 1, 3, 0.5),
+                            new Loot("ember_shard", 1, 2, 0.3), new Loot("frost_crystal", 1, 2, 0.3))
+                    .blurb("Four hours across all four Tier I lands. Long, varied, and rich.").build(),
+
+            // Tier II: the Outer Frontiers.
+            r("tidewater_patrol", "Tidewater Patrol", "Tidewater Coast", RouteType.PATROL, Element.WATER)
+                    .tier(2).time(40, 6).levels(15, 19).groups(2, 2).rank(12).sighting(0.12)
+                    .needs(skill("survival", 10))
+                    .hazard("tide", 0.04, "Surging tides batter the company for 4% health before each battle. Water or Ice Siegelings, "
+                            + "Survival and tide-warded gear cut it.", Element.WATER, Element.ICE)
+                    .loot(new Loot("minnow", 2, 4, 0.6), new Loot("silverfin", 1, 2, 0.4), new Loot("tide_pearl", 1, 1, 0.2))
+                    .blurb("Salt cliffs and tidepools. Needs Survival 10.").build(),
+            r("tidewater_hunt", "Tidewater Hunt", "Tidewater Coast", RouteType.HUNT, Element.WATER)
+                    .tier(2).time(70, 9).levels(16, 21).groups(2, 3).rank(13).sighting(0.28)
+                    .needs(skill("survival", 15))
+                    .hazard("tide", 0.04, "Surging tides batter the company for 4% health before each battle.", Element.WATER, Element.ICE)
+                    .loot(new Loot("tide_pearl", 1, 2, 0.35), new Loot("silverfin", 1, 3, 0.5))
+                    .blurb("Track Water Siegelings along the reefs. Good for taming.").build(),
+            r("sunken_grotto", "Sunken Grotto", "Tidewater Coast", RouteType.DUNGEON, Element.WATER)
+                    .tier(2).time(90, 8).levels(19, 23).groups(2, 3).rank(15).sighting(0.10)
+                    .needs(skill("survival", 20))
+                    .hazard("tide", 0.06, "Flooding halls drain the company for 6% health before each battle.", Element.WATER, Element.ICE)
+                    .boss("clawqueen", 25)
+                    .loot(new Loot("tide_pearl", 2, 3, 0.7), new Loot("ancient_relic", 1, 1, 0.45), new Loot("relic_shard", 1, 3, 0.6))
+                    .blurb("A flooded sea cave ruled by the Clawqueen.").build(),
+            r("stormspire_patrol", "Stormspire Patrol", "Stormspire Peaks", RouteType.PATROL, Element.ELECTRIC)
+                    .tier(2).time(45, 6).levels(17, 21).groups(2, 2).rank(14).sighting(0.12)
+                    .needs(skill("survival", 12))
+                    .hazard("storm", 0.05, "Lightning strikes the ridges: 5% health before each battle. Metal or Earth Siegelings "
+                            + "ground it; storm-warded gear and Survival help.", Element.METAL, Element.EARTH)
+                    .loot(new Loot("iron_ore", 2, 4, 0.6), new Loot("storm_glass", 1, 1, 0.2))
+                    .blurb("Crackling peaks above the clouds. Needs Survival 12.").build(),
+            r("stormspire_hunt", "Stormspire Hunt", "Stormspire Peaks", RouteType.HUNT, Element.ELECTRIC)
+                    .tier(2).time(75, 9).levels(18, 23).groups(2, 3).rank(15).sighting(0.28)
+                    .needs(skill("survival", 16))
+                    .hazard("storm", 0.05, "Lightning strikes the ridges: 5% health before each battle.", Element.METAL, Element.EARTH)
+                    .loot(new Loot("storm_glass", 1, 2, 0.35), new Loot("iron_ore", 2, 4, 0.5))
+                    .blurb("Hunt Electric Siegelings through the storm. Good for taming.").build(),
+            r("thunderhold", "Thunderhold", "Stormspire Peaks", RouteType.DUNGEON, Element.ELECTRIC)
+                    .tier(2).time(100, 9).levels(21, 25).groups(2, 3).rank(17).sighting(0.10)
+                    .needs(skill("survival", 22))
+                    .hazard("storm", 0.07, "The hold is a lightning rod: 7% health before each battle.", Element.METAL, Element.EARTH)
+                    .boss("bleetsrike", 27)
+                    .loot(new Loot("storm_glass", 2, 3, 0.7), new Loot("ancient_relic", 1, 1, 0.5), new Loot("relic_shard", 1, 3, 0.6))
+                    .blurb("A fortress of living thunder, ruled by the Bleetsrike.").build(),
+            r("frontier_odyssey", "Frontier Odyssey", "Outer Frontiers", RouteType.GRAND, Element.WATER)
+                    .tier(2).time(360, 20).levels(18, 25).groups(2, 3).rank(18).sighting(0.22).extra(Element.ELECTRIC)
+                    .needs(skill("survival", 20))
+                    .hazard("tide", 0.03, "Six hours of tide and storm: 3% health before each battle.", Element.WATER, Element.METAL)
+                    .loot(new Loot("tide_pearl", 1, 2, 0.4), new Loot("storm_glass", 1, 2, 0.4), new Loot("silverfin", 2, 4, 0.5),
+                            new Loot("relic_shard", 1, 2, 0.3))
+                    .blurb("A six-hour journey through both frontier lands.").build(),
+
+            // Tier III: the Forgotten Regions. Each has a twist the right element (or relic) counters.
+            r("umbral_hunt", "Umbral Caves Hunt", "Umbral Caves", RouteType.HUNT, Element.SHADOW)
+                    .tier(3).time(80, 9).levels(25, 30).groups(2, 3).rank(20).sighting(0.25)
+                    .needs(skill("survival", 25)).twist("ambush")
+                    .loot(new Loot("umbral_crystal", 1, 2, 0.35), new Loot("rune_stone", 1, 2, 0.5))
+                    .blurb("Lightless tunnels where Shadow Siegelings lie in wait.").build(),
+            r("abyssal_hollow", "Abyssal Hollow", "Umbral Caves", RouteType.DUNGEON, Element.SHADOW)
+                    .tier(3).time(120, 10).levels(29, 34).groups(2, 3).rank(24).sighting(0.10)
+                    .needs(skill("survival", 30)).needs(skill("cartography", 15)).twist("ambush")
+                    .boss("umbralwyrm", 36)
+                    .loot(new Loot("umbral_crystal", 2, 3, 0.7), new Loot("ancient_relic", 1, 2, 0.5))
+                    .blurb("The cave's heart, where the Umbralwyrm coils.").build(),
+            r("mirage_hunt", "Mirage Expanse Hunt", "Mirage Expanse", RouteType.HUNT, Element.PSYCHIC)
+                    .tier(3).time(80, 9).levels(25, 30).groups(2, 3).rank(21).sighting(0.25)
+                    .needs(skill("survival", 25)).twist("mirage")
+                    .loot(new Loot("mind_prism", 1, 2, 0.35), new Loot("galeberry", 2, 3, 0.5))
+                    .blurb("A desert of illusions. Psychic Siegelings see through them.").build(),
+            r("oracle_sanctum", "Oracle's Sanctum", "Mirage Expanse", RouteType.DUNGEON, Element.PSYCHIC)
+                    .tier(3).time(120, 10).levels(29, 34).groups(2, 3).rank(25).sighting(0.10)
+                    .needs(skill("survival", 30)).needs(skill("cartography", 15)).twist("mirage")
+                    .boss("omnipsych", 36)
+                    .loot(new Loot("mind_prism", 2, 3, 0.7), new Loot("ancient_relic", 1, 2, 0.5))
+                    .blurb("Where the Omnipsych dreams the desert into being.").build(),
+            r("forge_wastes_hunt", "Forge Wastes Hunt", "Forge Wastes", RouteType.HUNT, Element.METAL)
+                    .tier(3).time(85, 9).levels(26, 31).groups(2, 3).rank(22).sighting(0.25)
+                    .needs(skill("survival", 25)).twist("plated")
+                    .hazard("forge", 0.04, "Slag heat: 4% health before each battle.", Element.WATER, Element.ICE)
+                    .loot(new Loot("living_alloy", 1, 2, 0.35), new Loot("iron_ore", 3, 6, 0.6))
+                    .blurb("An abandoned machine-forge of armored Metal Siegelings.").build(),
+            r("titan_foundry", "Titan Foundry", "Forge Wastes", RouteType.DUNGEON, Element.METAL)
+                    .tier(3).time(130, 10).levels(30, 35).groups(2, 3).rank(26).sighting(0.10)
+                    .needs(skill("survival", 32)).needs(skill("cartography", 15)).twist("plated")
+                    .hazard("forge", 0.06, "Molten channels: 6% health before each battle.", Element.WATER, Element.ICE)
+                    .boss("steelwarden", 37)
+                    .loot(new Loot("living_alloy", 2, 3, 0.7), new Loot("ancient_relic", 1, 2, 0.5))
+                    .blurb("The great foundry, guarded by the Steelwarden.").build(),
+            r("ashen_hunt", "Ashen Crypts Hunt", "Ashen Crypts", RouteType.HUNT, Element.UNDEAD)
+                    .tier(3).time(85, 9).levels(26, 31).groups(2, 3).rank(23).sighting(0.25)
+                    .needs(skill("survival", 25)).twist("risen")
+                    .loot(new Loot("grave_dust", 1, 2, 0.35), new Loot("fossil", 2, 4, 0.6))
+                    .blurb("Crypts where the dead refuse to stay down.").build(),
+            r("lich_vault", "Lich Vault", "Ashen Crypts", RouteType.DUNGEON, Element.UNDEAD)
+                    .tier(3).time(130, 10).levels(30, 35).groups(2, 3).rank(27).sighting(0.10)
+                    .needs(skill("survival", 32)).needs(skill("cartography", 15)).twist("risen")
+                    .boss("wraithlord", 37)
+                    .loot(new Loot("grave_dust", 2, 3, 0.7), new Loot("ancient_relic", 1, 2, 0.5))
+                    .blurb("The Wraithlord's vault. Endurance and cleansing win here.").build(),
+            r("sunspire_hunt", "Sunspire Sanctum Hunt", "Sunspire Sanctum", RouteType.HUNT, Element.LIGHT)
+                    .tier(3).time(85, 9).levels(26, 31).groups(2, 3).rank(23).sighting(0.25)
+                    .needs(skill("survival", 25)).twist("radiance").boss("auto", 36)
+                    .loot(new Loot("relic_shard", 1, 2, 0.4), new Loot("rune_stone", 1, 2, 0.5))
+                    .blurb("A radiant sanctum. Sealed until Light Siegelings walk the world.").build(),
+            r("blight_hunt", "Blight Marsh Hunt", "Blight Marsh", RouteType.HUNT, Element.POISON)
+                    .tier(3).time(85, 9).levels(26, 31).groups(2, 3).rank(23).sighting(0.25)
+                    .needs(skill("survival", 25)).twist("blight")
+                    .loot(new Loot("relic_shard", 1, 2, 0.4), new Loot("flax", 3, 6, 0.6))
+                    .blurb("A toxic marsh. Sealed until Poison Siegelings walk the world.").build(),
+            r("forgotten_pilgrimage", "Forgotten Pilgrimage", "Forgotten Regions", RouteType.GRAND, Element.SHADOW)
+                    .tier(3).time(480, 24).levels(28, 36).groups(2, 3).rank(28).sighting(0.2)
+                    .extra(Element.PSYCHIC, Element.METAL, Element.UNDEAD)
+                    .needs(skill("survival", 30)).twist("ambush")
+                    .loot(new Loot("umbral_crystal", 1, 2, 0.3), new Loot("mind_prism", 1, 2, 0.3),
+                            new Loot("living_alloy", 1, 2, 0.3), new Loot("grave_dust", 1, 2, 0.3), new Loot("ancient_relic", 1, 1, 0.2))
+                    .blurb("Eight hours through every Forgotten Region.").build(),
+
+            // Tier IV: Legendary Expeditions, multi-element trials.
+            r("trial_inner_wilds", "Trial of the Inner Wilds", "Legendary Expeditions", RouteType.DUNGEON, Element.FIRE)
+                    .tier(4).time(150, 12).levels(40, 45).groups(3, 3).rank(40).sighting(0.06)
+                    .extra(Element.EARTH, Element.ICE, Element.WIND)
+                    .needs(affinity(Element.FIRE, 40)).needs(affinity(Element.EARTH, 40)).needs(skill("survival", 40))
+                    .hazard("heat", 0.05, "The trial burns: 5% health before each battle.", Element.ICE)
+                    .boss("pylord", 48)
+                    .loot(new Loot("ancient_relic", 1, 2, 0.8), new Loot("ember_shard", 2, 4, 0.6), new Loot("frost_crystal", 2, 4, 0.6))
+                    .blurb("Four elements, one trial, and Pylord at its end.").build(),
+            r("trial_frontier_tempest", "Trial of the Frontier Tempest", "Legendary Expeditions", RouteType.DUNGEON, Element.ELECTRIC)
+                    .tier(4).time(160, 12).levels(42, 47).groups(3, 3).rank(45).sighting(0.06).extra(Element.WATER)
+                    .needs(affinity(Element.ELECTRIC, 40)).needs(affinity(Element.WATER, 40)).needs(skill("survival", 45))
+                    .hazard("storm", 0.06, "An endless storm: 6% health before each battle.", Element.METAL, Element.EARTH)
+                    .boss("thunderlord", 49)
+                    .loot(new Loot("ancient_relic", 1, 2, 0.8), new Loot("storm_glass", 2, 4, 0.6), new Loot("tide_pearl", 2, 4, 0.6))
+                    .blurb("Ride the tempest to the Thunderlord.").build(),
+            r("trial_ancient_eclipse", "Trial of the Ancient Eclipse", "Legendary Expeditions", RouteType.DUNGEON, Element.SHADOW)
+                    .tier(4).time(180, 14).levels(45, 50).groups(3, 3).rank(50).sighting(0.06)
+                    .extra(Element.PSYCHIC, Element.UNDEAD, Element.METAL)
+                    .needs(affinity(Element.SHADOW, 50)).needs(affinity(Element.PSYCHIC, 40)).needs(skill("cartography", 50))
+                    .twist("ambush").twist("risen")
+                    .boss("voidmaw", 50)
+                    .loot(new Loot("ancient_relic", 2, 3, 0.9), new Loot("umbral_crystal", 2, 4, 0.6), new Loot("mind_prism", 2, 4, 0.6))
+                    .blurb("An ancient expedition only master cartographers can chart. The Voidmaw waits.").build(),
+            r("skyreach_ruins", "Skyreach Ruins", "Legendary Expeditions", RouteType.DUNGEON, Element.WIND)
+                    .tier(4).time(120, 10).levels(38, 44).groups(2, 3).rank(35).sighting(0.08)
+                    .needs(skill("cartography", 50)).hidden()
+                    .boss("aerovane", 46)
+                    .loot(new Loot("ancient_relic", 1, 2, 0.8), new Loot("gale_feather", 3, 6, 0.8))
+                    .blurb("Ruins above the clouds, on no map but yours. Aerovane nests here.").build()
     ), Route::id);
 
     // ── helpers ──────────────────────────────────────────────────────────────

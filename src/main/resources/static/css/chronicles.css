@@ -361,3 +361,4 @@ body.is-busy .ck-main { cursor:progress; }
 .ck-loadout { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; border:1px solid var(--line); }
 .ck-loadout > div { min-width:0; }
 .ck-loadout .ck-pills { margin:0; flex:0 0 auto; }
+.ck-chip.is-rare { border-color:var(--rare); color:var(--rare); }

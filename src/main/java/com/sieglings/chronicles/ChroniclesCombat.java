@@ -64,6 +64,7 @@ final class ChroniclesCombat {
         double defBreak;
         int defBreakRounds;
         double marked;
+        boolean rose;
 
         boolean alive() { return hp > 0.0001; }
         double pct() { return maxHp <= 0 ? 0 : hp / maxHp; }
@@ -85,11 +86,11 @@ final class ChroniclesCombat {
     record Knight(String weaponType, int weaponTier, int proficiency, int command, int armor,
                   boolean heatWard, String relicEffect, boolean searingIntercept, int foraging,
                   int cartography, double survivalCut, double lootBonus, double restBonus, double gaugeBonus,
-                  double startGauge) {
+                  double startGauge, java.util.Set<String> hazardWards) {
         Knight(String weaponType, int weaponTier, int proficiency, int command, int armor,
                boolean heatWard, String relicEffect, boolean searingIntercept, int foraging) {
             this(weaponType, weaponTier, proficiency, command, armor, heatWard, relicEffect, searingIntercept, foraging,
-                    0, 0, 0, 0, 0, 0);
+                    0, 0, 0, 0, 0, 0, java.util.Set.of());
         }
 
         boolean findsWay() {
@@ -100,12 +101,12 @@ final class ChroniclesCombat {
     record Input(Route route, List<Unit> party, Unit reserve, Knight knight, CommandTrigger trigger,
                  int retreatAt, int potionAt, Map<String, Integer> supplies, Mods fieldMods,
                  List<String> fieldNotes, long seed, EnemyFactory enemies, long durationMs,
-                 Arcana arcana, Signature signature) {
+                 Arcana arcana, Signature signature, java.util.Set<String> twists) {
         Input(Route route, List<Unit> party, Unit reserve, Knight knight, CommandTrigger trigger,
               int retreatAt, int potionAt, Map<String, Integer> supplies, Mods fieldMods,
               List<String> fieldNotes, long seed, EnemyFactory enemies) {
             this(route, party, reserve, knight, trigger, retreatAt, potionAt, supplies, fieldMods, fieldNotes, seed,
-                    enemies, route.minutes() * 60_000L, Arcana.NONE, null);
+                    enemies, route.minutes() * 60_000L, Arcana.NONE, null, java.util.Set.of());
         }
     }
 
@@ -169,16 +170,14 @@ final class ChroniclesCombat {
             long exploreAt = at - step / 2;
             explore(result, route, random, exploreAt, in.knight().lootBonus());
 
-            if (route.hazard() != null && "heat".equals(route.hazard())) {
-                double factor = heatFactor(in, company, supplies);
-                if (factor > 0) {
-                    result.hazardsEndured++;
-                    for (Unit unit : company) {
-                        if (unit.alive()) unit.hp = Math.max(1, unit.hp - unit.maxHp * 0.06 * factor);
-                    }
-                    add(result, at - step / 4, "hazard", "Volcanic heat scorches the company ("
-                            + Math.round(6 * factor) + "% health).", "warn");
+            if (route.hazard() != null && route.hazardPct() > 0) {
+                double pct = route.hazardPct() * hazardFactor(in, company, supplies);
+                result.hazardsEndured++;
+                for (Unit unit : company) {
+                    if (unit.alive()) unit.hp = Math.max(1, unit.hp - unit.maxHp * pct);
                 }
+                add(result, at - step / 4, "hazard", hazardLine(route.hazard()) + " ("
+                        + Math.max(1, Math.round(pct * 100)) + "% health).", "warn");
             }
 
             boolean boss = hasBoss && i == encounters - 1;
@@ -284,11 +283,25 @@ final class ChroniclesCombat {
         return result;
     }
 
-    private static double heatFactor(Input in, List<Unit> company, Map<String, Integer> supplies) {
+    private static String hazardLine(String hazard) {
+        return switch (hazard) {
+            case "heat" -> "Volcanic heat scorches the company";
+            case "tide" -> "The tide batters the company";
+            case "storm" -> "Lightning strikes the company";
+            case "forge" -> "Slag heat sears the company";
+            default -> "The land wears on the company";
+        };
+    }
+
+    private static double hazardFactor(Input in, List<Unit> company, Map<String, Integer> supplies) {
         double factor = 1.0;
-        if (company.stream().anyMatch(u -> u.alive() && u.element == Element.ICE)) factor *= 0.5;
-        if (in.knight().heatWard()) factor *= 0.5;
-        if (supplies.getOrDefault("frostbloom_remedy", 0) > 0) factor *= 0.5;
+        String hazard = in.route().hazard();
+        if (company.stream().anyMatch(u -> u.alive() && in.route().wards().contains(u.element))) factor *= 0.5;
+        if ("heat".equals(hazard)) {
+            if (in.knight().heatWard()) factor *= 0.5;
+            if (supplies.getOrDefault("frostbloom_remedy", 0) > 0) factor *= 0.5;
+        }
+        if (in.knight().hazardWards().contains(hazard)) factor *= 0.5;
         factor *= 1 - Math.min(0.4, in.knight().armor() * 0.03);
         factor *= 1 - in.knight().survivalCut();
         return Math.max(0.05, factor);
@@ -354,6 +367,7 @@ final class ChroniclesCombat {
         double feintBonus;
         final Arcana arcana;
         final boolean signature;
+        final java.util.Set<String> twists;
         boolean foesStunned;
 
         Battle(Input in, List<Unit> party, List<Unit> foes, Random random, double gauge, boolean boss,
@@ -368,6 +382,7 @@ final class ChroniclesCombat {
             this.supplies = supplies;
             this.arcana = in.arcana() == null ? Arcana.NONE : in.arcana();
             this.signature = signature;
+            this.twists = in.twists() == null ? java.util.Set.of() : in.twists();
             for (Unit unit : party) {
                 unit.guarding = false; unit.actions = 0; unit.bondUses = 0; unit.shield = 0; unit.struckYet = false;
                 unit.resolveActive = false; unit.defBreak = 0; unit.defBreakRounds = 0; unit.marked = 0;
@@ -375,6 +390,7 @@ final class ChroniclesCombat {
             }
             Mods field = in.fieldMods();
             for (Unit foe : foes) {
+                if (twists.contains("plated")) foe.def *= 1.3;
                 foe.def *= Math.max(0.3, 1 + field.enemyDef());
                 foe.spd *= Math.max(0.3, 1 + field.enemySpd());
             }
@@ -396,6 +412,7 @@ final class ChroniclesCombat {
                             || arcana.enemySkipChance() > 0 && random.nextDouble() < arcana.enemySkipChance())) {
                         continue;
                     }
+                    if (actor.ally && twists.contains("mirage") && random.nextDouble() < 1.0 / 7) continue;
                     act(actor);
                 }
                 if (living(foes).isEmpty()) { won = true; return; }
@@ -421,6 +438,12 @@ final class ChroniclesCombat {
         }
 
         private void endRound() {
+            if (twists.contains("radiance")) {
+                for (Unit foe : living(foes)) foe.hp = Math.min(foe.maxHp, foe.hp + foe.maxHp * 0.03);
+            }
+            if (twists.contains("blight")) {
+                for (Unit ally : living(party)) ally.hp = Math.max(1, ally.hp - ally.maxHp * 0.03);
+            }
             if (arcana.enemyDotPct() > 0) {
                 for (Unit foe : living(foes)) foe.hp = Math.max(0, foe.hp - foe.maxHp * arcana.enemyDotPct());
             }
@@ -647,6 +670,7 @@ final class ChroniclesCombat {
             damage *= 0.9 + random.nextDouble() * 0.2;
             if (target.ally && target.pct() < 0.25) damage *= 1 - in.fieldMods().lowHpGuard();
             if (target.ally) damage *= 1 - Math.min(0.6, arcana.allyDamageCut());
+            if (target.ally && round == 1 && twists.contains("ambush")) damage *= 1.3;
             if (attacker.ally && advantaged && arcana.advantageShield() > 0) {
                 attacker.shield = Math.min(attacker.maxHp * 0.3, attacker.shield + attacker.maxHp * arcana.advantageShield());
             }
@@ -657,6 +681,11 @@ final class ChroniclesCombat {
                 if (target.searingShield && absorbed > 0) attacker.hp = Math.max(0, attacker.hp - absorbed * 0.4);
             }
             target.hp = Math.max(0, target.hp - damage);
+            if (!target.ally && !target.alive() && !target.rose && twists.contains("risen")) {
+                target.rose = true;
+                target.hp = target.maxHp * 0.3;
+                if (!highlights.contains("The dead rose again.")) highlights.add("The dead rose again.");
+            }
             if (target.alive() && "Bruiser".equals(target.cls)) {
                 if (target.ally && target.bondLevel >= 50 && !target.resolveActive && target.pct() < 0.5
                         && target.bondUses < bondCap(target)) {
