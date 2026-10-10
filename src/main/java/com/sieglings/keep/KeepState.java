@@ -91,6 +91,12 @@ public class KeepState {
     // see KeepRebirth) and when it last was.
     private int rebirthCount;
     private Instant lastRebirthAt;
+    // Silver is the Keep's own market currency (bought with Siegecoins, earned from Keep
+    // events and commissions); it survives rebirth. Refined materials are combined from
+    // raw ones and kept apart from materialInventory so raw-only spends never touch them.
+    private int silver;
+    private long silverEarnedTotal;
+    private Map<String, Integer> refinedInventory = new LinkedHashMap<>();
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -265,6 +271,12 @@ public class KeepState {
     public void setRebirthCount(int rebirthCount) { this.rebirthCount = Math.max(0, rebirthCount); }
     public Instant getLastRebirthAt() { return lastRebirthAt; }
     public void setLastRebirthAt(Instant lastRebirthAt) { this.lastRebirthAt = lastRebirthAt; }
+    public int getSilver() { return silver; }
+    public void setSilver(int silver) { this.silver = Math.max(0, silver); }
+    public long getSilverEarnedTotal() { return silverEarnedTotal; }
+    public void setSilverEarnedTotal(long value) { this.silverEarnedTotal = Math.max(0, value); }
+    public Map<String, Integer> getRefinedInventory() { return refinedInventory; }
+    public void setRefinedInventory(Map<String, Integer> values) { this.refinedInventory = intMap(values); }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

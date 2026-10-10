@@ -1808,7 +1808,52 @@ button.resource-pill:focus-visible {
 .relationship-detail p { margin: 0; color: rgba(255, 247, 220, .78); font-size: 12px; line-height: 1.4; }
 .relationship-hint { margin-top: -4px; margin-bottom: 8px; }
 
-.inventory-tabs { margin-bottom: 10px; }
+.inventory-tabs { margin-bottom: 10px; gap: 4px; }
+/* Six tabs share one row even at 320px: they shrink rather than wrap, because a
+   two-row sticky bar ate a third of the sheet on a phone. */
+.inventory-tabs button { flex: 1 1 0; min-width: 0; padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.silver-balance { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; padding: 5px 11px; border-radius: 99px; border: 1px solid rgba(214, 226, 240, .4); background: rgba(214, 226, 240, .08); color: #dfe8f2; font-size: 11px; }
+.silver-balance span { color: #e7eef7; }
+.silver-balance strong { color: #ffffff; font-size: 13px; }
+.refined-card .inventory-icon { color: #c9b6ff; }
+.refined-card.tier-2 .inventory-icon { color: #8fd8ff; }
+.refined-card.tier-3 .inventory-icon { color: #ffd27a; }
+.refine-card { border-color: rgba(201, 182, 255, .32); }
+.refine-card.tier-2 { border-color: rgba(143, 216, 255, .34); }
+.refine-card.tier-3 { border-color: rgba(255, 210, 122, .45); background: rgba(255, 210, 122, .05); }
+.refine-card p { margin: 4px 0 0; }
+.refine-inputs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.refine-input { padding: 3px 8px; border-radius: 99px; background: rgba(255, 255, 255, .07); color: var(--cream); font-size: 10px; font-weight: 700; }
+.refine-input.short { color: #ffb3a8; background: rgba(255, 110, 110, .12); }
+.recycle-card p { margin: 4px 0 6px; }
+.recycle-label { display: block; margin: 8px 0 4px; color: var(--faint); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; }
+.recycle-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.recycle-chip { min-height: 30px; padding: 4px 9px; border-radius: 99px; border: 1px solid var(--line); background: rgba(255, 255, 255, .05); color: var(--cream); font-size: 10.5px; font-weight: 700; cursor: pointer; }
+.recycle-chip small { color: var(--faint); font-weight: 600; }
+.recycle-chip.active { color: #172333; background: var(--gold); border-color: var(--gold); }
+.recycle-chip.active small { color: rgba(23, 35, 51, .7); }
+.recycle-qty { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.recycle-qty .panel-button { min-width: 38px; }
+.recycle-qty strong { color: var(--gold); font-size: 13px; }
+.recycle-preview { flex: 1 1 100%; color: var(--dim); font-size: 11px; }
+.silver-bundles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin: 6px 0 12px; }
+.silver-bundle { display: grid; gap: 2px; justify-items: center; padding: 10px 4px; border-radius: 12px; border: 1px solid rgba(214, 226, 240, .35); background: linear-gradient(rgba(214, 226, 240, .12), rgba(214, 226, 240, .04)); color: var(--cream); cursor: pointer; }
+.silver-bundle strong { color: #fff; font-size: 15px; }
+.silver-bundle span { font-size: 10px; font-weight: 800; }
+.silver-bundle small { color: var(--gold); font-size: 10px; }
+.silver-bundle:disabled { opacity: .42; cursor: default; }
+.market-lot { display: grid; grid-template-columns: 42px 1fr auto; gap: 10px; align-items: center; padding: 9px 11px; border: 1px solid rgba(255, 247, 220, .12); border-radius: 13px; background: rgba(255, 255, 255, .035); }
+.market-lot + .market-lot { margin-top: 6px; }
+.market-lot.refined { border-color: rgba(201, 182, 255, .28); }
+.market-lot .inventory-copy h3 { font-size: 13px; }
+.rebirth-reqs { margin: 4px 0 8px; }
+.rebirth-reqs ul { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; gap: 3px; }
+.rebirth-reqs li { display: flex; gap: 6px; align-items: baseline; color: var(--dim); font-size: 11px; }
+.rebirth-reqs li span { color: var(--faint); width: 12px; flex: 0 0 12px; }
+.rebirth-reqs li small { margin-left: auto; color: var(--faint); font-variant-numeric: tabular-nums; }
+.rebirth-reqs li.met { color: #b5eec6; }
+.rebirth-reqs li.met span { color: var(--green); }
+.rebirth-reqs li.refined:not(.met) { color: #d8ccff; }
 .inventory-card {
     display: grid;
     grid-template-columns: 42px 1fr;

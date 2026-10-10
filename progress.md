@@ -1,4 +1,38 @@
 Original prompt: Merge and deploy
+- October 10, 2026 **Keep: each rebirth has its own requirements and bill, plus refined materials, recycling and a Silver market.**
+  - **Rebirth ladder.** `KeepRebirth.requirement(n)` gives each of the 10 rebirths its own progress checks and resource bill, reaching further into the tech tree each time. The bill is spent on rebirth.
+    - **Checks** go Grand Keep + Enclave + Builder's Yard → all 6 workshops + Storehouse 2 → 3 then 6 level-2 workshops with Akhar's Front tiers → 3/5/7 storage annexes → Keeper levels 15/20/23/25.
+    - **Bills** climb from 400 timber, 30 stone and 2 Living Mortar up to Heartwood Relics.
+    - The blocker names the first unmet check or short resource. The snapshot's `rebirth` block carries `checks` (have/need/met) and `costs` (have/need/met/refined).
+  - **Refined materials** (`KeepEconomy`): seven goods in three tiers, gated by building.
+    - **Tier 1** at the Builder's Yard: Living Mortar, Tempered Glass, Charged Alloy, Hearth Ration.
+    - **Tier 2** at Storehouse 2: Covenant Keystone, Aether Core.
+    - **Tier 3** at Akhar's Front: Heartwood Relic.
+    - Recipes take raw, refined or timber inputs. Stock lives in a new `KeepState.refinedInventory` with its own cap (10 + 5 per Storehouse level, scaled by rebirth storage), kept apart from `materialInventory` so the raw-only time-saver spend can never eat refined goods. It resets on rebirth.
+    - `POST /api/keep/refine` takes `refinedId` and `quantity` (1–10).
+  - **Recycling** (`POST /api/keep/recycle`, opens with the Storehouse) always loses value: 3 raw for 1 other raw, 15 timber for 1 raw, or a refined good salvaged into half its inputs. Outputs must fit their caps.
+  - **Silver**, a Keep wallet that survives rebirth.
+    - **Buying:** with Siegecoins via `POST /api/keep/silver/buy`. Bundles are 20/60/150 for 100/270/600; coins are charged after the Keep saves.
+    - **Earning:**
+      - Every repaired Keep event pays 6, whether timed or paid.
+      - Every sanctuary reward pays some: stewardship 4, restoration 10, weekly order 15, tribute 20, milestones 25–50, keeper levels 10, Enclave tasks 2.
+    - **Spending:** `POST /api/keep/market/buy` sells timber, raw lots and tier 1–2 refined goods, priced as a shortcut rather than a cheaper route. Tier 3 is never sold. The market opens with the Storehouse, and refined lots follow their tier gate.
+    - The snapshot gains an `economy` block.
+  - **UI.**
+    - The Keep inventory gains Refined / Refine / Market tabs, shrinking to one row down to 320px, plus a Silver balance.
+    - The Refine tab shows recipe cards with inputs and shortfalls, Refine 1/5, and a tap-to-pick recycling card with a live preview.
+    - The Market tab shows the three Silver bundles and the trader lots.
+    - The Rebirth card lists Requires/Spends with have/need ticks and an "Open the Refinery" shortcut when refined goods are short.
+- Verification:
+  - `KeepServiceTest` grows to 67 cases. New cases cover the requirement ladder (checks, the bill naming the short refined good, rebirth 2's deeper checks), refining with tier gates and exact spends, recycling at each rate including salvage, and the Silver flow: pouch charging coins, market closed then open, a tier-2 lot locked, stewardship paying 4, a repaired event paying 6, earned-total tracking. Another case shows Silver surviving a rebirth while refined stock resets.
+  - The earlier rebirth cases were updated to meet the first rebirth's requirement. Full `./mvnw -q test` passes and `node --check` passes.
+  - Headless Chromium at 390x844 and 1920x1080 with a mocked economy:
+    - The checklist ticks hall and Enclave and leaves the Yard, timber, stone and mortar open.
+    - Open the Refinery switches to the Refine tab with 3 cards and "◎40 Silver".
+    - Refine 1 posts `{refinedId:living_mortar, quantity:1}`.
+    - Picking stone → ingot ×3 previews "9 Cut Stone → 3 Ember Ingot" and posts `{fromId:stone,toId:ember_ingot,quantity:3}`.
+    - On Market, the 600-coin chest is disabled on a 300-coin balance and the tier-2 lot shows its lock; the pouch and stone lot post `silver/buy` and `market/buy`.
+    - At 320 and 390 the six tabs share one row with no clipping. No horizontal overflow, no page errors.
 - October 10, 2026 **Keep: rebirth for permanent, stacking bonuses.**
   - **Mechanic.** New `keep/KeepRebirth`.
     - **Unlock.** Once the Covenant Hall is the Grand Keep (Hall 8), `POST /api/keep/rebirth` resets the Keep. It is refused while any construction is underway, so a paid project is never lost, and is capped at 10 rebirths.

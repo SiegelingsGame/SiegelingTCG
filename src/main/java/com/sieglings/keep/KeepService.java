@@ -430,6 +430,7 @@ public class KeepService {
             }
             int goldBalance = progression.getGold() - event.coinCost();
             clearKeepEvent(state);
+            awardSilver(state, KeepEconomy.SILVER_PER_EVENT_REPAIR);
             context.afterKeepPersist(p -> {
                 p.setGold(p.getGold() - event.coinCost());
                 p.setUpdatedAt(context.now());
@@ -853,6 +854,8 @@ public class KeepService {
             String blocker = rebirthBlocker(state);
             if (blocker != null) throw new IllegalArgumentException(blocker);
             int newCount = state.getRebirthCount() + 1;
+            KeepRebirth.Requirement requirement = KeepRebirth.requirement(newCount);
+            if (requirement != null) requirement.costs().forEach((id, amount) -> spendResource(state, id, amount));
             resetForRebirth(state, newCount, context.now());
             int coins = KeepRebirth.rewardCoins(newCount);
             int remnants = KeepRebirth.rewardRemnants(newCount);
@@ -876,13 +879,87 @@ public class KeepService {
         if (state.getRebirthCount() >= KeepRebirth.MAX_REBIRTHS) {
             return "This Keep has been reborn as many times as the covenant allows.";
         }
-        if (hallLevel(state) < KeepRebirth.REQUIRED_HALL_LEVEL) {
-            return "Raise the Covenant Hall to the " + rankName(KeepRebirth.REQUIRED_HALL_LEVEL) + " to begin a rebirth.";
+        KeepRebirth.Requirement requirement = KeepRebirth.requirement(state.getRebirthCount() + 1);
+        if (requirement != null) {
+            for (String check : requirement.checks()) {
+                if (!rebirthCheckMet(state, check)) return "Not yet: " + rebirthCheckLabel(check) + ".";
+            }
+            for (Map.Entry<String, Integer> cost : requirement.costs().entrySet()) {
+                if (resourceAmount(state, cost.getKey()) < cost.getValue()) {
+                    return "Gather " + cost.getValue() + " " + resourceName(cost.getKey()) + " for this rebirth.";
+                }
+            }
         }
         if (!constructionSlotsInUse(state).isEmpty()) {
             return "Finish every construction project before the Keep is reborn.";
         }
         return null;
+    }
+
+    private boolean rebirthCheckMet(KeepState state, String check) {
+        String[] parts = check.split(":");
+        int n = parts.length > 1 ? Integer.parseInt(parts[1]) : 1;
+        return switch (parts[0]) {
+            case "hall" -> hallLevel(state) >= n;
+            case "enclave" -> state.getEnclaveLevel() >= 1;
+            case "builders_yard" -> state.getBuildersYardLevel() >= 1;
+            case "workshops_built" -> workshopsAtLeast(state, 1) >= n;
+            case "storehouse" -> state.getStorehouseLevel() >= n;
+            case "workshops_l2" -> workshopsAtLeast(state, 2) >= n;
+            case "akhars_front" -> akharsFrontLevel(state) >= n;
+            case "annexes" -> annexCount(state) >= n;
+            case "keeper_level" -> keeperLevel(state.getKeeperXp()) >= n;
+            default -> false;
+        };
+    }
+
+    private String rebirthCheckLabel(String check) {
+        String[] parts = check.split(":");
+        int n = parts.length > 1 ? Integer.parseInt(parts[1]) : 1;
+        return switch (parts[0]) {
+            case "hall" -> "Covenant Hall raised to the " + rankName(n);
+            case "enclave" -> "Siegeling Enclave raised";
+            case "builders_yard" -> "Builder's Yard raised";
+            case "workshops_built" -> n + " elemental workshops built";
+            case "storehouse" -> "Storehouse at level " + n;
+            case "workshops_l2" -> n + " workshops expanded to level 2";
+            case "akhars_front" -> "Akhar's Front: " + akharsFrontWallName(n);
+            case "annexes" -> n + " storage annexes";
+            case "keeper_level" -> "Keeper Level " + n;
+            default -> check;
+        };
+    }
+
+    private Map<String, Object> rebirthCheckProgress(KeepState state, String check) {
+        String[] parts = check.split(":");
+        int n = parts.length > 1 ? Integer.parseInt(parts[1]) : 1;
+        int have = switch (parts[0]) {
+            case "hall" -> hallLevel(state);
+            case "enclave" -> state.getEnclaveLevel();
+            case "builders_yard" -> state.getBuildersYardLevel();
+            case "workshops_built" -> workshopsAtLeast(state, 1);
+            case "storehouse" -> state.getStorehouseLevel();
+            case "workshops_l2" -> workshopsAtLeast(state, 2);
+            case "akhars_front" -> akharsFrontLevel(state);
+            case "annexes" -> annexCount(state);
+            case "keeper_level" -> keeperLevel(state.getKeeperXp());
+            default -> 0;
+        };
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", check);
+        out.put("label", rebirthCheckLabel(check));
+        out.put("have", Math.min(have, n));
+        out.put("need", n);
+        out.put("met", rebirthCheckMet(state, check));
+        return out;
+    }
+
+    private int workshopsAtLeast(KeepState state, int level) {
+        return (int) FACILITIES.keySet().stream().filter(id -> facilityLevel(state, id) >= level).count();
+    }
+
+    private int annexCount(KeepState state) {
+        return (int) state.getStorageUpgradeLevels().values().stream().filter(value -> value != null && value > 0).count();
     }
 
     private void resetForRebirth(KeepState state, int newCount, Instant now) {
@@ -913,6 +990,7 @@ public class KeepService {
         state.setFacilityLastAccruedAt(Map.of());
         state.setFacilityResidentIds(Map.of());
         state.setMaterialInventory(Map.of());
+        state.setRefinedInventory(Map.of());
         state.setStorageUpgradeLevels(Map.of());
         // Tools and bonus fixtures belong to the workshops that fall; decorations are the
         // keeper's own and come along, staying placed only in rooms that still stand.
@@ -948,6 +1026,20 @@ public class KeepService {
         out.put("blocker", blocker);
         out.put("requiredHallLevel", KeepRebirth.REQUIRED_HALL_LEVEL);
         out.put("requiredRankName", rankName(KeepRebirth.REQUIRED_HALL_LEVEL));
+        KeepRebirth.Requirement requirement = KeepRebirth.requirement(next);
+        if (count < KeepRebirth.MAX_REBIRTHS && requirement != null) {
+            out.put("checks", requirement.checks().stream().map(check -> rebirthCheckProgress(state, check)).toList());
+            out.put("costs", requirement.costs().entrySet().stream().map(cost -> {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("id", cost.getKey());
+                item.put("name", resourceName(cost.getKey()));
+                item.put("need", cost.getValue());
+                item.put("have", resourceAmount(state, cost.getKey()));
+                item.put("met", resourceAmount(state, cost.getKey()) >= cost.getValue());
+                item.put("refined", KeepEconomy.isRefined(cost.getKey()));
+                return item;
+            }).toList());
+        }
         if (count < KeepRebirth.MAX_REBIRTHS) {
             Map<String, Object> preview = new LinkedHashMap<>();
             preview.put("count", next);
@@ -958,6 +1050,259 @@ public class KeepService {
             out.put("next", preview);
         }
         if (state.getLastRebirthAt() != null) out.put("lastRebirthAt", state.getLastRebirthAt().toString());
+        return out;
+    }
+
+    // ── Advanced economy: refining, recycling, Silver (see KeepEconomy) ─────────
+
+    /** Combines raw (or lower-tier refined) materials into a refined material. */
+    public Map<String, Object> refine(AccountUser user, String refinedId, int quantity,
+                                      String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            KeepEconomy.Refined refined = KeepEconomy.refined(refinedId == null ? "" : refinedId.trim());
+            if (refined == null) throw new IllegalArgumentException("Unknown refined material.");
+            if (!economyGateMet(state, refined.tier().gate)) throw new IllegalArgumentException(refined.tier().lockedHint);
+            int qty = Math.max(1, Math.min(10, quantity));
+            requireRoom(state, refined.id(), qty);
+            Map<String, Integer> bill = scaled(refined.inputs(), qty);
+            requireResources(state, bill);
+            bill.forEach((id, amount) -> spendResource(state, id, amount));
+            addResource(state, refined.id(), qty);
+            return Map.of("refined", Map.of("id", refined.id(), "name", refined.name(), "amount", qty));
+        });
+    }
+
+    /**
+     * Turns a surplus into what is short, always at a loss: 3 raw for 1 other raw,
+     * 15 timber for 1 raw, or a refined good back into half its inputs.
+     */
+    public Map<String, Object> recycle(AccountUser user, String fromId, String toId, int quantity,
+                                       String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            if (state.getStorehouseLevel() < 1) {
+                throw new IllegalArgumentException("Raise the Covenant Storehouse to start recycling.");
+            }
+            String from = fromId == null ? "" : fromId.trim();
+            String to = toId == null ? "" : toId.trim();
+            int qty = Math.max(1, Math.min(50, quantity));
+            Map<String, Integer> gained;
+            Map<String, Integer> bill;
+            KeepEconomy.Refined refined = KeepEconomy.refined(from);
+            if (refined != null) {
+                bill = Map.of(from, qty);
+                gained = scaled(KeepEconomy.salvage(refined), qty);
+            } else {
+                if (!isRawMaterial(to) || from.equals(to)) throw new IllegalArgumentException("Choose a different raw material to recycle into.");
+                if ("timber".equals(from)) bill = Map.of("timber", qty * KeepEconomy.TIMBER_RECYCLE_RATE);
+                else if (isRawMaterial(from)) bill = Map.of(from, qty * KeepEconomy.RAW_RECYCLE_RATE);
+                else throw new IllegalArgumentException("That cannot be recycled.");
+                gained = Map.of(to, qty);
+            }
+            requireResources(state, bill);
+            gained.forEach((id, amount) -> requireRoom(state, id, amount));
+            bill.forEach((id, amount) -> spendResource(state, id, amount));
+            gained.forEach((id, amount) -> addResource(state, id, amount));
+            return Map.of("recycled", Map.of("spent", bill, "gained", gained));
+        });
+    }
+
+    /** Exchanges account Siegecoins for Keep Silver; coins are charged only after the Keep saves. */
+    public Map<String, Object> buySilver(AccountUser user, String bundleId, String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepEconomy.SilverBundle bundle = KeepEconomy.bundle(bundleId == null ? "" : bundleId.trim());
+            if (bundle == null) throw new IllegalArgumentException("Unknown Silver bundle.");
+            PlayerProgressionEntity progression = context.progression();
+            if (progression.getGold() < bundle.coinCost()) {
+                throw new IllegalArgumentException("You need " + (bundle.coinCost() - progression.getGold())
+                        + " more Siegecoins for the " + bundle.name() + ".");
+            }
+            KeepState state = context.state();
+            state.setSilver(state.getSilver() + bundle.silver());
+            context.afterKeepPersist(p -> {
+                p.setGold(p.getGold() - bundle.coinCost());
+                p.setUpdatedAt(context.now());
+            });
+            return Map.of("silverPurchased", Map.of("bundleId", bundle.id(), "silver", bundle.silver(),
+                    "coinCost", bundle.coinCost(), "goldBalance", progression.getGold() - bundle.coinCost()));
+        });
+    }
+
+    /** Buys resources from the Keep market with Silver. */
+    public Map<String, Object> buyMarketLot(AccountUser user, String lotId, int quantity,
+                                            String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            KeepEconomy.MarketLot lot = KeepEconomy.lot(lotId == null ? "" : lotId.trim());
+            if (lot == null) throw new IllegalArgumentException("That market lot is not for sale.");
+            String lockedHint = marketLockedHint(state, lot);
+            if (lockedHint != null) throw new IllegalArgumentException(lockedHint);
+            int qty = Math.max(1, Math.min(10, quantity));
+            int silver = lot.silverCost() * qty;
+            if (state.getSilver() < silver) {
+                throw new IllegalArgumentException("You need " + (silver - state.getSilver()) + " more Silver for that.");
+            }
+            int amount = lot.amount() * qty;
+            requireRoom(state, lot.resourceId(), amount);
+            state.setSilver(state.getSilver() - silver);
+            addResource(state, lot.resourceId(), amount);
+            return Map.of("marketPurchased", Map.of("lotId", lot.id(), "resourceId", lot.resourceId(),
+                    "name", resourceName(lot.resourceId()), "amount", amount, "silverCost", silver));
+        });
+    }
+
+    private String marketLockedHint(KeepState state, KeepEconomy.MarketLot lot) {
+        if (state.getStorehouseLevel() < 1) return "Raise the Covenant Storehouse to open the market.";
+        KeepEconomy.Refined refined = KeepEconomy.refined(lot.resourceId());
+        if (refined != null && !economyGateMet(state, refined.tier().gate)) return refined.tier().lockedHint;
+        return null;
+    }
+
+    private boolean economyGateMet(KeepState state, String gate) {
+        return switch (gate) {
+            case "builders_yard" -> state.getBuildersYardLevel() >= 1;
+            case "storehouse_2" -> state.getStorehouseLevel() >= 2;
+            case "akhars_front" -> akharsFrontLevel(state) >= 1;
+            default -> false;
+        };
+    }
+
+    /** Silver paid alongside each sanctuary reward: the Keep's commissions are its in-game events. */
+    private static int silverForReward(String rewardId) {
+        if (rewardId == null) return 0;
+        if (rewardId.startsWith("enclave_task:") || rewardId.startsWith("enclave_mission:")) return 2;
+        if (rewardId.startsWith("keeper_level:")) return 10;
+        return switch (rewardId) {
+            case "daily_stewardship" -> 4;
+            case "weekly_restoration" -> 10;
+            case "weekly_order" -> 15;
+            case "weekly_tribute" -> 20;
+            case "first_harvest", "elemental_quarter", "provisioned_keep" -> 25;
+            case "masterwork_keep" -> 50;
+            default -> 0;
+        };
+    }
+
+    private void awardSilver(KeepState state, int amount) {
+        if (amount <= 0) return;
+        state.setSilver(state.getSilver() + amount);
+        state.setSilverEarnedTotal(state.getSilverEarnedTotal() + amount);
+    }
+
+    private boolean isRawMaterial(String id) {
+        return id != null && FACILITIES.values().stream().anyMatch(definition -> definition.resourceId().equals(id));
+    }
+
+    /** Timber, a raw material or a refined material, by id. */
+    private int resourceAmount(KeepState state, String id) {
+        if ("timber".equals(id)) return state.getTimber();
+        if (KeepEconomy.isRefined(id)) return state.getRefinedInventory().getOrDefault(id, 0);
+        return state.getMaterialInventory().getOrDefault(id, 0);
+    }
+
+    private int resourceCapacity(KeepState state, String id) {
+        if ("timber".equals(id)) return timberInventoryCapacity(state);
+        if (KeepEconomy.isRefined(id)) return refinedInventoryCapacity(state);
+        return materialInventoryCapacity(state);
+    }
+
+    private String resourceName(String id) {
+        if ("timber".equals(id)) return "Timber";
+        KeepEconomy.Refined refined = KeepEconomy.refined(id);
+        return refined != null ? refined.name() : materialName(id);
+    }
+
+    private void spendResource(KeepState state, String id, int amount) {
+        int left = Math.max(0, resourceAmount(state, id) - Math.max(0, amount));
+        if ("timber".equals(id)) state.setTimber(left);
+        else if (KeepEconomy.isRefined(id)) state.getRefinedInventory().put(id, left);
+        else state.getMaterialInventory().put(id, left);
+    }
+
+    private void addResource(KeepState state, String id, int amount) {
+        int total = resourceAmount(state, id) + Math.max(0, amount);
+        if ("timber".equals(id)) state.setTimber(total);
+        else if (KeepEconomy.isRefined(id)) state.getRefinedInventory().put(id, total);
+        else state.getMaterialInventory().put(id, total);
+    }
+
+    private void requireResources(KeepState state, Map<String, Integer> bill) {
+        for (Map.Entry<String, Integer> entry : bill.entrySet()) {
+            int have = resourceAmount(state, entry.getKey());
+            if (have < entry.getValue()) {
+                throw new IllegalArgumentException("You need " + (entry.getValue() - have) + " more "
+                        + resourceName(entry.getKey()) + ".");
+            }
+        }
+    }
+
+    private void requireRoom(KeepState state, String id, int amount) {
+        if (resourceAmount(state, id) + amount > resourceCapacity(state, id)) {
+            throw new IllegalArgumentException("There is no room for that much " + resourceName(id)
+                    + ". Raise the Storehouse or spend some first.");
+        }
+    }
+
+    private static Map<String, Integer> scaled(Map<String, Integer> costs, int qty) {
+        Map<String, Integer> out = new LinkedHashMap<>();
+        costs.forEach((id, amount) -> out.put(id, amount * qty));
+        return out;
+    }
+
+    /** Every refined material shares one per-material cap, raised by the Storehouse and rebirth. */
+    private int refinedInventoryCapacity(KeepState state) {
+        int storehouse = isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "storehouse")
+                ? 0 : state.getStorehouseLevel();
+        return (int) Math.round((10 + storehouse * 5) * rebirthStorage(state));
+    }
+
+    private Map<String, Object> economyBlock(KeepState state) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("silver", state.getSilver());
+        out.put("silverEarnedTotal", state.getSilverEarnedTotal());
+        out.put("refinedCapacity", refinedInventoryCapacity(state));
+        out.put("refined", KeepEconomy.refinedInOrder().stream().map(refined -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            boolean open = economyGateMet(state, refined.tier().gate);
+            item.put("id", refined.id());
+            item.put("name", refined.name());
+            item.put("tier", refined.tier().ordinal() + 1);
+            item.put("description", refined.description());
+            item.put("amount", resourceAmount(state, refined.id()));
+            item.put("capacity", refinedInventoryCapacity(state));
+            item.put("unlocked", open);
+            item.put("lockedHint", open ? null : refined.tier().lockedHint);
+            item.put("inputs", refined.inputs().entrySet().stream().sorted(Map.Entry.comparingByKey()).map(input -> Map.<String, Object>of(
+                    "id", input.getKey(), "name", resourceName(input.getKey()), "amount", input.getValue(),
+                    "have", resourceAmount(state, input.getKey()))).toList());
+            item.put("salvage", KeepEconomy.salvage(refined).entrySet().stream().sorted(Map.Entry.comparingByKey()).map(back -> Map.<String, Object>of(
+                    "id", back.getKey(), "name", resourceName(back.getKey()), "amount", back.getValue())).toList());
+            item.put("canRefine", open && refined.inputs().entrySet().stream()
+                    .allMatch(input -> resourceAmount(state, input.getKey()) >= input.getValue())
+                    && resourceAmount(state, refined.id()) < refinedInventoryCapacity(state));
+            return item;
+        }).toList());
+        Map<String, Object> recycle = new LinkedHashMap<>();
+        recycle.put("open", state.getStorehouseLevel() >= 1);
+        recycle.put("rawRate", KeepEconomy.RAW_RECYCLE_RATE);
+        recycle.put("timberRate", KeepEconomy.TIMBER_RECYCLE_RATE);
+        out.put("recycle", recycle);
+        out.put("market", KeepEconomy.MARKET.stream().map(lot -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            String locked = marketLockedHint(state, lot);
+            item.put("id", lot.id());
+            item.put("resourceId", lot.resourceId());
+            item.put("name", resourceName(lot.resourceId()));
+            item.put("amount", lot.amount());
+            item.put("silverCost", lot.silverCost());
+            item.put("unlocked", locked == null);
+            item.put("lockedHint", locked);
+            item.put("refined", KeepEconomy.isRefined(lot.resourceId()));
+            return item;
+        }).toList());
+        out.put("silverBundles", KeepEconomy.SILVER_BUNDLES.stream().map(bundle -> Map.<String, Object>of(
+                "id", bundle.id(), "name", bundle.name(), "silver", bundle.silver(), "coinCost", bundle.coinCost())).toList());
         return out;
     }
 
@@ -1101,6 +1446,8 @@ public class KeepService {
             if (!repeatableClaim && progression.getKeepRewardClaimIds().contains(claimKey)) {
                 throw new IllegalArgumentException("That sanctuary reward has already been claimed.");
             }
+            int silverAward = silverForReward(id);
+            awardSilver(state, silverAward);
             if (orderCosts != null) spendMaterials(state, orderCosts);
             if (grantedDecorationId != null && !grantedDecorationId.isBlank()) {
                 state.getCraftedItemCounts().merge(grantedDecorationId, 1, Integer::sum);
@@ -1139,6 +1486,7 @@ public class KeepService {
             reward.put("remnants", remnants);
             reward.put("goldBalance", goldBalance);
             reward.put("remnantsBalance", remnantsBalance);
+            if (silverAward > 0) reward.put("silver", silverAward);
             if (questXp > 0) reward.put("keeperXpAwarded", questXp);
             if (grantedDecorationId != null && !grantedDecorationId.isBlank()) {
                 reward.put("decorationId", grantedDecorationId);
@@ -3258,6 +3606,7 @@ public class KeepService {
         keepRank.put("nextHint", hallLevel(state) >= HALL_MAX_LEVEL ? null : hallUpgradeGateHint(hallLevel(state) + 1));
         out.put("keepRank", keepRank);
         out.put("rebirth", rebirthBlock(state));
+        out.put("economy", economyBlock(state));
         out.put("hallTheme", Map.of("id", activeTheme.id(), "name", activeTheme.name(),
                 "accent", activeTheme.accent(), "trim", activeTheme.trim()));
         out.put("hallThemes", HALL_THEMES.values().stream().map(theme -> Map.<String, Object>of(
@@ -3721,7 +4070,9 @@ public class KeepService {
                 && (eventCatalog.event(state.getActiveKeepEventId()) == null
                 || (state.getKeepEventRepairCompletesAt() != null
                 && !now.isBefore(state.getKeepEventRepairCompletesAt())))) {
+            boolean repaired = eventCatalog.event(state.getActiveKeepEventId()) != null;
             clearKeepEvent(state);
+            if (repaired) awardSilver(state, KeepEconomy.SILVER_PER_EVENT_REPAIR);
             changed = true;
         }
         if (!state.getActiveKeepEventId().isBlank() || hallLevel(state) < 2) return changed;

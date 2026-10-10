@@ -1724,11 +1724,10 @@ class KeepServiceTest {
     void rebirthResetsTheKeepButKeepsWhatTheKeeperLearnedAndPaysOut() {
         service.getSnapshot(user);
         KeepState state = store.state;
-        state.setHallLevel(KeepService.HALL_MAX_LEVEL);
+        meetFirstRebirth(state);
         state.setArchiveLevel(1);
         state.setWoodlotLevel(2);
         state.setStorehouseLevel(2);
-        state.setEnclaveLevel(1);
         state.setEnclaveResidentIds(List.of("mossling"));
         state.getFacilityLevels().put("garden", 2);
         state.getMaterialInventory().put("verdant_fiber", 40);
@@ -1778,8 +1777,9 @@ class KeepServiceTest {
     @Test
     void rebirthWaitsForConstructionToFinish() {
         service.getSnapshot(user);
-        store.state.setHallLevel(KeepService.HALL_MAX_LEVEL);
+        meetFirstRebirth(store.state);
         service.startBuild(user, "restore_archive", "archive-before-rebirth", store.state.getVersion());
+        store.state.setTimber(600); // the build spent some; keep the bill met so only construction blocks
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
                 () -> service.rebirth(user, "rebirth-busy", store.state.getVersion()));
         assertTrue(refused.getMessage().contains("construction"));
@@ -1820,6 +1820,148 @@ class KeepServiceTest {
             assertTrue(KeepRebirth.productionMultiplier(n) > KeepRebirth.costMultiplier(n));
             assertFalse(KeepRebirth.title(n).isBlank());
         }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void eachRebirthAsksForDeeperProgressAndSpendsItsBill() {
+        service.getSnapshot(user);
+        KeepState state = store.state;
+        state.setHallLevel(KeepService.HALL_MAX_LEVEL);
+        Map<String, Object> rebirth = (Map<String, Object>) service.getSnapshot(user).get("rebirth");
+        assertEquals(false, rebirth.get("available"));
+        assertTrue(String.valueOf(rebirth.get("blocker")).contains("Enclave"));
+        List<Map<String, Object>> checks = (List<Map<String, Object>>) rebirth.get("checks");
+        assertEquals(List.of("hall:8", "enclave", "builders_yard"), checks.stream().map(c -> c.get("id")).toList());
+        assertEquals(true, checks.get(0).get("met"));
+        assertEquals(false, checks.get(1).get("met"));
+
+        meetFirstRebirth(state);
+        state.getRefinedInventory().put("living_mortar", 1);
+        assertTrue(String.valueOf(valueAt(service.getSnapshot(user), "rebirth", "blocker")).contains("Living Mortar"),
+                "the resource bill is part of the requirement");
+        state.getRefinedInventory().put("living_mortar", 2);
+        service.rebirth(user, "first-of-many", state.getVersion());
+        assertEquals(1, store.state.getRebirthCount());
+
+        // The second rebirth reaches further into the tree.
+        store.state.setHallLevel(KeepService.HALL_MAX_LEVEL);
+        store.state.setEnclaveLevel(1);
+        store.state.setBuildersYardLevel(1);
+        Map<String, Object> second = (Map<String, Object>) service.getSnapshot(user).get("rebirth");
+        assertEquals(List.of("hall:8", "workshops_built:6", "storehouse:2"),
+                ((List<Map<String, Object>>) second.get("checks")).stream().map(c -> c.get("id")).toList());
+        assertTrue(((List<Map<String, Object>>) second.get("costs")).stream().anyMatch(c -> "tempered_glass".equals(c.get("id"))));
+        assertThrows(IllegalArgumentException.class, () -> service.rebirth(user, "too-soon", store.state.getVersion()));
+    }
+
+    @Test
+    void refiningCombinesRawIntoTieredMaterialsBehindTheTechTree() {
+        service.getSnapshot(user);
+        KeepState state = store.state;
+        state.getMaterialInventory().put("stone", 12);
+        state.getMaterialInventory().put("verdant_fiber", 8);
+        state.setTimber(200);
+        IllegalArgumentException locked = assertThrows(IllegalArgumentException.class,
+                () -> service.refine(user, "living_mortar", 1, "mortar-early", state.getVersion()));
+        assertTrue(locked.getMessage().contains("Builder's Yard"));
+
+        state.setBuildersYardLevel(1);
+        service.refine(user, "living_mortar", 2, "mortar-2", state.getVersion());
+        assertEquals(2, store.state.getRefinedInventory().get("living_mortar"));
+        assertEquals(0, store.state.getMaterialInventory().get("stone"));
+        assertEquals(0, store.state.getMaterialInventory().get("verdant_fiber"));
+        assertEquals(160, store.state.getTimber());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.refine(user, "living_mortar", 1, "mortar-broke", store.state.getVersion()));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.refine(user, "covenant_keystone", 1, "keystone-early", store.state.getVersion()),
+                "tier 2 waits for the vaulted Storehouse");
+    }
+
+    @Test
+    void recyclingAlwaysLosesValueAndNeedsTheStorehouse() {
+        service.getSnapshot(user);
+        KeepState state = store.state;
+        state.getMaterialInventory().put("stone", 9);
+        state.setTimber(100);
+        assertThrows(IllegalArgumentException.class,
+                () -> service.recycle(user, "stone", "ember_ingot", 1, "recycle-early", state.getVersion()));
+        state.setStorehouseLevel(1);
+
+        service.recycle(user, "stone", "ember_ingot", 3, "stone-to-ingot", state.getVersion());
+        assertEquals(0, store.state.getMaterialInventory().get("stone"));
+        assertEquals(3, store.state.getMaterialInventory().get("ember_ingot"));
+
+        service.recycle(user, "timber", "frost_crystal", 2, "timber-to-crystal", store.state.getVersion());
+        assertEquals(70, store.state.getTimber());
+        assertEquals(2, store.state.getMaterialInventory().get("frost_crystal"));
+
+        store.state.getRefinedInventory().put("tempered_glass", 2);
+        service.recycle(user, "tempered_glass", "", 2, "salvage-glass", store.state.getVersion());
+        assertEquals(0, store.state.getRefinedInventory().get("tempered_glass"));
+        assertEquals(3 + 2 * 2, store.state.getMaterialInventory().get("ember_ingot"), "half of 5 ingots, twice");
+        assertEquals(2 + 2 * 2, store.state.getMaterialInventory().get("frost_crystal"));
+    }
+
+    @Test
+    void silverIsBoughtWithSiegecoinsEarnedFromKeepEventsAndSpentAtTheMarket() {
+        service.getSnapshot(user);
+        KeepState state = store.state;
+        progression.setGold(500);
+        service.buySilver(user, "silver_pouch", "pouch", state.getVersion());
+        assertEquals(20, store.state.getSilver());
+        assertEquals(400, progression.getGold());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.buySilver(user, "silver_chest", "chest-too-dear", store.state.getVersion()));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.buyMarketLot(user, "stone_lot", 1, "market-closed", store.state.getVersion()),
+                "the market opens with the Storehouse");
+        store.state.setStorehouseLevel(1);
+        service.buyMarketLot(user, "stone_lot", 1, "stone-lot", store.state.getVersion());
+        assertEquals(10, store.state.getMaterialInventory().get("stone"));
+        assertEquals(2, store.state.getSilver());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.buyMarketLot(user, "living_mortar_lot", 1, "mortar-locked", store.state.getVersion()));
+
+        // Commissions and repaired Keep events pay Silver.
+        store.state.setTimber(50);
+        Map<String, Object> claimed = service.claimReward(user, "daily_stewardship", "stewardship", store.state.getVersion());
+        assertEquals(4, intAt(claimed, "rewardClaimed", "silver"));
+        assertEquals(6, store.state.getSilver());
+        store.state.setHallLevel(2);
+        store.state.setWoodlotLevel(2);
+        store.state.setActiveKeepEventId("woodlot_washout");
+        store.state.setKeepEventOccurredAt(clock.instant());
+        progression.setGold(1_000);
+        service.repairKeepEvent(user, "woodlot_washout", "SIEGECOINS", "repair-pays-silver", store.state.getVersion());
+        assertEquals(6 + KeepEconomy.SILVER_PER_EVENT_REPAIR, store.state.getSilver());
+        assertEquals(4 + KeepEconomy.SILVER_PER_EVENT_REPAIR, store.state.getSilverEarnedTotal());
+        assertNotNull(service.getSnapshot(user).get("economy"));
+    }
+
+    @Test
+    void silverAndAKeepersLearningOutliveARebirth() {
+        service.getSnapshot(user);
+        meetFirstRebirth(store.state);
+        store.state.setSilver(55);
+        store.state.getRefinedInventory().put("tempered_glass", 3);
+        service.rebirth(user, "keep-silver", store.state.getVersion());
+        assertEquals(55, store.state.getSilver());
+        assertEquals(0, store.state.getRefinedInventory().getOrDefault("tempered_glass", 0),
+                "refined stock falls with the rest of the stores");
+    }
+
+    /** Everything the first rebirth asks for: the Grand Keep, Enclave, Builder's Yard and its bill. */
+    private static void meetFirstRebirth(KeepState state) {
+        state.setHallLevel(KeepService.HALL_MAX_LEVEL);
+        state.setEnclaveLevel(1);
+        state.setBuildersYardLevel(1);
+        state.setStorehouseLevel(Math.max(1, state.getStorehouseLevel()));
+        state.setTimber(Math.max(400, state.getTimber()));
+        state.getMaterialInventory().put("stone", 30);
+        state.getRefinedInventory().put("living_mortar", 2);
     }
 
     private static void unlockAll(KeepState state) {

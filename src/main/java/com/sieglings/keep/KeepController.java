@@ -146,6 +146,38 @@ public class KeepController {
                 string(body, "requestId"), version(body)));
     }
 
+    @PostMapping("/api/keep/refine")
+    public ResponseEntity<Map<String, Object>> refine(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.refine(user, string(body, "refinedId"),
+                quantity(body), string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/keep/recycle")
+    public ResponseEntity<Map<String, Object>> recycle(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.recycle(user, string(body, "fromId"),
+                string(body, "toId"), quantity(body), string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/keep/silver/buy")
+    public ResponseEntity<Map<String, Object>> buySilver(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.buySilver(user, string(body, "bundleId"),
+                string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/keep/market/buy")
+    public ResponseEntity<Map<String, Object>> buyMarket(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.buyMarketLot(user, string(body, "lotId"),
+                quantity(body), string(body, "requestId"), version(body)));
+    }
+
     @PostMapping("/api/keep/theme")
     public ResponseEntity<Map<String, Object>> theme(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
@@ -209,6 +241,14 @@ public class KeepController {
     private static String string(Map<String, Object> body, String key) {
         Object value = body == null ? null : body.get(key);
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    /** Batch size for refine/recycle/market; anything missing or malformed means one. */
+    private static int quantity(Map<String, Object> body) {
+        Object value = body == null ? null : body.get("quantity");
+        if (value instanceof Number number) return number.intValue();
+        try { return value == null ? 1 : Integer.parseInt(String.valueOf(value)); }
+        catch (NumberFormatException ignored) { return 1; }
     }
 
     private static long version(Map<String, Object> body) {
