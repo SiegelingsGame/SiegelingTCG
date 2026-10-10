@@ -206,6 +206,9 @@ public class SiegeService {
         resp.put("battlegroundsMaxTier", SiegeTuning.BG_MAX_TIER);
         resp.put("battlegroundsUnlockedTier", Math.min(SiegeTuning.BG_MAX_TIER, clearedTier + 1));
         resp.put("battlegroundsUnlocks", progression == null ? new ArrayList<>() : progression.getBattlegroundsUnlocks());
+        // Endless records for the mode card.
+        resp.put("endlessBestScore", progression == null ? 0 : progression.getEndlessBestScore());
+        resp.put("endlessBestFloor", progression == null ? 0 : progression.getEndlessBestFloor());
         return resp;
     }
 
@@ -559,23 +562,48 @@ public class SiegeService {
     // ---- Run lifecycle --------------------------------------------------
 
     Map<String, Object> newRun(String authorizationHeader, String knightId, List<String> sieglingIds, String modeName) {
+        return newRun(authorizationHeader, knightId, sieglingIds, modeName, null);
+    }
+
+    /**
+     * Starts a STANDARD or ENDLESS run. Endless takes 1..{@code partyMax} Siegelings
+     * in any mix of fresh roster picks ({@code sieglingIds}, level 1) and banked
+     * veterans ({@code veteransRaw}: {@code [{teamId, sourceCardId}]}), which march
+     * at their extracted level, stats, item and upgraded deck. Veterans are read
+     * from the stored snapshot, never the request, and are copied rather than
+     * spent — an Endless run neither consumes nor fatigues the banked team.
+     */
+    Map<String, Object> newRun(String authorizationHeader, String knightId, List<String> sieglingIds,
+                               String modeName, Object veteransRaw) {
         RunMode mode = "ENDLESS".equalsIgnoreCase(modeName) ? RunMode.ENDLESS : RunMode.STANDARD;
         TrainerCard knight = content.findKnight(knightId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown SiegeKnight."));
+        if (sieglingIds == null) sieglingIds = List.of();
+        List<String[]> vetPicks = mode == RunMode.ENDLESS ? parseVeteranPicks(veteransRaw) : List.of();
+        int teamSize = sieglingIds.size() + vetPicks.size();
         // The starting warband is knight-dependent: a Marshal musters an extra Siegeling.
         int startingParty = content.startingPartySize(knight);
         if (mode == RunMode.STANDARD
-                ? (sieglingIds == null || sieglingIds.size() != startingParty)
-                : (sieglingIds == null || sieglingIds.isEmpty() || sieglingIds.size() > content.partyMax())) {
+                ? sieglingIds.size() != startingParty
+                : (teamSize < 1 || teamSize > content.partyMax())) {
             throw new IllegalArgumentException(mode == RunMode.STANDARD
                     ? "Choose exactly " + startingParty + " Siegeling" + (startingParty == 1 ? "" : "s")
                         + " — more will join along the way."
                     : "An endless team needs 1-" + content.partyMax() + " Siegelings.");
         }
-        if (new java.util.LinkedHashSet<>(sieglingIds).size() != sieglingIds.size()) {
+        java.util.Set<String> picked = new java.util.HashSet<>(sieglingIds);
+        if (picked.size() != sieglingIds.size()) {
             throw new IllegalArgumentException("Each Siegeling can only join the warband once.");
         }
+        for (String[] pick : vetPicks) {
+            if (!picked.add(pick[1])) {
+                throw new IllegalArgumentException("Each Siegeling can only join the warband once.");
+            }
+        }
         AccountUser user = resolveUser(authorizationHeader);
+        if (!vetPicks.isEmpty() && (user == null || user.getId() == null)) {
+            throw new IllegalArgumentException("Sign in to bring banked veterans into an Endless run.");
+        }
         PlayerProgressionEntity progression = loadProgression(user);
         if (!isKnightSelectable(knight, user, progression)) {
             throw new IllegalArgumentException(knight.getName() + " is locked — unlock them with Siegecoins first.");
@@ -615,6 +643,13 @@ public class SiegeService {
             noteDiscovery(run, s.getId());
             slot++;
         }
+        if (!vetPicks.isEmpty()) {
+            List<Map<String, Object>> teams = listVeteranTeams(user);
+            long now = System.currentTimeMillis();
+            for (String[] pick : vetPicks) {
+                addEndlessVeteran(run, teams, pick[0], pick[1], slot++, now);
+            }
+        }
         // The SiegeKnight contributes one card to the shared deck.
         if (run.getKnightActive() != null) {
             run.getDeckTemplates().add(new SiegeCard("knightcard", "knight-" + knight.getId(), run.getKnightActive()));
@@ -630,6 +665,51 @@ public class SiegeService {
         runs.put(token, new Session(run));
         run.setCheckpointSaved(saveCheckpoint(run, true));
         return serialize(run);
+    }
+
+    /** {@code [{teamId, sourceCardId}]} veteran picks for an Endless team; empty when absent. */
+    private static List<String[]> parseVeteranPicks(Object raw) {
+        List<String[]> picks = new ArrayList<>();
+        if (!(raw instanceof List<?> list)) return picks;
+        for (Object o : list) {
+            if (!(o instanceof Map<?, ?> m)) continue;
+            String teamId = str(m.get("teamId"));
+            String sourceCardId = str(m.get("sourceCardId"));
+            if (teamId == null || sourceCardId == null) {
+                throw new IllegalArgumentException("A chosen veteran is not in your banked teams.");
+            }
+            picks.add(new String[] { teamId, sourceCardId });
+        }
+        return picks;
+    }
+
+    /**
+     * Adds one banked veteran to an Endless warband at its extracted level, stats,
+     * item and upgraded cards. The same reconstruction Battlegrounds uses, but the
+     * knight is the one chosen for this run, so no veteran knight is needed.
+     */
+    private void addEndlessVeteran(SiegeRun run, List<Map<String, Object>> teams,
+                                   String teamId, String sourceCardId, int slot, long now) {
+        Map<String, Object> team = findTeam(teams, teamId);
+        List<Map<String, Object>> members = membersOfTeam(team);
+        int idx = indexOfMember(members, sourceCardId);
+        if (team == null || idx < 0) {
+            throw new IllegalArgumentException("A chosen veteran is not in your banked teams.");
+        }
+        // Fatigue is a Battlegrounds penalty, but it is the team's state: a squad
+        // resting after a rout rests everywhere.
+        if (SiegeVeteranStore.isLocked(team, now)) {
+            throw new IllegalArgumentException("A chosen veteran is fatigued from a recent defeat — pick a rested one.");
+        }
+        Combatant member = rebuildMemberCombatant(members.get(idx), slot);
+        run.getParty().add(member);
+        List<SiegeCard> cards = rebuildDeck(deckOfTeam(team), "ally-" + idx + "-" + sourceCardId, member.getId());
+        // A snapshot from before decks were banked has none: deal the card's own moves.
+        if (cards.isEmpty()) {
+            content.findAnySiegling(sourceCardId)
+                    .ifPresent(card -> cards.addAll(content.deckCardsFor(card, member.getId())));
+        }
+        run.getDeckTemplates().addAll(cards);
     }
 
     /** Called only at creation or once after a won boss, after awarding that land's spoils. */
@@ -1060,11 +1140,15 @@ public class SiegeService {
         AccountUser user = resolveUser(authorizationHeader);
         if (user == null || user.getId() == null || user.getId().isBlank()) return Map.of();
         List<Map<String, Object>> found = new ArrayList<>();
-        checkpoints.loadAllForUser(user.getId()).forEach((slot, snapshot) -> {
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        checkpoints.loadAllForUser(user.getId()).forEach((pointer, snapshot) -> {
             String savedToken = str(snapshot.get("token"));
-            if (savedToken.isBlank()) return;
+            if (savedToken == null || savedToken.isBlank() || !seen.add(savedToken)) return;
             Optional<SiegeRun> restored = lookup(savedToken);
             if (restored.isEmpty() || !user.getId().equals(restored.get().getOwnerId())) return;
+            // Name the slot by the run's mode, not the pointer it was found under: an
+            // Endless run saved before it had its own slot sits in the expedition one.
+            RunSlot slot = RunSlot.of(restored.get().getMode());
             Map<String, Object> serialized = new LinkedHashMap<>(serialize(restored.get()));
             serialized.put("slot", slot.name());
             serialized.put("slotLabel", slot.label());
@@ -1083,7 +1167,7 @@ public class SiegeService {
         SiegeRun run = lookup(token).orElse(null);
         runs.remove(token);
         checkpoints.delete(token);
-        if (run != null) checkpoints.deleteForUser(run.getOwnerId(), RunSlot.of(run.getMode()), run.getToken());
+        if (run != null) deleteAccountPointers(run);
     }
 
     /** Player explicitly requested a durable checkpoint from the run menu. */
@@ -1124,7 +1208,7 @@ public class SiegeService {
     private void checkpoint(SiegeRun run) {
         if (run.getStatus() != RunStatus.ACTIVE) {
             checkpoints.delete(run.getToken());
-            checkpoints.deleteForUser(run.getOwnerId(), RunSlot.of(run.getMode()), run.getToken());
+            deleteAccountPointers(run);
             run.setCheckpointSaved(false);
             return;
         }
@@ -1133,6 +1217,17 @@ public class SiegeService {
                 && !run.isInMinigame() && run.getPendingRewards().isEmpty();
         if (!safe) return;
         run.setCheckpointSaved(saveCheckpoint(run, false));
+    }
+
+    /**
+     * Drops this run's account resume pointer, plus the one an older build may have
+     * saved it under (Endless used to share the expedition slot). Both deletes are
+     * token-guarded, so a newer run holding either pointer is left alone.
+     */
+    private void deleteAccountPointers(SiegeRun run) {
+        checkpoints.deleteForUser(run.getOwnerId(), RunSlot.of(run.getMode()), run.getToken());
+        RunSlot legacy = RunSlot.legacyOf(run.getMode());
+        if (legacy != null) checkpoints.deleteForUser(run.getOwnerId(), legacy, run.getToken());
     }
 
     /**
@@ -1148,6 +1243,12 @@ public class SiegeService {
         checkpoints.loadForUser(ownerId, slot).ifPresent(previous -> {
             String oldToken = str(previous.get("token"));
             if (oldToken == null || oldToken.isBlank()) {
+                return;
+            }
+            // A legacy Endless pointer in the expedition slot names a run that now
+            // lives in its own slot: free the pointer, keep the run.
+            if (slot != RunSlot.of(RunMode.ENDLESS) && "ENDLESS".equals(str(previous.get("mode")))) {
+                checkpoints.deleteForUser(ownerId, slot, oldToken);
                 return;
             }
             runs.remove(oldToken);
@@ -1749,6 +1850,12 @@ public class SiegeService {
                 ? SiegeTuning.bgEnemyHpScalar(run.getAverageVeteranLevel(), run.getBgTierScalar()) : 1.0;
         double bgDmg = run.isBattlegrounds()
                 ? SiegeTuning.bgEnemyDamageScalar(run.getAverageVeteranLevel(), run.getBgTierScalar()) : 1.0;
+        if (run.getMode() == RunMode.ENDLESS) {
+            // Rows run on across appended regions, so the row is the true floor.
+            int floor = node.getRow() + 1;
+            bgHp *= SiegeTuning.endlessEnemyHpScalar(floor);
+            bgDmg *= SiegeTuning.endlessEnemyDamageScalar(floor);
+        }
         if (run.getLand() != null && run.getLand().badlands()) { bgHp *= 1.25; bgDmg *= 1.15; }
         // The run's opening fight is a fixed yardstick — same foe for every warband,
         // so the difficulty curve starts from one known point instead of moving with
@@ -2663,7 +2770,7 @@ public class SiegeService {
             run.setMercenary(null);
             run.getMercCards().clear();
             run.setLastReward(run.getMode() == RunMode.ENDLESS
-                    ? "The warband falls after " + run.getBossKills() + " boss(es). Final score: " + run.getFinalScore() + "."
+                    ? "The warband falls on floor " + run.floorReached() + ". Final score: " + run.getFinalScore() + "."
                     : run.isBattlegrounds()
                         ? "The squad is routed. Its veteran teams are fatigued for 24h — but survive to fight again."
                         : "The warband has fallen. The expedition ends here.");
@@ -2712,7 +2819,10 @@ public class SiegeService {
      */
     private void grantEndRewards(SiegeRun run, String authorizationHeader, double rewardMultiplier) {
         if (run.isEndRewardsGranted()) return;
-        boolean won = run.getStatus() == RunStatus.WON;
+        // Endless has no victory to pay out: ending one is a choice, so the win
+        // bonus, card prize and win count would be free for ending on floor 1.
+        // Its payout grows with floors, bosses and loops instead.
+        boolean won = run.getStatus() == RunStatus.WON && run.getMode() != RunMode.ENDLESS;
 
         // Reuse a previously computed spoils map on retry so a failed Firestore write
         // cannot swap the card prize (or the coin/remnant totals) the player already saw.
@@ -2773,6 +2883,16 @@ public class SiegeService {
                 progression.setSiegeBossKills(progression.getSiegeBossKills() + Math.max(0, run.getBossKills()));
                 progression.setSiegeNodesCleared(progression.getSiegeNodesCleared() + Math.max(0, run.getNodesCleared()));
                 progression.setSiegeBestScore(Math.max(progression.getSiegeBestScore(), (int) Math.min(Integer.MAX_VALUE, run.getFinalScore())));
+                if (run.getMode() == RunMode.ENDLESS) {
+                    int score = (int) Math.min(Integer.MAX_VALUE, run.getFinalScore());
+                    int floor = run.floorReached();
+                    out.put("endlessPreviousBest", progression.getEndlessBestScore());
+                    out.put("endlessNewBest", score > progression.getEndlessBestScore());
+                    out.put("endlessFloorNewBest", floor > progression.getEndlessBestFloor());
+                    progression.setEndlessBestScore(Math.max(progression.getEndlessBestScore(), score));
+                    progression.setEndlessBestFloor(Math.max(progression.getEndlessBestFloor(), floor));
+                    progression.setEndlessRuns(progression.getEndlessRuns() + 1);
+                }
                 // Siegelings met on the run become permanent starter picks. Banked
                 // here (not at the moment of the find) so they are earned by
                 // finishing the expedition, win or lose.
@@ -2829,9 +2949,11 @@ public class SiegeService {
     // ---- Extraction (bank a leveled team as a veteran team) ---------------
 
     /**
-     * Endless loop-boundary extraction: banks the current team as a veteran team,
-     * grants end-rewards with a ×loop multiplier, and ends the run. Push On is the
-     * existing continue behaviour; a later loss extracts nothing.
+     * Ends an Endless run on the player's terms, between fights: banks the final
+     * score and end-rewards (×loop multiplier). Once a boss has fallen it also
+     * banks the leveled team as veterans; before that there is nothing earned to
+     * bank, and allowing it would let a fresh team be banked for free. Dying ends
+     * the run too, with the score, but extracts nothing.
      */
     Map<String, Object> extract(String token, String authorizationHeader) {
         Session session = requireSession(token);
@@ -2845,19 +2967,18 @@ public class SiegeService {
                 throw new IllegalArgumentException("This expedition has already ended.");
             }
             if (run.getBattle() != null) {
-                throw new IllegalArgumentException("Finish the battle before extracting your team.");
-            }
-            if (run.getBossKills() < 1) {
-                throw new IllegalArgumentException("Defeat at least one boss before extracting your team.");
+                throw new IllegalArgumentException("Finish the battle before ending the run.");
             }
             double multiplier = Math.max(1, run.getLoop() + 1);
+            boolean bankTeam = run.getBossKills() >= 1;
             run.setStatus(RunStatus.WON);
             run.setMercenary(null);
             run.getMercCards().clear();
-            run.setLastReward("Team extracted after " + run.getBossKills() + " boss(es) — banked for Battlegrounds. End rewards ×"
-                    + (long) multiplier + ".");
+            run.setLastReward("Endless run ended on floor " + run.floorReached() + ". Final score: " + run.getFinalScore()
+                    + "." + (bankTeam ? " Your team is banked as veterans." : "")
+                    + (multiplier > 1 ? " End rewards ×" + (long) multiplier + "." : ""));
             grantEndRewards(run, authorizationHeader, multiplier);
-            extractTeam(run, authorizationHeader);
+            if (bankTeam) extractTeam(run, authorizationHeader);
             recordRunHistory(run);
             checkpoint(run); // status != ACTIVE, so this clears the saved checkpoint
             return serialize(run);
@@ -4366,6 +4487,7 @@ public class SiegeService {
         m.put("score", run.getFinalScore());
         if (run.getStatus() != RunStatus.ACTIVE) m.put("scoreBreakdown", run.getScoreTally().breakdown(run));
         m.put("loop", run.getLoop());
+        m.put("floorReached", run.floorReached());
         m.put("partyMax", content.partyMax());
         if (run.isBattlegrounds()) {
             // HUD badge + reward hints for the Battlegrounds run.

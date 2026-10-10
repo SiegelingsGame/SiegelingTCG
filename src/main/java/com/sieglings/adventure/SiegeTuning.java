@@ -386,6 +386,38 @@ final class SiegeTuning {
         return Math.round(Math.max(0L, score) * BG_SCORE_MULT * bgTierRewardMult(tier));
     }
 
+    // ---- Endless ---------------------------------------------------------
+
+    /**
+     * Endless compounds enemy HP and damage every floor on top of the ordinary
+     * depth growth, which is linear and levels off once the map runs past the
+     * Siegelord. Compounding is what makes the road actually end: a warband levels
+     * linearly, so sooner or later the floor outgrows it. At these rates a foe
+     * is ~1.6x HP / 1.4x damage by the end of the first expedition's 24 floors,
+     * ~2.6x / 2.0x by floor 48 and ~6.7x / 4.1x by floor 96.
+     */
+    static final double ENDLESS_HP_GROWTH_PER_FLOOR = 0.02;
+    static final double ENDLESS_DMG_GROWTH_PER_FLOOR = 0.015;
+    /**
+     * Ceiling on either scalar. Not a difficulty cap — no warband survives
+     * anywhere near it — only a guard so foe HP stays inside an int.
+     */
+    static final double ENDLESS_SCALAR_CAP = 10_000.0;
+
+    /** Enemy HP multiplier for an Endless fight on {@code floor} (1-based; 1.0 on floor 1). */
+    static double endlessEnemyHpScalar(int floor) {
+        return endlessScalar(ENDLESS_HP_GROWTH_PER_FLOOR, floor);
+    }
+
+    /** Enemy damage multiplier for an Endless fight on {@code floor} (1-based; 1.0 on floor 1). */
+    static double endlessEnemyDamageScalar(int floor) {
+        return endlessScalar(ENDLESS_DMG_GROWTH_PER_FLOOR, floor);
+    }
+
+    private static double endlessScalar(double growth, int floor) {
+        return Math.min(ENDLESS_SCALAR_CAP, Math.pow(1.0 + growth, Math.max(0, floor - 1)));
+    }
+
     /** Percentage-of-base a stat sits at for the given level (100 at level 1). */
     private static int percentAtLevel(int pctPerLevel, int level) {
         return 100 + pctPerLevel * (clampLevel(level) - 1);

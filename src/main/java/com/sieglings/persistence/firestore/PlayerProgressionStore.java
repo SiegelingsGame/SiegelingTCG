@@ -79,6 +79,9 @@ public class PlayerProgressionStore {
         payload.put("siegeBossKills", progression.getSiegeBossKills());
         payload.put("siegeNodesCleared", progression.getSiegeNodesCleared());
         payload.put("siegeBestScore", progression.getSiegeBestScore());
+        payload.put("endlessBestScore", progression.getEndlessBestScore());
+        payload.put("endlessBestFloor", progression.getEndlessBestFloor());
+        payload.put("endlessRuns", progression.getEndlessRuns());
         payload.put("keepFounded", progression.isKeepFounded());
         payload.put("keepTimberCollected", progression.getKeepTimberCollected());
         payload.put("keepProjectsCompleted", progression.getKeepProjectsCompleted());
@@ -141,6 +144,9 @@ public class PlayerProgressionStore {
         progression.setSiegeBossKills(intValue(snapshot.getLong("siegeBossKills")));
         progression.setSiegeNodesCleared(intValue(snapshot.getLong("siegeNodesCleared")));
         progression.setSiegeBestScore(intValue(snapshot.getLong("siegeBestScore")));
+        progression.setEndlessBestScore(intValue(snapshot.getLong("endlessBestScore")));
+        progression.setEndlessBestFloor(intValue(snapshot.getLong("endlessBestFloor")));
+        progression.setEndlessRuns(intValue(snapshot.getLong("endlessRuns")));
         progression.setKeepFounded(Boolean.TRUE.equals(snapshot.getBoolean("keepFounded")));
         progression.setKeepTimberCollected(intValue(snapshot.getLong("keepTimberCollected")));
         progression.setKeepProjectsCompleted(intValue(snapshot.getLong("keepProjectsCompleted")));

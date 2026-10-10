@@ -356,6 +356,18 @@ class SiegeRun {
         return nodeById(currentNodeId);
     }
 
+    /**
+     * The deepest floor cleared (1-based global row; 0 before the first stop).
+     * Rows run on across Endless's appended regions, so this is the run's depth.
+     */
+    int floorReached() {
+        int deepest = 0;
+        for (SiegeNode n : map) {
+            if (n.isCleared()) deepest = Math.max(deepest, n.getRow() + 1);
+        }
+        return deepest;
+    }
+
     SiegeNode nodeById(int id) {
         for (SiegeNode n : map) {
             if (n.getId() == id) return n;

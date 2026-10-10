@@ -111,7 +111,7 @@ class SiegeModeSaveSlotTest {
     @Test
     void eachModeOccupiesItsOwnAccountSaveSlot() throws Exception {
         assertEquals(RunSlot.EXPEDITION, RunSlot.of(RunMode.STANDARD));
-        assertEquals(RunSlot.EXPEDITION, RunSlot.of(RunMode.ENDLESS));
+        assertEquals(RunSlot.ENDLESS, RunSlot.of(RunMode.ENDLESS));
         assertEquals(RunSlot.BATTLEGROUNDS, RunSlot.of(RunMode.BATTLEGROUNDS));
 
         Method docId = SiegeCheckpointStore.class.getDeclaredMethod(
