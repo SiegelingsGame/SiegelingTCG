@@ -34,6 +34,9 @@ public class ChroniclesState {
     public String weaponId = "squires_sword";
     public String armorId = "travelers_coat";
     public String relicId = "";
+    public String helmetId = "";
+    public String bootsId = "";
+    public String accessoryId = "";
 
     public List<Companion> companions = new ArrayList<>();
     public int nextCompanionNo = 1;
@@ -47,6 +50,19 @@ public class ChroniclesState {
     public Expedition expedition;
     public List<Sighting> sightings = new ArrayList<>();
     public AwayReport away;
+
+    /** Building id → level (absent = not built). */
+    public Map<String, Integer> buildings = new LinkedHashMap<>();
+    public List<Loadout> loadouts = new ArrayList<>();
+    /** Last time the base (garden, sanctuary) was settled; 0 until the first settle. */
+    public long baseTickAt;
+    public Map<String, Double> gardenRemainders = new LinkedHashMap<>();
+    public double sanctuaryRemainder;
+
+    /** Chronicles' own currency, earned in battle and spent at the marketplace. */
+    public long crowns;
+    public String guildId = "";
+    public String guildName = "";
 
     public int expeditionsCompleted;
     public int tamedCount;
@@ -67,6 +83,9 @@ public class ChroniclesState {
         public int battlesWon;
         public String treatsDay = "";
         public int treatsToday;
+        /** Passed its Legendary Bond Trial. */
+        public boolean legend;
+        public long legendAt;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -79,6 +98,27 @@ public class ChroniclesState {
         public String trigger;
         /** Prepared Familiarity technique id, or "". */
         public String techniqueId = "";
+        /** Prepared Convergence combo id, or "". */
+        public String comboId = "";
+    }
+
+    /** A War Room plan: who marches, how, and with what gear. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Loadout {
+        public String name = "";
+        public List<String> party = new ArrayList<>();
+        public String reserveId = "";
+        public String weaponId = "";
+        public String armorId = "";
+        public String relicId = "";
+        public String helmetId = "";
+        public String bootsId = "";
+        public String accessoryId = "";
+        public int retreatAt = 20;
+        public int potionAt = 40;
+        public String trigger;
+        public String techniqueId = "";
+        public String comboId = "";
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -102,7 +142,17 @@ public class ChroniclesState {
         public List<String> partyIds = new ArrayList<>();
         public String reserveId = "";
         public String techniqueId = "";
+        public String comboId = "";
         public String trigger = "";
+        /** Set for a Legendary Bond Trial; the route is built from this companion. */
+        public String trialCompanionId = "";
+        /** Set for a Siege Operation sortie. */
+        public String operationFront = "";
+        public String operationWeek = "";
+        public String operationGuildId = "";
+        public String operationThreatId = "";
+        public int operationLevel;
+        public long operationScore;
         public Map<String, Integer> supplies = new LinkedHashMap<>();
         public Map<String, Integer> suppliesLeft = new LinkedHashMap<>();
         public List<TimelineEvent> timeline = new ArrayList<>();
@@ -139,6 +189,7 @@ public class ChroniclesState {
         public Map<String, Long> weaponXp = new LinkedHashMap<>();
         public Map<String, Long> skillXp = new LinkedHashMap<>();
         public long rankXp;
+        public long crowns;
         public List<Sighting> sightings = new ArrayList<>();
     }
 

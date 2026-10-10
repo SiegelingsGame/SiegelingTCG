@@ -1,4 +1,166 @@
 Original prompt: Go with earth based art for endless
+- October 10, 2026 **Chronicles Phase 6: crowns, guilds, weekly Siege Operations and the marketplace.**
+  - **Change.**
+    - **Shared documents.** `ChroniclesRealm` (Guild, Operation, Listing) is persisted by `ChroniclesRealmStore` in `chroniclesGuilds` and `chroniclesMarket` as JSON. The fields a query filters on (`code`, `status`, `sellerId`) sit beside the JSON, so only equality queries are used and no composite indexes are needed. Every guild or listing change runs in a Firestore transaction (`mutateGuild` / `mutateListing`), following `RewardClaimStore`: reads first, and the body's `IllegalArgumentException` is rethrown unchanged.
+    - **Crowns.** Earned at `CROWNS_PER_LEVEL` × enemy levels won (`Result.levelsDefeated`), shown in reports and the header.
+    - **Guilds.** Create (Rank 10, unique 6-char code), join, leave (leadership passes on; an empty guild is deleted), donate (siege defenses 0–5), view (members ranked by contribution, kept current on each visit).
+    - **Operations.**
+      - `refreshOperation` rolls over to a new ISO week and threat, sized by `threatHp(members, averageRank)`.
+      - `launch("operation:<front>")` builds a sortie at the company's level and size. Its score is levels defeated × front affinity (+25% per favored Siegeling, max ×1.75) × defenses.
+      - `collect` adds the score to the guild in one transaction, ignoring a late sortie from a past week, and marks the threat broken.
+      - `claimOperation` pays each contributor once.
+    - **Marketplace.**
+      - Listing: tradeable kinds only (never Siegelings; worn gear keeps one), escrowed, at most 10 open.
+      - Buying: inside the listing transaction, rejecting your own listing, an insufficient balance, or an already-sold one.
+      - Cancel returns the goods. Seller proceeds, less 5%, are claimed once each on the next snapshot or market visit.
+    - **Isolation.** A realm outage never blocks a knight's own save: proceeds-claiming swallows it, and without a realm store the guild and market calls refuse with a clear message.
+    - **Endpoints.** `GET /api/chronicles/guild`; `POST /guild/create|join|leave|donate|claim`; `GET /api/chronicles/market`; `POST /market/list|buy|cancel`.
+    - **UI.** A seventh "Realm" tab with crowns, the guild (or join/found forms), the operation card (threat, progress, three fronts, claim), the defense donation form, and the marketplace (buy, sell, your listings). Tabs fit at 320px. `chronicles.js` → `?v=7`, `chronicles.css` → `?v=6`.
+- Verification:
+  - New `ChroniclesRealmTest` (9 tests): two knights share an in-memory realm whose transactions run on copies and commit only when the body does not throw.
+    - Crowns are paid. Founding needs rank. Joining works by code (case-insensitive) and refuses a second guild. Leadership passes on, and the empty guild is dissolved.
+    - A donation of 70 iron gives 420 points (level 1); a refused donation takes nothing.
+    - A seasoned sortie scores, breaks a 1-health threat, and is claimable once (+2 relics, +500 crowns). A non-contributor cannot claim, and a broken threat refuses more sorties.
+    - Front affinity gives 125 vs 100; defense level 2 gives 150.
+    - The week rollover brings a new threat and resets damage.
+    - Market escrow, the own-listing and no-crowns refusals, the sale, sold-once, and the seller paid exactly 190 of 200, once.
+    - Cancel returns goods; selling the only worn sword or a Siegeling id is refused.
+    - With the realm down, the snapshot still loads, and an offline service refuses guilds.
+  - Tightening the sortie test exposed a real bug: operation groups were a fixed 2–3, so a small company scored 0. They are now sized to the company. A real dump also showed the first threat size was far too large (35 vs 120,000), which led to the rank-scaled `threatHp`.
+  - All Chronicles suites pass: 43 service, 6 balance, 9 realm.
+  - Headless Chromium at 320x640, 390x844 and 1920x1080 on realm views dumped from the real service (two knights, a founded guild, a scored sortie, a donation, two listings):
+    - seven tabs fit;
+    - crowns, guild, threat and three fronts shown;
+    - Buy POSTs `market/buy` and Send POSTs `expedition/launch`;
+    - with no guild the join form renders;
+    - no page scroll, overflow or page errors.
+  - **Not exercised:** the Firestore implementations of the realm store (no credentials here). They follow the existing transaction pattern and use equality-only queries.
+- October 10, 2026 **Chronicles Phase 5: helmet, boots and accessory slots; Grandmasters; Legendary Bond Trials; a high-level combat fix.**
+  - **Change.**
+    - **New slots.** Three new item kinds (`HELMET`, `BOOTS`, `ACCESSORY`), each with three tiers of gear in `GEAR_BONUSES`:
+      - helmets add armor to the hazard factor;
+      - boots cut the road and add company speed;
+      - accessories add rest, crit or command gauge.
+
+      `HAZARD_WARD_ITEMS` now maps an item to a set of hazards, so a Visor, Tidewalker Boots or the Grandmaster's Mantle ward from any slot. Equip toggles the new slots like relics, and War Room loadouts carry them.
+    - **Grandmasters.** A profession at 100 speeds its own actions by 20% and grants a title. There are four Grandmaster masterwork recipes; class mastery at 100 also grants a title.
+    - **Legendary Bond Trials.** `startTrial` (`POST /api/chronicles/trial/start`) needs Bond 100. It is fought solo with no potions, over a synthetic `trial:<id>` route built by `ChroniclesContent.trialRoute` and resolved through `routeFor`.
+      - The fights: two echo fights (`trialEnemies`: the hero's own species at its level, ×0.9, forced to attack), then the element's strongest. The boss is scaled to the hero's rarity budget (×1.8 health, ×1.1 attack).
+      - A stand-off counts as falling short. Passing sets `Companion.legend`: +5% stats and one more bond-technique use per battle.
+      - UI: a golden aura and a "Legend" chip.
+    - **Combat fix.** Damage used `50/(50+def)`, but defense grows with level, so high-level fights needed 30+ hits and ran into the round limit as "fled". The constant now grows with the attacker's level (`armorConstant`), so fights resolve in about the same number of hits at any level; level 1 is unchanged.
+    - **UI.** The Knight tab shows six slots in two columns on phones. Company cards show the Legend aura, chip and a "Begin the trial" panel. The bond bar shows full at 100. `chronicles.js` → `?v=6`, `chronicles.css` → `?v=5`.
+- Verification:
+  - `ChroniclesServiceTest` grows to 43 tests and `ChroniclesBalanceTest` to 6; all pass.
+    - The new slots give +4 armor, an 8% shorter road, +5% crit and ×1.04 speed, and toggle off on a second equip.
+    - Mining 100 makes copper actions 0.8x, with "Grandmaster Miner" and "Master of The Bulwark Path" titles.
+    - A trial is refused below Bond 100, fought alone with no sightings, makes a Legend exactly when every fight is won (within 12 tries at L10), and is refused for an existing Legend. The Legend's stat lift is measured.
+    - Loadouts restore boots and accessory.
+  - The new balance guard runs 150 seeds per hero: every tested Bond 100 hero passes at least 25% of the time, and the hardest stays at or below 70%. Seeded probes, run after the armor fix, re-confirmed every earlier balance band (first patrols, Cinder/Rootcrypt, and Tier II–IV).
+  - Headless Chromium at 390x844 and 1920x1080 on a re-dumped endgame snapshot (Iron Helm, Galeweave Boots, Hunter's Ring, Mining 100, a Legend, a Bond 100 hero):
+    - six slots shown, with the titles line;
+    - one Legend card with an aura;
+    - "Begin the trial" POSTs `trial/start`;
+    - no page scroll, overflow or page errors.
+- October 10, 2026 **Chronicles Phase 4: Tier II–IV regions, Grand Expeditions, hidden routes and region twists.**
+  - **Change.** 21 new routes take the total to 32.
+    - **Route model.** `Route` gains `requirements`, `hazardPct` with ward elements, `twists`, `extraElements` and `hidden`; the later regions are built with a fluent `R` builder. Tier I routes keep identical stats.
+    - **Hazards.** Generalized from Cinder Hollow's heat: tide, storm and forge use the same factor. A ward element in the company halves it, as does gear in `HAZARD_WARD_ITEMS` (Tidewarden/Stormward Cloak). Armor, Survival and Attunement also cut it.
+    - **Twists.** The six twists (`TWISTS`: ambush, mirage, plated, risen, radiance, blight) are new battle rules in `ChroniclesCombat.Battle`. A twist is dropped when a company element or the knight's relic wards it, and the road notes say so.
+    - **Pools and bosses.** Pools are tier-aware and multi-element. `bossOf` resolves `auto` bosses. `routeSealed` hides routes whose element has no Siegelings (Light and Poison today), and `routeVisible` hides `hidden` routes until their requirements are met. Launch enforces visibility, rank and requirements.
+    - **Enemy scaling.** Tier III and IV wilds are scaled (`scaleForTier`), because the companies that reach them are rare and epic final forms.
+    - **New content.** Coral Shallows and Stormglass Vein nodes; tide pearls, storm glass and four Forgotten-Region materials; the Pearl Staff and Stormglass Hammer; the Tidewarden and Stormward Cloaks; and the Dawn Lantern, Clarity Charm, Alloy Breaker and Grave Ward relics.
+    - **UI.** Destinations are grouped by tier with the design's band names, showing extra-element chips, hours for long routes, a "Discovered" chip, requirements met or unmet, and each twist with its counters. A note says how many lands are sealed. `chronicles.js` → `?v=5`, `chronicles.css` → `?v=4`.
+- Verification:
+  - `ChroniclesServiceTest` grows to 39 tests; all pass.
+    - Light and Poison routes are sealed: unlisted, launch refused, `sealedRoutes` = 2.
+    - Sunken Mossway is hidden until Cartography 10, then launches.
+    - Tidewater Patrol is locked, and its launch error names Survival 10 until it is met.
+    - The Tidewarden Cloak turns the first tide hit from "(4% health)" into "(2% health)".
+    - Restless Dead is active bare, warded by the Grave Ward (with a road note) and by a Fire Siegeling.
+    - Frontier Odyssey pools only Water and Electric, taming pools are base forms, and every unsealed boss resolves.
+  - `ChroniclesBalanceTest` grows to 5 tests; all pass.
+    - With a seasoned company (Bond 25, mastery at half its level): Tidewater Patrol ≥70% at L18, Sunken Grotto 15–80% at L24, Umbral Hunt 25–90% with rare finals at L30, Trial of the Ancient Eclipse ≤45% at L50.
+    - Over 150 seeds, the Grave Ward completes Lich Vault more often than going bare.
+  - Tuning came from a 200-seed probe per route (scratch, not committed). Before scaling, Tier III and IV were 100% trivial; after, bare rare companies complete Tier III dungeons about 15–50% of the time and Tier IV trials about 10–40%.
+  - Headless Chromium at 390x844 and 1920x1080 on a re-dumped late-game snapshot (rank 30, Survival 30, Cartography 15, Grave Ward): four tier sections, 32 routes, the sealed note, and twist and requirement lines rendered. No page scroll, overflow or page errors.
+- October 10, 2026 **Chronicles Phase 3: the home base (six buildings) and War Room loadouts.**
+  - **Change.** `ChroniclesContent.BUILDINGS` adds the design's Sanctuary, Knight's Forge, Alchemy Garden, War Room, Expedition Stable and Research Library. Each has five levels; each level is gated on rank (2/6/12/20/30) and costs materials across professions, such as planks, bars, linen and rope, cooked food, rune stones and relics.
+    - **Base settling.** `settleBase` runs before the knight's activity on every settle, under the offline cap. It grows garden yields, with per-item fractional remainders, and grants Sanctuary bond to resting Siegelings (not on the road or helping). A building upgrade settles first, so the new level never applies backwards.
+    - **Effects.**
+      - roster cap 12+3/level;
+      - Forge/Garden/Library speed up their professions' crafts and studies by 6% per level;
+      - War Room: loadout slots, plus a starting gauge (new `Knight.startGauge`);
+      - Stable: potion cap 20+4/level and extra rest;
+      - Library: offline cap 12h + 2.4h/level (24h at 5) and +2% affinity per level.
+    - **Loadouts.** `saveLoadout`/`applyLoadout` store party, reserve, weapon/armor/relic and tactics. Applying keeps only what still exists or is still unlocked.
+    - **Endpoints.** `POST /api/chronicles/build`, `/loadout/save` and `/loadout/apply`.
+    - **UI.** A sixth "Base" tab with level pips, current and next effect, cost against inventory, rank, Build/Upgrade, and War Room loadout slots; the My Keep link moves here. The potion stepper follows the Stable's capacity. Tabs fit at 320px (smaller type under 360px). `chronicles.js` → `?v=4`, `chronicles.css` → `?v=3`.
+- Verification:
+  - `ChroniclesServiceTest` grows to 33 tests; all pass with the 3 balance tests.
+    - Building gates: rank, then materials, then rank again at level 2. Roster cap 15 after the build.
+    - The garden yields 60 sunleaf and 40 flax over 10h; a 40h gap counts only 12h without a Library.
+    - The Sanctuary gives 60 bond over 5h at level 2, and the helper gets none.
+    - Library 5 accrues 24h of mining and reports `offlineCapHours` 24.
+    - The Stable allows 24 potions where 21 was refused; Forge 1 makes smelting 9.4s.
+    - A loadout round-trip restores party, retreat and trigger; a departed Siegeling leaves its slot empty.
+  - Headless Chromium at 320x640, 390x844 and 1920x1080 on re-dumped real snapshots (Sanctuary 1, Garden 1, War Room 2 with a saved "Ember Hunt"):
+    - six building cards and two loadout slots;
+    - "Use" POSTs `loadout/apply {slot:0}`;
+    - all six tab labels fit at every width, after narrowing type at 320;
+    - no page scroll, overflow or page errors;
+    - the full earlier screen pass still has no errors or overflow.
+- October 10, 2026 **Chronicles Phase 2: affinity milestones 25/50/75/100 and the six cross-element combinations.**
+  - **Change.**
+    - **Attunement (25).** Halves hazards and adds +25% finds in that element's lands, folded into the knight's survival cut and loot bonus. Taming that element +5%.
+    - **Resonance (50).** Rebuilds the prepared technique as company-wide at 1.5x ("Resonant Kindled Strikes").
+    - **Convergence (75).** A second prepared slot (`Tactics.comboId`, validated in `setTactics`) holds one of the design's six `COMBOS`. It applies only with both elements fielded. Each combo carries stat `Mods` plus an `Arcana` the simulator reads every round:
+      - Steam Veil: −15% damage taken.
+      - Thunderglass: advantaged hits grant an 8% barrier.
+      - Frozen Tempest: −15% enemy speed, +20% Assassin damage.
+      - Toxic Bloom: 4%/round poison.
+      - Dawnfire: +10% attack, 3%/round healing.
+      - Eclipse Binding: enemies lose 1 turn in 5.
+    - **Ascendance (100).** Adds a title, and the element's named signature from the design fires once per expedition at the start of the first elite or boss battle (or the last battle). It is one of three kinds: BURST (−25% enemy health), SANCTUARY (+40% heal and a 15% barrier) or CONTROL (enemies lose round 1).
+    - **UI.** Tapping an affinity opens its milestone ladder and combos. The Knight tab gains an Elemental Convergence list and titles. Expedition prep gains a combo picker, and the road view names the active combo. `chronicles.js` → `?v=3`, `chronicles.css` → `?v=2`.
+- Verification:
+  - `ChroniclesServiceTest` grows to 27 tests; all pass with the 3 balance tests.
+    - Resonance lifts a non-Fire ally by exactly 1.225x.
+    - Attunement gives a 0.5 hazard cut, +0.25 loot and ±5% taming at the 25 boundary.
+    - Combos are rejected below 75, inert without the second element, and active with both.
+    - Over 120 seeds of Cinder Hollow with an L17 company, both Steam Veil and Toxic Bloom complete more often than no combo.
+    - An Ascendant Fire knight's Infernal Surge fires exactly once.
+  - Headless Chromium at 390x844 and 1920x1080 on re-dumped real snapshots (Fire 76 / Water 75):
+    - the ladder shows 4 of 5 milestones reached;
+    - Steam Veil is the only unlocked combo, and the picker offers it;
+    - selecting it POSTs `comboId`;
+    - no page scroll or overflow, no page errors.
+- October 10, 2026 **Chronicles Phase 1: all 21 professions from the design, each with a real effect.**
+  - **Change.**
+    - **Twelve new professions,** each with its unlock: Excavation (Mining 10), Smelting (Mining 5, now owning the bar recipes), Carpentry (Woodcutting 5), Weaving (Foraging 10), Runecrafting (Elemental Studies 10 + Smelting 5), Bonding (Taming 3), Husbandry (Bonding 10 + Cooking 5), Pathfinding, Survival (Rank 3), Cartography (Pathfinding 5), Elemental Studies (Rank 5) and Class Tactics (Command 5). Smithing now follows Smelting 10 and Fishing follows Carpentry 3.
+    - **Unlock rules.** `skillUnlocked` treats a profession with XP as open, so knights who trained Smithing or Fishing under the old web keep them. `grantSkill` gives locked professions nothing, and `profLevel` (0 while locked) drives every effect.
+    - **Effects.**
+      - Pathfinding shortens `Input.durationMs` (up to 30%). Survival scales hazard damage (up to 60%). Cartography adds find chance; at 10 it prevents the Rootcrypt maze, and at 25 it opens the hidden room.
+      - Husbandry adds rest and treat cap. Bonding earns half of all bond points and multiplies future bond. Elemental Studies multiplies affinity gains.
+      - Class Tactics adds gauge fill and is required (10) for cross-class techniques.
+    - **New content.**
+      - Study sessions are recipes with a `studyElement`: they consume an essence, make no item, and teach 8 affinity XP.
+      - Runes: one per expedition, carried in supplies, spent, and applied as element- or company-scoped mods.
+      - Armor class boosts: Linen and Ember Robes for Mages, the Guardian Harness for Guardians.
+      - Snare Crate and Breezewoven Net lures; Excavation digs; flax.
+      - Relic shards → Ancient Relic. Bastion Crest also needs Runecrafting 25.
+    - **Expedition XP.** Expeditions train Pathfinding, Survival (hazards endured), Cartography (exploration steps) and Class Tactics.
+    - **UI.** A Knowledge group, each profession's live effect line, studies only for held essences, and a rune picker. `chronicles.js` → `?v=2`.
+- Verification:
+  - `ChroniclesServiceTest` grows to 22 tests; all pass along with the 3 balance tests. New coverage:
+    - 21 professions, and the Smithing grandfather rule.
+    - Locked Bonding/Husbandry earn nothing and give no bonus; Bonding 1 adds 1%.
+    - Study consumes essences, stops when out, and teaches 8 per session.
+    - A rune is applied, kept out of potions, limited to one, spent and not returned.
+    - Pathfinding 50 cuts Cinder Hollow by exactly 20%; Survival 40 gives 0.40.
+    - Cartography 10 stops the Rootcrypt maze's extra fight.
+    - Class Tactics 10 gates Sanctuary Formation; the Husbandry treat cap.
+  - Headless Chromium at 390x844 and 1920x1080 on re-dumped real snapshots: the full screen pass, plus the Knight tab's Expedition/Knowledge groups with effect lines ("Expeditions 3.6% shorter"), the Work tab's Fire/Earth study rows, and the rune picker. The live mid-road countdown dropped from 18m to 16m34s with Pathfinding 9. No page errors or overflow.
 - October 10, 2026 **Siege: Endless wears earth art.**
   - **Change.** The Endless mode plate and resume plate swap the sky-ruins scene for the earth woodland warband from the loading library (`art/loading/earth-landscape.webp` / `earth-portrait.webp`). These are resized into `img/gallery/earth-warband.webp` (1312px, 188KB, for the desktop plate at 3x) and `earth-warband-portrait.webp` (600px, 150KB, for the half-width phone plate at 3x), so the plates do not pull the 420KB originals. The portrait cut is used on portrait phones as before. The shield-cyan mode accent is unchanged.
 - Verification:
@@ -50,6 +212,10 @@ Original prompt: Merge and deploy
     - The document never scrolls (`scrollHeight == innerHeight`), only `.ck-main` does. No element extends past the viewport. The tab bar sits flush at the bottom. No page errors.
     - The hub Play screen shows four plates at 390/1024/1920 with no horizontal overflow, and "Chronicles" fits its 232px plate at 1024. Screenshots reviewed.
     - Art was not exercised: the dumped snapshots have no catalog art, so portraits used the element-tinted initial fallback. Signed-in Firestore persistence was not run locally, since accounts need real credentials; the store round-trip is covered by the tests' JSON-copying store.
+  - **Live deploy (run 1024, merge `424d2685`).**
+    - `deploy-verify` checklist: `/play` serves the repo's pins (`game.js?v=312`, `style.css?v=271`, `action-queue.js?v=47`) and `/home` serves `home-redesign` v77/v86. `/api/cards/editor` reports FIRESTORE with live editing on, through both Hosting and Cloud Run directly. `config.js` keeps `apiBaseUrl: ''`, and `/api/game/options` returns 200 with 6 decks.
+    - Chronicles: `/chronicles` and its CSS/JS serve 200, and `/api/chronicles` plus `/start` answer with the controller's own 401 sign-in message.
+    - Live headless Chromium at 390x844: a signed-out visit and a stale-token visit both land on the gate. The hub's Play screen shows the Chronicles plate. No page errors.
 - October 10, 2026 **Siege: a full warband can swap a Siegeling or take a temporary ally at brokers, camps and events.**
   - **Change.** Before this, a full warband got rentals only at a Broker node, never saw a camp broker, and the "wanderer" event turned straight into an item. Now a full **Broker** node still stocks 2 recruits, which can only *Swap* in (🪙25, the Hire button is hidden), plus 2 mercenary rentals (🪙55). A camp broker can now appear for a full warband too. It offers a `BROKER_SWAP` recruit (🪙25), where tapping opens a "Send away:" picker that reuses `attachLearnerPicker` with the server reading `learnerId` as the leaver, plus one `MERC` temporary ally (🪙55) when no merc is under contract. When the event's `RECRUIT_CHANCE` meets a full warband, it opens the broker screen as a free **Wandering Siegeling** encounter (`SiegeRun.brokerEncounter`, serialized as `broker.encounter`). The player can swap it in for a member, take it as an "Ally for 1 battle", or press "Take Gift & Move On" to get the old parting item. Taking either option spends the other. Battlegrounds keep their gold windfall. The swap and merc logic is shared between the stall and the camp (`swapIntoWarband`, `contractMercenary`). Broker recruit lookups fall back to `findAnySiegling`, so a stage-2/3 wanderer resolves. `adventure.js` v125.
 - Verification:

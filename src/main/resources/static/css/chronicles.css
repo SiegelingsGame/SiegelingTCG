@@ -88,13 +88,14 @@ a { color:var(--gold-bright); }
 .ck-loading { padding:40px 0; text-align:center; color:var(--muted); }
 
 .ck-tabs {
-  flex:0 0 auto; display:grid; grid-template-columns:repeat(5, 1fr);
+  flex:0 0 auto; display:grid; grid-template-columns:repeat(7, minmax(0, 1fr));
   padding:6px 6px calc(6px + max(0px, var(--sab) * .6)); border-top:1px solid var(--line);
   background:rgba(7,11,20,.96);
 }
 .ck-tabs button {
-  position:relative; display:flex; flex-direction:column; align-items:center; gap:2px; padding:5px 0;
-  border:0; background:none; color:var(--muted); font-size:11px; letter-spacing:.04em; border-radius:10px; min-height:44px;
+  position:relative; display:flex; flex-direction:column; align-items:center; gap:2px; padding:5px 0; min-width:0;
+  border:0; background:none; color:var(--muted); font-size:10px; letter-spacing:0; border-radius:10px; min-height:44px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .ck-tab-ico { font-size:17px; line-height:1; }
 .ck-tabs button.is-on { color:var(--gold-bright); background:rgba(200,165,79,.1); }
@@ -199,6 +200,7 @@ p { margin:4px 0; }
 .ck-sheet-stats { display:flex; flex-direction:column; align-items:flex-end; font-size:12px; color:var(--muted); }
 .ck-sheet-stats b { color:var(--ink); }
 .ck-gear { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; }
+@media (max-width:420px) { .ck-gear { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
 .ck-gear-slot { padding:10px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid var(--line); min-width:0; }
 .ck-gear-slot b { display:block; font-size:14px; margin:2px 0; }
 .ck-gear-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
@@ -207,11 +209,16 @@ p { margin:4px 0; }
 .ck-skill.is-locked { opacity:.6; border-style:dashed; }
 .ck-weapon.is-on { border-color:var(--gold); }
 .ck-affinities { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; }
-.ck-affinity { padding:9px; border-radius:12px; border:1px solid color-mix(in srgb, var(--el) 35%, transparent); background:color-mix(in srgb, var(--el) 6%, transparent); min-width:0; }
+.ck-affinity { display:block; width:100%; text-align:left; padding:9px; border-radius:12px; border:1px solid color-mix(in srgb, var(--el) 35%, transparent); background:color-mix(in srgb, var(--el) 6%, transparent); min-width:0; }
 .ck-affinity .ck-row { justify-content:flex-start; }
 .ck-affinity .ck-row > span:last-child { margin-left:auto; font-size:12px; }
 .ck-affinity .ck-el-ico { width:18px; height:18px; }
 .ck-affinity.is-dim { opacity:.55; }
+.ck-ladder { list-style:none; margin:12px 0 0; padding:0; display:grid; gap:6px; }
+.ck-ladder li { display:grid; gap:2px; padding:8px 10px; border-radius:10px; border:1px dashed var(--line); font-size:13px; }
+.ck-ladder li.is-on { border-style:solid; border-color:color-mix(in srgb, var(--el) 60%, transparent); background:color-mix(in srgb, var(--el) 8%, transparent); }
+.ck-ladder li span { color:var(--muted); }
+.ck-modal-card h2 .ck-el-ico { width:22px; height:22px; vertical-align:-3px; }
 .ck-cross { list-style:none; padding:0; margin:0; display:grid; gap:6px; }
 .ck-cross li { padding:8px 10px; border-radius:10px; border:1px dashed var(--line); font-size:13px; }
 .ck-cross li.is-on { border-style:solid; border-color:var(--gold); }
@@ -321,10 +328,15 @@ p { margin:4px 0; }
 .ck-toast.is-out { opacity:0; transform:translateY(6px); }
 body.is-busy .ck-main { cursor:progress; }
 
+/* Six tabs on the narrowest phones: "Expedition" must still fit its column. */
+@media (max-width:360px) {
+  .ck-tabs { padding-left:2px; padding-right:2px; }
+  .ck-tabs button { font-size:8.5px; letter-spacing:-.01em; }
+}
+
 @media (max-width:420px) {
   .ck-rank { width:auto; grid-template-columns:auto; }
   .ck-rank-title, .ck-rank .ck-bar { display:none; }
-  .ck-gear { grid-template-columns:1fr; }
   .ck-roster, .ck-routes, .ck-recipes { grid-template-columns:1fr; }
   .ck-affinities { grid-template-columns:repeat(2, minmax(0, 1fr)); }
 }
@@ -339,3 +351,40 @@ body.is-busy .ck-main { cursor:progress; }
 @media (prefers-reduced-motion:reduce) {
   .ck-bar > i, .ck-toast { transition:none; }
 }
+
+/* base */
+.ck-pips { display:inline-flex; gap:4px; }
+.ck-pips i { width:10px; height:10px; border-radius:3px; background:rgba(255,255,255,.1); }
+.ck-pips i.is-on { background:linear-gradient(160deg, var(--gold-bright), var(--gold)); }
+.ck-building h3 { margin:0; }
+.ck-loadouts { display:grid; gap:6px; }
+.ck-loadout { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; border:1px solid var(--line); }
+.ck-loadout > div { min-width:0; }
+.ck-loadout .ck-pills { margin:0; flex:0 0 auto; }
+.ck-chip.is-rare { border-color:var(--rare); color:var(--rare); }
+.ck-chip.is-legend { border-color:var(--gold-bright); color:var(--gold-bright); background:rgba(230,205,140,.12); }
+/* A Legend's aura: a slow golden glow around its card and portrait. */
+.ck-comp.is-legend { border-color:rgba(230,205,140,.55); box-shadow:0 0 0 1px rgba(230,205,140,.25), 0 0 22px rgba(230,205,140,.18); }
+.ck-comp.is-legend .ck-portrait { box-shadow:0 0 14px color-mix(in srgb, var(--el) 55%, var(--gold-bright)); animation:ckAura 3.6s ease-in-out infinite; }
+@keyframes ckAura { 50% { box-shadow:0 0 24px color-mix(in srgb, var(--el) 70%, var(--gold-bright)); } }
+.ck-trial { margin-top:10px; padding:10px; border-radius:12px; border:1px solid rgba(230,205,140,.45); background:rgba(230,205,140,.06); display:grid; gap:6px; justify-items:start; }
+@media (prefers-reduced-motion:reduce) { .ck-comp.is-legend .ck-portrait { animation:none; } }
+
+/* realm */
+.ck-crowns { font-family:var(--serif); font-size:20px; color:var(--gold-bright); white-space:nowrap; }
+.ck-members { list-style:none; margin:8px 0 0; padding:0; display:grid; gap:4px; }
+.ck-members li { display:flex; justify-content:space-between; gap:8px; padding:6px 10px; border-radius:10px; background:rgba(255,255,255,.04); font-size:14px; }
+.ck-members li.is-you { border:1px solid rgba(200,165,79,.45); }
+.ck-operation { border-color:color-mix(in srgb, var(--el) 45%, transparent); }
+.ck-operation h2 .ck-el-ico { width:20px; height:20px; vertical-align:-3px; }
+.ck-fronts { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; margin-top:8px; }
+.ck-front { display:grid; gap:4px; justify-items:start; padding:10px; border-radius:12px; border:1px solid var(--line); background:rgba(255,255,255,.03); }
+.ck-donate, .ck-sell { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.ck-donate select, .ck-sell select { flex:1 1 180px; min-width:0; }
+.ck-donate input, .ck-sell input { width:86px; }
+.ck-donate select, .ck-donate input, .ck-sell select, .ck-sell input {
+  min-height:40px; padding:0 10px; border-radius:10px; border:1px solid var(--line); background:var(--navy); font-size:16px;
+}
+.ck-listings { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:6px; margin-top:8px; }
+.ck-listing { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; border:1px solid var(--line); }
+.ck-listing > div { min-width:0; display:grid; }

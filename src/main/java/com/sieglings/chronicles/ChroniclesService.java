@@ -55,13 +55,13 @@ public class ChroniclesService {
         public StaleStateException(String message) { super(message); }
     }
 
-    private static final int MAX_SUPPLIES = 20;
     private static final int MAX_REQUEST_IDS = 30;
     private static final long ART_TTL_MS = 5 * 60_000L;
     private static final long AWAY_REPORT_MIN_MS = 5 * 60_000L;
 
     private final ChroniclesStore store;
     private final CardDefinitionService cards;
+    private ChroniclesRealmStore realm;
     private final Map<String, Object> locks = new ConcurrentHashMap<>();
     private final Map<String, String> behaviors;
     private Clock clock = Clock.systemUTC();
@@ -70,11 +70,19 @@ public class ChroniclesService {
 
     /** {@code cards} only supplies portrait art; tests pass null. */
     @Autowired
-    public ChroniclesService(ChroniclesStore store, CardDefinitionService cards) {
+    public ChroniclesService(ChroniclesStore store, CardDefinitionService cards, ChroniclesRealmStore realm) {
         this.store = store;
         this.cards = cards;
+        this.realm = realm;
         this.behaviors = loadBehaviors();
     }
+
+    /** Without a realm store (tests): guilds and the marketplace are unavailable. */
+    public ChroniclesService(ChroniclesStore store, CardDefinitionService cards) {
+        this(store, cards, null);
+    }
+
+    void setRealmStore(ChroniclesRealmStore realm) { this.realm = realm; }
 
     void setClock(Clock clock) { this.clock = clock; }
 
@@ -87,6 +95,7 @@ public class ChroniclesService {
             if (state == null) return introSnapshot(user);
             List<String> events = new ArrayList<>();
             boolean changed = settle(state, now, events);
+            changed |= claimProceeds(state, events);
             if (changed) {
                 state.version++;
                 state.updatedAt = now;
@@ -141,7 +150,7 @@ public class ChroniclesService {
                 if (recipe == null || !recipe.repeatable()) throw new IllegalArgumentException("That recipe cannot be worked idly.");
                 requireRecipe(state, recipe);
                 if (maxCrafts(state, recipe) <= 0) throw new IllegalArgumentException("You lack the materials to start.");
-                label = itemName(recipe.output());
+                label = recipeLabel(recipe);
             } else {
                 Activity activity = ChroniclesContent.ACTIVITIES.get(id);
                 if (activity == null) throw new IllegalArgumentException("Unknown activity.");
@@ -213,6 +222,11 @@ public class ChroniclesService {
 
     public Map<String, Object> setTactics(AccountUser user, Integer retreatAt, Integer potionAt, String trigger,
                                           String techniqueId, String requestId, long expected) {
+        return setTactics(user, retreatAt, potionAt, trigger, techniqueId, null, requestId, expected);
+    }
+
+    public Map<String, Object> setTactics(AccountUser user, Integer retreatAt, Integer potionAt, String trigger,
+                                          String techniqueId, String comboId, String requestId, long expected) {
         return mutate(user, requestId, expected, (ctx) -> {
             ChroniclesState.Tactics tactics = ctx.state.tactics;
             if (retreatAt != null) tactics.retreatAt = clamp(retreatAt, 0, 60);
@@ -236,6 +250,19 @@ public class ChroniclesService {
                     tactics.techniqueId = technique.id();
                 }
             }
+            if (comboId != null) {
+                if (comboId.isBlank()) tactics.comboId = "";
+                else {
+                    ChroniclesContent.Combo combo = ChroniclesContent.COMBOS.get(comboId.trim());
+                    if (combo == null) throw new IllegalArgumentException("Unknown combination.");
+                    if (!comboKnown(ctx.state, combo)) {
+                        throw new IllegalArgumentException(combo.name() + " needs " + ChroniclesContent.elementLabel(combo.a())
+                                + " and " + ChroniclesContent.elementLabel(combo.b()) + " Affinity "
+                                + ChroniclesContent.CONVERGENCE + ".");
+                    }
+                    tactics.comboId = combo.id();
+                }
+            }
         });
     }
 
@@ -251,9 +278,9 @@ public class ChroniclesService {
             }
             if (maxCrafts(state, recipe) < qty) throw new IllegalArgumentException("Not enough materials.");
             recipe.inputs().forEach((item, n) -> take(state, item, n * qty));
-            give(state, recipe.output(), recipe.outputQty() * qty);
+            applyRecipeOutput(state, recipe, qty, ctx.events);
             grantSkill(state, recipe.skillId(), (long) recipe.xp() * qty, ctx.events);
-            ctx.events.add("Crafted " + (qty > 1 ? qty + "× " : "") + itemName(recipe.output()) + ".");
+            ctx.events.add((recipe.isStudy() ? "Studied " : "Crafted ") + (qty > 1 ? qty + "× " : "") + recipeLabel(recipe) + ".");
         });
     }
 
@@ -268,10 +295,19 @@ public class ChroniclesService {
                 case WEAPON -> state.weaponId = id;
                 case ARMOR -> state.armorId = id;
                 case RELIC -> state.relicId = id.equals(state.relicId) ? "" : id;
+                case HELMET -> state.helmetId = id.equals(state.helmetId) ? "" : id;
+                case BOOTS -> state.bootsId = id.equals(state.bootsId) ? "" : id;
+                case ACCESSORY -> state.accessoryId = id.equals(state.accessoryId) ? "" : id;
                 default -> throw new IllegalArgumentException("That can't be equipped.");
             }
-            ctx.events.add(item.kind() == ItemKind.RELIC && state.relicId.isEmpty()
-                    ? "Unequipped " + item.name() + "." : "Equipped " + item.name() + ".");
+            boolean off = switch (item.kind()) {
+                case RELIC -> state.relicId.isEmpty();
+                case HELMET -> state.helmetId.isEmpty();
+                case BOOTS -> state.bootsId.isEmpty();
+                case ACCESSORY -> state.accessoryId.isEmpty();
+                default -> false;
+            };
+            ctx.events.add((off ? "Unequipped " : "Equipped ") + item.name() + ".");
         });
     }
 
@@ -280,10 +316,26 @@ public class ChroniclesService {
         return mutate(user, requestId, expected, (ctx) -> {
             ChroniclesState state = ctx.state;
             if (state.expedition != null) throw new IllegalArgumentException("The company is already on an expedition.");
-            Route route = ChroniclesContent.ROUTES.get(routeId == null ? "" : routeId.trim());
-            if (route == null) throw new IllegalArgumentException("Unknown destination.");
+            String requested = routeId == null ? "" : routeId.trim();
+            ChroniclesRealm.Guild opGuild = null;
+            Route route;
+            if (requested.startsWith("operation:")) {
+                opGuild = currentGuild(state, ctx.now);
+                if (opGuild.operation.wonAt > 0) throw new IllegalArgumentException("This week's threat is already broken. Claim your share.");
+                String front = requested.substring("operation:".length());
+                if (!ChroniclesContent.FRONTS.containsKey(front)) throw new IllegalArgumentException("Unknown front.");
+                route = ChroniclesContent.operationRoute(front, threat(opGuild.operation.threatId), companyLevel(state),
+                        (int) state.party.stream().filter(id -> !id.isEmpty()).count());
+            } else {
+                route = ChroniclesContent.ROUTES.get(requested);
+                if (route == null || !routeVisible(state, route)) throw new IllegalArgumentException("Unknown destination.");
+            }
             if (rank(state) < route.rankReq()) {
                 throw new IllegalArgumentException(route.name() + " opens at Siegeknight Rank " + route.rankReq() + ".");
+            }
+            List<String> unmet = route.requirements().stream().filter(req -> !meets(state, req)).map(this::reqText).toList();
+            if (!unmet.isEmpty()) {
+                throw new IllegalArgumentException(route.name() + " needs " + String.join(", ", unmet) + ".");
             }
             List<Companion> members = new ArrayList<>();
             for (String id : state.party) if (!id.isEmpty()) members.add(requireCompanion(state, id));
@@ -294,16 +346,24 @@ public class ChroniclesService {
                 for (Map.Entry<String, Integer> entry : supplies.entrySet()) {
                     Item item = ChroniclesContent.ITEMS.get(entry.getKey());
                     int n = entry.getValue() == null ? 0 : entry.getValue();
-                    if (item == null || item.kind() != ItemKind.POTION || n <= 0) continue;
+                    if (item == null || n <= 0) continue;
+                    if (item.kind() == ItemKind.RUNE) {
+                        if (packed.keySet().stream().anyMatch(k -> ChroniclesContent.RUNE_EFFECTS.containsKey(k)) || n > 1) {
+                            throw new IllegalArgumentException("A company can carry one rune.");
+                        }
+                    } else if (item.kind() != ItemKind.POTION) {
+                        continue;
+                    }
                     if (state.inventory.getOrDefault(item.id(), 0) < n) {
                         throw new IllegalArgumentException("You only have " + state.inventory.getOrDefault(item.id(), 0)
                                 + " " + item.name() + ".");
                     }
                     packed.put(item.id(), n);
-                    total += n;
+                    if (item.kind() == ItemKind.POTION) total += n;
                 }
             }
-            if (total > MAX_SUPPLIES) throw new IllegalArgumentException("A company can carry " + MAX_SUPPLIES + " potions.");
+            int supplyCap = ChroniclesContent.supplyCap(buildingLevel(state, "stable"));
+            if (total > supplyCap) throw new IllegalArgumentException("A company can carry " + supplyCap + " potions.");
             packed.forEach((id, n) -> take(state, id, n));
             Companion reserve = state.reserveId.isEmpty() ? null : findCompanion(state, state.reserveId);
             if (reserve != null && skillLevel(state, "command") < ChroniclesContent.RESERVE_COMMAND_LEVEL) reserve = null;
@@ -321,19 +381,31 @@ public class ChroniclesService {
             Expedition expedition = new Expedition();
             expedition.routeId = route.id();
             expedition.startedAt = ctx.now;
-            expedition.plannedEndAt = ctx.now + route.minutes() * 60_000L;
+            expedition.plannedEndAt = ctx.now + input.durationMs();
             expedition.completesAt = ctx.now + result.endMs;
             expedition.outcome = result.outcome;
             for (Companion c : members) expedition.partyIds.add(c.id);
             expedition.reserveId = reserve == null ? "" : reserve.id;
             expedition.techniqueId = state.tactics.techniqueId == null ? "" : state.tactics.techniqueId;
+            expedition.comboId = state.tactics.comboId == null ? "" : state.tactics.comboId;
             expedition.trigger = input.trigger().name();
             expedition.supplies = packed;
             expedition.suppliesLeft = new LinkedHashMap<>(result.suppliesLeft);
+            // A rune is spent by being carried; only unused potions come home.
+            expedition.suppliesLeft.keySet().removeIf(ChroniclesContent.RUNE_EFFECTS::containsKey);
             expedition.timeline = new ArrayList<>(result.timeline);
             expedition.encountersWon = result.encountersWon;
             expedition.encountersTotal = result.encountersTotal;
             expedition.rewards = rewardsFor(state, route, result, members, reserve);
+            if (opGuild != null) {
+                String front = route.id().substring("operation:".length());
+                expedition.operationFront = front;
+                expedition.operationWeek = opGuild.operation.week;
+                expedition.operationGuildId = opGuild.id;
+                expedition.operationThreatId = opGuild.operation.threatId;
+                expedition.operationLevel = companyLevel(state);
+                expedition.operationScore = operationScore(state, members, front, result, opGuild);
+            }
             state.expedition = expedition;
             ctx.events.add("The company departs for " + route.name() + ".");
         });
@@ -346,7 +418,7 @@ public class ChroniclesService {
             Expedition expedition = state.expedition;
             if (expedition == null) throw new IllegalArgumentException("No expedition to collect.");
             if (ctx.now < expedition.completesAt) throw new IllegalArgumentException("The company is still on the road.");
-            Route route = ChroniclesContent.ROUTES.get(expedition.routeId);
+            Route route = routeFor(state, expedition);
             Rewards rewards = expedition.rewards;
             rewards.items.forEach((id, n) -> give(state, id, n));
             expedition.suppliesLeft.forEach((id, n) -> give(state, id, n));
@@ -356,7 +428,7 @@ public class ChroniclesService {
             }
             for (Map.Entry<String, Long> entry : rewards.bond.entrySet()) {
                 Companion c = findCompanion(state, entry.getKey());
-                if (c != null) grantBond(c, entry.getValue(), ctx.events);
+                if (c != null) grantBond(state, c, entry.getValue(), ctx.events);
             }
             for (String id : expedition.partyIds) {
                 Companion c = findCompanion(state, id);
@@ -370,6 +442,8 @@ public class ChroniclesService {
             rewards.weaponXp.forEach((w, xp) -> grantWeapon(state, w, xp, ctx.events));
             rewards.skillXp.forEach((s, xp) -> grantSkill(state, s, xp, ctx.events));
             grantRank(state, rewards.rankXp, ctx.events);
+            state.crowns += rewards.crowns;
+            if (!expedition.operationFront.isEmpty()) applyOperation(state, expedition, ctx.now, ctx.events);
             for (Sighting sighting : rewards.sightings) {
                 sighting.id = "s" + (++state.sightingCounter);
                 sighting.foundAt = ctx.now;
@@ -380,6 +454,16 @@ public class ChroniclesService {
             }
             while (state.sightings.size() > ChroniclesContent.MAX_PENDING_TAMINGS) state.sightings.remove(0);
             if ("complete".equals(expedition.outcome)) state.expeditionsCompleted++;
+            if (!expedition.trialCompanionId.isEmpty()) {
+                Companion hero = findCompanion(state, expedition.trialCompanionId);
+                if (hero != null && "complete".equals(expedition.outcome)) {
+                    hero.legend = true;
+                    hero.legendAt = ctx.now;
+                    ctx.events.add(displayName(hero) + " passed its Legendary Bond Trial and is now a Legend!");
+                } else if (hero != null) {
+                    ctx.events.add(displayName(hero) + " fell short of the trial. It may try again.");
+                }
+            }
             report.putAll(reportFor(state, expedition, route));
             state.expedition = null;
         });
@@ -400,8 +484,9 @@ public class ChroniclesService {
                 outcome.put("result", "left");
                 return;
             }
-            if (state.companions.size() >= ChroniclesContent.ROSTER_CAP) {
-                throw new IllegalArgumentException("Your sanctuary holds " + ChroniclesContent.ROSTER_CAP + " Siegelings.");
+            int rosterCap = ChroniclesContent.rosterCap(buildingLevel(state, "sanctuary"));
+            if (state.companions.size() >= rosterCap) {
+                throw new IllegalArgumentException("Your sanctuary holds " + rosterCap + " Siegelings. Expand it at the base.");
             }
             Creature creature = creature(sighting.speciesId);
             double chance = tameChance(state, sighting, plan, lureId);
@@ -441,7 +526,7 @@ public class ChroniclesService {
                 companion.treatsDay = day;
                 companion.treatsToday = 0;
             }
-            if (companion.treatsToday >= ChroniclesContent.DAILY_TREATS_PER_SIEGELING) {
+            if (companion.treatsToday >= ChroniclesContent.treatCap(profLevel(state, "husbandry"))) {
                 throw new IllegalArgumentException(displayName(companion) + " is full for today.");
             }
             take(state, food.id(), 1);
@@ -450,7 +535,8 @@ public class ChroniclesService {
             boolean loves = food.prefers().contains(creature.element());
             long bond = food.bondXp() * (loves ? 2L : 1L);
             ctx.events.add(displayName(companion) + (loves ? " loves the " : " enjoys the ") + food.name() + ". +" + bond + " bond.");
-            grantBond(companion, bond, ctx.events);
+            grantBond(state, companion, bond, ctx.events);
+            grantSkill(state, "husbandry", Math.max(1, food.bondXp() / 4), ctx.events);
         });
     }
 
@@ -489,8 +575,656 @@ public class ChroniclesService {
         });
     }
 
+    public Map<String, Object> build(AccountUser user, String buildingId, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            ChroniclesContent.Building building = ChroniclesContent.BUILDINGS.get(buildingId == null ? "" : buildingId.trim());
+            if (building == null) throw new IllegalArgumentException("Unknown building.");
+            int next = buildingLevel(state, building.id()) + 1;
+            if (next > ChroniclesContent.MAX_BUILDING_LEVEL) throw new IllegalArgumentException(building.name() + " is complete.");
+            int rankNeeded = ChroniclesContent.BUILDING_RANK[next - 1];
+            if (rank(state) < rankNeeded) {
+                throw new IllegalArgumentException(building.name() + " level " + next + " needs Siegeknight Rank " + rankNeeded + ".");
+            }
+            Map<String, Integer> cost = building.costs().get(next - 1);
+            for (Map.Entry<String, Integer> e : cost.entrySet()) {
+                if (state.inventory.getOrDefault(e.getKey(), 0) < e.getValue()) {
+                    throw new IllegalArgumentException("Needs " + e.getValue() + " " + itemName(e.getKey()) + ".");
+                }
+            }
+            // Settle the base at the old level first, so the upgrade never applies backwards.
+            settleBase(state, ctx.now, ctx.events);
+            cost.forEach((item, n) -> take(state, item, n));
+            state.buildings.put(building.id(), next);
+            ctx.events.add(building.name() + (next == 1 ? " built." : " raised to level " + next + "."));
+            grantRank(state, 40L * next * next, ctx.events);
+        });
+    }
+
+    public Map<String, Object> saveLoadout(AccountUser user, int slot, String name, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            int slots = ChroniclesContent.loadoutSlots(buildingLevel(state, "war_room"));
+            if (slot < 0 || slot >= slots) {
+                throw new IllegalArgumentException(slots == 0 ? "Build a War Room to save loadouts." : "That War Room slot is not built yet.");
+            }
+            ChroniclesState.Loadout loadout = new ChroniclesState.Loadout();
+            String clean = name == null ? "" : name.replaceAll("[^\\p{L}\\p{N} '\\-]", "").trim();
+            loadout.name = clean.isEmpty() ? "Plan " + (slot + 1) : clean.length() > 24 ? clean.substring(0, 24).trim() : clean;
+            loadout.party = new ArrayList<>(state.party);
+            loadout.reserveId = state.reserveId;
+            loadout.weaponId = state.weaponId;
+            loadout.armorId = state.armorId;
+            loadout.relicId = state.relicId;
+            loadout.helmetId = state.helmetId;
+            loadout.bootsId = state.bootsId;
+            loadout.accessoryId = state.accessoryId;
+            loadout.retreatAt = state.tactics.retreatAt;
+            loadout.potionAt = state.tactics.potionAt;
+            loadout.trigger = state.tactics.trigger;
+            loadout.techniqueId = state.tactics.techniqueId;
+            loadout.comboId = state.tactics.comboId;
+            while (state.loadouts.size() <= slot) state.loadouts.add(null);
+            state.loadouts.set(slot, loadout);
+            ctx.events.add("Saved \"" + loadout.name + "\".");
+        });
+    }
+
+    public Map<String, Object> applyLoadout(AccountUser user, int slot, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            if (state.expedition != null) throw new IllegalArgumentException("The company is still on an expedition.");
+            ChroniclesState.Loadout loadout = slot >= 0 && slot < state.loadouts.size() ? state.loadouts.get(slot) : null;
+            if (loadout == null) throw new IllegalArgumentException("That loadout is empty.");
+            // A loadout may name a Siegeling since released or gear since lost: keep what still exists.
+            List<String> party = new ArrayList<>();
+            int slots = ChroniclesContent.partySlots(skillLevel(state, "command"));
+            for (String id : loadout.party) {
+                party.add(id != null && !id.isEmpty() && findCompanion(state, id) != null && party.size() < slots ? id : "");
+            }
+            if (party.stream().allMatch(String::isEmpty)) throw new IllegalArgumentException("No one from that loadout is here.");
+            state.party = party;
+            state.reserveId = findCompanion(state, loadout.reserveId) != null
+                    && skillLevel(state, "command") >= ChroniclesContent.RESERVE_COMMAND_LEVEL ? loadout.reserveId : "";
+            if (owns(state, loadout.weaponId)) state.weaponId = loadout.weaponId;
+            if (owns(state, loadout.armorId)) state.armorId = loadout.armorId;
+            state.relicId = owns(state, loadout.relicId) ? loadout.relicId : "";
+            state.helmetId = owns(state, loadout.helmetId) ? loadout.helmetId : "";
+            state.bootsId = owns(state, loadout.bootsId) ? loadout.bootsId : "";
+            state.accessoryId = owns(state, loadout.accessoryId) ? loadout.accessoryId : "";
+            state.tactics.retreatAt = loadout.retreatAt;
+            state.tactics.potionAt = loadout.potionAt;
+            state.tactics.trigger = loadout.trigger;
+            Technique t = ChroniclesContent.TECHNIQUES.get(loadout.techniqueId == null ? "" : loadout.techniqueId);
+            state.tactics.techniqueId = t != null && affinityLevel(state, t.element()) >= 10 ? t.id() : "";
+            ChroniclesContent.Combo combo = ChroniclesContent.COMBOS.get(loadout.comboId == null ? "" : loadout.comboId);
+            state.tactics.comboId = combo != null && comboKnown(state, combo) ? combo.id() : "";
+            ctx.events.add("Loadout \"" + loadout.name + "\" ready.");
+        });
+    }
+
+    public Map<String, Object> startTrial(AccountUser user, String companionId, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            if (state.expedition != null) throw new IllegalArgumentException("The company is already on an expedition.");
+            Companion hero = requireCompanion(state, companionId);
+            if (hero.legend) throw new IllegalArgumentException(displayName(hero) + " is already a Legend.");
+            if (ChroniclesContent.bondLevelFor(hero.bond) < ChroniclesContent.LEGEND_BOND) {
+                throw new IllegalArgumentException("A Legendary Bond Trial needs Bond " + ChroniclesContent.LEGEND_BOND + ".");
+            }
+            if (hero.id.equals(state.helperId)) state.helperId = "";
+            Route route = trialRoute(hero);
+            long seed = state.seed ^ (97L * (state.expeditionsCompleted + 1) + ctx.now);
+            ChroniclesCombat.Input input = buildInput(state, route, List.of(hero), null, Map.of(), seed);
+            ChroniclesCombat.Result result = ChroniclesCombat.simulate(input);
+            // A trial is passed only by winning every fight; a stand-off is not a victory.
+            if ("complete".equals(result.outcome) && result.encountersWon < result.encountersTotal) result.outcome = "retreat";
+            Expedition expedition = new Expedition();
+            expedition.routeId = route.id();
+            expedition.trialCompanionId = hero.id;
+            expedition.startedAt = ctx.now;
+            expedition.plannedEndAt = ctx.now + input.durationMs();
+            expedition.completesAt = ctx.now + result.endMs;
+            expedition.outcome = result.outcome;
+            expedition.partyIds.add(hero.id);
+            expedition.trigger = input.trigger().name();
+            expedition.timeline = new ArrayList<>(result.timeline);
+            expedition.encountersWon = result.encountersWon;
+            expedition.encountersTotal = result.encountersTotal;
+            expedition.rewards = rewardsFor(state, route, result, List.of(hero), null);
+            expedition.rewards.sightings.clear();
+            state.expedition = expedition;
+            ctx.events.add(displayName(hero) + " sets out alone on its Legendary Bond Trial.");
+        });
+    }
+
+    /**
+     * A Legendary Bond Trial: the Siegeling alone, two elite fights and the strongest of
+     * its element at its own level. The trial lives on the expedition, not in ROUTES.
+     */
+    Route trialRoute(Companion hero) {
+        Creature c = creature(hero.speciesId);
+        int level = Math.max(1, hero.level);
+        return ChroniclesContent.trialRoute("trial:" + hero.id, hero.nickname, c.element(), level);
+    }
+
+    static boolean isTrial(Route route) {
+        return route != null && route.id().startsWith("trial:");
+    }
+
+    /** The trial's foes: the hero's own echo, then the legendary of its element. */
+    private List<Unit> trialEnemies(Route route, Companion hero, Random random, boolean boss) {
+        Creature c = creature(hero.speciesId);
+        int heroBudget = ChroniclesContent.rarityBudget(c.rarity());
+        if (boss) {
+            // Measured against the hero, not the legend's own rarity: an uncommon at its
+            // cap and an epic final face the same trial.
+            Creature legend = bossOf(route);
+            Unit unit = statUnit(legend, route.bossLevel(), false, "boss-" + legend.id());
+            double k = (double) heroBudget / ChroniclesContent.rarityBudget(legend.rarity());
+            unit.maxHp *= TRIAL_BOSS_HEALTH * k;
+            unit.hp = unit.maxHp;
+            unit.atk *= k * TRIAL_BOSS_ATTACK;
+            unit.def *= k;
+            unit.boss = true;
+            return new ArrayList<>(List.of(unit));
+        }
+        Unit echo = statUnit(c, hero.level, false, "echo-" + hero.id);
+        echo.name = "Echo of " + c.name();
+        // The echo only presses the attack, so a Guardian or Support cannot stall its own trial.
+        echo.cls = "Bruiser";
+        echo.maxHp *= 0.9;
+        echo.hp = echo.maxHp;
+        echo.atk *= 0.9;
+        return new ArrayList<>(List.of(echo));
+    }
+
+    static double TRIAL_BOSS_HEALTH = 1.8;
+    static double TRIAL_BOSS_ATTACK = 1.1;
+
+    Route routeFor(ChroniclesState state, Expedition e) {
+        if (e.trialCompanionId != null && !e.trialCompanionId.isEmpty()) {
+            Companion hero = findCompanion(state, e.trialCompanionId);
+            if (hero != null) return trialRoute(hero);
+        }
+        if (e.operationFront != null && !e.operationFront.isEmpty()) {
+            return ChroniclesContent.operationRoute(e.operationFront, threat(e.operationThreatId), Math.max(1, e.operationLevel),
+                    Math.max(1, e.partyIds.size()));
+        }
+        return ChroniclesContent.ROUTES.get(e.routeId);
+    }
+
+    List<String> titles(ChroniclesState state) {
+        List<String> out = new ArrayList<>();
+        for (Skill s : ChroniclesContent.SKILLS.values()) {
+            if (skillLevel(state, s.id()) >= ChroniclesContent.GRANDMASTER) out.add(ChroniclesContent.grandmasterTitle(s.id()));
+        }
+        for (ChroniclesContent.ClassPath path : ChroniclesContent.CLASS_PATHS.values()) {
+            if (masteryLevel(state, path.creatureClass()) >= ChroniclesContent.MAX_LEVEL) out.add("Master of " + path.path());
+        }
+        for (Element element : ChroniclesContent.ELEMENTS) {
+            if (affinityLevel(state, element) >= ChroniclesContent.ASCENDANCE) {
+                out.add("Ascendant of " + ChroniclesContent.elementLabel(element));
+            }
+        }
+        long legends = state.companions.stream().filter(c -> c.legend).count();
+        if (legends > 0) out.add(legends == 1 ? "Bonded to a Legend" : "Bonded to " + legends + " Legends");
+        return out;
+    }
+
+    private static boolean owns(ChroniclesState state, String itemId) {
+        return itemId != null && !itemId.isEmpty() && state.inventory.getOrDefault(itemId, 0) > 0;
+    }
+
     public Map<String, Object> acknowledgeAway(AccountUser user, String requestId, long expected) {
         return mutate(user, requestId, expected, (ctx) -> ctx.state.away = null);
+    }
+
+    // ── The realm: guilds, Siege Operations, marketplace ────────────────────
+
+    private ChroniclesRealmStore requireRealm() {
+        if (realm == null) throw new IllegalArgumentException("Guilds and the marketplace are unavailable right now.");
+        return realm;
+    }
+
+    static String weekKey(long now) {
+        java.time.LocalDate day = Instant.ofEpochMilli(now).atZone(ZoneOffset.UTC).toLocalDate();
+        int week = day.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR);
+        int year = day.get(java.time.temporal.IsoFields.WEEK_BASED_YEAR);
+        return year + "-W" + (week < 10 ? "0" : "") + week;
+    }
+
+    static ChroniclesContent.Threat threatForWeek(String week) {
+        int idx = Math.floorMod(week.hashCode(), ChroniclesContent.THREATS.size());
+        return ChroniclesContent.THREATS.get(idx);
+    }
+
+    static ChroniclesContent.Threat threat(String id) {
+        return ChroniclesContent.THREATS.stream().filter(t -> t.id().equals(id)).findFirst()
+                .orElse(ChroniclesContent.THREATS.get(0));
+    }
+
+    /** Average level of the fielded company: operation sorties scale to it. */
+    int companyLevel(ChroniclesState state) {
+        int sum = 0, n = 0;
+        for (String id : state.party) {
+            Companion c = findCompanion(state, id);
+            if (c != null) { sum += c.level; n++; }
+        }
+        return n == 0 ? 1 : Math.max(1, Math.round((float) sum / n));
+    }
+
+    /** Rolls the guild's operation over to this week's threat if the week has turned. */
+    private static void refreshOperation(ChroniclesRealm.Guild guild, long now) {
+        String week = weekKey(now);
+        if (week.equals(guild.operation.week)) return;
+        ChroniclesRealm.Operation op = new ChroniclesRealm.Operation();
+        op.week = week;
+        op.threatId = threatForWeek(week).id();
+        op.maxHp = ChroniclesContent.threatHp(guild.members.size(),
+                guild.members.values().stream().mapToInt(m -> m.rank).average().orElse(1));
+        guild.operation = op;
+    }
+
+    private ChroniclesRealm.Guild currentGuild(ChroniclesState state, long now) {
+        if (state.guildId == null || state.guildId.isEmpty()) throw new IllegalArgumentException("Join a guild first.");
+        ChroniclesRealmStore realm = requireRealm();
+        return realm.mutateGuild(state.guildId, g -> {
+            if (!g.members.containsKey(state.userId)) throw new IllegalArgumentException("You are no longer in that guild.");
+            g.members.get(state.userId).rank = rank(state);
+            g.members.get(state.userId).name = state.knightName;
+            refreshOperation(g, now);
+            return g;
+        });
+    }
+
+    long operationScore(ChroniclesState state, List<Companion> members, String frontId,
+                        ChroniclesCombat.Result result, ChroniclesRealm.Guild guild) {
+        ChroniclesContent.Front front = ChroniclesContent.FRONTS.get(frontId);
+        double mult = 1.0;
+        for (Companion c : members) {
+            Creature cr = creature(c.speciesId);
+            if (front.favoredClasses().contains(cr.creatureClass()) || front.favoredElements().contains(cr.element())) mult += 0.25;
+        }
+        mult = Math.min(1.75, mult);
+        double defenses = 1 + 0.1 * ChroniclesContent.defenseLevel(guild.defensePoints);
+        return Math.round(result.levelsDefeated * mult * defenses);
+    }
+
+    private void applyOperation(ChroniclesState state, Expedition e, long now, List<String> events) {
+        if (realm == null || e.operationScore <= 0) return;
+        try {
+            String outcome = realm.mutateGuild(e.operationGuildId, g -> {
+                refreshOperation(g, now);
+                if (!g.members.containsKey(state.userId) || !g.operation.week.equals(e.operationWeek)) return "late";
+                ChroniclesRealm.Operation op = g.operation;
+                op.damage += e.operationScore;
+                op.contributions.merge(state.userId, e.operationScore, Long::sum);
+                op.fronts.merge(e.operationFront, e.operationScore, Long::sum);
+                if (op.wonAt == 0 && op.damage >= op.maxHp) {
+                    op.wonAt = now;
+                    return "won";
+                }
+                return "ok";
+            });
+            String threatName = threat(e.operationThreatId).name();
+            switch (outcome) {
+                case "won" -> events.add("Your company broke " + threatName + "! Claim your share in the Realm.");
+                case "ok" -> events.add("Your company dealt " + e.operationScore + " to " + threatName + ".");
+                default -> events.add("The operation ended before your company returned.");
+            }
+        } catch (IllegalArgumentException ex) {
+            events.add("The guild could not be reached; that sortie's score was lost.");
+        }
+    }
+
+    public Map<String, Object> createGuild(AccountUser user, String name, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            ChroniclesRealmStore realm = requireRealm();
+            if (!state.guildId.isEmpty()) throw new IllegalArgumentException("Leave your guild first.");
+            if (rank(state) < ChroniclesContent.GUILD_RANK) {
+                throw new IllegalArgumentException("Founding a guild needs Siegeknight Rank " + ChroniclesContent.GUILD_RANK + ".");
+            }
+            String clean = name == null ? "" : name.replaceAll("[^\\p{L}\\p{N} '\\-]", "").trim();
+            if (clean.length() < 3) throw new IllegalArgumentException("A guild name needs at least 3 letters.");
+            if (clean.length() > 24) clean = clean.substring(0, 24).trim();
+            ChroniclesRealm.Guild guild = new ChroniclesRealm.Guild();
+            Random random = new Random(ctx.now ^ state.seed);
+            guild.id = "g" + Long.toString(Math.abs(random.nextLong()), 36);
+            for (int tries = 0; tries < 8; tries++) {
+                guild.code = randomCode(random);
+                if (realm.findGuildByCode(guild.code).isEmpty()) break;
+            }
+            guild.name = clean;
+            guild.leaderId = state.userId;
+            guild.createdAt = ctx.now;
+            guild.members.put(state.userId, member(state, ctx.now));
+            refreshOperation(guild, ctx.now);
+            realm.createGuild(guild);
+            state.guildId = guild.id;
+            state.guildName = guild.name;
+            ctx.events.add("Founded " + guild.name + ". Share the code " + guild.code + " to recruit knights.");
+        });
+    }
+
+    public Map<String, Object> joinGuild(AccountUser user, String code, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            ChroniclesRealmStore realm = requireRealm();
+            if (!state.guildId.isEmpty()) throw new IllegalArgumentException("Leave your guild first.");
+            String clean = code == null ? "" : code.trim().toUpperCase(Locale.ROOT);
+            ChroniclesRealm.Guild found = realm.findGuildByCode(clean)
+                    .orElseThrow(() -> new IllegalArgumentException("No guild has that code."));
+            String name = realm.mutateGuild(found.id, g -> {
+                if (g.members.size() >= ChroniclesContent.GUILD_MAX_MEMBERS) throw new IllegalArgumentException("That guild is full.");
+                g.members.put(state.userId, member(state, ctx.now));
+                refreshOperation(g, ctx.now);
+                return g.name;
+            });
+            state.guildId = found.id;
+            state.guildName = name;
+            ctx.events.add("You joined " + name + ".");
+        });
+    }
+
+    public Map<String, Object> leaveGuild(AccountUser user, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            if (state.guildId.isEmpty()) throw new IllegalArgumentException("You are not in a guild.");
+            if (state.expedition != null && !state.expedition.operationFront.isEmpty()) {
+                throw new IllegalArgumentException("Wait for your operation sortie to return.");
+            }
+            try {
+                requireRealm().mutateGuild(state.guildId, g -> {
+                    g.members.remove(state.userId);
+                    if (state.userId.equals(g.leaderId) && !g.members.isEmpty()) g.leaderId = g.members.keySet().iterator().next();
+                    return null;
+                });
+            } catch (IllegalArgumentException ex) {
+                // The guild is already gone; leaving it still succeeds.
+            }
+            ctx.events.add("You left " + state.guildName + ".");
+            state.guildId = "";
+            state.guildName = "";
+        });
+    }
+
+    public Map<String, Object> donate(AccountUser user, String itemId, int qty, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            Integer points = ChroniclesContent.DONATION_POINTS.get(itemId == null ? "" : itemId);
+            if (points == null) throw new IllegalArgumentException("The guild cannot use that for its defenses.");
+            int n = clamp(qty <= 0 ? 1 : qty, 1, 500);
+            if (state.inventory.getOrDefault(itemId, 0) < n) throw new IllegalArgumentException("You have only "
+                    + state.inventory.getOrDefault(itemId, 0) + " " + itemName(itemId) + ".");
+            if (state.guildId.isEmpty()) throw new IllegalArgumentException("Join a guild first.");
+            int[] levels = new int[2];
+            requireRealm().mutateGuild(state.guildId, g -> {
+                if (!g.members.containsKey(state.userId)) throw new IllegalArgumentException("You are no longer in that guild.");
+                levels[0] = ChroniclesContent.defenseLevel(g.defensePoints);
+                g.defensePoints += (long) points * n;
+                levels[1] = ChroniclesContent.defenseLevel(g.defensePoints);
+                return null;
+            });
+            take(state, itemId, n);
+            grantRank(state, (long) points * n / 4, ctx.events);
+            ctx.events.add("Donated " + n + " " + itemName(itemId) + " to the siege defenses.");
+            if (levels[1] > levels[0]) ctx.events.add("The guild's siege defenses reached level " + levels[1] + "!");
+        });
+    }
+
+    public Map<String, Object> claimOperation(AccountUser user, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            if (state.guildId.isEmpty()) throw new IllegalArgumentException("Join a guild first.");
+            ChroniclesContent.Threat broken = requireRealm().mutateGuild(state.guildId, g -> {
+                ChroniclesRealm.Operation op = g.operation;
+                if (op.wonAt == 0) throw new IllegalArgumentException("The threat still stands.");
+                if (op.contributions.getOrDefault(state.userId, 0L) <= 0) {
+                    throw new IllegalArgumentException("Only knights whose companies fought may claim a share.");
+                }
+                if (Boolean.TRUE.equals(op.claimed.get(state.userId))) throw new IllegalArgumentException("You already claimed this week's share.");
+                op.claimed.put(state.userId, true);
+                return threat(op.threatId);
+            });
+            state.crowns += 500;
+            give(state, "ancient_relic", 2);
+            give(state, ChroniclesContent.essenceId(broken.element()), 10);
+            grantRank(state, 400, ctx.events);
+            ctx.events.add("Your share of victory over " + broken.name() + ": 500 crowns, 2 Ancient Relics and 10 "
+                    + ChroniclesContent.elementLabel(broken.element()) + " Essence.");
+        });
+    }
+
+    public Map<String, Object> guildView(AccountUser user) {
+        synchronized (lock(user)) {
+            ChroniclesState state = store.findByUserId(user.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Begin your chronicle first."));
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("available", realm != null);
+            out.put("rankNeeded", ChroniclesContent.GUILD_RANK);
+            out.put("canFound", rank(state) >= ChroniclesContent.GUILD_RANK);
+            List<Map<String, Object>> fronts = new ArrayList<>();
+            for (ChroniclesContent.Front f : ChroniclesContent.FRONTS.values()) {
+                fronts.add(Map.of("id", f.id(), "name", f.name(), "text", f.text()));
+            }
+            out.put("fronts", fronts);
+            List<Map<String, Object>> donations = new ArrayList<>();
+            ChroniclesContent.DONATION_POINTS.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(e ->
+                    donations.add(Map.of("id", e.getKey(), "name", itemName(e.getKey()), "points", e.getValue(),
+                            "have", state.inventory.getOrDefault(e.getKey(), 0))));
+            out.put("donations", donations);
+            if (realm == null || state.guildId.isEmpty()) {
+                out.put("guild", null);
+                return out;
+            }
+            ChroniclesRealm.Guild g;
+            try {
+                g = currentGuild(state, now());
+            } catch (IllegalArgumentException ex) {
+                out.put("guild", null);
+                out.put("notice", ex.getMessage());
+                return out;
+            }
+            Map<String, Object> guild = new LinkedHashMap<>();
+            guild.put("name", g.name);
+            guild.put("code", g.code);
+            guild.put("leader", g.members.containsKey(g.leaderId) ? g.members.get(g.leaderId).name : "");
+            guild.put("isLeader", state.userId.equals(g.leaderId));
+            List<Map<String, Object>> members = new ArrayList<>();
+            g.members.entrySet().stream()
+                    .sorted((a, b) -> Long.compare(g.operation.contributions.getOrDefault(b.getKey(), 0L),
+                            g.operation.contributions.getOrDefault(a.getKey(), 0L)))
+                    .forEach(e -> members.add(Map.of("name", e.getValue().name, "rank", e.getValue().rank,
+                            "you", e.getKey().equals(state.userId),
+                            "contribution", g.operation.contributions.getOrDefault(e.getKey(), 0L))));
+            guild.put("members", members);
+            guild.put("maxMembers", ChroniclesContent.GUILD_MAX_MEMBERS);
+            int defense = ChroniclesContent.defenseLevel(g.defensePoints);
+            guild.put("defenseLevel", defense);
+            guild.put("defensePoints", g.defensePoints);
+            guild.put("nextDefenseAt", defense < ChroniclesContent.DEFENSE_THRESHOLDS.length
+                    ? ChroniclesContent.DEFENSE_THRESHOLDS[defense] : 0);
+            ChroniclesRealm.Operation op = g.operation;
+            ChroniclesContent.Threat t = threat(op.threatId);
+            Map<String, Object> operation = new LinkedHashMap<>();
+            operation.put("week", op.week);
+            operation.put("threat", t.name());
+            operation.put("element", t.element().name());
+            operation.put("elementLabel", ChroniclesContent.elementLabel(t.element()));
+            operation.put("blurb", t.blurb());
+            operation.put("maxHp", op.maxHp);
+            operation.put("damage", Math.min(op.damage, op.maxHp));
+            operation.put("won", op.wonAt > 0);
+            operation.put("yours", op.contributions.getOrDefault(state.userId, 0L));
+            operation.put("canClaim", op.wonAt > 0 && op.contributions.getOrDefault(state.userId, 0L) > 0
+                    && !Boolean.TRUE.equals(op.claimed.get(state.userId)));
+            operation.put("fronts", op.fronts);
+            operation.put("companyLevel", companyLevel(state));
+            guild.put("operation", operation);
+            out.put("guild", guild);
+            return out;
+        }
+    }
+
+    private ChroniclesRealm.Member member(ChroniclesState state, long now) {
+        ChroniclesRealm.Member m = new ChroniclesRealm.Member();
+        m.name = state.knightName;
+        m.rank = rank(state);
+        m.joinedAt = now;
+        return m;
+    }
+
+    private static String randomCode(Random random) {
+        String alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 6; i++) sb.append(alphabet.charAt(random.nextInt(alphabet.length())));
+        return sb.toString();
+    }
+
+    // Marketplace ────────────────────────────────────────────────────────────
+
+    public Map<String, Object> listItem(AccountUser user, String itemId, int qty, long price, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            ChroniclesRealmStore realm = requireRealm();
+            Item item = ChroniclesContent.ITEMS.get(itemId == null ? "" : itemId);
+            if (item == null || !ChroniclesContent.TRADEABLE.contains(item.kind())) {
+                throw new IllegalArgumentException("That cannot be sold.");
+            }
+            if (qty <= 0) throw new IllegalArgumentException("Choose how many to sell.");
+            if (price <= 0 || price > ChroniclesContent.MARKET_MAX_PRICE) throw new IllegalArgumentException("Set a price in crowns.");
+            int spare = state.inventory.getOrDefault(item.id(), 0) - (equipped(state, item.id()) ? 1 : 0);
+            if (spare < qty) throw new IllegalArgumentException("You have only " + Math.max(0, spare) + " spare " + item.name() + ".");
+            long open = realm.listingsBySeller(state.userId).stream().filter(l -> "open".equals(l.status)).count();
+            if (open >= ChroniclesContent.MARKET_MAX_LISTINGS) {
+                throw new IllegalArgumentException("You can have " + ChroniclesContent.MARKET_MAX_LISTINGS + " listings open.");
+            }
+            ChroniclesRealm.Listing listing = new ChroniclesRealm.Listing();
+            listing.id = "m" + Long.toString(Math.abs(new Random(ctx.now ^ state.seed ^ item.id().hashCode()).nextLong()), 36);
+            listing.sellerId = state.userId;
+            listing.sellerName = state.knightName;
+            listing.itemId = item.id();
+            listing.qty = qty;
+            listing.price = price;
+            listing.createdAt = ctx.now;
+            // Escrow: the goods leave the pack as the listing goes up.
+            take(state, item.id(), qty);
+            realm.createListing(listing);
+            ctx.events.add("Listed " + qty + " " + item.name() + " for " + price + " crowns.");
+        });
+    }
+
+    public Map<String, Object> buyListing(AccountUser user, String listingId, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            ChroniclesRealm.Listing bought = requireRealm().mutateListing(listingId == null ? "" : listingId, l -> {
+                if (!"open".equals(l.status)) throw new IllegalArgumentException("Someone else bought it first.");
+                if (l.sellerId.equals(state.userId)) throw new IllegalArgumentException("That is your own listing.");
+                if (state.crowns < l.price) throw new IllegalArgumentException("You need " + l.price + " crowns.");
+                l.status = "sold";
+                l.buyerId = state.userId;
+                l.soldAt = ctx.now;
+                return l;
+            });
+            state.crowns -= bought.price;
+            give(state, bought.itemId, bought.qty);
+            ctx.events.add("Bought " + bought.qty + " " + itemName(bought.itemId) + " for " + bought.price + " crowns.");
+        });
+    }
+
+    public Map<String, Object> cancelListing(AccountUser user, String listingId, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            ChroniclesRealm.Listing cancelled = requireRealm().mutateListing(listingId == null ? "" : listingId, l -> {
+                if (!l.sellerId.equals(state.userId)) throw new IllegalArgumentException("That is not your listing.");
+                if (!"open".equals(l.status)) throw new IllegalArgumentException("That listing has already sold.");
+                l.status = "cancelled";
+                return l;
+            });
+            give(state, cancelled.itemId, cancelled.qty);
+            ctx.events.add("Took back " + cancelled.qty + " " + itemName(cancelled.itemId) + ".");
+        });
+    }
+
+    public Map<String, Object> marketView(AccountUser user) {
+        synchronized (lock(user)) {
+            ChroniclesState state = store.findByUserId(user.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Begin your chronicle first."));
+            Map<String, Object> out = new LinkedHashMap<>();
+            ChroniclesRealmStore realm = requireRealm();
+            List<String> events = new ArrayList<>();
+            if (claimProceeds(state, events)) {
+                state.version++;
+                state.updatedAt = now();
+                store.save(state);
+            }
+            out.put("events", events);
+            out.put("crowns", state.crowns);
+            out.put("version", state.version);
+            out.put("fee", ChroniclesContent.MARKET_FEE);
+            List<Map<String, Object>> open = new ArrayList<>();
+            realm.openListings(100).stream().sorted((a, b) -> Long.compare(b.createdAt, a.createdAt))
+                    .forEach(l -> open.add(listingRow(l, state)));
+            out.put("listings", open);
+            List<Map<String, Object>> mine = new ArrayList<>();
+            realm.listingsBySeller(state.userId).stream().filter(l -> !"cancelled".equals(l.status))
+                    .sorted((a, b) -> Long.compare(b.createdAt, a.createdAt)).limit(20)
+                    .forEach(l -> mine.add(listingRow(l, state)));
+            out.put("mine", mine);
+            List<Map<String, Object>> sellable = new ArrayList<>();
+            state.inventory.forEach((id, qty) -> {
+                Item item = ChroniclesContent.ITEMS.get(id);
+                int spare = qty - (equipped(state, id) ? 1 : 0);
+                if (item != null && ChroniclesContent.TRADEABLE.contains(item.kind()) && spare > 0) {
+                    sellable.add(Map.of("id", id, "name", item.name(), "qty", spare, "kind", item.kind().name()));
+                }
+            });
+            out.put("sellable", sellable);
+            return out;
+        }
+    }
+
+    private static Map<String, Object> listingRow(ChroniclesRealm.Listing l, ChroniclesState state) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", l.id);
+        row.put("item", itemRow(l.itemId, l.qty));
+        row.put("price", l.price);
+        row.put("seller", l.sellerName);
+        row.put("status", l.status);
+        row.put("mine", l.sellerId.equals(state.userId));
+        row.put("affordable", state.crowns >= l.price);
+        return row;
+    }
+
+    private static boolean equipped(ChroniclesState state, String id) {
+        return id.equals(state.weaponId) || id.equals(state.armorId) || id.equals(state.relicId)
+                || id.equals(state.helmetId) || id.equals(state.bootsId) || id.equals(state.accessoryId);
+    }
+
+    /** Collects crowns from the seller's sold listings, once each. Returns true when any were paid. */
+    boolean claimProceeds(ChroniclesState state, List<String> events) {
+        if (realm == null) return false;
+        boolean paid = false;
+        try {
+            for (ChroniclesRealm.Listing l : realm.listingsBySeller(state.userId)) {
+                if (!"sold".equals(l.status) || l.claimed) continue;
+                long payout = realm.mutateListing(l.id, fresh -> {
+                    if (!"sold".equals(fresh.status) || fresh.claimed) return 0L;
+                    fresh.claimed = true;
+                    return Math.round(fresh.price * (1 - ChroniclesContent.MARKET_FEE));
+                });
+                if (payout > 0) {
+                    state.crowns += payout;
+                    events.add("Sold " + l.qty + " " + itemName(l.itemId) + " for " + payout + " crowns (after the 5% fee).");
+                    paid = true;
+                }
+            }
+        } catch (RuntimeException ex) {
+            // The marketplace being unreachable must never block the knight's own save.
+        }
+        return paid;
     }
 
     // ── Mutation plumbing ────────────────────────────────────────────────────
@@ -543,11 +1277,13 @@ public class ChroniclesService {
         int before = state.sightings.size();
         state.sightings.removeIf(s -> s.expiresAt <= now);
         if (state.sightings.size() != before) changed = true;
+        changed |= settleBase(state, now, events);
         ActivityRun run = state.activity;
         if (run == null || now <= run.lastTickAt) return changed;
         long elapsed = now - run.lastTickAt;
-        boolean capped = elapsed > ChroniclesContent.OFFLINE_CAP_MS;
-        if (capped) elapsed = ChroniclesContent.OFFLINE_CAP_MS;
+        long cap = offlineCap(state);
+        boolean capped = elapsed > cap;
+        if (capped) elapsed = cap;
         long actionMs = actionMs(state, run);
         long pool = run.remainderMs + elapsed;
         long actions = pool / actionMs;
@@ -565,16 +1301,19 @@ public class ChroniclesService {
             if (actions >= max) {
                 actions = max;
                 remainder = 0;
-                stopped = "Ran out of materials for " + itemName(recipe.output()) + ".";
+                stopped = "Ran out of materials for " + recipeLabel(recipe) + ".";
             }
             for (Map.Entry<String, Integer> input : recipe.inputs().entrySet()) {
                 int n = (int) (input.getValue() * actions);
                 if (n > 0) { take(state, input.getKey(), n); used.put(input.getKey(), n); }
             }
-            if (actions > 0) { give(state, recipe.output(), (int) actions); made.put(recipe.output(), (int) actions); }
+            if (actions > 0) {
+                applyRecipeOutput(state, recipe, (int) actions, events);
+                if (!recipe.isStudy()) made.put(recipe.output(), (int) actions);
+            }
             skillId = recipe.skillId();
             xpEach = recipe.xp();
-            name = itemName(recipe.output());
+            name = recipeLabel(recipe);
         } else {
             Activity activity = ChroniclesContent.ACTIVITIES.get(run.id);
             if (activity == null) { state.activity = null; return true; }
@@ -592,7 +1331,7 @@ public class ChroniclesService {
             Companion helper = state.helperId.isEmpty() ? null : findCompanion(state, state.helperId);
             if (helper != null && !onExpedition(state, helper.id)) {
                 long bond = (run.actions + actions) / 2 - run.actions / 2;
-                if (bond > 0) grantBond(helper, bond, events);
+                if (bond > 0) grantBond(state, helper, bond, events);
                 long aff = (run.actions + actions) / 4 - run.actions / 4;
                 if (aff > 0) grantAffinity(state, creature(helper.speciesId).element(), aff, events);
             }
@@ -626,6 +1365,73 @@ public class ChroniclesService {
         return true;
     }
 
+    int buildingLevel(ChroniclesState state, String id) {
+        return Math.max(0, state.buildings.getOrDefault(id, 0));
+    }
+
+    long offlineCap(ChroniclesState state) {
+        return ChroniclesContent.offlineCapMs(buildingLevel(state, "library"));
+    }
+
+    private double workshopSpeed(ChroniclesState state, ActivityRun run) {
+        String skill = "";
+        if ("craft".equals(run.kind)) {
+            Recipe recipe = ChroniclesContent.RECIPES.get(run.id);
+            skill = recipe == null ? "" : recipe.skillId();
+        }
+        return switch (skill) {
+            case "smelting", "smithing", "carpentry" -> ChroniclesContent.workshopSpeed(buildingLevel(state, "forge"));
+            case "alchemy", "cooking" -> ChroniclesContent.workshopSpeed(buildingLevel(state, "garden"));
+            case "elemental_studies" -> ChroniclesContent.workshopSpeed(buildingLevel(state, "library"));
+            default -> 0;
+        };
+    }
+
+    /** Garden harvests and Sanctuary bond, accrued from timestamps like the knight's work. */
+    private boolean settleBase(ChroniclesState state, long now, List<String> events) {
+        if (state.baseTickAt <= 0) {
+            state.baseTickAt = now;
+            return true;
+        }
+        if (now <= state.baseTickAt) return false;
+        long elapsed = Math.min(now - state.baseTickAt, offlineCap(state));
+        state.baseTickAt = now;
+        double hours = elapsed / 3_600_000.0;
+        Map<String, Integer> grown = new LinkedHashMap<>();
+        for (Map.Entry<String, Double> e : ChroniclesContent.gardenYield(buildingLevel(state, "garden")).entrySet()) {
+            double total = state.gardenRemainders.getOrDefault(e.getKey(), 0.0) + e.getValue() * hours;
+            int whole = (int) Math.floor(total);
+            state.gardenRemainders.put(e.getKey(), total - whole);
+            if (whole > 0) {
+                give(state, e.getKey(), whole);
+                grown.put(e.getKey(), whole);
+            }
+        }
+        double bondRate = ChroniclesContent.sanctuaryBondPerHour(buildingLevel(state, "sanctuary"));
+        if (bondRate > 0) {
+            double total = state.sanctuaryRemainder + bondRate * hours;
+            int whole = (int) Math.floor(total);
+            state.sanctuaryRemainder = total - whole;
+            if (whole > 0) {
+                for (Companion c : new ArrayList<>(state.companions)) {
+                    boolean resting = !onExpedition(state, c.id) && !c.id.equals(state.helperId);
+                    if (resting) grantBond(state, c, whole, events);
+                }
+            }
+        }
+        if (!grown.isEmpty() && (state.away != null || elapsed >= AWAY_REPORT_MIN_MS)) {
+            if (state.away == null) {
+                state.away = new AwayReport();
+                state.away.fromAt = now - elapsed;
+                state.away.activityName = "Base";
+            }
+            state.away.toAt = now;
+            AwayReport away = state.away;
+            grown.forEach((k, v) -> away.items.merge(k, v, Integer::sum));
+        }
+        return true;
+    }
+
     long actionMs(ChroniclesState state, ActivityRun run) {
         int seconds;
         java.util.Set<Element> helpers;
@@ -638,11 +1444,17 @@ public class ChroniclesService {
             seconds = activity == null ? 10 : activity.actionSeconds();
             helpers = activity == null ? java.util.Set.of() : activity.helperElements();
         }
-        double factor = 1.0;
+        double factor = 1.0 - workshopSpeed(state, run);
+        String skillId = "craft".equals(run.kind)
+                ? (ChroniclesContent.RECIPES.containsKey(run.id) ? ChroniclesContent.RECIPES.get(run.id).skillId() : "")
+                : (ChroniclesContent.ACTIVITIES.containsKey(run.id) ? ChroniclesContent.ACTIVITIES.get(run.id).skillId() : "");
+        if (!skillId.isEmpty() && skillLevel(state, skillId) >= ChroniclesContent.GRANDMASTER) {
+            factor *= 1 - ChroniclesContent.GRANDMASTER_SPEED;
+        }
         Companion helper = state.helperId.isEmpty() ? null : findCompanion(state, state.helperId);
         if (helper != null && !onExpedition(state, helper.id)) {
             Creature c = creature(helper.speciesId);
-            factor = helpers.contains(c.element()) ? 0.75 : 0.92;
+            factor *= helpers.contains(c.element()) ? 0.75 : 0.92;
         }
         return Math.max(1000L, Math.round(seconds * 1000L * factor));
     }
@@ -672,13 +1484,54 @@ public class ChroniclesService {
         } else if (technique != null) {
             notes.add("Prepared technique: " + technique.name() + ".");
         }
+        ChroniclesContent.Signature signature = null;
+        if (technique != null && affinityLevel(state, technique.element()) >= ChroniclesContent.ASCENDANCE) {
+            signature = ChroniclesContent.SIGNATURES.get(technique.element());
+            notes.add("Ascendant: " + signature.name() + " is ready.");
+        }
+        if (technique != null && affinityLevel(state, technique.element()) >= ChroniclesContent.RESONANCE) {
+            // Resonance: the technique reaches the whole company and hits harder.
+            Mods m = technique.mods();
+            double k = ChroniclesContent.RESONANCE_SCALE;
+            technique = new Technique(technique.id(), technique.element(), "Resonant " + technique.name(),
+                    technique.text(), false,
+                    new Mods(m.atk() * k, m.def() * k, m.hp() * k, m.spd() * k, m.crit() * k, m.enemyDef() * k,
+                            m.enemySpd() * k, m.postHeal() * k, m.openingDmg() * k, Math.min(0.5, m.lowHpGuard() * k)),
+                    technique.mastery());
+            notes.add("Resonance carries it to the whole company.");
+        }
+        ChroniclesContent.Combo combo = state.tactics.comboId == null || state.tactics.comboId.isEmpty()
+                ? null : ChroniclesContent.COMBOS.get(state.tactics.comboId);
+        if (combo != null && !comboKnown(state, combo)) combo = null;
+        if (combo != null && !(elementCounts.containsKey(combo.a().name()) && elementCounts.containsKey(combo.b().name()))) {
+            notes.add(combo.name() + " needs both a " + ChroniclesContent.elementLabel(combo.a()) + " and a "
+                    + ChroniclesContent.elementLabel(combo.b()) + " Siegeling in the company.");
+            combo = null;
+        } else if (combo != null) {
+            notes.add("Convergence: " + combo.name() + ".");
+        }
+        java.util.Set<String> twists = new java.util.LinkedHashSet<>();
+        for (String id : route.twists()) {
+            ChroniclesContent.Twist t = ChroniclesContent.TWISTS.get(id);
+            if (t == null) continue;
+            if (twistWarded(state, t, elementCounts)) notes.add(t.name() + " is warded off.");
+            else {
+                twists.add(t.id());
+                notes.add(t.name() + ": " + t.text());
+            }
+        }
+        boolean attuned = affinityLevel(state, route.element()) >= ChroniclesContent.ATTUNEMENT;
+        if (attuned) notes.add("Attuned to " + ChroniclesContent.elementLabel(route.element()) + " lands.");
         List<CrossClass> crossClass = activeCrossClass(state, classCounts);
         for (CrossClass cc : crossClass) notes.add("Cross-class technique: " + cc.name() + ".");
+        String runeId = packed.keySet().stream().filter(ChroniclesContent.RUNE_EFFECTS::containsKey).findFirst().orElse("");
+        if (!runeId.isEmpty()) notes.add("The " + itemName(runeId) + " glows on your standard.");
 
         // Stat bonuses are folded into each unit; the battle-level effects (enemy debuffs,
         // post-battle healing, opening strike, low-health guard) ride on the field mods.
         Mods crossStats = Mods.NONE;
         for (CrossClass cc : crossClass) crossStats = sum(crossStats, cc.mods());
+        if (combo != null) crossStats = sum(crossStats, combo.mods());
         Mods field = new Mods(0, 0, 0, 0, 0, crossStats.enemyDef(), crossStats.enemySpd(), crossStats.postHeal(),
                 crossStats.openingDmg(), crossStats.lowHpGuard());
         if (technique != null) {
@@ -695,24 +1548,64 @@ public class ChroniclesService {
             if (id.isEmpty()) continue;
             Companion c = findCompanion(state, id);
             if (c == null) continue;
-            Unit unit = companionUnit(state, c, synergies, technique, crossStats);
+            Unit unit = companionUnit(state, c, synergies, technique, crossStats, runeId);
             unit.position = position;
             party.add(unit);
         }
-        Unit reserveUnit = reserve == null ? null : companionUnit(state, reserve, synergies, technique, crossStats);
+        Unit reserveUnit = reserve == null ? null : companionUnit(state, reserve, synergies, technique, crossStats, runeId);
 
         Item weapon = ChroniclesContent.ITEMS.getOrDefault(state.weaponId, ChroniclesContent.ITEMS.get("squires_sword"));
         Item armor = ChroniclesContent.ITEMS.getOrDefault(state.armorId, ChroniclesContent.ITEMS.get("travelers_coat"));
         Item relic = state.relicId.isEmpty() ? null : ChroniclesContent.ITEMS.get(state.relicId);
+        ChroniclesContent.GearBonus gear = gearBonus(state);
         ChroniclesCombat.Knight knight = new ChroniclesCombat.Knight(weapon.weaponType(), weapon.tier(),
-                weaponLevel(state, weapon.weaponType()), skillLevel(state, "command"), armor.armor(),
+                weaponLevel(state, weapon.weaponType()), skillLevel(state, "command"), armor.armor() + gear.armor(),
                 armor.heatWard() || (relic != null && relic.heatWard()), relic == null ? "" : relic.relicEffect(),
-                "embersteel_lance".equals(weapon.id()), skillLevel(state, "foraging"));
+                "embersteel_lance".equals(weapon.id()), skillLevel(state, "foraging"),
+                profLevel(state, "cartography"),
+                1 - (1 - ChroniclesContent.survivalCut(profLevel(state, "survival")))
+                        * (attuned ? 1 - ChroniclesContent.ATTUNED_HAZARD : 1),
+                ChroniclesContent.cartographyLoot(profLevel(state, "cartography"))
+                        + (attuned ? ChroniclesContent.ATTUNED_LOOT : 0),
+                ChroniclesContent.husbandryRest(profLevel(state, "husbandry"))
+                        + ChroniclesContent.stableRest(buildingLevel(state, "stable")) + gear.rest(),
+                ChroniclesContent.tacticsGauge(profLevel(state, "class_tactics"))
+                        + 18 * (gear.gauge() + ("runeheart".equals(state.relicId) ? 0.25 : 0)),
+                ChroniclesContent.warRoomGauge(buildingLevel(state, "war_room")),
+                hazardWards(state));
         CommandTrigger trigger = triggerFor(state, weapon.weaponType());
+        long duration = Math.round(route.minutes() * 60_000L
+                * (1 - ChroniclesContent.pathfindingCut(profLevel(state, "pathfinding")))
+                * (1 - gear.roadCut()));
 
-        ChroniclesCombat.EnemyFactory enemies = (random, boss, elite) -> enemyGroup(route, random, boss, elite);
+        Map<String, Integer> potions = new LinkedHashMap<>(packed);
+        potions.keySet().removeIf(ChroniclesContent.RUNE_EFFECTS::containsKey);
+        ChroniclesCombat.EnemyFactory enemies = isTrial(route) && !members.isEmpty()
+                ? (random, boss, elite) -> trialEnemies(route, members.get(0), random, boss)
+                : (random, boss, elite) -> enemyGroup(route, random, boss, elite);
         return new ChroniclesCombat.Input(route, party, reserveUnit, knight, trigger, state.tactics.retreatAt,
-                state.tactics.potionAt, packed, field, notes, seed, enemies);
+                state.tactics.potionAt, potions, field, notes, seed, enemies, duration,
+                combo == null ? ChroniclesContent.Arcana.NONE : combo.arcana(), signature, twists);
+    }
+
+    /** Helmet, boots and accessory combined. */
+    ChroniclesContent.GearBonus gearBonus(ChroniclesState state) {
+        int armor = 0;
+        double road = 0, speed = 0, crit = 0, rest = 0, gauge = 0;
+        for (String id : List.of(state.helmetId, state.bootsId, state.accessoryId)) {
+            ChroniclesContent.GearBonus g = ChroniclesContent.GEAR_BONUSES.get(id == null ? "" : id);
+            if (g == null || state.inventory.getOrDefault(id, 0) <= 0) continue;
+            armor += g.armor(); road += g.roadCut(); speed += g.speed(); crit += g.crit(); rest += g.rest(); gauge += g.gauge();
+        }
+        return new ChroniclesContent.GearBonus(armor, road, speed, crit, rest, gauge);
+    }
+
+    private java.util.Set<String> hazardWards(ChroniclesState state) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        for (String id : List.of(state.armorId, state.relicId, state.helmetId, state.bootsId)) {
+            out.addAll(ChroniclesContent.HAZARD_WARD_ITEMS.getOrDefault(id == null ? "" : id, java.util.Set.of()));
+        }
+        return out;
     }
 
     private CommandTrigger triggerFor(ChroniclesState state, String weaponType) {
@@ -726,7 +1619,7 @@ public class ChroniclesService {
     private List<Unit> enemyGroup(Route route, Random random, boolean boss, boolean elite) {
         List<Unit> out = new ArrayList<>();
         if (boss) {
-            Creature c = creature(route.bossId());
+            Creature c = bossOf(route);
             Unit unit = statUnit(c, route.bossLevel(), false, "boss-" + c.id());
             // Bosses are often epic final forms; their raw budget would dwarf a company of
             // first evolutions, so the boss's size comes from its multipliers, not its rarity.
@@ -735,6 +1628,7 @@ public class ChroniclesService {
             unit.hp = unit.maxHp;
             unit.atk *= 0.95 * norm;
             unit.def *= norm;
+            scaleForTier(unit, route);
             unit.boss = true;
             out.add(unit);
             return out;
@@ -750,25 +1644,82 @@ public class ChroniclesService {
             unit.maxHp *= wild;
             unit.hp = unit.maxHp;
             unit.atk *= wild;
+            scaleForTier(unit, route);
             out.add(unit);
         }
         return out;
     }
 
-    /** Wild Siegelings for a route: its element, base forms for the open wilds, first evolutions in dungeons. */
+    /**
+     * Later lands field stronger wilds than their level alone gives: a company of final
+     * forms would otherwise stroll through Tier III and IV.
+     */
+    private static void scaleForTier(Unit unit, Route route) {
+        double hp = 1.0;
+        double atk = 1.0;
+        if (route.tier() == 3) { hp = 1.7; atk = 2.7; }
+        if (route.tier() >= 4) { hp = 1.6; atk = 2.3; }
+        unit.maxHp *= hp;
+        unit.hp = unit.maxHp;
+        unit.atk *= atk;
+        unit.def *= Math.sqrt(hp);
+    }
+
+    /**
+     * Wild Siegelings for a route, from its elements. The open wilds of Tier I hold base
+     * forms; dungeons and later tiers field evolved and rarer Siegelings. Taming only
+     * ever finds base forms, rarer the deeper the tier.
+     */
     List<Creature> enemyPool(Route route, boolean tameable) {
-        int maxStage = route.type() == RouteType.DUNGEON && !tameable ? 2 : 1;
-        int maxTier = route.type() == RouteType.DUNGEON ? 3 : 2;
+        List<Creature> pool = rawPool(route, tameable);
+        if (pool.isEmpty()) pool.add(creature(ChroniclesContent.STARTERS.get(0)));
+        return pool;
+    }
+
+    private List<Creature> rawPool(Route route, boolean tameable) {
+        boolean dungeon = route.type() == RouteType.DUNGEON;
+        int maxStage;
+        int maxTier;
+        switch (route.tier()) {
+            case 1 -> { maxStage = dungeon && !tameable ? 2 : 1; maxTier = dungeon ? 3 : 2; }
+            case 2 -> { maxStage = tameable ? 1 : dungeon ? 3 : 2; maxTier = 3; }
+            case 3 -> { maxStage = tameable ? 1 : 3; maxTier = tameable ? 3 : 4; }
+            default -> { maxStage = tameable ? 1 : 3; maxTier = tameable ? 5 : 4; }
+        }
         List<Creature> pool = new ArrayList<>();
         for (Creature c : CreatureRegistry.all()) {
-            if (c.element() != route.element()) continue;
+            if (!route.elements().contains(c.element())) continue;
             if (c.stage() > maxStage) continue;
             if (rarityTier(c.rarity()) > maxTier) continue;
             pool.add(c);
         }
-        if (pool.isEmpty()) pool.add(creature(ChroniclesContent.STARTERS.get(0)));
         pool.sort(Comparator.comparing(Creature::id));
         return pool;
+    }
+
+    /** The named boss, or for "auto" the strongest Siegeling of the route's element. */
+    Creature bossOf(Route route) {
+        if (!"auto".equals(route.bossId())) return creature(route.bossId());
+        return CreatureRegistry.all().stream().filter(c -> c.element() == route.element())
+                .max(Comparator.comparingInt((Creature c) -> rarityTier(c.rarity())).thenComparingInt(Creature::stage)
+                        .thenComparing(Creature::id))
+                .orElse(null);
+    }
+
+    /** A route is sealed while the catalog holds no Siegelings of its element (Light and Poison, for now). */
+    boolean routeSealed(Route route) {
+        if (rawPool(route, false).isEmpty()) return true;
+        return route.bossId() != null && (("auto".equals(route.bossId()) ? bossOf(route) : CreatureRegistry.find(route.bossId()).orElse(null)) == null);
+    }
+
+    boolean routeVisible(ChroniclesState state, Route route) {
+        if (routeSealed(route)) return false;
+        return !route.hidden() || route.requirements().stream().allMatch(req -> meets(state, req));
+    }
+
+    private boolean twistWarded(ChroniclesState state, ChroniclesContent.Twist t, Map<String, Integer> elementCounts) {
+        if (t.relicWard().equals(state.relicId)) return true;
+        return t.wards().stream().anyMatch(e -> elementCounts.containsKey(e.name()));
     }
 
     private Rewards rewardsFor(ChroniclesState state, Route route, ChroniclesCombat.Result result,
@@ -793,7 +1744,14 @@ public class ChroniclesService {
         if (weaponXp > 0) r.weaponXp.put(weapon.weaponType(), weaponXp);
         long command = result.encountersWon * 15L + (complete ? route.minutes() : 0);
         if (command > 0) r.skillXp.put("command", command);
+        long pathfinding = complete ? route.minutes() : route.minutes() / 2;
+        if (pathfinding > 0) r.skillXp.put("pathfinding", pathfinding);
+        long survival = result.hazardsEndured * 10L + (route.type() == RouteType.DUNGEON ? result.encountersWon * 3L : 0);
+        if (survival > 0) r.skillXp.put("survival", survival);
+        if (result.exploreSteps > 0) r.skillXp.put("cartography", result.exploreSteps * 5L);
+        if (result.encountersWon > 0) r.skillXp.put("class_tactics", result.encountersWon * 4L);
         r.rankXp = complete ? route.minutes() * 2L : route.minutes() / 2;
+        r.crowns = result.levelsDefeated * ChroniclesContent.CROWNS_PER_LEVEL;
         for (ChroniclesCombat.SightingRoll roll : result.sightings) {
             Random random = new Random(roll.seed());
             List<Creature> pool = enemyPool(route, true);
@@ -840,6 +1798,10 @@ public class ChroniclesService {
         r.skillXp.forEach((s, v) -> xp.add(xpRow("skill", skillName(s), v)));
         out.put("xp", xp);
         out.put("sightings", r.sightings.size());
+        out.put("crowns", r.crowns);
+        if (!expedition.operationFront.isEmpty()) {
+            out.put("operationScore", "complete".equals(expedition.outcome) || expedition.encountersWon > 0 ? expedition.operationScore : 0);
+        }
         out.put("timeline", timelineList(expedition, Long.MAX_VALUE));
         return out;
     }
@@ -883,7 +1845,7 @@ public class ChroniclesService {
     }
 
     Unit companionUnit(ChroniclesState state, Companion companion, List<Synergy> synergies, Technique technique,
-                       Mods crossStats) {
+                       Mods crossStats, String runeId) {
         Creature c = creature(companion.speciesId);
         Unit u = statUnit(c, companion.level, true, companion.id);
         u.name = displayName(companion);
@@ -914,6 +1876,22 @@ public class ChroniclesService {
         atk += crossStats.atk(); def += crossStats.def(); hp += crossStats.hp(); spd += crossStats.spd();
         u.crit += crossStats.crit();
         if ("guardianCrest".equals(relicEffect(state)) && "Guardian".equals(c.creatureClass())) def += 0.12;
+        ChroniclesContent.ClassBoost boost = ChroniclesContent.ARMOR_BOOSTS.get(state.armorId);
+        if (boost != null && boost.creatureClass().equals(c.creatureClass())) {
+            atk += boost.mods().atk(); def += boost.mods().def(); hp += boost.mods().hp(); spd += boost.mods().spd();
+        }
+        ChroniclesContent.RuneEffect rune = runeId == null ? null : ChroniclesContent.RUNE_EFFECTS.get(runeId);
+        if (rune != null && (rune.element() == null || rune.element() == c.element())) {
+            atk += rune.mods().atk(); def += rune.mods().def(); hp += rune.mods().hp(); spd += rune.mods().spd();
+        }
+        ChroniclesContent.GearBonus gear = gearBonus(state);
+        spd += gear.speed();
+        u.crit += gear.crit();
+        if (companion.legend) {
+            u.legend = true;
+            atk += ChroniclesContent.LEGEND_STATS; def += ChroniclesContent.LEGEND_STATS;
+            hp += ChroniclesContent.LEGEND_STATS; spd += ChroniclesContent.LEGEND_STATS;
+        }
         u.atk *= 1 + atk;
         u.def *= 1 + def;
         u.maxHp *= 1 + hp;
@@ -943,6 +1921,7 @@ public class ChroniclesService {
 
     private List<CrossClass> activeCrossClass(ChroniclesState state, Map<String, Integer> classCounts) {
         List<CrossClass> out = new ArrayList<>();
+        if (profLevel(state, "class_tactics") < ChroniclesContent.CROSS_CLASS_TACTICS) return out;
         for (CrossClass cc : ChroniclesContent.CROSS_CLASS) {
             if (classCounts.containsKey(cc.a()) && classCounts.containsKey(cc.b())
                     && masteryLevel(state, cc.a()) >= ChroniclesContent.CROSS_CLASS_LEVEL
@@ -1009,7 +1988,13 @@ public class ChroniclesService {
             }
             default -> throw new IllegalArgumentException("Choose a taming approach.");
         }
+        if (affinityLevel(state, creature.element()) >= ChroniclesContent.ATTUNEMENT) chance += ChroniclesContent.ATTUNED_TAMING;
         return Math.max(0.05, Math.min(0.95, chance));
+    }
+
+    boolean comboKnown(ChroniclesState state, ChroniclesContent.Combo combo) {
+        return affinityLevel(state, combo.a()) >= ChroniclesContent.CONVERGENCE
+                && affinityLevel(state, combo.b()) >= ChroniclesContent.CONVERGENCE;
     }
 
     private Companion bestPartner(ChroniclesState state, Element element) {
@@ -1026,6 +2011,9 @@ public class ChroniclesService {
 
     private void grantSkill(ChroniclesState state, String skillId, long xp, List<String> events) {
         if (xp <= 0) return;
+        Skill target = ChroniclesContent.SKILLS.get(skillId);
+        // A locked profession earns nothing, or it would unlock itself through the grandfather rule.
+        if (target == null || !skillUnlocked(state, target)) return;
         Map<String, Boolean> unlockedBefore = new HashMap<>();
         for (Skill s : ChroniclesContent.SKILLS.values()) unlockedBefore.put(s.id(), skillUnlocked(state, s));
         int before = skillLevel(state, skillId);
@@ -1048,6 +2036,8 @@ public class ChroniclesService {
 
     private void grantAffinity(ChroniclesState state, Element element, long xp, List<String> events) {
         if (xp <= 0 || element == null || element == Element.NEUTRAL) return;
+        xp = Math.round(xp * (1 + ChroniclesContent.studiesBonus(profLevel(state, "elemental_studies"))
+                + ChroniclesContent.libraryAffinity(buildingLevel(state, "library"))));
         int before = affinityLevel(state, element);
         state.affinityXp.merge(element.name(), xp, Long::sum);
         int after = affinityLevel(state, element);
@@ -1090,7 +2080,9 @@ public class ChroniclesService {
         if (after > before) {
             events.add("Siegeknight Rank " + after + "!");
             for (Route route : ChroniclesContent.ROUTES.values()) {
-                if (route.rankReq() > before && route.rankReq() <= after) events.add("New destination: " + route.name() + ".");
+                if (route.rankReq() > before && route.rankReq() <= after && routeVisible(state, route)) {
+                    events.add("New destination: " + route.name() + ".");
+                }
             }
         }
     }
@@ -1109,8 +2101,10 @@ public class ChroniclesService {
         }
     }
 
-    private void grantBond(Companion c, long points, List<String> events) {
+    private void grantBond(ChroniclesState state, Companion c, long points, List<String> events) {
         if (points <= 0) return;
+        grantSkill(state, "bonding", Math.max(1, points / 2), events);
+        points = Math.round(points * (1 + ChroniclesContent.bondingBonus(profLevel(state, "bonding"))));
         int before = ChroniclesContent.bondLevelFor(c.bond);
         c.bond = Math.min(c.bond + points, ChroniclesContent.bondForLevel(ChroniclesContent.MAX_BOND));
         int after = ChroniclesContent.bondLevelFor(c.bond);
@@ -1144,6 +2138,12 @@ public class ChroniclesService {
         return ChroniclesContent.levelForXp(state.skillXp.getOrDefault(id, 0L));
     }
 
+    /** A profession's level for its effects: 0 while it is still locked. */
+    int profLevel(ChroniclesState state, String id) {
+        Skill skill = ChroniclesContent.SKILLS.get(id);
+        return skill == null || !skillUnlocked(state, skill) ? 0 : skillLevel(state, id);
+    }
+
     int affinityLevel(ChroniclesState state, Element element) {
         return ChroniclesContent.levelForXp(state.affinityXp.getOrDefault(element.name(), 0L));
     }
@@ -1160,7 +2160,12 @@ public class ChroniclesService {
         return ChroniclesContent.levelForXp(state.rankXp);
     }
 
+    /**
+     * Requirements met, or already practised: a profession whose prerequisites moved
+     * (Smithing now follows Smelting) stays open for knights who trained it before.
+     */
     boolean skillUnlocked(ChroniclesState state, Skill skill) {
+        if (state.skillXp.getOrDefault(skill.id(), 0L) > 0) return true;
         return skill.unlock().stream().allMatch(req -> meets(state, req));
     }
 
@@ -1198,6 +2203,21 @@ public class ChroniclesService {
         }
         for (Req req : recipe.extraReqs()) {
             if (!meets(state, req)) throw new IllegalArgumentException(itemName(recipe.output()) + " needs " + reqText(req) + ".");
+        }
+    }
+
+    static String recipeLabel(Recipe recipe) {
+        if (recipe.isStudy()) return ChroniclesContent.elementLabel(recipe.studyElement()) + " studies";
+        return itemName(recipe.output());
+    }
+
+    /** Makes the recipe's item, or for a study session teaches its element. */
+    private void applyRecipeOutput(ChroniclesState state, Recipe recipe, int times, List<String> events) {
+        if (times <= 0) return;
+        if (recipe.isStudy()) {
+            grantAffinity(state, recipe.studyElement(), (long) ChroniclesContent.STUDY_AFFINITY_XP * times, events);
+        } else {
+            give(state, recipe.output(), recipe.outputQty() * times);
         }
     }
 
@@ -1380,6 +2400,10 @@ public class ChroniclesService {
         knight.putAll(progress(state.rankXp, rank));
         knight.put("expeditionsCompleted", state.expeditionsCompleted);
         knight.put("tamed", state.tamedCount);
+        knight.put("crowns", state.crowns);
+        knight.put("guildId", state.guildId);
+        knight.put("guildName", state.guildName);
+        knight.put("realmAvailable", realm != null);
         out.put("knight", knight);
 
         List<Map<String, Object>> skills = new ArrayList<>();
@@ -1396,6 +2420,7 @@ public class ChroniclesService {
             row.put("unlocked", skillUnlocked(state, s));
             row.put("unlockText", s.unlock().stream().map(this::reqText).toList());
             row.put("leadsTo", leadsTo(s.id()));
+            row.put("effect", skillEffect(state, s.id(), level));
             skills.add(row);
         }
         out.put("skills", skills);
@@ -1426,6 +2451,19 @@ public class ChroniclesService {
             tech.put("unlocked", level >= 10);
             row.put("technique", tech);
             row.put("masteryAbility", t.mastery());
+            ChroniclesContent.Signature sig = ChroniclesContent.SIGNATURES.get(element);
+            List<Map<String, Object>> milestones = new ArrayList<>();
+            milestones.add(milestoneRow(10, "Familiarity", t.name() + ": " + t.text(), level));
+            milestones.add(milestoneRow(ChroniclesContent.ATTUNEMENT, "Attunement",
+                    "In " + ChroniclesContent.elementLabel(element) + " lands: hazards halved, finds +25%. Taming "
+                            + ChroniclesContent.elementLabel(element) + " Siegelings +5%.", level));
+            milestones.add(milestoneRow(ChroniclesContent.RESONANCE, "Resonance",
+                    t.name() + " reaches the whole company and is 50% stronger.", level));
+            milestones.add(milestoneRow(ChroniclesContent.CONVERGENCE, "Convergence",
+                    "Cross-element combinations with other elements at 75.", level));
+            milestones.add(milestoneRow(ChroniclesContent.ASCENDANCE, "Ascendance",
+                    sig.name() + ": " + sig.text() + " Title: Ascendant of " + ChroniclesContent.elementLabel(element) + ".", level));
+            row.put("milestones", milestones);
             affinities.add(row);
         }
         out.put("affinities", affinities);
@@ -1459,6 +2497,21 @@ public class ChroniclesService {
         }
         out.put("crossClass", cross);
 
+        List<Map<String, Object>> combos = new ArrayList<>();
+        for (ChroniclesContent.Combo combo : ChroniclesContent.COMBOS.values()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", combo.id());
+            row.put("name", combo.name());
+            row.put("elements", List.of(combo.a().name(), combo.b().name()));
+            row.put("labels", List.of(ChroniclesContent.elementLabel(combo.a()), ChroniclesContent.elementLabel(combo.b())));
+            row.put("text", combo.text());
+            row.put("needs", ChroniclesContent.CONVERGENCE);
+            row.put("unlocked", comboKnown(state, combo));
+            combos.add(row);
+        }
+        out.put("combos", combos);
+        knight.put("titles", titles(state));
+
         Item equippedWeapon = ChroniclesContent.ITEMS.getOrDefault(state.weaponId, ChroniclesContent.ITEMS.get("squires_sword"));
         List<Map<String, Object>> weapons = new ArrayList<>();
         for (ChroniclesContent.Weapon w : ChroniclesContent.WEAPONS.values()) {
@@ -1482,6 +2535,9 @@ public class ChroniclesService {
         equipment.put("weapon", itemRow(state.weaponId, 1));
         equipment.put("armor", itemRow(state.armorId, 1));
         equipment.put("relic", state.relicId.isEmpty() ? null : itemRow(state.relicId, 1));
+        equipment.put("helmet", state.helmetId.isEmpty() ? null : itemRow(state.helmetId, 1));
+        equipment.put("boots", state.bootsId.isEmpty() ? null : itemRow(state.bootsId, 1));
+        equipment.put("accessory", state.accessoryId.isEmpty() ? null : itemRow(state.accessoryId, 1));
         out.put("equipment", equipment);
 
         List<Map<String, Object>> inventory = new ArrayList<>();
@@ -1491,7 +2547,7 @@ public class ChroniclesService {
         List<Map<String, Object>> companions = new ArrayList<>();
         for (Companion c : state.companions) companions.add(companionRow(state, c, art));
         out.put("companions", companions);
-        out.put("rosterCap", ChroniclesContent.ROSTER_CAP);
+        out.put("rosterCap", ChroniclesContent.rosterCap(buildingLevel(state, "sanctuary")));
 
         Map<String, Object> party = new LinkedHashMap<>();
         int command = skillLevel(state, "command");
@@ -1533,6 +2589,7 @@ public class ChroniclesService {
         tactics.put("trigger", triggerFor(state, equippedWeapon.weaponType()).name());
         tactics.put("triggerIsDefault", state.tactics.trigger == null);
         tactics.put("techniqueId", state.tactics.techniqueId == null ? "" : state.tactics.techniqueId);
+        tactics.put("comboId", state.tactics.comboId == null ? "" : state.tactics.comboId);
         tactics.put("triggers", List.of(
                 Map.of("id", "READY", "label", "As soon as it's ready"),
                 Map.of("id", "ALLY_LOW", "label", "When an ally falls below 30%"),
@@ -1572,7 +2629,18 @@ public class ChroniclesService {
             row.put("id", r.id());
             row.put("skillId", r.skillId());
             row.put("skill", s.name());
-            row.put("output", itemRow(r.output(), r.outputQty()));
+            if (r.isStudy()) {
+                Map<String, Object> studyRow = new LinkedHashMap<>();
+                studyRow.put("id", "");
+                studyRow.put("name", recipeLabel(r));
+                studyRow.put("kind", "STUDY");
+                studyRow.put("blurb", "Each session teaches " + ChroniclesContent.STUDY_AFFINITY_XP + "+ "
+                        + ChroniclesContent.elementLabel(r.studyElement()) + " Affinity XP.");
+                studyRow.put("qty", 0);
+                row.put("output", studyRow);
+            } else {
+                row.put("output", itemRow(r.output(), r.outputQty()));
+            }
             row.put("level", r.level());
             row.put("repeatable", r.repeatable());
             row.put("seconds", r.actionSeconds());
@@ -1596,15 +2664,38 @@ public class ChroniclesService {
             row.put("unlocked", missing.isEmpty());
             row.put("canMake", missing.isEmpty() ? maxCrafts(state, r) : 0);
             row.put("owned", !r.repeatable() && state.inventory.getOrDefault(r.output(), 0) > 0);
-            row.put("kind", output == null ? "" : output.kind().name());
+            row.put("kind", r.isStudy() ? "STUDY" : output == null ? "" : output.kind().name());
             recipes.add(row);
         }
         out.put("recipes", recipes);
 
         List<Map<String, Object>> routes = new ArrayList<>();
+        int sealed = 0;
         for (Route r : ChroniclesContent.ROUTES.values()) {
+            if (routeSealed(r)) { sealed++; continue; }
+            if (!routeVisible(state, r)) continue;
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", r.id());
+            row.put("tier", r.tier());
+            row.put("hidden", r.hidden());
+            row.put("extraElements", r.extraElements().stream().map(ChroniclesContent::elementLabel).toList());
+            List<Map<String, Object>> reqs = new ArrayList<>();
+            for (Req req : r.requirements()) reqs.add(Map.of("text", reqText(req), "met", meets(state, req)));
+            row.put("requirements", reqs);
+            List<Map<String, Object>> twistRows = new ArrayList<>();
+            Map<String, Integer> partyElements = new LinkedHashMap<>();
+            for (String pid : state.party) {
+                Companion pc = findCompanion(state, pid);
+                if (pc != null) partyElements.merge(creature(pc.speciesId).element().name(), 1, Integer::sum);
+            }
+            for (String tid : r.twists()) {
+                ChroniclesContent.Twist t = ChroniclesContent.TWISTS.get(tid);
+                if (t == null) continue;
+                twistRows.add(Map.of("name", t.name(), "text", t.text(), "warded", twistWarded(state, t, partyElements),
+                        "counters", t.wards().stream().map(ChroniclesContent::elementLabel).sorted().toList(),
+                        "relic", itemName(t.relicWard())));
+            }
+            row.put("twists", twistRows);
             row.put("name", r.name());
             row.put("region", r.region());
             row.put("type", r.type().name());
@@ -1614,15 +2705,16 @@ public class ChroniclesService {
             row.put("encounters", r.encounters());
             row.put("levels", r.levelMin() + "–" + r.levelMax());
             row.put("rankReq", r.rankReq());
-            row.put("unlocked", rank >= r.rankReq());
+            row.put("unlocked", rank >= r.rankReq() && r.requirements().stream().allMatch(req -> meets(state, req)));
             row.put("blurb", r.blurb());
             row.put("hazardText", r.hazardText() == null ? "" : r.hazardText());
-            row.put("boss", r.bossId() == null ? "" : creature(r.bossId()).name());
+            row.put("boss", r.bossId() == null ? "" : bossOf(r).name());
             row.put("taming", r.sightingChance() >= 0.2);
             row.put("loot", r.loot().stream().map(l -> itemName(l.item())).distinct().toList());
             routes.add(row);
         }
         out.put("routes", routes);
+        out.put("sealedRoutes", sealed);
 
         out.put("expedition", expeditionRow(state, now));
         List<Map<String, Object>> sightings = new ArrayList<>();
@@ -1657,8 +2749,18 @@ public class ChroniclesService {
         }
         out.put("sightings", sightings);
         out.put("away", awayRow(state.away));
+        out.put("base", baseRow(state, rank));
         if (extra != null) out.putAll(extra);
         return out;
+    }
+
+    private static Map<String, Object> milestoneRow(int level, String name, String text, int current) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("level", level);
+        row.put("name", name);
+        row.put("text", text);
+        row.put("unlocked", current >= level);
+        return row;
     }
 
     private static Integer pct(java.util.function.DoubleSupplier supplier) {
@@ -1676,6 +2778,34 @@ public class ChroniclesService {
             }
         }
         return out;
+    }
+
+    /** One line on what this profession's level is doing for the knight right now. */
+    private String skillEffect(ChroniclesState state, String id, int level) {
+        return switch (id) {
+            case "pathfinding" -> "Expeditions " + pctText(ChroniclesContent.pathfindingCut(level)) + " shorter";
+            case "survival" -> "Hazard damage " + pctText(ChroniclesContent.survivalCut(level)) + " lower";
+            case "cartography" -> "Finds +" + pctText(ChroniclesContent.cartographyLoot(level))
+                    + (level >= ChroniclesContent.CARTOGRAPHY_NO_MAZE ? " · never lost" : " · never lost at "
+                    + ChroniclesContent.CARTOGRAPHY_NO_MAZE)
+                    + (level >= ChroniclesContent.CARTOGRAPHY_HIDDEN_ROOM ? " · finds hidden rooms" : "");
+            case "husbandry" -> "Rest +" + pctText(ChroniclesContent.husbandryRest(level)) + " · "
+                    + ChroniclesContent.treatCap(level) + " treats a day";
+            case "bonding" -> "Bond gains +" + pctText(ChroniclesContent.bondingBonus(level));
+            case "elemental_studies" -> "Affinity gains +" + pctText(ChroniclesContent.studiesBonus(level));
+            case "class_tactics" -> "Command gauge +" + Math.round(ChroniclesContent.tacticsGauge(level)) + "/round"
+                    + (level >= ChroniclesContent.CROSS_CLASS_TACTICS ? " · cross-class techniques"
+                    : " · cross-class at " + ChroniclesContent.CROSS_CLASS_TACTICS);
+            case "command" -> ChroniclesContent.partySlots(level) + " company slot"
+                    + (ChroniclesContent.partySlots(level) > 1 ? "s" : "")
+                    + (level >= ChroniclesContent.RESERVE_COMMAND_LEVEL ? " + reserve" : "");
+            default -> "";
+        };
+    }
+
+    private static String pctText(double fraction) {
+        double pct = fraction * 100;
+        return (pct == Math.rint(pct) ? String.valueOf((long) pct) : String.format(Locale.ROOT, "%.1f", pct)) + "%";
     }
 
     private static String rankTitle(int rank) {
@@ -1734,11 +2864,13 @@ public class ChroniclesService {
         stats.put("speed", Math.round(unit.spd));
         row.put("stats", stats);
         row.put("onExpedition", onExpedition(state, c.id));
+        row.put("legend", c.legend);
+        row.put("trialReady", !c.legend && bond >= ChroniclesContent.LEGEND_BOND && state.expedition == null);
         row.put("helping", c.id.equals(state.helperId));
         row.put("expeditions", c.expeditions);
         row.put("battlesWon", c.battlesWon);
         String day = Instant.ofEpochMilli(now()).atZone(ZoneOffset.UTC).toLocalDate().toString();
-        row.put("treatsLeft", ChroniclesContent.DAILY_TREATS_PER_SIEGELING - (day.equals(c.treatsDay) ? c.treatsToday : 0));
+        row.put("treatsLeft", ChroniclesContent.treatCap(profLevel(state, "husbandry")) - (day.equals(c.treatsDay) ? c.treatsToday : 0));
         Map<String, Object> evolution = new LinkedHashMap<>();
         if (canEvolve) {
             Creature to = creature(creature.evolvesToId());
@@ -1800,9 +2932,10 @@ public class ChroniclesService {
         row.put("actions", run.actions);
         if ("craft".equals(run.kind)) {
             Recipe r = ChroniclesContent.RECIPES.get(run.id);
-            row.put("name", r == null ? run.id : "Crafting " + itemName(r.output()));
+            row.put("name", r == null ? run.id : r.isStudy() ? recipeLabel(r) : "Crafting " + itemName(r.output()));
             row.put("skill", r == null ? "" : skillName(r.skillId()));
-            row.put("output", r == null ? "" : itemName(r.output()));
+            row.put("output", r == null ? "" : r.isStudy()
+                    ? ChroniclesContent.elementLabel(r.studyElement()) + " Affinity" : itemName(r.output()));
             row.put("left", r == null ? 0 : maxCrafts(state, r));
         } else {
             Activity a = ChroniclesContent.ACTIVITIES.get(run.id);
@@ -1813,14 +2946,14 @@ public class ChroniclesService {
         }
         Companion helper = state.helperId.isEmpty() ? null : findCompanion(state, state.helperId);
         row.put("helper", helper == null || onExpedition(state, helper.id) ? "" : helper.nickname);
-        row.put("offlineCapHours", ChroniclesContent.OFFLINE_CAP_MS / 3_600_000L);
+        row.put("offlineCapHours", Math.round(offlineCap(state) / 360_000.0) / 10.0);
         return row;
     }
 
     private Map<String, Object> expeditionRow(ChroniclesState state, long now) {
         Expedition e = state.expedition;
         if (e == null) return null;
-        Route route = ChroniclesContent.ROUTES.get(e.routeId);
+        Route route = routeFor(state, e);
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("routeId", e.routeId);
         row.put("route", route == null ? e.routeId : route.name());
@@ -1838,6 +2971,8 @@ public class ChroniclesService {
         row.put("timeline", timelineList(e, now - e.startedAt));
         Technique t = e.techniqueId.isEmpty() ? null : ChroniclesContent.TECHNIQUES.get(e.techniqueId);
         row.put("technique", t == null ? "" : t.name());
+        ChroniclesContent.Combo combo = e.comboId.isEmpty() ? null : ChroniclesContent.COMBOS.get(e.comboId);
+        row.put("combo", combo == null ? "" : combo.name());
         return row;
     }
 
@@ -1853,6 +2988,76 @@ public class ChroniclesService {
             out.add(row);
         }
         return out;
+    }
+
+    private Map<String, Object> baseRow(ChroniclesState state, int rank) {
+        Map<String, Object> base = new LinkedHashMap<>();
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (ChroniclesContent.Building b : ChroniclesContent.BUILDINGS.values()) {
+            int level = buildingLevel(state, b.id());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", b.id());
+            row.put("name", b.name());
+            row.put("blurb", b.blurb());
+            row.put("level", level);
+            row.put("maxLevel", ChroniclesContent.MAX_BUILDING_LEVEL);
+            row.put("effect", level == 0 ? "Not built" : buildingEffect(b.id(), level));
+            if (level < ChroniclesContent.MAX_BUILDING_LEVEL) {
+                int next = level + 1;
+                row.put("nextEffect", buildingEffect(b.id(), next));
+                row.put("rankReq", ChroniclesContent.BUILDING_RANK[next - 1]);
+                List<Map<String, Object>> cost = new ArrayList<>();
+                boolean affordable = rank >= ChroniclesContent.BUILDING_RANK[next - 1];
+                for (Map.Entry<String, Integer> e : b.costs().get(next - 1).entrySet()) {
+                    int have = state.inventory.getOrDefault(e.getKey(), 0);
+                    affordable &= have >= e.getValue();
+                    cost.add(Map.of("id", e.getKey(), "name", itemName(e.getKey()), "qty", e.getValue(), "have", have));
+                }
+                row.put("cost", cost);
+                row.put("ready", affordable);
+            }
+            rows.add(row);
+        }
+        base.put("buildings", rows);
+        int slots = ChroniclesContent.loadoutSlots(buildingLevel(state, "war_room"));
+        List<Map<String, Object>> loadouts = new ArrayList<>();
+        for (int i = 0; i < slots; i++) {
+            ChroniclesState.Loadout l = i < state.loadouts.size() ? state.loadouts.get(i) : null;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("slot", i);
+            row.put("saved", l != null);
+            if (l != null) {
+                row.put("name", l.name);
+                row.put("party", l.party.stream().map(id -> {
+                    Companion c = findCompanion(state, id);
+                    return c == null ? "" : c.nickname;
+                }).filter(n -> !n.isEmpty()).toList());
+                row.put("weapon", itemName(l.weaponId));
+            }
+            loadouts.add(row);
+        }
+        base.put("loadouts", loadouts);
+        base.put("supplyCap", ChroniclesContent.supplyCap(buildingLevel(state, "stable")));
+        return base;
+    }
+
+    private static String buildingEffect(String id, int level) {
+        return switch (id) {
+            case "sanctuary" -> "Room for " + ChroniclesContent.rosterCap(level) + " Siegelings · resting Siegelings gain "
+                    + Math.round(ChroniclesContent.sanctuaryBondPerHour(level)) + " bond an hour";
+            case "forge" -> "Smelting, Smithing and Carpentry " + pctText(ChroniclesContent.workshopSpeed(level)) + " faster";
+            case "garden" -> "Grows " + ChroniclesContent.gardenYield(level).entrySet().stream()
+                    .map(e -> Math.round(e.getValue()) + " " + itemName(e.getKey())).reduce((a, b) -> a + ", " + b).orElse("")
+                    + " an hour · Alchemy and Cooking " + pctText(ChroniclesContent.workshopSpeed(level)) + " faster";
+            case "war_room" -> ChroniclesContent.loadoutSlots(level) + " saved loadout" + (level > 1 ? "s" : "")
+                    + " · command gauge starts at " + Math.round(ChroniclesContent.warRoomGauge(level)) + "%";
+            case "stable" -> "Carry " + ChroniclesContent.supplyCap(level) + " potions · +"
+                    + pctText(ChroniclesContent.stableRest(level)) + " rest between battles";
+            case "library" -> "Offline progress up to " + Math.round(ChroniclesContent.offlineCapMs(level) / 360_000.0) / 10.0
+                    + "h · studies " + pctText(ChroniclesContent.workshopSpeed(level)) + " faster · affinity +"
+                    + pctText(ChroniclesContent.libraryAffinity(level));
+            default -> "";
+        };
     }
 
     private Map<String, Object> awayRow(AwayReport away) {

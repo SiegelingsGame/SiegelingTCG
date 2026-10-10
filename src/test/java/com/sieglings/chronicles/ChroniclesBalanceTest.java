@@ -34,6 +34,56 @@ class ChroniclesBalanceTest {
     }
 
     @Test
+    void laterTiersStayChallengingForTheirIntendedCompanies() {
+        assertTrue(completionRate("tidewater_patrol", 18, "jackedty", "chilldoe", "raydile") >= 70,
+                "a Tier II patrol suits evolved Siegelings at 18");
+        int grotto = completionRate("sunken_grotto", 24, "jackedty", "chilldoe", "raydile");
+        assertTrue(grotto >= 15 && grotto <= 80, "Sunken Grotto is a real fight: " + grotto);
+        int umbral = completionRate("umbral_hunt", 30, "cactyjackedty", "frostag", "hydroxyl");
+        assertTrue(umbral >= 25 && umbral <= 90, "Tier III hunt: " + umbral);
+        assertTrue(completionRate("trial_ancient_eclipse", 50, "cactyjackedty", "frostag", "hurricrane") <= 45,
+                "the hardest legendary trial is never routine");
+    }
+
+    @Test
+    void wardingATwistMakesItsRegionEasier() {
+        ChroniclesState state = state(36, "cactyjackedty", "frostag", "hydroxyl");
+        ChroniclesContent.Route vault = ChroniclesContent.ROUTES.get("lich_vault");
+        int plain = 0, warded = 0;
+        for (int seed = 0; seed < 150; seed++) {
+            state.relicId = "";
+            if ("complete".equals(ChroniclesCombat.simulate(service.buildInput(state, vault, state.companions, null,
+                    Map.of("herb_tonic", 4), seed)).outcome)) plain++;
+            state.relicId = "grave_ward";
+            if ("complete".equals(ChroniclesCombat.simulate(service.buildInput(state, vault, state.companions, null,
+                    Map.of("herb_tonic", 4), seed)).outcome)) warded++;
+        }
+        assertTrue(warded > plain, "Grave Ward keeps the dead down: " + warded + " vs " + plain);
+    }
+
+    @Test
+    void legendaryBondTrialsAreFairButNeverAFormality() {
+        int hardest = 100;
+        for (String[] c : new String[][]{{"raydile", "25"}, {"jackedty", "25"}, {"frostag", "50"},
+                {"solgator", "50"}, {"hurricrane", "50"}, {"pyleer", "50"}, {"jawbite", "50"}}) {
+            ChroniclesState state = state(Integer.parseInt(c[1]), c[0]);
+            ChroniclesState.Companion hero = state.companions.get(0);
+            hero.bond = ChroniclesContent.bondForLevel(100);
+            for (String cls : ChroniclesContent.CLASSES) state.masteryXp.put(cls, ChroniclesContent.xpForLevel(40));
+            int passed = 0;
+            for (int seed = 0; seed < 150; seed++) {
+                var res = ChroniclesCombat.simulate(service.buildInput(state, service.trialRoute(hero), List.of(hero), null,
+                        Map.of(), seed));
+                if ("complete".equals(res.outcome) && res.encountersWon == res.encountersTotal) passed++;
+            }
+            int pct = passed * 100 / 150;
+            assertTrue(pct >= 25, c[0] + " at Bond 100 should have a real chance: " + pct + "%");
+            hardest = Math.min(hardest, pct);
+        }
+        assertTrue(hardest <= 70, "some trials must stay a real test");
+    }
+
+    @Test
     void sameSeedReplaysTheSameExpedition() {
         ChroniclesState state = state(4, "cacty", "fawny");
         ChroniclesContent.Route route = ChroniclesContent.ROUTES.get("mossroot_hunt");
@@ -47,6 +97,7 @@ class ChroniclesBalanceTest {
 
     private int completionRate(String routeId, int level, String... species) {
         ChroniclesState state = state(level, species);
+        if (level >= 18) seasoned(state, level);
         ChroniclesContent.Route route = ChroniclesContent.ROUTES.get(routeId);
         int complete = 0;
         for (int seed = 0; seed < 200; seed++) {
@@ -55,6 +106,12 @@ class ChroniclesBalanceTest {
             if ("complete".equals(result.outcome)) complete++;
         }
         return complete / 2;
+    }
+
+    /** A company that has adventured to reach these levels: Bond 25 and mastery at half its level. */
+    private static void seasoned(ChroniclesState state, int level) {
+        for (ChroniclesState.Companion c : state.companions) c.bond = ChroniclesContent.bondForLevel(25);
+        for (String cls : ChroniclesContent.CLASSES) state.masteryXp.put(cls, ChroniclesContent.xpForLevel(level / 2));
     }
 
     private static ChroniclesState state(int level, String... species) {
