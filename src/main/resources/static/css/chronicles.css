@@ -200,6 +200,7 @@ p { margin:4px 0; }
 .ck-sheet-stats { display:flex; flex-direction:column; align-items:flex-end; font-size:12px; color:var(--muted); }
 .ck-sheet-stats b { color:var(--ink); }
 .ck-gear { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; }
+@media (max-width:420px) { .ck-gear { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
 .ck-gear-slot { padding:10px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid var(--line); min-width:0; }
 .ck-gear-slot b { display:block; font-size:14px; margin:2px 0; }
 .ck-gear-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
@@ -336,7 +337,6 @@ body.is-busy .ck-main { cursor:progress; }
 @media (max-width:420px) {
   .ck-rank { width:auto; grid-template-columns:auto; }
   .ck-rank-title, .ck-rank .ck-bar { display:none; }
-  .ck-gear { grid-template-columns:1fr; }
   .ck-roster, .ck-routes, .ck-recipes { grid-template-columns:1fr; }
   .ck-affinities { grid-template-columns:repeat(2, minmax(0, 1fr)); }
 }
@@ -362,3 +362,10 @@ body.is-busy .ck-main { cursor:progress; }
 .ck-loadout > div { min-width:0; }
 .ck-loadout .ck-pills { margin:0; flex:0 0 auto; }
 .ck-chip.is-rare { border-color:var(--rare); color:var(--rare); }
+.ck-chip.is-legend { border-color:var(--gold-bright); color:var(--gold-bright); background:rgba(230,205,140,.12); }
+/* A Legend's aura: a slow golden glow around its card and portrait. */
+.ck-comp.is-legend { border-color:rgba(230,205,140,.55); box-shadow:0 0 0 1px rgba(230,205,140,.25), 0 0 22px rgba(230,205,140,.18); }
+.ck-comp.is-legend .ck-portrait { box-shadow:0 0 14px color-mix(in srgb, var(--el) 55%, var(--gold-bright)); animation:ckAura 3.6s ease-in-out infinite; }
+@keyframes ckAura { 50% { box-shadow:0 0 24px color-mix(in srgb, var(--el) 70%, var(--gold-bright)); } }
+.ck-trial { margin-top:10px; padding:10px; border-radius:12px; border:1px solid rgba(230,205,140,.45); background:rgba(230,205,140,.06); display:grid; gap:6px; justify-items:start; }
+@media (prefers-reduced-motion:reduce) { .ck-comp.is-legend .ck-portrait { animation:none; } }

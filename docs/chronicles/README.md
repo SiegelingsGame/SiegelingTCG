@@ -73,6 +73,14 @@ home base.
 - **Taming.** Hunts spot wild Siegelings, and each trail lasts 48h. There are three approaches: patient (uses Taming skill), lure (crafted, element-matched lures work best), and partner (a same-element Siegeling at Bond 10+). Odds shift by the RBX behaviour.
 - **Evolution.** Requires the level cap plus essences, and an Ancient Relic for final forms. It keeps the individual's id, bond and history, and the class can change.
 - **Idle.** One knight activity (gathering or repeatable crafting) runs alongside one company expedition. Offline accrual is capped at 12h, and a helper Siegeling speeds a matching activity and earns bond. A "While you were away" report opens only after a real absence (5+ minutes).
+- **Full equipment.** The design's six slots: weapon, armor, relic, helmet, boots and accessory.
+  - Helmets add hazard armor (the Stormglass Visor also wards storms).
+  - Boots shorten the road (Galeweave Boots also quicken the company; Tidewalker Boots ward tides).
+  - Accessories give a company edge: the Mending Amulet (rest), Hunter's Ring (crit) and Prism Pendant (command gauge).
+- **Endgame.**
+  - **Grandmaster** (any profession at 100): a title, its own actions 20% faster, and four masterwork recipes (Siegeforged Blade, Heartwood Grandbow, Grandmaster's Mantle, Runeheart).
+  - Class mastery at 100 grants "Master of the … Path".
+  - **Legendary Bond Trials.** At Bond 100 a Siegeling faces a solo trial: two fights against its own echo (which only attacks), then the strongest of its element, scaled to the hero's own rarity. No potions are allowed; retries are free. Passing makes it a **Legend**: a golden aura, +5% to every stat, and one more use of its bond technique per battle. Seeded probes give every tested hero a 33–100% chance.
 - **Home base.** Six buildings from the design, each with five levels. Every level needs Siegeknight rank (2/6/12/20/30) and materials from several professions.
   - Sanctuary: +3 roster space per level, and resting Siegelings gain bond hourly.
   - Knight's Forge: Smelting, Smithing and Carpentry 6% faster per level.

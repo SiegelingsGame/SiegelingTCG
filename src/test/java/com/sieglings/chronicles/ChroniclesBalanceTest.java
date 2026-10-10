@@ -62,6 +62,28 @@ class ChroniclesBalanceTest {
     }
 
     @Test
+    void legendaryBondTrialsAreFairButNeverAFormality() {
+        int hardest = 100;
+        for (String[] c : new String[][]{{"raydile", "25"}, {"jackedty", "25"}, {"frostag", "50"},
+                {"solgator", "50"}, {"hurricrane", "50"}, {"pyleer", "50"}, {"jawbite", "50"}}) {
+            ChroniclesState state = state(Integer.parseInt(c[1]), c[0]);
+            ChroniclesState.Companion hero = state.companions.get(0);
+            hero.bond = ChroniclesContent.bondForLevel(100);
+            for (String cls : ChroniclesContent.CLASSES) state.masteryXp.put(cls, ChroniclesContent.xpForLevel(40));
+            int passed = 0;
+            for (int seed = 0; seed < 150; seed++) {
+                var res = ChroniclesCombat.simulate(service.buildInput(state, service.trialRoute(hero), List.of(hero), null,
+                        Map.of(), seed));
+                if ("complete".equals(res.outcome) && res.encountersWon == res.encountersTotal) passed++;
+            }
+            int pct = passed * 100 / 150;
+            assertTrue(pct >= 25, c[0] + " at Bond 100 should have a real chance: " + pct + "%");
+            hardest = Math.min(hardest, pct);
+        }
+        assertTrue(hardest <= 70, "some trials must stay a real test");
+    }
+
+    @Test
     void sameSeedReplaysTheSameExpedition() {
         ChroniclesState state = state(4, "cacty", "fawny");
         ChroniclesContent.Route route = ChroniclesContent.ROUTES.get("mossroot_hunt");

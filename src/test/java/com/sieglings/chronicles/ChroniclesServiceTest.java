@@ -721,6 +721,95 @@ class ChroniclesServiceTest {
         }
     }
 
+    // ── Phase 5: full equipment and endgame ──────────────────────────────────
+
+    @Test
+    void helmetBootsAndAccessorySlotsDoTheirJobs() {
+        service.start(user, "cacty", "Ari", null);
+        ChroniclesState state = store.state;
+        state.inventory.putAll(Map.of("iron_helm", 1, "galeweave_boots", 1, "hunters_ring", 1));
+        ChroniclesContent.Route hollow = ChroniclesContent.ROUTES.get("cinder_hollow");
+        var bare = service.buildInput(state, hollow, state.companions, null, Map.of(), 1);
+        service.equip(user, "iron_helm", null, -1);
+        service.equip(user, "galeweave_boots", null, -1);
+        service.equip(user, "hunters_ring", null, -1);
+        state = store.state;
+        var geared = service.buildInput(state, hollow, state.companions, null, Map.of(), 1);
+        assertEquals(bare.knight().armor() + 4, geared.knight().armor());
+        assertEquals(Math.round(bare.durationMs() * 0.92), geared.durationMs(), 2);
+        assertEquals(bare.party().get(0).crit + 0.05, geared.party().get(0).crit, 1e-9);
+        assertEquals(bare.party().get(0).spd * 1.04, geared.party().get(0).spd, 1e-6);
+        Map<String, Object> snap = service.equip(user, "iron_helm", null, -1);
+        assertEquals("", store.state.helmetId, "equipping it again takes it off");
+        assertNull(map(snap, "equipment").get("helmet"));
+    }
+
+    @Test
+    void grandmastersWorkFasterAndEarnTitles() {
+        service.start(user, "cacty", "Ari", null);
+        ChroniclesState.ActivityRun run = new ChroniclesState.ActivityRun();
+        run.kind = "gather";
+        run.id = "mine_copper";
+        long before = service.actionMs(store.state, run);
+        store.state.skillXp.put("mining", ChroniclesContent.xpForLevel(100));
+        assertEquals(Math.round(before * 0.8), service.actionMs(store.state, run));
+        store.state.masteryXp.put("Guardian", ChroniclesContent.xpForLevel(100));
+        @SuppressWarnings("unchecked")
+        List<String> titles = (List<String>) map(service.getSnapshot(user), "knight").get("titles");
+        assertTrue(titles.contains("Grandmaster Miner"), titles.toString());
+        assertTrue(titles.contains("Master of The Bulwark Path"), titles.toString());
+    }
+
+    @Test
+    void aLegendaryBondTrialIsFacedAloneAndMakesALegend() {
+        service.start(user, "cacty", "Ari", null);
+        ChroniclesState.Companion helper = addCompanion(store.state, "fawny", 5);
+        String hero = store.state.companions.get(0).id;
+        assertThrows(IllegalArgumentException.class, () -> service.startTrial(user, hero, null, -1), "Bond 100 first");
+        store.state.companions.get(0).bond = ChroniclesContent.bondForLevel(100);
+        store.state.companions.get(0).level = 10;
+        store.state.party = List.of(hero, helper.id);
+        boolean became = false;
+        for (int attempt = 0; attempt < 12 && !became; attempt++) {
+            service.startTrial(user, hero, null, -1);
+            ChroniclesState.Expedition e = store.state.expedition;
+            assertEquals(List.of(hero), e.partyIds, "the trial is faced alone");
+            assertEquals(hero, e.trialCompanionId);
+            assertTrue(e.rewards.sightings.isEmpty());
+            clock.advance(Duration.ofMinutes(ChroniclesContent.TRIAL_MINUTES + 1));
+            String outcome = e.outcome;
+            service.collect(user, null, -1);
+            became = store.state.companions.get(0).legend;
+            assertEquals("complete".equals(outcome) && e.encountersWon == e.encountersTotal, became);
+        }
+        assertTrue(became, "a Bond 100 Siegeling passes within a dozen tries");
+        assertThrows(IllegalArgumentException.class, () -> service.startTrial(user, hero, null, -1), "already a Legend");
+        Map<String, Object> row = list(service.getSnapshot(user), "companions").get(0);
+        assertEquals(true, row.get("legend"));
+        ChroniclesState state = store.state;
+        var unit = service.companionUnit(state, state.companions.get(0), List.of(), null, ChroniclesContent.Mods.NONE, "");
+        state.companions.get(0).legend = false;
+        var plain = service.companionUnit(state, state.companions.get(0), List.of(), null, ChroniclesContent.Mods.NONE, "");
+        assertTrue(unit.legend && !plain.legend);
+        assertEquals(plain.atk * (1 + 0.20 + 0.05 + 0.0) / (1 + 0.20), unit.atk, plain.atk * 0.02);
+    }
+
+    @Test
+    void loadoutsCarryTheNewSlots() {
+        service.start(user, "cacty", "Ari", null);
+        store.state.buildings.put("war_room", 1);
+        store.state.inventory.putAll(Map.of("travel_boots", 1, "mending_amulet", 1));
+        service.equip(user, "travel_boots", null, -1);
+        service.equip(user, "mending_amulet", null, -1);
+        service.saveLoadout(user, 0, "Road", null, -1);
+        service.equip(user, "travel_boots", null, -1);
+        service.equip(user, "mending_amulet", null, -1);
+        assertEquals("", store.state.bootsId);
+        service.applyLoadout(user, 0, null, -1);
+        assertEquals("travel_boots", store.state.bootsId);
+        assertEquals("mending_amulet", store.state.accessoryId);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private ChroniclesState.Companion addCompanion(ChroniclesState state, String species, int level) {

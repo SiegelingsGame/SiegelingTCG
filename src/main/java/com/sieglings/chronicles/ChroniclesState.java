@@ -34,6 +34,9 @@ public class ChroniclesState {
     public String weaponId = "squires_sword";
     public String armorId = "travelers_coat";
     public String relicId = "";
+    public String helmetId = "";
+    public String bootsId = "";
+    public String accessoryId = "";
 
     public List<Companion> companions = new ArrayList<>();
     public int nextCompanionNo = 1;
@@ -75,6 +78,9 @@ public class ChroniclesState {
         public int battlesWon;
         public String treatsDay = "";
         public int treatsToday;
+        /** Passed its Legendary Bond Trial. */
+        public boolean legend;
+        public long legendAt;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -100,6 +106,9 @@ public class ChroniclesState {
         public String weaponId = "";
         public String armorId = "";
         public String relicId = "";
+        public String helmetId = "";
+        public String bootsId = "";
+        public String accessoryId = "";
         public int retreatAt = 20;
         public int potionAt = 40;
         public String trigger;
@@ -130,6 +139,8 @@ public class ChroniclesState {
         public String techniqueId = "";
         public String comboId = "";
         public String trigger = "";
+        /** Set for a Legendary Bond Trial; the route is built from this companion. */
+        public String trialCompanionId = "";
         public Map<String, Integer> supplies = new LinkedHashMap<>();
         public Map<String, Integer> suppliesLeft = new LinkedHashMap<>();
         public List<TimelineEvent> timeline = new ArrayList<>();

@@ -65,6 +65,7 @@ final class ChroniclesCombat {
         int defBreakRounds;
         double marked;
         boolean rose;
+        boolean legend;
 
         boolean alive() { return hp > 0.0001; }
         double pct() { return maxHp <= 0 ? 0 : hp / maxHp; }
@@ -73,7 +74,7 @@ final class ChroniclesCombat {
             Unit u = new Unit();
             u.id = id; u.name = name; u.speciesId = speciesId; u.element = element; u.cls = cls; u.ally = ally;
             u.level = level; u.maxHp = maxHp; u.hp = hp; u.atk = atk; u.def = def; u.spd = spd; u.crit = crit;
-            u.bondLevel = bondLevel; u.boss = boss; u.position = position;
+            u.bondLevel = bondLevel; u.boss = boss; u.position = position; u.legend = legend;
             return u;
         }
     }
@@ -666,7 +667,8 @@ final class ChroniclesCombat {
             // Guardians are built to stand in front; even unguarded they shrug off a share of each hit.
             if ("Guardian".equals(target.cls)) mult *= 0.85;
             if (target.resolveActive) def *= 1.35;
-            double damage = attacker.atk * mult * 50.0 / (50.0 + def);
+            double armorK = armorConstant(attacker);
+            double damage = attacker.atk * mult * armorK / (armorK + def);
             damage *= 0.9 + random.nextDouble() * 0.2;
             if (target.ally && target.pct() < 0.25) damage *= 1 - in.fieldMods().lowHpGuard();
             if (target.ally) damage *= 1 - Math.min(0.6, arcana.allyDamageCut());
@@ -695,19 +697,29 @@ final class ChroniclesCombat {
                 }
                 double counter = target.resolveActive ? 0.5 : 0.2;
                 if (!area && attacker.alive() && random.nextDouble() < counter) {
-                    double back = target.atk * 0.5 * 50.0 / (50.0 + attacker.def);
+                    double k = armorConstant(target);
+                    double back = target.atk * 0.5 * k / (k + attacker.def);
                     attacker.hp = Math.max(0, attacker.hp - back);
                 }
             }
         }
 
         private static int bondCap(Unit unit) {
-            return unit.bondLevel >= 100 ? 2 : 1;
+            return (unit.bondLevel >= 100 ? 2 : 1) + (unit.legend ? 1 : 0);
         }
 
         private static Unit lowest(List<Unit> units) {
             return living(units).stream().min(Comparator.comparingDouble(Unit::pct)).orElse(null);
         }
+    }
+
+    /**
+     * Defense softens hits by K/(K+def). K grows with the attacker's level at the same
+     * rate defense does, so a level-50 fight resolves in as many hits as a level-1 one
+     * instead of stalling past the round limit.
+     */
+    static double armorConstant(Unit attacker) {
+        return 50.0 * (1 + 0.08 * (Math.max(1, attacker.level) - 1));
     }
 
     static String bondTechnique(Unit unit) {

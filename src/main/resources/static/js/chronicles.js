@@ -393,8 +393,10 @@
     var eq = s.equipment;
     var groups = {};
     s.skills.forEach(function (k) { (groups[k.group] = groups[k.group] || []).push(k); });
-    var gear = s.inventory.filter(function (i) { return i.kind === 'WEAPON' || i.kind === 'ARMOR' || i.kind === 'RELIC'; });
-    var bag = s.inventory.filter(function (i) { return i.kind !== 'WEAPON' && i.kind !== 'ARMOR' && i.kind !== 'RELIC'; });
+    var GEAR_KINDS = { WEAPON: 1, ARMOR: 1, RELIC: 1, HELMET: 1, BOOTS: 1, ACCESSORY: 1 };
+    var gear = s.inventory.filter(function (i) { return GEAR_KINDS[i.kind]; });
+    var bag = s.inventory.filter(function (i) { return !GEAR_KINDS[i.kind]; });
+    var worn = ['weapon', 'armor', 'relic', 'helmet', 'boots', 'accessory'].map(function (k) { return eq[k] && eq[k].id; });
     return '' +
       '<section class="ck-card ck-sheet">' +
         '<div class="ck-sheet-head"><div><p class="ck-kicker">Rank ' + esc(s.knight.rank) + ' · ' + esc(s.knight.rankTitle) + '</p>' +
@@ -408,8 +410,9 @@
       '</section>' +
       '<section class="ck-card"><h3>Equipment</h3><div class="ck-gear">' +
         gearSlot('Weapon', eq.weapon) + gearSlot('Armor', eq.armor) + gearSlot('Relic', eq.relic) +
+        gearSlot('Helmet', eq.helmet) + gearSlot('Boots', eq.boots) + gearSlot('Accessory', eq.accessory) +
       '</div>' + (gear.length > 1 ? '<div class="ck-gear-list">' + gear.map(function (g) {
-        var on = (eq.weapon && eq.weapon.id === g.id) || (eq.armor && eq.armor.id === g.id) || (eq.relic && eq.relic.id === g.id);
+        var on = worn.indexOf(g.id) >= 0;
         return '<button type="button" class="ck-pill' + (on ? ' is-on' : '') + '" data-act="equip" data-id="' + esc(g.id) + '">' +
           esc(g.name) + '</button>';
       }).join('') + '</div>' : '') + '</section>' +
@@ -451,7 +454,7 @@
 
   function gearSlot(label, item) {
     return '<div class="ck-gear-slot"><span class="ck-kicker">' + esc(label) + '</span><b>' + esc(item ? item.name : 'Empty') + '</b>' +
-      '<span class="ck-small">' + esc(item ? item.blurb : 'Forge one at Smithing.') + '</span></div>';
+      '<span class="ck-small">' + esc(item ? item.blurb : 'Craft one in the Work tab.') + '</span></div>';
   }
 
   function skillRow(k) {
@@ -568,7 +571,8 @@
     var p = s.party;
     var inParty = p.members.indexOf(c.id) >= 0;
     var foods = s.inventory.filter(function (i) { return i.kind === 'FOOD'; });
-    var status = c.onExpedition ? chip('On expedition', 'is-away') : c.helping ? chip('Helping your knight', 'is-help') : inParty ? chip('In company', 'is-on') : '';
+    var status = (c.legend ? chip('Legend', 'is-legend') : '') +
+      (c.onExpedition ? chip('On expedition', 'is-away') : c.helping ? chip('Helping your knight', 'is-help') : inParty ? chip('In company', 'is-on') : '');
     var evo = c.evolution;
     var body = '';
     if (open) {
@@ -603,10 +607,13 @@
             return esc(x.qty) + ' ' + esc(x.name) + ' (' + esc(x.have) + ')';
           }).join(', ') + '</span>' +
           '<button type="button" class="ck-btn is-sm' + (evo.ready ? ' is-primary' : '') + '" data-act="evolve" data-id="' + esc(c.id) + '"' + (evo.ready ? '' : ' disabled') + '>Evolve</button></div>' : '') +
+        (c.trialReady ? '<div class="ck-trial"><b>Knightbound.</b> <span class="ck-small">Face the Legendary Bond Trial alone: two fights against its own echo, ' +
+          'then the strongest of its element. Passing makes it a Legend: an aura, +5% to every stat, and one more use of its bond technique.</span>' +
+          '<button type="button" class="ck-btn is-sm is-primary" data-act="trial" data-id="' + esc(c.id) + '">Begin the trial</button></div>' : '') +
         '<div class="ck-pills"><button type="button" class="ck-link" data-act="rename" data-id="' + esc(c.id) + '">Rename</button></div>' +
       '</div>';
     }
-    return '<article class="ck-comp' + (open ? ' is-open' : '') + '" style="--el:var(--' + elKey(c.element) + ')">' +
+    return '<article class="ck-comp' + (open ? ' is-open' : '') + (c.legend ? ' is-legend' : '') + '" style="--el:var(--' + elKey(c.element) + ')">' +
       '<button type="button" class="ck-comp-head" data-act="comp-toggle" data-id="' + esc(c.id) + '" aria-expanded="' + open + '">' +
         portrait(c, 240) +
         '<span class="ck-comp-main"><span class="ck-row"><b>' + esc(c.nickname) + '</b><span class="ck-small">Lv ' + esc(c.level) + '/' + esc(c.levelCap) + '</span></span>' +
@@ -614,7 +621,7 @@
           '<span class="ck-meter"><span class="ck-small">' + (c.level >= c.levelCap
             ? (c.evolution ? 'Max level · ready to evolve' : 'Max level') : 'XP') + '</span>' +
             (c.level >= c.levelCap ? bar(1, 1, 'is-max') : bar(c.xpInto, c.xpSpan)) + '</span>' +
-          '<span class="ck-meter"><span class="ck-small">Bond ' + esc(c.bond) + ' · ' + esc(c.bondTitle) + '</span>' + bar(c.bondInto, c.bondSpan, 'is-bond') + '</span>' +
+          '<span class="ck-meter"><span class="ck-small">Bond ' + esc(c.bond) + ' · ' + esc(c.bondTitle) + '</span>' + (c.bond >= 100 ? bar(1, 1, 'is-bond') : bar(c.bondInto, c.bondSpan, 'is-bond')) + '</span>' +
         '</span>' +
       '</button>' + body + '</article>';
   }
@@ -897,6 +904,7 @@
       case 'equip': act('/api/chronicles/equip', { itemId: d.id }); break;
       case 'affinity': showAffinity(d.id); break;
       case 'build': act('/api/chronicles/build', { buildingId: d.id }); break;
+      case 'trial': act('/api/chronicles/trial/start', { companionId: d.id }, function () { switchTab('expedition'); }); break;
       case 'loadout-apply': act('/api/chronicles/loadout/apply', { slot: Number(d.slot) }); break;
       case 'loadout-save': {
         var plan = window.prompt('Name this loadout:', '');

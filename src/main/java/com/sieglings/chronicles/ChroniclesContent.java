@@ -154,7 +154,7 @@ public final class ChroniclesContent {
 
     // ── Items ────────────────────────────────────────────────────────────────
 
-    public enum ItemKind { MATERIAL, ESSENCE, POTION, LURE, FOOD, WEAPON, ARMOR, RELIC, RUNE }
+    public enum ItemKind { MATERIAL, ESSENCE, POTION, LURE, FOOD, WEAPON, ARMOR, RELIC, RUNE, HELMET, BOOTS, ACCESSORY }
 
     public record Item(String id, String name, ItemKind kind, String blurb, int tier,
                        double healPct, Element lureElement, int lureBonus,
@@ -183,6 +183,10 @@ public final class ChroniclesContent {
 
     private static Item armor(String id, String name, int tier, int armor, boolean heatWard, String blurb) {
         return new Item(id, name, ItemKind.ARMOR, blurb, tier, 0, null, 0, 0, Set.of(), null, armor, heatWard, null);
+    }
+
+    private static Item gear(String id, String name, ItemKind kind, int tier, String blurb) {
+        return new Item(id, name, kind, blurb, tier, 0, null, 0, 0, Set.of(), null, 0, false, null);
     }
 
     private static Item relic(String id, String name, String effect, boolean heatWard, String blurb) {
@@ -267,6 +271,21 @@ public final class ChroniclesContent {
                 armor("guardian_harness", "Guardian Harness", 2, 7, false, "Rope and plank bracing. Guardians gain 8% defense."),
                 armor("tidewarden_cloak", "Tidewarden Cloak", 3, 8, false, "Pearl-weighted linen. Halves tide hazards."),
                 armor("stormward_cloak", "Stormward Cloak", 3, 8, false, "Storm glass woven in. Halves storm hazards."),
+                gear("copper_helm", "Copper Helm", ItemKind.HELMET, 1, "A sturdy helm: +2 armor against hazards."),
+                gear("iron_helm", "Iron Helm", ItemKind.HELMET, 2, "+4 armor against hazards."),
+                gear("stormglass_visor", "Stormglass Visor", ItemKind.HELMET, 3, "+5 armor; halves storm hazards."),
+                gear("travel_boots", "Travel Boots", ItemKind.BOOTS, 1, "Expeditions 4% shorter."),
+                gear("galeweave_boots", "Galeweave Boots", ItemKind.BOOTS, 2, "Expeditions 8% shorter; the company is 4% faster."),
+                gear("tidewalker_boots", "Tidewalker Boots", ItemKind.BOOTS, 3, "Expeditions 8% shorter; halves tide hazards."),
+                gear("mending_amulet", "Mending Amulet", ItemKind.ACCESSORY, 1, "The company recovers 4% more between battles."),
+                gear("hunters_ring", "Hunter's Ring", ItemKind.ACCESSORY, 2, "The company lands critical hits 5% more often."),
+                gear("prism_pendant", "Prism Pendant", ItemKind.ACCESSORY, 3, "The command gauge fills 15% faster."),
+                weapon("siegeforged_blade", "Siegeforged Blade", "sword", 4, "A grandmaster's sword. Rally Strike at its finest."),
+                weapon("grandbow", "Heartwood Grandbow", "bow", 4, "A grandmaster carpenter's bow."),
+                armor("grandmasters_mantle", "Grandmaster's Mantle", 4, 14, true,
+                        "Woven by a grandmaster: wards heat, tide, storm and forge alike."),
+                relic("runeheart", "Runeheart", "runeheart", true,
+                        "A grandmaster's rune core: the command gauge fills 25% faster and heat is warded."),
                 relic("dawn_lantern", "Dawn Lantern", "ward:ambush", false,
                         "Holds back the dark: wards off ambushes and an enemy's radiance."),
                 relic("clarity_charm", "Clarity Charm", "ward:mirage", false, "Sees through mirages."),
@@ -317,10 +336,64 @@ public final class ChroniclesContent {
             "guardian_harness", new ClassBoost("Guardian", Mods.def(0.08)));
 
     /** Gear that halves one region hazard (heat keeps its own flag on the Item). */
-    public static final Map<String, String> HAZARD_WARD_ITEMS = Map.of(
-            "tidewarden_cloak", "tide",
-            "stormward_cloak", "storm",
-            "frostweave_cloak", "forge");
+    public static final Map<String, Set<String>> HAZARD_WARD_ITEMS = Map.of(
+            "tidewarden_cloak", Set.of("tide"),
+            "stormward_cloak", Set.of("storm"),
+            "frostweave_cloak", Set.of("forge"),
+            "stormglass_visor", Set.of("storm"),
+            "tidewalker_boots", Set.of("tide"),
+            "grandmasters_mantle", Set.of("heat", "tide", "storm", "forge"));
+
+    /** What the helmet, boots and accessory slots add. */
+    public record GearBonus(int armor, double roadCut, double speed, double crit, double rest, double gauge) {}
+
+    public static final Map<String, GearBonus> GEAR_BONUSES = Map.of(
+            "copper_helm", new GearBonus(2, 0, 0, 0, 0, 0),
+            "iron_helm", new GearBonus(4, 0, 0, 0, 0, 0),
+            "stormglass_visor", new GearBonus(5, 0, 0, 0, 0, 0),
+            "travel_boots", new GearBonus(0, 0.04, 0, 0, 0, 0),
+            "galeweave_boots", new GearBonus(0, 0.08, 0.04, 0, 0, 0),
+            "tidewalker_boots", new GearBonus(0, 0.08, 0, 0, 0, 0),
+            "mending_amulet", new GearBonus(0, 0, 0, 0, 0.04, 0),
+            "hunters_ring", new GearBonus(0, 0, 0, 0.05, 0, 0),
+            "prism_pendant", new GearBonus(0, 0, 0, 0, 0, 0.15));
+
+    // ── Endgame ──────────────────────────────────────────────────────────────
+
+    /** A profession at this level is mastered: a title, and its own actions run faster. */
+    public static final int GRANDMASTER = 100;
+    public static final double GRANDMASTER_SPEED = 0.20;
+    /** Bond needed to attempt a Legendary Bond Trial, and what a Legend gains. */
+    public static final int LEGEND_BOND = 100;
+    public static final double LEGEND_STATS = 0.05;
+    public static final int TRIAL_MINUTES = 60;
+
+    public static String grandmasterTitle(String skillId) {
+        return switch (skillId) {
+            case "mining" -> "Grandmaster Miner";
+            case "woodcutting" -> "Grandmaster Woodcutter";
+            case "foraging" -> "Grandmaster Forager";
+            case "fishing" -> "Grandmaster Angler";
+            case "excavation" -> "Grandmaster Excavator";
+            case "smelting" -> "Grandmaster Smelter";
+            case "smithing" -> "Grandmaster Smith";
+            case "carpentry" -> "Grandmaster Carpenter";
+            case "weaving" -> "Grandmaster Weaver";
+            case "cooking" -> "Grandmaster Chef";
+            case "alchemy" -> "Grandmaster Alchemist";
+            case "runecrafting" -> "Grandmaster Runesmith";
+            case "taming" -> "Grandmaster Tamer";
+            case "bonding" -> "Grandmaster of Bonds";
+            case "husbandry" -> "Grandmaster Keeper";
+            case "pathfinding" -> "Grandmaster Pathfinder";
+            case "survival" -> "Grandmaster Survivor";
+            case "cartography" -> "Grandmaster Cartographer";
+            case "command" -> "Grand Commander";
+            case "elemental_studies" -> "Grandmaster Scholar";
+            case "class_tactics" -> "Grandmaster Tactician";
+            default -> "Grandmaster";
+        };
+    }
 
     public static String essenceId(Element element) {
         return "essence_" + element.name().toLowerCase();
@@ -523,6 +596,27 @@ public final class ChroniclesContent {
                     Map.of("living_alloy", 4, "rune_stone", 2, "iron_bar", 4), 400),
             craftOnce("inscribe_grave_ward", "runecrafting", "grave_ward", 32, List.of(),
                     Map.of("grave_dust", 4, "rune_stone", 2, "fossil", 6), 400),
+            forge("forge_copper_helm", "copper_helm", 6, List.of(), Map.of("copper_bar", 4), 60),
+            forge("forge_iron_helm", "iron_helm", 20, List.of(), Map.of("iron_bar", 5), 150),
+            forge("forge_stormglass_visor", "stormglass_visor", 36, List.of(), Map.of("storm_glass", 4, "iron_bar", 4), 360),
+            craftOnce("sew_travel_boots", "weaving", "travel_boots", 5, List.of(), Map.of("linen", 4, "rope", 2), 60),
+            craftOnce("sew_galeweave_boots", "weaving", "galeweave_boots", 18, List.of(affinity(Element.WIND, 15)),
+                    Map.of("linen", 8, "gale_feather", 4), 180),
+            craftOnce("sew_tidewalker_boots", "weaving", "tidewalker_boots", 30, List.of(), Map.of("linen", 8, "tide_pearl", 3), 320),
+            craftOnce("carve_mending_amulet", "carpentry", "mending_amulet", 8, List.of(skill("husbandry", 5)),
+                    Map.of("oak_plank", 2, "herb_tonic", 4, "rope", 2), 90),
+            craftOnce("inscribe_hunters_ring", "runecrafting", "hunters_ring", 18, List.of(),
+                    Map.of("iron_bar", 3, "rune_stone", 2, "relic_shard", 2), 200),
+            craftOnce("inscribe_prism_pendant", "runecrafting", "prism_pendant", 34, List.of(skill("class_tactics", 20)),
+                    Map.of("mind_prism", 3, "rune_stone", 3, "iron_bar", 2), 400),
+            forge("forge_siegeforged_blade", "siegeforged_blade", GRANDMASTER, List.of(),
+                    Map.of("iron_bar", 20, "ancient_relic", 4, "living_alloy", 4, "storm_glass", 4), 2000),
+            craftOnce("carve_grandbow", "carpentry", "grandbow", GRANDMASTER, List.of(),
+                    Map.of("heartwood", 12, "rope", 10, "ancient_relic", 3, "gale_feather", 8), 2000),
+            craftOnce("weave_grandmasters_mantle", "weaving", "grandmasters_mantle", GRANDMASTER, List.of(),
+                    Map.of("linen", 40, "tide_pearl", 6, "storm_glass", 6, "frost_crystal", 6, "ancient_relic", 3), 2000),
+            craftOnce("inscribe_runeheart", "runecrafting", "runeheart", GRANDMASTER, List.of(),
+                    Map.of("rune_stone", 12, "umbral_crystal", 4, "mind_prism", 4, "grave_dust", 4, "ancient_relic", 4), 2000),
             study(Element.FIRE), study(Element.ICE), study(Element.WIND), study(Element.EARTH),
             study(Element.WATER), study(Element.ELECTRIC), study(Element.LIGHT), study(Element.SHADOW),
             study(Element.PSYCHIC), study(Element.METAL), study(Element.POISON), study(Element.UNDEAD)
@@ -1029,6 +1123,15 @@ public final class ChroniclesContent {
 
     private static R r(String id, String name, String region, RouteType type, Element element) {
         return new R(id, name, region, type, element);
+    }
+
+    /** A Legendary Bond Trial for one Siegeling (see ChroniclesService.startTrial). */
+    public static Route trialRoute(String id, String heroName, Element element, int level) {
+        return r(id, "Legendary Bond Trial: " + heroName, "Trial Grounds", RouteType.DUNGEON, element)
+                .time(TRIAL_MINUTES, 3).levels(Math.max(1, level - 2), level).groups(1, 1)
+                .boss("auto", level)
+                .loot(new Loot("ancient_relic", 1, 1, 1.0))
+                .blurb("Alone, against the strongest of its element.").build();
     }
 
     /** Region-wide combat twists of the Forgotten Regions, and what counters each. */

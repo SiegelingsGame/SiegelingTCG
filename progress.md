@@ -1,4 +1,31 @@
 Original prompt: Go with earth based art for endless
+- October 10, 2026 **Chronicles Phase 5: helmet, boots and accessory slots; Grandmasters; Legendary Bond Trials; a high-level combat fix.**
+  - **Change.**
+    - **New slots.** Three new item kinds (`HELMET`, `BOOTS`, `ACCESSORY`), each with three tiers of gear in `GEAR_BONUSES`:
+      - helmets add armor to the hazard factor;
+      - boots cut the road and add company speed;
+      - accessories add rest, crit or command gauge.
+
+      `HAZARD_WARD_ITEMS` now maps an item to a set of hazards, so a Visor, Tidewalker Boots or the Grandmaster's Mantle ward from any slot. Equip toggles the new slots like relics, and War Room loadouts carry them.
+    - **Grandmasters.** A profession at 100 speeds its own actions by 20% and grants a title. There are four Grandmaster masterwork recipes; class mastery at 100 also grants a title.
+    - **Legendary Bond Trials.** `startTrial` (`POST /api/chronicles/trial/start`) needs Bond 100. It is fought solo with no potions, over a synthetic `trial:<id>` route built by `ChroniclesContent.trialRoute` and resolved through `routeFor`.
+      - The fights: two echo fights (`trialEnemies`: the hero's own species at its level, ×0.9, forced to attack), then the element's strongest. The boss is scaled to the hero's rarity budget (×1.8 health, ×1.1 attack).
+      - A stand-off counts as falling short. Passing sets `Companion.legend`: +5% stats and one more bond-technique use per battle.
+      - UI: a golden aura and a "Legend" chip.
+    - **Combat fix.** Damage used `50/(50+def)`, but defense grows with level, so high-level fights needed 30+ hits and ran into the round limit as "fled". The constant now grows with the attacker's level (`armorConstant`), so fights resolve in about the same number of hits at any level; level 1 is unchanged.
+    - **UI.** The Knight tab shows six slots in two columns on phones. Company cards show the Legend aura, chip and a "Begin the trial" panel. The bond bar shows full at 100. `chronicles.js` → `?v=6`, `chronicles.css` → `?v=5`.
+- Verification:
+  - `ChroniclesServiceTest` grows to 43 tests and `ChroniclesBalanceTest` to 6; all pass.
+    - The new slots give +4 armor, an 8% shorter road, +5% crit and ×1.04 speed, and toggle off on a second equip.
+    - Mining 100 makes copper actions 0.8x, with "Grandmaster Miner" and "Master of The Bulwark Path" titles.
+    - A trial is refused below Bond 100, fought alone with no sightings, makes a Legend exactly when every fight is won (within 12 tries at L10), and is refused for an existing Legend. The Legend's stat lift is measured.
+    - Loadouts restore boots and accessory.
+  - The new balance guard runs 150 seeds per hero: every tested Bond 100 hero passes at least 25% of the time, and the hardest stays at or below 70%. Seeded probes, run after the armor fix, re-confirmed every earlier balance band (first patrols, Cinder/Rootcrypt, and Tier II–IV).
+  - Headless Chromium at 390x844 and 1920x1080 on a re-dumped endgame snapshot (Iron Helm, Galeweave Boots, Hunter's Ring, Mining 100, a Legend, a Bond 100 hero):
+    - six slots shown, with the titles line;
+    - one Legend card with an aura;
+    - "Begin the trial" POSTs `trial/start`;
+    - no page scroll, overflow or page errors.
 - October 10, 2026 **Chronicles Phase 4: Tier II–IV regions, Grand Expeditions, hidden routes and region twists.**
   - **Change.** 21 new routes take the total to 32.
     - **Route model.** `Route` gains `requirements`, `hazardPct` with ward elements, `twists`, `extraElements` and `hidden`; the later regions are built with a fluent `R` builder. Tier I routes keep identical stats.

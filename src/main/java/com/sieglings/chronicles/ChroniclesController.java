@@ -147,6 +147,12 @@ public class ChroniclesController {
                 string(body, "requestId"), version(body)));
     }
 
+    @PostMapping("/api/chronicles/trial/start")
+    public ResponseEntity<Map<String, Object>> startTrial(
+            @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody Map<String, Object> body) {
+        return respond(auth, user -> service.startTrial(user, string(body, "companionId"), string(body, "requestId"), version(body)));
+    }
+
     @PostMapping("/api/chronicles/away/ack")
     public ResponseEntity<Map<String, Object>> ackAway(
             @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody(required = false) Map<String, Object> body) {
