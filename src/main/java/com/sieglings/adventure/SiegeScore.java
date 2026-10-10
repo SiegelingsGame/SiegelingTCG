@@ -43,6 +43,8 @@ final class SiegeScore {
     static final int FALL_PENALTY = 40;
     static final int REVIVE_CREDIT = 20;
     static final int VICTORY_BONUS = 500;
+    /** Endless only: points per floor reached, standing in for the victory bonus. */
+    static final int DEPTH_PER_FLOOR = 20;
 
     static int routePoints(NodeType type) {
         if (type == null) return 0;
@@ -168,7 +170,12 @@ final class SiegeScore {
         out.add(line("revived", "Revived", revived + " rescued", (long) revived * REVIVE_CREDIT));
         out.add(line("goldEarned", "Gold earned", run.getGoldEarnedTotal() + "g", run.getGoldEarnedTotal()));
         out.add(line("goldSpent", "Gold spent", goldSpent + "g invested", goldSpent / 2));
-        if (run.getStatus() == RunStatus.WON) {
+        if (run.getMode() == RunMode.ENDLESS) {
+            // Endless has no victory; depth is what it ranks, and it pays the same
+            // whether the run was ended or the warband fell.
+            int floor = run.floorReached();
+            out.add(line("depth", "Depth", "Floor " + floor, (long) floor * DEPTH_PER_FLOOR));
+        } else if (run.getStatus() == RunStatus.WON) {
             out.add(line("victory", "Victory", "Expedition won", VICTORY_BONUS));
         }
         if (carried > 0) {

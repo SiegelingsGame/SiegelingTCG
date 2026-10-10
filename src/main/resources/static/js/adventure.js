@@ -26,6 +26,9 @@
     run: null,
     knightId: null,
     party: [],          // selected siegeling ids (max 3)
+    // 'STANDARD' or 'ENDLESS' — which run the knight/warband steps are building.
+    runMode: 'STANDARD',
+    endlessVets: [],    // Endless only: picked veterans as "teamId|sourceCardId" keys
     elementFilter: 'ALL',
     // Ready-to-use first: the long tail of locked Siegelings (and their art)
     // only loads behind the grid's "View more" tile or the All chip.
@@ -756,16 +759,22 @@
 
   /** Mode label shared by the map HUD and the resume prompt, so both name a run alike. */
   function runSlotBadgeText(run) {
-    var bg = run.slot === 'BATTLEGROUNDS' || run.battlegrounds;
+    var kind = runSlotKind(run);
     var tier = ['I', 'II', 'III', 'IV', 'V'][(run.bgTier || 1) - 1] || run.bgTier;
-    return bg ? '⚔️ Battlegrounds · Tier ' + tier
-      : '🏳️ Siege' + (run.mode === 'ENDLESS' ? ' · Endless' : ' Expedition');
+    if (kind === 'bg') return '⚔️ Battlegrounds · Tier ' + tier;
+    if (kind === 'endless') return '♾️ Endless';
+    return '🏳️ Siege Expedition';
+  }
+
+  /** 'siege' | 'endless' | 'bg' — the class each mode's badge and resume plate wear. */
+  function runSlotKind(run) {
+    if (run.slot === 'BATTLEGROUNDS' || run.battlegrounds) return 'bg';
+    return run.mode === 'ENDLESS' ? 'endless' : 'siege';
   }
 
   /** The badge a run wears wherever a save has to be told apart from the other mode. */
   function runSlotBadge(run) {
-    var bg = run.slot === 'BATTLEGROUNDS' || run.battlegrounds;
-    return '<span class="run-slot-badge ' + (bg ? 'bg' : 'siege') + '">' +
+    return '<span class="run-slot-badge ' + runSlotKind(run) + '">' +
       runSlotBadgeText(run) + '</span>';
   }
 
@@ -790,12 +799,12 @@
     saves.forEach(function (run) {
       var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
       var floor = node ? (node.row + 1) : 1;
-      var bg = run.slot === 'BATTLEGROUNDS' || run.battlegrounds;
-      var card = el('div', 'resume-summary resume-save' + (bg ? ' bg' : ' siege'));
+      var card = el('div', 'resume-summary resume-save ' + runSlotKind(run));
       var strip = el('div', 'party-strip');
       var meta = el('div', 'resume-meta');
       meta.innerHTML = '<span class="gold-chip"><img class="gold-coin" src="/img/ui/home-stats/siegecoin.png" alt="" aria-hidden="true">' + (run.gold || 0) + '</span>' +
         '<span>📍 Floor ' + floor + '</span>' +
+        (run.mode === 'ENDLESS' ? '<span class="resume-score-chip">★ ' + fmtNum(run.score || 0) + '</span>' : '') +
         (run.battle
           ? '<span class="resume-battle-chip">⚔ Battle in progress · Round ' +
             (run.battle.roundNumber || 1) + '</span>'
@@ -856,10 +865,11 @@
   function wireStaticButtons() {
     var chooseSiegeMode = $('chooseSiegeMode');
     if (chooseSiegeMode) {
-      chooseSiegeMode.addEventListener('click', function () {
-        state.setupStep = 'knight';
-        renderSetup();
-      });
+      chooseSiegeMode.addEventListener('click', function () { chooseRunMode('STANDARD'); });
+    }
+    var chooseEndlessMode = $('chooseEndlessMode');
+    if (chooseEndlessMode) {
+      chooseEndlessMode.addEventListener('click', function () { chooseRunMode('ENDLESS'); });
     }
     var chooseTutorialMode = $('chooseTutorialMode');
     if (chooseTutorialMode) {
@@ -980,6 +990,8 @@
     }
     var bgVetGrid = $('bgVeteranGrid');
     if (bgVetGrid) bgVetGrid.addEventListener('click', function (e) { onBgVeteranPick(e); });
+    var endlessVetGrid = $('endlessVetGrid');
+    if (endlessVetGrid) endlessVetGrid.addEventListener('click', function (e) { onEndlessVeteranPick(e); });
     var bgKnGrid = $('bgKnightGrid');
     if (bgKnGrid) bgKnGrid.addEventListener('click', function (e) { onBgKnightPick(e); });
     var bgTierRow = $('bgTierRow');
@@ -1292,6 +1304,33 @@
 
   function renderModeStep() {
     refreshBattlegroundsEntry();
+    refreshEndlessCard();
+  }
+
+  /** Siege and Endless share the knight and warband steps; the mode decides their rules. */
+  function chooseRunMode(mode) {
+    var endless = mode === 'ENDLESS';
+    if (endless !== isEndlessSetup()) {
+      // A standard warband is an exact muster and an Endless team is 1-3 with
+      // veterans; carrying picks across would leave either one illegal.
+      state.party = [];
+      state.endlessVets = [];
+    }
+    state.runMode = endless ? 'ENDLESS' : 'STANDARD';
+    state.setupStep = 'knight';
+    renderSetup();
+  }
+
+  function isEndlessSetup() { return state.runMode === 'ENDLESS'; }
+
+  function refreshEndlessCard() {
+    var meta = $('modeEndlessMeta');
+    if (!meta) return;
+    var r = state.roster || {};
+    var best = r.endlessBestScore || 0;
+    meta.textContent = best > 0
+      ? 'Best ★ ' + fmtNum(best) + ' · Floor ' + (r.endlessBestFloor || 0)
+      : (r.loggedIn ? 'No record yet — set one' : 'Sign in to keep your record');
   }
 
   /**
@@ -1969,28 +2008,7 @@
       .then(function () { state.busy = false; });
   }
 
-  function renderEndlessSlots() {
-    var host = $('endlessSlots');
-    if (!host) {
-      host = el('div', 'endless-slots');
-      host.id = 'endlessSlots';
-      var footer = $('startRunBtn') ? $('startRunBtn').parentNode : null;
-      if (footer && footer.parentNode) footer.parentNode.insertBefore(host, footer);
-    }
-    host.innerHTML = '';
-    var slots = teamSlots();
-    if (!slots.some(function (x) { return x; })) return;
-    host.appendChild(el('div', 'endless-title', '🔁 Endless Run — score attack with a saved team'));
-    slots.forEach(function (slot, i) {
-      if (!slot) return;
-      var btn = el('button', 'siege-btn endless-btn', '★ ' + esc(slot.name) + ' — Start Endless');
-      btn.addEventListener('click', function () { startEndless(slot); });
-      host.appendChild(btn);
-    });
-  }
-
   function renderPartyStep() {
-    renderEndlessSlots();
     updateWarbandMeta();
     if (!hasWarbandData(state.roster)) {
       ensureWarbandLoaded().then(function () {
@@ -2078,9 +2096,74 @@
       fr.appendChild(chip);
     });
     renderSieglingGrid();
+    renderEndlessVeterans();
     refreshSetupFooter();
     refreshBattlegroundsEntry();
     updateWarbandMeta();
+  }
+
+  /** Banked veterans an Endless team can field, newest team first. */
+  function renderEndlessVeterans() {
+    var box = $('endlessVets');
+    var endless = isEndlessSetup();
+    setHidden('endlessVets', !endless);
+    // Battlegrounds is a separate mode with its own card; on the Endless team
+    // step its banner would read as a second way to start this run.
+    setHidden('battlegroundsEntry', endless);
+    if (!box || !endless) return;
+    var vets = battlegroundsVeterans();
+    var grid = $('endlessVetGrid');
+    var sub = $('endlessVetsSub');
+    var now = Date.now();
+    if (sub) {
+      sub.textContent = vets.length
+        ? 'Leveled Siegelings you have banked keep their level, item and upgraded cards.'
+        : (state.roster && state.roster.loggedIn
+          ? 'None banked yet — end an Endless run after a boss, or win a Siege expedition, to bank a leveled team.'
+          : 'Sign in to bring the leveled teams you bank.');
+    }
+    if (!grid) return;
+    grid.innerHTML = vets.map(function (v) {
+      var key = vetKey(v);
+      var sel = state.endlessVets.indexOf(key) >= 0;
+      var locked = (v.lockedUntil || 0) > now;
+      var lockNote = locked ? '<span class="bg-vet-lock">😴 ' + bgLockText(v.lockedUntil, now) + '</span>' : '';
+      return '<button type="button" class="bg-vet endless-vet ' + elClass(v.element) + (sel ? ' picked' : '') +
+        (locked ? ' locked' : '') + '" data-key="' + esc(key) + '"' + (locked ? ' disabled' : '') +
+        ' aria-pressed="' + sel + '">' +
+        '<span class="bg-vet-el">' + icon(v.element) + '</span>' +
+        '<span class="bg-vet-name">' + esc(v.name) + '</span>' +
+        '<span class="bg-vet-lv">Lv ' + (v.level || 1) + '</span>' + lockNote + '</button>';
+    }).join('');
+  }
+
+  function onEndlessVeteranPick(e) {
+    var btn = e.target.closest ? e.target.closest('.endless-vet') : null;
+    if (!btn || btn.disabled) return;
+    var key = btn.getAttribute('data-key');
+    var at = state.endlessVets.indexOf(key);
+    if (at >= 0) {
+      state.endlessVets.splice(at, 1);
+    } else {
+      var sourceId = key.split('|').slice(1).join('|');
+      if (state.party.indexOf(sourceId) >= 0 || state.endlessVets.some(function (k) {
+        return k.split('|').slice(1).join('|') === sourceId;
+      })) {
+        toast('That Siegeling is already in the team.');
+        return;
+      }
+      if (endlessTeamSize() >= partyCap()) { toast('An Endless team holds ' + partyCap() + ' Siegelings.'); return; }
+      state.endlessVets.push(key);
+    }
+    renderEndlessVeterans();
+    refreshSetupFooter();
+  }
+
+  function endlessTeamSize() { return state.party.length + state.endlessVets.length; }
+
+  /** Most Siegelings this setup can take: the knight's muster, or Endless's full team. */
+  function partyCap() {
+    return isEndlessSetup() ? Math.max(1, (state.roster && state.roster.partyMax) || 3) : startingPartyNeed();
   }
 
   /* Built cards are kept per Siegeling and reused across picks and filter
@@ -2277,6 +2360,7 @@
 
   /** Swapping to a knight with a smaller muster drops the now-illegal picks. */
   function trimPartyToNeed() {
+    if (isEndlessSetup()) return;
     var need = startingPartyNeed();
     if (state.party.length > need) state.party = state.party.slice(0, need);
   }
@@ -2290,8 +2374,12 @@
     var i = state.party.indexOf(id);
     if (i >= 0) { state.party.splice(i, 1); }
     else {
-      var need = startingPartyNeed();
-      if (state.party.length >= need) { toast('You already have ' + need + ' Siegeling' + (need === 1 ? '' : 's') + '.'); return; }
+      var need = partyCap();
+      if (isEndlessSetup() && state.endlessVets.some(function (k) { return k.split('|').slice(1).join('|') === id; })) {
+        toast('That Siegeling is already in the team as a veteran.');
+        return;
+      }
+      if (endlessTeamSize() >= need) { toast('You already have ' + need + ' Siegeling' + (need === 1 ? '' : 's') + '.'); return; }
       state.party.push(id);
     }
     renderSieglingGrid();
@@ -2300,6 +2388,10 @@
 
   function refreshSetupFooter() {
     if (!state.roster) return;
+    if (isEndlessSetup()) { refreshEndlessFooter(); return; }
+    var heading = $('setupStepParty') && $('setupStepParty').querySelector('h1');
+    if (heading) heading.textContent = 'Assemble the warband';
+    $('startRunBtn').textContent = 'Begin Expedition';
     var need = startingPartyNeed();
     var sub = $('warbandSub');
     if (sub) {
@@ -2318,29 +2410,40 @@
     $('setupSummary').textContent = 'Warband (' + state.party.length + '/' + need + '): ' + (names.join(', ') || '—');
   }
 
-  // ---- saved team slots (endless mode) ----------------------------------
-  var SLOTS_KEY = 'siegeTeamSlots';
-  function teamSlots() {
-    try { return JSON.parse(localStorage.getItem(SLOTS_KEY) || '[null,null,null]'); }
-    catch (e) { return [null, null, null]; }
-  }
-  function saveTeamSlot(i, slot) {
-    var slots = teamSlots(); slots[i] = slot;
-    try { localStorage.setItem(SLOTS_KEY, JSON.stringify(slots)); } catch (e) {}
+  function refreshEndlessFooter() {
+    var cap = partyCap();
+    var heading = $('setupStepParty') && $('setupStepParty').querySelector('h1');
+    if (heading) heading.textContent = 'Pick your Endless team';
+    var sub = $('warbandSub');
+    if (sub) {
+      sub.textContent = 'Take 1–' + cap + ' Siegelings — veterans at their banked level, or fresh picks from your roster. ' +
+        'Every floor hits harder; the run lasts until the warband falls or you end it.';
+    }
+    var names = state.endlessVets.map(function (k) {
+      var v = battlegroundsVeterans().find(function (x) { return vetKey(x) === k; });
+      return v ? v.name + ' Lv ' + (v.level || 1) : null;
+    }).concat(state.party.map(function (id) {
+      var s = rosterSiegelings(state.roster).find(function (x) { return x.id === id; });
+      return s ? s.name : id;
+    })).filter(Boolean);
+    var size = endlessTeamSize();
+    $('startRunBtn').textContent = 'Begin Endless';
+    $('startRunBtn').disabled = !(state.knightId && size >= 1 && size <= cap);
+    $('setupSummary').textContent = 'Team (' + size + '/' + cap + '): ' + (names.join(', ') || '—');
   }
 
   function startRun() {
     if (state.busy) return; state.busy = true; state.landView = null;
-    api('/api/siege/run/new', { method: 'POST', body: { knightId: state.knightId, sieglingIds: state.party, mode: 'STANDARD' } })
-      .then(function (run) { setToken(run.token); applyRun(run); })
-      .catch(function (e) { toast(e.message); })
-      .then(function () { state.busy = false; });
-  }
-
-  function startEndless(slot) {
-    if (state.busy) return; state.busy = true; state.landView = null;
-    api('/api/siege/run/new', { method: 'POST', body: { knightId: slot.knightId, sieglingIds: slot.sieglingIds, mode: 'ENDLESS' } })
-      .then(function (run) { setToken(run.token); applyRun(run); })
+    var endless = isEndlessSetup();
+    var body = { knightId: state.knightId, sieglingIds: state.party, mode: endless ? 'ENDLESS' : 'STANDARD' };
+    if (endless) {
+      body.veterans = state.endlessVets.map(function (k) {
+        var parts = k.split('|');
+        return { teamId: parts[0], sourceCardId: parts.slice(1).join('|') };
+      });
+    }
+    api('/api/siege/run/new', { method: 'POST', body: body })
+      .then(function (run) { state.endlessVets = []; setToken(run.token); applyRun(run); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
@@ -2708,20 +2811,19 @@
     // its tier and boon count into the gold chip.
     var modeChip = $('mapMode');
     var isBg = run.slot === 'BATTLEGROUNDS' || run.battlegrounds;
-    modeChip.className = 'run-slot-badge ' + (isBg ? 'bg' : 'siege');
+    modeChip.className = 'run-slot-badge ' + runSlotKind(run);
     modeChip.innerHTML = runSlotBadgeText(run);
     $('mapGold').textContent = '🪙 ' + (run.gold || 0) +
-      (run.mode === 'ENDLESS' ? '  ·  ★ ' + (run.score || 0) + '  ·  🔁 ' + ((run.loop || 0) + 1) : '') +
+      (run.mode === 'ENDLESS' ? '  ·  ★ ' + fmtNum(run.score || 0) + '  ·  🏰 Floor ' + endlessFloor(run) : '') +
       (isBg ? '  ·  🎁 ' + (run.boons || []).length + ' boon' : '');
     $('mapReward').textContent = '';
     $('mapReward').classList.add('hidden');
     $('mapDeckCount').textContent = '🃏 ' + (run.deckSize || '—') + (run.checkpoint ? '  ·  💾 saved' : '');
     $('mapHint').textContent = run.currentNodeId < 0 ? 'Choose where to begin' : 'Choose your path';
-    // Endless: once a boss has fallen, the team can be extracted (banked for Battlegrounds).
+    // Endless can be ended on the map at any time; the battle screen has no such exit.
     var extractBtn = $('extractBtn');
     if (extractBtn) {
-      var canExtract = run.mode === 'ENDLESS' && run.stats && (run.stats.bossKills || 0) > 0;
-      extractBtn.classList.toggle('hidden', !canExtract);
+      extractBtn.classList.toggle('hidden', run.mode !== 'ENDLESS' || run.status !== 'ACTIVE');
     }
 
     var nodes = run.map || [];
@@ -6455,9 +6557,19 @@
       .then(function () { state.busy = false; });
   }
 
+  /** The floor an Endless run stands on: the deepest cleared, or 1 before the first stop. */
+  function endlessFloor(run) {
+    return Math.max(1, (run && run.floorReached) || 0);
+  }
+
   function extractTeam() {
     if (state.busy) return;
-    if (!confirm('Extract your team now? This ends the Endless run and banks your leveled Siegelings for Battlegrounds.')) return;
+    var run = state.run || {};
+    var banks = run.stats && (run.stats.bossKills || 0) > 0;
+    if (!confirm('End this Endless run on floor ' + endlessFloor(run) + '?\n\nYour score of ★ ' + fmtNum(run.score || 0) +
+      ' and end rewards are banked' + (banks
+        ? ', and your leveled team is banked as veterans.'
+        : '. Beat a boss first to bank your team as veterans too.'))) return;
     state.busy = true;
     api('/api/siege/extract', { method: 'POST', body: { token: token() } })
       .then(function (run) { applyRun(run); })
@@ -6532,8 +6644,8 @@
     var won = run.status === 'WON';
     var endless = run.mode === 'ENDLESS';
     var title = $('resultTitle');
-    title.textContent = endless ? ('Endless Run — Score ' + (run.score || 0)) : (won ? 'Expedition Won' : 'Expedition Lost');
-    title.className = won ? 'win' : 'lose';
+    title.textContent = endless ? ('Endless — ★ ' + fmtNum(run.score || 0)) : (won ? 'Expedition Won' : 'Expedition Lost');
+    title.className = endless ? 'win' : (won ? 'win' : 'lose');
     $('resultText').textContent = run.lastReward || (won ? 'The Siegelord has fallen.' : 'Your warband was overwhelmed.');
 
     var extras = $('resultExtras'); extras.innerHTML = '';
@@ -6543,8 +6655,15 @@
     var statsRow = el('div', 'result-stats',
       '⚔ ' + (st.enemiesDefeated || 0) + ' foes · 👑 ' + (st.bossKills || 0) + ' bosses · 🗺 ' +
       (st.nodesCleared || 0) + ' nodes · 🪙 ' + (st.goldEarned || 0) + ' looted' +
-      (endless ? ' · 🔁 loop ' + ((run.loop || 0) + 1) : ''));
+      (endless ? ' · 🏰 floor ' + endlessFloor(run) : ''));
     extras.appendChild(statsRow);
+    var erBest = run.endRewards || {};
+    if (endless && (erBest.endlessNewBest || erBest.endlessFloorNewBest)) {
+      extras.appendChild(el('div', 'result-best',
+        '🏆 New personal best' + (erBest.endlessNewBest && erBest.endlessPreviousBest
+          ? ' — previous ★ ' + fmtNum(erBest.endlessPreviousBest) : '') +
+        (erBest.endlessFloorNewBest && !erBest.endlessNewBest ? ' floor' : '')));
+    }
     var scoreCard = resultScoreCard(run.scoreBreakdown || (run.endRewards && run.endRewards.scoreBreakdown), run.score);
     if (scoreCard) extras.appendChild(scoreCard);
 
@@ -6590,36 +6709,11 @@
         ? '<div class="extract-knight">👑 ' + esc(kn.knightName) + ' — Lv ' + (kn.level || 1) + '</div>'
         : '';
       var xbox = el('div', 'result-extract',
-        '<h3>⤴ Team extracted — banked for Battlegrounds</h3>' +
+        '<h3>⤴ Team banked as veterans</h3>' +
         knightLine +
         '<div class="extract-chips">' + chips + '</div>' +
-        '<div class="extract-note">Your veterans keep the level they reached. Bring 3 into Battlegrounds.</div>');
+        '<div class="extract-note">Your veterans keep the level they reached — field them in Endless, or bring 3 into Battlegrounds.</div>');
       extras.appendChild(xbox);
-    }
-
-    // Winning a standard run unlocks saving the team for Endless mode.
-    if (won && !endless) {
-      var teamIds = (run.party || []).map(function (p) { return p.sourceCardId; }).filter(Boolean);
-      if (teamIds.length) {
-        var saver = el('div', 'result-save', '<h3>Save this team for Endless</h3>');
-        var row = el('div', 'result-save-row');
-        teamSlots().forEach(function (slot, i) {
-          var label = slot ? ('Slot ' + (i + 1) + ': ' + esc(slot.name)) : ('Save to Slot ' + (i + 1));
-          var btn = el('button', 'siege-btn', label);
-          btn.addEventListener('click', function () {
-            saveTeamSlot(i, {
-              name: (run.knight && run.knight.name ? run.knight.name : 'Team') + ' ×' + teamIds.length,
-              knightId: run.knight ? run.knight.id || state.knightId : state.knightId,
-              sieglingIds: teamIds
-            });
-            btn.textContent = '✓ Saved to Slot ' + (i + 1);
-            toast('Team saved — start an Endless run from the team-select screen.');
-          });
-          row.appendChild(btn);
-        });
-        saver.appendChild(row);
-        extras.appendChild(saver);
-      }
     }
 
     setToken(null);

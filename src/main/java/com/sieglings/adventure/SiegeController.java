@@ -72,7 +72,7 @@ public class SiegeController {
         return siege.veterans(authorizationHeader);
     }
 
-    /** Endless loop-boundary extraction: bank the current team and end the run: body { token }. */
+    /** End an Endless run between fights: bank its score (and, after a boss, its team): body { token }. */
     @PostMapping("/api/siege/extract")
     public Map<String, Object> extract(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
@@ -96,14 +96,17 @@ public class SiegeController {
         return siege.unlockSiegling(authorizationHeader, str(body.get("sieglingId")));
     }
 
-    /** Start a run: body { knightId, sieglingIds:[...], mode? ("STANDARD"|"ENDLESS") }. */
+    /**
+     * Start a run: body { knightId, sieglingIds:[...], mode? ("STANDARD"|"ENDLESS"),
+     * veterans?:[{teamId, sourceCardId}] }. Veterans are Endless-only.
+     */
     @PostMapping("/api/siege/run/new")
     public Map<String, Object> newRun(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestBody Map<String, Object> body) {
         String knightId = str(body.get("knightId"));
         List<String> sieglingIds = toStringList(body.get("sieglingIds"));
-        return siege.newRun(authorizationHeader, knightId, sieglingIds, str(body.get("mode")));
+        return siege.newRun(authorizationHeader, knightId, sieglingIds, str(body.get("mode")), body.get("veterans"));
     }
 
     /**

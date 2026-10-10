@@ -261,6 +261,7 @@ body {
 
 .mode-card-siege { background-image: url('/img/gallery/skydon-skyreach.webp'); }
 .mode-card-bg { background-image: url('/img/gallery/frostag-training.webp'); }
+.mode-card-endless { --mode: var(--shield); background-image: url('/img/gallery/hurricrane-skyruins.webp'); }
 .mode-card-tutorial { background-image: url('/img/gallery/bearby-longfuse.webp'); }
 
 .mode-card-title { font-size: clamp(24px, 7vw, 30px); }
@@ -368,7 +369,7 @@ body[data-screen="resumeScreen"] .siege-title { font-size: 14px; opacity: .85; }
 
 /* adventure.css paints a left accent bar and inset glow per mode at this
    specificity; the plate takes its accent on the top edge instead. */
-.resume-save.siege, .resume-save.bg {
+.resume-save.siege, .resume-save.bg, .resume-save.endless {
     border-left-color: var(--border);
     box-shadow: 0 18px 40px rgba(0, 0, 0, .45);
 }
@@ -376,6 +377,11 @@ body[data-screen="resumeScreen"] .siege-title { font-size: 14px; opacity: .85; }
 .resume-save.bg {
     --save-accent: var(--accent-2);
     background-image: url('/img/gallery/frostag-training.webp');
+}
+
+.resume-save.endless {
+    --save-accent: var(--shield);
+    background-image: url('/img/gallery/hurricrane-skyruins.webp');
 }
 
 /* Warband: a two-up grid of glass chips with the art large enough to read. */
@@ -398,6 +404,11 @@ body[data-screen="resumeScreen"] .siege-title { font-size: 14px; opacity: .85; }
 
 .resume-meta { margin-top: 2px; font-weight: 700; }
 .resume-meta .gold-chip { font-size: 14px; padding: 3px 11px; }
+.resume-score-chip {
+    font-size: 13px; font-weight: 800; color: var(--shield);
+    border: 1px solid color-mix(in srgb, var(--shield) 45%, transparent);
+    border-radius: 12px; padding: 2px 10px; background: color-mix(in srgb, var(--shield) 10%, transparent);
+}
 .resume-battle-chip { white-space: normal; }
 
 /* Resuming is the point of the screen: a full-width, thumb-height gold button,
@@ -601,7 +612,7 @@ body[data-screen="resumeScreen"] .siege-title { font-size: 14px; opacity: .85; }
     /* adventure.css caps page-scrolling screens at a 1280px reading column. */
     #setupScreen:has(#setupStepMode:not(.hidden)) { max-width: none; }
     #setupStepMode .mode-select-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: clamp(14px, 1.4vw, 28px);
     }
     #setupStepMode .mode-card {
@@ -625,4 +636,52 @@ body[data-screen="resumeScreen"] .siege-title { font-size: 14px; opacity: .85; }
             linear-gradient(180deg, rgba(13, 10, 38, .10) 0%, rgba(13, 10, 38, .18) 40%, rgba(13, 10, 38, .88) 74%, rgba(13, 10, 38, .97) 100%),
             linear-gradient(180deg, color-mix(in srgb, var(--mode, var(--accent)) 22%, transparent), transparent 50%);
     }
+}
+
+
+/* ---- Endless ----
+   The third mode. Its accent is the shield cyan: not an element hue, and apart
+   from Siege's gold and Battlegrounds' violet wherever the badges sit together. */
+.run-slot-badge.endless {
+    color: var(--shield);
+    background: color-mix(in srgb, var(--shield) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--shield) 48%, transparent);
+}
+/* Over a resume plate's sky the tinted wash vanished; keep the plate's dark chip. */
+.resume-save-head .run-slot-badge.endless { background: rgba(13, 10, 38, .62); }
+
+.result-best {
+    margin: 10px auto 0; width: fit-content; padding: 6px 14px; border-radius: 999px;
+    font-weight: 800; color: #ffd066; background: rgba(255, 208, 102, .1); border: 1px solid rgba(255, 208, 102, .45);
+}
+
+/* Veteran picks sit above the fresh roster on the Endless team step. */
+.endless-vets { margin: 4px 0 12px; }
+.endless-vets-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 8px; }
+.endless-vets-title {
+    font-size: 11px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; color: var(--shield);
+}
+.endless-vets-sub { font-size: 12px; color: var(--dim); }
+.endless-vet-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.endless-vet-grid:empty { display: none; }
+.endless-vet { min-height: 44px; font: inherit; color: var(--text); cursor: pointer; }
+.endless-vet.picked { border-color: var(--shield); box-shadow: 0 0 0 1px var(--shield) inset; }
+.endless-fresh-title { margin-top: 14px; }
+
+/* Landscape phones lay the team step out as a fixed grid (adventure.css): the
+   veteran row takes its own band above the roster rail and scrolls sideways. */
+@media (orientation: landscape) and (max-height: 600px) {
+    #setupStepParty:has(#endlessVets:not(.hidden)) {
+        grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    }
+    #setupStepParty #endlessVets { grid-column: 1 / -1; grid-row: 3; margin: 2px 0 4px; min-width: 0; }
+    #setupStepParty:has(#endlessVets:not(.hidden)) #sieglingGrid,
+    #setupStepParty:has(#endlessVets:not(.hidden)) #warbandLoadPanel { grid-row: 4; }
+    #setupScreen #setupStepParty:has(#endlessVets:not(.hidden)) .setup-footer { grid-row: 5; }
+    #endlessVets .endless-vets-head { margin-bottom: 4px; }
+    #endlessVets .endless-vets-sub, #endlessVets .endless-fresh-title { display: none; }
+    #endlessVets .endless-vet-grid { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    #endlessVets .endless-vet { flex: 0 0 auto; min-height: 36px; padding: 4px 10px; }
+    /* Four modes side by side rather than three. */
+    #setupStepMode .mode-select-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }

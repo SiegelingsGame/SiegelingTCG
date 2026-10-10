@@ -752,6 +752,8 @@ public class PlayerProgressionService {
         out.put("siegeBossKills", progression.getSiegeBossKills());
         out.put("siegeNodesCleared", progression.getSiegeNodesCleared());
         out.put("siegeBestScore", progression.getSiegeBestScore());
+        out.put("endlessBestScore", progression.getEndlessBestScore());
+        out.put("endlessBestFloor", progression.getEndlessBestFloor());
         out.put("keepFounded", progression.isKeepFounded());
         out.put("keepTimberCollected", progression.getKeepTimberCollected());
         out.put("keepProjectsCompleted", progression.getKeepProjectsCompleted());

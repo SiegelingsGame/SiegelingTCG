@@ -19,7 +19,7 @@
 <link rel="stylesheet" href="/css/adventure.css?v=105">
   <!-- Art-first re-skin. After adventure.css on purpose: it restates the same
        tokens and expects to win. -->
-  <link rel="stylesheet" href="/css/siege-next.css?v=12">
+  <link rel="stylesheet" href="/css/siege-next.css?v=13">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -120,13 +120,19 @@
 
     <div id="setupStepMode">
       <h1>Choose your mode</h1>
-      <p class="siege-sub">Start a fresh Siege expedition, take extracted veterans into Battlegrounds, or run the guided Tutorial first.</p>
+      <p class="siege-sub">Start a fresh Siege expedition, chase a high score in Endless, take extracted veterans into Battlegrounds, or run the guided Tutorial first.</p>
       <div class="mode-select-grid">
         <button class="mode-card mode-card-siege" id="chooseSiegeMode" type="button">
           <span class="mode-card-kicker">Classic run</span>
           <span class="mode-card-title">Siege</span>
           <span class="mode-card-desc">Pick a SiegeKnight, assemble a Warband, and push through the expedition to bank veterans.</span>
           <span class="mode-card-meta">Best starting point</span>
+        </button>
+        <button class="mode-card mode-card-endless" id="chooseEndlessMode" type="button">
+          <span class="mode-card-kicker">Score attack</span>
+          <span class="mode-card-title">Endless</span>
+          <span class="mode-card-desc">Take fresh or leveled Siegelings down a road that never ends. Every floor hits harder — play until the warband falls or you call it, and bank your final score.</span>
+          <span class="mode-card-meta" id="modeEndlessMeta">No record yet</span>
         </button>
         <button class="mode-card mode-card-bg" id="chooseBattlegroundsMode" type="button" aria-haspopup="dialog">
           <span class="mode-card-kicker">Veteran mode</span>
@@ -167,6 +173,16 @@
         <p class="siege-load-count" id="warbandLoadCount">0</p>
         <button class="siege-btn" id="warbandRetryBtn" type="button">Retry</button>
       </div>
+      <!-- Endless only: banked veterans march at their extracted level beside
+           fresh roster picks. Filled by renderEndlessVeterans. -->
+      <div class="endless-vets hidden" id="endlessVets">
+        <div class="endless-vets-head">
+          <span class="endless-vets-title">Veterans</span>
+          <span class="endless-vets-sub" id="endlessVetsSub">Leveled Siegelings you have banked keep their level, item and upgraded cards.</span>
+        </div>
+        <div class="endless-vet-grid" id="endlessVetGrid"></div>
+        <div class="endless-vets-title endless-fresh-title">Fresh from your roster</div>
+      </div>
       <div class="siegeling-grid" id="sieglingGrid"></div>
       <!-- Secondary mode: always visible, opens a requirements modal on tap. -->
       <div class="bg-entry" id="battlegroundsEntry" role="button" tabindex="0" aria-haspopup="dialog">
@@ -201,7 +217,7 @@
         <span id="mapDeckCount"></span>
         <button class="siege-btn map-inv-btn" id="inventoryBtn" type="button">🎒 Items</button>
         <button class="siege-btn map-key-btn" id="mapKeyBtn" type="button">🗝️ Key</button>
-        <button class="siege-btn map-extract-btn hidden" id="extractBtn" type="button">⤴ Extract team</button>
+        <button class="siege-btn map-extract-btn hidden" id="extractBtn" type="button">⚑ End run</button>
         <span class="map-hint" id="mapHint">Choose your path</span>
       </div>
       <div class="party-strip" id="partyStrip"></div>
@@ -769,6 +785,6 @@
 <script src="/js/siege-maps.js?v=3"></script>
 <script src="/js/coach.js?v=11"></script>
 <script src="/js/siege-tutorial.js?v=28"></script>
-<script src="/js/adventure.js?v=125"></script>
+<script src="/js/adventure.js?v=126"></script>
 </body>
 </html>
