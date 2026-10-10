@@ -71,6 +71,11 @@ class SiegeRun {
     // Broker stall state (mercenary rentals for the next battle).
     private boolean inBroker;
     private final List<CampOption> brokerOptions = new ArrayList<>();
+    /**
+     * The stall is a wandering Siegeling met on the road (full-warband event),
+     * not a paid broker: one free take, and walking away leaves a parting gift.
+     */
+    private boolean brokerEncounter;
 
     /** Rented mercenary — fights the NEXT battle only, then departs. */
     private Combatant mercenary;
@@ -242,6 +247,8 @@ class SiegeRun {
     boolean isInBroker() { return inBroker; }
     void setInBroker(boolean inBroker) { this.inBroker = inBroker; }
     List<CampOption> getBrokerOptions() { return brokerOptions; }
+    boolean isBrokerEncounter() { return brokerEncounter; }
+    void setBrokerEncounter(boolean brokerEncounter) { this.brokerEncounter = brokerEncounter; }
 
     Combatant getMercenary() { return mercenary; }
     void setMercenary(Combatant mercenary) { this.mercenary = mercenary; }

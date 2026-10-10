@@ -8,7 +8,7 @@ import com.sieglings.model.enums.Element;
  * offers goods for gold. Each option can be used once per camp.
  */
 class CampOption {
-    /** REST, SHOP_CARD, SHOP_HEAL, SHOP_UPGRADE, BROKER. */
+    /** REST, SHOP_CARD, SHOP_HEAL, SHOP_UPGRADE, BROKER, BROKER_SWAP, MERC. */
     final String id;
     final String kind;
     final String title;
@@ -83,6 +83,21 @@ class CampOption {
         return new CampOption(id, "BROKER", name + " joins for hire",
                 "The broker's " + name + " (" + element.name() + ") joins the warband with its moves.",
                 cost, element, artUrl, null, null, -1, sieglingId);
+    }
+
+    /**
+     * A full warband's broker offer: the recruit only joins in exchange for a
+     * current member, who the buyer names when paying (see {@link #choosesLeaver()}).
+     */
+    static CampOption brokerSwap(String id, String name, Element element, String artUrl, String sieglingId, int cost) {
+        return new CampOption(id, "BROKER_SWAP", name + " — swap in",
+                "The warband is full: " + name + " (" + element.name() + ") takes the place of a member you send away.",
+                cost, element, artUrl, null, null, -1, sieglingId);
+    }
+
+    /** True for a swap offer whose departing member is picked at purchase time. */
+    boolean choosesLeaver() {
+        return "BROKER_SWAP".equals(kind);
     }
 
     /** Revive a fallen Siegeling at camp — ownerId carries the fallen member's id. */
