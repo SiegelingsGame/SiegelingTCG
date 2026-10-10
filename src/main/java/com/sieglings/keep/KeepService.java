@@ -1129,34 +1129,74 @@ public class KeepService {
         });
     }
 
-    /** Buys resources from the Keep market with Silver. */
+    /**
+     * Buys from today's market. Silver lots are paid from the Keep wallet at once; rare
+     * and epic lots cost account Siegecoins, charged only after the Keep saves. Each
+     * offer has a small daily stock that resets with the market at UTC midnight.
+     */
     public Map<String, Object> buyMarketLot(AccountUser user, String lotId, int quantity,
                                             String requestId, long expectedVersion) {
         return mutate(user, requestId, expectedVersion, context -> {
             KeepState state = context.state();
-            KeepEconomy.MarketLot lot = KeepEconomy.lot(lotId == null ? "" : lotId.trim());
-            if (lot == null) throw new IllegalArgumentException("That market lot is not for sale.");
-            String lockedHint = marketLockedHint(state, lot);
-            if (lockedHint != null) throw new IllegalArgumentException(lockedHint);
+            String id = lotId == null ? "" : lotId.trim();
+            if (state.getStorehouseLevel() < 1) throw new IllegalArgumentException("Raise the Covenant Storehouse to open the market.");
+            KeepEconomy.MarketItem item = todaysOffers(state, context.now()).stream()
+                    .filter(offer -> offer.id().equals(id)).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("That offer is not at the market today."));
+            syncMarketDay(state, context.now());
+            int bought = state.getMarketPurchases().getOrDefault(item.id(), 0);
             int qty = Math.max(1, Math.min(10, quantity));
-            int silver = lot.silverCost() * qty;
-            if (state.getSilver() < silver) {
-                throw new IllegalArgumentException("You need " + (silver - state.getSilver()) + " more Silver for that.");
+            if (bought + qty > item.dailyStock()) {
+                throw new IllegalArgumentException(bought >= item.dailyStock()
+                        ? "That offer is sold out until tomorrow's market."
+                        : "Only " + (item.dailyStock() - bought) + " left of that offer today.");
             }
-            int amount = lot.amount() * qty;
-            requireRoom(state, lot.resourceId(), amount);
-            state.setSilver(state.getSilver() - silver);
-            addResource(state, lot.resourceId(), amount);
-            return Map.of("marketPurchased", Map.of("lotId", lot.id(), "resourceId", lot.resourceId(),
-                    "name", resourceName(lot.resourceId()), "amount", amount, "silverCost", silver));
+            int price = item.price() * qty;
+            int amount = item.amount() * qty;
+            requireRoom(state, item.resourceId(), amount);
+            boolean coins = item.currency() == KeepEconomy.Currency.SIEGECOINS;
+            PlayerProgressionEntity progression = context.progression();
+            if (coins && progression.getGold() < price) {
+                throw new IllegalArgumentException("You need " + (price - progression.getGold()) + " more Siegecoins for that.");
+            }
+            if (!coins && state.getSilver() < price) {
+                throw new IllegalArgumentException("You need " + (price - state.getSilver()) + " more Silver for that.");
+            }
+            if (coins) {
+                context.afterKeepPersist(p -> {
+                    p.setGold(p.getGold() - price);
+                    p.setUpdatedAt(context.now());
+                });
+            } else {
+                state.setSilver(state.getSilver() - price);
+            }
+            addResource(state, item.resourceId(), amount);
+            state.getMarketPurchases().put(item.id(), bought + qty);
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("lotId", item.id());
+            out.put("resourceId", item.resourceId());
+            out.put("name", resourceName(item.resourceId()));
+            out.put("amount", amount);
+            out.put("price", price);
+            out.put("currency", item.currency().name());
+            return Map.of("marketPurchased", out);
         });
     }
 
-    private String marketLockedHint(KeepState state, KeepEconomy.MarketLot lot) {
-        if (state.getStorehouseLevel() < 1) return "Raise the Covenant Storehouse to open the market.";
-        KeepEconomy.Refined refined = KeepEconomy.refined(lot.resourceId());
-        if (refined != null && !economyGateMet(state, refined.tier().gate)) return refined.tier().lockedHint;
-        return null;
+    /** Today's offers for this keeper; only tiers they can use are ever drawn. */
+    private List<KeepEconomy.MarketItem> todaysOffers(KeepState state, Instant now) {
+        return KeepEconomy.dailyOffers(state.getUserId(), dayKey(now), item -> {
+            KeepEconomy.Refined refined = KeepEconomy.refined(item.resourceId());
+            return refined == null || economyGateMet(state, refined.tier().gate);
+        });
+    }
+
+    private void syncMarketDay(KeepState state, Instant now) {
+        String day = dayKey(now);
+        if (!day.equals(state.getMarketDay())) {
+            state.setMarketDay(day);
+            state.setMarketPurchases(Map.of());
+        }
     }
 
     private boolean economyGateMet(KeepState state, String gate) {
@@ -1288,19 +1328,31 @@ public class KeepService {
         recycle.put("rawRate", KeepEconomy.RAW_RECYCLE_RATE);
         recycle.put("timberRate", KeepEconomy.TIMBER_RECYCLE_RATE);
         out.put("recycle", recycle);
-        out.put("market", KeepEconomy.MARKET.stream().map(lot -> {
-            Map<String, Object> item = new LinkedHashMap<>();
-            String locked = marketLockedHint(state, lot);
-            item.put("id", lot.id());
-            item.put("resourceId", lot.resourceId());
-            item.put("name", resourceName(lot.resourceId()));
-            item.put("amount", lot.amount());
-            item.put("silverCost", lot.silverCost());
-            item.put("unlocked", locked == null);
-            item.put("lockedHint", locked);
-            item.put("refined", KeepEconomy.isRefined(lot.resourceId()));
-            return item;
-        }).toList());
+        Instant now = clock.instant();
+        boolean marketOpen = state.getStorehouseLevel() >= 1;
+        String today = dayKey(now);
+        Map<String, Integer> boughtToday = today.equals(state.getMarketDay()) ? state.getMarketPurchases() : Map.of();
+        Map<String, Object> market = new LinkedHashMap<>();
+        market.put("open", marketOpen);
+        market.put("lockedHint", marketOpen ? null : "Raise the Covenant Storehouse to open the market.");
+        market.put("day", today);
+        market.put("refreshesAt", now.atZone(ZoneOffset.UTC).toLocalDate().plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toString());
+        market.put("offers", marketOpen ? todaysOffers(state, now).stream().map(item -> {
+            Map<String, Object> offer = new LinkedHashMap<>();
+            int bought = boughtToday.getOrDefault(item.id(), 0);
+            offer.put("id", item.id());
+            offer.put("resourceId", item.resourceId());
+            offer.put("name", resourceName(item.resourceId()));
+            offer.put("amount", item.amount());
+            offer.put("price", item.price());
+            offer.put("currency", item.currency().name());
+            offer.put("rarity", item.rarity().name());
+            offer.put("stock", item.dailyStock());
+            offer.put("remaining", Math.max(0, item.dailyStock() - bought));
+            offer.put("refined", KeepEconomy.isRefined(item.resourceId()));
+            return offer;
+        }).toList() : List.of());
+        out.put("market", market);
         out.put("silverBundles", KeepEconomy.SILVER_BUNDLES.stream().map(bundle -> Map.<String, Object>of(
                 "id", bundle.id(), "name", bundle.name(), "silver", bundle.silver(), "coinCost", bundle.coinCost())).toList());
         return out;

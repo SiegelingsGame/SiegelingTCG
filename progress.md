@@ -1,4 +1,28 @@
 Original prompt: Merge and deploy
+- October 10, 2026 **Keep: the market refreshes daily, and its rarest offers cost Siegecoins.**
+  - **Pool.** `KeepEconomy.POOL` replaces the fixed lot list. Each item has a resource, amount, price, currency, rarity and daily stock.
+    - **Common** (Silver): timber and the six raw lots.
+    - **Uncommon** (Silver): tier 1 refined singles, a 30-stone crate, a 200-timber wagon.
+    - **Rare** (Siegecoins): 40-unit raw crates, tier 1 bundles of 3, a Covenant Keystone, an Aether Core.
+    - **Epic** (Siegecoins): a Heartwood Relic.
+  - **Daily draw.** `dailyOffers(userId, day)` is seeded by keeper and UTC day: the always-on timber lot, 3 common, 2 uncommon, and one coin slot, epic 15% of days with a fall back to rare.
+    - The draw is stable all day and differs per keeper.
+    - It only draws refined tiers the keeper has opened, so the coin slot is never a locked item; the raw crates keep it useful before any tier opens.
+  - **Stock and payment.** Daily stock is tracked in new `KeepState.marketDay`/`marketPurchases`, which reset when the day changes.
+    - `buyMarketLot` only sells today's offers.
+    - It enforces the remaining stock ("Only N left…" / "sold out until tomorrow's market").
+    - Silver lots spend Silver; coin lots charge Siegecoins via `afterKeepPersist`, after the Keep saves.
+  - **Snapshot.** `economy.market` now carries `open`, `day`, `refreshesAt` (next UTC midnight) and `offers`, each with currency, rarity, stock and remaining.
+  - **UI.** The Market tab shows "Today's traders" with a "New stock in Xh Ym" countdown, a rarity tag per lot (uncommon green, rare blue, epic purple glow), "N of M left today" or "Sold out until tomorrow", and gold "N coins" prices on coin offers. Buttons disable when sold out or unaffordable in the right currency.
+- Verification:
+  - New `KeepServiceTest.marketRefreshesDailyWithSilverLotsAndOneSiegecoinOffer`:
+    - Timber comes first, there are 7 offers with exactly one coin offer (rare or epic), and no refined offers before any tier opens.
+    - The offers are identical across snapshots.
+    - The coin offer charges gold, not Silver, then reports sold out.
+    - The timber lot stops after 5, and stock returns the next day.
+  - New `dailyOffersVaryByKeeperAndDayAndEpicsAreRare`: offers are deterministic per keeper and day, more than 20 distinct draws appear over 60 days, epics show up 1–29 times in 60, the coin slot is always last, and two keepers get different offers on the same day.
+  - The Silver test was updated to buy the always-present timber lot. Full `./mvnw -q test` passes and `node --check` passes.
+  - Headless Chromium at 390x844 and 1920x1080 with a mocked daily market: the countdown reads "New stock in 5h 12m"; the sold-out stone lot is disabled; the rare Aether Core shows "200 coins" and posts `market/buy {lotId:aether_core_offer}`; an epic Heartwood Relic at 600 coins is disabled on a 300-coin balance. No overflow, no page errors.
 - October 10, 2026 **Keep: each rebirth has its own requirements and bill, plus refined materials, recycling and a Silver market.**
   - **Rebirth ladder.** `KeepRebirth.requirement(n)` gives each of the 10 rebirths its own progress checks and resource bill, reaching further into the tech tree each time. The bill is spent on rebirth.
     - **Checks** go Grand Keep + Enclave + Builder's Yard → all 6 workshops + Storehouse 2 → 3 then 6 level-2 workshops with Akhar's Front tiers → 3/5/7 storage annexes → Keeper levels 15/20/23/25.

@@ -116,6 +116,8 @@ public class KeepStore {
         payload.put("silver", state.getSilver());
         payload.put("silverEarnedTotal", state.getSilverEarnedTotal());
         payload.put("refinedInventory", state.getRefinedInventory());
+        payload.put("marketDay", state.getMarketDay());
+        payload.put("marketPurchases", state.getMarketPurchases());
         payload.put("lastRebirthAt", timestamp(state.getLastRebirthAt()));
         payload.put("createdAt", timestamp(state.getCreatedAt()));
         payload.put("updatedAt", timestamp(state.getUpdatedAt()));
@@ -217,6 +219,8 @@ public class KeepStore {
         state.setSilver((int) number(snapshot.get("silver"), 0));
         state.setSilverEarnedTotal(number(snapshot.get("silverEarnedTotal"), 0));
         state.setRefinedInventory(intMap(snapshot.get("refinedInventory")));
+        state.setMarketDay(string(snapshot.get("marketDay")));
+        state.setMarketPurchases(intMap(snapshot.get("marketPurchases")));
         state.setLastRebirthAt(instant(snapshot.get("lastRebirthAt")));
         state.setCreatedAt(instant(snapshot.get("createdAt")));
         state.setUpdatedAt(instant(snapshot.get("updatedAt")));

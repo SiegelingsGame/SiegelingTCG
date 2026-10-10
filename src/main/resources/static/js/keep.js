@@ -3476,20 +3476,41 @@
             <div class="button-row"><button class="panel-button" type="button" data-recycle-go ${ready ? '' : 'disabled'}>Recycle</button></div></section>`;
     }
 
+    // The market refreshes at UTC midnight; offers are drawn per keeper by the server.
+    function marketRefreshLabel(market) {
+        const at = Date.parse(market?.refreshesAt || '');
+        if (!Number.isFinite(at)) return '';
+        const minutes = Math.max(0, Math.round((at - nowMs()) / 60000));
+        const hours = Math.floor(minutes / 60);
+        return `New stock in ${hours ? `${hours}h ` : ''}${minutes % 60}m`;
+    }
+
     function marketMarkup(economy) {
         if (!economy) return '<div class="empty-state">The market opens once the Keep has loaded.</div>';
         const silver = number(economy.silver);
         const gold = number(state.snapshot.resources?.gold);
+        const market = economy.market || {};
         const bundles = (economy.silverBundles || []).map((bundle) => `<button type="button" class="silver-bundle" data-buy-silver="${escapeHtml(bundle.id)}" ${gold >= number(bundle.coinCost) ? '' : 'disabled'}>
                 <strong>◎ ${number(bundle.silver)}</strong><span>${escapeHtml(bundle.name)}</span><small>${number(bundle.coinCost)} Siegecoins</small></button>`).join('');
-        const lots = (economy.market || []).map((lot) => `<section class="market-lot${lot.refined ? ' refined' : ''}">
-                <span class="inventory-icon" aria-hidden="true">${lot.resourceId === 'timber' ? '▰' : lot.refined ? refinedIcon(lot.resourceId) : materialIcon(lot.resourceId)}</span>
-                <span class="inventory-copy"><h3>${number(lot.amount)} ${escapeHtml(lot.name)}</h3>${lot.unlocked ? '' : `<p>${escapeHtml(lot.lockedHint || 'Locked')}</p>`}</span>
-                <button class="panel-button" type="button" data-buy-lot="${escapeHtml(lot.id)}" ${lot.unlocked && silver >= number(lot.silverCost) ? '' : 'disabled'}>◎ ${number(lot.silverCost)}</button>
-            </section>`).join('');
-        return `<p class="panel-intro">Silver buys resources straight from passing traders. Earn it from Keep events, commissions and tributes, or exchange Siegecoins for it.</p>
+        const offers = (market.offers || []).map((offer) => {
+            const coins = offer.currency === 'SIEGECOINS';
+            const remaining = number(offer.remaining);
+            const affordable = coins ? gold >= number(offer.price) : silver >= number(offer.price);
+            const rarity = String(offer.rarity || 'COMMON').toLowerCase();
+            const icon = offer.resourceId === 'timber' ? '▰' : offer.refined ? refinedIcon(offer.resourceId) : materialIcon(offer.resourceId);
+            return `<section class="market-lot rarity-${escapeHtml(rarity)}${remaining <= 0 ? ' sold-out' : ''}">
+                <span class="inventory-icon" aria-hidden="true">${icon}</span>
+                <span class="inventory-copy"><small class="rarity-tag">${escapeHtml(titleCase(rarity))}</small><h3>${number(offer.amount)} ${escapeHtml(offer.name)}</h3>
+                <p>${remaining > 0 ? `${remaining} of ${number(offer.stock)} left today` : 'Sold out until tomorrow'}</p></span>
+                <button class="panel-button${coins ? ' coin-price' : ''}" type="button" data-buy-lot="${escapeHtml(offer.id)}" ${remaining > 0 && affordable ? '' : 'disabled'}>${coins ? `${number(offer.price)} coins` : `◎ ${number(offer.price)}`}</button>
+            </section>`;
+        }).join('');
+        const traders = market.open === false
+            ? `<p class="rebirth-note">${escapeHtml(market.lockedHint || 'Raise the Covenant Storehouse to open the market.')}</p>`
+            : offers || '<div class="empty-state">The traders have nothing today.</div>';
+        return `<p class="panel-intro">Traders bring new stock every day. Most lots cost Silver, earned from Keep events, commissions and tributes; the rarest pieces are sold only for Siegecoins.</p>
             <span class="eyebrow">Exchange Siegecoins</span><div class="silver-bundles">${bundles}</div>
-            <span class="eyebrow">Traders</span>${lots}`;
+            <div class="market-head"><span class="eyebrow">Today's traders</span><small>${escapeHtml(marketRefreshLabel(market))}</small></div>${traders}`;
     }
 
     async function refineMaterial(id, quantity) {
@@ -3512,7 +3533,8 @@
 
     async function buyMarketLot(lotId) {
         const data = await perform('/api/keep/market/buy', { lotId, quantity: 1 });
-        if (data?.marketPurchased) showNotice(`Bought ${number(data.marketPurchased.amount)} ${data.marketPurchased.name} for ${number(data.marketPurchased.silverCost)} Silver.`, 'Market');
+        const bought = data?.marketPurchased;
+        if (bought) showNotice(`Bought ${number(bought.amount)} ${bought.name} for ${number(bought.price)} ${bought.currency === 'SIEGECOINS' ? 'Siegecoins' : 'Silver'}.`, 'Market');
     }
 
     function updatePanelLiveValues() {

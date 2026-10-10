@@ -97,6 +97,9 @@ public class KeepState {
     private int silver;
     private long silverEarnedTotal;
     private Map<String, Integer> refinedInventory = new LinkedHashMap<>();
+    /** UTC day the market purchase counts below belong to; a new day clears them. */
+    private String marketDay = "";
+    private Map<String, Integer> marketPurchases = new LinkedHashMap<>();
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -277,6 +280,10 @@ public class KeepState {
     public void setSilverEarnedTotal(long value) { this.silverEarnedTotal = Math.max(0, value); }
     public Map<String, Integer> getRefinedInventory() { return refinedInventory; }
     public void setRefinedInventory(Map<String, Integer> values) { this.refinedInventory = intMap(values); }
+    public String getMarketDay() { return marketDay; }
+    public void setMarketDay(String marketDay) { this.marketDay = marketDay == null ? "" : marketDay; }
+    public Map<String, Integer> getMarketPurchases() { return marketPurchases; }
+    public void setMarketPurchases(Map<String, Integer> values) { this.marketPurchases = intMap(values); }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

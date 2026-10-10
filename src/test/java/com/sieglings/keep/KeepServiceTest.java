@@ -1916,29 +1916,91 @@ class KeepServiceTest {
                 () -> service.buySilver(user, "silver_chest", "chest-too-dear", store.state.getVersion()));
 
         assertThrows(IllegalArgumentException.class,
-                () -> service.buyMarketLot(user, "stone_lot", 1, "market-closed", store.state.getVersion()),
+                () -> service.buyMarketLot(user, "timber_lot", 1, "market-closed", store.state.getVersion()),
                 "the market opens with the Storehouse");
         store.state.setStorehouseLevel(1);
-        service.buyMarketLot(user, "stone_lot", 1, "stone-lot", store.state.getVersion());
-        assertEquals(10, store.state.getMaterialInventory().get("stone"));
-        assertEquals(2, store.state.getSilver());
+        int timber = store.state.getTimber();
+        service.buyMarketLot(user, "timber_lot", 1, "timber-lot", store.state.getVersion());
+        assertEquals(timber + 50, store.state.getTimber());
+        assertEquals(14, store.state.getSilver());
         assertThrows(IllegalArgumentException.class,
-                () -> service.buyMarketLot(user, "living_mortar_lot", 1, "mortar-locked", store.state.getVersion()));
+                () -> service.buyMarketLot(user, "living_mortar_lot", 1, "mortar-locked", store.state.getVersion()),
+                "a refined tier the keeper has not opened is never on offer");
 
         // Commissions and repaired Keep events pay Silver.
         store.state.setTimber(50);
         Map<String, Object> claimed = service.claimReward(user, "daily_stewardship", "stewardship", store.state.getVersion());
         assertEquals(4, intAt(claimed, "rewardClaimed", "silver"));
-        assertEquals(6, store.state.getSilver());
+        assertEquals(18, store.state.getSilver());
         store.state.setHallLevel(2);
         store.state.setWoodlotLevel(2);
         store.state.setActiveKeepEventId("woodlot_washout");
         store.state.setKeepEventOccurredAt(clock.instant());
         progression.setGold(1_000);
         service.repairKeepEvent(user, "woodlot_washout", "SIEGECOINS", "repair-pays-silver", store.state.getVersion());
-        assertEquals(6 + KeepEconomy.SILVER_PER_EVENT_REPAIR, store.state.getSilver());
+        assertEquals(18 + KeepEconomy.SILVER_PER_EVENT_REPAIR, store.state.getSilver());
         assertEquals(4 + KeepEconomy.SILVER_PER_EVENT_REPAIR, store.state.getSilverEarnedTotal());
         assertNotNull(service.getSnapshot(user).get("economy"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void marketRefreshesDailyWithSilverLotsAndOneSiegecoinOffer() {
+        service.getSnapshot(user);
+        store.state.setStorehouseLevel(1);
+        store.state.setSilver(200);
+        progression.setGold(1_000);
+        Map<String, Object> market = (Map<String, Object>) valueAt(service.getSnapshot(user), "economy", "market");
+        List<Map<String, Object>> offers = (List<Map<String, Object>>) market.get("offers");
+        assertEquals("timber_lot", offers.get(0).get("id"));
+        assertEquals(1 + KeepEconomy.DAILY_COMMON_SLOTS + KeepEconomy.DAILY_UNCOMMON_SLOTS + 1, offers.size());
+        List<Map<String, Object>> coinOffers = offers.stream().filter(o -> "SIEGECOINS".equals(o.get("currency"))).toList();
+        assertEquals(1, coinOffers.size(), "one rare slot is paid in Siegecoins");
+        assertTrue(Set.of("RARE", "EPIC").contains(coinOffers.get(0).get("rarity")));
+        assertTrue(offers.stream().noneMatch(o -> Boolean.TRUE.equals(o.get("refined"))),
+                "no refined tier is open yet, so none is drawn");
+        assertEquals(offers, ((Map<String, Object>) valueAt(service.getSnapshot(user), "economy", "market")).get("offers"),
+                "the same offers all day");
+
+        // The coin offer charges Siegecoins and sells out for the day.
+        Map<String, Object> rare = coinOffers.get(0);
+        String rareId = String.valueOf(rare.get("id"));
+        service.buyMarketLot(user, rareId, 1, "rare-offer", store.state.getVersion());
+        assertEquals(1_000 - ((Number) rare.get("price")).intValue(), progression.getGold());
+        assertEquals(200, store.state.getSilver(), "coin offers never touch Silver");
+        IllegalArgumentException soldOut = assertThrows(IllegalArgumentException.class,
+                () -> service.buyMarketLot(user, rareId, 1, "rare-again", store.state.getVersion()));
+        assertTrue(soldOut.getMessage().contains("sold out"));
+
+        // Silver lots have a daily stock too.
+        store.state.setTimber(0);
+        for (int i = 0; i < 5; i++) service.buyMarketLot(user, "timber_lot", 1, "timber-" + i, store.state.getVersion());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.buyMarketLot(user, "timber_lot", 1, "timber-6", store.state.getVersion()));
+
+        // Tomorrow the stock comes back.
+        clock.advance(Duration.ofDays(1));
+        store.state.setTimber(0);
+        service.buyMarketLot(user, "timber_lot", 1, "timber-tomorrow", store.state.getVersion());
+        assertEquals(50, store.state.getTimber());
+    }
+
+    @Test
+    void dailyOffersVaryByKeeperAndDayAndEpicsAreRare() {
+        java.util.function.Predicate<KeepEconomy.MarketItem> all = item -> true;
+        assertEquals(KeepEconomy.dailyOffers("a@x", "2026-10-10", all), KeepEconomy.dailyOffers("a@x", "2026-10-10", all));
+        Set<List<String>> draws = new java.util.HashSet<>();
+        int epics = 0;
+        for (int day = 1; day <= 60; day++) {
+            List<KeepEconomy.MarketItem> offers = KeepEconomy.dailyOffers("a@x", "2026-11-" + day, all);
+            draws.add(offers.stream().map(KeepEconomy.MarketItem::id).toList());
+            if (offers.stream().anyMatch(o -> o.rarity() == KeepEconomy.Rarity.EPIC)) epics++;
+            assertEquals(KeepEconomy.Currency.SIEGECOINS, offers.get(offers.size() - 1).currency());
+        }
+        assertTrue(draws.size() > 20, "the market changes from day to day");
+        assertTrue(epics > 0 && epics < 30, "epic offers turn up, but rarely: " + epics + "/60");
+        assertNotEquals(KeepEconomy.dailyOffers("a@x", "2026-10-10", all).stream().map(KeepEconomy.MarketItem::id).toList(),
+                KeepEconomy.dailyOffers("b@x", "2026-10-10", all).stream().map(KeepEconomy.MarketItem::id).toList());
     }
 
     @Test
