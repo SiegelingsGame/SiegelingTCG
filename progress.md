@@ -1,4 +1,11 @@
 Original prompt: Merge and deploy
+- October 10, 2026 **Keep: the Keep Guide no longer reopens every time the app opens.**
+  - **Bug.** `maybeShowTutorial` auto-starts the coach tour when `sieglingsKeepTutorialSeen` is missing. That flag was only written by `keep-tutorial.js` `finish()` when the tour stopped, so a player who left the app before stepping through every interactive step (open Projects, open Residents, visit the Woodlot…) saw the tour on every launch. That was most players on an installed iPhone web app, where closing the app is how you leave.
+  - **Fix.** `maybeShowTutorial` writes the seen flag as soon as the guide auto-opens, and skips the auto-open entirely when `keepIsEstablished(snapshot)`: keep rank above 1, the Enclave built, or more than the two starting buildings complete. That also covers a device whose storage was cleared. The **?** button and the gate's Keep Guide link still open it on demand.
+- Verification:
+  - `node --check js/keep.js`. Headless Chromium at 390x844 using the `__KEEP_TEST_SNAPSHOT__` test mode, with the guide's own demo snapshot as a new keep and a rank-4 keep with the Enclave as an established one:
+    - Before (stashed): the guide opened on all 3 visits for both keeps, and the flag stayed null.
+    - After: the new keep sees the guide on visit 1 only, the established keep never sees it, and **?** opens it in both cases. No page errors.
 - October 9, 2026 **Home: Featured Siegelings art no longer visibly resizes on load.**
   - **Cause.** `.sg-feat-art img` painted at the `scale(1)` fallback as soon as it loaded, and `--art-fit` was applied only after `measureArtBox` read the art's alpha bounds (a second fetch on a cold visit, a localStorage hit after that). The `transform` transition then animated the jump. Every tile on Home's Featured rail and the Profile Showcase did this.
   - **Change.** The art stays at `opacity:0` (with no transition) until `data-art-fit="done"`. The new `revealArtFit` sets the fitted transform while the art is still hidden, flushes style, and then marks the image done, so it fades in already at its final size. Grouped rails (Showcase) reveal together once K is known. An image whose fallback chain fails is still revealed after 4s, so it is never hidden for good. `home-redesign.css` -> `?v=85`, `home-redesign.js` -> `?v=76`.
