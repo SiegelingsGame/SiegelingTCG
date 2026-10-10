@@ -1,0 +1,60 @@
+# Siegeknight Chronicles — playable first version
+
+`/chronicles` is an idle RPG built from the "Siegeknight Chronicles" design concept.
+This first version follows that design's own playable-first-version scope:
+the five classes, the four Tier I elements as the playable lands, about eight
+professions, two dungeons and a handful of bond techniques. It is a separate mode
+with its own save. My Keep is untouched, and the Knight tab links to it as the
+home base.
+
+## Where things live
+
+| Piece | File |
+|---|---|
+| Content and balance (professions, unlock web, activities, recipes, items, weapons, techniques, synergies, routes) | `src/main/java/com/sieglings/chronicles/ChroniclesContent.java` |
+| Save shape (one JSON doc, epoch-millis times) | `ChroniclesState.java` |
+| Firestore store, `playerChronicles/{userId}` (override with `app.user-data.collection-chronicles`) | `ChroniclesStore.java` |
+| Expedition simulator (seeded and deterministic) | `ChroniclesCombat.java` |
+| Rules, settle-on-read, snapshot | `ChroniclesService.java` |
+| REST API, `/api/chronicles/**` | `ChroniclesController.java` |
+| Class and evolution access to the RBX seed table | `src/main/java/com/sieglings/service/CreatureRegistry.java` |
+| RBX wild behaviours (`gentle`/`skittish`/…) by Siegeling id | `src/main/resources/chronicles/rbx-behaviors.json` |
+| Page | `static/chronicles.html`, `static/js/chronicles.js`, `static/css/chronicles.css` |
+| Tests | `src/test/java/com/sieglings/chronicles/` |
+
+## What is canonical (from SiegelingsRBX)
+
+- **Creatures.** Elements, classes, rarities and evolution lines come from `GeneratedCreatureCatalog`, which already mirrors `CreatureData.lua`.
+- **The four starters.** Cacty, Pursula, Sundile and Fawny.
+- **Base stats.** `RarityStatBudget` × `ClassStatWeights` + `ElementStatBias`.
+- **Level caps.** 10 for base forms, 25 for first evolutions, 50 for finals (`GameConfigData.lua`).
+- **Synergies.** The two- and three-member tiers and their names (Ember/Inferno, Shield/Bastion, …), with their bonus percentages.
+- **Wild behaviours.** 83 of the 130 TCG Siegelings have an RBX behaviour. The rest fall back to a class default.
+- **Element chart.** The battle table's own chart (`EffectService.isWeakTo`).
+
+## Systems in this version
+
+- **Siegeknight.** Rank 1–100, fed by a quarter of all knight XP; rank opens destinations. Weapon, armor and relic slots.
+- **Professions.** Nine, each 1–100: Mining, Woodcutting, Foraging, Fishing, Smithing, Alchemy, Cooking, Taming and Command. They form an unlock web: Woodcutting 5 → Fishing, Mining 5 → Smithing, Foraging 8 → Alchemy, Fishing 3 → Cooking. Command 3 and 10 open the second and third company slots, and Command 30 opens a reserve.
+- **Elemental affinity.** All 12 elements are tracked with the design's milestone names. It grows from battles fought by Siegelings of that element, from exploring that element's land, from helper work, and from taming. Affinity 10 unlocks that element's Familiarity technique, prepared one at a time and active only when that element is in the company. Some recipes are gated on affinity, e.g. the Embersteel Lance needs Fire 20 plus Guardian Mastery 10.
+- **Class mastery.** Five paths, each giving a stat bonus to that class. Five cross-class techniques unlock at 20 in both classes when both are fielded.
+- **Weapon disciplines.** Six. The knight does not attack: a command gauge fires the weapon's command on a chosen trigger (as soon as ready, ally low, elites, or bosses), and the gauge carries between battles.
+- **Individual bonds.** Each tamed Siegeling is its own individual, with a bond from 0 to 100 and milestones (Stranger → Knightbound). Bond 10, 25, 75 and 100 add stats. Bond 50 unlocks a class×element technique named from the element and class, e.g. Cinder Aegis (Fire Guardian) and Rooted Resolve (Earth Bruiser). Treats give bond; favourite foods give double, up to 5 treats a day.
+- **Expeditions.** Eleven routes: patrols, hunts, a resource haul, and two dungeons. Cinder Hollow has heat attrition; Old Rootcrypt has a maze and a hidden room unlocked by Foraging. Tactics cover retreat threshold, potion threshold, command trigger and the prepared technique. Each expedition is simulated at launch from a seed, and the server releases timeline entries only as their time passes.
+- **Taming.** Hunts spot wild Siegelings, and each trail lasts 48h. There are three approaches: patient (uses Taming skill), lure (crafted, element-matched lures work best), and partner (a same-element Siegeling at Bond 10+). Odds shift by the RBX behaviour.
+- **Evolution.** Requires the level cap plus essences, and an Ancient Relic for final forms. It keeps the individual's id, bond and history, and the class can change.
+- **Idle.** One knight activity (gathering or repeatable crafting) runs alongside one company expedition. Offline accrual is capped at 12h, and a helper Siegeling speeds a matching activity and earns bond. A "While you were away" report opens only after a real absence (5+ minutes).
+
+## Deferred (designed, not built yet)
+
+- The other 12 professions, among them Runecrafting, Weaving, Survival and Cartography.
+- Affinity milestones from 25 up (Resonance, Convergence) and cross-element combinations.
+- Tier II–IV regions.
+- Base buildings inside Chronicles; My Keep plays that role for now.
+- Guilds, Siege Operations, and a marketplace.
+- Saved loadouts.
+
+Balance numbers are first-pass. `ChroniclesBalanceTest` pins the curve:
+- every starter usually clears the first patrol;
+- an under-levelled company can't clear Cinder Hollow;
+- an evolved, appropriately levelled company can.

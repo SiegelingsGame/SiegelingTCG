@@ -3821,9 +3821,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
      panels side by side show most of the same artwork and read as a choice
      between games rather than rows of a list. */
   /* Capped measure, not the full column: a wide unbounded grid gives panels that
-     are landscape again however tall they are. Three modes, three columns. */
+     are landscape again however tall they are. One column per mode. */
   .sg-modes {
-    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr));
+    display:grid; grid-template-columns:repeat(4, minmax(0, 1fr));
     gap:24px; padding:0 18px; max-width:1320px; margin-inline:auto;
   }
   /* Height, not aspect-ratio: the ratio made the panels taller than the window

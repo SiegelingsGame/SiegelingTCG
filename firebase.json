@@ -253,6 +253,10 @@
         "destination": "/keep.html"
       },
       {
+        "source": "/chronicles",
+        "destination": "/chronicles.html"
+      },
+      {
         "source": "/api/cards/art-mirror",
         "function": {
           "functionId": "api",

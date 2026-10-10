@@ -326,11 +326,11 @@
     'Gallery': 'art'
   };
   var EXTERNAL = {
-    'Battle': '/battle', 'Siege': '/siege', 'Keep': '/keep',
+    'Battle': '/battle', 'Siege': '/siege', 'Keep': '/keep', 'Chronicles': '/chronicles',
     'Social Lobbies': 'social',
     'Featured Packs': 'shop', 'Open Packs': 'shop', 'Siegelcoins': 'shop'
   };
-  var HREF = { battle: '/battle', siege: '/siege', keep: '/keep',
+  var HREF = { battle: '/battle', siege: '/siege', keep: '/keep', chronicles: '/chronicles',
                lobbies: '/lobbies', login: '/login', help: '/help' };
 
   // Every "Lobbies" control opens the Lobbies screen (open tables plus the
@@ -382,7 +382,7 @@
       // modes are Battle and Siege.
       { id: 'play', ico: '⚔', label: 'Play', screen: 'play', items: [
           ['Battle', ''], ['Siege', runs ? 'Saved' : ''],
-          ['Lobbies & Tournaments', n(rooms) ? n(rooms) + ' open' : ''], ['Keep', '']] },
+          ['Lobbies & Tournaments', n(rooms) ? n(rooms) + ' open' : ''], ['Keep', ''], ['Chronicles', '']] },
       { id: 'collection', ico: '◈', label: 'Collection', screen: 'collection', items: [
           ['Cards', n(live.ownedTotal != null ? live.ownedTotal : (ALL_CARDS.length || null))],
           ['Decks', n(saved)], ['Deck Builder', '']] },
@@ -2377,7 +2377,10 @@
       art: '/img/gallery/bearzooka-rampage.webp', el: 'FIRE', cta: 'Enter' },
     { id: 'keep', label: 'Keep', tag: 'Sanctuary',
       line: 'Restore your keep — residents, crafting, builds.',
-      art: '/img/gallery/cactyjackedty-ruins.webp', el: 'EARTH', cta: 'Visit' }
+      art: '/img/gallery/cactyjackedty-ruins.webp', el: 'EARTH', cta: 'Visit' },
+    { id: 'chronicles', label: 'Chronicles', tag: 'Idle RPG',
+      line: 'Train your Siegeknight — bonds, mastery, expeditions.',
+      art: '/img/gallery/hurricrane-skyruins.webp', el: 'WIND', cta: 'Enter' }
   ];
 
   // The Siege panel's tag said "New" with a badge. Whether a run is waiting is
@@ -8069,6 +8072,7 @@
       ['/play arena',          'Play tray › Arena · PLAY on hero',        'play'],
       ['/siege expedition',    'Play tray › Siege Expedition',            'play'],
       ['/keep',                'Play tray › Keep',                        'play'],
+      ['/chronicles',          'Play tray › Chronicles',                  'play'],
       ['/help',                'More tray › Help',                        'more']
     ]},
     { area: 'Dashboard actions', rows: [
