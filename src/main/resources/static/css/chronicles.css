@@ -88,13 +88,14 @@ a { color:var(--gold-bright); }
 .ck-loading { padding:40px 0; text-align:center; color:var(--muted); }
 
 .ck-tabs {
-  flex:0 0 auto; display:grid; grid-template-columns:repeat(5, 1fr);
+  flex:0 0 auto; display:grid; grid-template-columns:repeat(6, minmax(0, 1fr));
   padding:6px 6px calc(6px + max(0px, var(--sab) * .6)); border-top:1px solid var(--line);
   background:rgba(7,11,20,.96);
 }
 .ck-tabs button {
-  position:relative; display:flex; flex-direction:column; align-items:center; gap:2px; padding:5px 0;
-  border:0; background:none; color:var(--muted); font-size:11px; letter-spacing:.04em; border-radius:10px; min-height:44px;
+  position:relative; display:flex; flex-direction:column; align-items:center; gap:2px; padding:5px 0; min-width:0;
+  border:0; background:none; color:var(--muted); font-size:11px; letter-spacing:.02em; border-radius:10px; min-height:44px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .ck-tab-ico { font-size:17px; line-height:1; }
 .ck-tabs button.is-on { color:var(--gold-bright); background:rgba(200,165,79,.1); }
@@ -326,6 +327,12 @@ p { margin:4px 0; }
 .ck-toast.is-out { opacity:0; transform:translateY(6px); }
 body.is-busy .ck-main { cursor:progress; }
 
+/* Six tabs on the narrowest phones: "Expedition" must still fit its column. */
+@media (max-width:360px) {
+  .ck-tabs { padding-left:2px; padding-right:2px; }
+  .ck-tabs button { font-size:9.5px; letter-spacing:0; }
+}
+
 @media (max-width:420px) {
   .ck-rank { width:auto; grid-template-columns:auto; }
   .ck-rank-title, .ck-rank .ck-bar { display:none; }
@@ -344,3 +351,13 @@ body.is-busy .ck-main { cursor:progress; }
 @media (prefers-reduced-motion:reduce) {
   .ck-bar > i, .ck-toast { transition:none; }
 }
+
+/* base */
+.ck-pips { display:inline-flex; gap:4px; }
+.ck-pips i { width:10px; height:10px; border-radius:3px; background:rgba(255,255,255,.1); }
+.ck-pips i.is-on { background:linear-gradient(160deg, var(--gold-bright), var(--gold)); }
+.ck-building h3 { margin:0; }
+.ck-loadouts { display:grid; gap:6px; }
+.ck-loadout { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; border:1px solid var(--line); }
+.ck-loadout > div { min-width:0; }
+.ck-loadout .ck-pills { margin:0; flex:0 0 auto; }

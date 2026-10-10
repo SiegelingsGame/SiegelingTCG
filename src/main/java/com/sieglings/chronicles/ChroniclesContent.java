@@ -831,6 +831,83 @@ public final class ChroniclesContent {
         };
     }
 
+    // ── Home base ────────────────────────────────────────────────────────────
+
+    public static final int MAX_BUILDING_LEVEL = 5;
+    /** Siegeknight rank needed for each building level (index = level - 1). */
+    public static final int[] BUILDING_RANK = {2, 6, 12, 20, 30};
+
+    public record Building(String id, String name, String blurb, List<Map<String, Integer>> costs) {}
+
+    private static Building building(String id, String name, String blurb, List<Map<String, Integer>> costs) {
+        return new Building(id, name, blurb, costs);
+    }
+
+    /**
+     * The design's six base buildings. Each level draws on several professions, so a
+     * knight who only mines cannot raise the base alone.
+     */
+    public static final Map<String, Building> BUILDINGS = ordered(List.of(
+            building("sanctuary", "Siegeling Sanctuary", "Rest and care for companions. More room; resting Siegelings grow their bond.",
+                    List.of(Map.of("pine_plank", 8, "linen", 4, "sunleaf", 12),
+                            Map.of("pine_plank", 16, "linen", 10, "grilled_minnow", 6),
+                            Map.of("oak_plank", 18, "rope", 12, "sunleaf_salad", 8, "copper_bar", 10),
+                            Map.of("oak_plank", 30, "linen", 24, "silverfin_stew", 10, "iron_bar", 12),
+                            Map.of("heartwood", 12, "linen", 40, "berry_tart", 16, "ancient_relic", 2))),
+            building("forge", "Knight's Forge", "A proper forge. Smelting, Smithing and Carpentry work faster.",
+                    List.of(Map.of("copper_bar", 8, "pine_plank", 6, "fossil", 4),
+                            Map.of("copper_bar", 16, "oak_plank", 8, "rune_stone", 2),
+                            Map.of("iron_bar", 14, "oak_plank", 14, "ember_shard", 4),
+                            Map.of("iron_bar", 28, "heartwood", 6, "ember_shard", 10),
+                            Map.of("iron_bar", 45, "heartwood", 12, "frost_crystal", 10, "ancient_relic", 2))),
+            building("garden", "Alchemy Garden", "Beds of herbs and flax that grow while you are away. Alchemy and Cooking work faster.",
+                    List.of(Map.of("pine_plank", 6, "sunleaf", 20, "fossil", 2),
+                            Map.of("pine_plank", 12, "frostbloom", 10, "rope", 6),
+                            Map.of("oak_plank", 14, "galeberry", 14, "herb_tonic", 10),
+                            Map.of("oak_plank", 24, "frostbloom", 24, "iron_bar", 8),
+                            Map.of("heartwood", 10, "galeberry", 40, "frostbloom_remedy", 12, "ancient_relic", 1))),
+            building("war_room", "War Room", "Plan campaigns. Saved loadouts, and the command gauge starts charged.",
+                    List.of(Map.of("pine_plank", 10, "copper_bar", 6, "linen", 4),
+                            Map.of("oak_plank", 10, "copper_bar", 12, "rope", 6),
+                            Map.of("oak_plank", 18, "iron_bar", 10, "rune_stone", 4),
+                            Map.of("heartwood", 6, "iron_bar", 20, "rune_stone", 8),
+                            Map.of("heartwood", 12, "iron_bar", 32, "ancient_relic", 3))),
+            building("stable", "Expedition Stable", "Pack animals and supply racks. Carry more potions; the company rests better on the road.",
+                    List.of(Map.of("pine_plank", 10, "rope", 4, "minnow", 10),
+                            Map.of("oak_plank", 10, "rope", 10, "herb_tonic", 6),
+                            Map.of("oak_plank", 20, "rope", 16, "iron_bar", 6),
+                            Map.of("heartwood", 6, "rope", 24, "iron_bar", 14),
+                            Map.of("heartwood", 12, "rope", 36, "silverfin_stew", 12, "ancient_relic", 1))),
+            building("library", "Research Library", "Records of every discovery. Longer offline progress (up to 24h), faster studies, faster affinity.",
+                    List.of(Map.of("pine_plank", 10, "linen", 6, "fossil", 6),
+                            Map.of("oak_plank", 10, "linen", 12, "rune_stone", 3),
+                            Map.of("oak_plank", 18, "linen", 20, "relic_shard", 4),
+                            Map.of("heartwood", 8, "linen", 30, "relic_shard", 8),
+                            Map.of("heartwood", 14, "linen", 44, "ancient_relic", 3)))
+    ), Building::id);
+
+    public static int rosterCap(int sanctuary) { return ROSTER_CAP + 3 * sanctuary; }
+    /** Bond points per hour for each resting Siegeling. */
+    public static double sanctuaryBondPerHour(int sanctuary) { return 6.0 * sanctuary; }
+    public static double workshopSpeed(int level) { return Math.min(0.30, 0.06 * level); }
+    public static int supplyCap(int stable) { return 20 + 4 * stable; }
+    public static double stableRest(int stable) { return 0.02 * stable; }
+    public static long offlineCapMs(int library) { return OFFLINE_CAP_MS + Math.round(library * 2.4 * 3_600_000L); }
+    public static double libraryAffinity(int library) { return 0.02 * library; }
+    public static int loadoutSlots(int warRoom) { return warRoom; }
+    public static double warRoomGauge(int warRoom) { return 10.0 * warRoom; }
+
+    /** Items the garden grows per hour at a level (each entry needs the listed level). */
+    public static Map<String, Double> gardenYield(int level) {
+        Map<String, Double> out = new LinkedHashMap<>();
+        if (level <= 0) return out;
+        out.put("sunleaf", 6.0 * level);
+        out.put("flax", 4.0 * level);
+        if (level >= 2) out.put("frostbloom", 2.0 * (level - 1));
+        if (level >= 3) out.put("galeberry", 2.0 * (level - 2));
+        return out;
+    }
+
     // ── Expedition routes ────────────────────────────────────────────────────
 
     public enum RouteType { PATROL, HUNT, RESOURCE, DUNGEON }

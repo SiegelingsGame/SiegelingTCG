@@ -125,6 +125,28 @@ public class ChroniclesController {
                 string(body, "requestId"), version(body)));
     }
 
+    @PostMapping("/api/chronicles/build")
+    public ResponseEntity<Map<String, Object>> build(
+            @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody Map<String, Object> body) {
+        return respond(auth, user -> service.build(user, string(body, "buildingId"), string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/chronicles/loadout/save")
+    public ResponseEntity<Map<String, Object>> saveLoadout(
+            @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody Map<String, Object> body) {
+        Integer slot = optionalInt(body, "slot");
+        return respond(auth, user -> service.saveLoadout(user, slot == null ? -1 : slot, string(body, "name"),
+                string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/chronicles/loadout/apply")
+    public ResponseEntity<Map<String, Object>> applyLoadout(
+            @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody Map<String, Object> body) {
+        Integer slot = optionalInt(body, "slot");
+        return respond(auth, user -> service.applyLoadout(user, slot == null ? -1 : slot,
+                string(body, "requestId"), version(body)));
+    }
+
     @PostMapping("/api/chronicles/away/ack")
     public ResponseEntity<Map<String, Object>> ackAway(
             @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody(required = false) Map<String, Object> body) {

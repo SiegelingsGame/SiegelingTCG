@@ -55,7 +55,6 @@ public class ChroniclesService {
         public StaleStateException(String message) { super(message); }
     }
 
-    private static final int MAX_SUPPLIES = 20;
     private static final int MAX_REQUEST_IDS = 30;
     private static final long ART_TTL_MS = 5 * 60_000L;
     private static final long AWAY_REPORT_MIN_MS = 5 * 60_000L;
@@ -328,7 +327,8 @@ public class ChroniclesService {
                     if (item.kind() == ItemKind.POTION) total += n;
                 }
             }
-            if (total > MAX_SUPPLIES) throw new IllegalArgumentException("A company can carry " + MAX_SUPPLIES + " potions.");
+            int supplyCap = ChroniclesContent.supplyCap(buildingLevel(state, "stable"));
+            if (total > supplyCap) throw new IllegalArgumentException("A company can carry " + supplyCap + " potions.");
             packed.forEach((id, n) -> take(state, id, n));
             Companion reserve = state.reserveId.isEmpty() ? null : findCompanion(state, state.reserveId);
             if (reserve != null && skillLevel(state, "command") < ChroniclesContent.RESERVE_COMMAND_LEVEL) reserve = null;
@@ -428,8 +428,9 @@ public class ChroniclesService {
                 outcome.put("result", "left");
                 return;
             }
-            if (state.companions.size() >= ChroniclesContent.ROSTER_CAP) {
-                throw new IllegalArgumentException("Your sanctuary holds " + ChroniclesContent.ROSTER_CAP + " Siegelings.");
+            int rosterCap = ChroniclesContent.rosterCap(buildingLevel(state, "sanctuary"));
+            if (state.companions.size() >= rosterCap) {
+                throw new IllegalArgumentException("Your sanctuary holds " + rosterCap + " Siegelings. Expand it at the base.");
             }
             Creature creature = creature(sighting.speciesId);
             double chance = tameChance(state, sighting, plan, lureId);
@@ -518,6 +519,92 @@ public class ChroniclesService {
         });
     }
 
+    public Map<String, Object> build(AccountUser user, String buildingId, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            ChroniclesContent.Building building = ChroniclesContent.BUILDINGS.get(buildingId == null ? "" : buildingId.trim());
+            if (building == null) throw new IllegalArgumentException("Unknown building.");
+            int next = buildingLevel(state, building.id()) + 1;
+            if (next > ChroniclesContent.MAX_BUILDING_LEVEL) throw new IllegalArgumentException(building.name() + " is complete.");
+            int rankNeeded = ChroniclesContent.BUILDING_RANK[next - 1];
+            if (rank(state) < rankNeeded) {
+                throw new IllegalArgumentException(building.name() + " level " + next + " needs Siegeknight Rank " + rankNeeded + ".");
+            }
+            Map<String, Integer> cost = building.costs().get(next - 1);
+            for (Map.Entry<String, Integer> e : cost.entrySet()) {
+                if (state.inventory.getOrDefault(e.getKey(), 0) < e.getValue()) {
+                    throw new IllegalArgumentException("Needs " + e.getValue() + " " + itemName(e.getKey()) + ".");
+                }
+            }
+            // Settle the base at the old level first, so the upgrade never applies backwards.
+            settleBase(state, ctx.now, ctx.events);
+            cost.forEach((item, n) -> take(state, item, n));
+            state.buildings.put(building.id(), next);
+            ctx.events.add(building.name() + (next == 1 ? " built." : " raised to level " + next + "."));
+            grantRank(state, 40L * next * next, ctx.events);
+        });
+    }
+
+    public Map<String, Object> saveLoadout(AccountUser user, int slot, String name, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            int slots = ChroniclesContent.loadoutSlots(buildingLevel(state, "war_room"));
+            if (slot < 0 || slot >= slots) {
+                throw new IllegalArgumentException(slots == 0 ? "Build a War Room to save loadouts." : "That War Room slot is not built yet.");
+            }
+            ChroniclesState.Loadout loadout = new ChroniclesState.Loadout();
+            String clean = name == null ? "" : name.replaceAll("[^\\p{L}\\p{N} '\\-]", "").trim();
+            loadout.name = clean.isEmpty() ? "Plan " + (slot + 1) : clean.length() > 24 ? clean.substring(0, 24).trim() : clean;
+            loadout.party = new ArrayList<>(state.party);
+            loadout.reserveId = state.reserveId;
+            loadout.weaponId = state.weaponId;
+            loadout.armorId = state.armorId;
+            loadout.relicId = state.relicId;
+            loadout.retreatAt = state.tactics.retreatAt;
+            loadout.potionAt = state.tactics.potionAt;
+            loadout.trigger = state.tactics.trigger;
+            loadout.techniqueId = state.tactics.techniqueId;
+            loadout.comboId = state.tactics.comboId;
+            while (state.loadouts.size() <= slot) state.loadouts.add(null);
+            state.loadouts.set(slot, loadout);
+            ctx.events.add("Saved \"" + loadout.name + "\".");
+        });
+    }
+
+    public Map<String, Object> applyLoadout(AccountUser user, int slot, String requestId, long expected) {
+        return mutate(user, requestId, expected, (ctx) -> {
+            ChroniclesState state = ctx.state;
+            if (state.expedition != null) throw new IllegalArgumentException("The company is still on an expedition.");
+            ChroniclesState.Loadout loadout = slot >= 0 && slot < state.loadouts.size() ? state.loadouts.get(slot) : null;
+            if (loadout == null) throw new IllegalArgumentException("That loadout is empty.");
+            // A loadout may name a Siegeling since released or gear since lost: keep what still exists.
+            List<String> party = new ArrayList<>();
+            int slots = ChroniclesContent.partySlots(skillLevel(state, "command"));
+            for (String id : loadout.party) {
+                party.add(id != null && !id.isEmpty() && findCompanion(state, id) != null && party.size() < slots ? id : "");
+            }
+            if (party.stream().allMatch(String::isEmpty)) throw new IllegalArgumentException("No one from that loadout is here.");
+            state.party = party;
+            state.reserveId = findCompanion(state, loadout.reserveId) != null
+                    && skillLevel(state, "command") >= ChroniclesContent.RESERVE_COMMAND_LEVEL ? loadout.reserveId : "";
+            if (owns(state, loadout.weaponId)) state.weaponId = loadout.weaponId;
+            if (owns(state, loadout.armorId)) state.armorId = loadout.armorId;
+            state.relicId = owns(state, loadout.relicId) ? loadout.relicId : "";
+            state.tactics.retreatAt = loadout.retreatAt;
+            state.tactics.potionAt = loadout.potionAt;
+            state.tactics.trigger = loadout.trigger;
+            Technique t = ChroniclesContent.TECHNIQUES.get(loadout.techniqueId == null ? "" : loadout.techniqueId);
+            state.tactics.techniqueId = t != null && affinityLevel(state, t.element()) >= 10 ? t.id() : "";
+            ChroniclesContent.Combo combo = ChroniclesContent.COMBOS.get(loadout.comboId == null ? "" : loadout.comboId);
+            state.tactics.comboId = combo != null && comboKnown(state, combo) ? combo.id() : "";
+            ctx.events.add("Loadout \"" + loadout.name + "\" ready.");
+        });
+    }
+
+    private static boolean owns(ChroniclesState state, String itemId) {
+        return itemId != null && !itemId.isEmpty() && state.inventory.getOrDefault(itemId, 0) > 0;
+    }
+
     public Map<String, Object> acknowledgeAway(AccountUser user, String requestId, long expected) {
         return mutate(user, requestId, expected, (ctx) -> ctx.state.away = null);
     }
@@ -572,11 +659,13 @@ public class ChroniclesService {
         int before = state.sightings.size();
         state.sightings.removeIf(s -> s.expiresAt <= now);
         if (state.sightings.size() != before) changed = true;
+        changed |= settleBase(state, now, events);
         ActivityRun run = state.activity;
         if (run == null || now <= run.lastTickAt) return changed;
         long elapsed = now - run.lastTickAt;
-        boolean capped = elapsed > ChroniclesContent.OFFLINE_CAP_MS;
-        if (capped) elapsed = ChroniclesContent.OFFLINE_CAP_MS;
+        long cap = offlineCap(state);
+        boolean capped = elapsed > cap;
+        if (capped) elapsed = cap;
         long actionMs = actionMs(state, run);
         long pool = run.remainderMs + elapsed;
         long actions = pool / actionMs;
@@ -658,6 +747,73 @@ public class ChroniclesService {
         return true;
     }
 
+    int buildingLevel(ChroniclesState state, String id) {
+        return Math.max(0, state.buildings.getOrDefault(id, 0));
+    }
+
+    long offlineCap(ChroniclesState state) {
+        return ChroniclesContent.offlineCapMs(buildingLevel(state, "library"));
+    }
+
+    private double workshopSpeed(ChroniclesState state, ActivityRun run) {
+        String skill = "";
+        if ("craft".equals(run.kind)) {
+            Recipe recipe = ChroniclesContent.RECIPES.get(run.id);
+            skill = recipe == null ? "" : recipe.skillId();
+        }
+        return switch (skill) {
+            case "smelting", "smithing", "carpentry" -> ChroniclesContent.workshopSpeed(buildingLevel(state, "forge"));
+            case "alchemy", "cooking" -> ChroniclesContent.workshopSpeed(buildingLevel(state, "garden"));
+            case "elemental_studies" -> ChroniclesContent.workshopSpeed(buildingLevel(state, "library"));
+            default -> 0;
+        };
+    }
+
+    /** Garden harvests and Sanctuary bond, accrued from timestamps like the knight's work. */
+    private boolean settleBase(ChroniclesState state, long now, List<String> events) {
+        if (state.baseTickAt <= 0) {
+            state.baseTickAt = now;
+            return true;
+        }
+        if (now <= state.baseTickAt) return false;
+        long elapsed = Math.min(now - state.baseTickAt, offlineCap(state));
+        state.baseTickAt = now;
+        double hours = elapsed / 3_600_000.0;
+        Map<String, Integer> grown = new LinkedHashMap<>();
+        for (Map.Entry<String, Double> e : ChroniclesContent.gardenYield(buildingLevel(state, "garden")).entrySet()) {
+            double total = state.gardenRemainders.getOrDefault(e.getKey(), 0.0) + e.getValue() * hours;
+            int whole = (int) Math.floor(total);
+            state.gardenRemainders.put(e.getKey(), total - whole);
+            if (whole > 0) {
+                give(state, e.getKey(), whole);
+                grown.put(e.getKey(), whole);
+            }
+        }
+        double bondRate = ChroniclesContent.sanctuaryBondPerHour(buildingLevel(state, "sanctuary"));
+        if (bondRate > 0) {
+            double total = state.sanctuaryRemainder + bondRate * hours;
+            int whole = (int) Math.floor(total);
+            state.sanctuaryRemainder = total - whole;
+            if (whole > 0) {
+                for (Companion c : new ArrayList<>(state.companions)) {
+                    boolean resting = !onExpedition(state, c.id) && !c.id.equals(state.helperId);
+                    if (resting) grantBond(state, c, whole, events);
+                }
+            }
+        }
+        if (!grown.isEmpty() && (state.away != null || elapsed >= AWAY_REPORT_MIN_MS)) {
+            if (state.away == null) {
+                state.away = new AwayReport();
+                state.away.fromAt = now - elapsed;
+                state.away.activityName = "Base";
+            }
+            state.away.toAt = now;
+            AwayReport away = state.away;
+            grown.forEach((k, v) -> away.items.merge(k, v, Integer::sum));
+        }
+        return true;
+    }
+
     long actionMs(ChroniclesState state, ActivityRun run) {
         int seconds;
         java.util.Set<Element> helpers;
@@ -670,11 +826,11 @@ public class ChroniclesService {
             seconds = activity == null ? 10 : activity.actionSeconds();
             helpers = activity == null ? java.util.Set.of() : activity.helperElements();
         }
-        double factor = 1.0;
+        double factor = 1.0 - workshopSpeed(state, run);
         Companion helper = state.helperId.isEmpty() ? null : findCompanion(state, state.helperId);
         if (helper != null && !onExpedition(state, helper.id)) {
             Creature c = creature(helper.speciesId);
-            factor = helpers.contains(c.element()) ? 0.75 : 0.92;
+            factor *= helpers.contains(c.element()) ? 0.75 : 0.92;
         }
         return Math.max(1000L, Math.round(seconds * 1000L * factor));
     }
@@ -776,8 +932,10 @@ public class ChroniclesService {
                         * (attuned ? 1 - ChroniclesContent.ATTUNED_HAZARD : 1),
                 ChroniclesContent.cartographyLoot(profLevel(state, "cartography"))
                         + (attuned ? ChroniclesContent.ATTUNED_LOOT : 0),
-                ChroniclesContent.husbandryRest(profLevel(state, "husbandry")),
-                ChroniclesContent.tacticsGauge(profLevel(state, "class_tactics")));
+                ChroniclesContent.husbandryRest(profLevel(state, "husbandry"))
+                        + ChroniclesContent.stableRest(buildingLevel(state, "stable")),
+                ChroniclesContent.tacticsGauge(profLevel(state, "class_tactics")),
+                ChroniclesContent.warRoomGauge(buildingLevel(state, "war_room")));
         CommandTrigger trigger = triggerFor(state, weapon.weaponType());
         long duration = Math.round(route.minutes() * 60_000L
                 * (1 - ChroniclesContent.pathfindingCut(profLevel(state, "pathfinding"))));
@@ -1147,7 +1305,8 @@ public class ChroniclesService {
 
     private void grantAffinity(ChroniclesState state, Element element, long xp, List<String> events) {
         if (xp <= 0 || element == null || element == Element.NEUTRAL) return;
-        xp = Math.round(xp * (1 + ChroniclesContent.studiesBonus(profLevel(state, "elemental_studies"))));
+        xp = Math.round(xp * (1 + ChroniclesContent.studiesBonus(profLevel(state, "elemental_studies"))
+                + ChroniclesContent.libraryAffinity(buildingLevel(state, "library"))));
         int before = affinityLevel(state, element);
         state.affinityXp.merge(element.name(), xp, Long::sum);
         int after = affinityLevel(state, element);
@@ -1654,7 +1813,7 @@ public class ChroniclesService {
         List<Map<String, Object>> companions = new ArrayList<>();
         for (Companion c : state.companions) companions.add(companionRow(state, c, art));
         out.put("companions", companions);
-        out.put("rosterCap", ChroniclesContent.ROSTER_CAP);
+        out.put("rosterCap", ChroniclesContent.rosterCap(buildingLevel(state, "sanctuary")));
 
         Map<String, Object> party = new LinkedHashMap<>();
         int command = skillLevel(state, "command");
@@ -1832,6 +1991,7 @@ public class ChroniclesService {
         }
         out.put("sightings", sightings);
         out.put("away", awayRow(state.away));
+        out.put("base", baseRow(state, rank));
         if (extra != null) out.putAll(extra);
         return out;
     }
@@ -2026,7 +2186,7 @@ public class ChroniclesService {
         }
         Companion helper = state.helperId.isEmpty() ? null : findCompanion(state, state.helperId);
         row.put("helper", helper == null || onExpedition(state, helper.id) ? "" : helper.nickname);
-        row.put("offlineCapHours", ChroniclesContent.OFFLINE_CAP_MS / 3_600_000L);
+        row.put("offlineCapHours", Math.round(offlineCap(state) / 360_000.0) / 10.0);
         return row;
     }
 
@@ -2068,6 +2228,76 @@ public class ChroniclesService {
             out.add(row);
         }
         return out;
+    }
+
+    private Map<String, Object> baseRow(ChroniclesState state, int rank) {
+        Map<String, Object> base = new LinkedHashMap<>();
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (ChroniclesContent.Building b : ChroniclesContent.BUILDINGS.values()) {
+            int level = buildingLevel(state, b.id());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", b.id());
+            row.put("name", b.name());
+            row.put("blurb", b.blurb());
+            row.put("level", level);
+            row.put("maxLevel", ChroniclesContent.MAX_BUILDING_LEVEL);
+            row.put("effect", level == 0 ? "Not built" : buildingEffect(b.id(), level));
+            if (level < ChroniclesContent.MAX_BUILDING_LEVEL) {
+                int next = level + 1;
+                row.put("nextEffect", buildingEffect(b.id(), next));
+                row.put("rankReq", ChroniclesContent.BUILDING_RANK[next - 1]);
+                List<Map<String, Object>> cost = new ArrayList<>();
+                boolean affordable = rank >= ChroniclesContent.BUILDING_RANK[next - 1];
+                for (Map.Entry<String, Integer> e : b.costs().get(next - 1).entrySet()) {
+                    int have = state.inventory.getOrDefault(e.getKey(), 0);
+                    affordable &= have >= e.getValue();
+                    cost.add(Map.of("id", e.getKey(), "name", itemName(e.getKey()), "qty", e.getValue(), "have", have));
+                }
+                row.put("cost", cost);
+                row.put("ready", affordable);
+            }
+            rows.add(row);
+        }
+        base.put("buildings", rows);
+        int slots = ChroniclesContent.loadoutSlots(buildingLevel(state, "war_room"));
+        List<Map<String, Object>> loadouts = new ArrayList<>();
+        for (int i = 0; i < slots; i++) {
+            ChroniclesState.Loadout l = i < state.loadouts.size() ? state.loadouts.get(i) : null;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("slot", i);
+            row.put("saved", l != null);
+            if (l != null) {
+                row.put("name", l.name);
+                row.put("party", l.party.stream().map(id -> {
+                    Companion c = findCompanion(state, id);
+                    return c == null ? "" : c.nickname;
+                }).filter(n -> !n.isEmpty()).toList());
+                row.put("weapon", itemName(l.weaponId));
+            }
+            loadouts.add(row);
+        }
+        base.put("loadouts", loadouts);
+        base.put("supplyCap", ChroniclesContent.supplyCap(buildingLevel(state, "stable")));
+        return base;
+    }
+
+    private static String buildingEffect(String id, int level) {
+        return switch (id) {
+            case "sanctuary" -> "Room for " + ChroniclesContent.rosterCap(level) + " Siegelings · resting Siegelings gain "
+                    + Math.round(ChroniclesContent.sanctuaryBondPerHour(level)) + " bond an hour";
+            case "forge" -> "Smelting, Smithing and Carpentry " + pctText(ChroniclesContent.workshopSpeed(level)) + " faster";
+            case "garden" -> "Grows " + ChroniclesContent.gardenYield(level).entrySet().stream()
+                    .map(e -> Math.round(e.getValue()) + " " + itemName(e.getKey())).reduce((a, b) -> a + ", " + b).orElse("")
+                    + " an hour · Alchemy and Cooking " + pctText(ChroniclesContent.workshopSpeed(level)) + " faster";
+            case "war_room" -> ChroniclesContent.loadoutSlots(level) + " saved loadout" + (level > 1 ? "s" : "")
+                    + " · command gauge starts at " + Math.round(ChroniclesContent.warRoomGauge(level)) + "%";
+            case "stable" -> "Carry " + ChroniclesContent.supplyCap(level) + " potions · +"
+                    + pctText(ChroniclesContent.stableRest(level)) + " rest between battles";
+            case "library" -> "Offline progress up to " + Math.round(ChroniclesContent.offlineCapMs(level) / 360_000.0) / 10.0
+                    + "h · studies " + pctText(ChroniclesContent.workshopSpeed(level)) + " faster · affinity +"
+                    + pctText(ChroniclesContent.libraryAffinity(level));
+            default -> "";
+        };
     }
 
     private Map<String, Object> awayRow(AwayReport away) {

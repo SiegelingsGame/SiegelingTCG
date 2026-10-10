@@ -361,7 +361,8 @@
     });
     renderStatus();
     var scroll = main.scrollTop;
-    var view = { knight: viewKnight, company: viewCompany, work: viewWork, expedition: viewExpedition, wilds: viewWilds }[state.tab] || viewWork;
+    var view = { knight: viewKnight, company: viewCompany, work: viewWork, expedition: viewExpedition, wilds: viewWilds,
+      base: viewBase }[state.tab] || viewWork;
     main.innerHTML = view(s);
     main.scrollTop = scroll;
     tick();
@@ -445,8 +446,7 @@
       '<section class="ck-card"><h3>Pack</h3>' + (bag.length ? '<ul class="ck-bag">' + bag.map(function (i) {
         return '<li title="' + esc(i.blurb) + '"><span>' + esc(i.name) + '</span><b>' + esc(i.qty) + '</b></li>';
       }).join('') + '</ul>' : '<p class="ck-muted">Empty. Set your knight to work.</p>') + '</section>' +
-      '<section class="ck-card ck-keep-link"><h3>Home base</h3><p class="ck-muted">Your Keep is your stronghold. ' +
-        'Its rooms and residents live in My Keep.</p><a class="ck-btn" href="/keep">Visit your Keep</a></section>';
+      '';
   }
 
   function gearSlot(label, item) {
@@ -491,6 +491,42 @@
           ' ' + esc(c.needs) + '</span><span class="ck-small ck-muted">' + esc(c.text) + '</span></li>';
       }).join('') + '</ul>' : '') +
       '<div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>');
+  }
+
+  // Base ───────────────────────────────────────────────────────────────────
+
+  function viewBase(s) {
+    var b = s.base;
+    return '<section class="ck-card"><h3>Your base</h3><p class="ck-muted">Each building draws on several professions. ' +
+        'Levels also need Siegeknight rank.</p></section>' +
+      b.buildings.map(function (x) {
+        var pips = '';
+        for (var i = 1; i <= x.maxLevel; i++) pips += '<i class="' + (i <= x.level ? 'is-on' : '') + '"></i>';
+        var next = x.level < x.maxLevel
+          ? '<p class="ck-small"><b>Level ' + (x.level + 1) + ':</b> ' + esc(x.nextEffect) + '</p>' +
+            '<p class="ck-small">' + x.cost.map(function (c) {
+              return '<span class="' + (c.have >= c.qty ? '' : 'is-short') + '">' + esc(c.qty) + ' ' + esc(c.name) + ' (' + esc(c.have) + ')</span>';
+            }).join(', ') + (s.knight.rank < x.rankReq ? ' · <span class="is-short">Rank ' + esc(x.rankReq) + '</span>' : ' · Rank ' + esc(x.rankReq)) + '</p>' +
+            '<div class="ck-actions"><button type="button" class="ck-btn is-sm' + (x.ready ? ' is-primary' : '') + '" data-act="build" data-id="' +
+              esc(x.id) + '"' + (x.ready ? '' : ' disabled') + '>' + (x.level ? 'Upgrade' : 'Build') + '</button></div>'
+          : '<p class="ck-small is-ready">Complete.</p>';
+        var extra = '';
+        if (x.id === 'war_room' && b.loadouts.length) {
+          extra = '<h4>Loadouts</h4><div class="ck-loadouts">' + b.loadouts.map(function (l) {
+            return '<div class="ck-loadout"><div><b>' + esc(l.saved ? l.name : 'Empty slot ' + (l.slot + 1)) + '</b>' +
+              (l.saved ? '<span class="ck-small ck-muted">' + esc(l.party.join(', ')) + ' · ' + esc(l.weapon) + '</span>' : '') + '</div>' +
+              '<span class="ck-pills">' +
+                (l.saved ? '<button type="button" class="ck-pill" data-act="loadout-apply" data-slot="' + l.slot + '"' + (s.expedition ? ' disabled' : '') + '>Use</button>' : '') +
+                '<button type="button" class="ck-pill" data-act="loadout-save" data-slot="' + l.slot + '">' + (l.saved ? 'Overwrite' : 'Save current') + '</button>' +
+              '</span></div>';
+          }).join('') + '</div>';
+        }
+        return '<section class="ck-card ck-building"><div class="ck-row"><h3>' + esc(x.name) + '</h3><span class="ck-pips">' + pips + '</span></div>' +
+          '<p class="ck-small ck-muted">' + esc(x.blurb) + '</p>' +
+          '<p class="ck-small' + (x.level ? ' is-ready' : ' ck-muted') + '">' + esc(x.effect) + '</p>' + next + extra + '</section>';
+      }).join('') +
+      '<section class="ck-card"><h3>My Keep</h3><p class="ck-muted">Your Keep is your stronghold beyond the expedition road. ' +
+        'Its rooms and residents live in My Keep.</p><a class="ck-btn" href="/keep">Visit your Keep</a></section>';
   }
 
   // Company ────────────────────────────────────────────────────────────────
@@ -838,6 +874,13 @@
         break;
       case 'equip': act('/api/chronicles/equip', { itemId: d.id }); break;
       case 'affinity': showAffinity(d.id); break;
+      case 'build': act('/api/chronicles/build', { buildingId: d.id }); break;
+      case 'loadout-apply': act('/api/chronicles/loadout/apply', { slot: Number(d.slot) }); break;
+      case 'loadout-save': {
+        var plan = window.prompt('Name this loadout:', '');
+        if (plan != null) act('/api/chronicles/loadout/save', { slot: Number(d.slot), name: plan });
+        break;
+      }
       case 'activity': act('/api/chronicles/activity', { kind: d.kind, id: d.id }); break;
       case 'activity-stop': act('/api/chronicles/activity', { kind: '', id: '' }); break;
       case 'craft': act('/api/chronicles/craft', { recipeId: d.id, quantity: Number(d.qty) || 1 }); break;
@@ -856,7 +899,8 @@
         var have = invQty(d.id);
         var total = Object.keys(state.supplies).reduce(function (n, k) { return n + (state.supplies[k] || 0); }, 0);
         var next = Math.max(0, Math.min(have, (state.supplies[d.id] || 0) + Number(d.d)));
-        if (Number(d.d) > 0 && total >= 20) { toast('A company can carry 20 potions.', 'warn'); break; }
+        var cap = state.snap.base ? state.snap.base.supplyCap : 20;
+        if (Number(d.d) > 0 && total >= cap) { toast('A company can carry ' + cap + ' potions.', 'warn'); break; }
         state.supplies[d.id] = next;
         render();
         break;

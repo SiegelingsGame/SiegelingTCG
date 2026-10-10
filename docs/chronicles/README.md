@@ -61,13 +61,20 @@ home base.
 - **Taming.** Hunts spot wild Siegelings, and each trail lasts 48h. There are three approaches: patient (uses Taming skill), lure (crafted, element-matched lures work best), and partner (a same-element Siegeling at Bond 10+). Odds shift by the RBX behaviour.
 - **Evolution.** Requires the level cap plus essences, and an Ancient Relic for final forms. It keeps the individual's id, bond and history, and the class can change.
 - **Idle.** One knight activity (gathering or repeatable crafting) runs alongside one company expedition. Offline accrual is capped at 12h, and a helper Siegeling speeds a matching activity and earns bond. A "While you were away" report opens only after a real absence (5+ minutes).
+- **Home base.** Six buildings from the design, each with five levels. Every level needs Siegeknight rank (2/6/12/20/30) and materials from several professions.
+  - Sanctuary: +3 roster space per level, and resting Siegelings gain bond hourly.
+  - Knight's Forge: Smelting, Smithing and Carpentry 6% faster per level.
+  - Alchemy Garden: grows sunleaf, flax, frostbloom and galeberry offline; Alchemy and Cooking faster.
+  - War Room: a saved-loadout slot per level, and the command gauge starts 10% charged per level.
+  - Expedition Stable: +4 potion capacity and +2% rest per level.
+  - Research Library: +2.4h offline cap per level (24h at 5), faster studies, +2% affinity.
+
+  Base income settles from timestamps under the same offline cap. A loadout restores the party, reserve, gear and tactics, skipping anything no longer owned.
 
 ## Deferred (designed, not built yet)
 
 - Tier II–IV regions.
-- Base buildings inside Chronicles; My Keep plays that role for now.
 - Guilds, Siege Operations, and a marketplace.
-- Saved loadouts.
 
 Balance numbers are first-pass. `ChroniclesBalanceTest` pins the curve:
 - every starter usually clears the first patrol;

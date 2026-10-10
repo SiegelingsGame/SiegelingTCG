@@ -1,4 +1,30 @@
 Original prompt: Go with earth based art for endless
+- October 10, 2026 **Chronicles Phase 3: the home base (six buildings) and War Room loadouts.**
+  - **Change.** `ChroniclesContent.BUILDINGS` adds the design's Sanctuary, Knight's Forge, Alchemy Garden, War Room, Expedition Stable and Research Library. Each has five levels; each level is gated on rank (2/6/12/20/30) and costs materials across professions, such as planks, bars, linen and rope, cooked food, rune stones and relics.
+    - **Base settling.** `settleBase` runs before the knight's activity on every settle, under the offline cap. It grows garden yields, with per-item fractional remainders, and grants Sanctuary bond to resting Siegelings (not on the road or helping). A building upgrade settles first, so the new level never applies backwards.
+    - **Effects.**
+      - roster cap 12+3/level;
+      - Forge/Garden/Library speed up their professions' crafts and studies by 6% per level;
+      - War Room: loadout slots, plus a starting gauge (new `Knight.startGauge`);
+      - Stable: potion cap 20+4/level and extra rest;
+      - Library: offline cap 12h + 2.4h/level (24h at 5) and +2% affinity per level.
+    - **Loadouts.** `saveLoadout`/`applyLoadout` store party, reserve, weapon/armor/relic and tactics. Applying keeps only what still exists or is still unlocked.
+    - **Endpoints.** `POST /api/chronicles/build`, `/loadout/save` and `/loadout/apply`.
+    - **UI.** A sixth "Base" tab with level pips, current and next effect, cost against inventory, rank, Build/Upgrade, and War Room loadout slots; the My Keep link moves here. The potion stepper follows the Stable's capacity. Tabs fit at 320px (smaller type under 360px). `chronicles.js` → `?v=4`, `chronicles.css` → `?v=3`.
+- Verification:
+  - `ChroniclesServiceTest` grows to 33 tests; all pass with the 3 balance tests.
+    - Building gates: rank, then materials, then rank again at level 2. Roster cap 15 after the build.
+    - The garden yields 60 sunleaf and 40 flax over 10h; a 40h gap counts only 12h without a Library.
+    - The Sanctuary gives 60 bond over 5h at level 2, and the helper gets none.
+    - Library 5 accrues 24h of mining and reports `offlineCapHours` 24.
+    - The Stable allows 24 potions where 21 was refused; Forge 1 makes smelting 9.4s.
+    - A loadout round-trip restores party, retreat and trigger; a departed Siegeling leaves its slot empty.
+  - Headless Chromium at 320x640, 390x844 and 1920x1080 on re-dumped real snapshots (Sanctuary 1, Garden 1, War Room 2 with a saved "Ember Hunt"):
+    - six building cards and two loadout slots;
+    - "Use" POSTs `loadout/apply {slot:0}`;
+    - all six tab labels fit at every width, after narrowing type at 320;
+    - no page scroll, overflow or page errors;
+    - the full earlier screen pass still has no errors or overflow.
 - October 10, 2026 **Chronicles Phase 2: affinity milestones 25/50/75/100 and the six cross-element combinations.**
   - **Change.**
     - **Attunement (25).** Halves hazards and adds +25% finds in that element's lands, folded into the knight's survival cut and loot bonus. Taming that element +5%.

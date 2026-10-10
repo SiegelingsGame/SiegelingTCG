@@ -84,11 +84,12 @@ final class ChroniclesCombat {
      */
     record Knight(String weaponType, int weaponTier, int proficiency, int command, int armor,
                   boolean heatWard, String relicEffect, boolean searingIntercept, int foraging,
-                  int cartography, double survivalCut, double lootBonus, double restBonus, double gaugeBonus) {
+                  int cartography, double survivalCut, double lootBonus, double restBonus, double gaugeBonus,
+                  double startGauge) {
         Knight(String weaponType, int weaponTier, int proficiency, int command, int armor,
                boolean heatWard, String relicEffect, boolean searingIntercept, int foraging) {
             this(weaponType, weaponTier, proficiency, command, armor, heatWard, relicEffect, searingIntercept, foraging,
-                    0, 0, 0, 0, 0);
+                    0, 0, 0, 0, 0, 0);
         }
 
         boolean findsWay() {
@@ -153,7 +154,7 @@ final class ChroniclesCombat {
         for (Unit unit : in.party()) company.add(unit.copy());
         Unit reserve = in.reserve() == null ? null : in.reserve().copy();
         boolean reserveUsed = false;
-        double gauge = 0;
+        double gauge = Math.min(100, in.knight().startGauge());
         boolean signatureUsed = false;
 
         add(result, 0, "depart", "The company sets out for " + route.name() + ".", "info");

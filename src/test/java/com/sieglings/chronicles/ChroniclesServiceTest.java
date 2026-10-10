@@ -528,6 +528,105 @@ class ChroniclesServiceTest {
                 arcana, in.signature());
     }
 
+    // ── Phase 3: the home base ───────────────────────────────────────────────
+
+    @Test
+    void buildingsNeedRankAndMaterialsFromSeveralProfessions() {
+        service.start(user, "cacty", "Ari", null);
+        assertThrows(IllegalArgumentException.class, () -> service.build(user, "sanctuary", null, -1), "rank 1 is too low");
+        store.state.rankXp = ChroniclesContent.xpForLevel(2);
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> service.build(user, "sanctuary", null, -1));
+        assertTrue(ex.getMessage().startsWith("Needs "), ex.getMessage());
+        store.state.inventory.putAll(Map.of("pine_plank", 8, "linen", 4, "sunleaf", 12));
+        Map<String, Object> snap = service.build(user, "sanctuary", null, -1);
+        assertEquals(1, store.state.buildings.get("sanctuary"));
+        assertNull(store.state.inventory.get("pine_plank"));
+        assertEquals(15, snap.get("rosterCap"));
+        assertThrows(IllegalArgumentException.class, () -> service.build(user, "sanctuary", null, -1), "level 2 needs rank 6");
+    }
+
+    @Test
+    void theGardenGrowsWhileAwayUpToTheOfflineCap() {
+        service.start(user, "cacty", "Ari", null);
+        service.getSnapshot(user);
+        store.state.buildings.put("garden", 1);
+        clock.advance(Duration.ofHours(10));
+        service.getSnapshot(user);
+        assertEquals(60, store.state.inventory.get("sunleaf"));
+        assertEquals(40, store.state.inventory.get("flax"));
+        assertNotNull(store.state.away, "a ten-hour absence shows the harvest");
+        clock.advance(Duration.ofHours(40));
+        service.getSnapshot(user);
+        assertEquals(60 + 72, store.state.inventory.get("sunleaf"), "only 12 hours count without a Library");
+    }
+
+    @Test
+    void theSanctuaryBondsRestingSiegelingsOnly() {
+        service.start(user, "cacty", "Ari", null);
+        ChroniclesState.Companion helper = addCompanion(store.state, "fawny", 2);
+        store.state.helperId = helper.id;
+        service.getSnapshot(user);
+        store.state.buildings.put("sanctuary", 2);
+        clock.advance(Duration.ofHours(5));
+        service.getSnapshot(user);
+        assertEquals(60, store.state.companions.get(0).bond, "12 bond an hour for 5 hours");
+        assertEquals(0, store.state.companions.get(1).bond, "the helper is working, not resting");
+    }
+
+    @Test
+    void theLibraryStretchesIdleProgressToADay() {
+        service.start(user, "cacty", "Ari", null);
+        store.state.buildings.put("library", 5);
+        service.setActivity(user, "gather", "mine_copper", null, -1);
+        clock.advance(Duration.ofHours(30));
+        Map<String, Object> snap = service.getSnapshot(user);
+        assertEquals((int) (24L * 3600 / 8), store.state.inventory.get("copper_ore"));
+        assertEquals(24.0, ((Number) map(snap, "activity").get("offlineCapHours")).doubleValue(), 1e-9);
+    }
+
+    @Test
+    void theStableAndForgeImproveLogistics() {
+        service.start(user, "cacty", "Ari", null);
+        store.state.inventory.put("herb_tonic", 30);
+        assertThrows(IllegalArgumentException.class,
+                () -> service.launch(user, "mossroot_patrol", Map.of("herb_tonic", 21), null, -1));
+        store.state.buildings.put("stable", 1);
+        store.state.buildings.put("forge", 1);
+        ChroniclesState.ActivityRun run = new ChroniclesState.ActivityRun();
+        run.kind = "craft";
+        run.id = "smelt_copper";
+        assertEquals(9400, service.actionMs(store.state, run), "Forge 1: 6% faster");
+        service.launch(user, "mossroot_patrol", Map.of("herb_tonic", 24), null, -1);
+        assertEquals(6, store.state.inventory.get("herb_tonic"));
+    }
+
+    @Test
+    void warRoomLoadoutsSaveAndRestoreAPlan() {
+        service.start(user, "cacty", "Ari", null);
+        assertThrows(IllegalArgumentException.class, () -> service.saveLoadout(user, 0, "Hunt", null, -1));
+        store.state.buildings.put("war_room", 2);
+        ChroniclesState.Companion fawny = addCompanion(store.state, "fawny", 3);
+        store.state.skillXp.put("command", ChroniclesContent.xpForLevel(3));
+        String cacty = store.state.companions.get(0).id;
+        service.setParty(user, List.of(cacty, fawny.id), "", null, -1);
+        service.setTactics(user, 35, 50, "BOSS", null, null, -1);
+        service.saveLoadout(user, 1, "Boss Hunt", null, -1);
+
+        service.setParty(user, List.of(fawny.id), "", null, -1);
+        service.setTactics(user, 10, 20, "READY", null, null, -1);
+        Map<String, Object> snap = service.applyLoadout(user, 1, null, -1);
+        assertEquals(List.of(cacty, fawny.id), store.state.party);
+        assertEquals(35, store.state.tactics.retreatAt);
+        assertEquals("BOSS", store.state.tactics.trigger);
+        List<Map<String, Object>> loadouts = list(map(snap, "base"), "loadouts");
+        assertEquals(2, loadouts.size());
+        assertEquals("Boss Hunt", loadouts.get(1).get("name"));
+
+        store.state.companions.removeIf(c -> c.id.equals(fawny.id));
+        service.applyLoadout(user, 1, null, -1);
+        assertEquals(List.of(cacty, ""), store.state.party, "a Siegeling no longer here leaves its slot empty");
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private ChroniclesState.Companion addCompanion(ChroniclesState state, String species, int level) {

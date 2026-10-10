@@ -48,6 +48,14 @@ public class ChroniclesState {
     public List<Sighting> sightings = new ArrayList<>();
     public AwayReport away;
 
+    /** Building id → level (absent = not built). */
+    public Map<String, Integer> buildings = new LinkedHashMap<>();
+    public List<Loadout> loadouts = new ArrayList<>();
+    /** Last time the base (garden, sanctuary) was settled; 0 until the first settle. */
+    public long baseTickAt;
+    public Map<String, Double> gardenRemainders = new LinkedHashMap<>();
+    public double sanctuaryRemainder;
+
     public int expeditionsCompleted;
     public int tamedCount;
     public int sightingCounter;
@@ -80,6 +88,22 @@ public class ChroniclesState {
         /** Prepared Familiarity technique id, or "". */
         public String techniqueId = "";
         /** Prepared Convergence combo id, or "". */
+        public String comboId = "";
+    }
+
+    /** A War Room plan: who marches, how, and with what gear. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Loadout {
+        public String name = "";
+        public List<String> party = new ArrayList<>();
+        public String reserveId = "";
+        public String weaponId = "";
+        public String armorId = "";
+        public String relicId = "";
+        public int retreatAt = 20;
+        public int potionAt = 40;
+        public String trigger;
+        public String techniqueId = "";
         public String comboId = "";
     }
 
