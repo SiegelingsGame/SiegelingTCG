@@ -75,12 +75,34 @@ final class ChroniclesCombat {
     }
 
     /** Everything about the knight that matters on the road. */
+    /**
+     * Everything about the knight that matters on the road. The profession fields are
+     * already-converted effects (fractions), so balance lives in ChroniclesContent.
+     */
     record Knight(String weaponType, int weaponTier, int proficiency, int command, int armor,
-                  boolean heatWard, String relicEffect, boolean searingIntercept, int foraging) {}
+                  boolean heatWard, String relicEffect, boolean searingIntercept, int foraging,
+                  int cartography, double survivalCut, double lootBonus, double restBonus, double gaugeBonus) {
+        Knight(String weaponType, int weaponTier, int proficiency, int command, int armor,
+               boolean heatWard, String relicEffect, boolean searingIntercept, int foraging) {
+            this(weaponType, weaponTier, proficiency, command, armor, heatWard, relicEffect, searingIntercept, foraging,
+                    0, 0, 0, 0, 0);
+        }
+
+        boolean findsWay() {
+            return foraging >= 10 || cartography >= ChroniclesContent.CARTOGRAPHY_NO_MAZE;
+        }
+    }
 
     record Input(Route route, List<Unit> party, Unit reserve, Knight knight, CommandTrigger trigger,
                  int retreatAt, int potionAt, Map<String, Integer> supplies, Mods fieldMods,
-                 List<String> fieldNotes, long seed, EnemyFactory enemies) {}
+                 List<String> fieldNotes, long seed, EnemyFactory enemies, long durationMs) {
+        Input(Route route, List<Unit> party, Unit reserve, Knight knight, CommandTrigger trigger,
+              int retreatAt, int potionAt, Map<String, Integer> supplies, Mods fieldMods,
+              List<String> fieldNotes, long seed, EnemyFactory enemies) {
+            this(route, party, reserve, knight, trigger, retreatAt, potionAt, supplies, fieldMods, fieldNotes, seed,
+                    enemies, route.minutes() * 60_000L);
+        }
+    }
 
     interface EnemyFactory {
         /** A wild group for one encounter; {@code boss} asks for the route's boss alone. */
@@ -102,6 +124,8 @@ final class ChroniclesCombat {
         final Map<String, Integer> classBattles = new LinkedHashMap<>();
         int commandsFired;
         int potionsUsed;
+        int hazardsEndured;
+        int exploreSteps;
         final List<SightingRoll> sightings = new ArrayList<>();
         final Map<String, Double> finalHpPct = new LinkedHashMap<>();
     }
@@ -112,9 +136,9 @@ final class ChroniclesCombat {
         Random random = new Random(in.seed());
         Route route = in.route();
         Result result = new Result();
-        long duration = route.minutes() * 60_000L;
+        long duration = in.durationMs();
         int encounters = route.encounters();
-        boolean lost = "maze".equals(route.hazard()) && in.knight().foraging() < 10;
+        boolean lost = "maze".equals(route.hazard()) && !in.knight().findsWay();
         if (lost) encounters += 1;
         result.encountersTotal = encounters;
         boolean hasBoss = route.bossId() != null;
@@ -129,16 +153,20 @@ final class ChroniclesCombat {
 
         add(result, 0, "depart", "The company sets out for " + route.name() + ".", "info");
         for (String note : in.fieldNotes()) add(result, 0, "prep", note, "info");
-        if (lost) add(result, step / 2, "hazard", "Without the woodcraft to read the roots, the company loses its way.", "warn");
+        if (lost) {
+            result.hazardsEndured++;
+            add(result, step / 2, "hazard", "Without the woodcraft or a map to read the roots, the company loses its way.", "warn");
+        }
 
         for (int i = 0; i < encounters; i++) {
             long at = step * (i + 1);
             long exploreAt = at - step / 2;
-            explore(result, route, random, exploreAt);
+            explore(result, route, random, exploreAt, in.knight().lootBonus());
 
             if (route.hazard() != null && "heat".equals(route.hazard())) {
                 double factor = heatFactor(in, company, supplies);
                 if (factor > 0) {
+                    result.hazardsEndured++;
                     for (Unit unit : company) {
                         if (unit.alive()) unit.hp = Math.max(1, unit.hp - unit.maxHp * 0.06 * factor);
                     }
@@ -207,7 +235,7 @@ final class ChroniclesCombat {
                 break;
             }
 
-            double rest = REST_HEAL + in.fieldMods().postHeal();
+            double rest = REST_HEAL + in.fieldMods().postHeal() + in.knight().restBonus();
             for (Unit unit : company) {
                 if (unit.alive()) unit.hp = Math.min(unit.maxHp, unit.hp + unit.maxHp * rest);
                 else if (battle.won) unit.hp = unit.maxHp * DAZED_HP;
@@ -227,13 +255,14 @@ final class ChroniclesCombat {
         }
 
         if ("complete".equals(result.outcome)) {
-            explore(result, route, random, duration - step / 2);
+            explore(result, route, random, duration - step / 2, in.knight().lootBonus());
             Route r = route;
-            if (r.hiddenRoomReq() != null && in.knight().foraging() >= r.hiddenRoomReq().level()) {
+            if (r.hiddenRoomReq() != null && (in.knight().foraging() >= r.hiddenRoomReq().level()
+                    || in.knight().cartography() >= ChroniclesContent.CARTOGRAPHY_HIDDEN_ROOM)) {
                 addLoot(result.loot, "ancient_relic", 1);
                 addLoot(result.loot, "heartwood", 3);
                 add(result, duration - step / 3, "discovery",
-                        "Your woodcraft reveals a hidden root cellar: an Ancient Relic and Heartwood.", "rare");
+                        "Your woodcraft and maps reveal a hidden root cellar: an Ancient Relic and Heartwood.", "rare");
             }
             result.endMs = duration;
             add(result, duration, "return", "The company returns home.", "good");
@@ -252,13 +281,15 @@ final class ChroniclesCombat {
         if (in.knight().heatWard()) factor *= 0.5;
         if (supplies.getOrDefault("frostbloom_remedy", 0) > 0) factor *= 0.5;
         factor *= 1 - Math.min(0.4, in.knight().armor() * 0.03);
-        return Math.max(0.1, factor);
+        factor *= 1 - in.knight().survivalCut();
+        return Math.max(0.05, factor);
     }
 
-    private static void explore(Result result, Route route, Random random, long at) {
+    private static void explore(Result result, Route route, Random random, long at, double lootBonus) {
+        result.exploreSteps++;
         List<String> found = new ArrayList<>();
         for (Loot loot : route.loot()) {
-            if (random.nextDouble() < loot.chance()) {
+            if (random.nextDouble() < loot.chance() * (1 + lootBonus)) {
                 int qty = loot.min() + (loot.max() > loot.min() ? random.nextInt(loot.max() - loot.min() + 1) : 0);
                 addLoot(result.loot, loot.item(), qty);
                 ChroniclesContent.Item item = ChroniclesContent.ITEMS.get(loot.item());
@@ -363,7 +394,7 @@ final class ChroniclesCombat {
             }
             for (Unit unit : party) unit.guarding = unit.guarding && unit.alive();
             Knight k = in.knight();
-            double fill = 18 + k.proficiency() / 3.0 + k.command() / 4.0;
+            double fill = 18 + k.proficiency() / 3.0 + k.command() / 4.0 + k.gaugeBonus();
             if ("commandGauge".equals(k.relicEffect())) fill *= 1.2;
             gauge = Math.min(100, gauge + fill);
             tryCommand();

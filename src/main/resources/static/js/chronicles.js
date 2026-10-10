@@ -20,6 +20,7 @@
     pollTimer: 0,
     oathPick: '',
     supplies: {},
+    rune: '',
     openCompanion: ''
   };
 
@@ -409,7 +410,7 @@
         return '<button type="button" class="ck-pill' + (on ? ' is-on' : '') + '" data-act="equip" data-id="' + esc(g.id) + '">' +
           esc(g.name) + '</button>';
       }).join('') + '</div>' : '') + '</section>' +
-      ['Gathering', 'Production', 'Siegeling', 'Expedition'].map(function (g) {
+      ['Gathering', 'Production', 'Siegeling', 'Expedition', 'Knowledge'].map(function (g) {
         if (!groups[g]) return '';
         return '<section class="ck-card"><h3>' + esc(g) + ' professions</h3><div class="ck-skills">' +
           groups[g].map(skillRow).join('') + '</div></section>';
@@ -451,6 +452,7 @@
       '<div class="ck-row"><b>' + esc(k.name) + '</b><span>' + (k.unlocked ? 'Lv ' + esc(k.level) : 'Locked') + '</span></div>' +
       (k.unlocked ? bar(k.xpInto, k.xpSpan) : '<span class="ck-small">Needs ' + esc(k.unlockText.join(', ')) + '</span>') +
       '<span class="ck-small ck-muted">' + esc(k.blurb) + '</span>' +
+      (k.unlocked && k.effect ? '<span class="ck-small is-ready">' + esc(k.effect) + '</span>' : '') +
       (k.leadsTo.length ? '<span class="ck-small">Unlocks ' + esc(k.leadsTo.join(', ')) + '</span>' : '') +
     '</div>';
   }
@@ -580,14 +582,21 @@
       }).join('') + '</div>';
     }).join('');
     var recipesBySkill = {};
-    s.recipes.forEach(function (r) { (recipesBySkill[r.skill] = recipesBySkill[r.skill] || []).push(r); });
+    var hiddenStudies = 0;
+    s.recipes.forEach(function (r) {
+      // Twelve study rows would bury the list; show the essences the knight actually holds.
+      if (r.kind === 'STUDY' && !(r.inputs[0] && r.inputs[0].have > 0) && !(a && a.id === r.id)) { hiddenStudies++; return; }
+      (recipesBySkill[r.skill] = recipesBySkill[r.skill] || []).push(r);
+    });
     var crafts = Object.keys(recipesBySkill).map(function (skill) {
       return '<h4>' + esc(skill) + '</h4><div class="ck-recipes">' + recipesBySkill[skill].map(function (r) { return recipeRow(r, a); }).join('') + '</div>';
     }).join('');
     return current +
       '<section class="ck-card"><h3>Gathering</h3>' + gather + '</section>' +
       '<section class="ck-card"><h3>Crafting</h3><p class="ck-muted">Bars, potions, lures and meals can be worked idly. ' +
-        'Gear is forged once.</p>' + crafts + '</section>';
+        'Gear is forged once.</p>' + crafts +
+      (hiddenStudies ? '<p class="ck-small ck-muted">Elemental Studies: collect other elements&#39; essences from battles to study them too.</p>' : '') +
+      '</section>';
   }
 
   function recipeRow(r, a) {
@@ -600,8 +609,10 @@
     else if (r.repeatable) {
       buttons = '<button type="button" class="ck-pill' + (on ? ' is-on' : '') + '" data-act="activity" data-kind="craft" data-id="' + esc(r.id) + '"' +
         (r.canMake > 0 ? '' : ' disabled') + '>' + (on ? 'Working' : 'Work idly') + '</button>' +
-        '<button type="button" class="ck-pill" data-act="craft" data-id="' + esc(r.id) + '" data-qty="1"' + (r.canMake > 0 ? '' : ' disabled') + '>Make 1</button>' +
-        (r.canMake >= 5 ? '<button type="button" class="ck-pill" data-act="craft" data-id="' + esc(r.id) + '" data-qty="5">Make 5</button>' : '');
+        '<button type="button" class="ck-pill" data-act="craft" data-id="' + esc(r.id) + '" data-qty="1"' + (r.canMake > 0 ? '' : ' disabled') + '>' +
+          (r.kind === 'STUDY' ? 'Study 1' : 'Make 1') + '</button>' +
+        (r.canMake >= 5 ? '<button type="button" class="ck-pill" data-act="craft" data-id="' + esc(r.id) + '" data-qty="5">' +
+          (r.kind === 'STUDY' ? 'Study 5' : 'Make 5') + '</button>' : '');
     } else if (r.owned) buttons = '<span class="ck-small is-ready">Owned</span>';
     else buttons = '<button type="button" class="ck-pill is-forge" data-act="craft" data-id="' + esc(r.id) + '" data-qty="1"' +
       (r.canMake > 0 ? '' : ' disabled') + '>Forge</button>';
@@ -640,6 +651,7 @@
     var t = s.tactics;
     var techniques = s.affinities.filter(function (a) { return a.technique.unlocked; });
     var potions = s.inventory.filter(function (i) { return i.kind === 'POTION'; });
+    var runes = s.inventory.filter(function (i) { return i.kind === 'RUNE'; });
     var members = s.party.members.filter(Boolean).map(companion).filter(Boolean);
     var partyLine = members.length ? members.map(function (c) { return esc(c.nickname) + ' (' + esc(c.elementLabel) + ' ' + esc(c.class) + ')'; }).join(', ') : 'No one assigned';
     return '' +
@@ -666,6 +678,12 @@
             '<span class="ck-stepper"><button type="button" data-act="supply" data-id="' + esc(p.id) + '" data-d="-1" aria-label="Fewer">−</button>' +
             '<b>' + n + '</b><button type="button" data-act="supply" data-id="' + esc(p.id) + '" data-d="1" aria-label="More">+</button></span></div>';
         }).join('') + '</div>' : '<p class="ck-small ck-muted">No potions. Brew Herb Tonics at Alchemy.</p>') +
+        (runes.length ? '<h4>Rune (one per expedition, spent on the road)</h4><div class="ck-pills">' +
+          '<button type="button" class="ck-pill' + (state.rune ? '' : ' is-on') + '" data-act="rune" data-id="">None</button>' +
+          runes.map(function (r) {
+            return '<button type="button" class="ck-pill' + (state.rune === r.id ? ' is-on' : '') + '" data-act="rune" data-id="' + esc(r.id) +
+              '" title="' + esc(r.blurb) + '">' + esc(r.name) + ' ×' + esc(r.qty) + '</button>';
+          }).join('') + '</div>' : '') +
       '</section>' +
       '<section class="ck-card"><h3>Destinations</h3><div class="ck-routes">' + s.routes.map(routeCard).join('') + '</div></section>';
   }
@@ -809,10 +827,12 @@
         render();
         break;
       }
+      case 'rune': state.rune = d.id || ''; render(); break;
       case 'launch': {
         var supplies = {};
         Object.keys(state.supplies).forEach(function (k) { if (state.supplies[k] > 0) supplies[k] = Math.min(state.supplies[k], invQty(k)); });
-        act('/api/chronicles/expedition/launch', { routeId: d.id, supplies: supplies }, function () { state.supplies = {}; });
+        if (state.rune && invQty(state.rune) > 0) supplies[state.rune] = 1;
+        act('/api/chronicles/expedition/launch', { routeId: d.id, supplies: supplies }, function () { state.supplies = {}; state.rune = ''; });
         break;
       }
       case 'collect':

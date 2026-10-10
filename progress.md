@@ -1,4 +1,30 @@
 Original prompt: Go with earth based art for endless
+- October 10, 2026 **Chronicles Phase 1: all 21 professions from the design, each with a real effect.**
+  - **Change.**
+    - **Twelve new professions,** each with its unlock: Excavation (Mining 10), Smelting (Mining 5, now owning the bar recipes), Carpentry (Woodcutting 5), Weaving (Foraging 10), Runecrafting (Elemental Studies 10 + Smelting 5), Bonding (Taming 3), Husbandry (Bonding 10 + Cooking 5), Pathfinding, Survival (Rank 3), Cartography (Pathfinding 5), Elemental Studies (Rank 5) and Class Tactics (Command 5). Smithing now follows Smelting 10 and Fishing follows Carpentry 3.
+    - **Unlock rules.** `skillUnlocked` treats a profession with XP as open, so knights who trained Smithing or Fishing under the old web keep them. `grantSkill` gives locked professions nothing, and `profLevel` (0 while locked) drives every effect.
+    - **Effects.**
+      - Pathfinding shortens `Input.durationMs` (up to 30%). Survival scales hazard damage (up to 60%). Cartography adds find chance; at 10 it prevents the Rootcrypt maze, and at 25 it opens the hidden room.
+      - Husbandry adds rest and treat cap. Bonding earns half of all bond points and multiplies future bond. Elemental Studies multiplies affinity gains.
+      - Class Tactics adds gauge fill and is required (10) for cross-class techniques.
+    - **New content.**
+      - Study sessions are recipes with a `studyElement`: they consume an essence, make no item, and teach 8 affinity XP.
+      - Runes: one per expedition, carried in supplies, spent, and applied as element- or company-scoped mods.
+      - Armor class boosts: Linen and Ember Robes for Mages, the Guardian Harness for Guardians.
+      - Snare Crate and Breezewoven Net lures; Excavation digs; flax.
+      - Relic shards → Ancient Relic. Bastion Crest also needs Runecrafting 25.
+    - **Expedition XP.** Expeditions train Pathfinding, Survival (hazards endured), Cartography (exploration steps) and Class Tactics.
+    - **UI.** A Knowledge group, each profession's live effect line, studies only for held essences, and a rune picker. `chronicles.js` → `?v=2`.
+- Verification:
+  - `ChroniclesServiceTest` grows to 22 tests; all pass along with the 3 balance tests. New coverage:
+    - 21 professions, and the Smithing grandfather rule.
+    - Locked Bonding/Husbandry earn nothing and give no bonus; Bonding 1 adds 1%.
+    - Study consumes essences, stops when out, and teaches 8 per session.
+    - A rune is applied, kept out of potions, limited to one, spent and not returned.
+    - Pathfinding 50 cuts Cinder Hollow by exactly 20%; Survival 40 gives 0.40.
+    - Cartography 10 stops the Rootcrypt maze's extra fight.
+    - Class Tactics 10 gates Sanctuary Formation; the Husbandry treat cap.
+  - Headless Chromium at 390x844 and 1920x1080 on re-dumped real snapshots: the full screen pass, plus the Knight tab's Expedition/Knowledge groups with effect lines ("Expeditions 3.6% shorter"), the Work tab's Fire/Earth study rows, and the rune picker. The live mid-road countdown dropped from 18m to 16m34s with Pathfinding 9. No page errors or overflow.
 - October 10, 2026 **Siege: Endless wears earth art.**
   - **Change.** The Endless mode plate and resume plate swap the sky-ruins scene for the earth woodland warband from the loading library (`art/loading/earth-landscape.webp` / `earth-portrait.webp`). These are resized into `img/gallery/earth-warband.webp` (1312px, 188KB, for the desktop plate at 3x) and `earth-warband-portrait.webp` (600px, 150KB, for the half-width phone plate at 3x), so the plates do not pull the 420KB originals. The portrait cut is used on portrait phones as before. The shield-cyan mode accent is unchanged.
 - Verification:
@@ -50,6 +76,10 @@ Original prompt: Merge and deploy
     - The document never scrolls (`scrollHeight == innerHeight`), only `.ck-main` does. No element extends past the viewport. The tab bar sits flush at the bottom. No page errors.
     - The hub Play screen shows four plates at 390/1024/1920 with no horizontal overflow, and "Chronicles" fits its 232px plate at 1024. Screenshots reviewed.
     - Art was not exercised: the dumped snapshots have no catalog art, so portraits used the element-tinted initial fallback. Signed-in Firestore persistence was not run locally, since accounts need real credentials; the store round-trip is covered by the tests' JSON-copying store.
+  - **Live deploy (run 1024, merge `424d2685`).**
+    - `deploy-verify` checklist: `/play` serves the repo's pins (`game.js?v=312`, `style.css?v=271`, `action-queue.js?v=47`) and `/home` serves `home-redesign` v77/v86. `/api/cards/editor` reports FIRESTORE with live editing on, through both Hosting and Cloud Run directly. `config.js` keeps `apiBaseUrl: ''`, and `/api/game/options` returns 200 with 6 decks.
+    - Chronicles: `/chronicles` and its CSS/JS serve 200, and `/api/chronicles` plus `/start` answer with the controller's own 401 sign-in message.
+    - Live headless Chromium at 390x844: a signed-out visit and a stale-token visit both land on the gate. The hub's Play screen shows the Chronicles plate. No page errors.
 - October 10, 2026 **Siege: a full warband can swap a Siegeling or take a temporary ally at brokers, camps and events.**
   - **Change.** Before this, a full warband got rentals only at a Broker node, never saw a camp broker, and the "wanderer" event turned straight into an item. Now a full **Broker** node still stocks 2 recruits, which can only *Swap* in (🪙25, the Hire button is hidden), plus 2 mercenary rentals (🪙55). A camp broker can now appear for a full warband too. It offers a `BROKER_SWAP` recruit (🪙25), where tapping opens a "Send away:" picker that reuses `attachLearnerPicker` with the server reading `learnerId` as the leaver, plus one `MERC` temporary ally (🪙55) when no merc is under contract. When the event's `RECRUIT_CHANCE` meets a full warband, it opens the broker screen as a free **Wandering Siegeling** encounter (`SiegeRun.brokerEncounter`, serialized as `broker.encounter`). The player can swap it in for a member, take it as an "Ally for 1 battle", or press "Take Gift & Move On" to get the old parting item. Taking either option spends the other. Battlegrounds keep their gold windfall. The swap and merc logic is shared between the stall and the camp (`swapIntoWarband`, `contractMercenary`). Broker recruit lookups fall back to `findAnySiegling`, so a stage-2/3 wanderer resolves. `adventure.js` v125.
 - Verification:

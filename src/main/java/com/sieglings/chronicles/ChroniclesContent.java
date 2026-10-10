@@ -88,19 +88,60 @@ public final class ChroniclesContent {
 
     public static final Map<String, Skill> SKILLS = ordered(List.of(
             new Skill("mining", "Mining", "Gathering", "Ore, stone and elemental shards.", List.of()),
-            new Skill("woodcutting", "Woodcutting", "Gathering", "Timber for tools, rods and bows.", List.of()),
-            new Skill("foraging", "Foraging", "Gathering", "Herbs and berries for remedies and lures.", List.of()),
-            new Skill("fishing", "Fishing", "Gathering", "Fish for cooking. Needs a rod carved from pine.",
-                    List.of(skill("woodcutting", 5))),
-            new Skill("smithing", "Smithing", "Production", "Smelt bars and forge weapons, armor and relics.",
+            new Skill("woodcutting", "Woodcutting", "Gathering", "Timber for planks, tools and bows.", List.of()),
+            new Skill("foraging", "Foraging", "Gathering", "Herbs, berries and flax.", List.of()),
+            new Skill("fishing", "Fishing", "Gathering", "Fish for cooking. Needs a rod from the carpenter.",
+                    List.of(skill("carpentry", 3))),
+            new Skill("excavation", "Excavation", "Gathering", "Dig for fossils, rune stones and relic shards.",
+                    List.of(skill("mining", 10))),
+            new Skill("smelting", "Smelting", "Production", "Turn ore into bars.",
                     List.of(skill("mining", 5))),
-            new Skill("alchemy", "Alchemy", "Production", "Potions for expeditions and lures for taming.",
-                    List.of(skill("foraging", 8))),
+            new Skill("smithing", "Smithing", "Production", "Forge weapons, armor and relics.",
+                    List.of(skill("smelting", 10))),
+            new Skill("carpentry", "Carpentry", "Production", "Planks, rods and snare crates.",
+                    List.of(skill("woodcutting", 5))),
+            new Skill("weaving", "Weaving", "Production", "Linen, rope, robes and taming nets.",
+                    List.of(skill("foraging", 10))),
             new Skill("cooking", "Cooking", "Production", "Meals your Siegelings love. Treats build bond.",
                     List.of(skill("fishing", 3))),
+            new Skill("alchemy", "Alchemy", "Production", "Potions for expeditions and lures for taming.",
+                    List.of(skill("foraging", 8))),
+            new Skill("runecrafting", "Runecrafting", "Production", "Runes that empower a whole expedition.",
+                    List.of(skill("elemental_studies", 10), skill("smelting", 5))),
             new Skill("taming", "Taming", "Siegeling", "Befriend wild Siegelings spotted on expeditions.", List.of()),
-            new Skill("command", "Command", "Expedition", "Lead larger companies. Opens party slots.", List.of())
+            new Skill("bonding", "Bonding", "Siegeling", "Grows with every bond you build. Bonds grow faster.",
+                    List.of(skill("taming", 3))),
+            new Skill("husbandry", "Husbandry", "Siegeling", "Care between battles. Better rest, more treats.",
+                    List.of(skill("bonding", 10), skill("cooking", 5))),
+            new Skill("pathfinding", "Pathfinding", "Expedition", "Find faster roads. Expeditions take less time.",
+                    List.of()),
+            new Skill("survival", "Survival", "Expedition", "Endure hazards. Heat and wild lands hurt less.",
+                    List.of(rank(3))),
+            new Skill("cartography", "Cartography", "Expedition", "Map the wilds: better finds, hidden places.",
+                    List.of(skill("pathfinding", 5))),
+            new Skill("command", "Command", "Expedition", "Lead larger companies. Opens party slots.", List.of()),
+            new Skill("elemental_studies", "Elemental Studies", "Knowledge",
+                    "Study essences to deepen every elemental affinity.", List.of(rank(5))),
+            new Skill("class_tactics", "Class Tactics", "Knowledge",
+                    "How classes fight together. Faster commands; cross-class techniques.", List.of(skill("command", 5)))
     ), Skill::id);
+
+    // Profession effects. Each returns a fraction; the snapshot shows them as text.
+    public static double pathfindingCut(int level) { return Math.min(0.30, level * 0.004); }
+    public static double survivalCut(int level) { return Math.min(0.60, level * 0.01); }
+    public static double cartographyLoot(int level) { return level * 0.003; }
+    public static double husbandryRest(int level) { return Math.min(0.20, level * 0.003); }
+    public static double bondingBonus(int level) { return level * 0.01; }
+    public static double studiesBonus(int level) { return level * 0.005; }
+    public static double tacticsGauge(int level) { return level * 0.25; }
+    public static int treatCap(int husbandry) {
+        return DAILY_TREATS_PER_SIEGELING + (husbandry >= 10 ? 1 : 0) + (husbandry >= 30 ? 1 : 0) + (husbandry >= 60 ? 1 : 0);
+    }
+    /** Cross-class techniques also need this much Class Tactics. */
+    public static final int CROSS_CLASS_TACTICS = 10;
+    /** Cartography level that keeps the company from getting lost and the one that finds hidden rooms. */
+    public static final int CARTOGRAPHY_NO_MAZE = 10;
+    public static final int CARTOGRAPHY_HIDDEN_ROOM = 25;
 
     /** Command levels at which the company grows. */
     public static int partySlots(int commandLevel) {
@@ -113,7 +154,7 @@ public final class ChroniclesContent {
 
     // ── Items ────────────────────────────────────────────────────────────────
 
-    public enum ItemKind { MATERIAL, ESSENCE, POTION, LURE, FOOD, WEAPON, ARMOR, RELIC }
+    public enum ItemKind { MATERIAL, ESSENCE, POTION, LURE, FOOD, WEAPON, ARMOR, RELIC, RUNE }
 
     public record Item(String id, String name, ItemKind kind, String blurb, int tier,
                        double healPct, Element lureElement, int lureBonus,
@@ -167,7 +208,15 @@ public final class ChroniclesContent {
                 material("silverfin", "Silverfin", "A deep-pool fish with bright scales.", 2),
                 material("copper_bar", "Copper Bar", "Smelted copper.", 1),
                 material("iron_bar", "Iron Bar", "Smelted iron.", 2),
-                material("ancient_relic", "Ancient Relic", "Found only in dungeons. Needed for final evolutions.", 4),
+                material("ancient_relic", "Ancient Relic", "Found in dungeons, or pieced together from relic shards. Needed for final evolutions.", 4),
+                material("fossil", "Fossil", "Old bones from the barrows. Runecrafters grind them for warding runes.", 1),
+                material("relic_shard", "Relic Shard", "A fragment of something ancient. Five make an Ancient Relic.", 3),
+                material("rune_stone", "Rune Stone", "Carved stone that holds an inscription.", 2),
+                material("flax", "Flax", "Fibrous stalks for spinning.", 1),
+                material("linen", "Linen", "Spun flax cloth.", 1),
+                material("rope", "Rope", "Twisted flax.", 1),
+                material("pine_plank", "Pine Plank", "Sawn pine.", 1),
+                material("oak_plank", "Oak Plank", "Sawn oak.", 2),
                 potion("herb_tonic", "Herb Tonic", "Heals 35% of a Siegeling's health mid-battle.", 0.35, false),
                 potion("frostbloom_remedy", "Frostbloom Remedy",
                         "Heals 50% and cools heat hazards for the whole company.", 0.50, true),
@@ -176,6 +225,8 @@ public final class ChroniclesContent {
                 lure("root_lure", "Root Lure", "Herbs bound to oak. Calms Earth Siegelings.", Element.EARTH, 30),
                 lure("frost_lure", "Frost Lure", "A frostbloom-wrapped minnow for Ice Siegelings.", Element.ICE, 30),
                 lure("gale_lure", "Gale Lure", "Galeberries strung on a feather for Wind Siegelings.", Element.WIND, 30),
+                lure("snare_crate", "Snare Crate", "A sturdy crate trap. Works on anything, best on skittish Siegelings.", null, 18),
+                lure("breezewoven_net", "Breezewoven Net", "Woven with gale feathers. Superb for swift Wind Siegelings.", Element.WIND, 42),
                 food("grilled_minnow", "Grilled Minnow", "A simple treat.", 60,
                         Set.of(Element.FIRE, Element.WATER, Element.ICE, Element.UNDEAD)),
                 food("sunleaf_salad", "Sunleaf Salad", "Crisp greens.", 50,
@@ -203,6 +254,19 @@ public final class ChroniclesContent {
                 armor("copper_mail", "Copper Mail", 1, 4, false, "Light mail against expedition hazards."),
                 armor("iron_mail", "Iron Mail", 2, 9, false, "Solid protection for dungeon work."),
                 armor("frostweave_cloak", "Frostweave Cloak", 2, 6, true, "Frost crystals sewn into wool. Wards off heat."),
+                armor("linen_robe", "Linen Robe", 1, 2, false, "A channeler's robe. Mage Siegelings deal 6% more damage."),
+                armor("ember_robe", "Ember Robe", 2, 4, true, "Ember-thread robe. Mages deal 12% more damage; wards off heat."),
+                armor("guardian_harness", "Guardian Harness", 2, 7, false, "Rope and plank bracing. Guardians gain 8% defense."),
+                new Item("rune_warding", "Rune of Warding", ItemKind.RUNE, "The whole company gains 6% defense for one expedition.", 1,
+                        0, null, 0, 0, Set.of(), null, 0, false, null),
+                new Item("rune_embers", "Rune of Embers", ItemKind.RUNE, "Fire Siegelings deal 12% more damage for one expedition.", 2,
+                        0, null, 0, 0, Set.of(), null, 0, false, null),
+                new Item("rune_stone_skin", "Rune of Stoneskin", ItemKind.RUNE, "Earth Siegelings gain 14% health for one expedition.", 2,
+                        0, null, 0, 0, Set.of(), null, 0, false, null),
+                new Item("rune_frost", "Rune of Frost", ItemKind.RUNE, "Ice Siegelings gain 12% defense for one expedition.", 2,
+                        0, null, 0, 0, Set.of(), null, 0, false, null),
+                new Item("rune_gales", "Rune of Gales", ItemKind.RUNE, "Wind Siegelings gain 12% speed for one expedition.", 2,
+                        0, null, 0, 0, Set.of(), null, 0, false, null),
                 relic("emberward_charm", "Emberward Charm", "heatWard", true,
                         "Halves volcanic heat damage to the company."),
                 relic("rally_banner", "Rally Banner", "commandGauge", false,
@@ -218,6 +282,24 @@ public final class ChroniclesContent {
         }
         ITEMS = ordered(items, Item::id);
     }
+
+    /** What a rune does for the expedition it is carried on; null element means the whole company. */
+    public record RuneEffect(Element element, Mods mods) {}
+
+    public static final Map<String, RuneEffect> RUNE_EFFECTS = Map.of(
+            "rune_warding", new RuneEffect(null, Mods.def(0.06)),
+            "rune_embers", new RuneEffect(Element.FIRE, Mods.atk(0.12)),
+            "rune_stone_skin", new RuneEffect(Element.EARTH, Mods.hp(0.14)),
+            "rune_frost", new RuneEffect(Element.ICE, Mods.def(0.12)),
+            "rune_gales", new RuneEffect(Element.WIND, Mods.spd(0.12)));
+
+    /** Armor that strengthens one class of Siegeling in the company. */
+    public record ClassBoost(String creatureClass, Mods mods) {}
+
+    public static final Map<String, ClassBoost> ARMOR_BOOSTS = Map.of(
+            "linen_robe", new ClassBoost("Mage", Mods.atk(0.06)),
+            "ember_robe", new ClassBoost("Mage", Mods.atk(0.12)),
+            "guardian_harness", new ClassBoost("Guardian", Mods.def(0.08)));
 
     public static String essenceId(Element element) {
         return "essence_" + element.name().toLowerCase();
@@ -250,6 +332,14 @@ public final class ChroniclesContent {
                     "frostbloom", null, 0, Set.of(Element.ICE, Element.WIND)),
             new Activity("forage_galeberry", "foraging", "Galeberry Ridge", "Galeward Heights", 18, 14, 22,
                     "galeberry", "gale_feather", 4, Set.of(Element.WIND, Element.POISON)),
+            new Activity("forage_flax", "foraging", "Flax Field", "Mossroot Wilds", 5, 10, 7,
+                    "flax", null, 0, Set.of(Element.WIND, Element.EARTH)),
+            new Activity("dig_barrows", "excavation", "Mossroot Barrows", "Mossroot Wilds", 1, 12, 9,
+                    "fossil", "relic_shard", 10, Set.of(Element.EARTH, Element.METAL)),
+            new Activity("dig_ember_ruins", "excavation", "Ember Ruins", "Ember Crags", 15, 16, 20,
+                    "rune_stone", "relic_shard", 6, Set.of(Element.EARTH, Element.FIRE)),
+            new Activity("dig_frozen_vault", "excavation", "Frozen Vault", "Frostfen", 30, 20, 34,
+                    "rune_stone", "ancient_relic", 40, Set.of(Element.ICE, Element.METAL)),
             new Activity("fish_river", "fishing", "Riverbank", "Mossroot Wilds", 1, 10, 8,
                     "minnow", null, 0, Set.of(Element.WATER, Element.ICE)),
             new Activity("fish_deep", "fishing", "Deep Pool", "Frostfen", 12, 14, 18,
@@ -262,28 +352,51 @@ public final class ChroniclesContent {
      * Repeatable recipes (bars, potions, lures, meals) can run as the knight's idle
      * activity or be made instantly in small batches; gear is a one-off forge.
      */
+    /**
+     * {@code studyElement} marks a study session: it makes no item and instead teaches
+     * that element's affinity ({@link #STUDY_AFFINITY_XP} per session).
+     */
     public record Recipe(String id, String skillId, String output, int outputQty, int level, List<Req> extraReqs,
                          Map<String, Integer> inputs, int actionSeconds, int xp, boolean repeatable,
-                         Set<Element> helperElements) {}
+                         Set<Element> helperElements, Element studyElement) {
+        public boolean isStudy() { return studyElement != null; }
+    }
+
+    public static final int STUDY_AFFINITY_XP = 8;
 
     private static Recipe repeatable(String id, String skillId, String output, int level, List<Req> extra,
                                      Map<String, Integer> inputs, int seconds, int xp, Set<Element> helpers) {
-        return new Recipe(id, skillId, output, 1, level, extra, inputs, seconds, xp, true, helpers);
+        return new Recipe(id, skillId, output, 1, level, extra, inputs, seconds, xp, true, helpers, null);
     }
 
     private static Recipe forge(String id, String output, int level, List<Req> extra,
                                 Map<String, Integer> inputs, int xp) {
-        return new Recipe(id, "smithing", output, 1, level, extra, inputs, 0, xp, false, Set.of());
+        return craftOnce(id, "smithing", output, level, extra, inputs, xp);
+    }
+
+    private static Recipe craftOnce(String id, String skillId, String output, int level, List<Req> extra,
+                                    Map<String, Integer> inputs, int xp) {
+        return new Recipe(id, skillId, output, 1, level, extra, inputs, 0, xp, false, Set.of(), null);
+    }
+
+    private static Recipe study(Element element) {
+        String key = element.name().toLowerCase();
+        return new Recipe("study_" + key, "elemental_studies", null, 0, 1, List.of(),
+                Map.of(essenceId(element), 1), 12, 10, true,
+                element == Element.PSYCHIC ? Set.of(element) : Set.of(Element.PSYCHIC, element), element);
     }
 
     private static final Set<Element> FORGE_HELPERS = Set.of(Element.FIRE, Element.METAL);
     private static final Set<Element> ALCHEMY_HELPERS = Set.of(Element.WATER, Element.POISON, Element.PSYCHIC);
     private static final Set<Element> KITCHEN_HELPERS = Set.of(Element.FIRE, Element.WATER);
+    private static final Set<Element> WORKSHOP_HELPERS = Set.of(Element.EARTH, Element.METAL);
+    private static final Set<Element> LOOM_HELPERS = Set.of(Element.WIND, Element.POISON);
+    private static final Set<Element> RUNE_HELPERS = Set.of(Element.PSYCHIC, Element.LIGHT, Element.SHADOW);
 
     public static final Map<String, Recipe> RECIPES = ordered(List.of(
-            repeatable("smelt_copper", "smithing", "copper_bar", 1, List.of(),
+            repeatable("smelt_copper", "smelting", "copper_bar", 1, List.of(),
                     Map.of("copper_ore", 2), 10, 8, FORGE_HELPERS),
-            repeatable("smelt_iron", "smithing", "iron_bar", 10, List.of(),
+            repeatable("smelt_iron", "smelting", "iron_bar", 10, List.of(),
                     Map.of("iron_ore", 2), 14, 16, FORGE_HELPERS),
             forge("forge_copper_sword", "copper_sword", 2, List.of(), Map.of("copper_bar", 3, "pine_log", 2), 40),
             forge("forge_copper_daggers", "copper_daggers", 3, List.of(), Map.of("copper_bar", 3), 40),
@@ -313,7 +426,7 @@ public final class ChroniclesContent {
                     List.of(affinity(Element.FIRE, 20), mastery("Guardian", 10)),
                     Map.of("iron_bar", 6, "ember_shard", 4, "heartwood", 2), 260),
             forge("forge_bastion_crest", "bastion_crest", 35,
-                    List.of(mastery("Guardian", 30), affinity(Element.EARTH, 25)),
+                    List.of(mastery("Guardian", 30), affinity(Element.EARTH, 25), skill("runecrafting", 25)),
                     Map.of("iron_bar", 8, "ancient_relic", 2, "essence_earth", 12), 420),
             repeatable("brew_herb_tonic", "alchemy", "herb_tonic", 1, List.of(),
                     Map.of("sunleaf", 2), 10, 8, ALCHEMY_HELPERS),
@@ -337,7 +450,41 @@ public final class ChroniclesContent {
             repeatable("cook_silverfin_stew", "cooking", "silverfin_stew", 12, List.of(),
                     Map.of("silverfin", 1, "sunleaf", 1), 14, 20, KITCHEN_HELPERS),
             repeatable("cook_berry_tart", "cooking", "berry_tart", 15, List.of(),
-                    Map.of("galeberry", 2, "sunleaf", 1), 14, 22, KITCHEN_HELPERS)
+                    Map.of("galeberry", 2, "sunleaf", 1), 14, 22, KITCHEN_HELPERS),
+            repeatable("saw_pine_plank", "carpentry", "pine_plank", 1, List.of(),
+                    Map.of("pine_log", 2), 10, 7, WORKSHOP_HELPERS),
+            repeatable("saw_oak_plank", "carpentry", "oak_plank", 10, List.of(),
+                    Map.of("oak_log", 2), 12, 14, WORKSHOP_HELPERS),
+            repeatable("build_snare_crate", "carpentry", "snare_crate", 8, List.of(skill("weaving", 3)),
+                    Map.of("oak_plank", 2, "rope", 1), 14, 18, WORKSHOP_HELPERS),
+            craftOnce("build_guardian_harness", "carpentry", "guardian_harness", 18, List.of(mastery("Guardian", 10)),
+                    Map.of("oak_plank", 6, "rope", 4, "iron_bar", 2), 160),
+            repeatable("spin_linen", "weaving", "linen", 1, List.of(),
+                    Map.of("flax", 3), 10, 7, LOOM_HELPERS),
+            repeatable("twist_rope", "weaving", "rope", 3, List.of(),
+                    Map.of("flax", 2), 10, 8, LOOM_HELPERS),
+            craftOnce("sew_linen_robe", "weaving", "linen_robe", 6, List.of(),
+                    Map.of("linen", 6, "sunleaf", 2), 70),
+            repeatable("weave_breezewoven_net", "weaving", "breezewoven_net", 12,
+                    List.of(skill("taming", 10), affinity(Element.WIND, 15)),
+                    Map.of("rope", 2, "gale_feather", 2), 16, 26, LOOM_HELPERS),
+            craftOnce("sew_ember_robe", "weaving", "ember_robe", 20, List.of(affinity(Element.FIRE, 15)),
+                    Map.of("linen", 8, "ember_shard", 4, "essence_fire", 6), 220),
+            repeatable("inscribe_warding", "runecrafting", "rune_warding", 1, List.of(),
+                    Map.of("rune_stone", 1, "fossil", 2), 14, 14, RUNE_HELPERS),
+            repeatable("inscribe_embers", "runecrafting", "rune_embers", 10, List.of(affinity(Element.FIRE, 10)),
+                    Map.of("rune_stone", 1, "essence_fire", 2), 16, 22, RUNE_HELPERS),
+            repeatable("inscribe_stoneskin", "runecrafting", "rune_stone_skin", 10, List.of(affinity(Element.EARTH, 10)),
+                    Map.of("rune_stone", 1, "essence_earth", 2), 16, 22, RUNE_HELPERS),
+            repeatable("inscribe_frost", "runecrafting", "rune_frost", 10, List.of(affinity(Element.ICE, 10)),
+                    Map.of("rune_stone", 1, "essence_ice", 2), 16, 22, RUNE_HELPERS),
+            repeatable("inscribe_gales", "runecrafting", "rune_gales", 10, List.of(affinity(Element.WIND, 10)),
+                    Map.of("rune_stone", 1, "essence_wind", 2), 16, 22, RUNE_HELPERS),
+            repeatable("restore_ancient_relic", "runecrafting", "ancient_relic", 20, List.of(),
+                    Map.of("relic_shard", 5, "rune_stone", 1), 30, 60, RUNE_HELPERS),
+            study(Element.FIRE), study(Element.ICE), study(Element.WIND), study(Element.EARTH),
+            study(Element.WATER), study(Element.ELECTRIC), study(Element.LIGHT), study(Element.SHADOW),
+            study(Element.PSYCHIC), study(Element.METAL), study(Element.POISON), study(Element.UNDEAD)
     ), Recipe::id);
 
     // ── Weapon disciplines ───────────────────────────────────────────────────

@@ -94,10 +94,11 @@ class ChroniclesServiceTest {
         Map<String, Object> snap = service.getSnapshot(user);
         @SuppressWarnings("unchecked")
         List<String> events = (List<String>) snap.get("events");
-        assertTrue(events.contains("New profession unlocked: Smithing."), events.toString());
-        assertTrue(skill(snap, "smithing").get("unlocked").equals(true));
+        assertTrue(events.contains("New profession unlocked: Smelting."), events.toString());
+        assertTrue(skill(snap, "smelting").get("unlocked").equals(true));
+        assertTrue(skill(snap, "smithing").get("unlocked").equals(false), "Smithing now follows Smelting 10");
         assertTrue(skill(snap, "fishing").get("unlocked").equals(false));
-        assertEquals(List.of("Woodcutting 5"), skill(snap, "fishing").get("unlockText"));
+        assertEquals(List.of("Carpentry 3"), skill(snap, "fishing").get("unlockText"));
 
         service.setActivity(user, "craft", "smelt_copper", null, -1);
         assertEquals("craft", store.state.activity.kind);
@@ -317,6 +318,117 @@ class ChroniclesServiceTest {
         Map<String, Object> patrol = list(snap, "routes").get(0);
         assertEquals(true, patrol.get("unlocked"));
         assertFalse(store.state.companions.isEmpty());
+    }
+
+    // ── Phase 1: the full profession web ─────────────────────────────────────
+
+    @Test
+    void allTwentyOneProfessionsExistAndAKnightWhoTrainedSmithingKeepsIt() {
+        assertEquals(21, ChroniclesContent.SKILLS.size());
+        service.start(user, "cacty", "Ari", null);
+        store.state.skillXp.put("smithing", 500L);
+        Map<String, Object> snap = service.getSnapshot(user);
+        assertEquals(true, skill(snap, "smithing").get("unlocked"), "practised before the split: grandfathered");
+        assertEquals(false, skill(snap, "smelting").get("unlocked"));
+    }
+
+    @Test
+    void lockedProfessionsEarnNothingAndGiveNoEffect() {
+        service.start(user, "sundile", "Ari", null);
+        String id = store.state.companions.get(0).id;
+        store.state.inventory.put("grilled_minnow", 2);
+        service.feed(user, id, "grilled_minnow", null, -1);
+        assertNull(store.state.skillXp.get("bonding"), "Bonding is locked until Taming 3");
+        assertNull(store.state.skillXp.get("husbandry"));
+        assertEquals(120, store.state.companions.get(0).bond, "no Bonding bonus while locked");
+
+        store.state.skillXp.put("taming", ChroniclesContent.xpForLevel(3));
+        service.feed(user, id, "grilled_minnow", null, -1);
+        assertTrue(store.state.skillXp.get("bonding") > 0, "bond earned now trains Bonding");
+        assertEquals(120 + 121, store.state.companions.get(0).bond, "Bonding 1 adds 1%");
+    }
+
+    @Test
+    void studyingAnEssenceTeachesItsAffinity() {
+        service.start(user, "cacty", "Ari", null);
+        store.state.rankXp = ChroniclesContent.xpForLevel(5);
+        store.state.inventory.put("essence_fire", 3);
+        service.setActivity(user, "craft", "study_fire", null, -1);
+        clock.advance(Duration.ofSeconds(60));
+        service.getSnapshot(user);
+        assertNull(store.state.inventory.get("essence_fire"), "three sessions used three essences");
+        assertNull(store.state.activity, "studying stops when the essences run out");
+        assertEquals(30L, (long) store.state.skillXp.get("elemental_studies"));
+        assertEquals(24L, (long) store.state.affinityXp.get("FIRE"), "8 per session; studies bonus was 0 at the start");
+    }
+
+    @Test
+    void aCarriedRuneIsSpentAndStrengthensItsElement() {
+        service.start(user, "sundile", "Ari", null);
+        ChroniclesState state = store.state;
+        state.inventory.put("rune_embers", 2);
+        ChroniclesContent.Route route = ChroniclesContent.ROUTES.get("mossroot_patrol");
+        var plain = service.buildInput(state, route, state.companions, null, Map.of(), 1);
+        var runed = service.buildInput(state, route, state.companions, null, Map.of("rune_embers", 1), 1);
+        assertTrue(runed.party().get(0).atk > plain.party().get(0).atk * 1.11, "Rune of Embers: Fire +12% attack");
+        assertFalse(runed.supplies().containsKey("rune_embers"), "runes are not potions");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.launch(user, "mossroot_patrol", Map.of("rune_embers", 2), null, -1));
+        service.launch(user, "mossroot_patrol", Map.of("rune_embers", 1), null, -1);
+        assertEquals(1, store.state.inventory.get("rune_embers"));
+        clock.advance(Duration.ofMinutes(20));
+        service.collect(user, null, -1);
+        assertEquals(1, store.state.inventory.get("rune_embers"), "a carried rune does not come home");
+    }
+
+    @Test
+    void expeditionProfessionsShapeTheRoad() {
+        service.start(user, "cacty", "Ari", null);
+        ChroniclesState state = store.state;
+        ChroniclesContent.Route hollow = ChroniclesContent.ROUTES.get("cinder_hollow");
+        long base = service.buildInput(state, hollow, state.companions, null, Map.of(), 3).durationMs();
+        state.skillXp.put("pathfinding", ChroniclesContent.xpForLevel(50));
+        long faster = service.buildInput(state, hollow, state.companions, null, Map.of(), 3).durationMs();
+        assertEquals(Math.round(60 * 60_000L * 0.80), faster, "Pathfinding 50 cuts 20%");
+        assertTrue(faster < base);
+
+        state.rankXp = ChroniclesContent.xpForLevel(3);
+        state.skillXp.put("survival", ChroniclesContent.xpForLevel(40));
+        assertEquals(0.40, service.buildInput(state, hollow, state.companions, null, Map.of(), 3).knight().survivalCut(), 1e-9);
+
+        ChroniclesContent.Route crypt = ChroniclesContent.ROUTES.get("old_rootcrypt");
+        state.companions.get(0).level = 25;
+        var lost = ChroniclesCombat.simulate(service.buildInput(state, crypt, state.companions, null, Map.of(), 9));
+        assertEquals(crypt.encounters() + 1, lost.encountersTotal, "no woodcraft or map: the company gets lost");
+        state.skillXp.put("cartography", ChroniclesContent.xpForLevel(10));
+        var mapped = ChroniclesCombat.simulate(service.buildInput(state, crypt, state.companions, null, Map.of(), 9));
+        assertEquals(crypt.encounters(), mapped.encountersTotal, "Cartography 10 keeps the road");
+    }
+
+    @Test
+    void crossClassTechniquesNeedClassTactics() {
+        service.start(user, "sundile", "Ari", null);
+        ChroniclesState state = store.state;
+        ChroniclesState.Companion support = addCompanion(state, "emberfox", 1);
+        state.masteryXp.put("Guardian", ChroniclesContent.xpForLevel(20));
+        state.masteryXp.put("Support", ChroniclesContent.xpForLevel(20));
+        state.skillXp.put("command", ChroniclesContent.xpForLevel(5));
+        List<ChroniclesState.Companion> both = List.of(state.companions.get(0), support);
+        state.party = List.of(state.companions.get(0).id, support.id);
+        ChroniclesContent.Route route = ChroniclesContent.ROUTES.get("mossroot_patrol");
+        assertFalse(service.buildInput(state, route, both, null, Map.of(), 1).fieldNotes().stream()
+                .anyMatch(n -> n.contains("Sanctuary Formation")));
+        state.skillXp.put("class_tactics", ChroniclesContent.xpForLevel(10));
+        assertTrue(service.buildInput(state, route, both, null, Map.of(), 1).fieldNotes().stream()
+                .anyMatch(n -> n.contains("Sanctuary Formation")));
+    }
+
+    @Test
+    void husbandryRaisesTheDailyTreatCap() {
+        assertEquals(5, ChroniclesContent.treatCap(1));
+        assertEquals(6, ChroniclesContent.treatCap(10));
+        assertEquals(8, ChroniclesContent.treatCap(60));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

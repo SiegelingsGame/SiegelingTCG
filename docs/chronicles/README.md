@@ -35,7 +35,20 @@ home base.
 ## Systems in this version
 
 - **Siegeknight.** Rank 1–100, fed by a quarter of all knight XP; rank opens destinations. Weapon, armor and relic slots.
-- **Professions.** Nine, each 1–100: Mining, Woodcutting, Foraging, Fishing, Smithing, Alchemy, Cooking, Taming and Command. They form an unlock web: Woodcutting 5 → Fishing, Mining 5 → Smithing, Foraging 8 → Alchemy, Fishing 3 → Cooking. Command 3 and 10 open the second and third company slots, and Command 30 opens a reserve.
+- **Professions.** All 21 from the design, each 1–100, in an unlock web:
+  - Gathering: Mining; Woodcutting; Foraging; Fishing (Carpentry 3); Excavation (Mining 10).
+  - Production: Smelting (Mining 5); Smithing (Smelting 10); Carpentry (Woodcutting 5); Weaving (Foraging 10); Cooking (Fishing 3); Alchemy (Foraging 8); Runecrafting (Elemental Studies 10 + Smelting 5).
+  - Siegeling: Taming; Bonding (Taming 3); Husbandry (Bonding 10 + Cooking 5).
+  - Expedition: Pathfinding; Survival (Rank 3); Cartography (Pathfinding 5); Command.
+  - Knowledge: Elemental Studies (Rank 5); Class Tactics (Command 5).
+
+  A profession practised before its prerequisites moved stays open (Smithing used to follow Mining 5). A locked profession earns no XP and gives no effect.
+- **Profession effects.**
+  - Pathfinding shortens expeditions (up to 30%). Survival cuts hazard damage (up to 60%). Cartography improves finds; at 10 the company never gets lost, and at 25 it finds hidden rooms.
+  - Husbandry improves rest between battles and raises the daily treat cap. Bonding levels from bond earned and multiplies it.
+  - Elemental Studies boosts all affinity gains, and its idle "study" sessions turn essences into affinity. Class Tactics fills the command gauge faster; at 10 it enables cross-class techniques.
+  - Command 3 and 10 open the second and third company slots; Command 30 opens a reserve.
+- **New crafts.** Planks and Snare Crates (Carpentry). Linen, rope, the Linen and Ember Robes (Mage boosts) and the doc's Breezewoven Net (Weaving). The Guardian Harness. Runes (Runecrafting): one per expedition, spent on the road, strengthening its element or the whole company. Restoring Ancient Relics from relic shards. Excavation digs fossils, rune stones and relic shards.
 - **Elemental affinity.** All 12 elements are tracked with the design's milestone names. It grows from battles fought by Siegelings of that element, from exploring that element's land, from helper work, and from taming. Affinity 10 unlocks that element's Familiarity technique, prepared one at a time and active only when that element is in the company. Some recipes are gated on affinity, e.g. the Embersteel Lance needs Fire 20 plus Guardian Mastery 10.
 - **Class mastery.** Five paths, each giving a stat bonus to that class. Five cross-class techniques unlock at 20 in both classes when both are fielded.
 - **Weapon disciplines.** Six. The knight does not attack: a command gauge fires the weapon's command on a chosen trigger (as soon as ready, ally low, elites, or bosses), and the gauge carries between battles.
@@ -47,7 +60,6 @@ home base.
 
 ## Deferred (designed, not built yet)
 
-- The other 12 professions, among them Runecrafting, Weaving, Survival and Cartography.
 - Affinity milestones from 25 up (Resonance, Convergence) and cross-element combinations.
 - Tier II–IV regions.
 - Base buildings inside Chronicles; My Keep plays that role for now.
