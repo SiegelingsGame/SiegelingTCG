@@ -2807,7 +2807,24 @@
         if (state.guideDemo) return;
         let seen = '';
         try { seen = localStorage.getItem(TUTORIAL_KEY) || ''; } catch (error) { seen = ''; }
-        if (!seen) openKeepGuide(false);
+        if (seen) return;
+        // The seen flag used to be written only when the multi-step tour reached
+        // its end, so leaving the app mid-tour replayed it on every launch. It is
+        // marked as soon as the guide opens on its own; the ? button reopens it.
+        // A Keep already past its first steps never needs the welcome tour, which
+        // also covers a device whose storage was cleared.
+        try { localStorage.setItem(TUTORIAL_KEY, '1'); } catch (error) { /* private browsing */ }
+        if (keepIsEstablished(state.snapshot)) return;
+        openKeepGuide(false);
+    }
+
+    // True once the Keep has grown beyond a new founder's starting state.
+    function keepIsEstablished(snapshot) {
+        if (!snapshot) return false;
+        if (number(snapshot.keepRank && snapshot.keepRank.level) > 1) return true;
+        if (snapshot.enclave && snapshot.enclave.built) return true;
+        const complete = (snapshot.buildings || []).filter((b) => b && b.status === 'COMPLETE').length;
+        return complete > 2;
     }
 
     function openKeepGuide(manual) {
