@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Siegeknight Chronicles · Siegelings TCG</title>
+    <meta name="description" content="Siegeknight Chronicles: an idle RPG of professions, elemental affinity, class mastery and Siegeling bonds.">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="apple-mobile-web-app-title" content="Siegelings">
+    <meta name="application-name" content="Siegelings">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#070b14">
+    <link rel="stylesheet" href="/css/chronicles.css?v=1">
+    <!-- Sets --sg-vh before first paint; every fixed shell measures off it. -->
+    <script src="/js/viewport-unit.js?v=3"></script>
+</head>
+<body data-screen="loading">
+<div class="ck-shell" id="ckShell">
+    <header class="ck-top">
+        <a class="ck-back" href="/home" aria-label="Back to the hub">&lsaquo;</a>
+        <div class="ck-title">
+            <span class="ck-kicker">Siegeknight Chronicles</span>
+            <strong id="ckKnightName">Siegeknight</strong>
+        </div>
+        <div class="ck-rank" id="ckRank" hidden>
+            <span class="ck-rank-num" id="ckRankNum">1</span>
+            <span class="ck-rank-title" id="ckRankTitle">Siege Squire</span>
+            <span class="ck-bar"><i id="ckRankBar"></i></span>
+        </div>
+    </header>
+    <div class="ck-status" id="ckStatus" hidden></div>
+    <main class="ck-main" id="ckMain" tabindex="-1">
+        <div class="ck-loading">Opening your chronicle…</div>
+    </main>
+    <nav class="ck-tabs" id="ckTabs" hidden aria-label="Chronicles sections">
+        <button type="button" data-tab="knight"><span class="ck-tab-ico" aria-hidden="true">&#9819;</span>Knight</button>
+        <button type="button" data-tab="company"><span class="ck-tab-ico" aria-hidden="true">&#9670;</span>Company</button>
+        <button type="button" data-tab="work"><span class="ck-tab-ico" aria-hidden="true">&#9874;</span>Work</button>
+        <button type="button" data-tab="expedition"><span class="ck-tab-ico" aria-hidden="true">&#10148;</span>Expedition</button>
+        <button type="button" data-tab="wilds"><span class="ck-tab-ico" aria-hidden="true">&#10047;</span>Wilds<span class="ck-badge" id="ckWildsBadge" hidden></span></button>
+    </nav>
+</div>
+<div class="ck-modal" id="ckModal" hidden role="dialog" aria-modal="true" aria-labelledby="ckModalTitle">
+    <div class="ck-modal-card">
+        <div class="ck-modal-body" id="ckModalBody"></div>
+    </div>
+</div>
+<div class="ck-toasts" id="ckToasts" aria-live="polite"></div>
+<script src="/js/config.js?v=1"></script>
+<script src="/js/chronicles.js?v=1"></script>
+<script src="/js/sw-register.js?v=1"></script>
+</body>
+</html>

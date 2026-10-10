@@ -24,6 +24,32 @@ Original prompt: Update the HUD here see on portrait it doesn't fill the screeen
 - Verification:
   - Headless Chromium on the static server, with `/api/siege/run/active` mocked to one save and to two saves, at 390x844, 1920x1080 and 844x390. One save at 390x844: the plate runs from 145 to 766px, "Start a new run" ends at 830px of 844, and nothing scrolls (`scrollHeight` 844). The back link is 12px and 27px tall; Continue is 19px and 60px tall. Two saves on a phone stack without overlap, and on desktop they sit side by side. Screenshots were reviewed for each case.
 Original prompt: Merge and deploy
+- October 10, 2026 **New mode: Siegeknight Chronicles (`/chronicles`), an idle RPG of professions, elemental affinity, class mastery and individual Siegeling bonds.**
+  - **Change.** This is the playable first version of the "Siegeknight Chronicles" design. It is a standalone, server-authoritative mode in `com.sieglings.chronicles`. The save is one versioned JSON document in Firestore, `playerChronicles/{userId}`. My Keep is untouched; the Knight tab links to it as the home base. Canonical content comes from the RBX-matched seed table, exposed through the new read-only `service/CreatureRegistry`. That covers class, evolution links and stage, plus the RBX stat budget × class weights + element bias, the 10/25/50 level caps, the RBX synergy tiers (Ember/Inferno, Shield/Bastion…), and RBX wild behaviours in `resources/chronicles/rbx-behaviors.json`.
+    - **Professions.** Nine, with an unlock web: Woodcutting 5 → Fishing, Mining 5 → Smithing, Foraging 8 → Alchemy, Fishing 3 → Cooking. Command opens company slots at 3 and 10, and a reserve at 30.
+    - **Affinity and mastery.** All 12 elements are tracked; Affinity 10 unlocks a preparable technique. Five class masteries, with cross-class techniques at 20/20.
+    - **Weapons.** Six disciplines, with a command gauge and a chosen trigger.
+    - **Bonds.** Per individual Siegeling, 0–100. Bond 50 unlocks a class×element technique, e.g. Cinder Aegis and Rooted Resolve.
+    - **Expeditions.** Eleven routes: patrols, hunts, a resource haul, and two dungeons with hazards. They are simulated at launch from a seed, and the timeline is revealed only as time passes.
+    - **Taming.** Patient, lure or partner approaches, shaped by behaviour.
+    - **Evolution.** Keeps the individual's id and bond, and the class can change.
+    - **Idle.** Gathering and idle crafting with a 12h offline cap. A helper Siegeling speeds element-matched work. The away report opens only after 5+ minutes away.
+  - **Routes and hub.** `/chronicles` is added to `firebase.json` and `WebConfig`. The hub Play screen gets a fourth mode plate, and the desktop grid becomes `repeat(4)`. The Play tray gains a Chronicles row. `home-redesign.js` → `?v=77`, `home-redesign.css` → `?v=86`. The new page uses `chronicles.css?v=1` / `chronicles.js?v=1`. Design-to-code map and deferred scope: `docs/chronicles/README.md`.
+- Verification:
+  - New `ChroniclesServiceTest` (15 tests) covers:
+    - the starter oath and that a second start is a no-op;
+    - accrual and the 12h cap;
+    - the unlock web;
+    - idle crafting that stops when out of materials;
+    - forge gating, including the Embersteel Lance's affinity and mastery requirements;
+    - an expedition's hidden-then-revealed timeline and rewards;
+    - Command slots, RBX synergy names, taming (patient success and lure spend), evolution keeping the individual, the daily treat cap and favourite food, and helper speed with bond;
+    - stale versions and requestId idempotency, and rank-gated routes.
+  - New `ChroniclesBalanceTest` (3 tests, 200 seeds each) pins the curve: every starter usually clears its first patrol, under-levelled companies can't clear Cinder Hollow, prepared ones can, and the same seed replays the same expedition. The full `mvn -q test` run passes: 795 tests, 0 failures. `node --check` passes for `chronicles.js` and `home-redesign.js`.
+  - Headless Chromium at 390x844 and 1920x1080 against static files, with `/api/chronicles*` serving snapshots dumped from the real `ChroniclesService` (a scripted week-one save). Every screen was checked: the sign-in gate, the oath (4 starters, pick, swear in), the away report and its ack POST, Work (the live action bar advances), Knight, Company (an opened Siegeling shows its stats and bond technique), Expedition prepare (a trigger change POSTs), mid-road (9 of 17 timeline entries visible, 18m left), the return report (milestones listed inside it) and Wilds (4 sightings with odds).
+    - The document never scrolls (`scrollHeight == innerHeight`), only `.ck-main` does. No element extends past the viewport. The tab bar sits flush at the bottom. No page errors.
+    - The hub Play screen shows four plates at 390/1024/1920 with no horizontal overflow, and "Chronicles" fits its 232px plate at 1024. Screenshots reviewed.
+    - Art was not exercised: the dumped snapshots have no catalog art, so portraits used the element-tinted initial fallback. Signed-in Firestore persistence was not run locally, since accounts need real credentials; the store round-trip is covered by the tests' JSON-copying store.
 - October 10, 2026 **Siege: a full warband can swap a Siegeling or take a temporary ally at brokers, camps and events.**
   - **Change.** Before this, a full warband got rentals only at a Broker node, never saw a camp broker, and the "wanderer" event turned straight into an item. Now a full **Broker** node still stocks 2 recruits, which can only *Swap* in (🪙25, the Hire button is hidden), plus 2 mercenary rentals (🪙55). A camp broker can now appear for a full warband too. It offers a `BROKER_SWAP` recruit (🪙25), where tapping opens a "Send away:" picker that reuses `attachLearnerPicker` with the server reading `learnerId` as the leaver, plus one `MERC` temporary ally (🪙55) when no merc is under contract. When the event's `RECRUIT_CHANCE` meets a full warband, it opens the broker screen as a free **Wandering Siegeling** encounter (`SiegeRun.brokerEncounter`, serialized as `broker.encounter`). The player can swap it in for a member, take it as an "Ally for 1 battle", or press "Take Gift & Move On" to get the old parting item. Taking either option spends the other. Battlegrounds keep their gold windfall. The swap and merc logic is shared between the stall and the camp (`swapIntoWarband`, `contractMercenary`). Broker recruit lookups fall back to `findAnySiegling`, so a stage-2/3 wanderer resolves. `adventure.js` v125.
 - Verification:
