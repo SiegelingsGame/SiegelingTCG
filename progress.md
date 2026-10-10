@@ -1,4 +1,27 @@
 Original prompt: Go with earth based art for endless
+- October 10, 2026 **Chronicles: the Work tab is paged by profession, and the bottom tab bar no longer gets cut off.**
+  - **Change.**
+    - **Tab bar.** `chronicles.css` still had `html, body { height:100% }`. In the installed iOS app, and in Safari once its toolbar collapses, that is the short layout viewport, so the document clipped the shell and covered the bottom tabs. This is the same bug the Keep fixed in #1012's follow-up. `html`/`body` are now `max(100dvh, var(--sg-vh, 0px))` tall, and `.ck-shell` is `position:absolute` at that height, matching the hub's `.sg-app` and the Keep.
+    - **Work tab.** The old Work tab was one 11,300px list on a 390px phone. It is now laid out like Melvor and Degen Idle:
+      - A "now working" strip with live progress and Rest, visible on every page.
+      - A Gathering/Crafting switch, with a green dot on the type that holds the running task.
+      - A row of profession tabs (glyph, name, "Lv N" or "Locked").
+      - A header for the chosen profession: level, XP to the next level, and its current effect.
+      - A grid of task cells, each showing its required level and XP. The running cell is lit green with its live progress bar and "Working". Locked cells are dimmed with "Needs Mining 20".
+      - Gathering cells start the task when tapped. Crafting cells select the recipe in a detail panel above the grid, which keeps the old inputs and Make 1 / Make 5 / Work idly / Forge buttons. All 12 Elemental Studies now show as cells, instead of hiding the ones without essence.
+    - **Navigation.** The page opens on the running task's profession. The last page is remembered per viewer (`sieglingsChroniclesWorkSkill`), and the header's activity chip jumps straight to it.
+    - **Status dots.** `.ck-dot` now has an explicit width, so the dot shows in grid and absolute positions too.
+    - **Versions.** `chronicles.css` → `?v=7`, `chronicles.js` → `?v=8`.
+  - **Verification.**
+    - `node --check chronicles.js`.
+    - **Fixtures.** Dumped from the real `ChroniclesService`, including a new one with Smelting running. Headless Chromium at 390x844, 320x640 and 1920x1080:
+      - Gathering opens on Mining (Lv 14) with 5 cells, all showing their level, and only Iron Vein lit, with a live bar.
+      - Crafting opens on Smelting with Copper Bar lit and selected.
+      - Tapping Copper Vein posts `/activity {kind:gather,id:mine_copper}`, and Rest posts the stop.
+      - Switching to Crafting lands on Smelting. Tapping Copper Spear on Smithing moves both the detail panel and the outline to it, and Gathering returns to Mining.
+      - Work-tab scroll height on the phone went from 11,302px to 749px. There is no page or sideways scroll, and the tab bar ends at the viewport bottom.
+    - **Clipping.** With `--sg-vh` set 60px taller than the layout viewport, the old CSS left the tab bar at y 847–904 outside an 844px body (clipped). The new CSS keeps it inside a 904px body.
+    - **Other tabs.** All seven tabs and the signed-out gate render with no page errors at phone and desktop sizes.
 - October 10, 2026 **Chronicles starters: four elements, four classes.**
   - **Change.** The four Chronicles starters already had four elements, but three of them were Bruisers. `ChroniclesContent.CLASS_OVERRIDES` now gives them four different classes: Cacty (Earth Bruiser), Pursula (Wind Mage, like its evolution Purseus), Sundile (Fire Guardian) and Fawny (Ice Assassin, like its final form Frostag). Chilldoe also becomes an Assassin, so Fawny's line stays one class from start to finish. The overrides apply only inside Chronicles: `ChroniclesService.findCreature` / `allCreatures` wrap every `CreatureRegistry` lookup. The battle table's seed roles are unchanged, because they shape generated card stats and notches. Existing Pursula, Fawny and Chilldoe companions switch class straight away. Mastery XP they have already earned stays under Bruiser; new XP goes to their new class.
   - **Verification.**

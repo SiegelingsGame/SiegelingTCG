@@ -26,7 +26,14 @@
 
 * { box-sizing:border-box; }
 /* Blocks pinch/double-tap zoom: a stray zoom permanently clips the fixed shell (see CLAUDE.md). */
-html, body { margin:0; height:100%; overflow:hidden; touch-action:pan-x pan-y; background:var(--navy); }
+/* Not height:100%: that is the layout viewport, which an installed iOS web app (and
+   Safari once its toolbar collapses) leaves short of the glass, so the document clipped
+   the shell and the tab bar was cut off at the bottom. Same rule as the hub and the Keep:
+   --sg-vh (viewport-unit.js) wins only where dvh under-reports. */
+html, body {
+  margin:0; width:100%; height:var(--sg-vh, 100vh); height:max(100dvh, var(--sg-vh, 0px));
+  overflow:hidden; touch-action:pan-x pan-y; background:var(--navy);
+}
 body {
   color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.4;
   -webkit-font-smoothing:antialiased; -webkit-text-size-adjust:100%;
@@ -41,8 +48,12 @@ button:disabled { cursor:not-allowed; opacity:.45; }
 a { color:var(--gold-bright); }
 [hidden] { display:none !important; }
 
+/* Absolute against the full-height document like the hub's .sg-app: a box in flow (or
+   fixed) is sized by the short layout viewport and clipped there. */
 .ck-shell {
-  height:var(--sg-vh, 100dvh); display:flex; flex-direction:column; overflow:hidden;
+  position:absolute; top:0; left:0; right:0;
+  height:var(--sg-vh, 100vh); height:max(100dvh, var(--sg-vh, 0px));
+  display:flex; flex-direction:column; overflow:hidden;
   max-width:1100px; margin:0 auto;
   padding-left:var(--sal); padding-right:var(--sar);
 }
@@ -76,7 +87,8 @@ a { color:var(--gold-bright); }
 .ck-stat > span:not(.ck-dot):not(.ck-bar) { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex:1 1 auto; }
 .ck-stat .ck-bar { flex:0 0 46px; }
 .ck-stat b { flex:0 0 auto; color:var(--gold-bright); font-variant-numeric:tabular-nums; }
-.ck-dot { flex:0 0 8px; height:8px; border-radius:50%; background:var(--muted); opacity:.5; }
+/* Sized outright, not just by flex-basis: the dot also sits in grid cells and absolute corners. */
+.ck-dot { flex:0 0 8px; width:8px; height:8px; border-radius:50%; background:var(--muted); opacity:.5; }
 .ck-dot.is-on { background:var(--good); opacity:1; box-shadow:0 0 8px var(--good); }
 .ck-dot.is-ready { background:var(--gold-bright); opacity:1; box-shadow:0 0 8px var(--gold); }
 
@@ -250,15 +262,99 @@ p { margin:4px 0; }
 
 /* work */
 .ck-now { border-color:rgba(200,165,79,.35); }
-.ck-tasks { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; }
-.ck-task {
-  display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:10px; border-radius:12px; text-align:left;
-  border:1px solid var(--line); background:rgba(255,255,255,.03); min-height:44px;
-}
-.ck-task.is-on { border-color:var(--good); box-shadow:inset 0 0 0 1px var(--good); }
-.ck-recipes { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:8px; }
 .ck-recipe { padding:10px; border-radius:12px; border:1px solid var(--line); background:rgba(255,255,255,.03); min-width:0; }
 .ck-recipe.is-locked { opacity:.6; border-style:dashed; }
+
+/* work: one page per profession, Melvor-style cells */
+.ck-nowbar {
+  display:flex; align-items:center; gap:8px; padding:8px 8px 8px 12px; margin:0 0 10px;
+  border-radius:14px; border:1px solid rgba(95,208,138,.45);
+  background:linear-gradient(180deg, rgba(95,208,138,.1), rgba(15,23,38,.92));
+}
+.ck-nowbar.is-idle { border-color:var(--line); background:rgba(15,23,38,.8); padding:10px 12px; }
+.ck-nowbar-main {
+  flex:1 1 auto; min-width:0; display:grid; grid-template-columns:auto minmax(0, 1fr); align-items:center;
+  column-gap:8px; row-gap:6px; padding:0; border:0; background:none; text-align:left;
+}
+.ck-nowbar-main .ck-bar { grid-column:1 / -1; margin:0; }
+.ck-nowbar-text { min-width:0; display:flex; flex-direction:column; }
+.ck-nowbar-text b, .ck-nowbar-main .ck-nowbar-text .ck-small { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ck-nowbar .ck-btn { flex:0 0 auto; }
+
+.ck-worktype {
+  display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; margin:0 0 8px;
+  border-radius:12px; background:rgba(255,255,255,.04); border:1px solid var(--line);
+}
+.ck-type {
+  min-height:38px; border:0; border-radius:9px; background:none; color:var(--muted); font-weight:600; font-size:14px;
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+}
+.ck-type.is-on { background:var(--panel-2); color:var(--gold-bright); box-shadow:inset 0 0 0 1px rgba(200,165,79,.35); }
+
+/* Bleeds to the edges of .ck-main so a long row scrolls sideways under the gutter. */
+.ck-skillbar {
+  display:grid; grid-auto-flow:column; grid-auto-columns:minmax(78px, 1fr); gap:6px;
+  overflow-x:auto; overflow-y:hidden; overscroll-behavior-x:contain; scrollbar-width:none;
+  margin:0 -14px 10px; padding:2px 14px 4px; scroll-padding:0 14px;
+}
+.ck-skillbar::-webkit-scrollbar { display:none; }
+.ck-skilltab {
+  position:relative; display:flex; flex-direction:column; align-items:center; gap:2px; min-width:0; padding:8px 4px 6px;
+  border-radius:12px; border:1px solid var(--line); background:rgba(15,23,38,.8); color:var(--ink);
+}
+.ck-skilltab b { font-size:11px; font-weight:600; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ck-skilltab-lv { font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.ck-skilltab.is-on { border-color:color-mix(in srgb, var(--el) 70%, transparent); background:color-mix(in srgb, var(--el) 14%, var(--panel)); }
+.ck-skilltab.is-on .ck-skilltab-lv { color:var(--ink); }
+.ck-skilltab.is-locked { opacity:.55; }
+.ck-skilltab .ck-dot { position:absolute; top:6px; right:6px; }
+.ck-skill-ico {
+  width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-size:15px; line-height:1;
+  color:color-mix(in srgb, var(--el) 80%, white); background:color-mix(in srgb, var(--el) 20%, transparent);
+  border:1px solid color-mix(in srgb, var(--el) 45%, transparent);
+}
+.ck-skill-ico.is-lg { width:46px; height:46px; font-size:22px; flex:0 0 auto; }
+
+.ck-skillhead { display:flex; gap:12px; align-items:flex-start; padding:12px; border-color:color-mix(in srgb, var(--el) 35%, var(--line)); }
+.ck-skillhead-body { flex:1 1 auto; min-width:0; }
+.ck-skillhead h3 { margin:0; color:var(--ink); }
+.ck-lv { font-family:var(--serif); font-weight:700; color:var(--gold-bright); white-space:nowrap; }
+
+.ck-pick { padding:12px; border-color:color-mix(in srgb, var(--el) 35%, var(--line)); }
+.ck-pick .ck-recipe { padding:0; border:0; background:none; }
+.ck-pick .ck-recipe.is-locked { opacity:1; }
+
+.ck-cells { display:grid; grid-template-columns:repeat(auto-fill, minmax(104px, 1fr)); gap:8px; margin:0 0 12px; }
+.ck-cell {
+  position:relative; display:flex; flex-direction:column; align-items:center; gap:3px; min-width:0; padding:8px 8px 10px;
+  text-align:center; border-radius:14px; border:1px solid var(--line); color:var(--ink);
+  background:linear-gradient(180deg, var(--panel-2), var(--panel));
+}
+.ck-cell-top { align-self:stretch; display:flex; justify-content:space-between; align-items:center; gap:4px; font-size:10px; font-variant-numeric:tabular-nums; }
+.ck-cell-lv { padding:1px 6px; border-radius:999px; background:rgba(200,165,79,.16); color:var(--gold-bright); font-weight:700; white-space:nowrap; }
+.ck-cell-xp { color:var(--muted); white-space:nowrap; }
+.ck-cell-ico {
+  width:40px; height:40px; margin:2px 0; border-radius:12px; display:grid; place-items:center; font-size:21px; line-height:1;
+  color:color-mix(in srgb, var(--el) 80%, white);
+  background:radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--el) 30%, transparent), transparent 70%);
+}
+.ck-cell-name { font-size:13px; line-height:1.2; font-weight:600; overflow-wrap:anywhere; }
+.ck-cell-sub { font-size:11px; color:var(--muted); line-height:1.25; }
+.ck-cell-sub.is-ready { color:var(--gold-bright); }
+.ck-cell-state { font-size:11px; line-height:1.25; color:var(--muted); margin-top:auto; padding-top:2px; }
+.ck-cell-state.is-ready { color:var(--good); }
+.ck-cell-state.is-on { color:var(--good); font-weight:700; }
+.ck-cell-state.is-lock { color:var(--warn); }
+.ck-cell .ck-bar { align-self:stretch; margin:4px 0 0; }
+.ck-cell .ck-bar.is-live { height:6px; border-radius:3px; }
+.ck-cell .ck-bar.is-live > i { background:linear-gradient(90deg, #3fae6b, var(--good)); }
+.ck-cell.is-on {
+  border-color:var(--good); box-shadow:0 0 0 1px var(--good), 0 0 18px rgba(95,208,138,.25);
+  background:linear-gradient(180deg, rgba(95,208,138,.16), var(--panel));
+}
+.ck-cell.is-picked:not(.is-on) { border-color:color-mix(in srgb, var(--el) 75%, transparent); box-shadow:0 0 0 1px color-mix(in srgb, var(--el) 60%, transparent); }
+.ck-cell.is-locked { opacity:.55; }
+.ck-cell.is-locked .ck-cell-ico { filter:grayscale(1); }
 
 /* expedition */
 .ck-tactics { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); column-gap:14px; }
@@ -337,12 +433,14 @@ body.is-busy .ck-main { cursor:progress; }
 @media (max-width:420px) {
   .ck-rank { width:auto; grid-template-columns:auto; }
   .ck-rank-title, .ck-rank .ck-bar { display:none; }
-  .ck-roster, .ck-routes, .ck-recipes { grid-template-columns:1fr; }
+  .ck-roster, .ck-routes { grid-template-columns:1fr; }
   .ck-affinities { grid-template-columns:repeat(2, minmax(0, 1fr)); }
 }
 
 @media (min-width:900px) {
   .ck-main { padding:8px 20px 24px; }
+  .ck-skillbar { margin-left:-20px; margin-right:-20px; padding-left:20px; padding-right:20px; grid-auto-columns:minmax(96px, 1fr); }
+  .ck-cells { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); }
   .ck-top { padding-left:20px; padding-right:20px; }
   .ck-status { padding-left:20px; padding-right:20px; }
   .ck-starters { grid-template-columns:repeat(4, minmax(0, 1fr)); }

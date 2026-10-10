@@ -7,6 +7,7 @@
   var AUTH_TOKEN_KEY = 'sieglingsAuthToken';
   var COOKIE_SESSION_VALUE = 'cookie';
   var TAB_KEY = 'sieglingsChroniclesTab';
+  var WORK_KEY = 'sieglingsChroniclesWorkSkill';
   var apiBase = String((window.SIEGLINGS_CONFIG && window.SIEGLINGS_CONFIG.apiBaseUrl) || '').replace(/\/$/, '');
   var STORAGE_ART_PREFIX = 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/';
   var ART_THUMB_WIDTHS = [160, 240, 320, 480, 640, 960];
@@ -24,7 +25,11 @@
     guild: null,
     market: null,
     realmError: '',
-    openCompanion: ''
+    openCompanion: '',
+    workSkill: readPref(WORK_KEY),
+    workLast: {},
+    workSeeded: false,
+    recipePick: ''
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -40,6 +45,14 @@
 
   function readTab() {
     try { return localStorage.getItem(TAB_KEY) || 'work'; } catch (e) { return 'work'; }
+  }
+
+  function readPref(key) {
+    try { return localStorage.getItem(key) || ''; } catch (e) { return ''; }
+  }
+
+  function savePref(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) { /* per-viewer nicety only */ }
   }
 
   function saveTab(tab) {
@@ -375,7 +388,7 @@
     var s = state.snap;
     var parts = [];
     if (s.activity) {
-      parts.push('<button type="button" class="ck-stat" data-act="tab" data-tab="work"><span class="ck-dot is-on"></span>' +
+      parts.push('<button type="button" class="ck-stat" data-act="work-skill" data-id="' + esc(activeSkillId(s)) + '"><span class="ck-dot is-on"></span>' +
         '<span>' + esc(s.activity.name) + '</span><span class="ck-bar is-thin"><i data-live="activity"></i></span></button>');
     } else {
       parts.push('<button type="button" class="ck-stat" data-act="tab" data-tab="work"><span class="ck-dot"></span><span>Knight resting</span></button>');
@@ -719,47 +732,177 @@
       '</button>' + body + '</article>';
   }
 
-  // Work ───────────────────────────────────────────────────────────────────
+  // Work ─────────────────────────────────────────────────────────────────
+  // One page per profession, split by type (gathering or crafting), each a grid of
+  // task cells that show their level, with the running task lit and its progress live.
+
+  // Presentation only. The hues reuse the element palette rather than inventing one,
+  // and U+FE0E keeps iOS from swapping the symbols for colour emoji.
+  var SKILL_LOOK = {
+    mining: ['⛏︎', 'earth'], woodcutting: ['♣︎', 'wind'], foraging: ['❀', 'poison'],
+    fishing: ['≋', 'water'], excavation: ['⚱︎', 'metal'], smelting: ['▬', 'fire'],
+    smithing: ['⚒︎', 'metal'], carpentry: ['▤', 'earth'], weaving: ['✂︎', 'psychic'],
+    cooking: ['♨︎', 'fire'], alchemy: ['⚗︎', 'poison'], runecrafting: ['ᚱ', 'shadow'],
+    elemental_studies: ['✷', 'light']
+  };
+  var MAX_SKILL_LEVEL = 100;
+
+  function skillLook(id) { return SKILL_LOOK[id] || ['•', 'neutral']; }
+
+  function shortSkill(name) { return String(name || '').replace(/^Elemental Studies$/, 'Studies'); }
+
+  function workPages(s) {
+    var gathers = {}, crafts = {};
+    s.activities.forEach(function (x) { gathers[x.skillId] = 1; });
+    s.recipes.forEach(function (r) { crafts[r.skillId] = 1; });
+    return {
+      gather: s.skills.filter(function (k) { return gathers[k.id]; }),
+      craft: s.skills.filter(function (k) { return !gathers[k.id] && crafts[k.id]; })
+    };
+  }
+
+  function activeSkillId(s) {
+    var a = s.activity;
+    if (!a) return '';
+    var row = a.kind === 'craft' ? find(s.recipes, 'id', a.id) : find(s.activities, 'id', a.id);
+    return row ? row.skillId : '';
+  }
+
+  function currentWorkSkill(s, pages) {
+    var all = pages.gather.concat(pages.craft);
+    if (find(all, 'id', state.workSkill)) return state.workSkill;
+    return activeSkillId(s) || (all[0] ? all[0].id : '');
+  }
 
   function viewWork(s) {
+    // A visit opens on the running task so its lit cell is in view; the remembered page
+    // only decides where an idle knight lands.
+    if (!state.workSeeded) {
+      state.workSeeded = true;
+      if (activeSkillId(s)) state.workSkill = activeSkillId(s);
+    }
+    var pages = workPages(s);
+    var skillId = currentWorkSkill(s, pages);
+    var isCraft = Boolean(find(pages.craft, 'id', skillId));
+    var group = isCraft ? pages.craft : pages.gather;
+    var working = activeSkillId(s);
+    var k = find(s.skills, 'id', skillId);
+    return nowStrip(s, working) +
+      '<div class="ck-worktype" role="tablist" aria-label="Task type">' +
+        workTypeBtn('gather', 'Gathering', !isCraft, pages.gather, working) +
+        workTypeBtn('craft', 'Crafting', isCraft, pages.craft, working) +
+      '</div>' +
+      '<div class="ck-skillbar" aria-label="Professions">' + group.map(function (g) {
+        return skillTab(g, g.id === skillId, g.id === working);
+      }).join('') + '</div>' +
+      (k ? skillHead(k) : '') +
+      (isCraft ? craftPage(s, skillId) : gatherPage(s, skillId));
+  }
+
+  function nowStrip(s, working) {
     var a = s.activity;
-    var current = a
-      ? '<section class="ck-card ck-now"><p class="ck-kicker">Your knight is working</p><h2>' + esc(a.name) + '</h2>' +
-        '<p class="ck-small">' + esc(a.skill) + ' · ' + esc(a.output) + (a.place ? ' · ' + esc(a.place) : '') +
-        ' · one every ' + esc(Math.round(a.actionMs / 100) / 10) + 's' + (a.left != null ? ' · ' + esc(a.left) + ' more possible' : '') + '</p>' +
-        '<span class="ck-bar is-live"><i data-live="activity"></i></span>' +
-        '<p class="ck-small">' + (a.helper ? esc(a.helper) + ' is helping.' : 'Assign a helper Siegeling from the Company tab to work faster.') +
-        ' Keeps running offline for up to ' + esc(a.offlineCapHours) + 'h.</p>' +
-        '<div class="ck-actions"><button type="button" class="ck-btn" data-act="activity-stop">Rest</button></div></section>'
-      : '<section class="ck-card ck-now"><p class="ck-kicker">Your knight is resting</p><h2>Pick a task below</h2>' +
-        '<p class="ck-small">Gathering and idle crafting run while you are away (up to 12 hours).</p></section>';
-    var bySkill = {};
-    s.activities.forEach(function (x) { (bySkill[x.skill] = bySkill[x.skill] || []).push(x); });
-    var gather = Object.keys(bySkill).map(function (skill) {
-      return '<h4>' + esc(skill) + '</h4><div class="ck-tasks">' + bySkill[skill].map(function (x) {
-        var on = a && a.kind === 'gather' && a.id === x.id;
-        return '<button type="button" class="ck-task' + (on ? ' is-on' : '') + '" data-act="activity" data-kind="gather" data-id="' + esc(x.id) + '"' +
-          (x.unlocked ? '' : ' disabled') + '><b>' + esc(x.name) + '</b><span class="ck-small">' + esc(x.output) + ' · ' + esc(x.seconds) + 's · +' + esc(x.xp) + 'xp</span>' +
-          (x.bonus ? '<span class="ck-small">+ ' + esc(x.bonus) + '</span>' : '') +
-          '<span class="ck-small ck-muted">' + (x.unlocked ? 'Helpers: ' + esc(x.helpers.join(', ')) : 'Needs ' + esc(x.lockText)) + '</span></button>';
+    if (!a) {
+      return '<div class="ck-nowbar is-idle"><span class="ck-dot"></span><span class="ck-nowbar-text"><b>Your knight is resting.</b>' +
+        '<span class="ck-small ck-muted">Tap a task to start. Work keeps running while you are away (up to 12h).</span></span></div>';
+    }
+    var detail = [a.skill, a.output + ' every ' + (Math.round(a.actionMs / 100) / 10) + 's'];
+    if (a.left != null) detail.push(a.left + ' more possible');
+    detail.push(a.helper ? a.helper + ' helping' : 'no helper yet');
+    return '<div class="ck-nowbar">' +
+      '<button type="button" class="ck-nowbar-main" data-act="work-skill" data-id="' + esc(working) + '">' +
+        '<span class="ck-dot is-on"></span><span class="ck-nowbar-text"><b>' + esc(a.name) + '</b>' +
+        '<span class="ck-small ck-muted">' + esc(detail.join(' · ')) + '</span></span>' +
+        '<span class="ck-bar is-live"><i data-live="activity"></i></span></button>' +
+      '<button type="button" class="ck-btn is-sm" data-act="activity-stop">Rest</button></div>';
+  }
+
+  function workTypeBtn(kind, label, on, list, working) {
+    var busy = working && find(list, 'id', working);
+    return '<button type="button" role="tab" aria-selected="' + on + '" class="ck-type' + (on ? ' is-on' : '') +
+      '" data-act="work-type" data-id="' + kind + '">' + esc(label) + (busy ? '<span class="ck-dot is-on"></span>' : '') + '</button>';
+  }
+
+  function skillTab(k, on, busy) {
+    var look = skillLook(k.id);
+    return '<button type="button" class="ck-skilltab' + (on ? ' is-on' : '') + (k.unlocked ? '' : ' is-locked') +
+      '" data-act="work-skill" data-id="' + esc(k.id) + '" style="--el:var(--' + look[1] + ')"' + (on ? ' aria-current="page"' : '') + '>' +
+      '<span class="ck-skill-ico" aria-hidden="true">' + look[0] + '</span>' +
+      '<b>' + esc(shortSkill(k.name)) + '</b>' +
+      '<span class="ck-skilltab-lv">' + (k.unlocked ? 'Lv ' + esc(k.level) : 'Locked') + '</span>' +
+      (busy ? '<span class="ck-dot is-on" title="Working here"></span>' : '') +
+    '</button>';
+  }
+
+  function skillHead(k) {
+    var look = skillLook(k.id);
+    var maxed = k.level >= MAX_SKILL_LEVEL;
+    return '<section class="ck-card ck-skillhead" style="--el:var(--' + look[1] + ')">' +
+      '<span class="ck-skill-ico is-lg" aria-hidden="true">' + look[0] + '</span>' +
+      '<div class="ck-skillhead-body">' +
+        '<div class="ck-row"><h3>' + esc(k.name) + '</h3><span class="ck-lv">' + (k.unlocked ? 'Level ' + esc(k.level) : 'Locked') + '</span></div>' +
+        (k.unlocked
+          ? (maxed ? bar(1, 1, 'is-max') : bar(k.xpInto, k.xpSpan, 'is-el')) +
+            '<span class="ck-small ck-muted">' + (maxed ? 'Grandmaster' : esc(k.xpInto) + ' / ' + esc(k.xpSpan) + ' XP to level ' + esc(k.level + 1)) + '</span>'
+          : '<span class="ck-small ck-warn">Needs ' + esc(k.unlockText.join(', ')) + '</span>') +
+        '<span class="ck-small' + (k.unlocked && k.effect ? ' is-ready' : ' ck-muted') + '">' + esc(k.unlocked && k.effect ? k.effect : k.blurb) + '</span>' +
+      '</div></section>';
+  }
+
+  function gatherPage(s, skillId) {
+    var a = s.activity;
+    var look = skillLook(skillId);
+    var rows = s.activities.filter(function (x) { return x.skillId === skillId; });
+    return '<div class="ck-cells" style="--el:var(--' + look[1] + ')">' + rows.map(function (x) {
+      var on = Boolean(a && a.kind === 'gather' && a.id === x.id);
+      // The running task's cell is inert: re-picking it would restart the action timer.
+      var act = on ? '' : ' data-act="activity" data-kind="gather" data-id="' + esc(x.id) + '"';
+      return '<button type="button" class="ck-cell' + (on ? ' is-on' : '') + (x.unlocked ? '' : ' is-locked') + '"' + act +
+        (on ? ' aria-current="true"' : '') + (x.unlocked ? '' : ' disabled') +
+        ' title="' + esc(x.place + (x.helpers.length ? ' · Helpers: ' + x.helpers.join(', ') : '')) + '">' +
+        cellTop(x.level, x.xp) +
+        '<span class="ck-cell-ico" aria-hidden="true">' + look[0] + '</span>' +
+        '<b class="ck-cell-name">' + esc(x.name) + '</b>' +
+        '<span class="ck-cell-sub">' + esc(x.output) + ' · ' + esc(x.seconds) + 's</span>' +
+        (x.bonus ? '<span class="ck-cell-sub is-ready">+ ' + esc(x.bonus) + '</span>' : '') +
+        (on ? cellLive() : x.unlocked ? '' : '<span class="ck-cell-state is-lock">Needs ' + esc(x.lockText) + '</span>') +
+      '</button>';
+    }).join('') + '</div>';
+  }
+
+  function craftPage(s, skillId) {
+    var a = s.activity;
+    var look = skillLook(skillId);
+    var rows = s.recipes.filter(function (r) { return r.skillId === skillId; });
+    var running = a && a.kind === 'craft' ? find(rows, 'id', a.id) : null;
+    var pick = find(rows, 'id', state.recipePick) || running ||
+      rows.filter(function (r) { return r.unlocked && (r.canMake > 0 || r.owned); })[0] ||
+      rows.filter(function (r) { return r.unlocked; })[0] || rows[0];
+    return (pick ? '<section class="ck-card ck-pick" style="--el:var(--' + look[1] + ')">' + recipeRow(pick, a) + '</section>' : '') +
+      '<div class="ck-cells" style="--el:var(--' + look[1] + ')">' + rows.map(function (r) {
+        var on = Boolean(a && a.kind === 'craft' && a.id === r.id);
+        var status;
+        if (!r.unlocked) status = '<span class="ck-cell-state is-lock">Needs ' + esc(r.missing[0] || '') + '</span>';
+        else if (!r.repeatable && r.owned) status = '<span class="ck-cell-state is-ready">Owned</span>';
+        else if (r.canMake > 0) status = '<span class="ck-cell-state is-ready">' + (r.repeatable ? 'Can make ' + esc(r.canMake) : 'Ready to forge') + '</span>';
+        else status = '<span class="ck-cell-state">Needs materials</span>';
+        return '<button type="button" class="ck-cell' + (on ? ' is-on' : '') + (r.unlocked ? '' : ' is-locked') +
+          (pick && pick.id === r.id ? ' is-picked' : '') + '" data-act="recipe-pick" data-id="' + esc(r.id) + '"' +
+          (pick && pick.id === r.id ? ' aria-pressed="true"' : ' aria-pressed="false"') + '>' +
+          cellTop(r.level, r.xp) +
+          '<span class="ck-cell-ico" aria-hidden="true">' + look[0] + '</span>' +
+          '<b class="ck-cell-name">' + esc(r.output.name) + '</b>' +
+          '<span class="ck-cell-sub">' + (r.repeatable ? esc(r.seconds) + 's each' : 'Forged once') + '</span>' +
+          (on ? cellLive() : status) +
+        '</button>';
       }).join('') + '</div>';
-    }).join('');
-    var recipesBySkill = {};
-    var hiddenStudies = 0;
-    s.recipes.forEach(function (r) {
-      // Twelve study rows would bury the list; show the essences the knight actually holds.
-      if (r.kind === 'STUDY' && !(r.inputs[0] && r.inputs[0].have > 0) && !(a && a.id === r.id)) { hiddenStudies++; return; }
-      (recipesBySkill[r.skill] = recipesBySkill[r.skill] || []).push(r);
-    });
-    var crafts = Object.keys(recipesBySkill).map(function (skill) {
-      return '<h4>' + esc(skill) + '</h4><div class="ck-recipes">' + recipesBySkill[skill].map(function (r) { return recipeRow(r, a); }).join('') + '</div>';
-    }).join('');
-    return current +
-      '<section class="ck-card"><h3>Gathering</h3>' + gather + '</section>' +
-      '<section class="ck-card"><h3>Crafting</h3><p class="ck-muted">Bars, potions, lures and meals can be worked idly. ' +
-        'Gear is forged once.</p>' + crafts +
-      (hiddenStudies ? '<p class="ck-small ck-muted">Elemental Studies: collect other elements&#39; essences from battles to study them too.</p>' : '') +
-      '</section>';
+  }
+
+  function cellTop(level, xp) {
+    return '<span class="ck-cell-top"><span class="ck-cell-lv">Lv ' + esc(level) + '</span><span class="ck-cell-xp">' + esc(xp) + ' xp</span></span>';
+  }
+
+  function cellLive() {
+    return '<span class="ck-bar is-live"><i data-live="activity"></i></span><span class="ck-cell-state is-on">Working</span>';
   }
 
   function recipeRow(r, a) {
@@ -768,10 +911,10 @@
       return '<span class="' + (i.have >= i.qty ? '' : 'is-short') + '">' + esc(i.qty) + ' ' + esc(i.name) + ' (' + esc(i.have) + ')</span>';
     }).join(', ');
     var buttons;
-    if (!r.unlocked) buttons = '<span class="ck-small ck-muted">Needs ' + esc(r.missing.join(', ')) + '</span>';
+    if (!r.unlocked) buttons = '<span class="ck-small ck-warn">Needs ' + esc(r.missing.join(', ')) + '</span>';
     else if (r.repeatable) {
       buttons = '<button type="button" class="ck-pill' + (on ? ' is-on' : '') + '" data-act="activity" data-kind="craft" data-id="' + esc(r.id) + '"' +
-        (r.canMake > 0 ? '' : ' disabled') + '>' + (on ? 'Working' : 'Work idly') + '</button>' +
+        (r.canMake > 0 && !on ? '' : ' disabled') + '>' + (on ? 'Working' : 'Work idly') + '</button>' +
         '<button type="button" class="ck-pill" data-act="craft" data-id="' + esc(r.id) + '" data-qty="1"' + (r.canMake > 0 ? '' : ' disabled') + '>' +
           (r.kind === 'STUDY' ? 'Study 1' : 'Make 1') + '</button>' +
         (r.canMake >= 5 ? '<button type="button" class="ck-pill" data-act="craft" data-id="' + esc(r.id) + '" data-qty="5">' +
@@ -1015,6 +1158,25 @@
         break;
       }
       case 'activity': act('/api/chronicles/activity', { kind: d.kind, id: d.id }); break;
+      case 'work-skill': openWorkSkill(d.id); break;
+      case 'work-type': {
+        var pages = workPages(state.snap);
+        var list = d.id === 'craft' ? pages.craft : pages.gather;
+        var working = activeSkillId(state.snap);
+        var dest = (find(list, 'id', working) && working) || (find(list, 'id', state.workLast[d.id]) && state.workLast[d.id]) ||
+          (list[0] && list[0].id);
+        if (dest) openWorkSkill(dest);
+        break;
+      }
+      case 'recipe-pick': {
+        state.recipePick = d.id;
+        render();
+        // The detail panel sits above the grid; bring it back into view when picked from far down.
+        var pick = main.querySelector('.ck-pick');
+        var gap = pick ? pick.getBoundingClientRect().top - main.getBoundingClientRect().top : 0;
+        if (gap < 0) main.scrollTop = Math.max(0, main.scrollTop + gap - 8);
+        break;
+      }
       case 'activity-stop': act('/api/chronicles/activity', { kind: '', id: '' }); break;
       case 'craft': act('/api/chronicles/craft', { recipeId: d.id, quantity: Number(d.qty) || 1 }); break;
       case 'comp-toggle': state.openCompanion = state.openCompanion === d.id ? '' : d.id; render(); break;
@@ -1089,6 +1251,18 @@
       reserve = d.id;
     }
     act('/api/chronicles/party', { members: members, reserveId: reserve });
+  }
+
+  function openWorkSkill(id) {
+    if (!id) { switchTab('work'); return; }
+    var pages = workPages(state.snap);
+    state.workLast[find(pages.craft, 'id', id) ? 'craft' : 'gather'] = id;
+    state.workSkill = id;
+    state.recipePick = '';
+    savePref(WORK_KEY, id);
+    if (state.tab !== 'work') { switchTab('work'); return; }
+    main.scrollTop = 0;
+    render();
   }
 
   function switchTab(tab) {

@@ -36,6 +36,7 @@ home base.
 ## Systems in this version
 
 - **Siegeknight.** Rank 1–100, fed by a quarter of all knight XP; rank opens destinations. Weapon, armor and relic slots.
+- **Work screen.** It is laid out like Melvor: one page per profession. A Gathering/Crafting switch picks the type, a row of profession tabs shows each level, and each page is a grid of task cells. A cell shows its required level and XP. The running task's cell is lit and shows live progress, and a strip at the top shows it on every page, with Rest. On crafting pages, tapping a cell selects it in a detail panel with its inputs and Make/Work idly/Forge buttons. The profession glyphs and hues are presentation only (`SKILL_LOOK` in `chronicles.js`).
 - **Professions.** All 21 from the design, each 1–100, in an unlock web:
   - Gathering: Mining; Woodcutting; Foraging; Fishing (Carpentry 3); Excavation (Mining 10).
   - Production: Smelting (Mining 5); Smithing (Smelting 10); Carpentry (Woodcutting 5); Weaving (Foraging 10); Cooking (Fishing 3); Alchemy (Foraging 8); Runecrafting (Elemental Studies 10 + Smelting 5).
