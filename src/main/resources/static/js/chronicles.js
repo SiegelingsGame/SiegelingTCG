@@ -21,6 +21,9 @@
     oathPick: '',
     supplies: {},
     rune: '',
+    guild: null,
+    market: null,
+    realmError: '',
     openCompanion: ''
   };
 
@@ -362,7 +365,7 @@
     renderStatus();
     var scroll = main.scrollTop;
     var view = { knight: viewKnight, company: viewCompany, work: viewWork, expedition: viewExpedition, wilds: viewWilds,
-      base: viewBase }[state.tab] || viewWork;
+      base: viewBase, realm: viewRealm }[state.tab] || viewWork;
     main.innerHTML = view(s);
     main.scrollTop = scroll;
     tick();
@@ -530,6 +533,96 @@
       }).join('') +
       '<section class="ck-card"><h3>My Keep</h3><p class="ck-muted">Your Keep is your stronghold beyond the expedition road. ' +
         'Its rooms and residents live in My Keep.</p><a class="ck-btn" href="/keep">Visit your Keep</a></section>';
+  }
+
+  // Realm ──────────────────────────────────────────────────────────────────
+
+  function loadRealm() {
+    return Promise.all([api('/api/chronicles/guild'), api('/api/chronicles/market')]).then(function (res) {
+      state.guild = res[0].error ? null : res[0];
+      state.market = res[1].error ? null : res[1];
+      state.realmError = res[0].error || res[1].error || '';
+      ((state.market && state.market.events) || []).forEach(function (e) { toast(e, 'good'); });
+      if (state.tab === 'realm') render();
+    });
+  }
+
+  function realmAct(path, body) {
+    return act(path, body, function () { loadRealm(); });
+  }
+
+  function viewRealm(s) {
+    var head = '<section class="ck-card ck-now"><div class="ck-row"><div><p class="ck-kicker">The realm</p><h2>Guilds and the marketplace</h2></div>' +
+      '<span class="ck-crowns" title="Crowns">&#9819; ' + esc(s.knight.crowns) + '</span></div>' +
+      '<p class="ck-small ck-muted">Crowns are earned in battle and spent at the marketplace. They are Chronicles\' own coin, apart from Siegecoins.</p></section>';
+    if (!state.guild && !state.market) {
+      return head + '<section class="ck-card"><p class="ck-muted">' + esc(state.realmError || 'Gathering news from the realm…') + '</p></section>';
+    }
+    return head + guildSection(s) + marketSection(s);
+  }
+
+  function guildSection(s) {
+    var v = state.guild;
+    if (!v) return '<section class="ck-card"><h3>Guild</h3><p class="ck-muted">The guild hall is unreachable right now.</p></section>';
+    if (!v.guild) {
+      return '<section class="ck-card"><h3>Guild</h3>' + (v.notice ? '<p class="ck-warn">' + esc(v.notice) + '</p>' : '') +
+        '<p class="ck-muted">Siegeknights join forces in guilds to break a great threat each week.</p>' +
+        '<label class="ck-field"><span>Join with a code</span><input id="ckGuildCode" maxlength="6" autocomplete="off" placeholder="ABC123"></label>' +
+        '<div class="ck-actions"><button type="button" class="ck-btn" data-act="guild-join">Join guild</button></div>' +
+        '<label class="ck-field"><span>Or found your own</span><input id="ckGuildName" maxlength="24" autocomplete="off" placeholder="Guild name"></label>' +
+        '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="guild-create"' + (v.canFound ? '' : ' disabled') + '>Found a guild</button>' +
+        (v.canFound ? '' : '<span class="ck-small ck-muted">Needs Siegeknight Rank ' + esc(v.rankNeeded) + '</span>') + '</div></section>';
+    }
+    var g = v.guild;
+    var op = g.operation;
+    var busy = Boolean(s.expedition);
+    return '<section class="ck-card"><div class="ck-row"><h3>' + esc(g.name) + '</h3><span class="ck-chip">Code ' + esc(g.code) + '</span></div>' +
+        '<p class="ck-small ck-muted">' + esc(g.members.length) + '/' + esc(g.maxMembers) + ' knights · led by ' + esc(g.leader) + '</p>' +
+        '<ul class="ck-members">' + g.members.map(function (m) {
+          return '<li class="' + (m.you ? 'is-you' : '') + '"><span>' + esc(m.name) + ' <span class="ck-small ck-muted">Rank ' + esc(m.rank) + '</span></span><b>' + esc(m.contribution) + '</b></li>';
+        }).join('') + '</ul></section>' +
+      '<section class="ck-card ck-operation" style="--el:var(--' + elKey(op.element) + ')"><p class="ck-kicker">Siege Operation · ' + esc(op.week) + '</p>' +
+        '<h2>' + elementIcon(op.element, 20) + ' ' + esc(op.threat) + '</h2><p class="ck-small">' + esc(op.blurb) + '</p>' +
+        '<span class="ck-bar is-live is-el"><i style="width:' + pct(op.damage, op.maxHp) + '%"></i></span>' +
+        '<p class="ck-small">' + esc(op.damage) + ' / ' + esc(op.maxHp) + ' broken · your companies: ' + esc(op.yours) + '</p>' +
+        (op.won
+          ? '<p class="ck-good">The threat is broken!</p>' + (op.canClaim ? '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="guild-claim">Claim your share</button></div>' : '')
+          : '<div class="ck-fronts">' + v.fronts.map(function (f) {
+              return '<div class="ck-front"><b>' + esc(f.name) + '</b><span class="ck-small">' + esc(f.text) + '</span>' +
+                '<button type="button" class="ck-btn is-sm" data-act="operation" data-id="' + esc(f.id) + '"' + (busy ? ' disabled' : '') + '>Send company</button></div>';
+            }).join('') + '</div>' +
+            '<p class="ck-small ck-muted">Sorties take ' + esc(60) + ' minutes and meet your company at level ' + esc(op.companyLevel) + '.' +
+            (busy ? ' Your company is already on the road.' : '') + '</p>') +
+        '<h4>Siege defenses · level ' + esc(g.defenseLevel) + '</h4>' +
+        '<p class="ck-small">' + esc(g.defensePoints) + (g.nextDefenseAt ? ' / ' + esc(g.nextDefenseAt) + ' points to the next level' : ' points: complete') +
+          '. Each level adds 10% to every sortie.</p>' +
+        '<div class="ck-donate"><select id="ckDonateItem">' + v.donations.map(function (d) {
+          return '<option value="' + esc(d.id) + '"' + (d.have ? '' : ' disabled') + '>' + esc(d.name) + ' (' + esc(d.have) + ') · ' + esc(d.points) + ' pts</option>';
+        }).join('') + '</select><input id="ckDonateQty" type="number" min="1" value="1" inputmode="numeric">' +
+        '<button type="button" class="ck-btn is-sm" data-act="guild-donate">Donate</button></div>' +
+        '<div class="ck-actions"><button type="button" class="ck-link" data-act="guild-leave">Leave guild</button></div></section>';
+  }
+
+  function marketSection(s) {
+    var m = state.market;
+    if (!m) return '<section class="ck-card"><h3>Marketplace</h3><p class="ck-muted">The marketplace is closed right now.</p></section>';
+    var others = m.listings.filter(function (l) { return !l.mine; });
+    return '<section class="ck-card"><h3>Marketplace</h3><p class="ck-small ck-muted">Trade materials, consumables and gear. ' +
+        'Siegelings are never for sale. Sellers pay a ' + Math.round(m.fee * 100) + '% fee.</p>' +
+        (others.length ? '<div class="ck-listings">' + others.map(function (l) {
+          return '<div class="ck-listing"><div><b>' + esc(l.item.qty) + '× ' + esc(l.item.name) + '</b><span class="ck-small ck-muted">' + esc(l.seller) + '</span></div>' +
+            '<button type="button" class="ck-btn is-sm' + (l.affordable ? ' is-primary' : '') + '" data-act="market-buy" data-id="' + esc(l.id) + '"' +
+            (l.affordable ? '' : ' disabled') + '>&#9819; ' + esc(l.price) + '</button></div>';
+        }).join('') + '</div>' : '<p class="ck-small ck-muted">Nothing for sale right now.</p>') +
+        '<h4>Sell</h4>' + (m.sellable.length ? '<div class="ck-sell"><select id="ckSellItem">' + m.sellable.map(function (i) {
+          return '<option value="' + esc(i.id) + '">' + esc(i.name) + ' (' + esc(i.qty) + ')</option>';
+        }).join('') + '</select><input id="ckSellQty" type="number" min="1" value="1" inputmode="numeric" aria-label="Quantity">' +
+        '<input id="ckSellPrice" type="number" min="1" value="10" inputmode="numeric" aria-label="Price in crowns">' +
+        '<button type="button" class="ck-btn is-sm" data-act="market-list">List</button></div>' : '<p class="ck-small ck-muted">Nothing to sell yet.</p>') +
+        (m.mine.length ? '<h4>Your listings</h4><div class="ck-listings">' + m.mine.map(function (l) {
+          return '<div class="ck-listing"><div><b>' + esc(l.item.qty) + '× ' + esc(l.item.name) + '</b><span class="ck-small ck-muted">&#9819; ' + esc(l.price) + ' · ' + esc(l.status) + '</span></div>' +
+            (l.status === 'open' ? '<button type="button" class="ck-btn is-sm" data-act="market-cancel" data-id="' + esc(l.id) + '">Cancel</button>' : '') + '</div>';
+        }).join('') + '</div>' : '') + '</section>';
   }
 
   // Company ────────────────────────────────────────────────────────────────
@@ -905,6 +998,16 @@
       case 'affinity': showAffinity(d.id); break;
       case 'build': act('/api/chronicles/build', { buildingId: d.id }); break;
       case 'trial': act('/api/chronicles/trial/start', { companionId: d.id }, function () { switchTab('expedition'); }); break;
+      case 'guild-join': realmAct('/api/chronicles/guild/join', { code: ($('ckGuildCode') || {}).value || '' }); break;
+      case 'guild-create': realmAct('/api/chronicles/guild/create', { name: ($('ckGuildName') || {}).value || '' }); break;
+      case 'guild-leave': if (window.confirm('Leave your guild?')) realmAct('/api/chronicles/guild/leave', {}); break;
+      case 'guild-claim': realmAct('/api/chronicles/guild/claim', {}); break;
+      case 'guild-donate': realmAct('/api/chronicles/guild/donate', { itemId: ($('ckDonateItem') || {}).value, quantity: Number(($('ckDonateQty') || {}).value) || 1 }); break;
+      case 'operation': act('/api/chronicles/expedition/launch', { routeId: 'operation:' + d.id, supplies: {} }, function () { switchTab('expedition'); }); break;
+      case 'market-buy': realmAct('/api/chronicles/market/buy', { listingId: d.id }); break;
+      case 'market-cancel': realmAct('/api/chronicles/market/cancel', { listingId: d.id }); break;
+      case 'market-list': realmAct('/api/chronicles/market/list', { itemId: ($('ckSellItem') || {}).value,
+        quantity: Number(($('ckSellQty') || {}).value) || 1, price: Number(($('ckSellPrice') || {}).value) || 0 }); break;
       case 'loadout-apply': act('/api/chronicles/loadout/apply', { slot: Number(d.slot) }); break;
       case 'loadout-save': {
         var plan = window.prompt('Name this loadout:', '');
@@ -993,6 +1096,7 @@
     saveTab(tab);
     main.scrollTop = 0;
     render();
+    if (tab === 'realm') loadRealm();
   }
 
   document.addEventListener('keydown', function (ev) {
@@ -1004,7 +1108,7 @@
   });
 
   setInterval(tick, 1000);
-  load();
+  load().then(function () { if (state.tab === 'realm' && state.snap) loadRealm(); });
 
   // Test hook: headless checks inject a snapshot without a server.
   window.__ckAccept = accept;

@@ -14,6 +14,7 @@ home base.
 | Content and balance (professions, unlock web, activities, recipes, items, weapons, techniques, synergies, routes) | `src/main/java/com/sieglings/chronicles/ChroniclesContent.java` |
 | Save shape (one JSON doc, epoch-millis times) | `ChroniclesState.java` |
 | Firestore store, `playerChronicles/{userId}` (override with `app.user-data.collection-chronicles`) | `ChroniclesStore.java` |
+| Guilds and marketplace (`chroniclesGuilds`, `chroniclesMarket`; every write a transaction) | `ChroniclesRealm.java`, `ChroniclesRealmStore.java` |
 | Expedition simulator (seeded and deterministic) | `ChroniclesCombat.java` |
 | Rules, settle-on-read, snapshot | `ChroniclesService.java` |
 | REST API, `/api/chronicles/**` | `ChroniclesController.java` |
@@ -73,6 +74,11 @@ home base.
 - **Taming.** Hunts spot wild Siegelings, and each trail lasts 48h. There are three approaches: patient (uses Taming skill), lure (crafted, element-matched lures work best), and partner (a same-element Siegeling at Bond 10+). Odds shift by the RBX behaviour.
 - **Evolution.** Requires the level cap plus essences, and an Ancient Relic for final forms. It keeps the individual's id, bond and history, and the class can change.
 - **Idle.** One knight activity (gathering or repeatable crafting) runs alongside one company expedition. Offline accrual is capped at 12h, and a helper Siegeling speeds a matching activity and earns bond. A "While you were away" report opens only after a real absence (5+ minutes).
+- **The realm (multiplayer).**
+  - **Crowns.** Chronicles' own coin, deliberately separate from Siegecoins, earned at 2 per enemy level in won battles.
+  - **Guilds.** Rank 10 to found, joined by a 6-character code, up to 20 knights. Members donate bars, planks, rope, tonics, rune stones and relics to raise siege defenses (5 levels, +10% to every sortie each).
+  - **Siege Operations.** A new threat each ISO week, rotating through six. Its health scales with members (at least three) × 150 × average rank, so about a sortie a day per knight breaks it at any stage. Members send their company on one of three fronts: Assault (Bruisers and Mages), Supply Line (Guardians and Supports) or Scouting (Assassins and Wind), at its own size and level. Favoured Siegelings add +25% each, up to +75%. When the threat breaks, every contributor claims 500 crowns, 2 Ancient Relics and 10 of its essence, once.
+  - **Marketplace.** List tradeable items (never Siegelings; worn gear keeps one), held in escrow. Buyers pay crowns; sellers collect the price less 5% on their next visit. Up to 10 open listings each, and cancelling returns the goods.
 - **Full equipment.** The design's six slots: weapon, armor, relic, helmet, boots and accessory.
   - Helmets add hazard armor (the Stormglass Visor also wards storms).
   - Boots shorten the road (Galeweave Boots also quicken the company; Tidewalker Boots ward tides).
@@ -93,7 +99,6 @@ home base.
 
 ## Deferred (designed, not built yet)
 
-- Guilds, Siege Operations, and a marketplace.
 
 Balance numbers are first-pass. `ChroniclesBalanceTest` pins the curve:
 - every starter usually clears the first patrol;

@@ -153,6 +153,70 @@ public class ChroniclesController {
         return respond(auth, user -> service.startTrial(user, string(body, "companionId"), string(body, "requestId"), version(body)));
     }
 
+    @GetMapping("/api/chronicles/guild")
+    public ResponseEntity<Map<String, Object>> guild(@RequestHeader(value = "Authorization", required = false) String auth) {
+        return respond(auth, service::guildView);
+    }
+
+    @PostMapping("/api/chronicles/guild/create")
+    public ResponseEntity<Map<String, Object>> createGuild(
+            @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody Map<String, Object> body) {
+        return respond(auth, user -> service.createGuild(user, string(body, "name"), string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/chronicles/guild/join")
+    public ResponseEntity<Map<String, Object>> joinGuild(
+            @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody Map<String, Object> body) {
+        return respond(auth, user -> service.joinGuild(user, string(body, "code"), string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/chronicles/guild/leave")
+    public ResponseEntity<Map<String, Object>> leaveGuild(
+            @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody(required = false) Map<String, Object> body) {
+        return respond(auth, user -> service.leaveGuild(user, string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/chronicles/guild/donate")
+    public ResponseEntity<Map<String, Object>> donate(
+            @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody Map<String, Object> body) {
+        Integer qty = optionalInt(body, "quantity");
+        return respond(auth, user -> service.donate(user, string(body, "itemId"), qty == null ? 1 : qty,
+                string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/chronicles/guild/claim")
+    public ResponseEntity<Map<String, Object>> claimOperation(
+            @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody(required = false) Map<String, Object> body) {
+        return respond(auth, user -> service.claimOperation(user, string(body, "requestId"), version(body)));
+    }
+
+    @GetMapping("/api/chronicles/market")
+    public ResponseEntity<Map<String, Object>> market(@RequestHeader(value = "Authorization", required = false) String auth) {
+        return respond(auth, service::marketView);
+    }
+
+    @PostMapping("/api/chronicles/market/list")
+    public ResponseEntity<Map<String, Object>> listItem(
+            @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody Map<String, Object> body) {
+        Integer qty = optionalInt(body, "quantity");
+        Object rawPrice = body == null ? null : body.get("price");
+        long price = rawPrice instanceof Number n ? n.longValue() : parseLong(String.valueOf(rawPrice));
+        return respond(auth, user -> service.listItem(user, string(body, "itemId"), qty == null ? 0 : qty, price,
+                string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/chronicles/market/buy")
+    public ResponseEntity<Map<String, Object>> buy(
+            @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody Map<String, Object> body) {
+        return respond(auth, user -> service.buyListing(user, string(body, "listingId"), string(body, "requestId"), version(body)));
+    }
+
+    @PostMapping("/api/chronicles/market/cancel")
+    public ResponseEntity<Map<String, Object>> cancel(
+            @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody Map<String, Object> body) {
+        return respond(auth, user -> service.cancelListing(user, string(body, "listingId"), string(body, "requestId"), version(body)));
+    }
+
     @PostMapping("/api/chronicles/away/ack")
     public ResponseEntity<Map<String, Object>> ackAway(
             @RequestHeader(value = "Authorization", required = false) String auth, @RequestBody(required = false) Map<String, Object> body) {
@@ -194,6 +258,10 @@ public class ChroniclesController {
         if (value instanceof Number number) return number.longValue();
         try { return value == null ? -1 : Long.parseLong(String.valueOf(value)); }
         catch (NumberFormatException ignored) { return -1; }
+    }
+
+    private static long parseLong(String raw) {
+        try { return Long.parseLong(raw.trim()); } catch (NumberFormatException | NullPointerException ex) { return -1; }
     }
 
     private static Integer optionalInt(Map<String, Object> body, String key) {

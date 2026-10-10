@@ -88,13 +88,13 @@ a { color:var(--gold-bright); }
 .ck-loading { padding:40px 0; text-align:center; color:var(--muted); }
 
 .ck-tabs {
-  flex:0 0 auto; display:grid; grid-template-columns:repeat(6, minmax(0, 1fr));
+  flex:0 0 auto; display:grid; grid-template-columns:repeat(7, minmax(0, 1fr));
   padding:6px 6px calc(6px + max(0px, var(--sab) * .6)); border-top:1px solid var(--line);
   background:rgba(7,11,20,.96);
 }
 .ck-tabs button {
   position:relative; display:flex; flex-direction:column; align-items:center; gap:2px; padding:5px 0; min-width:0;
-  border:0; background:none; color:var(--muted); font-size:11px; letter-spacing:.02em; border-radius:10px; min-height:44px;
+  border:0; background:none; color:var(--muted); font-size:10px; letter-spacing:0; border-radius:10px; min-height:44px;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .ck-tab-ico { font-size:17px; line-height:1; }
@@ -331,7 +331,7 @@ body.is-busy .ck-main { cursor:progress; }
 /* Six tabs on the narrowest phones: "Expedition" must still fit its column. */
 @media (max-width:360px) {
   .ck-tabs { padding-left:2px; padding-right:2px; }
-  .ck-tabs button { font-size:9.5px; letter-spacing:0; }
+  .ck-tabs button { font-size:8.5px; letter-spacing:-.01em; }
 }
 
 @media (max-width:420px) {
@@ -369,3 +369,22 @@ body.is-busy .ck-main { cursor:progress; }
 @keyframes ckAura { 50% { box-shadow:0 0 24px color-mix(in srgb, var(--el) 70%, var(--gold-bright)); } }
 .ck-trial { margin-top:10px; padding:10px; border-radius:12px; border:1px solid rgba(230,205,140,.45); background:rgba(230,205,140,.06); display:grid; gap:6px; justify-items:start; }
 @media (prefers-reduced-motion:reduce) { .ck-comp.is-legend .ck-portrait { animation:none; } }
+
+/* realm */
+.ck-crowns { font-family:var(--serif); font-size:20px; color:var(--gold-bright); white-space:nowrap; }
+.ck-members { list-style:none; margin:8px 0 0; padding:0; display:grid; gap:4px; }
+.ck-members li { display:flex; justify-content:space-between; gap:8px; padding:6px 10px; border-radius:10px; background:rgba(255,255,255,.04); font-size:14px; }
+.ck-members li.is-you { border:1px solid rgba(200,165,79,.45); }
+.ck-operation { border-color:color-mix(in srgb, var(--el) 45%, transparent); }
+.ck-operation h2 .ck-el-ico { width:20px; height:20px; vertical-align:-3px; }
+.ck-fronts { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; margin-top:8px; }
+.ck-front { display:grid; gap:4px; justify-items:start; padding:10px; border-radius:12px; border:1px solid var(--line); background:rgba(255,255,255,.03); }
+.ck-donate, .ck-sell { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.ck-donate select, .ck-sell select { flex:1 1 180px; min-width:0; }
+.ck-donate input, .ck-sell input { width:86px; }
+.ck-donate select, .ck-donate input, .ck-sell select, .ck-sell input {
+  min-height:40px; padding:0 10px; border-radius:10px; border:1px solid var(--line); background:var(--navy); font-size:16px;
+}
+.ck-listings { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:6px; margin-top:8px; }
+.ck-listing { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; border:1px solid var(--line); }
+.ck-listing > div { min-width:0; display:grid; }

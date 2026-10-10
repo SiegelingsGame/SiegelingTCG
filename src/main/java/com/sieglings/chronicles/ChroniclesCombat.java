@@ -133,6 +133,8 @@ final class ChroniclesCombat {
         int potionsUsed;
         int hazardsEndured;
         int exploreSteps;
+        /** Sum of enemy levels in battles won (bosses count triple); pays crowns and operation score. */
+        long levelsDefeated;
         final List<SightingRoll> sightings = new ArrayList<>();
         final Map<String, Double> finalHpPct = new LinkedHashMap<>();
     }
@@ -208,6 +210,7 @@ final class ChroniclesCombat {
                     }
                 }
                 if (boss) addLoot(result.loot, "ancient_relic", 1);
+                result.levelsDefeated += Math.round(levelSum);
                 for (Unit unit : battle.participants) {
                     result.battlesWon.merge(unit.id, 1, Integer::sum);
                     result.companionXp.merge(unit.id, Math.round(levelSum * 9), Long::sum);

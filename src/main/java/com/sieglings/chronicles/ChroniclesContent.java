@@ -1043,6 +1043,81 @@ public final class ChroniclesContent {
         return out;
     }
 
+    // ── The realm: crowns, guilds, Siege Operations, marketplace ─────────────
+
+    /** Crowns earned per enemy level in a won battle. Chronicles' own currency, kept apart from Siegecoins. */
+    public static final int CROWNS_PER_LEVEL = 2;
+    public static final int GUILD_RANK = 10;
+    public static final int GUILD_MAX_MEMBERS = 20;
+    public static final double MARKET_FEE = 0.05;
+    public static final int MARKET_MAX_LISTINGS = 10;
+    public static final long MARKET_MAX_PRICE = 1_000_000L;
+    /** Item kinds that may be sold. Siegelings are never tradeable: their worth is their history. */
+    public static final Set<ItemKind> TRADEABLE = Set.of(ItemKind.MATERIAL, ItemKind.ESSENCE, ItemKind.POTION,
+            ItemKind.LURE, ItemKind.FOOD, ItemKind.RUNE, ItemKind.WEAPON, ItemKind.ARMOR, ItemKind.RELIC,
+            ItemKind.HELMET, ItemKind.BOOTS, ItemKind.ACCESSORY);
+
+    public record Threat(String id, String name, Element element, String blurb) {}
+
+    /** One threat a week, in rotation. */
+    public static final List<Threat> THREATS = List.of(
+            new Threat("cinder_legion", "The Cinder Legion", Element.FIRE, "A host of Fire Siegelings marches on the Inner Wilds."),
+            new Threat("frostbound_host", "The Frostbound Host", Element.ICE, "The fen freezes over as an Ice host advances."),
+            new Threat("stormbreak_raiders", "Stormbreak Raiders", Element.ELECTRIC, "Raiders ride the lightning down from Stormspire."),
+            new Threat("ashen_horde", "The Ashen Horde", Element.UNDEAD, "The crypts empty. The dead march together."),
+            new Threat("tidal_armada", "The Tidal Armada", Element.WATER, "A flood of Water Siegelings breaks on the coast."),
+            new Threat("umbral_court", "The Umbral Court", Element.SHADOW, "Shadow lords gather beneath the caves."));
+
+    /**
+     * Operation strength: per member (at least three), scaled by the guild's average rank,
+     * because a sortie's score grows with the company's level. About a sortie a day per
+     * knight breaks a threat at any stage of the game.
+     */
+    public static long threatHp(int members, double averageRank) {
+        long perMember = Math.max(1000L, Math.round(150 * averageRank));
+        return perMember * Math.max(3, members);
+    }
+
+    public record Front(String id, String name, String text, Set<String> favoredClasses, Set<Element> favoredElements) {}
+
+    public static final Map<String, Front> FRONTS = ordered(List.of(
+            new Front("assault", "Assault", "Strike the main force. Bruisers and Mages hit hardest here.",
+                    Set.of("Bruiser", "Mage"), Set.of()),
+            new Front("supply", "Supply Line", "Hold the supply line. Guardians and Supports keep it open.",
+                    Set.of("Guardian", "Support"), Set.of()),
+            new Front("scouting", "Scouting", "Scout the threat's flanks. Assassins and Wind Siegelings range farthest.",
+                    Set.of("Assassin"), Set.of(Element.WIND))
+    ), Front::id);
+
+    public static final int OPERATION_MINUTES = 60;
+    public static final int OPERATION_ENCOUNTERS = 6;
+
+    /** Points each donated item adds to the guild's siege defenses. */
+    public static final Map<String, Integer> DONATION_POINTS = Map.of(
+            "iron_bar", 6, "copper_bar", 3, "oak_plank", 4, "pine_plank", 2, "rope", 3,
+            "herb_tonic", 4, "rune_stone", 8, "ancient_relic", 60, "linen", 2);
+    /** Defense points needed for levels 1..5; each level adds 10% to every operation score. */
+    public static final long[] DEFENSE_THRESHOLDS = {400, 1500, 4000, 9000, 18000};
+
+    public static int defenseLevel(long points) {
+        int level = 0;
+        for (long t : DEFENSE_THRESHOLDS) if (points >= t) level++;
+        return level;
+    }
+
+    /** A Siege Operation sortie on one front against the week's threat, at the company's level. */
+    public static Route operationRoute(String frontId, Threat threat, int level, int companySize) {
+        Front front = FRONTS.get(frontId);
+        int lo = Math.max(1, level - 3);
+        int size = Math.max(1, Math.min(3, companySize));
+        // The threat meets each company at its own size and a little below its level, so a
+        // knight with one Siegeling can still add to the guild's effort.
+        return r("operation:" + frontId, "Siege Operation: " + front.name(), threat.name(), RouteType.PATROL, threat.element())
+                .time(OPERATION_MINUTES, OPERATION_ENCOUNTERS).levels(lo, Math.max(lo, level - 1)).groups(size, size)
+                .loot(new Loot(essenceId(threat.element()), 1, 2, 0.6))
+                .blurb(front.text()).build();
+    }
+
     // ── Expedition routes ────────────────────────────────────────────────────
 
     public enum RouteType { PATROL, HUNT, RESOURCE, DUNGEON, GRAND }

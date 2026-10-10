@@ -1,4 +1,40 @@
 Original prompt: Go with earth based art for endless
+- October 10, 2026 **Chronicles Phase 6: crowns, guilds, weekly Siege Operations and the marketplace.**
+  - **Change.**
+    - **Shared documents.** `ChroniclesRealm` (Guild, Operation, Listing) is persisted by `ChroniclesRealmStore` in `chroniclesGuilds` and `chroniclesMarket` as JSON. The fields a query filters on (`code`, `status`, `sellerId`) sit beside the JSON, so only equality queries are used and no composite indexes are needed. Every guild or listing change runs in a Firestore transaction (`mutateGuild` / `mutateListing`), following `RewardClaimStore`: reads first, and the body's `IllegalArgumentException` is rethrown unchanged.
+    - **Crowns.** Earned at `CROWNS_PER_LEVEL` × enemy levels won (`Result.levelsDefeated`), shown in reports and the header.
+    - **Guilds.** Create (Rank 10, unique 6-char code), join, leave (leadership passes on; an empty guild is deleted), donate (siege defenses 0–5), view (members ranked by contribution, kept current on each visit).
+    - **Operations.**
+      - `refreshOperation` rolls over to a new ISO week and threat, sized by `threatHp(members, averageRank)`.
+      - `launch("operation:<front>")` builds a sortie at the company's level and size. Its score is levels defeated × front affinity (+25% per favored Siegeling, max ×1.75) × defenses.
+      - `collect` adds the score to the guild in one transaction, ignoring a late sortie from a past week, and marks the threat broken.
+      - `claimOperation` pays each contributor once.
+    - **Marketplace.**
+      - Listing: tradeable kinds only (never Siegelings; worn gear keeps one), escrowed, at most 10 open.
+      - Buying: inside the listing transaction, rejecting your own listing, an insufficient balance, or an already-sold one.
+      - Cancel returns the goods. Seller proceeds, less 5%, are claimed once each on the next snapshot or market visit.
+    - **Isolation.** A realm outage never blocks a knight's own save: proceeds-claiming swallows it, and without a realm store the guild and market calls refuse with a clear message.
+    - **Endpoints.** `GET /api/chronicles/guild`; `POST /guild/create|join|leave|donate|claim`; `GET /api/chronicles/market`; `POST /market/list|buy|cancel`.
+    - **UI.** A seventh "Realm" tab with crowns, the guild (or join/found forms), the operation card (threat, progress, three fronts, claim), the defense donation form, and the marketplace (buy, sell, your listings). Tabs fit at 320px. `chronicles.js` → `?v=7`, `chronicles.css` → `?v=6`.
+- Verification:
+  - New `ChroniclesRealmTest` (9 tests): two knights share an in-memory realm whose transactions run on copies and commit only when the body does not throw.
+    - Crowns are paid. Founding needs rank. Joining works by code (case-insensitive) and refuses a second guild. Leadership passes on, and the empty guild is dissolved.
+    - A donation of 70 iron gives 420 points (level 1); a refused donation takes nothing.
+    - A seasoned sortie scores, breaks a 1-health threat, and is claimable once (+2 relics, +500 crowns). A non-contributor cannot claim, and a broken threat refuses more sorties.
+    - Front affinity gives 125 vs 100; defense level 2 gives 150.
+    - The week rollover brings a new threat and resets damage.
+    - Market escrow, the own-listing and no-crowns refusals, the sale, sold-once, and the seller paid exactly 190 of 200, once.
+    - Cancel returns goods; selling the only worn sword or a Siegeling id is refused.
+    - With the realm down, the snapshot still loads, and an offline service refuses guilds.
+  - Tightening the sortie test exposed a real bug: operation groups were a fixed 2–3, so a small company scored 0. They are now sized to the company. A real dump also showed the first threat size was far too large (35 vs 120,000), which led to the rank-scaled `threatHp`.
+  - All Chronicles suites pass: 43 service, 6 balance, 9 realm.
+  - Headless Chromium at 320x640, 390x844 and 1920x1080 on realm views dumped from the real service (two knights, a founded guild, a scored sortie, a donation, two listings):
+    - seven tabs fit;
+    - crowns, guild, threat and three fronts shown;
+    - Buy POSTs `market/buy` and Send POSTs `expedition/launch`;
+    - with no guild the join form renders;
+    - no page scroll, overflow or page errors.
+  - **Not exercised:** the Firestore implementations of the realm store (no credentials here). They follow the existing transaction pattern and use equality-only queries.
 - October 10, 2026 **Chronicles Phase 5: helmet, boots and accessory slots; Grandmasters; Legendary Bond Trials; a high-level combat fix.**
   - **Change.**
     - **New slots.** Three new item kinds (`HELMET`, `BOOTS`, `ACCESSORY`), each with three tiers of gear in `GEAR_BONUSES`:

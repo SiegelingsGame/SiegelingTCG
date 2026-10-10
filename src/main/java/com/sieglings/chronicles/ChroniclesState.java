@@ -59,6 +59,11 @@ public class ChroniclesState {
     public Map<String, Double> gardenRemainders = new LinkedHashMap<>();
     public double sanctuaryRemainder;
 
+    /** Chronicles' own currency, earned in battle and spent at the marketplace. */
+    public long crowns;
+    public String guildId = "";
+    public String guildName = "";
+
     public int expeditionsCompleted;
     public int tamedCount;
     public int sightingCounter;
@@ -141,6 +146,13 @@ public class ChroniclesState {
         public String trigger = "";
         /** Set for a Legendary Bond Trial; the route is built from this companion. */
         public String trialCompanionId = "";
+        /** Set for a Siege Operation sortie. */
+        public String operationFront = "";
+        public String operationWeek = "";
+        public String operationGuildId = "";
+        public String operationThreatId = "";
+        public int operationLevel;
+        public long operationScore;
         public Map<String, Integer> supplies = new LinkedHashMap<>();
         public Map<String, Integer> suppliesLeft = new LinkedHashMap<>();
         public List<TimelineEvent> timeline = new ArrayList<>();
@@ -177,6 +189,7 @@ public class ChroniclesState {
         public Map<String, Long> weaponXp = new LinkedHashMap<>();
         public Map<String, Long> skillXp = new LinkedHashMap<>();
         public long rankXp;
+        public long crowns;
         public List<Sighting> sightings = new ArrayList<>();
     }
 
