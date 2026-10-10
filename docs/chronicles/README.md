@@ -21,6 +21,7 @@ home base.
 | Class and evolution access to the RBX seed table | `src/main/java/com/sieglings/service/CreatureRegistry.java` |
 | RBX wild behaviours (`gentle`/`skittish`/…) by Siegeling id | `src/main/resources/chronicles/rbx-behaviors.json` |
 | Page | `static/chronicles.html`, `static/js/chronicles.js`, `static/css/chronicles.css` |
+| Scene art (1080w cuts of `img/lands/locations`, one per element × journey/shelter/elite/boss) | `static/img/chronicles/scenes/` |
 | Tests | `src/test/java/com/sieglings/chronicles/` |
 
 ## What is canonical (from SiegelingsRBX)
@@ -36,6 +37,7 @@ home base.
 ## Systems in this version
 
 - **Siegeknight.** Rank 1–100, fed by a quarter of all knight XP; rank opens destinations. Weapon, armor and relic slots.
+- **Art-first look.** Each screen leads with painted art: a scene banner per tab and per profession, the same scene blurred behind the page, Siegeling portraits for the party, roster and encounters, and colour emoji for items. The scene choices live in `PROFESSION_SCENES`, `BUILDING_SCENES` and `ROUTE_SCENE_KIND`, and the icons in `ITEM_EMOJI` / `KIND_EMOJI`, all in `chronicles.js`. Hues reuse the element palette.
 - **Work screen.** It is laid out like Melvor: one page per profession. A Gathering/Crafting switch picks the type, a row of profession tabs shows each level, and each page is a grid of task cells. A cell shows its required level and XP. The running task's cell is lit and shows live progress, and a strip at the top shows it on every page, with Rest. On crafting pages, tapping a cell selects it in a detail panel with its inputs and Make/Work idly/Forge buttons. The profession glyphs and hues are presentation only (`SKILL_LOOK` in `chronicles.js`).
 - **Professions.** All 21 from the design, each 1–100, in an unlock web:
   - Gathering: Mining; Woodcutting; Foraging; Fishing (Carpentry 3); Excavation (Mining 10).

@@ -22,6 +22,7 @@
     oathPick: '',
     supplies: {},
     rune: '',
+    prepOpen: false,
     guild: null,
     market: null,
     realmError: '',
@@ -150,6 +151,133 @@
     return row ? row.qty : 0;
   }
 
+  // ── art ──────────────────────────────────────────────────────────────────
+  // Art leads every screen: a painted scene behind each tab (img/chronicles/scenes, cut from
+  // lands/locations), Siegeling portraits, and colour emoji for items, which iOS renders in full
+  // colour. All of it is presentation; nothing here feeds a rule.
+
+  var SCENE_DIR = '/img/chronicles/scenes/';
+  var SCENE_ELEMENTS = { fire: 1, water: 1, earth: 1, wind: 1, ice: 1, metal: 1, electric: 1, poison: 1, psychic: 1,
+    shadow: 1, light: 1, undead: 1, relic: 1, obsidian: 1, aurora: 1, badlands: 1 };
+
+  function scene(el, kind) {
+    var key = elKey(el);
+    return SCENE_DIR + (SCENE_ELEMENTS[key] ? key : 'earth') + '-' + (kind || 'journey') + '.webp';
+  }
+
+  function namedScene(name) { return SCENE_DIR + name + '.webp'; }
+
+  var PROFESSION_SCENES = {
+    mining: 'metal-journey', woodcutting: 'earth-journey', foraging: 'wind-journey', fishing: 'water-shelter',
+    excavation: 'relic-journey', smelting: 'fire-journey', smithing: 'fire-shelter', carpentry: 'earth-shelter',
+    weaving: 'wind-shelter', cooking: 'ice-shelter', alchemy: 'poison-shelter', runecrafting: 'psychic-shelter',
+    elemental_studies: 'aurora-journey'
+  };
+  var BUILDING_SCENES = { sanctuary: 'wind-shelter', forge: 'fire-shelter', garden: 'poison-shelter',
+    war_room: 'metal-shelter', stable: 'earth-shelter', library: 'psychic-shelter' };
+  var ROUTE_SCENE_KIND = { PATROL: 'journey', RESOURCE: 'shelter', HUNT: 'journey', DUNGEON: 'elite', GRAND: 'boss' };
+
+  function routeScene(element, type) { return scene(element, ROUTE_SCENE_KIND[type] || 'journey'); }
+
+  function expeditionScene(s) {
+    var e = s.expedition;
+    var r = find(s.routes, 'id', e.routeId);
+    if (/^operation:/.test(e.routeId || '')) return scene(e.element, 'boss');
+    return routeScene(e.element, r ? r.type : '');
+  }
+
+  var SKILL_EMOJI = {
+    mining: '⛏️', woodcutting: '🪓', foraging: '🌿', fishing: '🎣',
+    excavation: '🦴', smelting: '🔥', smithing: '⚒️', carpentry: '🪚',
+    weaving: '🧵', cooking: '🍳', alchemy: '⚗️', runecrafting: '🔮',
+    taming: '🪢', bonding: '💞', husbandry: '🧺', pathfinding: '🧭',
+    survival: '⛺', cartography: '🗺️', command: '🚩', elemental_studies: '📚',
+    class_tactics: '♟️'
+  };
+  var CLASS_EMOJI = { Guardian: '🛡️', Bruiser: '👊', Assassin: '🗡️',
+    Mage: '🔮', Support: '💚' };
+  var CLASS_HUE = { Guardian: 'metal', Bruiser: 'fire', Assassin: 'shadow', Mage: 'psychic', Support: 'poison' };
+  var WEAPON_EMOJI = { sword: '🗡️', spear: '🔱', bow: '🏹', staff: '🪄',
+    hammer: '🔨', daggers: '🔪' };
+  var KIND_EMOJI = { MATERIAL: '🪨', ESSENCE: '✨', POTION: '🧪', LURE: '🪝',
+    FOOD: '🍲', WEAPON: '🗡️', ARMOR: '🛡️', RELIC: '🏺',
+    RUNE: '📜', HELMET: '⛑️', BOOTS: '👢', ACCESSORY: '💍', STUDY: '📖' };
+  // Items whose kind alone would read wrong (a fish is not a rock).
+  var ITEM_EMOJI = {
+    ember_shard: '🔥', frost_crystal: '❄️', pine_log: '🪵', oak_log: '🪵',
+    heartwood: '🌳', sunleaf: '🌿', frostbloom: '🌸', galeberry: '🫐',
+    gale_feather: '🪶', minnow: '🐟', silverfin: '🐠', copper_bar: '🧱',
+    iron_bar: '🧱', ancient_relic: '🏺', fossil: '🦴', relic_shard: '💠',
+    rune_stone: '🔷', flax: '🌾', linen: '🧶', rope: '🪢',
+    pine_plank: '🪵', oak_plank: '🪵', tide_pearl: '🦪', storm_glass: '⚡',
+    umbral_crystal: '🔮', mind_prism: '💎', living_alloy: '⚙️', grave_dust: '💀',
+    wild_bait: '🪱', snare_crate: '📦', breezewoven_net: '🕸️',
+    grilled_minnow: '🍢', sunleaf_salad: '🥗', silverfin_stew: '🍲', berry_tart: '🥧',
+    travelers_coat: '🧥', frostweave_cloak: '🧥', tidewarden_cloak: '🧥',
+    stormward_cloak: '🧥', linen_robe: '🥻', ember_robe: '🥻', grandmasters_mantle: '🧥',
+    runeheart: '❤️‍🔥', dawn_lantern: '🏮', clarity_charm: '🧿',
+    alloy_breaker: '⚙️', grave_ward: '🪦', emberward_charm: '🔥', rally_banner: '🚩',
+    bastion_crest: '🛡️', mending_amulet: '📿', prism_pendant: '🔷'
+  };
+  // Material hues borrow the element palette (CLAUDE.md: one palette).
+  var HUE_WORDS = [
+    ['copper', 'earth'], ['iron', 'metal'], ['ember', 'fire'], ['frost', 'ice'], ['gale', 'wind'], ['storm', 'electric'],
+    ['tide', 'water'], ['pearl', 'water'], ['silverfin', 'water'], ['minnow', 'water'], ['pine', 'earth'], ['oak', 'earth'],
+    ['heart', 'earth'], ['sunleaf', 'poison'], ['berry', 'psychic'], ['flax', 'light'], ['linen', 'light'], ['rope', 'earth'],
+    ['relic', 'light'], ['fossil', 'light'], ['rune', 'psychic'], ['mind', 'psychic'], ['umbral', 'shadow'], ['grave', 'undead'],
+    ['alloy', 'metal'], ['herb', 'poison'], ['bait', 'earth'], ['root', 'earth']
+  ];
+
+  function itemHue(id, fallback) {
+    var key = String(id || '');
+    var essence = key.match(/^essence_([a-z]+)/);
+    if (essence) return essence[1];
+    for (var i = 0; i < HUE_WORDS.length; i++) if (key.indexOf(HUE_WORDS[i][0]) >= 0) return HUE_WORDS[i][1];
+    return fallback || 'neutral';
+  }
+
+  function itemEmoji(id, kind) {
+    var key = String(id || '');
+    if (ITEM_EMOJI[key]) return ITEM_EMOJI[key];
+    if (kind === 'WEAPON') {
+      for (var w in WEAPON_EMOJI) if (key.indexOf(w.replace(/s$/, '')) >= 0) return WEAPON_EMOJI[w];
+      if (key.indexOf('lance') >= 0) return WEAPON_EMOJI.spear;
+    }
+    return KIND_EMOJI[kind || 'MATERIAL'] || '📦';
+  }
+
+  // An item medallion: element art for essences, colour emoji for everything else.
+  function itemIcon(id, kind, cls) {
+    var key = String(id || '');
+    var essence = key.match(/^essence_([a-z]+)/);
+    var hue = itemHue(key, kind === 'POTION' ? 'poison' : kind === 'FOOD' ? 'fire' : 'neutral');
+    return '<span class="ck-ico' + (cls ? ' ' + cls : '') + '" style="--ih:var(--' + hue + ')" aria-hidden="true">' +
+      (essence ? elementIcon(essence[1].toUpperCase(), 26) : itemEmoji(key, kind)) + '</span>';
+  }
+
+  function emojiIcon(emoji, hue, cls) {
+    return '<span class="ck-ico' + (cls ? ' ' + cls : '') + '" style="--ih:var(--' + (hue || 'neutral') + ')" aria-hidden="true">' +
+      emoji + '</span>';
+  }
+
+  // A painted banner: the scene fills it, a shade keeps type legible, art may sit on the right.
+  function hero(o) {
+    return '<section class="ck-banner' + (o.cls ? ' ' + o.cls : '') + '"' + (o.el ? ' style="--el:var(--' + elKey(o.el) + ')"' : '') + '>' +
+      '<img class="ck-banner-img" src="' + esc(o.scene) + '" alt="" decoding="async">' +
+      '<span class="ck-banner-shade" aria-hidden="true"></span>' +
+      (o.art ? '<div class="ck-banner-art">' + o.art + '</div>' : '') +
+      '<div class="ck-banner-body">' +
+        (o.kicker ? '<p class="ck-banner-kicker">' + o.kicker + '</p>' : '') +
+        '<h2 class="ck-banner-title">' + o.title + '</h2>' + (o.body || '') +
+      '</div>' + (o.foot ? '<div class="ck-banner-foot">' + o.foot + '</div>' : '') +
+    '</section>';
+  }
+
+  function partner(s) {
+    var list = (s && s.companions) || [];
+    return find(list, 'origin', 'starter') || list[0] || null;
+  }
+
   // ── network ──────────────────────────────────────────────────────────────
 
   function hasSession() {
@@ -257,7 +385,7 @@
   function itemLines(items) {
     if (!items || !items.length) return '<p class="ck-muted">Nothing.</p>';
     return '<ul class="ck-loot">' + items.map(function (i) {
-      return '<li><b>' + esc(i.qty) + '×</b> ' + esc(i.name) + '</li>';
+      return '<li>' + itemIcon(i.id, i.kind, 'is-sm') + '<span><b>' + esc(i.qty) + '×</b> ' + esc(i.name) + '</span></li>';
     }).join('') + '</ul>';
   }
 
@@ -310,12 +438,40 @@
     $('ckTabs').hidden = name !== 'main';
     $('ckRank').hidden = name !== 'main';
     $('ckStatus').hidden = name !== 'main';
+    $('ckAvatar').hidden = name !== 'main';
+    $('ckCrowns').hidden = name !== 'main';
+    if (name !== 'main') setBackdrop(namedScene(name === 'oath' ? 'light-journey' : 'wind-journey'));
+  }
+
+  function setBackdrop(url) {
+    var el = $('ckBackdrop');
+    if (el.dataset.src === url) return;
+    el.dataset.src = url;
+    el.style.setProperty('--scene', 'url("' + url + '")');
+  }
+
+  // The scene behind each tab follows what the player is looking at.
+  function tabScene(s) {
+    switch (state.tab) {
+      case 'knight': return namedScene('light-shelter');
+      case 'company': { var p = partner(s); return scene(p ? p.element : 'EARTH', 'journey'); }
+      case 'work': return namedScene(PROFESSION_SCENES[currentWorkSkill(s, workPages(s))] || 'earth-journey');
+      case 'expedition': return s.expedition ? expeditionScene(s) : namedScene('wind-journey');
+      case 'base': return namedScene('relic-shelter');
+      case 'realm': {
+        var op = state.guild && state.guild.guild && state.guild.guild.operation;
+        return op ? scene(op.element, 'boss') : namedScene('metal-boss');
+      }
+      case 'wilds': return s.sightings.length ? scene(s.sightings[0].element, 'journey') : namedScene('wind-elite');
+      default: return namedScene('earth-journey');
+    }
   }
 
   function renderGate() {
     setScreen('gate');
     main.innerHTML =
       '<section class="ck-hero">' +
+        '<img class="ck-gate-art" src="' + namedScene('earth-journey') + '" alt="" decoding="async">' +
         '<p class="ck-kicker">Idle RPG · Creature Bonding · Skill Mastery</p>' +
         '<h1>Become a Siegeknight.</h1>' +
         '<p>Train professions, master the elements, and forge bonds with your Siegelings. Your company explores, ' +
@@ -337,6 +493,8 @@
     $('ckKnightName').textContent = 'Take the oath';
     var starters = data.starters || [];
     if (!state.oathPick && starters.length) state.oathPick = starters[0].speciesId;
+    var picked = find(starters, 'speciesId', state.oathPick);
+    if (picked) setBackdrop(scene(picked.element, 'journey'));
     main.innerHTML =
       '<section class="ck-oath">' +
         '<h1>The Siegeknight\'s Oath</h1>' +
@@ -347,10 +505,10 @@
         '<h2>Choose your first companion</h2>' +
         '<div class="ck-starters">' + starters.map(function (s) {
           return '<button type="button" class="ck-starter' + (s.speciesId === state.oathPick ? ' is-picked' : '') +
-            '" data-act="oath-pick" data-id="' + esc(s.speciesId) + '" style="--el:var(--' + elKey(s.element) + ')">' +
+            '" data-act="oath-pick" data-id="' + esc(s.speciesId) + '" data-el="' + esc(s.element) + '" style="--el:var(--' + elKey(s.element) + ')">' +
             portrait(s, 320) +
             '<span class="ck-starter-name">' + esc(s.species) + '</span>' +
-            '<span class="ck-chips">' + elChip(s.element, s.elementLabel) + chip(s.class) + '</span>' +
+            '<span class="ck-chips">' + elChip(s.element, s.elementLabel) + chip((CLASS_EMOJI[s.class] || '') + ' ' + s.class) + '</span>' +
             '<span class="ck-starter-line">' + esc(s.identity) + '</span>' +
             '<span class="ck-starter-line ck-muted">Bond 50: ' + esc(s.bondTechnique) + '</span>' +
           '</button>';
@@ -365,6 +523,9 @@
     var s = state.snap;
     setScreen('main');
     $('ckKnightName').textContent = 'Sir ' + s.knight.name;
+    var lead = partner(s);
+    $('ckAvatar').innerHTML = lead ? portrait(lead, 120) : '';
+    $('ckCrownsNum').textContent = s.knight.crowns;
     $('ckRankNum').textContent = s.knight.rank;
     $('ckRankTitle').textContent = s.knight.rankTitle;
     $('ckRankBar').style.width = pct(s.knight.xpInto, s.knight.xpSpan) + '%';
@@ -380,6 +541,8 @@
     var view = { knight: viewKnight, company: viewCompany, work: viewWork, expedition: viewExpedition, wilds: viewWilds,
       base: viewBase, realm: viewRealm }[state.tab] || viewWork;
     main.innerHTML = view(s);
+    main.dataset.tab = state.tab;
+    setBackdrop(tabScene(s));
     main.scrollTop = scroll;
     tick();
   }
@@ -407,70 +570,83 @@
 
   function viewKnight(s) {
     var eq = s.equipment;
-    var groups = {};
-    s.skills.forEach(function (k) { (groups[k.group] = groups[k.group] || []).push(k); });
     var GEAR_KINDS = { WEAPON: 1, ARMOR: 1, RELIC: 1, HELMET: 1, BOOTS: 1, ACCESSORY: 1 };
     var gear = s.inventory.filter(function (i) { return GEAR_KINDS[i.kind]; });
     var bag = s.inventory.filter(function (i) { return !GEAR_KINDS[i.kind]; });
     var worn = ['weapon', 'armor', 'relic', 'helmet', 'boots', 'accessory'].map(function (k) { return eq[k] && eq[k].id; });
-    return '' +
-      '<section class="ck-card ck-sheet">' +
-        '<div class="ck-sheet-head"><div><p class="ck-kicker">Rank ' + esc(s.knight.rank) + ' · ' + esc(s.knight.rankTitle) + '</p>' +
-        '<h2>Sir ' + esc(s.knight.name) + '</h2>' +
-        (s.knight.titles && s.knight.titles.length ? '<p class="ck-small is-ready">' + esc(s.knight.titles.join(' · ')) + '</p>' : '') +
-        '</div>' +
-        '<div class="ck-sheet-stats"><span><b>' + esc(s.knight.expeditionsCompleted) + '</b> expeditions</span>' +
-        '<span><b>' + esc(s.knight.tamed) + '</b> tamed</span></div></div>' +
-        bar(s.knight.xpInto, s.knight.xpSpan) +
-        '<p class="ck-muted">Rank grows with everything your knight learns. It opens new destinations.</p>' +
-      '</section>' +
-      '<section class="ck-card"><h3>Equipment</h3><div class="ck-gear">' +
-        gearSlot('Weapon', eq.weapon) + gearSlot('Armor', eq.armor) + gearSlot('Relic', eq.relic) +
-        gearSlot('Helmet', eq.helmet) + gearSlot('Boots', eq.boots) + gearSlot('Accessory', eq.accessory) +
-      '</div>' + (gear.length > 1 ? '<div class="ck-gear-list">' + gear.map(function (g) {
+    var lead = partner(s);
+    var groups = {};
+    s.skills.forEach(function (k) { (groups[k.group] = groups[k.group] || []).push(k); });
+    var GROUP_EMOJI = { Gathering: '🌿', Production: '⚒️', Siegeling: '🐾', Expedition: '🧭', Knowledge: '📚' };
+    return hero({
+        cls: 'is-knight', scene: namedScene('light-shelter'),
+        kicker: 'Rank ' + esc(s.knight.rank) + ' · ' + esc(s.knight.rankTitle),
+        title: 'Sir ' + esc(s.knight.name),
+        art: lead ? portrait(lead, 320, 'is-hero') : '',
+        body: bar(s.knight.xpInto, s.knight.xpSpan, 'is-fat') +
+          (s.knight.titles && s.knight.titles.length ? '<p class="ck-banner-line is-gold">' + esc(s.knight.titles.join(' · ')) + '</p>' : '') +
+          '<div class="ck-bubbles">' +
+            '<span class="ck-bubble">🗺️ <b>' + esc(s.knight.expeditionsCompleted) + '</b> trips</span>' +
+            '<span class="ck-bubble">🪢 <b>' + esc(s.knight.tamed) + '</b> tamed</span>' +
+            '<span class="ck-bubble">👑 <b>' + esc(s.knight.crowns) + '</b></span>' +
+          '</div>'
+      }) +
+      '<section class="ck-card"><h3>🛡️ Equipment</h3><div class="ck-gear">' +
+        gearSlot('Weapon', eq.weapon, 'WEAPON') + gearSlot('Armor', eq.armor, 'ARMOR') + gearSlot('Relic', eq.relic, 'RELIC') +
+        gearSlot('Helmet', eq.helmet, 'HELMET') + gearSlot('Boots', eq.boots, 'BOOTS') + gearSlot('Accessory', eq.accessory, 'ACCESSORY') +
+      '</div>' + (gear.length ? '<h4>Gear bag · tap to wear</h4><div class="ck-tiles is-gear">' + gear.map(function (g) {
         var on = worn.indexOf(g.id) >= 0;
-        return '<button type="button" class="ck-pill' + (on ? ' is-on' : '') + '" data-act="equip" data-id="' + esc(g.id) + '">' +
-          esc(g.name) + '</button>';
+        return '<button type="button" class="ck-tile' + (on ? ' is-on' : '') + '" data-act="equip" data-id="' + esc(g.id) + '" title="' + esc(g.blurb) + '">' +
+          itemIcon(g.id, g.kind) + '<b>' + esc(g.name) + '</b>' + (on ? '<span class="ck-tile-tag">Worn</span>' : '') + '</button>';
       }).join('') + '</div>' : '') + '</section>' +
       ['Gathering', 'Production', 'Siegeling', 'Expedition', 'Knowledge'].map(function (g) {
         if (!groups[g]) return '';
-        return '<section class="ck-card"><h3>' + esc(g) + ' professions</h3><div class="ck-skills">' +
-          groups[g].map(skillRow).join('') + '</div></section>';
+        return '<section class="ck-card"><h3>' + GROUP_EMOJI[g] + ' ' + esc(g === 'Production' ? 'Crafting' : g) + '</h3>' +
+          '<div class="ck-tiles is-skills">' + groups[g].map(skillTile).join('') + '</div></section>';
       }).join('') +
-      '<section class="ck-card"><h3>Elemental Affinity</h3>' +
-        '<p class="ck-muted">Earned by adventuring with Siegelings of each element and exploring its lands. ' +
-        'Affinity 10 unlocks a technique to prepare for expeditions.</p>' +
-        '<div class="ck-affinities">' + s.affinities.map(affinityRow).join('') + '</div></section>' +
-      '<section class="ck-card"><h3>Class Mastery</h3>' +
-        '<p class="ck-muted">Every battle teaches you how its Siegelings fight. Mastery strengthens that class in your company.</p>' +
-        '<div class="ck-masteries">' + s.masteries.map(function (m) {
-          return '<div class="ck-mastery"><div class="ck-row"><b>' + esc(m.class) + '</b><span>Lv ' + esc(m.level) + '</span></div>' +
-            '<span class="ck-muted">' + esc(m.path) + ' · ' + esc(m.identity) + '</span>' + bar(m.xpInto, m.xpSpan) +
-            '<span class="ck-small">+' + esc(m.bonusPct) + '% to ' + esc(m.class) + ' Siegelings</span></div>';
+      '<section class="ck-card"><h3>✨ Elemental Affinity</h3>' +
+        '<div class="ck-tiles is-elements">' + s.affinities.map(affinityRow).join('') + '</div>' +
+        '<p class="ck-hint">Battles, journeys and studies raise each element. Affinity 10 teaches a technique.</p></section>' +
+      '<section class="ck-card"><h3>⚔️ Class Mastery</h3><div class="ck-tiles is-classes">' + s.masteries.map(function (m) {
+          var hue = CLASS_HUE[m.class] || 'neutral';
+          return '<div class="ck-tile is-stat" style="--el:var(--' + hue + ')">' + emojiIcon(CLASS_EMOJI[m.class] || '⭐', hue) +
+            '<b>' + esc(m.class) + '</b><span class="ck-tile-lv">Lv ' + esc(m.level) + '</span>' + bar(m.xpInto, m.xpSpan, 'is-el') +
+            '<span class="ck-tile-sub">+' + esc(m.bonusPct) + '% · ' + esc(m.path) + '</span></div>';
         }).join('') + '</div>' +
-        '<h4>Cross-class techniques</h4><ul class="ck-cross">' + s.crossClass.map(function (c) {
+        '<details class="ck-more"><summary>Cross-class techniques · ' + s.crossClass.filter(function (c) { return c.unlocked; }).length + '/' + s.crossClass.length + '</summary>' +
+        '<ul class="ck-cross">' + s.crossClass.map(function (c) {
           return '<li class="' + (c.unlocked ? 'is-on' : '') + '"><b>' + esc(c.name) + '</b> <span class="ck-small">' +
             esc(c.classes.join(' + ')) + ' ' + esc(c.needs) + '</span><span class="ck-small ck-muted">' + esc(c.text) + '</span></li>';
-        }).join('') + '</ul></section>' +
-      '<section class="ck-card"><h3>Elemental Convergence</h3><p class="ck-muted">At Affinity 75 in two elements, prepare their ' +
-        'combination when both fight in your company.</p><ul class="ck-cross">' + s.combos.map(function (c) {
+        }).join('') + '</ul></details>' +
+        '<details class="ck-more"><summary>Elemental convergence · ' + s.combos.filter(function (c) { return c.unlocked; }).length + '/' + s.combos.length + '</summary>' +
+        '<ul class="ck-cross">' + s.combos.map(function (c) {
           return '<li class="' + (c.unlocked ? 'is-on' : '') + '"><b>' + esc(c.name) + '</b> <span class="ck-small">' +
             esc(c.labels.join(' + ')) + ' ' + esc(c.needs) + '</span><span class="ck-small ck-muted">' + esc(c.text) + '</span></li>';
-        }).join('') + '</ul></section>' +
-      '<section class="ck-card"><h3>Weapon Disciplines</h3><div class="ck-weapons">' + s.weapons.map(function (w) {
-        return '<div class="ck-weapon' + (w.equipped ? ' is-on' : '') + '"><div class="ck-row"><b>' + esc(w.name) + '</b><span>Lv ' + esc(w.level) +
-          '</span></div><span class="ck-small">' + esc(w.specialty) + '</span>' + bar(w.xpInto, w.xpSpan) +
-          '<span class="ck-small"><b>' + esc(w.command) + ':</b> ' + esc(w.commandText) + '</span></div>';
+        }).join('') + '</ul></details></section>' +
+      '<section class="ck-card"><h3>🏹 Weapon Disciplines</h3><div class="ck-tiles is-classes">' + s.weapons.map(function (w) {
+        return '<div class="ck-tile is-stat' + (w.equipped ? ' is-on' : '') + '" style="--el:var(--metal)" title="' + esc(w.command + ': ' + w.commandText) + '">' +
+          emojiIcon(WEAPON_EMOJI[w.id] || '⚔️', 'metal') + '<b>' + esc(w.name) + '</b><span class="ck-tile-lv">Lv ' + esc(w.level) + '</span>' +
+          bar(w.xpInto, w.xpSpan) + '<span class="ck-tile-sub">' + esc(w.specialty) + '</span></div>';
       }).join('') + '</div></section>' +
-      '<section class="ck-card"><h3>Pack</h3>' + (bag.length ? '<ul class="ck-bag">' + bag.map(function (i) {
-        return '<li title="' + esc(i.blurb) + '"><span>' + esc(i.name) + '</span><b>' + esc(i.qty) + '</b></li>';
-      }).join('') + '</ul>' : '<p class="ck-muted">Empty. Set your knight to work.</p>') + '</section>' +
-      '';
+      '<section class="ck-card"><h3>🎒 Bag</h3>' + (bag.length ? '<div class="ck-bank">' + bag.map(function (i) {
+        return '<button type="button" class="ck-bank-slot" data-act="item" data-id="' + esc(i.id) + '" title="' + esc(i.name) + '">' +
+          itemIcon(i.id, i.kind) + '<span class="ck-bank-qty">' + esc(i.qty) + '</span><span class="ck-bank-name">' + esc(i.name) + '</span></button>';
+      }).join('') + '</div>' : '<p class="ck-muted">Empty. Set your knight to work.</p>') + '</section>';
   }
 
-  function gearSlot(label, item) {
-    return '<div class="ck-gear-slot"><span class="ck-kicker">' + esc(label) + '</span><b>' + esc(item ? item.name : 'Empty') + '</b>' +
-      '<span class="ck-small">' + esc(item ? item.blurb : 'Craft one in the Work tab.') + '</span></div>';
+  function gearSlot(label, item, kind) {
+    return '<div class="ck-gear-slot' + (item ? ' is-on' : '') + '">' + (item ? itemIcon(item.id, item.kind || kind) : emojiIcon('➕', 'neutral', 'is-empty')) +
+      '<span class="ck-gear-text"><span class="ck-kicker">' + esc(label) + '</span><b>' + esc(item ? item.name : 'Empty') + '</b>' +
+      '<span class="ck-small">' + esc(item ? item.blurb : 'Craft one in Work.') + '</span></span></div>';
+  }
+
+  function skillTile(k) {
+    var look = skillLook(k.id);
+    var maxed = k.level >= MAX_SKILL_LEVEL;
+    return '<button type="button" class="ck-tile is-skill' + (k.unlocked ? '' : ' is-locked') + '" data-act="skill" data-id="' + esc(k.id) +
+      '" style="--el:var(--' + look[1] + ')">' + emojiIcon(SKILL_EMOJI[k.id] || look[0], look[1]) +
+      '<b>' + esc(shortSkill(k.name)) + '</b><span class="ck-tile-lv">' + (k.unlocked ? 'Lv ' + esc(k.level) : 'Locked') + '</span>' +
+      (k.unlocked ? (maxed ? bar(1, 1, 'is-max') : bar(k.xpInto, k.xpSpan, 'is-el')) : '') + '</button>';
   }
 
   function skillRow(k) {
@@ -483,14 +659,34 @@
     '</div>';
   }
 
+  // Professions with a Work page open it; the rest explain themselves in a card.
+  function showSkill(id) {
+    var s = state.snap;
+    var pages = workPages(s);
+    if (find(pages.gather, 'id', id) || find(pages.craft, 'id', id)) { openWorkSkill(id); return; }
+    var k = find(s.skills, 'id', id);
+    if (!k) return;
+    var look = skillLook(id);
+    openModal('skill', '<h2 id="ckModalTitle">' + emojiIcon(SKILL_EMOJI[id] || look[0], look[1], 'is-sm') + ' ' + esc(k.name) + '</h2>' +
+      skillRow(k) + '<div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>');
+  }
+
+  function showItem(id) {
+    var i = find(state.snap.inventory, 'id', id);
+    if (!i) return;
+    openModal('item', '<div class="ck-item-card">' + itemIcon(i.id, i.kind, 'is-xl') + '<div><h2 id="ckModalTitle">' + esc(i.name) + '</h2>' +
+      '<p class="ck-muted">' + esc(i.kind.charAt(0) + i.kind.slice(1).toLowerCase()) + ' · ' + esc(i.qty) + ' in your bag</p>' +
+      '<p>' + esc(i.blurb) + '</p></div></div>' +
+      '<div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>');
+  }
+
   function affinityRow(a) {
-    return '<button type="button" class="ck-affinity' + (a.studied ? '' : ' is-dim') + '" data-act="affinity" data-id="' + esc(a.element) +
+    return '<button type="button" class="ck-tile is-element' + (a.studied ? '' : ' is-dim') + '" data-act="affinity" data-id="' + esc(a.element) +
       '" style="--el:var(--' + elKey(a.element) + ')">' +
-      '<div class="ck-row">' + elementIcon(a.element, 18) + '<b>' + esc(a.label) + '</b><span>Lv ' + esc(a.level) + '</span></div>' +
+      '<span class="ck-ico is-art">' + elementIcon(a.element, 30) + '</span>' +
+      '<b>' + esc(a.label) + '</b><span class="ck-tile-lv">Lv ' + esc(a.level) + '</span>' +
       bar(a.xpInto, a.xpSpan, 'is-el') +
-      '<span class="ck-small">' + esc(a.milestone) + (a.nextMilestone ? ' · next ' + esc(a.nextMilestoneName) + ' at ' + esc(a.nextMilestone) : '') + '</span>' +
-      '<span class="ck-small' + (a.technique.unlocked ? ' is-ready' : ' ck-muted') + '">' + (a.technique.unlocked ? '★ ' : '10: ') +
-      esc(a.technique.name) + '</span></button>';
+      (a.technique.unlocked ? '<span class="ck-tile-tag">★</span>' : '') + '</button>';
   }
 
   function showAffinity(el) {
@@ -516,19 +712,22 @@
 
   function viewBase(s) {
     var b = s.base;
-    return '<section class="ck-card"><h3>Your base</h3><p class="ck-muted">Each building draws on several professions. ' +
-        'Levels also need Siegeknight rank.</p></section>' +
-      b.buildings.map(function (x) {
-        var pips = '';
-        for (var i = 1; i <= x.maxLevel; i++) pips += '<i class="' + (i <= x.level ? 'is-on' : '') + '"></i>';
+    return hero({
+        cls: 'is-road', scene: namedScene('relic-shelter'), kicker: 'Home base', title: 'Your Base',
+        body: '<p class="ck-banner-line">Each building draws on several professions. Higher levels also need Siegeknight rank.</p>'
+      }) +
+      '<div class="ck-buildings">' + b.buildings.map(function (x) {
+        var stars = '';
+        for (var i = 1; i <= x.maxLevel; i++) stars += '<i class="' + (i <= x.level ? 'is-on' : '') + '">★</i>';
         var next = x.level < x.maxLevel
           ? '<p class="ck-small"><b>Level ' + (x.level + 1) + ':</b> ' + esc(x.nextEffect) + '</p>' +
-            '<p class="ck-small">' + x.cost.map(function (c) {
-              return '<span class="' + (c.have >= c.qty ? '' : 'is-short') + '">' + esc(c.qty) + ' ' + esc(c.name) + ' (' + esc(c.have) + ')</span>';
-            }).join(', ') + (s.knight.rank < x.rankReq ? ' · <span class="is-short">Rank ' + esc(x.rankReq) + '</span>' : ' · Rank ' + esc(x.rankReq)) + '</p>' +
+            '<div class="ck-costs">' + x.cost.map(function (c) {
+              return '<span class="ck-cost' + (c.have >= c.qty ? '' : ' is-short') + '" title="' + esc(c.name) + '">' + itemIcon(c.id, c.kind, 'is-xs') +
+                esc(c.have) + '/' + esc(c.qty) + '</span>';
+            }).join('') + '<span class="ck-cost' + (s.knight.rank < x.rankReq ? ' is-short' : '') + '">🎖️ Rank ' + esc(x.rankReq) + '</span></div>' +
             '<div class="ck-actions"><button type="button" class="ck-btn is-sm' + (x.ready ? ' is-primary' : '') + '" data-act="build" data-id="' +
-              esc(x.id) + '"' + (x.ready ? '' : ' disabled') + '>' + (x.level ? 'Upgrade' : 'Build') + '</button></div>'
-          : '<p class="ck-small is-ready">Complete.</p>';
+              esc(x.id) + '"' + (x.ready ? '' : ' disabled') + '>' + (x.level ? '⬆️ Upgrade' : '🔨 Build') + '</button></div>'
+          : '<p class="ck-small is-ready">🏆 Complete.</p>';
         var extra = '';
         if (x.id === 'war_room' && b.loadouts.length) {
           extra = '<h4>Loadouts</h4><div class="ck-loadouts">' + b.loadouts.map(function (l) {
@@ -540,12 +739,14 @@
               '</span></div>';
           }).join('') + '</div>';
         }
-        return '<section class="ck-card ck-building"><div class="ck-row"><h3>' + esc(x.name) + '</h3><span class="ck-pips">' + pips + '</span></div>' +
-          '<p class="ck-small ck-muted">' + esc(x.blurb) + '</p>' +
-          '<p class="ck-small' + (x.level ? ' is-ready' : ' ck-muted') + '">' + esc(x.effect) + '</p>' + next + extra + '</section>';
-      }).join('') +
-      '<section class="ck-card"><h3>My Keep</h3><p class="ck-muted">Your Keep is your stronghold beyond the expedition road. ' +
-        'Its rooms and residents live in My Keep.</p><a class="ck-btn" href="/keep">Visit your Keep</a></section>';
+        return '<section class="ck-building' + (x.level ? '' : ' is-unbuilt') + '">' +
+          '<div class="ck-building-art"><img src="' + esc(namedScene(BUILDING_SCENES[x.id] || 'earth-shelter')) + '" alt="" loading="lazy" decoding="async">' +
+            '<span class="ck-building-name"><b>' + esc(x.name) + '</b><span class="ck-stars">' + stars + '</span></span></div>' +
+          '<div class="ck-building-body"><p class="ck-small ck-muted">' + esc(x.blurb) + '</p>' +
+          '<p class="ck-small' + (x.level ? ' is-ready' : ' ck-muted') + '">' + esc(x.effect) + '</p>' + next + extra + '</div></section>';
+      }).join('') + '</div>' +
+      '<section class="ck-card ck-keep"><h3>🏰 My Keep</h3><p class="ck-hint">Your Keep is your stronghold beyond the expedition road. ' +
+        'Its rooms and residents live in My Keep.</p><a class="ck-btn is-glass" href="/keep">Visit your Keep</a></section>';
   }
 
   // Realm ──────────────────────────────────────────────────────────────────
@@ -565,9 +766,11 @@
   }
 
   function viewRealm(s) {
-    var head = '<section class="ck-card ck-now"><div class="ck-row"><div><p class="ck-kicker">The realm</p><h2>Guilds and the marketplace</h2></div>' +
-      '<span class="ck-crowns" title="Crowns">&#9819; ' + esc(s.knight.crowns) + '</span></div>' +
-      '<p class="ck-small ck-muted">Crowns are earned in battle and spent at the marketplace. They are Chronicles\' own coin, apart from Siegecoins.</p></section>';
+    var head = hero({
+      cls: 'is-road', scene: namedScene('metal-boss'), kicker: 'Guilds &amp; the marketplace', title: 'The Realm',
+      art: '<span class="ck-crowns" title="Crowns"><span aria-hidden="true">\uD83D\uDC51</span><b>' + esc(s.knight.crowns) + '</b></span>',
+      body: '<p class="ck-banner-line">Crowns are earned in battle and spent at the marketplace, apart from Siegecoins.</p>'
+    });
     if (!state.guild && !state.market) {
       return head + '<section class="ck-card"><p class="ck-muted">' + esc(state.realmError || 'Gathering news from the realm…') + '</p></section>';
     }
@@ -589,20 +792,25 @@
     var g = v.guild;
     var op = g.operation;
     var busy = Boolean(s.expedition);
-    return '<section class="ck-card"><div class="ck-row"><h3>' + esc(g.name) + '</h3><span class="ck-chip">Code ' + esc(g.code) + '</span></div>' +
+    return '<section class="ck-card"><div class="ck-row"><h3>\uD83D\uDEA9 ' + esc(g.name) + '</h3><span class="ck-chip">Code ' + esc(g.code) + '</span></div>' +
         '<p class="ck-small ck-muted">' + esc(g.members.length) + '/' + esc(g.maxMembers) + ' knights · led by ' + esc(g.leader) + '</p>' +
         '<ul class="ck-members">' + g.members.map(function (m) {
           return '<li class="' + (m.you ? 'is-you' : '') + '"><span>' + esc(m.name) + ' <span class="ck-small ck-muted">Rank ' + esc(m.rank) + '</span></span><b>' + esc(m.contribution) + '</b></li>';
         }).join('') + '</ul></section>' +
-      '<section class="ck-card ck-operation" style="--el:var(--' + elKey(op.element) + ')"><p class="ck-kicker">Siege Operation · ' + esc(op.week) + '</p>' +
-        '<h2>' + elementIcon(op.element, 20) + ' ' + esc(op.threat) + '</h2><p class="ck-small">' + esc(op.blurb) + '</p>' +
-        '<span class="ck-bar is-live is-el"><i style="width:' + pct(op.damage, op.maxHp) + '%"></i></span>' +
+      '<section class="ck-card ck-operation" style="--el:var(--' + elKey(op.element) + ')">' +
+        '<div class="ck-operation-art"><img src="' + esc(scene(op.element, 'boss')) + '" alt="" loading="lazy" decoding="async">' +
+          '<span class="ck-banner-shade" aria-hidden="true"></span>' +
+          '<p class="ck-banner-kicker">\u2694\uFE0F Siege Operation · ' + esc(op.week) + '</p>' +
+          '<h2 class="ck-banner-title">' + elementIcon(op.element, 26) + ' ' + esc(op.threat) + '</h2></div>' +
+        '<p class="ck-small">' + esc(op.blurb) + '</p>' +
+        '<span class="ck-bar is-fat is-el is-threat"><i style="width:' + pct(op.damage, op.maxHp) + '%"></i></span>' +
         '<p class="ck-small">' + esc(op.damage) + ' / ' + esc(op.maxHp) + ' broken · your companies: ' + esc(op.yours) + '</p>' +
         (op.won
           ? '<p class="ck-good">The threat is broken!</p>' + (op.canClaim ? '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="guild-claim">Claim your share</button></div>' : '')
           : '<div class="ck-fronts">' + v.fronts.map(function (f) {
-              return '<div class="ck-front"><b>' + esc(f.name) + '</b><span class="ck-small">' + esc(f.text) + '</span>' +
-                '<button type="button" class="ck-btn is-sm" data-act="operation" data-id="' + esc(f.id) + '"' + (busy ? ' disabled' : '') + '>Send company</button></div>';
+              return '<div class="ck-front"><b>' + ({ assault: '\u2694\uFE0F', supply: '\uD83D\uDCE6', scouting: '\uD83D\uDD2D' }[f.id] || '\uD83D\uDEA9') + ' ' + esc(f.name) + '</b>' +
+                '<span class="ck-small">' + esc(f.text) + '</span>' +
+                '<button type="button" class="ck-btn is-sm is-primary" data-act="operation" data-id="' + esc(f.id) + '"' + (busy ? ' disabled' : '') + '>Send company</button></div>';
             }).join('') + '</div>' +
             '<p class="ck-small ck-muted">Sorties take ' + esc(60) + ' minutes and meet your company at level ' + esc(op.companyLevel) + '.' +
             (busy ? ' Your company is already on the road.' : '') + '</p>') +
@@ -620,12 +828,12 @@
     var m = state.market;
     if (!m) return '<section class="ck-card"><h3>Marketplace</h3><p class="ck-muted">The marketplace is closed right now.</p></section>';
     var others = m.listings.filter(function (l) { return !l.mine; });
-    return '<section class="ck-card"><h3>Marketplace</h3><p class="ck-small ck-muted">Trade materials, consumables and gear. ' +
+    return '<section class="ck-card"><h3>\uD83D\uDED2 Marketplace</h3><p class="ck-small ck-muted">Trade materials, consumables and gear. ' +
         'Siegelings are never for sale. Sellers pay a ' + Math.round(m.fee * 100) + '% fee.</p>' +
         (others.length ? '<div class="ck-listings">' + others.map(function (l) {
-          return '<div class="ck-listing"><div><b>' + esc(l.item.qty) + '× ' + esc(l.item.name) + '</b><span class="ck-small ck-muted">' + esc(l.seller) + '</span></div>' +
+          return '<div class="ck-listing">' + itemIcon(l.item.id, l.item.kind, 'is-sm') + '<div><b>' + esc(l.item.qty) + '× ' + esc(l.item.name) + '</b><span class="ck-small ck-muted">' + esc(l.seller) + '</span></div>' +
             '<button type="button" class="ck-btn is-sm' + (l.affordable ? ' is-primary' : '') + '" data-act="market-buy" data-id="' + esc(l.id) + '"' +
-            (l.affordable ? '' : ' disabled') + '>&#9819; ' + esc(l.price) + '</button></div>';
+            (l.affordable ? '' : ' disabled') + '>\uD83D\uDC51 ' + esc(l.price) + '</button></div>';
         }).join('') + '</div>' : '<p class="ck-small ck-muted">Nothing for sale right now.</p>') +
         '<h4>Sell</h4>' + (m.sellable.length ? '<div class="ck-sell"><select id="ckSellItem">' + m.sellable.map(function (i) {
           return '<option value="' + esc(i.id) + '">' + esc(i.name) + ' (' + esc(i.qty) + ')</option>';
@@ -633,7 +841,7 @@
         '<input id="ckSellPrice" type="number" min="1" value="10" inputmode="numeric" aria-label="Price in crowns">' +
         '<button type="button" class="ck-btn is-sm" data-act="market-list">List</button></div>' : '<p class="ck-small ck-muted">Nothing to sell yet.</p>') +
         (m.mine.length ? '<h4>Your listings</h4><div class="ck-listings">' + m.mine.map(function (l) {
-          return '<div class="ck-listing"><div><b>' + esc(l.item.qty) + '× ' + esc(l.item.name) + '</b><span class="ck-small ck-muted">&#9819; ' + esc(l.price) + ' · ' + esc(l.status) + '</span></div>' +
+          return '<div class="ck-listing">' + itemIcon(l.item.id, l.item.kind, 'is-sm') + '<div><b>' + esc(l.item.qty) + '× ' + esc(l.item.name) + '</b><span class="ck-small ck-muted">\uD83D\uDC51 ' + esc(l.price) + ' · ' + esc(l.status) + '</span></div>' +
             (l.status === 'open' ? '<button type="button" class="ck-btn is-sm" data-act="market-cancel" data-id="' + esc(l.id) + '">Cancel</button>' : '') + '</div>';
         }).join('') + '</div>' : '') + '</section>';
   }
@@ -643,33 +851,38 @@
   function viewCompany(s) {
     var p = s.party;
     var away = Boolean(s.expedition);
+    var lead = partner(s);
     var slots = p.positions.map(function (pos, i) {
       var id = p.members[i] || '';
       var c = id ? companion(id) : null;
       var locked = i >= p.slots;
       var need = i === 1 ? 3 : 10;
-      return '<div class="ck-slot' + (locked ? ' is-locked' : '') + '"><span class="ck-kicker">' + esc(pos) + '</span>' +
-        (locked ? '<span class="ck-small">Command ' + need + '</span>' :
-          c ? portrait(c, 160, 'is-sm') + '<b>' + esc(c.nickname) + '</b><span class="ck-small">' + esc(c.class) + ' · Lv ' + esc(c.level) + '</span>' +
-            (away ? '' : '<button type="button" class="ck-link" data-act="party-clear" data-slot="' + i + '">Remove</button>')
-            : '<span class="ck-small ck-muted">Empty</span>') +
+      var label = pos.charAt(0) + pos.slice(1).toLowerCase();
+      return '<div class="ck-stage-slot' + (locked ? ' is-locked' : c ? '' : ' is-empty') + '"' + (c ? ' style="--el:var(--' + elKey(c.element) + ')"' : '') + '>' +
+        '<span class="ck-stage-pos">' + esc(label) + '</span>' +
+        (locked ? '<span class="ck-stage-ring">🔒</span><span class="ck-stage-name">Command ' + need + '</span>' :
+          c ? '<button type="button" class="ck-stage-ring" data-act="comp-toggle" data-id="' + esc(c.id) + '" aria-label="' + esc(c.nickname) + '">' + portrait(c, 240) + '</button>' +
+            '<span class="ck-stage-name">' + esc(c.nickname) + '</span><span class="ck-stage-sub">' + esc(CLASS_EMOJI[c.class] || '') + ' Lv ' + esc(c.level) + '</span>' +
+            (away ? '' : '<button type="button" class="ck-stage-x" data-act="party-clear" data-slot="' + i + '" aria-label="Remove ' + esc(c.nickname) + '">&times;</button>')
+          : '<span class="ck-stage-ring">➕</span><span class="ck-stage-name">Empty</span>') +
       '</div>';
     }).join('');
     var reserve = p.reserveUnlocked ? (p.reserveId ? companion(p.reserveId) : null) : null;
-    return '' +
-      '<section class="ck-card"><h3>Expedition Company</h3>' +
-        (away ? '<p class="ck-warn">The company is on the road. Changes wait until it returns.</p>' : '') +
-        '<div class="ck-formation">' + slots + '</div>' +
-        '<p class="ck-small">' + (p.reserveUnlocked ? 'Reserve: ' + esc(reserve ? reserve.nickname : 'none') + ' (steps in once when someone falls).' :
-          'A reserve slot opens at Command ' + esc(p.reserveCommandLevel) + '.') +
-          (p.nextSlotAt ? ' Next slot at Command ' + esc(p.nextSlotAt) + '.' : '') + '</p>' +
+    return hero({
+        cls: 'is-stage', scene: scene(lead ? lead.element : 'EARTH', 'journey'),
+        kicker: away ? 'On the road · changes wait until they return' : 'Your expedition company',
+        title: 'The Company', foot: '<div class="ck-stage">' + slots + '</div>'
+      }) +
+      '<section class="ck-card is-tight">' +
         (p.synergies.length ? '<div class="ck-synergies">' + p.synergies.map(function (sy) {
-          return '<span class="ck-chip is-syn" title="' + esc(sy.text) + '"><b>' + esc(sy.label) + '</b> ' + esc(sy.text) + '</span>';
-        }).join('') + '</div>' : '<p class="ck-small ck-muted">Two Siegelings of one element or class form a synergy (RBX tiers: two and three).</p>') +
+          return '<span class="ck-chip is-syn" title="' + esc(sy.text) + '">✨ <b>' + esc(sy.label) + '</b> ' + esc(sy.text) + '</span>';
+        }).join('') + '</div>' : '<p class="ck-hint">Two of one element or class make a synergy. Three make it stronger.</p>') +
         (p.crossClass.length ? '<p class="ck-small is-ready">' + p.crossClass.map(function (c) { return esc(c.name); }).join(', ') + ' active.</p>' : '') +
+        '<p class="ck-hint">' + (p.reserveUnlocked ? 'Reserve: ' + esc(reserve ? reserve.nickname : 'none') + ', who steps in once if someone falls.' :
+          'A reserve slot opens at Command ' + esc(p.reserveCommandLevel) + '.') + (p.nextSlotAt ? ' Next slot at Command ' + esc(p.nextSlotAt) + '.' : '') + '</p>' +
       '</section>' +
-      '<section class="ck-card"><div class="ck-row"><h3>Sanctuary</h3><span class="ck-small">' + esc(s.companions.length) + '/' + esc(s.rosterCap) + '</span></div>' +
-      '<div class="ck-roster">' + s.companions.map(function (c) { return companionCard(s, c, away); }).join('') + '</div></section>';
+      '<div class="ck-section-head"><h3>🐾 Sanctuary</h3><span class="ck-count">' + esc(s.companions.length) + '/' + esc(s.rosterCap) + '</span></div>' +
+      '<div class="ck-roster">' + s.companions.map(function (c) { return companionCard(s, c, away); }).join('') + '</div>';
   }
 
   function companionCard(s, c, away) {
@@ -677,8 +890,6 @@
     var p = s.party;
     var inParty = p.members.indexOf(c.id) >= 0;
     var foods = s.inventory.filter(function (i) { return i.kind === 'FOOD'; });
-    var status = (c.legend ? chip('Legend', 'is-legend') : '') +
-      (c.onExpedition ? chip('On expedition', 'is-away') : c.helping ? chip('Helping your knight', 'is-help') : inParty ? chip('In company', 'is-on') : '');
     var evo = c.evolution;
     var body = '';
     if (open) {
@@ -719,15 +930,22 @@
         '<div class="ck-pills"><button type="button" class="ck-link" data-act="rename" data-id="' + esc(c.id) + '">Rename</button></div>' +
       '</div>';
     }
+    var bondHearts = Math.max(0, Math.min(5, Math.floor(c.bond / 20)));
+    var hearts = '';
+    for (var h = 0; h < 5; h++) hearts += h < bondHearts ? '❤️' : '🤍';
     return '<article class="ck-comp' + (open ? ' is-open' : '') + (c.legend ? ' is-legend' : '') + '" style="--el:var(--' + elKey(c.element) + ')">' +
       '<button type="button" class="ck-comp-head" data-act="comp-toggle" data-id="' + esc(c.id) + '" aria-expanded="' + open + '">' +
-        portrait(c, 240) +
-        '<span class="ck-comp-main"><span class="ck-row"><b>' + esc(c.nickname) + '</b><span class="ck-small">Lv ' + esc(c.level) + '/' + esc(c.levelCap) + '</span></span>' +
-          '<span class="ck-chips">' + elChip(c.element, c.elementLabel) + chip(c.class) + (c.nickname !== c.species ? chip(c.species) : '') + status + '</span>' +
-          '<span class="ck-meter"><span class="ck-small">' + (c.level >= c.levelCap
-            ? (c.evolution ? 'Max level · ready to evolve' : 'Max level') : 'XP') + '</span>' +
-            (c.level >= c.levelCap ? bar(1, 1, 'is-max') : bar(c.xpInto, c.xpSpan)) + '</span>' +
-          '<span class="ck-meter"><span class="ck-small">Bond ' + esc(c.bond) + ' · ' + esc(c.bondTitle) + '</span>' + (c.bond >= 100 ? bar(1, 1, 'is-bond') : bar(c.bondInto, c.bondSpan, 'is-bond')) + '</span>' +
+        '<span class="ck-comp-art">' + portrait(c, 480, 'is-card') +
+          '<span class="ck-comp-lv">Lv ' + esc(c.level) + '</span>' +
+          '<span class="ck-comp-el">' + elementIcon(c.element, 22) + '</span>' +
+          (c.onExpedition ? '<span class="ck-comp-flag">🧭 Away</span>' : c.helping ? '<span class="ck-comp-flag">⚒️ Helping</span>' :
+            inParty ? '<span class="ck-comp-flag is-on">⚔️ Company</span>' : '') +
+        '</span>' +
+        '<span class="ck-comp-main"><span class="ck-comp-name">' + esc(c.nickname) + (c.legend ? ' <span class="ck-legend-star">★</span>' : '') + '</span>' +
+          '<span class="ck-comp-sub">' + esc(CLASS_EMOJI[c.class] || '') + ' ' + esc(c.class) + (c.nickname !== c.species ? ' · ' + esc(c.species) : '') + '</span>' +
+          (c.level >= c.levelCap ? bar(1, 1, 'is-max') : bar(c.xpInto, c.xpSpan)) +
+          '<span class="ck-hearts" title="Bond ' + esc(c.bond) + ' · ' + esc(c.bondTitle) + '">' + hearts + '<small>' + esc(c.bond) + '</small></span>' +
+          (c.level >= c.levelCap && c.evolution ? '<span class="ck-comp-ready">✨ Ready to evolve</span>' : '') +
         '</span>' +
       '</button>' + body + '</article>';
   }
@@ -810,7 +1028,8 @@
     detail.push(a.helper ? a.helper + ' helping' : 'no helper yet');
     return '<div class="ck-nowbar">' +
       '<button type="button" class="ck-nowbar-main" data-act="work-skill" data-id="' + esc(working) + '">' +
-        '<span class="ck-dot is-on"></span><span class="ck-nowbar-text"><b>' + esc(a.name) + '</b>' +
+        emojiIcon(SKILL_EMOJI[working] || '\u2728', skillLook(working)[1], 'is-sm is-spin') +
+        '<span class="ck-nowbar-text"><b>' + esc(a.name) + '</b>' +
         '<span class="ck-small ck-muted">' + esc(detail.join(' · ')) + '</span></span>' +
         '<span class="ck-bar is-live"><i data-live="activity"></i></span></button>' +
       '<button type="button" class="ck-btn is-sm" data-act="activity-stop">Rest</button></div>';
@@ -826,7 +1045,7 @@
     var look = skillLook(k.id);
     return '<button type="button" class="ck-skilltab' + (on ? ' is-on' : '') + (k.unlocked ? '' : ' is-locked') +
       '" data-act="work-skill" data-id="' + esc(k.id) + '" style="--el:var(--' + look[1] + ')"' + (on ? ' aria-current="page"' : '') + '>' +
-      '<span class="ck-skill-ico" aria-hidden="true">' + look[0] + '</span>' +
+      emojiIcon(SKILL_EMOJI[k.id] || look[0], look[1], 'is-sm') +
       '<b>' + esc(shortSkill(k.name)) + '</b>' +
       '<span class="ck-skilltab-lv">' + (k.unlocked ? 'Lv ' + esc(k.level) : 'Locked') + '</span>' +
       (busy ? '<span class="ck-dot is-on" title="Working here"></span>' : '') +
@@ -836,16 +1055,18 @@
   function skillHead(k) {
     var look = skillLook(k.id);
     var maxed = k.level >= MAX_SKILL_LEVEL;
-    return '<section class="ck-card ck-skillhead" style="--el:var(--' + look[1] + ')">' +
-      '<span class="ck-skill-ico is-lg" aria-hidden="true">' + look[0] + '</span>' +
-      '<div class="ck-skillhead-body">' +
-        '<div class="ck-row"><h3>' + esc(k.name) + '</h3><span class="ck-lv">' + (k.unlocked ? 'Level ' + esc(k.level) : 'Locked') + '</span></div>' +
-        (k.unlocked
-          ? (maxed ? bar(1, 1, 'is-max') : bar(k.xpInto, k.xpSpan, 'is-el')) +
-            '<span class="ck-small ck-muted">' + (maxed ? 'Grandmaster' : esc(k.xpInto) + ' / ' + esc(k.xpSpan) + ' XP to level ' + esc(k.level + 1)) + '</span>'
-          : '<span class="ck-small ck-warn">Needs ' + esc(k.unlockText.join(', ')) + '</span>') +
-        '<span class="ck-small' + (k.unlocked && k.effect ? ' is-ready' : ' ck-muted') + '">' + esc(k.unlocked && k.effect ? k.effect : k.blurb) + '</span>' +
-      '</div></section>';
+    var group = k.group === 'Gathering' ? 'Gathering' : 'Crafting';
+    return hero({
+      cls: 'is-skill', el: look[1].toUpperCase(), scene: namedScene(PROFESSION_SCENES[k.id] || 'earth-journey'),
+      kicker: esc(group) + (k.unlocked ? '' : ' · Locked'),
+      title: '<span class="ck-banner-emoji" aria-hidden="true">' + (SKILL_EMOJI[k.id] || look[0]) + '</span>' + esc(k.name),
+      art: '<span class="ck-level-orb' + (k.unlocked ? '' : ' is-locked') + '"><small>Level</small><b>' + (k.unlocked ? esc(k.level) : '&#128274;') + '</b></span>',
+      body: (k.unlocked
+        ? (maxed ? bar(1, 1, 'is-max is-fat') : bar(k.xpInto, k.xpSpan, 'is-fat')) +
+          '<p class="ck-banner-line">' + (maxed ? 'Grandmaster!' : esc(k.xpInto) + ' / ' + esc(k.xpSpan) + ' XP to level ' + esc(k.level + 1)) + '</p>'
+        : '<p class="ck-banner-line is-warn">Needs ' + esc(k.unlockText.join(', ')) + '</p>') +
+        '<p class="ck-banner-line' + (k.unlocked && k.effect ? ' is-gold' : '') + '">' + esc(k.unlocked && k.effect ? k.effect : k.blurb) + '</p>'
+    });
   }
 
   function gatherPage(s, skillId) {
@@ -860,7 +1081,7 @@
         (on ? ' aria-current="true"' : '') + (x.unlocked ? '' : ' disabled') +
         ' title="' + esc(x.place + (x.helpers.length ? ' · Helpers: ' + x.helpers.join(', ') : '')) + '">' +
         cellTop(x.level, x.xp) +
-        '<span class="ck-cell-ico" aria-hidden="true">' + look[0] + '</span>' +
+        itemIcon(x.outputId, 'MATERIAL', 'is-cell') +
         '<b class="ck-cell-name">' + esc(x.name) + '</b>' +
         '<span class="ck-cell-sub">' + esc(x.output) + ' · ' + esc(x.seconds) + 's</span>' +
         (x.bonus ? '<span class="ck-cell-sub is-ready">+ ' + esc(x.bonus) + '</span>' : '') +
@@ -889,12 +1110,17 @@
           (pick && pick.id === r.id ? ' is-picked' : '') + '" data-act="recipe-pick" data-id="' + esc(r.id) + '"' +
           (pick && pick.id === r.id ? ' aria-pressed="true"' : ' aria-pressed="false"') + '>' +
           cellTop(r.level, r.xp) +
-          '<span class="ck-cell-ico" aria-hidden="true">' + look[0] + '</span>' +
+          recipeIcon(r, 'is-cell') +
           '<b class="ck-cell-name">' + esc(r.output.name) + '</b>' +
           '<span class="ck-cell-sub">' + (r.repeatable ? esc(r.seconds) + 's each' : 'Forged once') + '</span>' +
           (on ? cellLive() : status) +
         '</button>';
       }).join('') + '</div>';
+  }
+
+  function recipeIcon(r, cls) {
+    if (r.kind === 'STUDY') return itemIcon((r.inputs[0] || {}).id, 'ESSENCE', cls);
+    return itemIcon(r.output.id, r.output.kind, cls);
   }
 
   function cellTop(level, xp) {
@@ -922,12 +1148,12 @@
     } else if (r.owned) buttons = '<span class="ck-small is-ready">Owned</span>';
     else buttons = '<button type="button" class="ck-pill is-forge" data-act="craft" data-id="' + esc(r.id) + '" data-qty="1"' +
       (r.canMake > 0 ? '' : ' disabled') + '>Forge</button>';
-    return '<div class="ck-recipe' + (r.unlocked ? '' : ' is-locked') + '"><div class="ck-row"><b>' + esc(r.output.name) + '</b>' +
+    return '<div class="ck-recipe' + (r.unlocked ? '' : ' is-locked') + '">' + recipeIcon(r, 'is-lg') + '<div class="ck-recipe-main"><div class="ck-row"><b>' + esc(r.output.name) + '</b>' +
       '<span class="ck-small">Lv ' + esc(r.level) + ' · +' + esc(r.xp) + 'xp</span></div>' +
       '<span class="ck-small ck-muted">' + esc(r.output.blurb) + '</span>' +
       '<span class="ck-small">' + inputs + '</span>' +
       (r.requirements.length ? '<span class="ck-small">Also needs ' + esc(r.requirements.join(', ')) + '</span>' : '') +
-      '<div class="ck-pills">' + buttons + '</div></div>';
+      '<div class="ck-pills">' + buttons + '</div></div></div>';
   }
 
   // Expedition ─────────────────────────────────────────────────────────────
@@ -941,44 +1167,63 @@
     }).join('') + '</ol>';
   }
 
+  var ROUTE_EMOJI = { PATROL: '🥾', RESOURCE: '⛏️', HUNT: '🎯', DUNGEON: '💀', GRAND: '🌟' };
+
+  function partyFaces(s) {
+    var members = s.party.members.filter(Boolean).map(companion).filter(Boolean);
+    if (!members.length) return '<span class="ck-faces is-empty">No one in the company yet</span>';
+    return '<span class="ck-faces">' + members.map(function (c) {
+      return '<span class="ck-face" style="--el:var(--' + elKey(c.element) + ')" title="' + esc(c.nickname) + '">' + portrait(c, 120) + '</span>';
+    }).join('') + '</span>';
+  }
+
   function viewExpedition(s) {
     var e = s.expedition;
     if (e) {
-      return '<section class="ck-card ck-now" style="--el:var(--' + elKey(e.element) + ')"><p class="ck-kicker">' + esc(e.region) + '</p>' +
-        '<h2>' + esc(e.route) + '</h2>' +
-        (e.done
-          ? '<p class="ck-good">The company is home.</p><div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="collect">Welcome them home</button></div>'
-          : '<span class="ck-bar is-live"><i data-live="exp-bar"></i></span><p class="ck-small">Returns in <b data-live="exp-left"></b>' +
-            (e.technique ? ' · Prepared: ' + esc(e.technique) : '') + (e.combo ? ' · ' + esc(e.combo) : '') + '</p>') +
-        '</section>' +
-        '<section class="ck-card"><h3>The road so far</h3>' + timelineHtml(e.timeline) +
-        (e.done ? '' : '<p class="ck-small ck-muted">News arrives as it happens.</p>') + '</section>';
+      return hero({
+          cls: 'is-road', el: e.element, scene: expeditionScene(s), kicker: esc(e.region), title: esc(e.route),
+          body: e.done
+            ? '<p class="ck-banner-line is-gold">🎉 The company is home!</p>'
+            : bar(0, 1, 'is-fat is-live-road').replace('<i ', '<i data-live="exp-bar" ') +
+              '<p class="ck-banner-line">Back in <b data-live="exp-left"></b>' +
+              (e.technique ? ' · ✨ ' + esc(e.technique) : '') + (e.combo ? ' · ' + esc(e.combo) : '') + '</p>',
+          foot: partyFaces(s) + (e.done ? '<button type="button" class="ck-btn is-primary is-big" data-act="collect">🎉 Welcome them home</button>' : '')
+        }) +
+        '<section class="ck-card"><h3>📜 The road so far</h3>' + timelineHtml(e.timeline) +
+        (e.done ? '' : '<p class="ck-hint">News arrives as it happens.</p>') + '</section>';
     }
     var t = s.tactics;
     var techniques = s.affinities.filter(function (a) { return a.technique.unlocked; });
     var potions = s.inventory.filter(function (i) { return i.kind === 'POTION'; });
     var runes = s.inventory.filter(function (i) { return i.kind === 'RUNE'; });
-    var members = s.party.members.filter(Boolean).map(companion).filter(Boolean);
-    var partyLine = members.length ? members.map(function (c) { return esc(c.nickname) + ' (' + esc(c.elementLabel) + ' ' + esc(c.class) + ')'; }).join(', ') : 'No one assigned';
-    return '' +
-      '<section class="ck-card"><h3>Prepare</h3>' +
-        '<p class="ck-small">Company: ' + partyLine + ' · <button type="button" class="ck-link" data-act="tab" data-tab="company">Change</button></p>' +
+    var packed = potions.reduce(function (n, p) { return n + Math.min(state.supplies[p.id] || 0, p.qty); }, 0);
+    var tech = techniques.filter(function (a) { return a.technique.id === t.techniqueId; })[0];
+    return hero({
+        cls: 'is-road', scene: namedScene('wind-journey'), kicker: 'Expeditions', title: 'Choose your road',
+        body: '<p class="ck-banner-line">Your company explores, fights and gathers while you are away.</p>',
+        foot: partyFaces(s) + '<button type="button" class="ck-btn is-glass is-sm" data-act="tab" data-tab="company">Change company</button>'
+      }) +
+      '<details class="ck-card ck-prep"' + (state.prepOpen ? ' open' : '') + '><summary data-act="prep-toggle">' +
+        '<span class="ck-prep-title">⚙️ Tactics &amp; supplies</span>' +
+        '<span class="ck-prep-sum"><span class="ck-chip">🏳️ ' + esc(t.retreatAt) + '%</span>' +
+        '<span class="ck-chip">🧪 ' + packed + '</span>' + (tech ? '<span class="ck-chip is-type">✨ ' + esc(tech.label) + '</span>' : '') +
+        (state.rune ? '<span class="ck-chip is-rare">📜 Rune</span>' : '') + '</span></summary>' +
         '<div class="ck-tactics">' +
-          '<label class="ck-field"><span>Retreat below <b>' + esc(t.retreatAt) + '%</b> company health</span>' +
+          '<label class="ck-field"><span>🏳️ Retreat below <b>' + esc(t.retreatAt) + '%</b> company health</span>' +
             '<input type="range" min="0" max="60" step="5" value="' + esc(t.retreatAt) + '" data-tactic="retreatAt"></label>' +
-          '<label class="ck-field"><span>Give potions below <b>' + esc(t.potionAt) + '%</b> health</span>' +
+          '<label class="ck-field"><span>🧪 Give potions below <b>' + esc(t.potionAt) + '%</b> health</span>' +
             '<input type="range" min="0" max="80" step="5" value="' + esc(t.potionAt) + '" data-tactic="potionAt"></label>' +
-          '<label class="ck-field"><span>Use your weapon command</span><select data-tactic="trigger">' + t.triggers.map(function (o) {
+          '<label class="ck-field"><span>⚔️ Use your weapon command</span><select data-tactic="trigger">' + t.triggers.map(function (o) {
             return '<option value="' + esc(o.id) + '"' + (o.id === t.trigger ? ' selected' : '') + '>' + esc(o.label) + '</option>';
           }).join('') + '</select></label>' +
-          '<label class="ck-field"><span>Prepared technique</span><select data-tactic="techniqueId"><option value="">None</option>' +
+          '<label class="ck-field"><span>✨ Prepared technique</span><select data-tactic="techniqueId"><option value="">None</option>' +
             techniques.map(function (a) {
               return '<option value="' + esc(a.technique.id) + '"' + (a.technique.id === t.techniqueId ? ' selected' : '') + '>' +
                 esc(a.technique.name) + ' (' + esc(a.label) + ')</option>';
             }).join('') + '</select>' +
             (techniques.length ? '' : '<span class="ck-small ck-muted">Reach Affinity 10 with an element to learn its technique.</span>') + '</label>' +
           (s.combos.some(function (c) { return c.unlocked; })
-            ? '<label class="ck-field"><span>Prepared combination</span><select data-tactic="comboId"><option value="">None</option>' +
+            ? '<label class="ck-field"><span>🌀 Prepared combination</span><select data-tactic="comboId"><option value="">None</option>' +
               s.combos.filter(function (c) { return c.unlocked; }).map(function (c) {
                 return '<option value="' + esc(c.id) + '"' + (c.id === t.comboId ? ' selected' : '') + '>' + esc(c.name) +
                   ' (' + esc(c.labels.join(' + ')) + ')</option>';
@@ -986,23 +1231,23 @@
         '</div>' +
         '<h4>Supplies</h4>' + (potions.length ? '<div class="ck-supplies">' + potions.map(function (p) {
           var n = Math.min(state.supplies[p.id] || 0, p.qty);
-          return '<div class="ck-supply"><span>' + esc(p.name) + ' <span class="ck-small">(' + esc(p.qty) + ')</span></span>' +
+          return '<div class="ck-supply">' + itemIcon(p.id, p.kind, 'is-sm') + '<span class="ck-supply-name">' + esc(p.name) + ' <span class="ck-small">(' + esc(p.qty) + ')</span></span>' +
             '<span class="ck-stepper"><button type="button" data-act="supply" data-id="' + esc(p.id) + '" data-d="-1" aria-label="Fewer">−</button>' +
             '<b>' + n + '</b><button type="button" data-act="supply" data-id="' + esc(p.id) + '" data-d="1" aria-label="More">+</button></span></div>';
-        }).join('') + '</div>' : '<p class="ck-small ck-muted">No potions. Brew Herb Tonics at Alchemy.</p>') +
+        }).join('') + '</div>' : '<p class="ck-hint">No potions. Brew Herb Tonics at Alchemy.</p>') +
         (runes.length ? '<h4>Rune (one per expedition, spent on the road)</h4><div class="ck-pills">' +
           '<button type="button" class="ck-pill' + (state.rune ? '' : ' is-on') + '" data-act="rune" data-id="">None</button>' +
           runes.map(function (r) {
             return '<button type="button" class="ck-pill' + (state.rune === r.id ? ' is-on' : '') + '" data-act="rune" data-id="' + esc(r.id) +
-              '" title="' + esc(r.blurb) + '">' + esc(r.name) + ' ×' + esc(r.qty) + '</button>';
+              '" title="' + esc(r.blurb) + '">📜 ' + esc(r.name) + ' ×' + esc(r.qty) + '</button>';
           }).join('') + '</div>' : '') +
-      '</section>' +
+      '</details>' +
       [1, 2, 3, 4].map(function (tier) {
         var routes = s.routes.filter(function (r) { return r.tier === tier; });
         if (!routes.length) return '';
-        return '<section class="ck-card"><h3>' + esc(TIER_NAMES[tier]) + '</h3><div class="ck-routes">' + routes.map(routeCard).join('') + '</div>' +
-          (tier === 3 && s.sealedRoutes ? '<p class="ck-small ck-muted">' + esc(s.sealedRoutes) +
-            ' more lands are sealed until their Siegelings are discovered.</p>' : '') + '</section>';
+        return '<div class="ck-section-head"><h3>🗺️ ' + esc(TIER_NAMES[tier]) + '</h3></div><div class="ck-routes">' + routes.map(routeCard).join('') + '</div>' +
+          (tier === 3 && s.sealedRoutes ? '<p class="ck-hint">🔒 ' + esc(s.sealedRoutes) +
+            ' more lands are sealed until their Siegelings are discovered.</p>' : '');
       }).join('');
   }
 
@@ -1012,27 +1257,32 @@
     3: 'Tier III · The Forgotten Regions', 4: 'Tier IV · Legendary Expeditions' };
 
   function routeCard(r) {
+    var type = r.type.charAt(0) + r.type.slice(1).toLowerCase();
     return '<article class="ck-route' + (r.unlocked ? '' : ' is-locked') + '" style="--el:var(--' + elKey(r.element) + ')">' +
-      '<div class="ck-row"><b>' + esc(r.name) + '</b>' + chip(r.type.charAt(0) + r.type.slice(1).toLowerCase(), 'is-type') + '</div>' +
-      '<span class="ck-chips">' + elChip(r.element, r.elementLabel) +
-        (r.extraElements || []).map(function (x) { return elChip(x.toUpperCase(), x); }).join('') +
-        chip(r.minutes >= 120 ? Math.round(r.minutes / 6) / 10 + ' h' : r.minutes + ' min') + chip('Lv ' + r.levels) +
-        (r.hidden ? chip('Discovered', 'is-rare') : '') +
-        (r.taming ? chip('Taming', 'is-help') : '') + (r.boss ? chip('Boss: ' + r.boss, 'is-boss') : '') + '</span>' +
-      '<span class="ck-small">' + esc(r.blurb) + '</span>' +
-      (r.hazardText ? '<span class="ck-small ck-warn">' + esc(r.hazardText) + '</span>' : '') +
-      (r.twists || []).map(function (t) {
-        return '<span class="ck-small ' + (t.warded ? 'is-ready' : 'ck-warn') + '"><b>' + esc(t.name) + (t.warded ? ' (warded)' : '') + ':</b> ' +
-          esc(t.text) + ' Countered by ' + esc(t.counters.join(' or ')) + ' Siegelings or a ' + esc(t.relic) + '.</span>';
-      }).join('') +
-      ((r.requirements || []).length ? '<span class="ck-small">Needs ' + r.requirements.map(function (q) {
-        return '<span class="' + (q.met ? 'is-ready' : 'is-short') + '">' + esc(q.text) + '</span>';
-      }).join(', ') + '</span>' : '') +
-      '<span class="ck-small ck-muted">Finds: ' + esc(r.loot.join(', ')) + '</span>' +
-      '<div class="ck-actions">' + (r.unlocked
-        ? '<button type="button" class="ck-btn is-primary is-sm" data-act="launch" data-id="' + esc(r.id) + '">Send the company</button>'
-        : '<span class="ck-small">' + (s_rank() < r.rankReq ? 'Opens at Rank ' + esc(r.rankReq) : 'Meet its needs to set out') + '</span>') +
-      '</div></article>';
+      '<div class="ck-route-art"><img src="' + esc(routeScene(r.element, r.type)) + '" alt="" loading="lazy" decoding="async">' +
+        '<span class="ck-route-tags"><span class="ck-tag">' + (ROUTE_EMOJI[r.type] || '🧭') + ' ' + esc(type) + '</span>' +
+        '<span class="ck-tag">⏱️ ' + esc(r.minutes >= 120 ? Math.round(r.minutes / 6) / 10 + ' h' : r.minutes + ' min') + '</span></span>' +
+        '<span class="ck-route-name">' + elementIcon(r.element, 20) + (r.extraElements || []).map(function (x) { return elementIcon(x.toUpperCase(), 20); }).join('') +
+          '<b>' + esc(r.name) + '</b></span>' +
+        (r.unlocked ? '' : '<span class="ck-route-lock">🔒</span>') +
+      '</div>' +
+      '<div class="ck-route-body">' +
+        '<span class="ck-chips">' + chip('Lv ' + r.levels) + (r.hidden ? chip('🔍 Discovered', 'is-rare') : '') +
+          (r.taming ? chip('🪢 Taming', 'is-help') : '') + (r.boss ? chip('👹 ' + r.boss, 'is-boss') : '') + '</span>' +
+        '<span class="ck-small">' + esc(r.blurb) + '</span>' +
+        (r.hazardText ? '<span class="ck-small ck-warn">⚠️ ' + esc(r.hazardText) + '</span>' : '') +
+        (r.twists || []).map(function (t) {
+          return '<span class="ck-small ' + (t.warded ? 'is-ready' : 'ck-warn') + '"><b>' + esc(t.name) + (t.warded ? ' (warded)' : '') + ':</b> ' +
+            esc(t.text) + ' Countered by ' + esc(t.counters.join(' or ')) + ' Siegelings or a ' + esc(t.relic) + '.</span>';
+        }).join('') +
+        ((r.requirements || []).length ? '<span class="ck-small">Needs ' + r.requirements.map(function (q) {
+          return '<span class="' + (q.met ? 'is-ready' : 'is-short') + '">' + esc(q.text) + '</span>';
+        }).join(', ') + '</span>' : '') +
+        '<span class="ck-small ck-muted">🎁 ' + esc(r.loot.join(', ')) + '</span>' +
+        '<div class="ck-actions">' + (r.unlocked
+          ? '<button type="button" class="ck-btn is-primary is-sm" data-act="launch" data-id="' + esc(r.id) + '">🚀 Set out</button>'
+          : '<span class="ck-small ck-muted">' + (s_rank() < r.rankReq ? 'Opens at Rank ' + esc(r.rankReq) : 'Meet its needs to set out') + '</span>') +
+        '</div></div></article>';
   }
 
   // Wilds ──────────────────────────────────────────────────────────────────
@@ -1045,38 +1295,50 @@
     pack: 'Pack: responds to a bonded partner of its element.'
   };
 
+  var BEHAVIOR_EMOJI = { gentle: '🌸', skittish: '💨', aggressive: '💢', lone: '🌙', pack: '🐾' };
+
   function viewWilds(s) {
     if (!s.sightings.length) {
-      return '<section class="ck-card ck-now"><h2>No fresh trails</h2><p class="ck-muted">Hunts and patrols can spot wild Siegelings. ' +
-        'Each sighting waits 48 hours for you to try taming it. Every Siegeling you tame is its own individual with its own bond.</p>' +
-        '<div class="ck-actions"><button type="button" class="ck-btn" data-act="tab" data-tab="expedition">Plan a hunt</button></div></section>';
+      return hero({
+        cls: 'is-road', scene: namedScene('wind-elite'), kicker: 'The Wilds', title: 'No fresh trails',
+        body: '<p class="ck-banner-line">Hunts and patrols spot wild Siegelings. Each trail waits 48 hours for you to try taming it.</p>',
+        foot: '<button type="button" class="ck-btn is-primary" data-act="tab" data-tab="expedition">🎯 Plan a hunt</button>'
+      });
     }
     return s.sightings.map(function (w) {
       var o = w.odds;
       var left = w.expiresAt - serverNow();
-      return '<section class="ck-card ck-wild" style="--el:var(--' + elKey(w.element) + ')">' +
-        '<div class="ck-wild-head">' + portrait(w, 320) + '<div><p class="ck-kicker">A wild Siegeling appears!</p><h2>' + esc(w.species) + '</h2>' +
-        '<span class="ck-chips">' + elChip(w.element, w.elementLabel) + chip(w.class) + chip('Lv ' + w.level) + chip(w.rarity.charAt(0) + w.rarity.slice(1).toLowerCase()) + '</span>' +
-        '<p class="ck-small">' + esc(BEHAVIOR_TIPS[w.behavior] || w.behavior) + '</p>' +
-        '<p class="ck-small ck-muted">Spotted on ' + esc(w.route) + ' · trail goes cold in ' + esc(duration(left)) + '</p></div></div>' +
-        '<div class="ck-approaches">' +
-          approach('Patient Approach', 'Uses your Taming skill. Costs nothing.', o.patient, 'data-act="tame" data-id="' + esc(w.id) + '" data-plan="patient"') +
-          approach('Partner Approach', o.partner == null ? 'Needs a ' + esc(w.elementLabel) + ' Siegeling at Bond 10 or higher.' :
-            esc(o.partnerName) + ' coaxes it closer.', o.partner, 'data-act="tame" data-id="' + esc(w.id) + '" data-plan="partner"') +
-          (o.lures.length ? o.lures.map(function (l) {
-            return approach(l.name, 'Spends one lure (' + esc(l.qty) + ' left).', l.chance,
-              'data-act="tame" data-id="' + esc(w.id) + '" data-plan="lure" data-lure="' + esc(l.id) + '"');
-          }).join('') : approach('Lure', 'Brew lures at Alchemy. Element lures work best.', null, '')) +
+      return '<section class="ck-encounter" style="--el:var(--' + elKey(w.element) + ')">' +
+        '<div class="ck-encounter-stage"><img class="ck-banner-img" src="' + esc(scene(w.element, 'journey')) + '" alt="" decoding="async">' +
+          '<span class="ck-banner-shade" aria-hidden="true"></span>' +
+          '<p class="ck-encounter-kicker">A wild Siegeling appears!</p>' +
+          portrait(w, 480, 'is-encounter') +
+          '<div class="ck-encounter-name"><h2>' + esc(w.species) + '</h2><span class="ck-chips">' + elChip(w.element, w.elementLabel) +
+            chip((CLASS_EMOJI[w.class] || '') + ' ' + w.class) + chip('Lv ' + w.level) + chip(w.rarity.charAt(0) + w.rarity.slice(1).toLowerCase()) + '</span></div>' +
         '</div>' +
-        '<div class="ck-actions"><button type="button" class="ck-link" data-act="tame" data-id="' + esc(w.id) + '" data-plan="leave">Let it go</button></div>' +
-      '</section>';
+        '<div class="ck-encounter-body">' +
+          '<p class="ck-small">' + (BEHAVIOR_EMOJI[w.behavior] || '') + ' ' + esc(BEHAVIOR_TIPS[w.behavior] || w.behavior) + '</p>' +
+          '<p class="ck-hint">Spotted on ' + esc(w.route) + ' · trail goes cold in ' + esc(duration(left)) + '</p>' +
+          '<div class="ck-approaches">' +
+            approach('🧘', 'Patient', 'Uses your Taming skill. Costs nothing.', o.patient, 'data-act="tame" data-id="' + esc(w.id) + '" data-plan="patient"') +
+            approach('🤝', 'Partner', o.partner == null ? 'Needs a ' + esc(w.elementLabel) + ' Siegeling at Bond 10+.' :
+              esc(o.partnerName) + ' coaxes it closer.', o.partner, 'data-act="tame" data-id="' + esc(w.id) + '" data-plan="partner"') +
+            (o.lures.length ? o.lures.map(function (l) {
+              return approach(itemEmoji(l.id, 'LURE'), l.name, 'Spends one lure (' + esc(l.qty) + ' left).', l.chance,
+                'data-act="tame" data-id="' + esc(w.id) + '" data-plan="lure" data-lure="' + esc(l.id) + '"');
+            }).join('') : approach('🪝', 'Lure', 'Brew lures at Alchemy. Element lures work best.', null, '')) +
+          '</div>' +
+          '<div class="ck-actions"><button type="button" class="ck-link" data-act="tame" data-id="' + esc(w.id) + '" data-plan="leave">Let it go</button></div>' +
+        '</div></section>';
     }).join('');
   }
 
-  function approach(name, text, chance, attrs) {
+  function approach(emoji, name, text, chance, attrs) {
     var ok = chance != null && attrs;
-    return '<button type="button" class="ck-approach"' + (ok ? ' ' + attrs : ' disabled') + '><b>' + esc(name) + '</b>' +
-      '<span class="ck-small">' + text + '</span>' + (chance != null ? '<span class="ck-odds">' + esc(chance) + '%</span>' : '') + '</button>';
+    return '<button type="button" class="ck-approach"' + (ok ? ' ' + attrs : ' disabled') + '>' +
+      '<span class="ck-approach-ico" aria-hidden="true">' + emoji + '</span>' +
+      '<span class="ck-approach-text"><b>' + esc(name) + '</b><span class="ck-small">' + text + '</span></span>' +
+      (chance != null ? '<span class="ck-odds" style="--p:' + Number(chance) + '"><b>' + esc(chance) + '%</b></span>' : '') + '</button>';
   }
 
   // ── live ticking ─────────────────────────────────────────────────────────
@@ -1127,6 +1389,8 @@
         Array.prototype.forEach.call(document.querySelectorAll('.ck-starter'), function (b) {
           b.classList.toggle('is-picked', b.dataset.id === d.id);
         });
+        // The land behind the oath follows the companion being considered.
+        if (el.dataset.el) setBackdrop(scene(el.dataset.el, 'journey'));
         break;
       case 'oath':
         api('/api/chronicles/start', { starterId: state.oathPick, knightName: ($('ckOathName') || {}).value || '', requestId: requestId() })
@@ -1139,6 +1403,8 @@
         break;
       case 'equip': act('/api/chronicles/equip', { itemId: d.id }); break;
       case 'affinity': showAffinity(d.id); break;
+      case 'skill': showSkill(d.id); break;
+      case 'item': showItem(d.id); break;
       case 'build': act('/api/chronicles/build', { buildingId: d.id }); break;
       case 'trial': act('/api/chronicles/trial/start', { companionId: d.id }, function () { switchTab('expedition'); }); break;
       case 'guild-join': realmAct('/api/chronicles/guild/join', { code: ($('ckGuildCode') || {}).value || '' }); break;
@@ -1179,7 +1445,17 @@
       }
       case 'activity-stop': act('/api/chronicles/activity', { kind: '', id: '' }); break;
       case 'craft': act('/api/chronicles/craft', { recipeId: d.id, quantity: Number(d.qty) || 1 }); break;
-      case 'comp-toggle': state.openCompanion = state.openCompanion === d.id ? '' : d.id; render(); break;
+      case 'comp-toggle': {
+        state.openCompanion = state.openCompanion === d.id ? '' : d.id;
+        render();
+        // A tap on the company stage opens that card further down; bring it into view.
+        var card = state.openCompanion && main.querySelector('.ck-comp.is-open');
+        if (card) {
+          var top = card.getBoundingClientRect().top - main.getBoundingClientRect().top;
+          if (top < 0 || top > main.clientHeight - 80) main.scrollTop = Math.max(0, main.scrollTop + top - 8);
+        }
+        break;
+      }
       case 'helper': act('/api/chronicles/helper', { companionId: d.id }); break;
       case 'feed': act('/api/chronicles/feed', { companionId: d.id, foodId: d.food }); break;
       case 'evolve': act('/api/chronicles/evolve', { companionId: d.id }); break;
@@ -1201,6 +1477,7 @@
         break;
       }
       case 'rune': state.rune = d.id || ''; render(); break;
+      case 'prep-toggle': state.prepOpen = !ev.target.closest('details').open; break;
       case 'launch': {
         var supplies = {};
         Object.keys(state.supplies).forEach(function (k) { if (state.supplies[k] > 0) supplies[k] = Math.min(state.supplies[k], invQty(k)); });
@@ -1258,6 +1535,8 @@
     var pages = workPages(state.snap);
     state.workLast[find(pages.craft, 'id', id) ? 'craft' : 'gather'] = id;
     state.workSkill = id;
+    // A page the player asked for outranks opening on the running task.
+    state.workSeeded = true;
     state.recipePick = '';
     savePref(WORK_KEY, id);
     if (state.tab !== 'work') { switchTab('work'); return; }
