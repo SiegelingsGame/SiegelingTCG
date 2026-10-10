@@ -28,6 +28,15 @@ public final class ChroniclesContent {
     public static final long TAMING_EXPIRY_MS = 48L * 60 * 60 * 1000;
     public static final int DAILY_TREATS_PER_SIEGELING = 5;
     public static final List<String> STARTERS = List.of("cacty", "pursula", "sundile", "fawny");
+    /**
+     * Chronicles-only class reassignments so the four starters each bring a different element
+     * and class. The TCG seed table keeps its roles because they shape generated card stats.
+     * Chilldoe follows Fawny so that line doesn't zigzag Assassin, Bruiser, Assassin.
+     */
+    public static final Map<String, String> CLASS_OVERRIDES = Map.of(
+            "pursula", "Mage",
+            "fawny", "Assassin",
+            "chilldoe", "Assassin");
     public static final List<String> CLASSES = List.of("Guardian", "Bruiser", "Assassin", "Mage", "Support");
     /** The 12 canonical elements in RBX order; NEUTRAL is a TCG-only bucket. */
     public static final List<Element> ELEMENTS = List.of(Element.FIRE, Element.ICE, Element.WIND, Element.EARTH,

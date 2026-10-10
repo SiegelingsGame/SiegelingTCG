@@ -43,6 +43,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -547,7 +548,7 @@ public class ChroniclesService {
             if (onExpedition(state, companion.id)) throw new IllegalArgumentException(displayName(companion) + " is away.");
             Creature from = creature(companion.speciesId);
             if (from.evolvesToId() == null) throw new IllegalArgumentException(from.name() + " has no further evolution.");
-            Creature to = CreatureRegistry.find(from.evolvesToId())
+            Creature to = findCreature(from.evolvesToId())
                     .orElseThrow(() -> new IllegalArgumentException("That evolution is not available yet."));
             int cap = ChroniclesContent.levelCap(from.stage(), true);
             if (companion.level < cap) throw new IllegalArgumentException(displayName(companion) + " must reach level " + cap + ".");
@@ -1687,7 +1688,7 @@ public class ChroniclesService {
             default -> { maxStage = tameable ? 1 : 3; maxTier = tameable ? 5 : 4; }
         }
         List<Creature> pool = new ArrayList<>();
-        for (Creature c : CreatureRegistry.all()) {
+        for (Creature c : allCreatures()) {
             if (!route.elements().contains(c.element())) continue;
             if (c.stage() > maxStage) continue;
             if (rarityTier(c.rarity()) > maxTier) continue;
@@ -1700,7 +1701,7 @@ public class ChroniclesService {
     /** The named boss, or for "auto" the strongest Siegeling of the route's element. */
     Creature bossOf(Route route) {
         if (!"auto".equals(route.bossId())) return creature(route.bossId());
-        return CreatureRegistry.all().stream().filter(c -> c.element() == route.element())
+        return allCreatures().stream().filter(c -> c.element() == route.element())
                 .max(Comparator.comparingInt((Creature c) -> rarityTier(c.rarity())).thenComparingInt(Creature::stage)
                         .thenComparing(Creature::id))
                 .orElse(null);
@@ -1709,7 +1710,7 @@ public class ChroniclesService {
     /** A route is sealed while the catalog holds no Siegelings of its element (Light and Poison, for now). */
     boolean routeSealed(Route route) {
         if (rawPool(route, false).isEmpty()) return true;
-        return route.bossId() != null && (("auto".equals(route.bossId()) ? bossOf(route) : CreatureRegistry.find(route.bossId()).orElse(null)) == null);
+        return route.bossId() != null && (("auto".equals(route.bossId()) ? bossOf(route) : findCreature(route.bossId()).orElse(null)) == null);
     }
 
     boolean routeVisible(ChroniclesState state, Route route) {
@@ -2275,7 +2276,25 @@ public class ChroniclesService {
     }
 
     static Creature creature(String id) {
-        return CreatureRegistry.find(id).orElseThrow(() -> new IllegalArgumentException("Unknown Siegeling: " + id));
+        return findCreature(id).orElseThrow(() -> new IllegalArgumentException("Unknown Siegeling: " + id));
+    }
+
+    /** Every Chronicles lookup goes through here so {@link ChroniclesContent#CLASS_OVERRIDES} applies everywhere. */
+    static Optional<Creature> findCreature(String id) {
+        return CreatureRegistry.find(id).map(ChroniclesService::withChroniclesClass);
+    }
+
+    static List<Creature> allCreatures() {
+        return ALL_CREATURES;
+    }
+
+    private static final List<Creature> ALL_CREATURES =
+            CreatureRegistry.all().stream().map(ChroniclesService::withChroniclesClass).toList();
+
+    private static Creature withChroniclesClass(Creature c) {
+        String cls = ChroniclesContent.CLASS_OVERRIDES.get(c.id());
+        if (cls == null) return c;
+        return new Creature(c.id(), c.name(), c.element(), c.rarity(), cls, c.evolvesFromId(), c.evolvesToId(), c.stage());
     }
 
     String behavior(Creature c) {
