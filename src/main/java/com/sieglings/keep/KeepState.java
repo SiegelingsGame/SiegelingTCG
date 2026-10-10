@@ -87,6 +87,19 @@ public class KeepState {
     private Instant keeperDailyXpAt;
     private int keeperResourceXpToday;
     private String keeperResourceXpDay = "";
+    // Rebirth: how many times this Keep has been reborn (each adds permanent bonuses,
+    // see KeepRebirth) and when it last was.
+    private int rebirthCount;
+    private Instant lastRebirthAt;
+    // Silver is the Keep's own market currency (bought with Siegecoins, earned from Keep
+    // events and commissions); it survives rebirth. Refined materials are combined from
+    // raw ones and kept apart from materialInventory so raw-only spends never touch them.
+    private int silver;
+    private long silverEarnedTotal;
+    private Map<String, Integer> refinedInventory = new LinkedHashMap<>();
+    /** UTC day the market purchase counts below belong to; a new day clears them. */
+    private String marketDay = "";
+    private Map<String, Integer> marketPurchases = new LinkedHashMap<>();
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -257,6 +270,20 @@ public class KeepState {
     public void setKeeperResourceXpToday(int keeperResourceXpToday) { this.keeperResourceXpToday = Math.max(0, keeperResourceXpToday); }
     public String getKeeperResourceXpDay() { return keeperResourceXpDay; }
     public void setKeeperResourceXpDay(String keeperResourceXpDay) { this.keeperResourceXpDay = keeperResourceXpDay == null ? "" : keeperResourceXpDay; }
+    public int getRebirthCount() { return rebirthCount; }
+    public void setRebirthCount(int rebirthCount) { this.rebirthCount = Math.max(0, rebirthCount); }
+    public Instant getLastRebirthAt() { return lastRebirthAt; }
+    public void setLastRebirthAt(Instant lastRebirthAt) { this.lastRebirthAt = lastRebirthAt; }
+    public int getSilver() { return silver; }
+    public void setSilver(int silver) { this.silver = Math.max(0, silver); }
+    public long getSilverEarnedTotal() { return silverEarnedTotal; }
+    public void setSilverEarnedTotal(long value) { this.silverEarnedTotal = Math.max(0, value); }
+    public Map<String, Integer> getRefinedInventory() { return refinedInventory; }
+    public void setRefinedInventory(Map<String, Integer> values) { this.refinedInventory = intMap(values); }
+    public String getMarketDay() { return marketDay; }
+    public void setMarketDay(String marketDay) { this.marketDay = marketDay == null ? "" : marketDay; }
+    public Map<String, Integer> getMarketPurchases() { return marketPurchases; }
+    public void setMarketPurchases(Map<String, Integer> values) { this.marketPurchases = intMap(values); }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
