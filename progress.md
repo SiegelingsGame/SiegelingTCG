@@ -1,3 +1,7 @@
+- October 10, 2026 **A failed veteran-bank read no longer erases stored teams.**
+  - **Change.** `SiegeVeteranStore.loadRaw` returns null when the Firestore read fails, and `saveTeam` / `lockTeams` refuse to write in that case. The old fail-soft path returned an empty list and then saved it, so a timeout during an Endless "end run" (or any extraction) replaced the bank with only the new team.
+- Verification:
+  - `SiegeVeteranTest.aFailedReadDoesNotReplaceTheBank` (7 tests in that class, 0 failures) asserts `persistRaw` is not called. `SiegeEndlessModeTest` (11) and `SiegeBattlegroundsPhase4Test` (7) still pass.
 - October 10, 2026 **Chronicles saves no longer lose a concurrent write.**
   - **Change.** `ChroniclesStore.save` compare-and-sets the document version inside a Firestore transaction. A poll (`GET /api/chronicles`, which settles idle work and writes) and an action such as collect or tame can run on two Cloud Run instances that both read the same version; the slower blind `set` used to replace the whole chronicle and drop the action. The loser now gets a conflict. Polls retry the settle against the winning document. Actions return 409, which the page already reloads from. A second oath that loses the race returns the chronicle that won instead of creating another. Account deletion now removes `playerChronicles/{email}` with the rest of the account.
 - Verification:
