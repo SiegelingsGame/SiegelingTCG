@@ -261,6 +261,7 @@ body {
 
 .mode-card-siege { background-image: url('/img/gallery/skydon-skyreach.webp'); }
 .mode-card-bg { background-image: url('/img/gallery/frostag-training.webp'); }
+.mode-card-endless { --mode: var(--shield); background-image: url('/img/gallery/earth-warband.webp'); }
 .mode-card-tutorial { background-image: url('/img/gallery/bearby-longfuse.webp'); }
 
 .mode-card-title { font-size: clamp(24px, 7vw, 30px); }
@@ -271,14 +272,71 @@ body {
 }
 
 /* ---- resume saves ----
-   The one screen that decides whether a player picks a run back up, so it gets
-   the plate treatment too rather than a bordered box of text. */
+   The one screen that decides whether a player picks a run back up. It fills
+   the viewport like the battle and map screens: the save plates absorb the
+   leftover height so their scene shows above the copy, and the warband, meta
+   and actions sit at the foot of each plate under a bottom-up scrim (the same
+   treatment the widescreen mode plates use). Unlike battle/map it is
+   min-height, not height: two saves on a short landscape phone may scroll. */
+body[data-screen="resumeScreen"] .siege-app {
+    min-height: var(--siege-vh, 100dvh);
+    display: flex;
+    flex-direction: column;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+}
+
+/* The topbar's solid-to-clear band read as a stray dark strip over the page
+   gradient here; nothing scrolls under it on this screen. */
+body[data-screen="resumeScreen"] .siege-topbar {
+    flex: 0 0 auto;
+    background: none;
+    padding: 10px 2px 4px;
+}
+
+/* Leaving for the hub is the least likely choice on this screen, so the back
+   link steps down to a quiet pill and the resume actions carry the weight. */
+body[data-screen="resumeScreen"] .siege-back {
+    font-size: 12px;
+    font-weight: 650;
+    padding: 5px 11px;
+    border: 1px solid rgba(179, 168, 216, .28);
+    border-radius: 999px;
+    background: rgba(13, 10, 38, .45);
+}
+body[data-screen="resumeScreen"] .siege-title { font-size: 14px; opacity: .85; }
+
+#resumeScreen:not(.hidden) {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 4px 0 0;
+}
+#resumeScreen h1 { flex: 0 0 auto; font-size: clamp(28px, 8vw, 40px); margin: 4px 0 4px; }
+#resumeScreen .siege-sub { flex: 0 0 auto; margin-bottom: 14px; }
+
+#resumeSaves {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
 .resume-save {
     position: relative;
     overflow: hidden;
-    border-left-width: 4px;
+    flex: 1 1 auto;
+    margin-top: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 16px;
+    border-radius: 20px;
+    border-left-width: 1px;
+    border-top: 4px solid var(--save-accent, var(--accent));
     background-size: cover;
-    background-position: center 40%;
+    background-position: center 35%;
 }
 
 .resume-save::before {
@@ -286,25 +344,124 @@ body {
     position: absolute;
     inset: 0;
     z-index: 0;
-    background: linear-gradient(100deg, rgba(13, 10, 38, .95) 26%, rgba(21, 16, 64, .70) 66%, rgba(30, 24, 86, .38) 100%);
+    background:
+        linear-gradient(180deg, rgba(13, 10, 38, .05) 0%, rgba(13, 10, 38, .12) 28%, rgba(13, 10, 38, .78) 56%, rgba(13, 10, 38, .96) 78%),
+        linear-gradient(180deg, color-mix(in srgb, var(--save-accent, var(--accent)) 20%, transparent), transparent 40%);
 }
 
-.resume-save > * { position: relative; z-index: 1; }
+.resume-save > * { position: relative; z-index: 1; flex: 0 0 auto; }
+
+/* The mode badge names the plate from the top; its padding is the least scene a
+   plate shows when two saves have to share a phone screen. */
+.resume-save-head { margin-bottom: auto; padding-bottom: 64px; }
+.resume-save-head .run-slot-badge {
+    font-size: 12px;
+    padding: 5px 12px;
+    background: rgba(13, 10, 38, .62);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
 
 .resume-save.siege {
+    --save-accent: var(--accent);
     background-image: url('/img/gallery/skydon-skyreach.webp');
-    border-left-color: var(--accent);
+}
+
+/* adventure.css paints a left accent bar and inset glow per mode at this
+   specificity; the plate takes its accent on the top edge instead. */
+.resume-save.siege, .resume-save.bg, .resume-save.endless {
+    border-left-color: var(--border);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .45);
 }
 
 .resume-save.bg {
+    --save-accent: var(--accent-2);
     background-image: url('/img/gallery/frostag-training.webp');
-    border-left-color: var(--accent-2);
 }
 
-/* Resuming is the point of the screen; make it the gold action rather than one
-   of two identical outlines. */
+.resume-save.endless {
+    --save-accent: var(--shield);
+    background-image: url('/img/gallery/earth-warband.webp');
+}
+
+/* Warband: a two-up grid of glass chips with the art large enough to read. */
+.resume-save .party-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.resume-save .party-chip {
+    min-width: 0;
+    padding: 8px 10px;
+    background: rgba(25, 17, 74, .72);
+    border-color: rgba(255, 255, 255, .10);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+.resume-save .party-chip .pthumb { width: 52px; height: 52px; flex-basis: 52px; }
+.resume-save .party-chip .pname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.resume-meta { margin-top: 2px; font-weight: 700; }
+.resume-meta .gold-chip { font-size: 14px; padding: 3px 11px; }
+.resume-score-chip {
+    font-size: 13px; font-weight: 800; color: var(--shield);
+    border: 1px solid color-mix(in srgb, var(--shield) 45%, transparent);
+    border-radius: 12px; padding: 2px 10px; background: color-mix(in srgb, var(--shield) 10%, transparent);
+}
+.resume-battle-chip { white-space: normal; }
+
+/* Resuming is the point of the screen: a full-width, thumb-height gold button,
+   with Start Over a lighter glass action beside it. */
+.resume-save-actions {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+}
+.resume-save-actions .siege-btn {
+    min-height: 54px;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 800;
+}
 .resume-save-actions .siege-btn.primary {
-    flex: 1.4;
+    min-height: 60px;
+    font-size: 19px;
+    letter-spacing: .6px;
+    box-shadow: 0 8px 24px rgba(242, 160, 61, .38), inset 0 1px 0 rgba(255, 255, 255, .35);
+}
+.resume-save-actions .siege-btn:not(.primary) {
+    background: rgba(25, 17, 74, .78);
+    border-color: rgba(179, 168, 216, .38);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+/* "Start a new run" leaves every save in place, so it stays a full-width
+   secondary bar below the plates rather than a small floating pill. */
+#resumeScreen .resume-actions { flex: 0 0 auto; margin-top: 12px; }
+#resumeScreen .resume-actions .siege-btn {
+    width: 100%;
+    min-height: 52px;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 750;
+}
+
+/* Two saves on a wide window sit side by side as tall plates. */
+@media (min-width: 900px) {
+    #resumeSaves { flex-direction: row; }
+    .resume-save { flex-basis: 0; min-height: 420px; }
+    #resumeScreen .resume-actions { display: flex; justify-content: center; }
+    #resumeScreen .resume-actions .siege-btn { width: auto; min-width: 280px; }
+}
+
+/* Landscape phones: the plate cannot be tall, so it lays the warband and
+   actions over the art without reserving a scene band. */
+@media (orientation: landscape) and (max-height: 600px) {
+    .resume-save-head { padding-bottom: 8px; }
+    .resume-save .party-strip { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
 }
 
 @media (max-width: 719px) {
@@ -455,7 +612,7 @@ body {
     /* adventure.css caps page-scrolling screens at a 1280px reading column. */
     #setupScreen:has(#setupStepMode:not(.hidden)) { max-width: none; }
     #setupStepMode .mode-select-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: clamp(14px, 1.4vw, 28px);
     }
     #setupStepMode .mode-card {
@@ -479,4 +636,153 @@ body {
             linear-gradient(180deg, rgba(13, 10, 38, .10) 0%, rgba(13, 10, 38, .18) 40%, rgba(13, 10, 38, .88) 74%, rgba(13, 10, 38, .97) 100%),
             linear-gradient(180deg, color-mix(in srgb, var(--mode, var(--accent)) 22%, transparent), transparent 50%);
     }
+}
+
+
+/* ---- Endless ----
+   The third mode. Its accent is the shield cyan: not an element hue, and apart
+   from Siege's gold and Battlegrounds' violet wherever the badges sit together. */
+.run-slot-badge.endless {
+    color: var(--shield);
+    background: color-mix(in srgb, var(--shield) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--shield) 48%, transparent);
+}
+/* Over a resume plate's sky the tinted wash vanished; keep the plate's dark chip. */
+.resume-save-head .run-slot-badge.endless { background: rgba(13, 10, 38, .62); }
+
+.result-best {
+    margin: 10px auto 0; width: fit-content; padding: 6px 14px; border-radius: 999px;
+    font-weight: 800; color: #ffd066; background: rgba(255, 208, 102, .1); border: 1px solid rgba(255, 208, 102, .45);
+}
+
+/* Veteran picks sit above the fresh roster on the Endless team step. */
+.endless-vets { margin: 4px 0 12px; }
+.endless-vets-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 8px; }
+.endless-vets-title {
+    font-size: 11px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; color: var(--shield);
+}
+.endless-vets-sub { font-size: 12px; color: var(--dim); }
+.endless-vet-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.endless-vet-grid:empty { display: none; }
+.endless-vet { min-height: 44px; font: inherit; color: var(--text); cursor: pointer; }
+.endless-vet.picked { border-color: var(--shield); box-shadow: 0 0 0 1px var(--shield) inset; }
+.endless-fresh-title { margin-top: 14px; }
+
+/* Landscape phones lay the team step out as a fixed grid (adventure.css): the
+   veteran row takes its own band above the roster rail and scrolls sideways. */
+@media (orientation: landscape) and (max-height: 600px) {
+    #setupStepParty:has(#endlessVets:not(.hidden)) {
+        grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    }
+    #setupStepParty #endlessVets { grid-column: 1 / -1; grid-row: 3; margin: 2px 0 4px; min-width: 0; }
+    #setupStepParty:has(#endlessVets:not(.hidden)) #sieglingGrid,
+    #setupStepParty:has(#endlessVets:not(.hidden)) #warbandLoadPanel { grid-row: 4; }
+    #setupScreen #setupStepParty:has(#endlessVets:not(.hidden)) .setup-footer { grid-row: 5; }
+    #endlessVets .endless-vets-head { margin-bottom: 4px; }
+    #endlessVets .endless-vets-sub, #endlessVets .endless-fresh-title { display: none; }
+    #endlessVets .endless-vet-grid { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    #endlessVets .endless-vet { flex: 0 0 auto; min-height: 36px; padding: 4px 10px; }
+    /* Four modes side by side rather than three. */
+    #setupStepMode .mode-select-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* ---- mode picker: every mode on one screen, art first ----
+   Four plates stacked one per row overflowed every portrait phone by a full
+   plate or more, so Tutorial (and often Battlegrounds) sat below the fold. On the
+   mode step the app becomes a viewport-height column and the plate grid absorbs
+   what is left: 2x2 on a phone, four across on a wide window. Each plate shows
+   its scene on top, with the copy at its foot under a bottom-up scrim, the
+   treatment the resume plates use. Landscape phones keep adventure.css's
+   compact grid (below) and only take the art-first plate. */
+body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) .mode-card {
+    min-height: 0;
+    justify-content: flex-end;
+    gap: 4px;
+    background-position: center 28%;
+}
+body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) .mode-card > :first-child { margin-top: auto; }
+body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) .mode-card-meta { margin-top: 4px; }
+body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) .mode-card::before {
+    background:
+        linear-gradient(180deg, rgba(13, 10, 38, .04) 0%, rgba(13, 10, 38, .10) 32%, rgba(13, 10, 38, .80) 62%, rgba(13, 10, 38, .97) 100%),
+        linear-gradient(180deg, color-mix(in srgb, var(--mode, var(--accent)) 22%, transparent), transparent 45%);
+}
+/* How much blurb a plate keeps is set per viewport through these two, so the
+   media queries below need no selector this long to win. */
+body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) .mode-card-desc {
+    display: var(--mode-desc-display, -webkit-box);
+    -webkit-box-orient: vertical; -webkit-line-clamp: var(--mode-desc-lines, 3); overflow: hidden;
+}
+
+@media (orientation: portrait), (min-height: 601px) {
+    body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) .siege-app {
+        height: var(--siege-vh, 100dvh);
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    }
+    body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) .siege-topbar { flex: 0 0 auto; position: static; }
+    body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) #setupScreen {
+        flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 4px 0 0;
+    }
+    body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) #setupScreen > * { flex: 0 0 auto; }
+    body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) #setupScreen > #setupStepMode {
+        flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+    }
+    #setupStepMode > h1, #setupStepMode > .siege-sub { flex: 0 0 auto; }
+    body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) #setupStepMode .mode-select-grid {
+        flex: 1 1 auto; min-height: 0; margin-top: 10px; grid-auto-rows: minmax(0, 1fr);
+    }
+    body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) #setupStepMode .mode-card {
+        min-height: 0; height: auto;
+    }
+}
+
+/* Portrait phones: a 2x2 grid of tall plates. The step's own sentence gives way
+   (the four plates say it), the account bar and chips tighten, and the two
+   scenes that have a portrait cut use it. */
+@media (orientation: portrait) and (max-width: 719px) {
+    body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) .siege-account { margin: 4px 0 8px; padding: 6px 10px; }
+    body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) .siege-account .siege-btn { min-height: 32px; padding: 4px 12px; }
+    body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) .setup-steps { margin: 2px 0 0; }
+    #setupStepMode > h1 { font-size: clamp(22px, 6.6vw, 28px); margin: 8px 0 0; }
+    #setupStepMode > .siege-sub { display: none; }
+    body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) #setupStepMode .mode-select-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+    body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) #setupStepMode .mode-card {
+        padding: 12px;
+        border-radius: 16px;
+    }
+    #setupStepMode .mode-card-kicker { font-size: 9.5px; letter-spacing: .1em; }
+    /* "Battlegrounds" is the longest title and has to fit a half-width plate. */
+    #setupStepMode .mode-card-title { font-size: clamp(17px, 4.9vw, 24px); gap: 4px 6px; }
+    #setupStepMode .mode-card-status { font-size: 10px; padding: 1px 7px; }
+    #setupStepMode .mode-card-desc { font-size: 12px; line-height: 1.35; }
+    #setupStepMode .mode-card-meta { font-size: 11px; line-height: 1.3; }
+    #setupStepMode .mode-card-bg { background-image: url('/img/gallery/frostag-training-portrait.webp'); }
+    #setupStepMode .mode-card-endless { background-image: url('/img/gallery/earth-warband-portrait.webp'); }
+}
+/* Short portrait phones keep the art and the names; the blurb is the first to go. */
+@media (orientation: portrait) and (max-width: 719px) and (max-height: 700px) {
+    #setupStepMode { --mode-desc-lines: 2; }
+}
+@media (orientation: portrait) and (max-width: 719px) and (max-height: 600px) {
+    #setupStepMode { --mode-desc-display: none; }
+}
+
+/* Landscape phones: four plates across, the blurb trimmed so the scene shows. */
+@media (orientation: landscape) and (max-height: 600px) {
+    #setupStepMode { --mode-desc-lines: 2; }
+    #setupStepMode .mode-card-title { font-size: clamp(16px, 2.4vw, 21px); }
+}
+@media (orientation: landscape) and (max-height: 400px) {
+    #setupStepMode { --mode-desc-display: none; }
+}
+/* The narrowest phones wrapped each step chip onto two lines. */
+@media (max-width: 360px) {
+    .setup-step { padding: 3px 8px; font-size: 10px; white-space: nowrap; }
 }

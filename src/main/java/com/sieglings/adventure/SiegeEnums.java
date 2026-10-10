@@ -82,14 +82,15 @@ enum RunMode { STANDARD, ENDLESS, BATTLEGROUNDS }
 
 /**
  * Which account save a run occupies. Every mode gets its own slot so a player can
- * hold one expedition and one Battlegrounds march at the same time — a single
- * account checkpoint meant starting either mode silently threw the other away.
- * STANDARD and ENDLESS share the EXPEDITION slot: both are "the expedition", and
- * the client offers them as one save.
+ * hold an expedition, an Endless run and a Battlegrounds march at the same time —
+ * a single account checkpoint meant starting one mode silently threw another away.
+ * Endless runs started before it had a slot of its own sit in the EXPEDITION
+ * pointer; {@link #legacyOf} names that so ending one clears it too.
  */
 enum RunSlot {
     EXPEDITION("siege", "Siege Expedition"),
-    BATTLEGROUNDS("bg", "Battlegrounds");
+    BATTLEGROUNDS("bg", "Battlegrounds"),
+    ENDLESS("endless", "Endless Siege");
 
     private final String suffix;
     private final String label;
@@ -103,7 +104,13 @@ enum RunSlot {
     String label() { return label; }
 
     static RunSlot of(RunMode mode) {
-        return mode == RunMode.BATTLEGROUNDS ? BATTLEGROUNDS : EXPEDITION;
+        if (mode == RunMode.BATTLEGROUNDS) return BATTLEGROUNDS;
+        return mode == RunMode.ENDLESS ? ENDLESS : EXPEDITION;
+    }
+
+    /** The slot an older build saved this mode's runs in, when that differs from {@link #of}. */
+    static RunSlot legacyOf(RunMode mode) {
+        return mode == RunMode.ENDLESS ? EXPEDITION : null;
     }
 }
 

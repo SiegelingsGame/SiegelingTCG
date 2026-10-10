@@ -46,6 +46,10 @@ public class PlayerProgressionEntity {
     private int siegeBossKills;
     private int siegeNodesCleared;
     private int siegeBestScore;
+    /** Endless Siege records: best final score, deepest floor, runs finished. */
+    private int endlessBestScore;
+    private int endlessBestFloor;
+    private int endlessRuns;
     /** Lifetime My Keep sanctuary stats, powering keep achievements and titles. */
     private boolean keepFounded;
     private int keepTimberCollected;
@@ -146,6 +150,12 @@ public class PlayerProgressionEntity {
     public void setSiegeNodesCleared(int siegeNodesCleared) { this.siegeNodesCleared = Math.max(0, siegeNodesCleared); }
     public int getSiegeBestScore() { return siegeBestScore; }
     public void setSiegeBestScore(int siegeBestScore) { this.siegeBestScore = Math.max(0, siegeBestScore); }
+    public int getEndlessBestScore() { return endlessBestScore; }
+    public void setEndlessBestScore(int endlessBestScore) { this.endlessBestScore = Math.max(0, endlessBestScore); }
+    public int getEndlessBestFloor() { return endlessBestFloor; }
+    public void setEndlessBestFloor(int endlessBestFloor) { this.endlessBestFloor = Math.max(0, endlessBestFloor); }
+    public int getEndlessRuns() { return endlessRuns; }
+    public void setEndlessRuns(int endlessRuns) { this.endlessRuns = Math.max(0, endlessRuns); }
     public boolean isKeepFounded() { return keepFounded; }
     public void setKeepFounded(boolean keepFounded) { this.keepFounded = keepFounded; }
     public int getKeepTimberCollected() { return keepTimberCollected; }
