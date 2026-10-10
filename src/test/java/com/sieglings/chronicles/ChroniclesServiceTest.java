@@ -431,6 +431,103 @@ class ChroniclesServiceTest {
         assertEquals(8, ChroniclesContent.treatCap(60));
     }
 
+    // ── Phase 2: affinity milestones and combinations ───────────────────────
+
+    @Test
+    void resonanceCarriesTheTechniqueToTheWholeCompany() {
+        service.start(user, "sundile", "Ari", null);
+        ChroniclesState state = store.state;
+        ChroniclesState.Companion cacty = addCompanion(state, "cacty", 1);
+        state.skillXp.put("command", ChroniclesContent.xpForLevel(3));
+        state.party = List.of(state.companions.get(0).id, cacty.id);
+        List<ChroniclesState.Companion> both = List.of(state.companions.get(0), cacty);
+        ChroniclesContent.Route route = ChroniclesContent.ROUTES.get("mossroot_patrol");
+        state.tactics.techniqueId = "tech_fire";
+        state.affinityXp.put("FIRE", ChroniclesContent.xpForLevel(10));
+        double familiar = service.buildInput(state, route, both, null, Map.of(), 1).party().get(1).atk;
+        state.affinityXp.put("FIRE", ChroniclesContent.xpForLevel(50));
+        var resonant = service.buildInput(state, route, both, null, Map.of(), 1);
+        assertEquals(familiar * (1 + 0.225 / (1 + 0.0)), resonant.party().get(1).atk, familiar * 0.01,
+                "Kindled Strikes now lifts the Earth ally too, at 1.5x");
+        assertTrue(resonant.fieldNotes().stream().anyMatch(n -> n.contains("Resonance")));
+    }
+
+    @Test
+    void attunementSoftensItsLandsAndHelpsTaming() {
+        service.start(user, "cacty", "Ari", null);
+        ChroniclesState state = store.state;
+        ChroniclesContent.Route hollow = ChroniclesContent.ROUTES.get("cinder_hollow");
+        var plain = service.buildInput(state, hollow, state.companions, null, Map.of(), 2).knight();
+        state.affinityXp.put("FIRE", ChroniclesContent.xpForLevel(25));
+        var attuned = service.buildInput(state, hollow, state.companions, null, Map.of(), 2).knight();
+        assertEquals(0.5, attuned.survivalCut(), 1e-9);
+        assertEquals(plain.lootBonus() + 0.25, attuned.lootBonus(), 1e-9);
+
+        ChroniclesState.Sighting s = new ChroniclesState.Sighting();
+        s.speciesId = "pylook"; s.level = 1; s.behavior = "gentle";
+        double before = service.tameChance(state, s, "patient", null);
+        state.affinityXp.put("FIRE", ChroniclesContent.xpForLevel(24));
+        assertEquals(before - 0.05, service.tameChance(state, s, "patient", null), 1e-9);
+    }
+
+    @Test
+    void convergenceCombosNeedBothElementsMasteredAndFielded() {
+        service.start(user, "sundile", "Ari", null);
+        ChroniclesState state = store.state;
+        assertThrows(IllegalArgumentException.class,
+                () -> service.setTactics(user, null, null, null, null, "steam_veil", null, -1));
+        store.state.affinityXp.put("FIRE", ChroniclesContent.xpForLevel(75));
+        store.state.affinityXp.put("WATER", ChroniclesContent.xpForLevel(75));
+        service.setTactics(user, null, null, null, null, "steam_veil", null, -1);
+        assertEquals("steam_veil", store.state.tactics.comboId);
+
+        ChroniclesState st = store.state;
+        ChroniclesContent.Route route = ChroniclesContent.ROUTES.get("mossroot_patrol");
+        var alone = service.buildInput(st, route, st.companions, null, Map.of(), 1);
+        assertEquals(ChroniclesContent.Arcana.NONE, alone.arcana(), "no Water Siegeling fielded");
+        ChroniclesState.Companion water = addCompanion(st, "spoutyl", 1);
+        st.skillXp.put("command", ChroniclesContent.xpForLevel(3));
+        st.party = List.of(st.companions.get(0).id, water.id);
+        var both = service.buildInput(st, route, List.of(st.companions.get(0), water), null, Map.of(), 1);
+        assertEquals(0.15, both.arcana().allyDamageCut(), 1e-9);
+    }
+
+    @Test
+    void combosMakeHardRoadsEasier() {
+        ChroniclesState state = new ChroniclesState();
+        ChroniclesContent.Route route = ChroniclesContent.ROUTES.get("cinder_hollow");
+        for (String sp : List.of("jackedty", "chilldoe", "purseus")) addCompanion(state, sp, 17);
+        state.party = state.companions.stream().map(c -> c.id).toList();
+        int plain = 0, veiled = 0, bloom = 0;
+        for (int seed = 0; seed < 120; seed++) {
+            var in = service.buildInput(state, route, state.companions, null, Map.of(), seed);
+            if ("complete".equals(ChroniclesCombat.simulate(in).outcome)) plain++;
+            if ("complete".equals(ChroniclesCombat.simulate(withArcana(in, ChroniclesContent.COMBOS.get("steam_veil").arcana())).outcome)) veiled++;
+            if ("complete".equals(ChroniclesCombat.simulate(withArcana(in, ChroniclesContent.COMBOS.get("toxic_bloom").arcana())).outcome)) bloom++;
+        }
+        assertTrue(veiled > plain, "Steam Veil " + veiled + " vs " + plain);
+        assertTrue(bloom > plain, "Toxic Bloom " + bloom + " vs " + plain);
+    }
+
+    @Test
+    void anAscendantSignatureFiresOnceInTheBossFight() {
+        ChroniclesState state = new ChroniclesState();
+        ChroniclesContent.Route route = ChroniclesContent.ROUTES.get("cinder_hollow");
+        for (String sp : List.of("raydile", "chilldoe", "purseus")) addCompanion(state, sp, 18);
+        state.party = state.companions.stream().map(c -> c.id).toList();
+        state.affinityXp.put("FIRE", ChroniclesContent.xpForLevel(100));
+        state.tactics.techniqueId = "tech_fire";
+        var result = ChroniclesCombat.simulate(service.buildInput(state, route, state.companions, null, Map.of(), 5));
+        long fired = result.timeline.stream().filter(e -> e.text.contains("Infernal Surge!")).count();
+        assertEquals(1, fired, "fires once, in the first elite or boss battle");
+    }
+
+    private static ChroniclesCombat.Input withArcana(ChroniclesCombat.Input in, ChroniclesContent.Arcana arcana) {
+        return new ChroniclesCombat.Input(in.route(), in.party(), in.reserve(), in.knight(), in.trigger(), in.retreatAt(),
+                in.potionAt(), in.supplies(), in.fieldMods(), in.fieldNotes(), in.seed(), in.enemies(), in.durationMs(),
+                arcana, in.signature());
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private ChroniclesState.Companion addCompanion(ChroniclesState state, String species, int level) {

@@ -694,6 +694,86 @@ public final class ChroniclesContent {
         return TECHNIQUES.get("tech_" + element.name().toLowerCase());
     }
 
+    // ── Affinity milestones beyond Familiarity ───────────────────────────────
+
+    public static final int ATTUNEMENT = 25;
+    public static final int RESONANCE = 50;
+    public static final int CONVERGENCE = 75;
+    public static final int ASCENDANCE = 100;
+    /** Resonance makes the prepared technique company-wide and this much stronger. */
+    public static final double RESONANCE_SCALE = 1.5;
+    public static final double ATTUNED_HAZARD = 0.5;
+    public static final double ATTUNED_LOOT = 0.25;
+    public static final double ATTUNED_TAMING = 0.05;
+
+    /**
+     * Battle-wide effects that are not stat changes. Combos and signatures fill these
+     * in; the simulator reads them each round.
+     */
+    public record Arcana(double allyDamageCut, double advantageShield, double enemyDotPct, double roundHealPct,
+                         double enemySkipChance, double assassinAtk) {
+        public static final Arcana NONE = new Arcana(0, 0, 0, 0, 0, 0);
+
+        public Arcana plus(Arcana o) {
+            return new Arcana(allyDamageCut + o.allyDamageCut, advantageShield + o.advantageShield,
+                    enemyDotPct + o.enemyDotPct, roundHealPct + o.roundHealPct,
+                    enemySkipChance + o.enemySkipChance, assassinAtk + o.assassinAtk);
+        }
+    }
+
+    /** Cross-element combinations from the design (Convergence, both elements at 75). */
+    public record Combo(String id, Element a, Element b, String name, String text, Mods mods, Arcana arcana) {}
+
+    public static final Map<String, Combo> COMBOS = ordered(List.of(
+            new Combo("steam_veil", Element.FIRE, Element.WATER, "Steam Veil",
+                    "Burning enemies release steam that hides your company: it takes 15% less damage.",
+                    Mods.NONE, new Arcana(0.15, 0, 0, 0, 0, 0)),
+            new Combo("thunderglass", Element.ELECTRIC, Element.EARTH, "Thunderglass",
+                    "Elemental advantage hardens into mineral barriers: an advantaged hit shields its attacker for 8% health.",
+                    Mods.NONE, new Arcana(0, 0.08, 0, 0, 0, 0)),
+            new Combo("frozen_tempest", Element.ICE, Element.WIND, "Frozen Tempest",
+                    "Enemies are 15% slower and swift Assassins deal 20% more damage.",
+                    new Mods(0, 0, 0, 0, 0, 0, -0.15, 0, 0, 0), new Arcana(0, 0, 0, 0, 0, 0.20)),
+            new Combo("toxic_bloom", Element.POISON, Element.EARTH, "Toxic Bloom",
+                    "Poison spreads through rooted enemies: every enemy loses 4% health each round.",
+                    Mods.NONE, new Arcana(0, 0, 0.04, 0, 0, 0)),
+            new Combo("dawnfire", Element.FIRE, Element.LIGHT, "Dawnfire",
+                    "Offense with protective radiance: +10% attack, and the most wounded ally recovers 3% each round.",
+                    Mods.atk(0.10), new Arcana(0, 0, 0, 0.03, 0, 0)),
+            new Combo("eclipse_binding", Element.SHADOW, Element.PSYCHIC, "Eclipse Binding",
+                    "Disrupts ability cycles: enemies lose one turn in five.",
+                    Mods.NONE, new Arcana(0, 0, 0, 0, 0.20, 0))
+    ), Combo::id);
+
+    public enum SignatureKind { BURST, SANCTUARY, CONTROL }
+
+    /**
+     * Ascendance (affinity 100) signature abilities, named in the design. Each fires once
+     * per expedition at the start of the hardest battle when that element's technique is
+     * prepared and the element is in the company.
+     */
+    public record Signature(Element element, String name, SignatureKind kind, String text) {}
+
+    public static final Map<Element, Signature> SIGNATURES;
+
+    static {
+        Map<Element, Signature> map = new EnumMap<>(Element.class);
+        String burst = "Once per expedition, every enemy in the hardest battle loses a quarter of its health as it begins.";
+        String sanctuary = "Once per expedition, the company recovers 40% health and gains a 15% barrier before the hardest battle.";
+        String control = "Once per expedition, enemies in the hardest battle lose their whole first round.";
+        for (Element e : ELEMENTS) {
+            Technique t = TECHNIQUES.get("tech_" + e.name().toLowerCase());
+            SignatureKind kind = switch (e) {
+                case FIRE, ELECTRIC, SHADOW, POISON -> SignatureKind.BURST;
+                case WATER, LIGHT, EARTH, UNDEAD, METAL -> SignatureKind.SANCTUARY;
+                default -> SignatureKind.CONTROL;
+            };
+            String text = kind == SignatureKind.BURST ? burst : kind == SignatureKind.SANCTUARY ? sanctuary : control;
+            map.put(e, new Signature(e, t.mastery(), kind, text));
+        }
+        SIGNATURES = Collections.unmodifiableMap(map);
+    }
+
     /** Cross-class techniques: both masteries at {@link #CROSS_CLASS_LEVEL} and both classes fielded. */
     public record CrossClass(String id, String a, String b, String name, String text, Mods mods) {}
 

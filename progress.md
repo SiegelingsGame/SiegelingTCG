@@ -1,4 +1,29 @@
 Original prompt: Go with earth based art for endless
+- October 10, 2026 **Chronicles Phase 2: affinity milestones 25/50/75/100 and the six cross-element combinations.**
+  - **Change.**
+    - **Attunement (25).** Halves hazards and adds +25% finds in that element's lands, folded into the knight's survival cut and loot bonus. Taming that element +5%.
+    - **Resonance (50).** Rebuilds the prepared technique as company-wide at 1.5x ("Resonant Kindled Strikes").
+    - **Convergence (75).** A second prepared slot (`Tactics.comboId`, validated in `setTactics`) holds one of the design's six `COMBOS`. It applies only with both elements fielded. Each combo carries stat `Mods` plus an `Arcana` the simulator reads every round:
+      - Steam Veil: −15% damage taken.
+      - Thunderglass: advantaged hits grant an 8% barrier.
+      - Frozen Tempest: −15% enemy speed, +20% Assassin damage.
+      - Toxic Bloom: 4%/round poison.
+      - Dawnfire: +10% attack, 3%/round healing.
+      - Eclipse Binding: enemies lose 1 turn in 5.
+    - **Ascendance (100).** Adds a title, and the element's named signature from the design fires once per expedition at the start of the first elite or boss battle (or the last battle). It is one of three kinds: BURST (−25% enemy health), SANCTUARY (+40% heal and a 15% barrier) or CONTROL (enemies lose round 1).
+    - **UI.** Tapping an affinity opens its milestone ladder and combos. The Knight tab gains an Elemental Convergence list and titles. Expedition prep gains a combo picker, and the road view names the active combo. `chronicles.js` → `?v=3`, `chronicles.css` → `?v=2`.
+- Verification:
+  - `ChroniclesServiceTest` grows to 27 tests; all pass with the 3 balance tests.
+    - Resonance lifts a non-Fire ally by exactly 1.225x.
+    - Attunement gives a 0.5 hazard cut, +0.25 loot and ±5% taming at the 25 boundary.
+    - Combos are rejected below 75, inert without the second element, and active with both.
+    - Over 120 seeds of Cinder Hollow with an L17 company, both Steam Veil and Toxic Bloom complete more often than no combo.
+    - An Ascendant Fire knight's Infernal Surge fires exactly once.
+  - Headless Chromium at 390x844 and 1920x1080 on re-dumped real snapshots (Fire 76 / Water 75):
+    - the ladder shows 4 of 5 milestones reached;
+    - Steam Veil is the only unlocked combo, and the picker offers it;
+    - selecting it POSTs `comboId`;
+    - no page scroll or overflow, no page errors.
 - October 10, 2026 **Chronicles Phase 1: all 21 professions from the design, each with a real effect.**
   - **Change.**
     - **Twelve new professions,** each with its unlock: Excavation (Mining 10), Smelting (Mining 5, now owning the bar recipes), Carpentry (Woodcutting 5), Weaving (Foraging 10), Runecrafting (Elemental Studies 10 + Smelting 5), Bonding (Taming 3), Husbandry (Bonding 10 + Cooking 5), Pathfinding, Survival (Rank 3), Cartography (Pathfinding 5), Elemental Studies (Rank 5) and Class Tactics (Command 5). Smithing now follows Smelting 10 and Fishing follows Carpentry 3.

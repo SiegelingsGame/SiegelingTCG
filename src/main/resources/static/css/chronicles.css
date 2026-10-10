@@ -207,11 +207,16 @@ p { margin:4px 0; }
 .ck-skill.is-locked { opacity:.6; border-style:dashed; }
 .ck-weapon.is-on { border-color:var(--gold); }
 .ck-affinities { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; }
-.ck-affinity { padding:9px; border-radius:12px; border:1px solid color-mix(in srgb, var(--el) 35%, transparent); background:color-mix(in srgb, var(--el) 6%, transparent); min-width:0; }
+.ck-affinity { display:block; width:100%; text-align:left; padding:9px; border-radius:12px; border:1px solid color-mix(in srgb, var(--el) 35%, transparent); background:color-mix(in srgb, var(--el) 6%, transparent); min-width:0; }
 .ck-affinity .ck-row { justify-content:flex-start; }
 .ck-affinity .ck-row > span:last-child { margin-left:auto; font-size:12px; }
 .ck-affinity .ck-el-ico { width:18px; height:18px; }
 .ck-affinity.is-dim { opacity:.55; }
+.ck-ladder { list-style:none; margin:12px 0 0; padding:0; display:grid; gap:6px; }
+.ck-ladder li { display:grid; gap:2px; padding:8px 10px; border-radius:10px; border:1px dashed var(--line); font-size:13px; }
+.ck-ladder li.is-on { border-style:solid; border-color:color-mix(in srgb, var(--el) 60%, transparent); background:color-mix(in srgb, var(--el) 8%, transparent); }
+.ck-ladder li span { color:var(--muted); }
+.ck-modal-card h2 .ck-el-ico { width:22px; height:22px; vertical-align:-3px; }
 .ck-cross { list-style:none; padding:0; margin:0; display:grid; gap:6px; }
 .ck-cross li { padding:8px 10px; border-radius:10px; border:1px dashed var(--line); font-size:13px; }
 .ck-cross li.is-on { border-style:solid; border-color:var(--gold); }

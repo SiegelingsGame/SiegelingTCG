@@ -213,6 +213,11 @@ public class ChroniclesService {
 
     public Map<String, Object> setTactics(AccountUser user, Integer retreatAt, Integer potionAt, String trigger,
                                           String techniqueId, String requestId, long expected) {
+        return setTactics(user, retreatAt, potionAt, trigger, techniqueId, null, requestId, expected);
+    }
+
+    public Map<String, Object> setTactics(AccountUser user, Integer retreatAt, Integer potionAt, String trigger,
+                                          String techniqueId, String comboId, String requestId, long expected) {
         return mutate(user, requestId, expected, (ctx) -> {
             ChroniclesState.Tactics tactics = ctx.state.tactics;
             if (retreatAt != null) tactics.retreatAt = clamp(retreatAt, 0, 60);
@@ -234,6 +239,19 @@ public class ChroniclesService {
                                 + ChroniclesContent.elementLabel(technique.element()) + " Affinity 10.");
                     }
                     tactics.techniqueId = technique.id();
+                }
+            }
+            if (comboId != null) {
+                if (comboId.isBlank()) tactics.comboId = "";
+                else {
+                    ChroniclesContent.Combo combo = ChroniclesContent.COMBOS.get(comboId.trim());
+                    if (combo == null) throw new IllegalArgumentException("Unknown combination.");
+                    if (!comboKnown(ctx.state, combo)) {
+                        throw new IllegalArgumentException(combo.name() + " needs " + ChroniclesContent.elementLabel(combo.a())
+                                + " and " + ChroniclesContent.elementLabel(combo.b()) + " Affinity "
+                                + ChroniclesContent.CONVERGENCE + ".");
+                    }
+                    tactics.comboId = combo.id();
                 }
             }
         });
@@ -334,6 +352,7 @@ public class ChroniclesService {
             for (Companion c : members) expedition.partyIds.add(c.id);
             expedition.reserveId = reserve == null ? "" : reserve.id;
             expedition.techniqueId = state.tactics.techniqueId == null ? "" : state.tactics.techniqueId;
+            expedition.comboId = state.tactics.comboId == null ? "" : state.tactics.comboId;
             expedition.trigger = input.trigger().name();
             expedition.supplies = packed;
             expedition.suppliesLeft = new LinkedHashMap<>(result.suppliesLeft);
@@ -685,6 +704,34 @@ public class ChroniclesService {
         } else if (technique != null) {
             notes.add("Prepared technique: " + technique.name() + ".");
         }
+        ChroniclesContent.Signature signature = null;
+        if (technique != null && affinityLevel(state, technique.element()) >= ChroniclesContent.ASCENDANCE) {
+            signature = ChroniclesContent.SIGNATURES.get(technique.element());
+            notes.add("Ascendant: " + signature.name() + " is ready.");
+        }
+        if (technique != null && affinityLevel(state, technique.element()) >= ChroniclesContent.RESONANCE) {
+            // Resonance: the technique reaches the whole company and hits harder.
+            Mods m = technique.mods();
+            double k = ChroniclesContent.RESONANCE_SCALE;
+            technique = new Technique(technique.id(), technique.element(), "Resonant " + technique.name(),
+                    technique.text(), false,
+                    new Mods(m.atk() * k, m.def() * k, m.hp() * k, m.spd() * k, m.crit() * k, m.enemyDef() * k,
+                            m.enemySpd() * k, m.postHeal() * k, m.openingDmg() * k, Math.min(0.5, m.lowHpGuard() * k)),
+                    technique.mastery());
+            notes.add("Resonance carries it to the whole company.");
+        }
+        ChroniclesContent.Combo combo = state.tactics.comboId == null || state.tactics.comboId.isEmpty()
+                ? null : ChroniclesContent.COMBOS.get(state.tactics.comboId);
+        if (combo != null && !comboKnown(state, combo)) combo = null;
+        if (combo != null && !(elementCounts.containsKey(combo.a().name()) && elementCounts.containsKey(combo.b().name()))) {
+            notes.add(combo.name() + " needs both a " + ChroniclesContent.elementLabel(combo.a()) + " and a "
+                    + ChroniclesContent.elementLabel(combo.b()) + " Siegeling in the company.");
+            combo = null;
+        } else if (combo != null) {
+            notes.add("Convergence: " + combo.name() + ".");
+        }
+        boolean attuned = affinityLevel(state, route.element()) >= ChroniclesContent.ATTUNEMENT;
+        if (attuned) notes.add("Attuned to " + ChroniclesContent.elementLabel(route.element()) + " lands.");
         List<CrossClass> crossClass = activeCrossClass(state, classCounts);
         for (CrossClass cc : crossClass) notes.add("Cross-class technique: " + cc.name() + ".");
         String runeId = packed.keySet().stream().filter(ChroniclesContent.RUNE_EFFECTS::containsKey).findFirst().orElse("");
@@ -694,6 +741,7 @@ public class ChroniclesService {
         // post-battle healing, opening strike, low-health guard) ride on the field mods.
         Mods crossStats = Mods.NONE;
         for (CrossClass cc : crossClass) crossStats = sum(crossStats, cc.mods());
+        if (combo != null) crossStats = sum(crossStats, combo.mods());
         Mods field = new Mods(0, 0, 0, 0, 0, crossStats.enemyDef(), crossStats.enemySpd(), crossStats.postHeal(),
                 crossStats.openingDmg(), crossStats.lowHpGuard());
         if (technique != null) {
@@ -724,8 +772,10 @@ public class ChroniclesService {
                 armor.heatWard() || (relic != null && relic.heatWard()), relic == null ? "" : relic.relicEffect(),
                 "embersteel_lance".equals(weapon.id()), skillLevel(state, "foraging"),
                 profLevel(state, "cartography"),
-                ChroniclesContent.survivalCut(profLevel(state, "survival")),
-                ChroniclesContent.cartographyLoot(profLevel(state, "cartography")),
+                1 - (1 - ChroniclesContent.survivalCut(profLevel(state, "survival")))
+                        * (attuned ? 1 - ChroniclesContent.ATTUNED_HAZARD : 1),
+                ChroniclesContent.cartographyLoot(profLevel(state, "cartography"))
+                        + (attuned ? ChroniclesContent.ATTUNED_LOOT : 0),
                 ChroniclesContent.husbandryRest(profLevel(state, "husbandry")),
                 ChroniclesContent.tacticsGauge(profLevel(state, "class_tactics")));
         CommandTrigger trigger = triggerFor(state, weapon.weaponType());
@@ -736,7 +786,8 @@ public class ChroniclesService {
         potions.keySet().removeIf(ChroniclesContent.RUNE_EFFECTS::containsKey);
         ChroniclesCombat.EnemyFactory enemies = (random, boss, elite) -> enemyGroup(route, random, boss, elite);
         return new ChroniclesCombat.Input(route, party, reserveUnit, knight, trigger, state.tactics.retreatAt,
-                state.tactics.potionAt, potions, field, notes, seed, enemies, duration);
+                state.tactics.potionAt, potions, field, notes, seed, enemies, duration,
+                combo == null ? ChroniclesContent.Arcana.NONE : combo.arcana(), signature);
     }
 
     private CommandTrigger triggerFor(ChroniclesState state, String weaponType) {
@@ -1048,7 +1099,13 @@ public class ChroniclesService {
             }
             default -> throw new IllegalArgumentException("Choose a taming approach.");
         }
+        if (affinityLevel(state, creature.element()) >= ChroniclesContent.ATTUNEMENT) chance += ChroniclesContent.ATTUNED_TAMING;
         return Math.max(0.05, Math.min(0.95, chance));
+    }
+
+    boolean comboKnown(ChroniclesState state, ChroniclesContent.Combo combo) {
+        return affinityLevel(state, combo.a()) >= ChroniclesContent.CONVERGENCE
+                && affinityLevel(state, combo.b()) >= ChroniclesContent.CONVERGENCE;
     }
 
     private Companion bestPartner(ChroniclesState state, Element element) {
@@ -1498,6 +1555,19 @@ public class ChroniclesService {
             tech.put("unlocked", level >= 10);
             row.put("technique", tech);
             row.put("masteryAbility", t.mastery());
+            ChroniclesContent.Signature sig = ChroniclesContent.SIGNATURES.get(element);
+            List<Map<String, Object>> milestones = new ArrayList<>();
+            milestones.add(milestoneRow(10, "Familiarity", t.name() + ": " + t.text(), level));
+            milestones.add(milestoneRow(ChroniclesContent.ATTUNEMENT, "Attunement",
+                    "In " + ChroniclesContent.elementLabel(element) + " lands: hazards halved, finds +25%. Taming "
+                            + ChroniclesContent.elementLabel(element) + " Siegelings +5%.", level));
+            milestones.add(milestoneRow(ChroniclesContent.RESONANCE, "Resonance",
+                    t.name() + " reaches the whole company and is 50% stronger.", level));
+            milestones.add(milestoneRow(ChroniclesContent.CONVERGENCE, "Convergence",
+                    "Cross-element combinations with other elements at 75.", level));
+            milestones.add(milestoneRow(ChroniclesContent.ASCENDANCE, "Ascendance",
+                    sig.name() + ": " + sig.text() + " Title: Ascendant of " + ChroniclesContent.elementLabel(element) + ".", level));
+            row.put("milestones", milestones);
             affinities.add(row);
         }
         out.put("affinities", affinities);
@@ -1530,6 +1600,27 @@ public class ChroniclesService {
             cross.add(row);
         }
         out.put("crossClass", cross);
+
+        List<Map<String, Object>> combos = new ArrayList<>();
+        for (ChroniclesContent.Combo combo : ChroniclesContent.COMBOS.values()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", combo.id());
+            row.put("name", combo.name());
+            row.put("elements", List.of(combo.a().name(), combo.b().name()));
+            row.put("labels", List.of(ChroniclesContent.elementLabel(combo.a()), ChroniclesContent.elementLabel(combo.b())));
+            row.put("text", combo.text());
+            row.put("needs", ChroniclesContent.CONVERGENCE);
+            row.put("unlocked", comboKnown(state, combo));
+            combos.add(row);
+        }
+        out.put("combos", combos);
+        List<String> titles = new ArrayList<>();
+        for (Element element : ChroniclesContent.ELEMENTS) {
+            if (affinityLevel(state, element) >= ChroniclesContent.ASCENDANCE) {
+                titles.add("Ascendant of " + ChroniclesContent.elementLabel(element));
+            }
+        }
+        knight.put("titles", titles);
 
         Item equippedWeapon = ChroniclesContent.ITEMS.getOrDefault(state.weaponId, ChroniclesContent.ITEMS.get("squires_sword"));
         List<Map<String, Object>> weapons = new ArrayList<>();
@@ -1605,6 +1696,7 @@ public class ChroniclesService {
         tactics.put("trigger", triggerFor(state, equippedWeapon.weaponType()).name());
         tactics.put("triggerIsDefault", state.tactics.trigger == null);
         tactics.put("techniqueId", state.tactics.techniqueId == null ? "" : state.tactics.techniqueId);
+        tactics.put("comboId", state.tactics.comboId == null ? "" : state.tactics.comboId);
         tactics.put("triggers", List.of(
                 Map.of("id", "READY", "label", "As soon as it's ready"),
                 Map.of("id", "ALLY_LOW", "label", "When an ally falls below 30%"),
@@ -1742,6 +1834,15 @@ public class ChroniclesService {
         out.put("away", awayRow(state.away));
         if (extra != null) out.putAll(extra);
         return out;
+    }
+
+    private static Map<String, Object> milestoneRow(int level, String name, String text, int current) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("level", level);
+        row.put("name", name);
+        row.put("text", text);
+        row.put("unlocked", current >= level);
+        return row;
     }
 
     private static Integer pct(java.util.function.DoubleSupplier supplier) {
@@ -1950,6 +2051,8 @@ public class ChroniclesService {
         row.put("timeline", timelineList(e, now - e.startedAt));
         Technique t = e.techniqueId.isEmpty() ? null : ChroniclesContent.TECHNIQUES.get(e.techniqueId);
         row.put("technique", t == null ? "" : t.name());
+        ChroniclesContent.Combo combo = e.comboId.isEmpty() ? null : ChroniclesContent.COMBOS.get(e.comboId);
+        row.put("combo", combo == null ? "" : combo.name());
         return row;
     }
 

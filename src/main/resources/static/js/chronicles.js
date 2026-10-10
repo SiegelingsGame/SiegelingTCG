@@ -397,7 +397,9 @@
     return '' +
       '<section class="ck-card ck-sheet">' +
         '<div class="ck-sheet-head"><div><p class="ck-kicker">Rank ' + esc(s.knight.rank) + ' · ' + esc(s.knight.rankTitle) + '</p>' +
-        '<h2>Sir ' + esc(s.knight.name) + '</h2></div>' +
+        '<h2>Sir ' + esc(s.knight.name) + '</h2>' +
+        (s.knight.titles && s.knight.titles.length ? '<p class="ck-small is-ready">' + esc(s.knight.titles.join(' · ')) + '</p>' : '') +
+        '</div>' +
         '<div class="ck-sheet-stats"><span><b>' + esc(s.knight.expeditionsCompleted) + '</b> expeditions</span>' +
         '<span><b>' + esc(s.knight.tamed) + '</b> tamed</span></div></div>' +
         bar(s.knight.xpInto, s.knight.xpSpan) +
@@ -428,7 +430,12 @@
         }).join('') + '</div>' +
         '<h4>Cross-class techniques</h4><ul class="ck-cross">' + s.crossClass.map(function (c) {
           return '<li class="' + (c.unlocked ? 'is-on' : '') + '"><b>' + esc(c.name) + '</b> <span class="ck-small">' +
-            esc(c.classes.join(' + ')) + ' ' + esc(c.needs) + '</span><br><span class="ck-muted">' + esc(c.text) + '</span></li>';
+            esc(c.classes.join(' + ')) + ' ' + esc(c.needs) + '</span><span class="ck-small ck-muted">' + esc(c.text) + '</span></li>';
+        }).join('') + '</ul></section>' +
+      '<section class="ck-card"><h3>Elemental Convergence</h3><p class="ck-muted">At Affinity 75 in two elements, prepare their ' +
+        'combination when both fight in your company.</p><ul class="ck-cross">' + s.combos.map(function (c) {
+          return '<li class="' + (c.unlocked ? 'is-on' : '') + '"><b>' + esc(c.name) + '</b> <span class="ck-small">' +
+            esc(c.labels.join(' + ')) + ' ' + esc(c.needs) + '</span><span class="ck-small ck-muted">' + esc(c.text) + '</span></li>';
         }).join('') + '</ul></section>' +
       '<section class="ck-card"><h3>Weapon Disciplines</h3><div class="ck-weapons">' + s.weapons.map(function (w) {
         return '<div class="ck-weapon' + (w.equipped ? ' is-on' : '') + '"><div class="ck-row"><b>' + esc(w.name) + '</b><span>Lv ' + esc(w.level) +
@@ -458,12 +465,32 @@
   }
 
   function affinityRow(a) {
-    return '<div class="ck-affinity' + (a.studied ? '' : ' is-dim') + '" style="--el:var(--' + elKey(a.element) + ')">' +
+    return '<button type="button" class="ck-affinity' + (a.studied ? '' : ' is-dim') + '" data-act="affinity" data-id="' + esc(a.element) +
+      '" style="--el:var(--' + elKey(a.element) + ')">' +
       '<div class="ck-row">' + elementIcon(a.element, 18) + '<b>' + esc(a.label) + '</b><span>Lv ' + esc(a.level) + '</span></div>' +
       bar(a.xpInto, a.xpSpan, 'is-el') +
       '<span class="ck-small">' + esc(a.milestone) + (a.nextMilestone ? ' · next ' + esc(a.nextMilestoneName) + ' at ' + esc(a.nextMilestone) : '') + '</span>' +
       '<span class="ck-small' + (a.technique.unlocked ? ' is-ready' : ' ck-muted') + '">' + (a.technique.unlocked ? '★ ' : '10: ') +
-      esc(a.technique.name) + '</span></div>';
+      esc(a.technique.name) + '</span></button>';
+  }
+
+  function showAffinity(el) {
+    var a = find(state.snap.affinities, 'element', el);
+    if (!a) return;
+    var combos = state.snap.combos.filter(function (c) { return c.elements.indexOf(el) >= 0; });
+    openModal('affinity',
+      '<h2 id="ckModalTitle">' + elementIcon(a.element, 22) + ' ' + esc(a.label) + ' Affinity · ' + esc(a.level) + '</h2>' +
+      '<p class="ck-muted">' + esc(a.milestone) + '. Grows with every battle a ' + esc(a.label) +
+      ' Siegeling fights, every trip into its lands, studies of its essence, and taming.</p>' +
+      bar(a.xpInto, a.xpSpan, 'is-el') +
+      '<ol class="ck-ladder" style="--el:var(--' + elKey(a.element) + ')">' + a.milestones.map(function (m) {
+        return '<li class="' + (m.unlocked ? 'is-on' : '') + '"><b>' + esc(m.level) + ' · ' + esc(m.name) + '</b><span>' + esc(m.text) + '</span></li>';
+      }).join('') + '</ol>' +
+      (combos.length ? '<h3>Combinations</h3><ul class="ck-cross">' + combos.map(function (c) {
+        return '<li class="' + (c.unlocked ? 'is-on' : '') + '"><b>' + esc(c.name) + '</b> <span class="ck-small">' + esc(c.labels.join(' + ')) +
+          ' ' + esc(c.needs) + '</span><span class="ck-small ck-muted">' + esc(c.text) + '</span></li>';
+      }).join('') + '</ul>' : '') +
+      '<div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>');
   }
 
   // Company ────────────────────────────────────────────────────────────────
@@ -643,7 +670,7 @@
         (e.done
           ? '<p class="ck-good">The company is home.</p><div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="collect">Welcome them home</button></div>'
           : '<span class="ck-bar is-live"><i data-live="exp-bar"></i></span><p class="ck-small">Returns in <b data-live="exp-left"></b>' +
-            (e.technique ? ' · Prepared: ' + esc(e.technique) : '') + '</p>') +
+            (e.technique ? ' · Prepared: ' + esc(e.technique) : '') + (e.combo ? ' · ' + esc(e.combo) : '') + '</p>') +
         '</section>' +
         '<section class="ck-card"><h3>The road so far</h3>' + timelineHtml(e.timeline) +
         (e.done ? '' : '<p class="ck-small ck-muted">News arrives as it happens.</p>') + '</section>';
@@ -671,6 +698,12 @@
                 esc(a.technique.name) + ' (' + esc(a.label) + ')</option>';
             }).join('') + '</select>' +
             (techniques.length ? '' : '<span class="ck-small ck-muted">Reach Affinity 10 with an element to learn its technique.</span>') + '</label>' +
+          (s.combos.some(function (c) { return c.unlocked; })
+            ? '<label class="ck-field"><span>Prepared combination</span><select data-tactic="comboId"><option value="">None</option>' +
+              s.combos.filter(function (c) { return c.unlocked; }).map(function (c) {
+                return '<option value="' + esc(c.id) + '"' + (c.id === t.comboId ? ' selected' : '') + '>' + esc(c.name) +
+                  ' (' + esc(c.labels.join(' + ')) + ')</option>';
+              }).join('') + '</select></label>' : '') +
         '</div>' +
         '<h4>Supplies</h4>' + (potions.length ? '<div class="ck-supplies">' + potions.map(function (p) {
           var n = Math.min(state.supplies[p.id] || 0, p.qty);
@@ -804,6 +837,7 @@
           });
         break;
       case 'equip': act('/api/chronicles/equip', { itemId: d.id }); break;
+      case 'affinity': showAffinity(d.id); break;
       case 'activity': act('/api/chronicles/activity', { kind: d.kind, id: d.id }); break;
       case 'activity-stop': act('/api/chronicles/activity', { kind: '', id: '' }); break;
       case 'craft': act('/api/chronicles/craft', { recipeId: d.id, quantity: Number(d.qty) || 1 }); break;

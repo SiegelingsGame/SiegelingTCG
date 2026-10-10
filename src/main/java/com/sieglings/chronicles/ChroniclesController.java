@@ -67,6 +67,7 @@ public class ChroniclesController {
         return respond(auth, user -> service.setTactics(user, optionalInt(body, "retreatAt"), optionalInt(body, "potionAt"),
                 body.containsKey("trigger") ? string(body, "trigger") : null,
                 body.containsKey("techniqueId") ? string(body, "techniqueId") : null,
+                body.containsKey("comboId") ? string(body, "comboId") : null,
                 string(body, "requestId"), version(body)));
     }
 

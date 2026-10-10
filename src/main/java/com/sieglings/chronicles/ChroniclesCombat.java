@@ -1,6 +1,9 @@
 package com.sieglings.chronicles;
 
+import com.sieglings.chronicles.ChroniclesContent.Arcana;
 import com.sieglings.chronicles.ChroniclesContent.CommandTrigger;
+import com.sieglings.chronicles.ChroniclesContent.Signature;
+import com.sieglings.chronicles.ChroniclesContent.SignatureKind;
 import com.sieglings.chronicles.ChroniclesContent.Loot;
 import com.sieglings.chronicles.ChroniclesContent.Mods;
 import com.sieglings.chronicles.ChroniclesContent.Route;
@@ -95,12 +98,13 @@ final class ChroniclesCombat {
 
     record Input(Route route, List<Unit> party, Unit reserve, Knight knight, CommandTrigger trigger,
                  int retreatAt, int potionAt, Map<String, Integer> supplies, Mods fieldMods,
-                 List<String> fieldNotes, long seed, EnemyFactory enemies, long durationMs) {
+                 List<String> fieldNotes, long seed, EnemyFactory enemies, long durationMs,
+                 Arcana arcana, Signature signature) {
         Input(Route route, List<Unit> party, Unit reserve, Knight knight, CommandTrigger trigger,
               int retreatAt, int potionAt, Map<String, Integer> supplies, Mods fieldMods,
               List<String> fieldNotes, long seed, EnemyFactory enemies) {
             this(route, party, reserve, knight, trigger, retreatAt, potionAt, supplies, fieldMods, fieldNotes, seed,
-                    enemies, route.minutes() * 60_000L);
+                    enemies, route.minutes() * 60_000L, Arcana.NONE, null);
         }
     }
 
@@ -150,6 +154,7 @@ final class ChroniclesCombat {
         Unit reserve = in.reserve() == null ? null : in.reserve().copy();
         boolean reserveUsed = false;
         double gauge = 0;
+        boolean signatureUsed = false;
 
         add(result, 0, "depart", "The company sets out for " + route.name() + ".", "info");
         for (String note : in.fieldNotes()) add(result, 0, "prep", note, "info");
@@ -178,7 +183,10 @@ final class ChroniclesCombat {
             boolean boss = hasBoss && i == encounters - 1;
             boolean elite = boss || (route.type() == RouteType.DUNGEON && i % 2 == 1) || (route.type() == RouteType.HUNT && i % 3 == 2);
             List<Unit> foes = in.enemies().group(random, boss, elite);
-            Battle battle = new Battle(in, company, foes, random, gauge, boss, elite, supplies);
+            boolean hasHarder = boss || elite;
+            boolean signatureNow = in.signature() != null && !signatureUsed && (hasHarder || i == encounters - 1);
+            if (signatureNow) signatureUsed = true;
+            Battle battle = new Battle(in, company, foes, random, gauge, boss, elite, supplies, signatureNow);
             battle.fight();
             gauge = battle.gauge;
             result.commandsFired += battle.commandsFired;
@@ -343,9 +351,12 @@ final class ChroniclesCombat {
         double ampBonus;
         boolean feint;
         double feintBonus;
+        final Arcana arcana;
+        final boolean signature;
+        boolean foesStunned;
 
         Battle(Input in, List<Unit> party, List<Unit> foes, Random random, double gauge, boolean boss,
-               boolean elite, Map<String, Integer> supplies) {
+               boolean elite, Map<String, Integer> supplies, boolean signature) {
             this.in = in;
             this.party = party;
             this.foes = foes;
@@ -354,6 +365,8 @@ final class ChroniclesCombat {
             this.boss = boss;
             this.elite = elite;
             this.supplies = supplies;
+            this.arcana = in.arcana() == null ? Arcana.NONE : in.arcana();
+            this.signature = signature;
             for (Unit unit : party) {
                 unit.guarding = false; unit.actions = 0; unit.bondUses = 0; unit.shield = 0; unit.struckYet = false;
                 unit.resolveActive = false; unit.defBreak = 0; unit.defBreakRounds = 0; unit.marked = 0;
@@ -367,6 +380,7 @@ final class ChroniclesCombat {
         }
 
         void fight() {
+            if (signature) unleashSignature();
             while (round < MAX_ROUNDS) {
                 round++;
                 usePotion();
@@ -377,6 +391,10 @@ final class ChroniclesCombat {
                 for (Unit actor : order) {
                     if (!actor.alive()) continue;
                     if (living(party).isEmpty() || living(foes).isEmpty()) break;
+                    if (!actor.ally && (foesStunned && round == 1
+                            || arcana.enemySkipChance() > 0 && random.nextDouble() < arcana.enemySkipChance())) {
+                        continue;
+                    }
                     act(actor);
                 }
                 if (living(foes).isEmpty()) { won = true; return; }
@@ -386,7 +404,29 @@ final class ChroniclesCombat {
             fled = true;
         }
 
+        private void unleashSignature() {
+            Signature sig = in.signature();
+            if (sig.kind() == SignatureKind.BURST) {
+                for (Unit foe : living(foes)) foe.hp = Math.max(1, foe.hp - foe.maxHp * 0.25);
+            } else if (sig.kind() == SignatureKind.SANCTUARY) {
+                for (Unit ally : living(party)) {
+                    ally.hp = Math.min(ally.maxHp, ally.hp + ally.maxHp * 0.40);
+                    ally.shield += ally.maxHp * 0.15;
+                }
+            } else {
+                foesStunned = true;
+            }
+            highlights.add("Ascendant power: " + sig.name() + "!");
+        }
+
         private void endRound() {
+            if (arcana.enemyDotPct() > 0) {
+                for (Unit foe : living(foes)) foe.hp = Math.max(0, foe.hp - foe.maxHp * arcana.enemyDotPct());
+            }
+            if (arcana.roundHealPct() > 0) {
+                Unit hurt = lowest(party);
+                if (hurt != null) hurt.hp = Math.min(hurt.maxHp, hurt.hp + hurt.maxHp * arcana.roundHealPct());
+            }
             if (rallyRounds > 0 && --rallyRounds == 0) rallyBonus = 0;
             if (ampRounds > 0 && --ampRounds == 0) ampBonus = 0;
             for (Unit foe : foes) {
@@ -570,7 +610,9 @@ final class ChroniclesCombat {
 
         private void strike(Unit attacker, Unit target, double power, boolean area) {
             double mult = power;
-            if (ChroniclesContent.beats(attacker.element, target.element)) mult *= 1.3 + (attacker.ally ? ampBonus : 0);
+            boolean advantaged = ChroniclesContent.beats(attacker.element, target.element);
+            if (attacker.ally && "Assassin".equals(attacker.cls)) mult *= 1 + arcana.assassinAtk();
+            if (advantaged) mult *= 1.3 + (attacker.ally ? ampBonus : 0);
             else if (ChroniclesContent.beats(target.element, attacker.element)) mult *= 0.8;
             else if (attacker.ally && ampBonus > 0) mult *= 1.1;
             if (attacker.ally) {
@@ -603,6 +645,10 @@ final class ChroniclesCombat {
             double damage = attacker.atk * mult * 50.0 / (50.0 + def);
             damage *= 0.9 + random.nextDouble() * 0.2;
             if (target.ally && target.pct() < 0.25) damage *= 1 - in.fieldMods().lowHpGuard();
+            if (target.ally) damage *= 1 - Math.min(0.6, arcana.allyDamageCut());
+            if (attacker.ally && advantaged && arcana.advantageShield() > 0) {
+                attacker.shield = Math.min(attacker.maxHp * 0.3, attacker.shield + attacker.maxHp * arcana.advantageShield());
+            }
             if (target.shield > 0) {
                 double absorbed = Math.min(target.shield, damage);
                 target.shield -= absorbed;

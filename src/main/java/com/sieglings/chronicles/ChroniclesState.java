@@ -79,6 +79,8 @@ public class ChroniclesState {
         public String trigger;
         /** Prepared Familiarity technique id, or "". */
         public String techniqueId = "";
+        /** Prepared Convergence combo id, or "". */
+        public String comboId = "";
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -102,6 +104,7 @@ public class ChroniclesState {
         public List<String> partyIds = new ArrayList<>();
         public String reserveId = "";
         public String techniqueId = "";
+        public String comboId = "";
         public String trigger = "";
         public Map<String, Integer> supplies = new LinkedHashMap<>();
         public Map<String, Integer> suppliesLeft = new LinkedHashMap<>();

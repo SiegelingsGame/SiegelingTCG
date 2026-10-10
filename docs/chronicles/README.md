@@ -50,6 +50,10 @@ home base.
   - Command 3 and 10 open the second and third company slots; Command 30 opens a reserve.
 - **New crafts.** Planks and Snare Crates (Carpentry). Linen, rope, the Linen and Ember Robes (Mage boosts) and the doc's Breezewoven Net (Weaving). The Guardian Harness. Runes (Runecrafting): one per expedition, spent on the road, strengthening its element or the whole company. Restoring Ancient Relics from relic shards. Excavation digs fossils, rune stones and relic shards.
 - **Elemental affinity.** All 12 elements are tracked with the design's milestone names. It grows from battles fought by Siegelings of that element, from exploring that element's land, from helper work, and from taming. Affinity 10 unlocks that element's Familiarity technique, prepared one at a time and active only when that element is in the company. Some recipes are gated on affinity, e.g. the Embersteel Lance needs Fire 20 plus Guardian Mastery 10.
+  - **Attunement (25).** In that element's lands, hazards are halved and finds +25%; taming Siegelings of that element +5%.
+  - **Resonance (50).** The element's technique reaches the whole company at 1.5x.
+  - **Convergence (75).** The design's six combos (Steam Veil, Thunderglass, Frozen Tempest, Toxic Bloom, Dawnfire, Eclipse Binding) go in a second prepared slot. They need both elements at 75 and both in the company, and each adds a battle mechanic: damage cut, advantage barriers, slow plus Assassin boost, spreading poison, radiant healing, or turn disruption.
+  - **Ascendance (100).** A title, plus the element's named signature (Infernal Surge, Absolute Frost, …). It fires once per expedition at the start of the hardest battle: a burst, a sanctuary heal and barrier, or a lost enemy round.
 - **Class mastery.** Five paths, each giving a stat bonus to that class. Five cross-class techniques unlock at 20 in both classes when both are fielded.
 - **Weapon disciplines.** Six. The knight does not attack: a command gauge fires the weapon's command on a chosen trigger (as soon as ready, ally low, elites, or bosses), and the gauge carries between battles.
 - **Individual bonds.** Each tamed Siegeling is its own individual, with a bond from 0 to 100 and milestones (Stranger → Knightbound). Bond 10, 25, 75 and 100 add stats. Bond 50 unlocks a class×element technique named from the element and class, e.g. Cinder Aegis (Fire Guardian) and Rooted Resolve (Earth Bruiser). Treats give bond; favourite foods give double, up to 5 treats a day.
@@ -60,7 +64,6 @@ home base.
 
 ## Deferred (designed, not built yet)
 
-- Affinity milestones from 25 up (Resonance, Convergence) and cross-element combinations.
 - Tier II–IV regions.
 - Base buildings inside Chronicles; My Keep plays that role for now.
 - Guilds, Siege Operations, and a marketplace.
