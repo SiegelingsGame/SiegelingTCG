@@ -138,6 +138,14 @@ public class KeepController {
                 string(body, "requestId"), version(body)));
     }
 
+    @PostMapping("/api/keep/rebirth")
+    public ResponseEntity<Map<String, Object>> rebirth(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, Object> body) {
+        return respond(authorizationHeader, user -> keepService.rebirth(user,
+                string(body, "requestId"), version(body)));
+    }
+
     @PostMapping("/api/keep/theme")
     public ResponseEntity<Map<String, Object>> theme(
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,

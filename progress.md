@@ -1,4 +1,26 @@
 Original prompt: Merge and deploy
+- October 10, 2026 **Keep: rebirth for permanent, stacking bonuses.**
+  - **Mechanic.** New `keep/KeepRebirth`.
+    - **Unlock.** Once the Covenant Hall is the Grand Keep (Hall 8), `POST /api/keep/rebirth` resets the Keep. It is refused while any construction is underway, so a paid project is never lost, and is capped at 10 rebirths.
+    - **Resets:** hall, archive, woodlot, storehouse, every workshop, builder's yard, enclave and Akhar's Front levels and posts; timber, materials and stored production; storage annexes; workshop tools/bonus fixtures; and any active event.
+    - **Carries over:** rapport and enclave tasks, lore, voices, choice flags and NPC trust, Keeper XP/level, owned decorations (kept placed in the Hall and Woodlot), favorite and tribute timer.
+    - **Per rebirth:** +25% production (woodlot, every workshop, both Akhar's Front rates), +20% storage (woodlot, workshops, timber and material inventory, front gold, including the front-upgrade preview), 10% faster builds (floored at 40% of shipped time), +120 starting timber. Scaling: build timber and material costs +15%. Production always outgrows cost.
+    - **Reward:** 400×n Siegecoins and 100×n remnants, credited through `afterKeepPersist` so a failed Keep write cannot pay out. A retried requestId is not reborn twice.
+    - **State and snapshot.** `KeepState`/`KeepStore` gain `rebirthCount` and `lastRebirthAt`. The snapshot gains a `rebirth` block: count, title (Reborn, Twice-Risen…), bonuses held, availability/blocker, and a next-rebirth preview with reward.
+    - **Pricing fix.** Every charge and display of a build now goes through `buildProject(state, id)`. That also fixed the Archive/Woodlot/Storehouse build options, which displayed hard-coded constants instead of tuned (and now scaled) costs.
+  - **UI.** `keep.js` shows a Rebirth card in the Covenant Hall under the rank card: current bonuses as chips, the next rebirth's bonuses, cost scaling and reward, and what resets vs. carries over. The button arms on the first tap ("Tap again to rebirth — the Keep resets", in red, with Not yet) and acts on the second. A notice reports the reward. The hall rank label gains the rebirth title.
+- Verification:
+  - Five new `KeepServiceTest` cases:
+    - Refused before the Grand Keep, with blocker text.
+    - A full reset that keeps rapport, Keeper XP, lore and decorations, drops tools and unbuilt-room placements, pays 400 coins and 100 remnants, and does not repeat on a retried request.
+    - Refused while constructing.
+    - At 2 rebirths: woodlot rate ×1.5 and storage ×1.4 exactly, Archive cost/time scaled in the snapshot, and the build charging exactly the shown cost.
+    - Scaling bounds, with production above cost at every count.
+  - Full `./mvnw -q test` passes and `node --check js/keep.js` passes.
+  - Headless Chromium at 390x844 and 1920x1080 using the test-snapshot hook, on a Grand Keep and on a twice-reborn Hall 3 keep:
+    - Grand Keep: the card shows 5 chips and "Begin rebirth 1"; one tap arms without a request; a second tap POSTs `/api/keep/rebirth` once; the card switches to "Reborn" with the blocker note; the label reads "Ruined Camp · Rank 1/8 · Reborn"; the notice reads "+400 Siegecoins and +100 remnants".
+    - Hall 3 keep: shows held and next bonuses with the Grand Keep requirement.
+    - No horizontal overflow and no page errors.
 - October 10, 2026 **Keep: the Keep Guide no longer reopens every time the app opens.**
   - **Bug.** `maybeShowTutorial` auto-starts the coach tour when `sieglingsKeepTutorialSeen` is missing. That flag was only written by `keep-tutorial.js` `finish()` when the tour stopped, so a player who left the app before stepping through every interactive step (open Projects, open Residents, visit the Woodlot…) saw the tour on every launch. That was most players on an installed iPhone web app, where closing the app is how you leave.
   - **Fix.** `maybeShowTutorial` writes the seen flag as soon as the guide auto-opens, and skips the auto-open entirely when `keepIsEstablished(snapshot)`: keep rank above 1, the Enclave built, or more than the two starting buildings complete. That also covers a device whose storage was cleared. The **?** button and the gate's Keep Guide link still open it on demand.

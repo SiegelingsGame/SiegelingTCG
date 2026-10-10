@@ -629,6 +629,19 @@
             openConversation(followup.dataset.dialogueFollowup);
             return;
         }
+        if (event.target.closest('[data-rebirth]')) {
+            if (state.rebirthArmed) void rebirthKeep();
+            else {
+                state.rebirthArmed = true;
+                rerenderActiveSurface();
+            }
+            return;
+        }
+        if (event.target.closest('[data-rebirth-cancel]')) {
+            state.rebirthArmed = false;
+            rerenderActiveSurface();
+            return;
+        }
         if (event.target.closest('[data-dialogue-done]')) closeDialogue();
         if (event.target.closest('[data-collect-inline]')) void collectStation('woodlot');
     }
@@ -1121,8 +1134,9 @@
         renderFavorConfirm();
         renderJourney();
         const rank = snapshot.keepRank || {};
+        const rebirthTitle = number(snapshot.rebirth?.count) > 0 ? ` · ${snapshot.rebirth.title}` : '';
         text('hallRankLabel', rank.name
-            ? `${rank.name} · Rank ${number(rank.level) || 1}/${number(rank.maxLevel) || HALL_MAX_LEVEL}`
+            ? `${rank.name} · Rank ${number(rank.level) || 1}/${number(rank.maxLevel) || HALL_MAX_LEVEL}${rebirthTitle}`
             : 'Sanctuary founded');
         const builtFacilities = ['garden', 'forge', 'fridge', 'generator', 'quarry', 'kitchen']
             .filter((id) => number(visual[`${id}Level`]) > 0).length + (number(visual.buildersYardLevel) > 0 ? 1 : 0);
@@ -1949,7 +1963,7 @@
         if (id === 'enclave') return `${damageNotice}${enclaveMarkup()}`;
         if (id === 'akhars_front') return akharsFrontMarkup();
         if (stationById(id)) return facilityInteriorMarkup(id);
-        return `${damageNotice}<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}${favoriteChooserMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
+        return `${damageNotice}<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}${rebirthCardMarkup()}${favoriteChooserMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
     }
 
     /** Spaces are collapsed to a grid of Siegeling buttons by default; opening one expands that
@@ -2240,6 +2254,61 @@
             <h3>${escapeHtml(rank.name || 'Ruined Camp')}</h3>
             <div class="rank-dots" aria-hidden="true">${dots}</div>${next}
             <div class="button-row"><button class="panel-button secondary" type="button" data-open-panel="projects">Open Projects</button></div></section>`;
+    }
+
+    // A Grand Keep can be reborn: the walls reset, the keeper keeps what they learned,
+    // and every rebirth stacks permanent bonuses (KeepRebirth on the server). The
+    // button arms on the first tap and acts on the second, because the reset is real.
+    function rebirthBonusChips(bonuses, includeCost) {
+        const b = bonuses || {};
+        const chips = [
+            [`+${number(b.productionPercent)}% production`, 'up'],
+            [`+${number(b.storagePercent)}% storage`, 'up'],
+            [`${number(b.buildSpeedPercent)}% faster builds`, 'up'],
+            [`Start with ${number(b.startingTimber)} timber`, 'up']
+        ];
+        if (includeCost) chips.push([`Builds cost +${number(b.costPercent)}%`, 'cost']);
+        return `<div class="rebirth-chips">${chips.map(([label, kind]) =>
+            `<span class="rebirth-chip ${kind}">${escapeHtml(label)}</span>`).join('')}</div>`;
+    }
+
+    function rebirthCardMarkup() {
+        const rebirth = state.snapshot.rebirth;
+        if (!rebirth) return '';
+        const count = number(rebirth.count);
+        const next = rebirth.next || null;
+        const current = count > 0
+            ? `<p class="rebirth-now"><strong>${escapeHtml(rebirth.title || 'Reborn')}</strong> · reborn ${count}×. Bonuses held now:</p>${rebirthBonusChips(rebirth.bonuses, true)}`
+            : '<p>Once the hall stands as the Grand Keep, you may let the sanctuary return to the earth and raise it again, stronger.</p>';
+        let action = '';
+        if (!next) {
+            action = '<p class="rebirth-note">This Keep has been reborn as many times as the covenant allows.</p>';
+        } else if (rebirth.available) {
+            action = `<div class="button-row"><button class="panel-button${state.rebirthArmed ? ' danger' : ''}" type="button" data-rebirth>${
+                state.rebirthArmed ? 'Tap again to rebirth — the Keep resets' : `Begin rebirth ${number(next.count)}`}</button>${
+                state.rebirthArmed ? '<button class="panel-button secondary" type="button" data-rebirth-cancel>Not yet</button>' : ''}</div>`;
+        } else {
+            action = `<p class="rebirth-note">${escapeHtml(rebirth.blocker || `Raise the hall to the ${rebirth.requiredRankName || 'Grand Keep'} first.`)}</p>`;
+        }
+        const preview = next
+            ? `<div class="rebirth-next"><span class="eyebrow">Rebirth ${number(next.count)} · ${escapeHtml(next.title || '')}</span>
+                ${rebirthBonusChips(next.bonuses, true)}
+                <p class="rebirth-reward">Reward: <strong>${escapeHtml(String(number(next.coins)))} Siegecoins</strong> and <strong>${escapeHtml(String(number(next.remnants)))} remnants</strong></p>
+                <p class="rebirth-note">Resets buildings, workshops, tools, stock and posts. Keeps rapport, lore, voices, Keeper level and decorations.</p></div>`
+            : '';
+        return `<section class="detail-card rebirth-card"><span class="eyebrow">Rebirth${count ? ` · ${count}/${number(rebirth.maxCount) || 10}` : ''}</span>
+            <h3>${count ? escapeHtml(rebirth.title || 'Reborn') : 'Rebirth of the Keep'}</h3>${current}${preview}${action}</section>`;
+    }
+
+    async function rebirthKeep() {
+        state.rebirthArmed = false;
+        const data = await perform('/api/keep/rebirth', {});
+        const reborn = data?.reborn;
+        if (!reborn) {
+            rerenderActiveSurface();
+            return;
+        }
+        showNotice(`The Keep rises again as ${reborn.title}. +${number(reborn.coins)} Siegecoins and +${number(reborn.remnants)} remnants; every workshop now produces ${number(reborn.bonuses?.productionPercent)}% more.`, `Rebirth ${number(reborn.count)}`);
     }
 
     function themePickerMarkup() {

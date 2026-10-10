@@ -258,7 +258,7 @@ public class KeepService {
             if (constructionSlotsInUse(state).stream().anyMatch(slot -> id.equals(slot.id()))) {
                 throw new IllegalArgumentException("That project is already underway.");
             }
-            BuildProject project = buildProject(id);
+            BuildProject project = buildProject(state, id);
             if (project == null) throw new IllegalArgumentException("Unknown construction project.");
             validateBuild(state, project);
             if (state.getTimber() < project.timberCost()) {
@@ -284,7 +284,7 @@ public class KeepService {
             if (isConstructing(state, id)) {
                 throw new IllegalArgumentException("That project is already underway. Use its time savers instead.");
             }
-            BuildProject project = buildProject(id);
+            BuildProject project = buildProject(state, id);
             if (project == null) throw new IllegalArgumentException("Unknown construction project.");
             validateBuild(state, project);
             int coinCost = instantBuildCoinCost(project);
@@ -841,6 +841,126 @@ public class KeepService {
                 .findFirst().orElse(null);
     }
 
+    /**
+     * Lets a Grand Keep return to the earth for permanent bonuses (see {@link KeepRebirth}).
+     * Buildings, stock, stored production, workshop tools and posts reset; rapport, lore,
+     * voices, Keeper level and owned decorations carry over. Refused while any construction
+     * is underway so a paid-for project is never silently lost.
+     */
+    public Map<String, Object> rebirth(AccountUser user, String requestId, long expectedVersion) {
+        return mutate(user, requestId, expectedVersion, context -> {
+            KeepState state = context.state();
+            String blocker = rebirthBlocker(state);
+            if (blocker != null) throw new IllegalArgumentException(blocker);
+            int newCount = state.getRebirthCount() + 1;
+            resetForRebirth(state, newCount, context.now());
+            int coins = KeepRebirth.rewardCoins(newCount);
+            int remnants = KeepRebirth.rewardRemnants(newCount);
+            context.afterKeepPersist(p -> {
+                p.setGold(p.getGold() + coins);
+                p.setRemnants(p.getRemnants() + remnants);
+                p.setUpdatedAt(context.now());
+            });
+            Map<String, Object> reborn = new LinkedHashMap<>();
+            reborn.put("count", newCount);
+            reborn.put("title", KeepRebirth.title(newCount));
+            reborn.put("coins", coins);
+            reborn.put("remnants", remnants);
+            reborn.put("bonuses", KeepRebirth.bonuses(newCount));
+            return Map.of("reborn", reborn);
+        });
+    }
+
+    /** Why this Keep cannot be reborn right now, or null when it can. */
+    private String rebirthBlocker(KeepState state) {
+        if (state.getRebirthCount() >= KeepRebirth.MAX_REBIRTHS) {
+            return "This Keep has been reborn as many times as the covenant allows.";
+        }
+        if (hallLevel(state) < KeepRebirth.REQUIRED_HALL_LEVEL) {
+            return "Raise the Covenant Hall to the " + rankName(KeepRebirth.REQUIRED_HALL_LEVEL) + " to begin a rebirth.";
+        }
+        if (!constructionSlotsInUse(state).isEmpty()) {
+            return "Finish every construction project before the Keep is reborn.";
+        }
+        return null;
+    }
+
+    private void resetForRebirth(KeepState state, int newCount, Instant now) {
+        state.setRebirthCount(newCount);
+        state.setLastRebirthAt(now);
+        state.setTimber(KeepRebirth.startingTimber(newCount));
+        state.setEssence(0);
+        state.setStorehouseLevel(0);
+        state.setWoodlotLevel(1);
+        state.setArchiveLevel(0);
+        state.setHallLevel(1);
+        state.setHallThemeId("");
+        state.setBuildersYardLevel(0);
+        state.setEnclaveLevel(0);
+        state.setEnclaveResidentIds(List.of());
+        state.setAkharsFrontLevel(0);
+        state.setAkharsFrontResidentIds(List.of());
+        state.setAkharsFrontStoredGold(0);
+        state.setAkharsFrontProductionRemainder(0);
+        state.setAkharsFrontLastAccruedAt(null);
+        state.setWoodlotStored(0);
+        state.setWoodlotProductionRemainder(0);
+        state.setWoodlotLastAccruedAt(now);
+        state.setWoodlotResidentId("");
+        state.setFacilityLevels(Map.of());
+        state.setFacilityStored(Map.of());
+        state.setFacilityProductionRemainders(Map.of());
+        state.setFacilityLastAccruedAt(Map.of());
+        state.setFacilityResidentIds(Map.of());
+        state.setMaterialInventory(Map.of());
+        state.setStorageUpgradeLevels(Map.of());
+        // Tools and bonus fixtures belong to the workshops that fall; decorations are the
+        // keeper's own and come along, staying placed only in rooms that still stand.
+        Map<String, Integer> kept = new LinkedHashMap<>();
+        state.getCraftedItemCounts().forEach((id, count) -> {
+            CraftRecipe recipe = RECIPES.get(id);
+            if (recipe == null || "DECORATION".equals(recipe.type())) kept.put(id, count);
+        });
+        state.setCraftedItemCounts(kept);
+        Map<String, String> placed = new LinkedHashMap<>();
+        state.getPlacedDecorations().forEach((room, ids) -> {
+            if ("great_hall".equals(room) || "woodlot".equals(room)) placed.put(room, ids);
+        });
+        state.setPlacedDecorations(placed);
+        state.setActiveKeepEventId("");
+        state.setKeepEventOccurredAt(null);
+        state.setKeepEventRepairStartedAt(null);
+        state.setKeepEventRepairCompletesAt(null);
+        state.setLastKeepEventRollAt(now);
+        repairDefaults(state, now);
+    }
+
+    private Map<String, Object> rebirthBlock(KeepState state) {
+        int count = state.getRebirthCount();
+        int next = Math.min(KeepRebirth.MAX_REBIRTHS, count + 1);
+        String blocker = rebirthBlocker(state);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("count", count);
+        out.put("maxCount", KeepRebirth.MAX_REBIRTHS);
+        out.put("title", KeepRebirth.title(count));
+        out.put("bonuses", KeepRebirth.bonuses(count));
+        out.put("available", blocker == null);
+        out.put("blocker", blocker);
+        out.put("requiredHallLevel", KeepRebirth.REQUIRED_HALL_LEVEL);
+        out.put("requiredRankName", rankName(KeepRebirth.REQUIRED_HALL_LEVEL));
+        if (count < KeepRebirth.MAX_REBIRTHS) {
+            Map<String, Object> preview = new LinkedHashMap<>();
+            preview.put("count", next);
+            preview.put("title", KeepRebirth.title(next));
+            preview.put("bonuses", KeepRebirth.bonuses(next));
+            preview.put("coins", KeepRebirth.rewardCoins(next));
+            preview.put("remnants", KeepRebirth.rewardRemnants(next));
+            out.put("next", preview);
+        }
+        if (state.getLastRebirthAt() != null) out.put("lastRebirthAt", state.getLastRebirthAt().toString());
+        return out;
+    }
+
     public Map<String, Object> setHallTheme(AccountUser user, String themeId,
                                             String requestId, long expectedVersion) {
         return mutate(user, requestId, expectedVersion, context -> {
@@ -1366,12 +1486,12 @@ public class KeepService {
 
     private double akharsFrontPassiveRate(KeepState state, List<Resident> residents) {
         return akharsFrontDefenderCount(state, residents) * AKHARS_FRONT_GOLD_PER_MINUTE_PER_DEFENDER
-                * akharsFrontWallMultiplier(state) * (1 + favoriteBoost(state, residents));
+                * akharsFrontWallMultiplier(state) * (1 + favoriteBoost(state, residents)) * rebirthProduction(state);
     }
 
     private double akharsFrontCombatRate(KeepState state, List<Resident> residents) {
         return akharsFrontDefenderCount(state, residents) * AKHARS_FRONT_COMBAT_GOLD_PER_MINUTE_PER_DEFENDER
-                * akharsFrontWallMultiplier(state) * (1 + favoriteBoost(state, residents));
+                * akharsFrontWallMultiplier(state) * (1 + favoriteBoost(state, residents)) * rebirthProduction(state);
     }
 
     private double akharsFrontRate(KeepState state, List<Resident> residents) {
@@ -1430,7 +1550,7 @@ public class KeepService {
         double base = state.getWoodlotLevel() >= 2 ? 2.0 : 1.0;
         Resident invited = residents.stream().filter(r -> r.id().equals(state.getWoodlotResidentId())).findFirst().orElse(null);
         double rate = base * (1 + stationBonus(state, invited, "woodlot"));
-        return rate * toolMultiplier(state, "woodlot") * (1 + favoriteBoost(state, residents));
+        return rate * toolMultiplier(state, "woodlot") * (1 + favoriteBoost(state, residents)) * rebirthProduction(state);
     }
 
     /**
@@ -1457,22 +1577,31 @@ public class KeepService {
 
     private int woodlotStorageCapacity(KeepState state) {
         int base = state.getWoodlotLevel() >= 2 ? 360 : 120;
-        return (int) Math.round(base * storageMultiplier(state) * localStorageMultiplier(state, "woodlot"));
+        return (int) Math.round(base * storageMultiplier(state) * localStorageMultiplier(state, "woodlot")
+                * rebirthStorage(state));
     }
 
     private int timberInventoryCapacity(KeepState state) {
         int storehouse = isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "storehouse")
                 ? 0 : state.getStorehouseLevel();
-        return TIMBER_INVENTORY_CAPACITY + storehouse * 300
-                + (hallLevel(state) - 1) * 50;
+        return (int) Math.round((TIMBER_INVENTORY_CAPACITY + storehouse * 300
+                + (hallLevel(state) - 1) * 50) * rebirthStorage(state));
     }
 
     private int materialInventoryCapacity(KeepState state) {
         int storehouse = isDamagedTarget(state, KeepEventCatalog.TARGET_UPGRADE, "storehouse")
                 ? 0 : state.getStorehouseLevel();
-        return 75 + storehouse * 125
+        return (int) Math.round((75 + storehouse * 125
                 + (craftedCount(state, "covenant_crates") > 0 ? 75 : 0)
-                + (hallLevel(state) - 1) * 15;
+                + (hallLevel(state) - 1) * 15) * rebirthStorage(state));
+    }
+
+    private static double rebirthProduction(KeepState state) {
+        return KeepRebirth.productionMultiplier(state.getRebirthCount());
+    }
+
+    private static double rebirthStorage(KeepState state) {
+        return KeepRebirth.storageMultiplier(state.getRebirthCount());
     }
 
     private int hallLevel(KeepState state) {
@@ -1506,7 +1635,7 @@ public class KeepService {
         if (definition == null) return 0;
         return (int) Math.round(tuning().storage(id, definition.baseStorage())
                 * Math.max(1, facilityLevel(state, id)) * storageMultiplier(state)
-                * localStorageMultiplier(state, id));
+                * localStorageMultiplier(state, id) * rebirthStorage(state));
     }
 
     private double facilityRatePerMinute(String id) {
@@ -1525,7 +1654,7 @@ public class KeepService {
         double networkBonus = craftedCount(state, "insulated_channels") > 0
                 ? 1 + tuning().elementalNetworkPercent() / 100.0 : 1.0;
         return facilityRatePerMinute(id) * facilityLevel(state, id) * affinity * toolBonus * networkBonus
-                * (1 + favoriteBoost(state, residents));
+                * (1 + favoriteBoost(state, residents)) * rebirthProduction(state);
     }
 
     /**
@@ -1834,7 +1963,7 @@ public class KeepService {
     }
 
     private int akharsFrontGoldCapacity(KeepState state) {
-        return AKHARS_FRONT_GOLD_CAPACITY_BY_LEVEL[akharsFrontLevel(state)];
+        return (int) Math.round(AKHARS_FRONT_GOLD_CAPACITY_BY_LEVEL[akharsFrontLevel(state)] * rebirthStorage(state));
     }
 
     /** Wall quality paid out as income: better stone means every defender earns more. */
@@ -2053,7 +2182,7 @@ public class KeepService {
         }
         List<String> completed = new ArrayList<>();
         for (String completedId : completedProjects == null ? List.<String>of() : completedProjects) {
-            BuildProject project = buildProject(completedId);
+            BuildProject project = buildProject(state, completedId);
             if (project != null) completed.add(project.name());
         }
         List<String> loreFound = state.getUnlockedLoreIds().stream()
@@ -2274,7 +2403,7 @@ public class KeepService {
         int level = akharsFrontLevel(state);
         if (level < 1 || level >= AKHARS_FRONT_MAX_LEVEL) return null;
         int next = level + 1;
-        BuildProject project = buildProject("akhars_front_level_" + next);
+        BuildProject project = buildProject(state, "akhars_front_level_" + next);
         if (project == null) return null;
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", project.id());
@@ -2283,7 +2412,7 @@ public class KeepService {
         out.put("wallName", akharsFrontWallName(next));
         out.put("posts", next);
         out.put("wallBonusPercent", AKHARS_FRONT_WALL_BONUS_PERCENT[next]);
-        out.put("storageCapacity", AKHARS_FRONT_GOLD_CAPACITY_BY_LEVEL[next]);
+        out.put("storageCapacity", (int) Math.round(AKHARS_FRONT_GOLD_CAPACITY_BY_LEVEL[next] * rebirthStorage(state)));
         out.put("timberCost", project.timberCost());
         out.put("materialCosts", serializeMaterialCosts(project.materialCosts()));
         out.put("durationSeconds", project.durationSeconds());
@@ -2479,6 +2608,22 @@ public class KeepService {
     }
 
     /** Construction project with the dashboard's cost/duration overrides applied. */
+    /**
+     * The project as this Keep pays for it: tuned costs, then the rebirth scaling
+     * (dearer and faster with every rebirth). Anything that charges for, times or
+     * shows the price of a build must use this overload.
+     */
+    private BuildProject buildProject(KeepState state, String id) {
+        BuildProject base = buildProject(id);
+        int rebirths = state == null ? 0 : state.getRebirthCount();
+        if (base == null || rebirths <= 0) return base;
+        Map<String, Integer> materials = new LinkedHashMap<>();
+        base.materialCosts().forEach((material, amount) -> materials.put(material,
+                KeepRebirth.scaleCost(amount == null ? 0 : amount, rebirths)));
+        return new BuildProject(base.id(), base.name(), KeepRebirth.scaleCost(base.timberCost(), rebirths),
+                Map.copyOf(materials), KeepRebirth.scaleDuration(base.durationSeconds(), rebirths));
+    }
+
     private BuildProject buildProject(String id) {
         BuildProject shipped = shippedBuildProject(id);
         if (shipped == null) return null;
@@ -3112,6 +3257,7 @@ public class KeepService {
         keepRank.put("nextName", hallLevel(state) >= HALL_MAX_LEVEL ? null : rankName(hallLevel(state) + 1));
         keepRank.put("nextHint", hallLevel(state) >= HALL_MAX_LEVEL ? null : hallUpgradeGateHint(hallLevel(state) + 1));
         out.put("keepRank", keepRank);
+        out.put("rebirth", rebirthBlock(state));
         out.put("hallTheme", Map.of("id", activeTheme.id(), "name", activeTheme.name(),
                 "accent", activeTheme.accent(), "trim", activeTheme.trim()));
         out.put("hallThemes", HALL_THEMES.values().stream().map(theme -> Map.<String, Object>of(
@@ -3210,7 +3356,7 @@ public class KeepService {
         List<Map<String, Object>> out = collectBuildOptions(state);
         out.removeIf(option -> isConstructing(state, String.valueOf(option.get("id"))));
         for (Map<String, Object> option : out) {
-            BuildProject project = buildProject(String.valueOf(option.get("id")));
+            BuildProject project = buildProject(state, String.valueOf(option.get("id")));
             if (project == null) continue;
             int coinCost = instantBuildCoinCost(project);
             boolean levelMet = !Boolean.FALSE.equals(option.get("levelMet"));
@@ -3223,35 +3369,35 @@ public class KeepService {
     private List<Map<String, Object>> collectBuildOptions(KeepState state) {
         List<Map<String, Object>> out = new ArrayList<>();
         if (state.getArchiveLevel() < 1) {
-            out.add(buildOption(state, "restore_archive", "Restore the Living Archive", ARCHIVE_RESTORE_COST, Map.of(),
-                    ARCHIVE_RESTORE_SECONDS, "Raise a shelter for recovered letters and the memories held by the land.",
+            out.add(buildOption(state, "restore_archive", "Restore the Living Archive", buildProject(state, "restore_archive").timberCost(), Map.of(),
+                    buildProject(state, "restore_archive").durationSeconds(), "Raise a shelter for recovered letters and the memories held by the land.",
                     true));
             return out;
         }
         if (state.getWoodlotLevel() < 2) {
-            out.add(buildOption(state, "woodlot_level_2", "Cultivate the Woodlot", WOODLOT_LEVEL_TWO_COST, Map.of(),
-                    WOODLOT_LEVEL_TWO_SECONDS, "Replace clear-cutting with a grove shaped by human and Siegeling knowledge.",
+            out.add(buildOption(state, "woodlot_level_2", "Cultivate the Woodlot", buildProject(state, "woodlot_level_2").timberCost(), Map.of(),
+                    buildProject(state, "woodlot_level_2").durationSeconds(), "Replace clear-cutting with a grove shaped by human and Siegeling knowledge.",
                     true));
             addHallUpgradeOption(state, out);
             addEnclaveBuildOption(state, out);
             return out;
         }
         if (state.getStorehouseLevel() < 1) {
-            out.add(buildOption(state, "raise_storehouse", "Raise the Covenant Storehouse", STOREHOUSE_LEVEL_ONE_COST, Map.of(),
-                    STOREHOUSE_LEVEL_ONE_SECONDS, "Double timber room and expand every workstation's offline storage.", true));
+            out.add(buildOption(state, "raise_storehouse", "Raise the Covenant Storehouse", buildProject(state, "raise_storehouse").timberCost(), Map.of(),
+                    buildProject(state, "raise_storehouse").durationSeconds(), "Double timber room and expand every workstation's offline storage.", true));
             addHallUpgradeOption(state, out);
             addEnclaveBuildOption(state, out);
             return out;
         }
         for (FacilityDefinition definition : FACILITIES.values()) {
             if (facilityLevel(state, definition.id()) < 1) {
-                BuildProject project = buildProject("build_" + definition.id());
+                BuildProject project = buildProject(state, "build_" + definition.id());
                 out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                         project.durationSeconds(), definition.buildDescription(), true));
             }
         }
         if (facilityLevel(state, "quarry") >= 1 && state.getBuildersYardLevel() < 1) {
-            BuildProject project = buildProject("build_builders_yard");
+            BuildProject project = buildProject(state, "build_builders_yard");
             out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                     project.durationSeconds(),
                     "Advanced construction recipes: level-2 expansions unlock while Keeper Level determines simultaneous teams.", true));
@@ -3259,20 +3405,20 @@ public class KeepService {
         if (state.getBuildersYardLevel() >= 1) {
             for (FacilityDefinition definition : FACILITIES.values()) {
                 if (facilityLevel(state, definition.id()) == 1) {
-                    BuildProject project = buildProject(definition.id() + "_level_2");
+                    BuildProject project = buildProject(state, definition.id() + "_level_2");
                     out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                             project.durationSeconds(), "Use materials from other workshops to improve production, storage, and the resident's contribution.", true));
                 }
             }
             if (elementalFacilitiesAtLeast(state, 1) && state.getStorehouseLevel() < 2) {
-                BuildProject project = buildProject("storehouse_level_2");
+                BuildProject project = buildProject(state, "storehouse_level_2");
                 out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                         project.durationSeconds(), "Combine all four elemental materials into a larger sanctuary vault.", true));
             }
             for (String roomId : PRODUCTION_ROOMS) {
                 if (productionRoomLevel(state, roomId) < 2
                         || state.getStorageUpgradeLevels().getOrDefault(roomId, 0) > 0) continue;
-                BuildProject project = buildProject(roomId + "_storage_annex");
+                BuildProject project = buildProject(state, roomId + "_storage_annex");
                 out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                         project.durationSeconds(), "Add dedicated local storage beside the "
                                 + productionRoomName(roomId) + " for +50% offline capacity.", true));
@@ -3287,7 +3433,7 @@ public class KeepService {
 
     private void addEnclaveBuildOption(KeepState state, List<Map<String, Object>> out) {
         if (state.getArchiveLevel() < 1 || state.getEnclaveLevel() > 0 || isConstructing(state, "build_enclave")) return;
-        BuildProject project = buildProject("build_enclave");
+        BuildProject project = buildProject(state, "build_enclave");
         out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                 project.durationSeconds(),
                 "A home apart from the work quarter, with five resident spaces and a personal mission from every guest.", true));
@@ -3296,7 +3442,7 @@ public class KeepService {
     private void addAkharsFrontBuildOption(KeepState state, List<Map<String, Object>> out) {
         if (state.getEnclaveLevel() < 1 || hallLevel(state) < 3 || facilityLevel(state, "quarry") < 1
                 || state.getAkharsFrontLevel() > 0 || isConstructing(state, "build_akhars_front")) return;
-        BuildProject project = buildProject("build_akhars_front");
+        BuildProject project = buildProject(state, "build_akhars_front");
         out.add(buildOption(state, project.id(), project.name(), project.timberCost(), project.materialCosts(),
                 project.durationSeconds(),
                 "Fortify the road with one voluntary rampart post. Its defender repels Akhar's raiders and earns Siegecoins while you are away — later wall upgrades open up to four posts.",
@@ -3311,7 +3457,7 @@ public class KeepService {
         int next = level + 1;
         String id = "akhars_front_level_" + next;
         if (!akharsFrontUpgradeGateMet(state, next) || isConstructing(state, id)) return;
-        BuildProject project = buildProject(id);
+        BuildProject project = buildProject(state, id);
         if (project == null) return;
         Map<String, Object> option = buildOption(state, project.id(), project.name(), project.timberCost(),
                 project.materialCosts(), project.durationSeconds(), akharsFrontUpgradeDescription(next), true);
@@ -3334,7 +3480,7 @@ public class KeepService {
     private void addHallUpgradeOption(KeepState state, List<Map<String, Object>> out) {
         int nextLevel = hallLevel(state) + 1;
         if (nextLevel > HALL_MAX_LEVEL || !hallUpgradeGateMet(state, nextLevel)) return;
-        BuildProject project = buildProject("hall_level_" + nextLevel);
+        BuildProject project = buildProject(state, "hall_level_" + nextLevel);
         if (project == null) return;
         Map<String, Object> option = buildOption(state, project.id(), project.name(), project.timberCost(),
                 project.materialCosts(), project.durationSeconds(),

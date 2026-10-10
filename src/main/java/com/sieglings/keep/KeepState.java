@@ -87,6 +87,10 @@ public class KeepState {
     private Instant keeperDailyXpAt;
     private int keeperResourceXpToday;
     private String keeperResourceXpDay = "";
+    // Rebirth: how many times this Keep has been reborn (each adds permanent bonuses,
+    // see KeepRebirth) and when it last was.
+    private int rebirthCount;
+    private Instant lastRebirthAt;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -257,6 +261,10 @@ public class KeepState {
     public void setKeeperResourceXpToday(int keeperResourceXpToday) { this.keeperResourceXpToday = Math.max(0, keeperResourceXpToday); }
     public String getKeeperResourceXpDay() { return keeperResourceXpDay; }
     public void setKeeperResourceXpDay(String keeperResourceXpDay) { this.keeperResourceXpDay = keeperResourceXpDay == null ? "" : keeperResourceXpDay; }
+    public int getRebirthCount() { return rebirthCount; }
+    public void setRebirthCount(int rebirthCount) { this.rebirthCount = Math.max(0, rebirthCount); }
+    public Instant getLastRebirthAt() { return lastRebirthAt; }
+    public void setLastRebirthAt(Instant lastRebirthAt) { this.lastRebirthAt = lastRebirthAt; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

@@ -3388,6 +3388,16 @@ body.keep-guide-active .tut-layer { z-index: 240; }
 .order-reqs span.is-met { background: rgba(111, 207, 139, .18); color: #b5eec6; }
 
 .rank-card { border-color: rgba(244, 204, 98, .38); background: rgba(244, 204, 98, .05); }
+.rebirth-card { border-color: rgba(111, 207, 139, .42); background: linear-gradient(160deg, rgba(111, 207, 139, .12), rgba(244, 204, 98, .05)); }
+.rebirth-card .rebirth-now { margin-top: 6px; }
+.rebirth-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 7px 0 2px; }
+.rebirth-chip { padding: 3px 8px; border-radius: 99px; font-size: 9.5px; font-weight: 800; color: #b5eec6; background: rgba(111, 207, 139, .16); border: 1px solid rgba(111, 207, 139, .35); }
+.rebirth-chip.cost { color: rgba(255, 247, 220, .78); background: rgba(255, 255, 255, .06); border-color: var(--line); }
+.rebirth-next { margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line); }
+.rebirth-reward { margin: 6px 0 2px; color: var(--cream); }
+.rebirth-reward strong { color: var(--gold); }
+.rebirth-note { margin: 6px 0 0; color: var(--faint); font-size: 10.5px; line-height: 1.4; }
+.panel-button.danger { color: #fff7dc; border-color: rgba(255, 110, 110, .65); background: linear-gradient(#c8463c, #8f2a26); }
 .rank-dots { display: flex; gap: 5px; margin: 9px 0 4px; }
 .rank-dots i { width: 16px; height: 6px; border-radius: 99px; background: rgba(255, 255, 255, .14); }
 .rank-dots i.filled { background: var(--gold); box-shadow: 0 0 6px rgba(244, 204, 98, .55); }

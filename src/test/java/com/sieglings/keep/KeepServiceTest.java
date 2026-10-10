@@ -1710,6 +1710,124 @@ class KeepServiceTest {
         service.getSnapshot(user);
     }
 
+    @Test
+    void rebirthIsRefusedBeforeTheGrandKeep() {
+        Map<String, Object> snapshot = service.getSnapshot(user);
+        assertEquals(false, valueAt(snapshot, "rebirth", "available"));
+        assertTrue(String.valueOf(valueAt(snapshot, "rebirth", "blocker")).contains("Grand Keep"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.rebirth(user, "early-rebirth", store.state.getVersion()));
+        assertEquals(0, store.state.getRebirthCount());
+    }
+
+    @Test
+    void rebirthResetsTheKeepButKeepsWhatTheKeeperLearnedAndPaysOut() {
+        service.getSnapshot(user);
+        KeepState state = store.state;
+        state.setHallLevel(KeepService.HALL_MAX_LEVEL);
+        state.setArchiveLevel(1);
+        state.setWoodlotLevel(2);
+        state.setStorehouseLevel(2);
+        state.setEnclaveLevel(1);
+        state.setEnclaveResidentIds(List.of("mossling"));
+        state.getFacilityLevels().put("garden", 2);
+        state.getMaterialInventory().put("verdant_fiber", 40);
+        state.setTimber(900);
+        state.getResidentRapport().put("mossling", 30);
+        state.setKeeperXp(5_000);
+        state.getCraftedItemCounts().put("gardener_tools", 1);
+        state.getCraftedItemCounts().put("carved_waypost", 1);
+        state.getPlacedDecorations().put("great_hall", "carved_waypost");
+        state.getPlacedDecorations().put("garden", "seedkeeper_vault");
+        unlockAll(state);
+        int loreBefore = state.getUnlockedLoreIds().size();
+        progression.setGold(100);
+        progression.setRemnants(0);
+        assertEquals(true, valueAt(service.getSnapshot(user), "rebirth", "available"));
+
+        Map<String, Object> result = service.rebirth(user, "rebirth-1", state.getVersion());
+
+        assertEquals(1, intAt(result, "reborn", "count"));
+        assertEquals(KeepRebirth.rewardCoins(1), intAt(result, "reborn", "coins"));
+        assertEquals(100 + KeepRebirth.rewardCoins(1), progression.getGold());
+        assertEquals(KeepRebirth.rewardRemnants(1), progression.getRemnants());
+        KeepState after = store.state;
+        assertEquals(1, after.getRebirthCount());
+        assertEquals(1, after.getHallLevel());
+        assertEquals(0, after.getArchiveLevel());
+        assertEquals(1, after.getWoodlotLevel());
+        assertEquals(0, after.getStorehouseLevel());
+        assertEquals(0, after.getEnclaveLevel());
+        assertEquals(0, after.getFacilityLevels().getOrDefault("garden", 0));
+        assertEquals(0, after.getMaterialInventory().getOrDefault("verdant_fiber", 0));
+        assertEquals(KeepRebirth.startingTimber(1), after.getTimber());
+        assertEquals(30, after.getResidentRapport().get("mossling"), "rapport belongs to the Siegeling, not the walls");
+        assertEquals(5_000, after.getKeeperXp());
+        assertEquals(loreBefore, after.getUnlockedLoreIds().size());
+        assertEquals(1, after.getCraftedItemCounts().get("carved_waypost"), "decorations are the keeper's own");
+        assertFalse(after.getCraftedItemCounts().containsKey("gardener_tools"), "tools fall with their workshop");
+        assertEquals("carved_waypost", after.getPlacedDecorations().get("great_hall"));
+        assertFalse(after.getPlacedDecorations().containsKey("garden"));
+
+        // A retried request is not reborn twice.
+        service.rebirth(user, "rebirth-1", -1);
+        assertEquals(1, store.state.getRebirthCount());
+        assertEquals(100 + KeepRebirth.rewardCoins(1), progression.getGold());
+    }
+
+    @Test
+    void rebirthWaitsForConstructionToFinish() {
+        service.getSnapshot(user);
+        store.state.setHallLevel(KeepService.HALL_MAX_LEVEL);
+        service.startBuild(user, "restore_archive", "archive-before-rebirth", store.state.getVersion());
+        IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                () -> service.rebirth(user, "rebirth-busy", store.state.getVersion()));
+        assertTrue(refused.getMessage().contains("construction"));
+    }
+
+    @Test
+    void rebirthBonusesScaleProductionStorageAndBuilds() {
+        Map<String, Object> fresh = service.getSnapshot(user);
+        double rate = woodlotRate(fresh);
+        int capacity = intAt(fresh, "station", "storageCapacity");
+        Map<String, Object> archive = buildOption(fresh, "restore_archive");
+
+        store.state.setRebirthCount(2);
+        Map<String, Object> reborn = service.getSnapshot(user);
+
+        assertEquals(rate * KeepRebirth.productionMultiplier(2), woodlotRate(reborn), 1e-9);
+        assertEquals(Math.round(capacity * KeepRebirth.storageMultiplier(2)), intAt(reborn, "station", "storageCapacity"));
+        Map<String, Object> scaled = buildOption(reborn, "restore_archive");
+        assertEquals(KeepRebirth.scaleCost(((Number) archive.get("timberCost")).intValue(), 2),
+                ((Number) scaled.get("timberCost")).intValue(), "build costs scale with every rebirth");
+        assertEquals(KeepRebirth.scaleDuration(((Number) archive.get("durationSeconds")).longValue(), 2),
+                ((Number) scaled.get("durationSeconds")).longValue(), "and builds go faster");
+        assertEquals(2, intAt(reborn, "rebirth", "count"));
+        assertEquals(50, ((Number) ((Map<?, ?>) valueAt(reborn, "rebirth", "bonuses")).get("productionPercent")).intValue());
+
+        // What the snapshot shows is what the build charges.
+        int before = store.state.getTimber();
+        service.startBuild(user, "restore_archive", "scaled-archive", store.state.getVersion());
+        assertEquals(before - ((Number) scaled.get("timberCost")).intValue(), store.state.getTimber());
+    }
+
+    @Test
+    void rebirthScalingIsBoundedAndAlwaysANetGain() {
+        assertEquals(0.4, KeepRebirth.buildTimeMultiplier(KeepRebirth.MAX_REBIRTHS), 1e-9);
+        assertEquals(KeepRebirth.productionMultiplier(KeepRebirth.MAX_REBIRTHS),
+                KeepRebirth.productionMultiplier(KeepRebirth.MAX_REBIRTHS + 5), 1e-9);
+        for (int n = 1; n <= KeepRebirth.MAX_REBIRTHS; n++) {
+            assertTrue(KeepRebirth.productionMultiplier(n) > KeepRebirth.costMultiplier(n));
+            assertFalse(KeepRebirth.title(n).isBlank());
+        }
+    }
+
+    private static void unlockAll(KeepState state) {
+        List<String> lore = new ArrayList<>(state.getUnlockedLoreIds());
+        lore.add("extra_lore_for_rebirth_test");
+        state.setUnlockedLoreIds(lore);
+    }
+
     private String firstTaskId(String residentId) {
         Map<String, Object> task = enclaveTasks(service.getSnapshot(user), 0).get(0);
         return String.valueOf(task.get("taskId"));
