@@ -308,6 +308,26 @@ class ChroniclesServiceTest {
     }
 
     @Test
+    void aCommitThatLandsAfterTheReadIsNotOverwritten() {
+        service.start(user, "cacty", "Ari", null);
+        String id = store.state.companions.get(0).id;
+        store.conflictOnNextSave = true;
+        assertThrows(ChroniclesService.StaleStateException.class,
+                () -> service.setHelper(user, id, "race-1", -1));
+        assertEquals("", store.state.helperId, "the losing write must not replace the chronicle");
+        assertFalse(store.conflictOnNextSave);
+
+        service.setActivity(user, "gather", "mine_copper", null, -1);
+        clock.advance(Duration.ofSeconds(80));
+        store.conflictOnNextSave = true;
+        Map<String, Object> snap = service.getSnapshot(user);
+        assertEquals(true, snap.get("started"));
+        assertEquals(10, store.state.inventory.get("copper_ore"),
+                "a conflicting poll retries the settle instead of dropping it or blanking the page");
+        assertFalse(store.conflictOnNextSave);
+    }
+
+    @Test
     void routesOpenWithRank() {
         service.start(user, "cacty", "Ari", null);
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
@@ -355,6 +375,8 @@ class ChroniclesServiceTest {
     /** Round-trips through JSON like Firestore does, so the stored shape is exercised. */
     private static final class InMemoryStore extends ChroniclesStore {
         ChroniclesState state;
+        /** The next save loses a race: the stored version moves before the compare. */
+        boolean conflictOnNextSave;
 
         @Override
         public Optional<ChroniclesState> findByUserId(String userId) {
@@ -362,7 +384,6 @@ class ChroniclesServiceTest {
             try {
                 ChroniclesState copy = JSON.readValue(JSON.writeValueAsString(state), ChroniclesState.class);
                 copy.userId = userId;
-                state = copy;
                 return Optional.of(copy);
             } catch (Exception ex) {
                 throw new IllegalStateException(ex);
@@ -370,7 +391,16 @@ class ChroniclesServiceTest {
         }
 
         @Override
-        public ChroniclesState save(ChroniclesState value) {
+        public ChroniclesState save(ChroniclesState value, long expectedVersion) {
+            if (conflictOnNextSave) {
+                conflictOnNextSave = false;
+                if (state != null) state.version = expectedVersion + 1;
+            }
+            long current = state == null ? ChroniclesStore.ABSENT_VERSION : state.version;
+            if (current != expectedVersion) {
+                throw new ChroniclesService.StaleStateException(
+                        "Your chronicle changed on another device. Refreshing.");
+            }
             state = value;
             return value;
         }

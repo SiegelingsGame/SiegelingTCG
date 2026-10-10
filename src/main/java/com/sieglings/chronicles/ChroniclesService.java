@@ -57,6 +57,7 @@ public class ChroniclesService {
 
     private static final int MAX_SUPPLIES = 20;
     private static final int MAX_REQUEST_IDS = 30;
+    private static final int SAVE_ATTEMPTS = 5;
     private static final long ART_TTL_MS = 5 * 60_000L;
     private static final long AWAY_REPORT_MIN_MS = 5 * 60_000L;
 
@@ -82,18 +83,34 @@ public class ChroniclesService {
 
     public Map<String, Object> getSnapshot(AccountUser user) {
         synchronized (lock(user)) {
-            long now = now();
+            // A poll and an action can commit on different instances. Retry the
+            // settle against the winner instead of failing the page load.
+            for (int attempt = 0; attempt < SAVE_ATTEMPTS; attempt++) {
+                try {
+                    return settleSnapshot(user);
+                } catch (StaleStateException ignored) {
+                    // another commit landed; read it and settle whatever is new
+                }
+            }
             ChroniclesState state = store.findByUserId(user.getId()).orElse(null);
             if (state == null) return introSnapshot(user);
-            List<String> events = new ArrayList<>();
-            boolean changed = settle(state, now, events);
-            if (changed) {
-                state.version++;
-                state.updatedAt = now;
-                store.save(state);
-            }
-            return snapshot(state, now, events, null);
+            return snapshot(state, now(), List.of(), null);
         }
+    }
+
+    private Map<String, Object> settleSnapshot(AccountUser user) {
+        long now = now();
+        ChroniclesState state = store.findByUserId(user.getId()).orElse(null);
+        if (state == null) return introSnapshot(user);
+        long base = state.version;
+        List<String> events = new ArrayList<>();
+        boolean changed = settle(state, now, events);
+        if (changed) {
+            state.version = base + 1;
+            state.updatedAt = now;
+            store.save(state, base);
+        }
+        return snapshot(state, now, events, null);
     }
 
     public Map<String, Object> start(AccountUser user, String starterId, String knightName, String requestId) {
@@ -120,7 +137,13 @@ public class ChroniclesService {
             state.inventory.put("wild_bait", 1);
             remember(state, requestId);
             state.version = 1;
-            store.save(state);
+            try {
+                store.save(state, ChroniclesStore.ABSENT_VERSION);
+            } catch (StaleStateException ex) {
+                // A second oath on another instance created the chronicle first.
+                ChroniclesState winner = store.findByUserId(user.getId()).orElseThrow(() -> ex);
+                return snapshot(winner, now, List.of(), null);
+            }
             List<String> events = List.of("Sir " + state.knightName + " takes the oath. " + creature.name()
                     + " joins as your first companion.");
             return snapshot(state, now, events, null);
@@ -513,12 +536,16 @@ public class ChroniclesService {
             if (expectedVersion >= 0 && expectedVersion != ctx.state.version) {
                 throw new StaleStateException("Your chronicle changed on another device. Refreshing.");
             }
+            long base = ctx.state.version;
             settle(ctx.state, ctx.now, ctx.events);
             op.accept(ctx);
             remember(ctx.state, requestId);
-            ctx.state.version++;
+            ctx.state.version = base + 1;
             ctx.state.updatedAt = ctx.now;
-            store.save(ctx.state);
+            // Re-reads the document inside a transaction. The version checked above
+            // is the one this instance loaded; another instance may have committed
+            // since, and that commit must not be overwritten.
+            store.save(ctx.state, base);
             return snapshot(ctx.state, ctx.now, ctx.events, null);
         }
     }
