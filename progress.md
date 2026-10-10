@@ -23,11 +23,27 @@ Original prompt: Go with earth based art for endless
     - **Clipping.** With `--sg-vh` set 60px taller than the layout viewport, the old CSS left the tab bar at y 847–904 outside an 844px body (clipped). The new CSS keeps it inside a 904px body.
     - **Other tabs.** All seven tabs and the signed-out gate render with no page errors at phone and desktop sizes.
 - October 10, 2026 **Chronicles starters: four elements, four classes.**
-  - **Change.** The four Chronicles starters already had four elements, but three of them were Bruisers. `ChroniclesContent.CLASS_OVERRIDES` now gives them four different classes: Cacty (Earth Bruiser), Pursula (Wind Mage, like its evolution Purseus), Sundile (Fire Guardian) and Fawny (Ice Assassin, like its final form Frostag). Chilldoe also becomes an Assassin, so Fawny's line stays one class from start to finish. The overrides apply only inside Chronicles: `ChroniclesService.findCreature` / `allCreatures` wrap every `CreatureRegistry` lookup. The battle table's seed roles are unchanged, because they shape generated card stats and notches. Existing Pursula, Fawny and Chilldoe companions switch class straight away. Mastery XP they have already earned stays under Bruiser; new XP goes to their new class.
+  - **Change.**
+    - **Classes.** The four Chronicles starters already had four elements, but three of them were Bruisers. `ChroniclesContent.CLASS_OVERRIDES` now gives them four different classes: Cacty (Earth Bruiser), Pursula (Wind Assassin), Sundile (Fire Guardian) and Fawny (Ice Mage).
+    - **Evolutions.** They keep their own classes, so these two lines change class as they evolve, as many canonical lines already do. Pursula goes Assassin → Purseus Mage → Pursephone Assassin. Fawny goes Mage → Chilldoe Bruiser → Frostag Assassin. The evolve message already announces a change of class.
+    - **Scope.** The overrides apply only inside Chronicles: `ChroniclesService.findCreature` / `allCreatures` wrap every `CreatureRegistry` lookup. The battle table's seed roles are unchanged, because they shape generated card stats and notches.
+    - **Existing saves.** Pursula and Fawny companions already in saves switch class straight away. Mastery XP they have already earned stays under Bruiser.
+    - **Revision.** A first pass of this PR had Pursula as the Mage and Fawny as the Assassin, with Chilldoe as an Assassin. The owner swapped the two, so the Chilldoe override was dropped.
   - **Verification.**
-    - `ChroniclesServiceTest`: the intro test now pins the classes Bruiser/Mage/Guardian/Assassin and the elements EARTH/WIND/FIRE/ICE. A new test checks that the overrides cover Chronicles lookups while `CreatureRegistry` still reports Bruiser for Fawny and Pursula. Two older tests had assumed the old classes: Pursula's mastery is now Mage, and the signature test's Bruiser slot uses Jacked'ty instead of Chilldoe.
-    - `ChroniclesBalanceTest` passes. First-patrol clear rate at level 1 over 200 seeds: Cacty 96%, Pursula 99% (was 100%), Sundile 53% (unchanged), Fawny 74% (was 92%). Every starter clears it 100% of the time by level 5.
-    - Full `mvn test` suite run.
+    - **Starter test.** `ChroniclesServiceTest` pins the classes Bruiser/Assassin/Guardian/Mage and the elements EARTH/WIND/FIRE/ICE.
+    - **Override test.** Checks that only Pursula and Fawny move in Chronicles (Chilldoe stays Bruiser, Purseus Mage, Frostag Assassin), while `CreatureRegistry` still reports Bruiser for both.
+    - **Older tests.** Two assumed the old classes: Pursula's mastery is now Assassin, and the signature test's Bruiser slot uses Jacked'ty.
+    - **Balance.** `ChroniclesBalanceTest` passes. First-patrol clear rate at level 1 over 200 seeds:
+
+      | Starter | Level 1 | As a Bruiser |
+      |---|---|---|
+      | Cacty | 96% | (unchanged) |
+      | Pursula | 100% | 100% |
+      | Sundile | 53% | (unchanged) |
+      | Fawny | 67% | 92% |
+
+      Every starter clears it 100% of the time by level 5, and all but Sundile (97%) by level 3.
+    - **Full suite.** `mvn test` run.
 - October 10, 2026 **Chronicles Phase 6: crowns, guilds, weekly Siege Operations and the marketplace.**
   - **Change.**
     - **Shared documents.** `ChroniclesRealm` (Guild, Operation, Listing) is persisted by `ChroniclesRealmStore` in `chroniclesGuilds` and `chroniclesMarket` as JSON. The fields a query filters on (`code`, `status`, `sellerId`) sit beside the JSON, so only equality queries are used and no composite indexes are needed. Every guild or listing change runs in a Firestore transaction (`mutateGuild` / `mutateListing`), following `RewardClaimStore`: reads first, and the body's `IllegalArgumentException` is rethrown unchanged.

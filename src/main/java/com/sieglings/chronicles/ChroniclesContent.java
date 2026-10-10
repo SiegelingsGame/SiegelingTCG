@@ -31,12 +31,11 @@ public final class ChroniclesContent {
     /**
      * Chronicles-only class reassignments so the four starters each bring a different element
      * and class. The TCG seed table keeps its roles because they shape generated card stats.
-     * Chilldoe follows Fawny so that line doesn't zigzag Assassin, Bruiser, Assassin.
+     * Evolutions keep their own classes, so these two lines change class as they evolve.
      */
     public static final Map<String, String> CLASS_OVERRIDES = Map.of(
-            "pursula", "Mage",
-            "fawny", "Assassin",
-            "chilldoe", "Assassin");
+            "pursula", "Assassin",
+            "fawny", "Mage");
     public static final List<String> CLASSES = List.of("Guardian", "Bruiser", "Assassin", "Mage", "Support");
     /** The 12 canonical elements in RBX order; NEUTRAL is a TCG-only bucket. */
     public static final List<Element> ELEMENTS = List.of(Element.FIRE, Element.ICE, Element.WIND, Element.EARTH,

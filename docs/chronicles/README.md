@@ -26,7 +26,7 @@ home base.
 ## What is canonical (from SiegelingsRBX)
 
 - **Creatures.** Elements, classes, rarities and evolution lines come from `GeneratedCreatureCatalog`, which already mirrors `CreatureData.lua`.
-- **The four starters.** Cacty (Earth Bruiser), Pursula (Wind Mage), Sundile (Fire Guardian) and Fawny (Ice Assassin). The classes of Pursula, Fawny and Chilldoe come from `ChroniclesContent.CLASS_OVERRIDES`, which applies only in Chronicles, so each starter has its own element and class.
+- **The four starters.** Cacty (Earth Bruiser), Pursula (Wind Assassin), Sundile (Fire Guardian) and Fawny (Ice Mage), so each has its own element and class. The classes of Pursula and Fawny come from `ChroniclesContent.CLASS_OVERRIDES`, which applies only in Chronicles. Their evolutions keep their own classes.
 - **Base stats.** `RarityStatBudget` × `ClassStatWeights` + `ElementStatBias`.
 - **Level caps.** 10 for base forms, 25 for first evolutions, 50 for finals (`GameConfigData.lua`).
 - **Synergies.** The two- and three-member tiers and their names (Ember/Inferno, Shield/Bastion, …), with their bonus percentages.

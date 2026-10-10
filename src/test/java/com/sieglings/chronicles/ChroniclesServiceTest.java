@@ -40,15 +40,17 @@ class ChroniclesServiceTest {
 
     @Test
     void starterClassOverridesStayInsideChronicles() {
-        // Fawny's line stays Assassin end to end instead of zigzagging through Bruiser.
-        assertEquals("Assassin", ChroniclesService.creature("chilldoe").creatureClass());
+        // Only the starters move; their evolutions keep their own classes.
+        assertEquals("Mage", ChroniclesService.creature("fawny").creatureClass());
+        assertEquals("Assassin", ChroniclesService.creature("pursula").creatureClass());
+        assertEquals("Bruiser", ChroniclesService.creature("chilldoe").creatureClass());
         assertEquals("Assassin", ChroniclesService.creature("frostag").creatureClass());
         assertEquals("Mage", ChroniclesService.creature("purseus").creatureClass());
         // The battle table's seed roles drive generated card stats, so they must not move.
         assertEquals("Bruiser", com.sieglings.service.CreatureRegistry.find("fawny").orElseThrow().creatureClass());
         assertEquals("Bruiser", com.sieglings.service.CreatureRegistry.find("pursula").orElseThrow().creatureClass());
         assertTrue(ChroniclesService.allCreatures().stream()
-                .anyMatch(c -> c.id().equals("fawny") && c.creatureClass().equals("Assassin")));
+                .anyMatch(c -> c.id().equals("fawny") && c.creatureClass().equals("Mage")));
     }
 
     @Test
@@ -58,7 +60,7 @@ class ChroniclesServiceTest {
         List<Map<String, Object>> starters = list(intro, "starters");
         assertEquals(List.of("cacty", "pursula", "sundile", "fawny"),
                 starters.stream().map(s -> s.get("speciesId")).toList());
-        assertEquals(List.of("Bruiser", "Mage", "Guardian", "Assassin"),
+        assertEquals(List.of("Bruiser", "Assassin", "Guardian", "Mage"),
                 starters.stream().map(s -> s.get("class")).toList());
         assertEquals(List.of("EARTH", "WIND", "FIRE", "ICE"),
                 starters.stream().map(s -> s.get("element")).toList());
@@ -183,7 +185,7 @@ class ChroniclesServiceTest {
         ChroniclesState state = store.state;
         if ("complete".equals(report.get("outcome"))) {
             assertTrue(state.affinityXp.getOrDefault("WIND", 0L) > 0, "Pursula's element should gain affinity");
-            assertTrue(state.masteryXp.getOrDefault("Mage", 0L) > 0, "Pursula's class should gain mastery");
+            assertTrue(state.masteryXp.getOrDefault("Assassin", 0L) > 0, "Pursula's class should gain mastery");
             assertTrue(state.affinityXp.getOrDefault("EARTH", 0L) > 0, "the route's element is studied too");
             assertTrue(state.companions.get(0).bond > 0);
             assertTrue(state.skillXp.getOrDefault("command", 0L) > 0);
