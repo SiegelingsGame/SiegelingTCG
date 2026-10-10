@@ -39,13 +39,31 @@ class ChroniclesServiceTest {
     }
 
     @Test
+    void starterClassOverridesStayInsideChronicles() {
+        // Only the starters move; their evolutions keep their own classes.
+        assertEquals("Mage", ChroniclesService.creature("fawny").creatureClass());
+        assertEquals("Assassin", ChroniclesService.creature("pursula").creatureClass());
+        assertEquals("Bruiser", ChroniclesService.creature("chilldoe").creatureClass());
+        assertEquals("Assassin", ChroniclesService.creature("frostag").creatureClass());
+        assertEquals("Mage", ChroniclesService.creature("purseus").creatureClass());
+        // The battle table's seed roles drive generated card stats, so they must not move.
+        assertEquals("Bruiser", com.sieglings.service.CreatureRegistry.find("fawny").orElseThrow().creatureClass());
+        assertEquals("Bruiser", com.sieglings.service.CreatureRegistry.find("pursula").orElseThrow().creatureClass());
+        assertTrue(ChroniclesService.allCreatures().stream()
+                .anyMatch(c -> c.id().equals("fawny") && c.creatureClass().equals("Mage")));
+    }
+
+    @Test
     void introOffersTheFourRbxStartersAndStartingSwearsInTheKnight() {
         Map<String, Object> intro = service.getSnapshot(user);
         assertEquals(false, intro.get("started"));
         List<Map<String, Object>> starters = list(intro, "starters");
         assertEquals(List.of("cacty", "pursula", "sundile", "fawny"),
                 starters.stream().map(s -> s.get("speciesId")).toList());
-        assertEquals("Guardian", starters.get(2).get("class"));
+        assertEquals(List.of("Bruiser", "Assassin", "Guardian", "Mage"),
+                starters.stream().map(s -> s.get("class")).toList());
+        assertEquals(List.of("EARTH", "WIND", "FIRE", "ICE"),
+                starters.stream().map(s -> s.get("element")).toList());
         assertEquals("Cinder Aegis", starters.get(2).get("bondTechnique"));
 
         assertThrows(IllegalArgumentException.class, () -> service.start(user, "solgator", "Ari", "r0"));
@@ -167,7 +185,7 @@ class ChroniclesServiceTest {
         ChroniclesState state = store.state;
         if ("complete".equals(report.get("outcome"))) {
             assertTrue(state.affinityXp.getOrDefault("WIND", 0L) > 0, "Pursula's element should gain affinity");
-            assertTrue(state.masteryXp.getOrDefault("Bruiser", 0L) > 0, "Pursula's class should gain mastery");
+            assertTrue(state.masteryXp.getOrDefault("Assassin", 0L) > 0, "Pursula's class should gain mastery");
             assertTrue(state.affinityXp.getOrDefault("EARTH", 0L) > 0, "the route's element is studied too");
             assertTrue(state.companions.get(0).bond > 0);
             assertTrue(state.skillXp.getOrDefault("command", 0L) > 0);
@@ -513,7 +531,7 @@ class ChroniclesServiceTest {
     void anAscendantSignatureFiresOnceInTheBossFight() {
         ChroniclesState state = new ChroniclesState();
         ChroniclesContent.Route route = ChroniclesContent.ROUTES.get("cinder_hollow");
-        for (String sp : List.of("raydile", "chilldoe", "purseus")) addCompanion(state, sp, 18);
+        for (String sp : List.of("raydile", "jackedty", "purseus")) addCompanion(state, sp, 18);
         state.party = state.companions.stream().map(c -> c.id).toList();
         state.affinityXp.put("FIRE", ChroniclesContent.xpForLevel(100));
         state.tactics.techniqueId = "tech_fire";

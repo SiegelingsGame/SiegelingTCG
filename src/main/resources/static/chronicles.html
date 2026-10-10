@@ -15,18 +15,22 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#070b14">
-    <link rel="stylesheet" href="/css/chronicles.css?v=6">
+    <link rel="stylesheet" href="/css/chronicles.css?v=8">
     <!-- Sets --sg-vh before first paint; every fixed shell measures off it. -->
     <script src="/js/viewport-unit.js?v=3"></script>
 </head>
 <body data-screen="loading">
+<!-- The current screen's painted scene, blurred into a colour wash behind everything. -->
+<div class="ck-backdrop" id="ckBackdrop" aria-hidden="true"></div>
 <div class="ck-shell" id="ckShell">
     <header class="ck-top">
         <a class="ck-back" href="/home" aria-label="Back to the hub">&lsaquo;</a>
+        <span class="ck-avatar" id="ckAvatar" hidden></span>
         <div class="ck-title">
             <span class="ck-kicker">Siegeknight Chronicles</span>
             <strong id="ckKnightName">Siegeknight</strong>
         </div>
+        <span class="ck-coin" id="ckCrowns" hidden title="Crowns">&#128081; <b id="ckCrownsNum">0</b></span>
         <div class="ck-rank" id="ckRank" hidden>
             <span class="ck-rank-num" id="ckRankNum">1</span>
             <span class="ck-rank-title" id="ckRankTitle">Siege Squire</span>
@@ -38,13 +42,13 @@
         <div class="ck-loading">Opening your chronicle…</div>
     </main>
     <nav class="ck-tabs" id="ckTabs" hidden aria-label="Chronicles sections">
-        <button type="button" data-tab="knight"><span class="ck-tab-ico" aria-hidden="true">&#9819;</span>Knight</button>
-        <button type="button" data-tab="company"><span class="ck-tab-ico" aria-hidden="true">&#9670;</span>Company</button>
-        <button type="button" data-tab="work"><span class="ck-tab-ico" aria-hidden="true">&#9874;</span>Work</button>
-        <button type="button" data-tab="expedition"><span class="ck-tab-ico" aria-hidden="true">&#10148;</span>Expedition</button>
-        <button type="button" data-tab="base"><span class="ck-tab-ico" aria-hidden="true">&#8962;</span>Base</button>
-        <button type="button" data-tab="realm"><span class="ck-tab-ico" aria-hidden="true">&#9873;</span>Realm</button>
-        <button type="button" data-tab="wilds"><span class="ck-tab-ico" aria-hidden="true">&#10047;</span>Wilds<span class="ck-badge" id="ckWildsBadge" hidden></span></button>
+        <button type="button" data-tab="knight"><span class="ck-tab-ico" aria-hidden="true">&#128737;&#65039;</span>Knight</button>
+        <button type="button" data-tab="company"><span class="ck-tab-ico" aria-hidden="true">&#128062;</span>Company</button>
+        <button type="button" data-tab="work"><span class="ck-tab-ico" aria-hidden="true">&#9935;&#65039;</span>Work</button>
+        <button type="button" data-tab="expedition"><span class="ck-tab-ico" aria-hidden="true">&#129517;</span>Expedition</button>
+        <button type="button" data-tab="base"><span class="ck-tab-ico" aria-hidden="true">&#127984;</span>Base</button>
+        <button type="button" data-tab="realm"><span class="ck-tab-ico" aria-hidden="true">&#128081;</span>Realm</button>
+        <button type="button" data-tab="wilds"><span class="ck-tab-ico" aria-hidden="true">&#127807;</span>Wilds<span class="ck-badge" id="ckWildsBadge" hidden></span></button>
     </nav>
 </div>
 <div class="ck-modal" id="ckModal" hidden role="dialog" aria-modal="true" aria-labelledby="ckModalTitle">
@@ -54,7 +58,7 @@
 </div>
 <div class="ck-toasts" id="ckToasts" aria-live="polite"></div>
 <script src="/js/config.js?v=1"></script>
-<script src="/js/chronicles.js?v=7"></script>
+<script src="/js/chronicles.js?v=9"></script>
 <script src="/js/sw-register.js?v=1"></script>
 </body>
 </html>

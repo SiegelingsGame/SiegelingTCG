@@ -1,4 +1,88 @@
 Original prompt: Go with earth based art for endless
+- October 10, 2026 **Chronicles: an art-first, colourful layout across every screen.**
+  - **Change.** The owner asked for "an art first colorful layout that looks fun to play and less mechanical", in the spirit of Degen Idle and Melvor. Every screen now leads with painted art.
+    - **Scene art.** `img/chronicles/scenes/` holds the 64 `lands/locations` scenes (every element × journey/shelter/elite/boss), cut to 1080w WebP (q58, 78KB on average, 5MB in total). `chronicles.js` picks one per screen:
+      - each profession has its own scene (Smithing at the fire-shelter forge, Fishing at the water hut, Cooking at the ice-camp fire, Alchemy in the swamp hut, …);
+      - routes use their element and type (patrol/hunt → journey, dungeon → elite, grand → boss);
+      - operations use the threat's boss scene, and Wilds uses the sighting's land;
+      - Base uses relic-shelter and Knight uses light-shelter;
+      - the oath uses the land of whichever starter is picked.
+    - **Shell.**
+      - **Backdrop.** A blurred copy of the current scene (`.ck-backdrop`) sits behind everything as a colour wash. It is absolute and full-height like the shell, with the blur clipped inside its own box, so nothing spills past the document.
+      - **Header.** The partner Siegeling's portrait is the avatar, beside a crowns counter.
+      - **Tab bar.** Colour emoji icons, each tab with its own element tint.
+      - **Surfaces.** Glassy cards, chunky pressable gold buttons, glossy bars, and `ui-rounded` (SF Pro Rounded on iPhones, no download) for titles and numbers.
+    - **Screens.**
+      - **Knight.** A profile banner with the partner's art and rank. The six equipment slots are tiles, and professions, affinities, classes and weapons are colour tiles. Tapping a gathering or crafting tile opens its Work page; the rest open a card. The bag is a Melvor-style bank grid with item cards.
+      - **Company.** The party stands as glowing portraits on its lead element's scene, and the roster is portrait-first cards with bond hearts.
+      - **Work.** The profession page is a painted banner with a level orb, and task cells show colour item icons. The running cell glows and bobs.
+      - **Expedition.** Routes are scene cards. Tactics and supplies fold into one summary panel.
+      - **Base.** Buildings show their own scene with stars and icon cost chips.
+      - **Realm.** Shows a crowns orb, and the operation card shows the threat's boss scene.
+      - **Wilds.** "A wild Siegeling appears!" encounter cards, with odds rings on each approach.
+      - **Reports.** Report and away loot lists carry item icons.
+    - **Icons.** Colour emoji for items, professions and classes; essences use the element art.
+    - **Rules.** Unchanged; everything above is presentation.
+    - **Fix.** Tapping a profession tile now always opens that page; before, the first Work visit's "open on the running task" overrode it.
+    - **Versions.** `chronicles.css` → `?v=8`, `chronicles.js` → `?v=9`.
+  - **Verification.**
+    - `node --check chronicles.js`.
+    - **Fixtures.** Re-dumped from the real `ChroniclesService` (they now show Fawny as a Mage), with real Siegeling art served through a mocked art-mirror route. Headless Chromium covered:
+      - All seven tabs at 390x844, 320x640 and 1920x1080: no page errors, no page or sideways scroll, and the tab bar ends at the viewport bottom. The first pass caught the backdrop's overscan making the page scrollable; clipping it fixed that.
+      - The road, return, report, away, oath and gate screens. Picking Fawny on the oath switches the backdrop to `ice-journey`.
+    - **Interactions.** With reduced motion, so bobbing portraits are clickable:
+      - Woodcutting tile → Work/Woodcutting; Taming tile → skill card; bag slot → item card; element tile → affinity ladder.
+      - Gear tile posts `/equip`, and the stage × posts `/party`.
+      - A stage portrait opens and scrolls to that card.
+      - The tactics panel stays open through a `/tactics` change, and its potion chip counts packed supplies. Set out posts `/expedition/launch` with the supplies.
+      - A Wilds approach posts `/tame`, and a Realm front posts `operation:assault`.
+    - **Work regressions.** Mining opens with 5 levelled cells, Iron Vein lit with a live bar, and a level orb. Crafting lands on Smelting, recipe picking works, and the clipping guard holds.
+    - **Overlap.** No banner text meets the banner art, and no text spills or buttons clip, at 320, 360, 390, 430 and 1920 widths.
+- October 10, 2026 **Chronicles: the Work tab is paged by profession, and the bottom tab bar no longer gets cut off.**
+  - **Change.**
+    - **Tab bar.** `chronicles.css` still had `html, body { height:100% }`. In the installed iOS app, and in Safari once its toolbar collapses, that is the short layout viewport, so the document clipped the shell and covered the bottom tabs. This is the same bug the Keep fixed in #1012's follow-up. `html`/`body` are now `max(100dvh, var(--sg-vh, 0px))` tall, and `.ck-shell` is `position:absolute` at that height, matching the hub's `.sg-app` and the Keep.
+    - **Work tab.** The old Work tab was one 11,300px list on a 390px phone. It is now laid out like Melvor and Degen Idle:
+      - A "now working" strip with live progress and Rest, visible on every page.
+      - A Gathering/Crafting switch, with a green dot on the type that holds the running task.
+      - A row of profession tabs (glyph, name, "Lv N" or "Locked").
+      - A header for the chosen profession: level, XP to the next level, and its current effect.
+      - A grid of task cells, each showing its required level and XP. The running cell is lit green with its live progress bar and "Working". Locked cells are dimmed with "Needs Mining 20".
+      - Gathering cells start the task when tapped. Crafting cells select the recipe in a detail panel above the grid, which keeps the old inputs and Make 1 / Make 5 / Work idly / Forge buttons. All 12 Elemental Studies now show as cells, instead of hiding the ones without essence.
+    - **Navigation.** The page opens on the running task's profession. The last page is remembered per viewer (`sieglingsChroniclesWorkSkill`), and the header's activity chip jumps straight to it.
+    - **Status dots.** `.ck-dot` now has an explicit width, so the dot shows in grid and absolute positions too.
+    - **Versions.** `chronicles.css` → `?v=7`, `chronicles.js` → `?v=8`.
+  - **Verification.**
+    - `node --check chronicles.js`.
+    - **Fixtures.** Dumped from the real `ChroniclesService`, including a new one with Smelting running. Headless Chromium at 390x844, 320x640 and 1920x1080:
+      - Gathering opens on Mining (Lv 14) with 5 cells, all showing their level, and only Iron Vein lit, with a live bar.
+      - Crafting opens on Smelting with Copper Bar lit and selected.
+      - Tapping Copper Vein posts `/activity {kind:gather,id:mine_copper}`, and Rest posts the stop.
+      - Switching to Crafting lands on Smelting. Tapping Copper Spear on Smithing moves both the detail panel and the outline to it, and Gathering returns to Mining.
+      - Work-tab scroll height on the phone went from 11,302px to 749px. There is no page or sideways scroll, and the tab bar ends at the viewport bottom.
+    - **Clipping.** With `--sg-vh` set 60px taller than the layout viewport, the old CSS left the tab bar at y 847–904 outside an 844px body (clipped). The new CSS keeps it inside a 904px body.
+    - **Other tabs.** All seven tabs and the signed-out gate render with no page errors at phone and desktop sizes.
+- October 10, 2026 **Chronicles starters: four elements, four classes.**
+  - **Change.**
+    - **Classes.** The four Chronicles starters already had four elements, but three of them were Bruisers. `ChroniclesContent.CLASS_OVERRIDES` now gives them four different classes: Cacty (Earth Bruiser), Pursula (Wind Assassin), Sundile (Fire Guardian) and Fawny (Ice Mage).
+    - **Evolutions.** They keep their own classes, so these two lines change class as they evolve, as many canonical lines already do. Pursula goes Assassin → Purseus Mage → Pursephone Assassin. Fawny goes Mage → Chilldoe Bruiser → Frostag Assassin. The evolve message already announces a change of class.
+    - **Scope.** The overrides apply only inside Chronicles: `ChroniclesService.findCreature` / `allCreatures` wrap every `CreatureRegistry` lookup. The battle table's seed roles are unchanged, because they shape generated card stats and notches.
+    - **Existing saves.** Pursula and Fawny companions already in saves switch class straight away. Mastery XP they have already earned stays under Bruiser.
+    - **Revision.** A first pass of this PR had Pursula as the Mage and Fawny as the Assassin, with Chilldoe as an Assassin. The owner swapped the two, so the Chilldoe override was dropped.
+  - **Verification.**
+    - **Starter test.** `ChroniclesServiceTest` pins the classes Bruiser/Assassin/Guardian/Mage and the elements EARTH/WIND/FIRE/ICE.
+    - **Override test.** Checks that only Pursula and Fawny move in Chronicles (Chilldoe stays Bruiser, Purseus Mage, Frostag Assassin), while `CreatureRegistry` still reports Bruiser for both.
+    - **Older tests.** Two assumed the old classes: Pursula's mastery is now Assassin, and the signature test's Bruiser slot uses Jacked'ty.
+    - **Balance.** `ChroniclesBalanceTest` passes. First-patrol clear rate at level 1 over 200 seeds:
+
+      | Starter | Level 1 | As a Bruiser |
+      |---|---|---|
+      | Cacty | 96% | (unchanged) |
+      | Pursula | 100% | 100% |
+      | Sundile | 53% | (unchanged) |
+      | Fawny | 67% | 92% |
+
+      Every starter clears it 100% of the time by level 5, and all but Sundile (97%) by level 3.
+    - **Full suite.** `mvn test` run.
 - October 10, 2026 **Chronicles Phase 6: crowns, guilds, weekly Siege Operations and the marketplace.**
   - **Change.**
     - **Shared documents.** `ChroniclesRealm` (Guild, Operation, Listing) is persisted by `ChroniclesRealmStore` in `chroniclesGuilds` and `chroniclesMarket` as JSON. The fields a query filters on (`code`, `status`, `sellerId`) sit beside the JSON, so only equality queries are used and no composite indexes are needed. Every guild or listing change runs in a Firestore transaction (`mutateGuild` / `mutateListing`), following `RewardClaimStore`: reads first, and the body's `IllegalArgumentException` is rethrown unchanged.
