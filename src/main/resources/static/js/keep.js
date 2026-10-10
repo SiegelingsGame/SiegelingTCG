@@ -137,6 +137,10 @@
         instantBuyProjectId: '',
         selectedRelationshipId: '',
         inventoryFilter: 'ALL',
+        // Recycling is picked by tapping chips (no form controls), so its choices live here.
+        recycleFrom: '',
+        recycleTo: '',
+        recycleQty: 1,
         pendingOfflineReport: null,
         offlineVisible: false,
         notices: [],
@@ -499,6 +503,44 @@
             renderPanel();
             return;
         }
+        const refine = event.target.closest('[data-refine]');
+        if (refine) {
+            void refineMaterial(refine.dataset.refine, number(refine.dataset.refineQty) || 1);
+            return;
+        }
+        const recycleFrom = event.target.closest('[data-recycle-from]');
+        if (recycleFrom) {
+            state.recycleFrom = recycleFrom.dataset.recycleFrom;
+            if (state.recycleTo === state.recycleFrom) state.recycleTo = '';
+            renderPanel();
+            return;
+        }
+        const recycleTo = event.target.closest('[data-recycle-to]');
+        if (recycleTo) {
+            state.recycleTo = recycleTo.dataset.recycleTo;
+            renderPanel();
+            return;
+        }
+        const recycleQty = event.target.closest('[data-recycle-qty]');
+        if (recycleQty) {
+            state.recycleQty = Math.max(1, Math.min(50, (number(state.recycleQty) || 1) + number(recycleQty.dataset.recycleQty)));
+            renderPanel();
+            return;
+        }
+        if (event.target.closest('[data-recycle-go]')) {
+            void recycleSelected();
+            return;
+        }
+        const silverBundle = event.target.closest('[data-buy-silver]');
+        if (silverBundle) {
+            void buySilverBundle(silverBundle.dataset.buySilver);
+            return;
+        }
+        const marketLot = event.target.closest('[data-buy-lot]');
+        if (marketLot) {
+            void buyMarketLot(marketLot.dataset.buyLot);
+            return;
+        }
         const inventoryFilter = event.target.closest('[data-inventory-filter]');
         if (inventoryFilter) {
             state.inventoryFilter = inventoryFilter.dataset.inventoryFilter || 'ALL';
@@ -627,6 +669,25 @@
         if (followup) {
             closeDialogue();
             openConversation(followup.dataset.dialogueFollowup);
+            return;
+        }
+        if (event.target.closest('[data-rebirth]')) {
+            if (state.rebirthArmed) void rebirthKeep();
+            else {
+                state.rebirthArmed = true;
+                rerenderActiveSurface();
+            }
+            return;
+        }
+        if (event.target.closest('[data-open-refinery]')) {
+            state.inventoryFilter = 'REFINERY';
+            closeInterior();
+            openPanel('inventory');
+            return;
+        }
+        if (event.target.closest('[data-rebirth-cancel]')) {
+            state.rebirthArmed = false;
+            rerenderActiveSurface();
             return;
         }
         if (event.target.closest('[data-dialogue-done]')) closeDialogue();
@@ -1121,8 +1182,9 @@
         renderFavorConfirm();
         renderJourney();
         const rank = snapshot.keepRank || {};
+        const rebirthTitle = number(snapshot.rebirth?.count) > 0 ? ` · ${snapshot.rebirth.title}` : '';
         text('hallRankLabel', rank.name
-            ? `${rank.name} · Rank ${number(rank.level) || 1}/${number(rank.maxLevel) || HALL_MAX_LEVEL}`
+            ? `${rank.name} · Rank ${number(rank.level) || 1}/${number(rank.maxLevel) || HALL_MAX_LEVEL}${rebirthTitle}`
             : 'Sanctuary founded');
         const builtFacilities = ['garden', 'forge', 'fridge', 'generator', 'quarry', 'kitchen']
             .filter((id) => number(visual[`${id}Level`]) > 0).length + (number(visual.buildersYardLevel) > 0 ? 1 : 0);
@@ -1949,7 +2011,7 @@
         if (id === 'enclave') return `${damageNotice}${enclaveMarkup()}`;
         if (id === 'akhars_front') return akharsFrontMarkup();
         if (stationById(id)) return facilityInteriorMarkup(id);
-        return `${damageNotice}<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}${favoriteChooserMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
+        return `${damageNotice}<p class="panel-intro">The sanctuary is founded on Stewardship, Consent, and Shelter.</p>${rankCardMarkup()}${rebirthCardMarkup()}${favoriteChooserMarkup()}<section class="detail-card"><h3>The Keeper's Charter</h3><p>No Siegeling will be compelled to labor or fight. The land will be repaired rather than consumed, and those hunted by Akhar may seek refuge here.</p><div class="button-row"><button class="panel-button" type="button" data-open-panel="chronicle">Read the charter</button></div></section>${themePickerMarkup()}${craftingMarkup('great_hall')}`;
     }
 
     /** Spaces are collapsed to a grid of Siegeling buttons by default; opening one expands that
@@ -2240,6 +2302,68 @@
             <h3>${escapeHtml(rank.name || 'Ruined Camp')}</h3>
             <div class="rank-dots" aria-hidden="true">${dots}</div>${next}
             <div class="button-row"><button class="panel-button secondary" type="button" data-open-panel="projects">Open Projects</button></div></section>`;
+    }
+
+    // A Grand Keep can be reborn: the walls reset, the keeper keeps what they learned,
+    // and every rebirth stacks permanent bonuses (KeepRebirth on the server). The
+    // button arms on the first tap and acts on the second, because the reset is real.
+    function rebirthBonusChips(bonuses, includeCost) {
+        const b = bonuses || {};
+        const chips = [
+            [`+${number(b.productionPercent)}% production`, 'up'],
+            [`+${number(b.storagePercent)}% storage`, 'up'],
+            [`${number(b.buildSpeedPercent)}% faster builds`, 'up'],
+            [`Start with ${number(b.startingTimber)} timber`, 'up']
+        ];
+        if (includeCost) chips.push([`Builds cost +${number(b.costPercent)}%`, 'cost']);
+        return `<div class="rebirth-chips">${chips.map(([label, kind]) =>
+            `<span class="rebirth-chip ${kind}">${escapeHtml(label)}</span>`).join('')}</div>`;
+    }
+
+    function rebirthCardMarkup() {
+        const rebirth = state.snapshot.rebirth;
+        if (!rebirth) return '';
+        const count = number(rebirth.count);
+        const next = rebirth.next || null;
+        const current = count > 0
+            ? `<p class="rebirth-now"><strong>${escapeHtml(rebirth.title || 'Reborn')}</strong> · reborn ${count}×. Bonuses held now:</p>${rebirthBonusChips(rebirth.bonuses, true)}`
+            : '<p>Once the hall stands as the Grand Keep, you may let the sanctuary return to the earth and raise it again, stronger.</p>';
+        let action = '';
+        if (!next) {
+            action = '<p class="rebirth-note">This Keep has been reborn as many times as the covenant allows.</p>';
+        } else if (rebirth.available) {
+            action = `<div class="button-row"><button class="panel-button${state.rebirthArmed ? ' danger' : ''}" type="button" data-rebirth>${
+                state.rebirthArmed ? 'Tap again to rebirth — the Keep resets' : `Begin rebirth ${number(next.count)}`}</button>${
+                state.rebirthArmed ? '<button class="panel-button secondary" type="button" data-rebirth-cancel>Not yet</button>' : ''}</div>`;
+        } else {
+            action = `<p class="rebirth-note">${escapeHtml(rebirth.blocker || `Raise the hall to the ${rebirth.requiredRankName || 'Grand Keep'} first.`)}</p>`;
+        }
+        const checks = (rebirth.checks || []).map((check) => `<li class="${check.met ? 'met' : ''}"><span aria-hidden="true">${check.met ? '✓' : '○'}</span>${escapeHtml(check.label)}${check.met || number(check.need) <= 1 ? '' : ` <small>${number(check.have)}/${number(check.need)}</small>`}</li>`).join('');
+        const costs = (rebirth.costs || []).map((cost) => `<li class="${cost.met ? 'met' : ''}${cost.refined ? ' refined' : ''}"><span aria-hidden="true">${cost.met ? '✓' : '○'}</span>${escapeHtml(String(number(cost.need)))} ${escapeHtml(cost.name)} <small>${number(cost.have)}/${number(cost.need)}</small></li>`).join('');
+        const requirement = checks || costs
+            ? `<div class="rebirth-reqs"><span class="eyebrow">Requires</span><ul>${checks}</ul>${costs ? `<span class="eyebrow">Spends</span><ul>${costs}</ul>` : ''}
+                ${(rebirth.costs || []).some((cost) => cost.refined && !cost.met) ? '<button class="panel-button secondary" type="button" data-open-refinery>Open the Refinery</button>' : ''}</div>`
+            : '';
+        const preview = next
+            ? `<div class="rebirth-next"><span class="eyebrow">Rebirth ${number(next.count)} · ${escapeHtml(next.title || '')}</span>
+                ${requirement}
+                ${rebirthBonusChips(next.bonuses, true)}
+                <p class="rebirth-reward">Reward: <strong>${escapeHtml(String(number(next.coins)))} Siegecoins</strong> and <strong>${escapeHtml(String(number(next.remnants)))} remnants</strong></p>
+                <p class="rebirth-note">Resets buildings, workshops, tools, stock and posts. Keeps rapport, lore, voices, Keeper level and decorations.</p></div>`
+            : '';
+        return `<section class="detail-card rebirth-card"><span class="eyebrow">Rebirth${count ? ` · ${count}/${number(rebirth.maxCount) || 10}` : ''}</span>
+            <h3>${count ? escapeHtml(rebirth.title || 'Reborn') : 'Rebirth of the Keep'}</h3>${current}${preview}${action}</section>`;
+    }
+
+    async function rebirthKeep() {
+        state.rebirthArmed = false;
+        const data = await perform('/api/keep/rebirth', {});
+        const reborn = data?.reborn;
+        if (!reborn) {
+            rerenderActiveSurface();
+            return;
+        }
+        showNotice(`The Keep rises again as ${reborn.title}. +${number(reborn.coins)} Siegecoins and +${number(reborn.remnants)} remnants; every workshop now produces ${number(reborn.bonuses?.productionPercent)}% more.`, `Rebirth ${number(reborn.count)}`);
     }
 
     function themePickerMarkup() {
@@ -3234,9 +3358,18 @@
         const tabs = [
             ['ALL', 'All'],
             ['RAW', 'Raw'],
-            ['CRAFTED', 'Manufactured']
+            ['REFINED', 'Refined'],
+            ['CRAFTED', 'Made'],
+            ['REFINERY', 'Refine'],
+            ['MARKET', 'Market']
         ];
+        const economy = state.snapshot.economy || null;
+        const tabRow = `<div class="lore-tabs inventory-tabs">${tabs.map(([id, label]) => `<button class="${filter === id ? 'active' : ''}" type="button" data-inventory-filter="${id}">${label}</button>`).join('')}</div>`;
+        const silverLine = economy ? `<div class="silver-balance"><span aria-hidden="true">◎</span><strong>${number(economy.silver)}</strong> Silver</div>` : '';
+        if (filter === 'REFINERY') return `${tabRow}${silverLine}${refineryMarkup(economy)}`;
+        if (filter === 'MARKET') return `${tabRow}${silverLine}${marketMarkup(economy)}`;
         const showRaw = filter === 'ALL' || filter === 'RAW';
+        const showRefined = (filter === 'ALL' || filter === 'REFINED') && economy;
         const showCrafted = filter === 'ALL' || filter === 'CRAFTED';
         const timberCap = number(resources.timberCapacity);
         const materialCap = number(resources.materialCapacity);
@@ -3261,10 +3394,147 @@
                 <strong>×${Math.max(1, number(item.count))}</strong></span>
             </section>`).join('')
             : '<div class="empty-state">No manufactured goods yet. Craft tools, bonuses, and decorations inside restored workshops.</div>';
-        return `<p class="panel-intro">Raw stocks come from the Woodlot and elemental workshops. Manufactured goods are crafted items held by the Keep.</p>
-            <div class="lore-tabs inventory-tabs">${tabs.map(([id, label]) => `<button class="${filter === id ? 'active' : ''}" type="button" data-inventory-filter="${id}">${label}</button>`).join('')}</div>
+        const refinedCards = showRefined ? (economy.refined || []).map((item) => `<section class="inventory-card refined-card tier-${number(item.tier)}">
+                <span class="inventory-icon" aria-hidden="true">${refinedIcon(item.id)}</span>
+                <span class="inventory-copy"><small>Refined · Tier ${number(item.tier)}</small><h3>${escapeHtml(item.name)}</h3>
+                <div class="meter"><i style="width:${Math.round(clamp(number(item.amount) / Math.max(1, number(item.capacity)), 0, 1) * 100)}%"></i></div>
+                <strong>${number(item.amount)} / ${number(item.capacity)}</strong></span>
+            </section>`).join('') : '';
+        return `${tabRow}<p class="panel-intro">Raw stocks come from the Woodlot and elemental workshops. Refined materials are combined in the Refinery. Manufactured goods are crafted items held by the Keep.</p>${silverLine}
             ${showRaw ? `<span class="eyebrow">Raw materials</span>${rawCards}` : ''}
+            ${showRefined ? `<span class="eyebrow">Refined materials</span>${refinedCards}` : ''}
             ${showCrafted ? `<span class="eyebrow">Manufactured</span>${craftedCards}` : ''}`;
+    }
+
+    function refinedIcon(id) {
+        return ({ living_mortar: '▣', tempered_glass: '◇', charged_alloy: '⌁', hearth_ration: '✿',
+            covenant_keystone: '⬢', aether_core: '✺', heartwood_relic: '❦' })[id] || '◆';
+    }
+
+    // Every resource the Keep tracks by id, with what it holds now: timber, raw and refined.
+    function resourceStock() {
+        const resources = state.snapshot.resources || {};
+        const out = [{ id: 'timber', name: 'Timber', amount: number(resources.timber), kind: 'timber' }];
+        (resources.materials || []).forEach((item) => out.push({ id: item.id, name: item.name, amount: number(item.amount), kind: 'raw' }));
+        (state.snapshot.economy?.refined || []).forEach((item) => out.push({ id: item.id, name: item.name, amount: number(item.amount), kind: 'refined', item }));
+        return out;
+    }
+
+    function inputsMarkup(inputs, times) {
+        return (inputs || []).map((input) => {
+            const need = number(input.amount) * (times || 1);
+            const short = number(input.have) < need;
+            return `<span class="refine-input${short ? ' short' : ''}">${escapeHtml(String(need))} ${escapeHtml(input.name)}</span>`;
+        }).join('');
+    }
+
+    function refineryMarkup(economy) {
+        if (!economy) return '<div class="empty-state">The Refinery opens once the Keep has loaded.</div>';
+        const refined = economy.refined || [];
+        const cards = refined.map((item) => `<section class="detail-card refine-card tier-${number(item.tier)}">
+                <span class="eyebrow">Tier ${number(item.tier)} · held ${number(item.amount)}/${number(item.capacity)}</span>
+                <h3>${refinedIcon(item.id)} ${escapeHtml(item.name)}</h3>
+                <p>${escapeHtml(item.description || '')}</p>
+                <div class="refine-inputs">${inputsMarkup(item.inputs, 1)}</div>
+                ${item.unlocked
+                    ? `<div class="button-row"><button class="panel-button" type="button" data-refine="${escapeHtml(item.id)}" data-refine-qty="1" ${item.canRefine ? '' : 'disabled'}>Refine 1</button><button class="panel-button secondary" type="button" data-refine="${escapeHtml(item.id)}" data-refine-qty="5">Refine 5</button></div>`
+                    : `<p class="rebirth-note">${escapeHtml(item.lockedHint || 'Locked')}</p>`}
+            </section>`).join('');
+        return `<p class="panel-intro">Combine raw materials into refined goods. Each tier sits deeper in the tech tree, and later rebirths ask for the deeper tiers.</p>${cards}${recycleMarkup(economy)}`;
+    }
+
+    function recycleMarkup(economy) {
+        const recycle = economy.recycle || {};
+        if (!recycle.open) {
+            return '<section class="detail-card recycle-card"><span class="eyebrow">Recycling</span><h3>Reclaim surplus</h3><p class="rebirth-note">Raise the Covenant Storehouse to start recycling.</p></section>';
+        }
+        const stock = resourceStock();
+        const from = stock.find((item) => item.id === state.recycleFrom) || null;
+        const raw = stock.filter((item) => item.kind === 'raw');
+        const qty = Math.max(1, Math.min(50, number(state.recycleQty) || 1));
+        let preview = 'Choose what to recycle.';
+        let ready = false;
+        if (from && from.kind === 'refined') {
+            const back = (from.item.salvage || []).map((s) => `${number(s.amount) * qty} ${s.name}`).join(', ');
+            preview = `${qty} ${from.name} → ${back || 'nothing'}`;
+            ready = from.amount >= qty;
+        } else if (from) {
+            const to = raw.find((item) => item.id === state.recycleTo && item.id !== from.id);
+            const rate = from.kind === 'timber' ? number(recycle.timberRate) : number(recycle.rawRate);
+            preview = to ? `${rate * qty} ${from.name} → ${qty} ${to.name}` : `Choose what ${from.name} becomes (${rate} for 1).`;
+            ready = Boolean(to) && from.amount >= rate * qty;
+        }
+        const chip = (item, field, active) => `<button type="button" class="recycle-chip${active ? ' active' : ''}" data-recycle-${field}="${escapeHtml(item.id)}">${escapeHtml(item.name)} <small>${number(item.amount)}</small></button>`;
+        const targets = from && from.kind !== 'refined'
+            ? `<span class="recycle-label">Into</span><div class="recycle-chips">${raw.filter((item) => item.id !== from.id).map((item) => chip(item, 'to', item.id === state.recycleTo)).join('')}</div>`
+            : '';
+        return `<section class="detail-card recycle-card"><span class="eyebrow">Recycling</span><h3>Reclaim surplus</h3>
+            <p>${number(recycle.rawRate)} raw make 1 of another, ${number(recycle.timberRate)} timber make 1 raw, and a refined good breaks back into half its inputs.</p>
+            <span class="recycle-label">From</span><div class="recycle-chips">${stock.filter((item) => item.amount > 0).map((item) => chip(item, 'from', item.id === state.recycleFrom)).join('') || '<span class="rebirth-note">Nothing in store yet.</span>'}</div>
+            ${targets}
+            <div class="recycle-qty"><button type="button" class="panel-button secondary" data-recycle-qty="-1" aria-label="Less">−</button><strong>×${qty}</strong><button type="button" class="panel-button secondary" data-recycle-qty="1" aria-label="More">+</button><span class="recycle-preview">${escapeHtml(preview)}</span></div>
+            <div class="button-row"><button class="panel-button" type="button" data-recycle-go ${ready ? '' : 'disabled'}>Recycle</button></div></section>`;
+    }
+
+    // The market refreshes at UTC midnight; offers are drawn per keeper by the server.
+    function marketRefreshLabel(market) {
+        const at = Date.parse(market?.refreshesAt || '');
+        if (!Number.isFinite(at)) return '';
+        const minutes = Math.max(0, Math.round((at - nowMs()) / 60000));
+        const hours = Math.floor(minutes / 60);
+        return `New stock in ${hours ? `${hours}h ` : ''}${minutes % 60}m`;
+    }
+
+    function marketMarkup(economy) {
+        if (!economy) return '<div class="empty-state">The market opens once the Keep has loaded.</div>';
+        const silver = number(economy.silver);
+        const gold = number(state.snapshot.resources?.gold);
+        const market = economy.market || {};
+        const bundles = (economy.silverBundles || []).map((bundle) => `<button type="button" class="silver-bundle" data-buy-silver="${escapeHtml(bundle.id)}" ${gold >= number(bundle.coinCost) ? '' : 'disabled'}>
+                <strong>◎ ${number(bundle.silver)}</strong><span>${escapeHtml(bundle.name)}</span><small>${number(bundle.coinCost)} Siegecoins</small></button>`).join('');
+        const offers = (market.offers || []).map((offer) => {
+            const coins = offer.currency === 'SIEGECOINS';
+            const remaining = number(offer.remaining);
+            const affordable = coins ? gold >= number(offer.price) : silver >= number(offer.price);
+            const rarity = String(offer.rarity || 'COMMON').toLowerCase();
+            const icon = offer.resourceId === 'timber' ? '▰' : offer.refined ? refinedIcon(offer.resourceId) : materialIcon(offer.resourceId);
+            return `<section class="market-lot rarity-${escapeHtml(rarity)}${remaining <= 0 ? ' sold-out' : ''}">
+                <span class="inventory-icon" aria-hidden="true">${icon}</span>
+                <span class="inventory-copy"><small class="rarity-tag">${escapeHtml(titleCase(rarity))}</small><h3>${number(offer.amount)} ${escapeHtml(offer.name)}</h3>
+                <p>${remaining > 0 ? `${remaining} of ${number(offer.stock)} left today` : 'Sold out until tomorrow'}</p></span>
+                <button class="panel-button${coins ? ' coin-price' : ''}" type="button" data-buy-lot="${escapeHtml(offer.id)}" ${remaining > 0 && affordable ? '' : 'disabled'}>${coins ? `${number(offer.price)} coins` : `◎ ${number(offer.price)}`}</button>
+            </section>`;
+        }).join('');
+        const traders = market.open === false
+            ? `<p class="rebirth-note">${escapeHtml(market.lockedHint || 'Raise the Covenant Storehouse to open the market.')}</p>`
+            : offers || '<div class="empty-state">The traders have nothing today.</div>';
+        return `<p class="panel-intro">Traders bring new stock every day. Most lots cost Silver, earned from Keep events, commissions and tributes; the rarest pieces are sold only for Siegecoins.</p>
+            <span class="eyebrow">Exchange Siegecoins</span><div class="silver-bundles">${bundles}</div>
+            <div class="market-head"><span class="eyebrow">Today's traders</span><small>${escapeHtml(marketRefreshLabel(market))}</small></div>${traders}`;
+    }
+
+    async function refineMaterial(id, quantity) {
+        const data = await perform('/api/keep/refine', { refinedId: id, quantity });
+        if (data?.refined) showNotice(`Refined ${number(data.refined.amount)} ${data.refined.name}.`, 'Refinery');
+    }
+
+    async function recycleSelected() {
+        const data = await perform('/api/keep/recycle', { fromId: state.recycleFrom, toId: state.recycleTo, quantity: number(state.recycleQty) || 1 });
+        if (data?.recycled) {
+            const gained = Object.entries(data.recycled.gained || {}).map(([id, amount]) => `${amount} ${resourceStock().find((item) => item.id === id)?.name || id}`).join(', ');
+            showNotice(`Recycled into ${gained}.`, 'Recycling');
+        }
+    }
+
+    async function buySilverBundle(bundleId) {
+        const data = await perform('/api/keep/silver/buy', { bundleId });
+        if (data?.silverPurchased) showNotice(`+${number(data.silverPurchased.silver)} Silver for ${number(data.silverPurchased.coinCost)} Siegecoins.`, 'Silver');
+    }
+
+    async function buyMarketLot(lotId) {
+        const data = await perform('/api/keep/market/buy', { lotId, quantity: 1 });
+        const bought = data?.marketPurchased;
+        if (bought) showNotice(`Bought ${number(bought.amount)} ${bought.name} for ${number(bought.price)} ${bought.currency === 'SIEGECOINS' ? 'Siegecoins' : 'Silver'}.`, 'Market');
     }
 
     function updatePanelLiveValues() {

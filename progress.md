@@ -270,6 +270,86 @@ Original prompt: Update the HUD here see on portrait it doesn't fill the screeen
 - Verification:
   - Headless Chromium on the static server, with `/api/siege/run/active` mocked to one save and to two saves, at 390x844, 1920x1080 and 844x390. One save at 390x844: the plate runs from 145 to 766px, "Start a new run" ends at 830px of 844, and nothing scrolls (`scrollHeight` 844). The back link is 12px and 27px tall; Continue is 19px and 60px tall. Two saves on a phone stack without overlap, and on desktop they sit side by side. Screenshots were reviewed for each case.
 Original prompt: Merge and deploy
+- October 10, 2026 **Keep: the market refreshes daily, and its rarest offers cost Siegecoins.**
+  - **Pool.** `KeepEconomy.POOL` replaces the fixed lot list. Each item has a resource, amount, price, currency, rarity and daily stock.
+    - **Common** (Silver): timber and the six raw lots.
+    - **Uncommon** (Silver): tier 1 refined singles, a 30-stone crate, a 200-timber wagon.
+    - **Rare** (Siegecoins): 40-unit raw crates, tier 1 bundles of 3, a Covenant Keystone, an Aether Core.
+    - **Epic** (Siegecoins): a Heartwood Relic.
+  - **Daily draw.** `dailyOffers(userId, day)` is seeded by keeper and UTC day: the always-on timber lot, 3 common, 2 uncommon, and one coin slot, epic 15% of days with a fall back to rare.
+    - The draw is stable all day and differs per keeper.
+    - It only draws refined tiers the keeper has opened, so the coin slot is never a locked item; the raw crates keep it useful before any tier opens.
+  - **Stock and payment.** Daily stock is tracked in new `KeepState.marketDay`/`marketPurchases`, which reset when the day changes.
+    - `buyMarketLot` only sells today's offers.
+    - It enforces the remaining stock ("Only N left…" / "sold out until tomorrow's market").
+    - Silver lots spend Silver; coin lots charge Siegecoins via `afterKeepPersist`, after the Keep saves.
+  - **Snapshot.** `economy.market` now carries `open`, `day`, `refreshesAt` (next UTC midnight) and `offers`, each with currency, rarity, stock and remaining.
+  - **UI.** The Market tab shows "Today's traders" with a "New stock in Xh Ym" countdown, a rarity tag per lot (uncommon green, rare blue, epic purple glow), "N of M left today" or "Sold out until tomorrow", and gold "N coins" prices on coin offers. Buttons disable when sold out or unaffordable in the right currency.
+- Verification:
+  - New `KeepServiceTest.marketRefreshesDailyWithSilverLotsAndOneSiegecoinOffer`:
+    - Timber comes first, there are 7 offers with exactly one coin offer (rare or epic), and no refined offers before any tier opens.
+    - The offers are identical across snapshots.
+    - The coin offer charges gold, not Silver, then reports sold out.
+    - The timber lot stops after 5, and stock returns the next day.
+  - New `dailyOffersVaryByKeeperAndDayAndEpicsAreRare`: offers are deterministic per keeper and day, more than 20 distinct draws appear over 60 days, epics show up 1–29 times in 60, the coin slot is always last, and two keepers get different offers on the same day.
+  - The Silver test was updated to buy the always-present timber lot. Full `./mvnw -q test` passes and `node --check` passes.
+  - Headless Chromium at 390x844 and 1920x1080 with a mocked daily market: the countdown reads "New stock in 5h 12m"; the sold-out stone lot is disabled; the rare Aether Core shows "200 coins" and posts `market/buy {lotId:aether_core_offer}`; an epic Heartwood Relic at 600 coins is disabled on a 300-coin balance. No overflow, no page errors.
+- October 10, 2026 **Keep: each rebirth has its own requirements and bill, plus refined materials, recycling and a Silver market.**
+  - **Rebirth ladder.** `KeepRebirth.requirement(n)` gives each of the 10 rebirths its own progress checks and resource bill, reaching further into the tech tree each time. The bill is spent on rebirth.
+    - **Checks** go Grand Keep + Enclave + Builder's Yard → all 6 workshops + Storehouse 2 → 3 then 6 level-2 workshops with Akhar's Front tiers → 3/5/7 storage annexes → Keeper levels 15/20/23/25.
+    - **Bills** climb from 400 timber, 30 stone and 2 Living Mortar up to Heartwood Relics.
+    - The blocker names the first unmet check or short resource. The snapshot's `rebirth` block carries `checks` (have/need/met) and `costs` (have/need/met/refined).
+  - **Refined materials** (`KeepEconomy`): seven goods in three tiers, gated by building.
+    - **Tier 1** at the Builder's Yard: Living Mortar, Tempered Glass, Charged Alloy, Hearth Ration.
+    - **Tier 2** at Storehouse 2: Covenant Keystone, Aether Core.
+    - **Tier 3** at Akhar's Front: Heartwood Relic.
+    - Recipes take raw, refined or timber inputs. Stock lives in a new `KeepState.refinedInventory` with its own cap (10 + 5 per Storehouse level, scaled by rebirth storage), kept apart from `materialInventory` so the raw-only time-saver spend can never eat refined goods. It resets on rebirth.
+    - `POST /api/keep/refine` takes `refinedId` and `quantity` (1–10).
+  - **Recycling** (`POST /api/keep/recycle`, opens with the Storehouse) always loses value: 3 raw for 1 other raw, 15 timber for 1 raw, or a refined good salvaged into half its inputs. Outputs must fit their caps.
+  - **Silver**, a Keep wallet that survives rebirth.
+    - **Buying:** with Siegecoins via `POST /api/keep/silver/buy`. Bundles are 20/60/150 for 100/270/600; coins are charged after the Keep saves.
+    - **Earning:**
+      - Every repaired Keep event pays 6, whether timed or paid.
+      - Every sanctuary reward pays some: stewardship 4, restoration 10, weekly order 15, tribute 20, milestones 25–50, keeper levels 10, Enclave tasks 2.
+    - **Spending:** `POST /api/keep/market/buy` sells timber, raw lots and tier 1–2 refined goods, priced as a shortcut rather than a cheaper route. Tier 3 is never sold. The market opens with the Storehouse, and refined lots follow their tier gate.
+    - The snapshot gains an `economy` block.
+  - **UI.**
+    - The Keep inventory gains Refined / Refine / Market tabs, shrinking to one row down to 320px, plus a Silver balance.
+    - The Refine tab shows recipe cards with inputs and shortfalls, Refine 1/5, and a tap-to-pick recycling card with a live preview.
+    - The Market tab shows the three Silver bundles and the trader lots.
+    - The Rebirth card lists Requires/Spends with have/need ticks and an "Open the Refinery" shortcut when refined goods are short.
+- Verification:
+  - `KeepServiceTest` grows to 67 cases. New cases cover the requirement ladder (checks, the bill naming the short refined good, rebirth 2's deeper checks), refining with tier gates and exact spends, recycling at each rate including salvage, and the Silver flow: pouch charging coins, market closed then open, a tier-2 lot locked, stewardship paying 4, a repaired event paying 6, earned-total tracking. Another case shows Silver surviving a rebirth while refined stock resets.
+  - The earlier rebirth cases were updated to meet the first rebirth's requirement. Full `./mvnw -q test` passes and `node --check` passes.
+  - Headless Chromium at 390x844 and 1920x1080 with a mocked economy:
+    - The checklist ticks hall and Enclave and leaves the Yard, timber, stone and mortar open.
+    - Open the Refinery switches to the Refine tab with 3 cards and "◎40 Silver".
+    - Refine 1 posts `{refinedId:living_mortar, quantity:1}`.
+    - Picking stone → ingot ×3 previews "9 Cut Stone → 3 Ember Ingot" and posts `{fromId:stone,toId:ember_ingot,quantity:3}`.
+    - On Market, the 600-coin chest is disabled on a 300-coin balance and the tier-2 lot shows its lock; the pouch and stone lot post `silver/buy` and `market/buy`.
+    - At 320 and 390 the six tabs share one row with no clipping. No horizontal overflow, no page errors.
+- October 10, 2026 **Keep: rebirth for permanent, stacking bonuses.**
+  - **Mechanic.** New `keep/KeepRebirth`.
+    - **Unlock.** Once the Covenant Hall is the Grand Keep (Hall 8), `POST /api/keep/rebirth` resets the Keep. It is refused while any construction is underway, so a paid project is never lost, and is capped at 10 rebirths.
+    - **Resets:** hall, archive, woodlot, storehouse, every workshop, builder's yard, enclave and Akhar's Front levels and posts; timber, materials and stored production; storage annexes; workshop tools/bonus fixtures; and any active event.
+    - **Carries over:** rapport and enclave tasks, lore, voices, choice flags and NPC trust, Keeper XP/level, owned decorations (kept placed in the Hall and Woodlot), favorite and tribute timer.
+    - **Per rebirth:** +25% production (woodlot, every workshop, both Akhar's Front rates), +20% storage (woodlot, workshops, timber and material inventory, front gold, including the front-upgrade preview), 10% faster builds (floored at 40% of shipped time), +120 starting timber. Scaling: build timber and material costs +15%. Production always outgrows cost.
+    - **Reward:** 400×n Siegecoins and 100×n remnants, credited through `afterKeepPersist` so a failed Keep write cannot pay out. A retried requestId is not reborn twice.
+    - **State and snapshot.** `KeepState`/`KeepStore` gain `rebirthCount` and `lastRebirthAt`. The snapshot gains a `rebirth` block: count, title (Reborn, Twice-Risen…), bonuses held, availability/blocker, and a next-rebirth preview with reward.
+    - **Pricing fix.** Every charge and display of a build now goes through `buildProject(state, id)`. That also fixed the Archive/Woodlot/Storehouse build options, which displayed hard-coded constants instead of tuned (and now scaled) costs.
+  - **UI.** `keep.js` shows a Rebirth card in the Covenant Hall under the rank card: current bonuses as chips, the next rebirth's bonuses, cost scaling and reward, and what resets vs. carries over. The button arms on the first tap ("Tap again to rebirth — the Keep resets", in red, with Not yet) and acts on the second. A notice reports the reward. The hall rank label gains the rebirth title.
+- Verification:
+  - Five new `KeepServiceTest` cases:
+    - Refused before the Grand Keep, with blocker text.
+    - A full reset that keeps rapport, Keeper XP, lore and decorations, drops tools and unbuilt-room placements, pays 400 coins and 100 remnants, and does not repeat on a retried request.
+    - Refused while constructing.
+    - At 2 rebirths: woodlot rate ×1.5 and storage ×1.4 exactly, Archive cost/time scaled in the snapshot, and the build charging exactly the shown cost.
+    - Scaling bounds, with production above cost at every count.
+  - Full `./mvnw -q test` passes and `node --check js/keep.js` passes.
+  - Headless Chromium at 390x844 and 1920x1080 using the test-snapshot hook, on a Grand Keep and on a twice-reborn Hall 3 keep:
+    - Grand Keep: the card shows 5 chips and "Begin rebirth 1"; one tap arms without a request; a second tap POSTs `/api/keep/rebirth` once; the card switches to "Reborn" with the blocker note; the label reads "Ruined Camp · Rank 1/8 · Reborn"; the notice reads "+400 Siegecoins and +100 remnants".
+    - Hall 3 keep: shows held and next bonuses with the Grand Keep requirement.
+    - No horizontal overflow and no page errors.
 - October 10, 2026 **New mode: Siegeknight Chronicles (`/chronicles`), an idle RPG of professions, elemental affinity, class mastery and individual Siegeling bonds.**
   - **Change.** This is the playable first version of the "Siegeknight Chronicles" design. It is a standalone, server-authoritative mode in `com.sieglings.chronicles`. The save is one versioned JSON document in Firestore, `playerChronicles/{userId}`. My Keep is untouched; the Knight tab links to it as the home base. Canonical content comes from the RBX-matched seed table, exposed through the new read-only `service/CreatureRegistry`. That covers class, evolution links and stage, plus the RBX stat budget × class weights + element bias, the 10/25/50 level caps, the RBX synergy tiers (Ember/Inferno, Shield/Bastion…), and RBX wild behaviours in `resources/chronicles/rbx-behaviors.json`.
     - **Professions.** Nine, with an unlock web: Woodcutting 5 → Fishing, Mining 5 → Smithing, Foraging 8 → Alchemy, Fishing 3 → Cooking. Command opens company slots at 3 and 10, and a reserve at 30.

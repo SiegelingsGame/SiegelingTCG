@@ -112,6 +112,13 @@ public class KeepStore {
         payload.put("keeperDailyXpAt", timestamp(state.getKeeperDailyXpAt()));
         payload.put("keeperResourceXpToday", state.getKeeperResourceXpToday());
         payload.put("keeperResourceXpDay", state.getKeeperResourceXpDay());
+        payload.put("rebirthCount", state.getRebirthCount());
+        payload.put("silver", state.getSilver());
+        payload.put("silverEarnedTotal", state.getSilverEarnedTotal());
+        payload.put("refinedInventory", state.getRefinedInventory());
+        payload.put("marketDay", state.getMarketDay());
+        payload.put("marketPurchases", state.getMarketPurchases());
+        payload.put("lastRebirthAt", timestamp(state.getLastRebirthAt()));
         payload.put("createdAt", timestamp(state.getCreatedAt()));
         payload.put("updatedAt", timestamp(state.getUpdatedAt()));
         try {
@@ -208,6 +215,13 @@ public class KeepStore {
         state.setKeeperDailyXpAt(instant(snapshot.get("keeperDailyXpAt")));
         state.setKeeperResourceXpToday((int) number(snapshot.get("keeperResourceXpToday"), 0));
         state.setKeeperResourceXpDay(string(snapshot.get("keeperResourceXpDay")));
+        state.setRebirthCount((int) number(snapshot.get("rebirthCount"), 0));
+        state.setSilver((int) number(snapshot.get("silver"), 0));
+        state.setSilverEarnedTotal(number(snapshot.get("silverEarnedTotal"), 0));
+        state.setRefinedInventory(intMap(snapshot.get("refinedInventory")));
+        state.setMarketDay(string(snapshot.get("marketDay")));
+        state.setMarketPurchases(intMap(snapshot.get("marketPurchases")));
+        state.setLastRebirthAt(instant(snapshot.get("lastRebirthAt")));
         state.setCreatedAt(instant(snapshot.get("createdAt")));
         state.setUpdatedAt(instant(snapshot.get("updatedAt")));
         return state;
