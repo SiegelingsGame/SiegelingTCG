@@ -43,11 +43,15 @@ class SiegeVeteranStore {
      */
     List<Map<String, Object>> saveTeam(String userId, Map<String, Object> teamSnapshot) {
         if (userId == null || userId.isBlank() || teamSnapshot == null) return listTeams(userId);
+        List<Map<String, Object>> existing = loadRaw(userId);
+        // null is a failed read, not an empty bank. Persisting from it would
+        // replace every stored team with only this snapshot.
+        if (existing == null) return new ArrayList<>();
         List<Map<String, Object>> teams = new ArrayList<>();
         teams.add(teamSnapshot);
-        for (Map<String, Object> existing : loadRaw(userId)) {
+        for (Map<String, Object> team : existing) {
             if (teams.size() >= MAX_TEAMS) break;
-            teams.add(existing);
+            teams.add(team);
         }
         persistRaw(userId, teams);
         return teams;
@@ -56,7 +60,8 @@ class SiegeVeteranStore {
     /** This user's banked teams, newest first (empty for guests or when unavailable). */
     List<Map<String, Object>> listTeams(String userId) {
         if (userId == null || userId.isBlank()) return new ArrayList<>();
-        return loadRaw(userId);
+        List<Map<String, Object>> teams = loadRaw(userId);
+        return teams == null ? new ArrayList<>() : teams;
     }
 
     /** A single banked team by its stable teamId, if present. */
@@ -77,6 +82,7 @@ class SiegeVeteranStore {
     List<Map<String, Object>> lockTeams(String userId, java.util.Collection<String> teamIds, long lockedUntil) {
         if (userId == null || userId.isBlank() || teamIds == null || teamIds.isEmpty()) return listTeams(userId);
         List<Map<String, Object>> teams = loadRaw(userId);
+        if (teams == null) return new ArrayList<>();
         boolean changed = false;
         for (Map<String, Object> team : teams) {
             if (teamIds.contains(String.valueOf(team.get("teamId")))) {
@@ -183,7 +189,11 @@ class SiegeVeteranStore {
 
     // ---- Persistence I/O (overridable in tests to avoid Firestore) ---------
 
-    /** Loads this user's stored teams (newest first). Fail-soft: empty on error. */
+    /**
+     * Loads this user's stored teams (newest first). An empty list means the
+     * player has no bank. {@code null} means the read failed — callers must not
+     * write a document from that, or a timeout deletes every team already stored.
+     */
     @SuppressWarnings("unchecked")
     protected List<Map<String, Object>> loadRaw(String userId) {
         try {
@@ -200,7 +210,7 @@ class SiegeVeteranStore {
             return out;
         } catch (Exception ex) {
             warnOnce(ex);
-            return new ArrayList<>();
+            return null;
         }
     }
 
