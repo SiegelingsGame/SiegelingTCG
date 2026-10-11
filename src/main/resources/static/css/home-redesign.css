@@ -2241,6 +2241,37 @@ body.concept-board {
 .sg-mode.is-primary .sg-mode-body h3 { font-size:36px; }
 .sg-mode-body h3 { font-size:28px; }
 
+/* Four modes as stacked bands needed two screens of scrolling to reach the last
+   one. A 2x2 grid of upright plates fits every mode in the space between the top
+   bar and the tab bar, so the choice is one glance. The height is derived from
+   the viewport (top bar + tab bar + gaps) and clamped so a short phone keeps
+   readable plates and a tall tablet does not get towers. Desktop and landscape
+   phone layers below override this with one row of four. */
+.sg-modes {
+  display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px;
+  padding:calc(56px + var(--sg-sat)) 14px 0;
+}
+.sg-mode, .sg-mode.is-primary {
+  height:clamp(168px, calc((100dvh - 56px - var(--sg-sat) - 62px - var(--sg-sab) * 0.4 - 24px) / 2), 380px);
+  border-radius:20px;
+}
+.sg-mode-bg { object-position:center 26%; }
+.sg-mode-veil {
+  background:
+    linear-gradient(180deg, rgba(5,8,15,.04) 0%, rgba(5,8,15,.14) 34%, rgba(5,8,15,.82) 66%, rgba(5,8,15,.96) 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--el,#f05b2f) 22%, transparent), transparent 44%);
+}
+.sg-mode-body {
+  inset:auto 0 0 0; justify-content:flex-end; max-width:100%;
+  padding:0 12px 50px; gap:4px;
+}
+.sg-mode-tag { font-size:8px; letter-spacing:.16em; padding:3px 8px; }
+.sg-mode-body h3, .sg-mode.is-primary .sg-mode-body h3 { font-size:clamp(22px, 6.6vw, 30px); line-height:1.05; }
+.sg-mode-body p { font-size:11px; line-height:1.35; }
+.sg-mode-go, .sg-mode.is-primary .sg-mode-go {
+  left:12px; right:auto; bottom:12px; font-size:10px; padding:8px 14px;
+}
+
 /* links must not inherit browser blue/underline anywhere in the app shell */
 .sg-app a { text-decoration:none; color:inherit; }
 .sg-tray li a { flex:1 1 auto; color:inherit; }
@@ -4480,11 +4511,14 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    and the profile put the signature a full scroll below the showcase.
    ========================================================================== */
 @media (orientation:landscape) and (max-height:600px) and (min-width:560px) and (max-width:1023px) {
-  /* --- play: three upright plates side by side, sized to the window ---
+  /* --- play: four upright plates side by side, sized to the window ---
      Same idea as the desktop columns, but the height comes from the viewport
-     minus the top bar and the tab bar so all three fit without scrolling. */
+     minus the top bar and the tab bar so every mode fits without scrolling.
+     The side insets keep the notch / Dynamic Island off the outer plates. */
   .sg-modes {
-    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px;
+    display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:10px;
+    padding-left:max(14px, env(safe-area-inset-left, 0px));
+    padding-right:max(14px, env(safe-area-inset-right, 0px));
   }
   .sg-mode, .sg-mode.is-primary {
     height:clamp(210px, calc(100dvh - 58px - var(--sg-sat) - 104px), 420px); border-radius:20px;
@@ -4499,8 +4533,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     inset:auto 0 0 0; justify-content:flex-end; max-width:100%;
     padding:0 14px 58px; gap:5px;
   }
-  .sg-mode-body h3, .sg-mode.is-primary .sg-mode-body h3 { font-size:26px; }
-  .sg-mode-body p { font-size:11.5px; line-height:1.4; }
+  .sg-mode-body h3, .sg-mode.is-primary .sg-mode-body h3 { font-size:24px; }
+  .sg-mode-body p { font-size:11px; line-height:1.35; }
   .sg-mode-go, .sg-mode.is-primary .sg-mode-go { left:14px; right:auto; bottom:14px; }
 
   /* --- shop: the daily offers share the row instead of scrolling a strip ---
