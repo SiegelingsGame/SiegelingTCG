@@ -864,6 +864,8 @@ class ChroniclesServiceTest {
     /** Round-trips through JSON like Firestore does, so the stored shape is exercised. */
     private static final class InMemoryStore extends ChroniclesStore {
         ChroniclesState state;
+        private boolean stored;
+        private long storedVersion = ABSENT_VERSION;
 
         @Override
         public Optional<ChroniclesState> findByUserId(String userId) {
@@ -881,7 +883,20 @@ class ChroniclesServiceTest {
         @Override
         public ChroniclesState save(ChroniclesState value) {
             state = value;
+            stored = true;
+            storedVersion = value.version;
             return value;
+        }
+
+        @Override
+        public ChroniclesState commit(ChroniclesState value, long expectedVersion,
+                                      java.util.function.Consumer<ChroniclesRealmStore.RealmBatch> work) {
+            long current = stored ? storedVersion : ABSENT_VERSION;
+            if (current != expectedVersion) {
+                throw new ChroniclesService.StaleStateException("Your chronicle changed on another device. Refreshing.");
+            }
+            if (work != null) throw new IllegalStateException("This chronicle store has no realm.");
+            return save(value);
         }
     }
 
