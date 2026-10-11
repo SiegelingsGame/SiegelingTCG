@@ -2,7 +2,9 @@ package com.sieglings.chronicles;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -45,6 +47,12 @@ public final class ChroniclesRealm {
         public Map<String, Long> fronts = new LinkedHashMap<>();
         public long wonAt;
         public Map<String, Boolean> claimed = new LinkedHashMap<>();
+        /**
+         * Sorties already added to {@link #damage}. Collect and the chronicle save
+         * share one transaction, but a retried collect of the same departure must
+         * not score again if that transaction's player write was the one that lost.
+         */
+        public List<String> applied = new ArrayList<>();
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

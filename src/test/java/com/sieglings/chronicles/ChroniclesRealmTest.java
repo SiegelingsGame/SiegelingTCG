@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,6 +45,7 @@ class ChroniclesRealmTest {
         };
         saves = new Saves();
         realm = new Realm();
+        saves.realm = realm;
         service = new ChroniclesService(saves, null, realm);
         service.setClock(clock);
         ari = user("ari@example.com", "Ari");
@@ -210,6 +212,75 @@ class ChroniclesRealmTest {
     }
 
     @Test
+    void aFailedSaveDoesNotLeaveGoodsListedOrCrownsUnpaid() throws Exception {
+        edit(ari, s -> s.inventory.put("iron_bar", 10));
+        saves.failNextCommit = true;
+        assertThrows(IllegalStateException.class, () -> service.listItem(ari, "iron_bar", 4, 200, null, -1));
+        assertEquals(10, saves.get(ari).inventory.get("iron_bar"), "the pack is unchanged when the save fails");
+        assertTrue(realm.listings.isEmpty(), "no listing is posted without the debit");
+
+        ChroniclesState stale = saves.get(ari);
+        long loaded = stale.version;
+        service.listItem(ari, "iron_bar", 4, 200, null, -1);
+        assertEquals(6, saves.get(ari).inventory.get("iron_bar"));
+        String listingId = realm.listings.keySet().iterator().next();
+        stale.version = loaded + 1;
+        assertThrows(ChroniclesService.StaleStateException.class,
+                () -> saves.commit(stale, loaded, null), "a poll that read the pre-list chronicle cannot restore the bars");
+        assertEquals(6, saves.get(ari).inventory.get("iron_bar"));
+        assertEquals(1, realm.listings.size());
+
+        edit(bo, s -> s.crowns = 300);
+        saves.failNextCommit = true;
+        assertThrows(IllegalStateException.class, () -> service.buyListing(bo, listingId, null, -1));
+        assertEquals("open", realm.listings.get(listingId).status, "the sale rolls back with the buyer's save");
+        assertEquals(300, saves.get(bo).crowns);
+        assertNull(saves.get(bo).inventory.get("iron_bar"));
+
+        service.buyListing(bo, listingId, null, -1);
+        saves.failNextCommit = true;
+        assertThrows(IllegalStateException.class, () -> service.getSnapshot(ari));
+        assertEquals(0, saves.get(ari).crowns, "proceeds stay unclaimed so the next visit can pay them");
+        assertFalse(realm.listings.get(listingId).claimed);
+        Map<String, Object> paid = service.getSnapshot(ari);
+        assertEquals(190, saves.get(ari).crowns);
+        assertTrue(realm.listings.get(listingId).claimed);
+        @SuppressWarnings("unchecked")
+        List<String> events = (List<String>) paid.get("events");
+        assertTrue(events.stream().anyMatch(e -> e.contains("190 crowns")), events.toString());
+    }
+
+    @Test
+    void anOperationScoreIsAppliedOnceWhenCollectIsRetried() throws Exception {
+        foundGuild();
+        String guildId = saves.get(ari).guildId;
+        realm.guilds.get(guildId).operation.maxHp = 1;
+        edit(ari, s -> s.companions.get(0).level = 8);
+        service.launch(ari, "operation:supply", Map.of(), null, -1);
+        advance(Duration.ofMinutes(ChroniclesContent.OPERATION_MINUTES + 1));
+        long score = saves.get(ari).expedition.operationScore;
+        String departure = ChroniclesStore.JSON.writeValueAsString(saves.get(ari).expedition);
+
+        saves.failNextCommit = true;
+        assertThrows(IllegalStateException.class, () -> service.collect(ari, null, -1));
+        assertEquals(0, realm.guilds.get(guildId).operation.damage, "a failed collect does not keep the score");
+        assertNotNull(saves.get(ari).expedition);
+
+        service.collect(ari, null, -1);
+        assertEquals(score, realm.guilds.get(guildId).operation.damage);
+        edit(ari, s -> {
+            try {
+                s.expedition = ChroniclesStore.JSON.readValue(departure, ChroniclesState.Expedition.class);
+            } catch (Exception ex) {
+                throw new IllegalStateException(ex);
+            }
+        });
+        service.collect(ari, null, -1);
+        assertEquals(score, realm.guilds.get(guildId).operation.damage, "the same departure cannot score twice");
+        assertEquals(score, realm.guilds.get(guildId).operation.contributions.get(ari.getId()));
+    }
+
+    @Test
     void theKnightsOwnSaveNeverWaitsOnAnUnreachableRealm() {
         realm.down = true;
         Map<String, Object> snap = service.getSnapshot(ari);
@@ -246,6 +317,8 @@ class ChroniclesRealmTest {
     /** One save per knight, each round-tripped through JSON like Firestore. */
     private static final class Saves extends ChroniclesStore {
         final Map<String, String> docs = new HashMap<>();
+        Realm realm;
+        boolean failNextCommit;
 
         ChroniclesState get(AccountUser user) { return findByUserId(user.getId()).orElseThrow(); }
         void put(ChroniclesState state) { save(state); }
@@ -265,6 +338,42 @@ class ChroniclesRealmTest {
             catch (Exception ex) { throw new IllegalStateException(ex); }
             return value;
         }
+
+        private long storedVersion(String userId) {
+            String json = docs.get(userId);
+            if (json == null) return ABSENT_VERSION;
+            try { return JSON.readValue(json, ChroniclesState.class).version; }
+            catch (Exception ex) { throw new IllegalStateException(ex); }
+        }
+
+        @Override public ChroniclesState commit(ChroniclesState value, long expectedVersion,
+                                                Consumer<ChroniclesRealmStore.RealmBatch> work) {
+            if (storedVersion(value.userId) != expectedVersion) {
+                throw new ChroniclesService.StaleStateException("Your chronicle changed on another device. Refreshing.");
+            }
+            if (failNextCommit) {
+                failNextCommit = false;
+                if (work != null) realm.openStage();
+                try {
+                    if (work != null) work.accept(realm.stageBatch());
+                    throw new IllegalStateException("Unable to save Siegeknight Chronicles to Firestore.");
+                } catch (RuntimeException ex) {
+                    if (work != null) realm.discardStage();
+                    throw ex;
+                }
+            }
+            if (work != null) {
+                realm.openStage();
+                try {
+                    work.accept(realm.stageBatch());
+                    realm.flushStage();
+                } catch (RuntimeException ex) {
+                    realm.discardStage();
+                    throw ex;
+                }
+            }
+            return save(value);
+        }
     }
 
     /** The shared realm. A transaction body runs on a copy and commits only if it does not throw. */
@@ -272,6 +381,62 @@ class ChroniclesRealmTest {
         final Map<String, ChroniclesRealm.Guild> guilds = new HashMap<>();
         final Map<String, ChroniclesRealm.Listing> listings = new java.util.LinkedHashMap<>();
         boolean down;
+        private final Map<String, ChroniclesRealm.Listing> stagedListings = new java.util.LinkedHashMap<>();
+        private final Map<String, ChroniclesRealm.Guild> stagedGuilds = new HashMap<>();
+        private boolean staging;
+        private boolean writing;
+
+        void openStage() {
+            stagedListings.clear();
+            stagedGuilds.clear();
+            staging = true;
+            writing = false;
+        }
+
+        void discardStage() {
+            stagedListings.clear();
+            stagedGuilds.clear();
+            staging = false;
+            writing = false;
+        }
+
+        void flushStage() {
+            stagedListings.forEach((id, listing) -> listings.put(id, copy(listing, ChroniclesRealm.Listing.class)));
+            stagedGuilds.forEach((id, guild) -> {
+                if (guild.members == null || guild.members.isEmpty()) guilds.remove(id);
+                else guilds.put(id, copy(guild, ChroniclesRealm.Guild.class));
+            });
+            discardStage();
+        }
+
+        ChroniclesRealmStore.RealmBatch stageBatch() {
+            return new ChroniclesRealmStore.RealmBatch() {
+                @Override public ChroniclesRealm.Listing readListing(String id) {
+                    if (writing) throw new IllegalStateException("Realm batch must read every document before it writes.");
+                    if (stagedListings.containsKey(id) && stagedListings.get(id) != null && !listings.containsKey(id)) {
+                        return stagedListings.get(id);
+                    }
+                    ChroniclesRealm.Listing live = listings.get(id);
+                    return live == null ? null : copy(live, ChroniclesRealm.Listing.class);
+                }
+
+                @Override public void writeListing(ChroniclesRealm.Listing listing) {
+                    writing = true;
+                    stagedListings.put(listing.id, listing);
+                }
+
+                @Override public ChroniclesRealm.Guild readGuild(String id) {
+                    if (writing) throw new IllegalStateException("Realm batch must read every document before it writes.");
+                    ChroniclesRealm.Guild live = guilds.get(id);
+                    return live == null ? null : copy(live, ChroniclesRealm.Guild.class);
+                }
+
+                @Override public void writeGuild(ChroniclesRealm.Guild guild) {
+                    writing = true;
+                    stagedGuilds.put(guild.id, guild);
+                }
+            };
+        }
 
         private void check() { if (down) throw new IllegalStateException("Firestore is unavailable."); }
 
@@ -307,6 +472,12 @@ class ChroniclesRealmTest {
             if (working.members.isEmpty()) guilds.remove(id);
             else guilds.put(id, working);
             return result;
+        }
+
+        @Override public Optional<ChroniclesRealm.Listing> findListing(String id) {
+            check();
+            ChroniclesRealm.Listing listing = listings.get(id);
+            return listing == null ? Optional.empty() : Optional.of(copy(listing, ChroniclesRealm.Listing.class));
         }
 
         @Override public ChroniclesRealm.Listing createListing(ChroniclesRealm.Listing listing) {

@@ -5,6 +5,7 @@ import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
+import com.google.cloud.firestore.Transaction;
 import com.sieglings.chronicles.ChroniclesRealm.Guild;
 import com.sieglings.chronicles.ChroniclesRealm.Listing;
 import com.sieglings.persistence.firestore.FirestoreUserDataClient;
@@ -31,6 +32,24 @@ import java.util.function.Function;
 @Component
 public class ChroniclesRealmStore {
     private static final long OP_TIMEOUT_SECONDS = 10;
+
+    /**
+     * Reads and staged writes for one Firestore transaction. Every read has to
+     * happen before any write — the transaction API rejects a read that follows
+     * a write. Callers read the documents they need, then stage writes; the
+     * surrounding commit flushes them.
+     */
+    public interface RealmBatch {
+        /** The listing, or null when that id is not posted. */
+        ChroniclesRealm.Listing readListing(String id);
+
+        void writeListing(ChroniclesRealm.Listing listing);
+
+        /** The guild, or null when that id is not founded. */
+        ChroniclesRealm.Guild readGuild(String id);
+
+        void writeGuild(ChroniclesRealm.Guild guild);
+    }
 
     @Autowired
     private FirestoreUserDataClient client;
@@ -91,6 +110,16 @@ public class ChroniclesRealmStore {
     }
 
     // ── marketplace ──────────────────────────────────────────────────────────
+
+    public Optional<Listing> findListing(String id) {
+        if (id == null || id.isBlank()) return Optional.empty();
+        try {
+            DocumentSnapshot snap = db().collection(market).document(id).get().get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            return snap.exists() ? Optional.of(listingFrom(snap)) : Optional.empty();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to load the listing.", ex);
+        }
+    }
 
     public Listing createListing(Listing listing) {
         try {
@@ -159,6 +188,79 @@ public class ChroniclesRealmStore {
 
     private Firestore db() {
         return client.requireFirestore();
+    }
+
+    /** Reads, lets {@code work} stage updates, then writes. Reads stay ahead of writes. */
+    void apply(Transaction tx, java.util.function.Consumer<RealmBatch> work) {
+        FirestoreRealmBatch batch = new FirestoreRealmBatch(tx);
+        if (work != null) work.accept(batch);
+        batch.flush();
+    }
+
+    private final class FirestoreRealmBatch implements RealmBatch {
+        private final Transaction tx;
+        private final Map<String, Listing> listingReads = new LinkedHashMap<>();
+        private final Map<String, Guild> guildReads = new LinkedHashMap<>();
+        private final Map<String, Listing> listingWrites = new LinkedHashMap<>();
+        private final Map<String, Guild> guildWrites = new LinkedHashMap<>();
+        private boolean writing;
+
+        private FirestoreRealmBatch(Transaction tx) {
+            this.tx = tx;
+        }
+
+        @Override
+        public Listing readListing(String id) {
+            requireRead();
+            if (listingReads.containsKey(id)) return listingReads.get(id);
+            try {
+                DocumentSnapshot snap = tx.get(db().collection(market).document(id)).get();
+                Listing listing = snap.exists() ? listingFrom(snap) : null;
+                listingReads.put(id, listing);
+                return listing;
+            } catch (Exception ex) {
+                throw new IllegalStateException("Unable to read the listing.", ex);
+            }
+        }
+
+        @Override
+        public void writeListing(Listing listing) {
+            writing = true;
+            listingWrites.put(listing.id, listing);
+        }
+
+        @Override
+        public Guild readGuild(String id) {
+            requireRead();
+            if (guildReads.containsKey(id)) return guildReads.get(id);
+            try {
+                DocumentSnapshot snap = tx.get(db().collection(guilds).document(id)).get();
+                Guild guild = snap.exists() ? guildFrom(snap) : null;
+                guildReads.put(id, guild);
+                return guild;
+            } catch (Exception ex) {
+                throw new IllegalStateException("Unable to read the guild.", ex);
+            }
+        }
+
+        @Override
+        public void writeGuild(Guild guild) {
+            writing = true;
+            guildWrites.put(guild.id, guild);
+        }
+
+        private void requireRead() {
+            if (writing) throw new IllegalStateException("Realm batch must read every document before it writes.");
+        }
+
+        private void flush() {
+            listingWrites.forEach((id, listing) -> tx.set(db().collection(market).document(id), listingPayload(listing)));
+            guildWrites.forEach((id, guild) -> {
+                DocumentReference ref = db().collection(guilds).document(id);
+                if (guild.members == null || guild.members.isEmpty()) tx.delete(ref);
+                else tx.set(ref, guildPayload(guild));
+            });
+        }
     }
 
     private static Map<String, Object> guildPayload(Guild guild) {

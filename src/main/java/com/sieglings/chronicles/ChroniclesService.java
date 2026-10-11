@@ -45,6 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
@@ -57,6 +58,8 @@ public class ChroniclesService {
     }
 
     private static final int MAX_REQUEST_IDS = 30;
+    /** Polls retry a lost compare-and-set instead of failing the page load. */
+    private static final int SAVE_ATTEMPTS = 4;
     private static final long ART_TTL_MS = 5 * 60_000L;
     private static final long AWAY_REPORT_MIN_MS = 5 * 60_000L;
 
@@ -91,19 +94,40 @@ public class ChroniclesService {
 
     public Map<String, Object> getSnapshot(AccountUser user) {
         synchronized (lock(user)) {
-            long now = now();
+            // A poll and an action can commit on different instances. Retry the
+            // settle against the winner instead of failing the page load.
+            for (int attempt = 0; attempt < SAVE_ATTEMPTS; attempt++) {
+                try {
+                    return settleSnapshot(user);
+                } catch (StaleStateException ignored) {
+                    // another commit landed; read it and settle whatever is new
+                }
+            }
             ChroniclesState state = store.findByUserId(user.getId()).orElse(null);
             if (state == null) return introSnapshot(user);
-            List<String> events = new ArrayList<>();
-            boolean changed = settle(state, now, events);
-            changed |= claimProceeds(state, events);
-            if (changed) {
-                state.version++;
-                state.updatedAt = now;
-                store.save(state);
-            }
-            return snapshot(state, now, events, null);
+            return snapshot(state, now(), List.of(), null);
         }
+    }
+
+    private Map<String, Object> settleSnapshot(AccountUser user) {
+        long now = now();
+        ChroniclesState state = store.findByUserId(user.getId()).orElse(null);
+        if (state == null) return introSnapshot(user);
+        long base = state.version;
+        List<String> events = new ArrayList<>();
+        boolean changed = settle(state, now, events);
+        // Sold listings are paid here, in the same write as the chronicle. Marking
+        // them claimed before the save destroyed the crowns whenever that save lost.
+        List<ChroniclesRealm.Listing> due = unclaimedSales(state);
+        if (!changed && due.isEmpty()) return snapshot(state, now, events, null);
+        long crownsBefore = state.crowns;
+        List<String> payouts = new ArrayList<>();
+        state.version = base + 1;
+        state.updatedAt = now;
+        store.commit(state, base, due.isEmpty() ? null
+                : batch -> creditSales(state, crownsBefore, payouts, batch, due));
+        events.addAll(payouts);
+        return snapshot(state, now, events, null);
     }
 
     public Map<String, Object> start(AccountUser user, String starterId, String knightName, String requestId) {
@@ -130,7 +154,13 @@ public class ChroniclesService {
             state.inventory.put("wild_bait", 1);
             remember(state, requestId);
             state.version = 1;
-            store.save(state);
+            try {
+                store.commit(state, ChroniclesStore.ABSENT_VERSION, null);
+            } catch (StaleStateException ex) {
+                // A second oath on another instance created the chronicle first.
+                ChroniclesState winner = store.findByUserId(user.getId()).orElseThrow(() -> ex);
+                return snapshot(winner, now, List.of(), null);
+            }
             List<String> events = List.of("Sir " + state.knightName + " takes the oath. " + creature.name()
                     + " joins as your first companion.");
             return snapshot(state, now, events, null);
@@ -444,7 +474,7 @@ public class ChroniclesService {
             rewards.skillXp.forEach((s, xp) -> grantSkill(state, s, xp, ctx.events));
             grantRank(state, rewards.rankXp, ctx.events);
             state.crowns += rewards.crowns;
-            if (!expedition.operationFront.isEmpty()) applyOperation(state, expedition, ctx.now, ctx.events);
+            if (!expedition.operationFront.isEmpty()) applyOperation(ctx, state, expedition);
             for (Sighting sighting : rewards.sightings) {
                 sighting.id = "s" + (++state.sightingCounter);
                 sighting.foundAt = ctx.now;
@@ -852,31 +882,52 @@ public class ChroniclesService {
         return Math.round(result.levelsDefeated * mult * defenses);
     }
 
-    private void applyOperation(ChroniclesState state, Expedition e, long now, List<String> events) {
+    private void applyOperation(Ctx ctx, ChroniclesState state, Expedition e) {
         if (realm == null || e.operationScore <= 0) return;
-        try {
-            String outcome = realm.mutateGuild(e.operationGuildId, g -> {
-                refreshOperation(g, now);
-                if (!g.members.containsKey(state.userId) || !g.operation.week.equals(e.operationWeek)) return "late";
-                ChroniclesRealm.Operation op = g.operation;
-                op.damage += e.operationScore;
-                op.contributions.merge(state.userId, e.operationScore, Long::sum);
-                op.fronts.merge(e.operationFront, e.operationScore, Long::sum);
-                if (op.wonAt == 0 && op.damage >= op.maxHp) {
-                    op.wonAt = now;
-                    return "won";
+        // The score lands in the same transaction as the collected chronicle. Doing
+        // it first counted the sortie twice when the player save then lost to a poll
+        // and the knight collected again.
+        String key = state.userId + ":" + e.startedAt;
+        ctx.realmWork = batch -> {
+            ctx.sideEvents.clear();
+            try {
+                String outcome = scoreOperation(batch, state, e, ctx.now, key);
+                String threatName = threat(e.operationThreatId).name();
+                switch (outcome) {
+                    case "won" -> ctx.sideEvents.add("Your company broke " + threatName + "! Claim your share in the Realm.");
+                    case "ok" -> ctx.sideEvents.add("Your company dealt " + e.operationScore + " to " + threatName + ".");
+                    case "dup" -> { /* already scored with this departure */ }
+                    default -> ctx.sideEvents.add("The operation ended before your company returned.");
                 }
-                return "ok";
-            });
-            String threatName = threat(e.operationThreatId).name();
-            switch (outcome) {
-                case "won" -> events.add("Your company broke " + threatName + "! Claim your share in the Realm.");
-                case "ok" -> events.add("Your company dealt " + e.operationScore + " to " + threatName + ".");
-                default -> events.add("The operation ended before your company returned.");
+            } catch (IllegalArgumentException ex) {
+                ctx.sideEvents.add("The guild could not be reached; that sortie's score was lost.");
             }
-        } catch (IllegalArgumentException ex) {
-            events.add("The guild could not be reached; that sortie's score was lost.");
+        };
+    }
+
+    private static String scoreOperation(ChroniclesRealmStore.RealmBatch batch, ChroniclesState state,
+                                         Expedition e, long now, String key) {
+        ChroniclesRealm.Guild guild = batch.readGuild(e.operationGuildId);
+        if (guild == null) throw new IllegalArgumentException("That guild no longer exists.");
+        refreshOperation(guild, now);
+        if (guild.operation.applied == null) guild.operation.applied = new ArrayList<>();
+        if (!guild.members.containsKey(state.userId) || !guild.operation.week.equals(e.operationWeek)) {
+            batch.writeGuild(guild);
+            return "late";
         }
+        if (guild.operation.applied.contains(key)) return "dup";
+        ChroniclesRealm.Operation op = guild.operation;
+        op.applied.add(key);
+        op.damage += e.operationScore;
+        op.contributions.merge(state.userId, e.operationScore, Long::sum);
+        op.fronts.merge(e.operationFront, e.operationScore, Long::sum);
+        if (op.wonAt == 0 && op.damage >= op.maxHp) {
+            op.wonAt = now;
+            batch.writeGuild(guild);
+            return "won";
+        }
+        batch.writeGuild(guild);
+        return "ok";
     }
 
     public Map<String, Object> createGuild(AccountUser user, String name, String requestId, long expected) {
@@ -960,18 +1011,22 @@ public class ChroniclesService {
             if (state.inventory.getOrDefault(itemId, 0) < n) throw new IllegalArgumentException("You have only "
                     + state.inventory.getOrDefault(itemId, 0) + " " + itemName(itemId) + ".");
             if (state.guildId.isEmpty()) throw new IllegalArgumentException("Join a guild first.");
-            int[] levels = new int[2];
-            requireRealm().mutateGuild(state.guildId, g -> {
-                if (!g.members.containsKey(state.userId)) throw new IllegalArgumentException("You are no longer in that guild.");
-                levels[0] = ChroniclesContent.defenseLevel(g.defensePoints);
-                g.defensePoints += (long) points * n;
-                levels[1] = ChroniclesContent.defenseLevel(g.defensePoints);
-                return null;
-            });
             take(state, itemId, n);
             grantRank(state, (long) points * n / 4, ctx.events);
-            ctx.events.add("Donated " + n + " " + itemName(itemId) + " to the siege defenses.");
-            if (levels[1] > levels[0]) ctx.events.add("The guild's siege defenses reached level " + levels[1] + "!");
+            String donated = itemId;
+            ctx.realmWork = batch -> {
+                ctx.sideEvents.clear();
+                ChroniclesRealm.Guild guild = batch.readGuild(state.guildId);
+                if (guild == null || !guild.members.containsKey(state.userId)) {
+                    throw new IllegalArgumentException("You are no longer in that guild.");
+                }
+                int before = ChroniclesContent.defenseLevel(guild.defensePoints);
+                guild.defensePoints += (long) points * n;
+                int after = ChroniclesContent.defenseLevel(guild.defensePoints);
+                batch.writeGuild(guild);
+                ctx.sideEvents.add("Donated " + n + " " + itemName(donated) + " to the siege defenses.");
+                if (after > before) ctx.sideEvents.add("The guild's siege defenses reached level " + after + "!");
+            };
         });
     }
 
@@ -979,22 +1034,36 @@ public class ChroniclesService {
         return mutate(user, requestId, expected, (ctx) -> {
             ChroniclesState state = ctx.state;
             if (state.guildId.isEmpty()) throw new IllegalArgumentException("Join a guild first.");
-            ChroniclesContent.Threat broken = requireRealm().mutateGuild(state.guildId, g -> {
-                ChroniclesRealm.Operation op = g.operation;
-                if (op.wonAt == 0) throw new IllegalArgumentException("The threat still stands.");
-                if (op.contributions.getOrDefault(state.userId, 0L) <= 0) {
-                    throw new IllegalArgumentException("Only knights whose companies fought may claim a share.");
-                }
-                if (Boolean.TRUE.equals(op.claimed.get(state.userId))) throw new IllegalArgumentException("You already claimed this week's share.");
-                op.claimed.put(state.userId, true);
-                return threat(op.threatId);
-            });
+            ChroniclesRealm.Guild peek = requireRealm().findGuild(state.guildId)
+                    .orElseThrow(() -> new IllegalArgumentException("That guild no longer exists."));
+            if (peek.operation.wonAt == 0) throw new IllegalArgumentException("The threat still stands.");
+            if (peek.operation.contributions.getOrDefault(state.userId, 0L) <= 0) {
+                throw new IllegalArgumentException("Only knights whose companies fought may claim a share.");
+            }
+            if (Boolean.TRUE.equals(peek.operation.claimed.get(state.userId))) {
+                throw new IllegalArgumentException("You already claimed this week's share.");
+            }
+            ChroniclesContent.Threat broken = threat(peek.operation.threatId);
             state.crowns += 500;
             give(state, "ancient_relic", 2);
             give(state, ChroniclesContent.essenceId(broken.element()), 10);
             grantRank(state, 400, ctx.events);
             ctx.events.add("Your share of victory over " + broken.name() + ": 500 crowns, 2 Ancient Relics and 10 "
                     + ChroniclesContent.elementLabel(broken.element()) + " Essence.");
+            ctx.realmWork = batch -> {
+                ChroniclesRealm.Guild guild = batch.readGuild(state.guildId);
+                if (guild == null) throw new IllegalArgumentException("That guild no longer exists.");
+                ChroniclesRealm.Operation op = guild.operation;
+                if (op.wonAt == 0) throw new IllegalArgumentException("The threat still stands.");
+                if (op.contributions.getOrDefault(state.userId, 0L) <= 0) {
+                    throw new IllegalArgumentException("Only knights whose companies fought may claim a share.");
+                }
+                if (Boolean.TRUE.equals(op.claimed.get(state.userId))) {
+                    throw new IllegalArgumentException("You already claimed this week's share.");
+                }
+                op.claimed.put(state.userId, true);
+                batch.writeGuild(guild);
+            };
         });
     }
 
@@ -1103,16 +1172,23 @@ public class ChroniclesService {
                 throw new IllegalArgumentException("You can have " + ChroniclesContent.MARKET_MAX_LISTINGS + " listings open.");
             }
             ChroniclesRealm.Listing listing = new ChroniclesRealm.Listing();
-            listing.id = "m" + Long.toString(Math.abs(new Random(ctx.now ^ state.seed ^ item.id().hashCode()).nextLong()), 36);
+            listing.id = "m" + UUID.randomUUID().toString().replace("-", "");
             listing.sellerId = state.userId;
             listing.sellerName = state.knightName;
             listing.itemId = item.id();
             listing.qty = qty;
             listing.price = price;
             listing.createdAt = ctx.now;
-            // Escrow: the goods leave the pack as the listing goes up.
+            // Escrow leaves the pack only in the same commit that posts the listing.
+            // Posting first, then saving, left a listing behind whenever the save failed
+            // and the knight still held the goods.
             take(state, item.id(), qty);
-            realm.createListing(listing);
+            ctx.realmWork = batch -> {
+                if (batch.readListing(listing.id) != null) {
+                    throw new IllegalStateException("That listing id is already posted.");
+                }
+                batch.writeListing(listing);
+            };
             ctx.events.add("Listed " + qty + " " + item.name() + " for " + price + " crowns.");
         });
     }
@@ -1120,32 +1196,52 @@ public class ChroniclesService {
     public Map<String, Object> buyListing(AccountUser user, String listingId, String requestId, long expected) {
         return mutate(user, requestId, expected, (ctx) -> {
             ChroniclesState state = ctx.state;
-            ChroniclesRealm.Listing bought = requireRealm().mutateListing(listingId == null ? "" : listingId, l -> {
-                if (!"open".equals(l.status)) throw new IllegalArgumentException("Someone else bought it first.");
-                if (l.sellerId.equals(state.userId)) throw new IllegalArgumentException("That is your own listing.");
-                if (state.crowns < l.price) throw new IllegalArgumentException("You need " + l.price + " crowns.");
-                l.status = "sold";
-                l.buyerId = state.userId;
-                l.soldAt = ctx.now;
-                return l;
-            });
-            state.crowns -= bought.price;
-            give(state, bought.itemId, bought.qty);
-            ctx.events.add("Bought " + bought.qty + " " + itemName(bought.itemId) + " for " + bought.price + " crowns.");
+            String id = listingId == null ? "" : listingId;
+            ChroniclesRealm.Listing peek = requireRealm().findListing(id)
+                    .orElseThrow(() -> new IllegalArgumentException("That listing is gone."));
+            if (!"open".equals(peek.status)) throw new IllegalArgumentException("Someone else bought it first.");
+            if (peek.sellerId.equals(state.userId)) throw new IllegalArgumentException("That is your own listing.");
+            if (state.crowns < peek.price) throw new IllegalArgumentException("You need " + peek.price + " crowns.");
+            long price = peek.price;
+            String itemId = peek.itemId;
+            int qty = peek.qty;
+            state.crowns -= price;
+            give(state, itemId, qty);
+            ctx.events.add("Bought " + qty + " " + itemName(itemId) + " for " + price + " crowns.");
+            ctx.realmWork = batch -> {
+                ChroniclesRealm.Listing listing = batch.readListing(id);
+                if (listing == null) throw new IllegalArgumentException("That listing is gone.");
+                if (!"open".equals(listing.status)) throw new IllegalArgumentException("Someone else bought it first.");
+                if (listing.sellerId.equals(state.userId)) throw new IllegalArgumentException("That is your own listing.");
+                if (listing.price != price || listing.qty != qty || !itemId.equals(listing.itemId)) {
+                    throw new IllegalArgumentException("That listing changed. Refreshing.");
+                }
+                listing.status = "sold";
+                listing.buyerId = state.userId;
+                listing.soldAt = ctx.now;
+                batch.writeListing(listing);
+            };
         });
     }
 
     public Map<String, Object> cancelListing(AccountUser user, String listingId, String requestId, long expected) {
         return mutate(user, requestId, expected, (ctx) -> {
             ChroniclesState state = ctx.state;
-            ChroniclesRealm.Listing cancelled = requireRealm().mutateListing(listingId == null ? "" : listingId, l -> {
-                if (!l.sellerId.equals(state.userId)) throw new IllegalArgumentException("That is not your listing.");
-                if (!"open".equals(l.status)) throw new IllegalArgumentException("That listing has already sold.");
-                l.status = "cancelled";
-                return l;
-            });
-            give(state, cancelled.itemId, cancelled.qty);
-            ctx.events.add("Took back " + cancelled.qty + " " + itemName(cancelled.itemId) + ".");
+            String id = listingId == null ? "" : listingId;
+            ChroniclesRealm.Listing peek = requireRealm().findListing(id)
+                    .orElseThrow(() -> new IllegalArgumentException("That listing is gone."));
+            if (!peek.sellerId.equals(state.userId)) throw new IllegalArgumentException("That is not your listing.");
+            if (!"open".equals(peek.status)) throw new IllegalArgumentException("That listing has already sold.");
+            give(state, peek.itemId, peek.qty);
+            ctx.events.add("Took back " + peek.qty + " " + itemName(peek.itemId) + ".");
+            ctx.realmWork = batch -> {
+                ChroniclesRealm.Listing listing = batch.readListing(id);
+                if (listing == null) throw new IllegalArgumentException("That listing is gone.");
+                if (!listing.sellerId.equals(state.userId)) throw new IllegalArgumentException("That is not your listing.");
+                if (!"open".equals(listing.status)) throw new IllegalArgumentException("That listing has already sold.");
+                listing.status = "cancelled";
+                batch.writeListing(listing);
+            };
         });
     }
 
@@ -1154,12 +1250,15 @@ public class ChroniclesService {
             ChroniclesState state = store.findByUserId(user.getId())
                     .orElseThrow(() -> new IllegalArgumentException("Begin your chronicle first."));
             Map<String, Object> out = new LinkedHashMap<>();
-            ChroniclesRealmStore realm = requireRealm();
+            requireRealm();
             List<String> events = new ArrayList<>();
-            if (claimProceeds(state, events)) {
-                state.version++;
+            List<ChroniclesRealm.Listing> due = unclaimedSales(state);
+            if (!due.isEmpty()) {
+                long base = state.version;
+                long crownsBefore = state.crowns;
+                state.version = base + 1;
                 state.updatedAt = now();
-                store.save(state);
+                store.commit(state, base, batch -> creditSales(state, crownsBefore, events, batch, due));
             }
             out.put("events", events);
             out.put("crowns", state.crowns);
@@ -1204,28 +1303,41 @@ public class ChroniclesService {
                 || id.equals(state.helmetId) || id.equals(state.bootsId) || id.equals(state.accessoryId);
     }
 
-    /** Collects crowns from the seller's sold listings, once each. Returns true when any were paid. */
-    boolean claimProceeds(ChroniclesState state, List<String> events) {
-        if (realm == null) return false;
-        boolean paid = false;
+    /** Sold listings this knight has not been paid for. A marketplace outage pays nothing and does not fail the save. */
+    private List<ChroniclesRealm.Listing> unclaimedSales(ChroniclesState state) {
+        if (realm == null) return List.of();
         try {
-            for (ChroniclesRealm.Listing l : realm.listingsBySeller(state.userId)) {
-                if (!"sold".equals(l.status) || l.claimed) continue;
-                long payout = realm.mutateListing(l.id, fresh -> {
-                    if (!"sold".equals(fresh.status) || fresh.claimed) return 0L;
-                    fresh.claimed = true;
-                    return Math.round(fresh.price * (1 - ChroniclesContent.MARKET_FEE));
-                });
-                if (payout > 0) {
-                    state.crowns += payout;
-                    events.add("Sold " + l.qty + " " + itemName(l.itemId) + " for " + payout + " crowns (after the 5% fee).");
-                    paid = true;
-                }
-            }
+            return realm.listingsBySeller(state.userId).stream()
+                    .filter(listing -> "sold".equals(listing.status) && !listing.claimed).toList();
         } catch (RuntimeException ex) {
-            // The marketplace being unreachable must never block the knight's own save.
+            return List.of();
         }
-        return paid;
+    }
+
+    /**
+     * Marks each still-unclaimed sale and assigns the crowns from {@code crownsBefore}.
+     * Assignment (not {@code +=}) keeps a Firestore retry of this callback from paying twice.
+     * Reads finish before any listing is staged for write.
+     */
+    private void creditSales(ChroniclesState state, long crownsBefore, List<String> events,
+                             ChroniclesRealmStore.RealmBatch batch, List<ChroniclesRealm.Listing> due) {
+        events.clear();
+        List<ChroniclesRealm.Listing> fresh = new ArrayList<>();
+        for (ChroniclesRealm.Listing preview : due) fresh.add(batch.readListing(preview.id));
+        long add = 0;
+        for (ChroniclesRealm.Listing listing : fresh) {
+            if (listing == null || !"sold".equals(listing.status) || listing.claimed) continue;
+            if (!state.userId.equals(listing.sellerId)) continue;
+            long payout = Math.round(listing.price * (1 - ChroniclesContent.MARKET_FEE));
+            listing.claimed = true;
+            batch.writeListing(listing);
+            if (payout > 0) {
+                add += payout;
+                events.add("Sold " + listing.qty + " " + itemName(listing.itemId) + " for " + payout
+                        + " crowns (after the 5% fee).");
+            }
+        }
+        state.crowns = crownsBefore + add;
     }
 
     // ── Mutation plumbing ────────────────────────────────────────────────────
@@ -1234,6 +1346,9 @@ public class ChroniclesService {
         ChroniclesState state;
         long now;
         final List<String> events = new ArrayList<>();
+        /** Filled by the realm callback; a transaction retry clears it before appending again. */
+        final List<String> sideEvents = new ArrayList<>();
+        Consumer<ChroniclesRealmStore.RealmBatch> realmWork;
     }
 
     private Map<String, Object> mutate(AccountUser user, String requestId, long expectedVersion, Consumer<Ctx> op) {
@@ -1248,12 +1363,18 @@ public class ChroniclesService {
             if (expectedVersion >= 0 && expectedVersion != ctx.state.version) {
                 throw new StaleStateException("Your chronicle changed on another device. Refreshing.");
             }
+            long base = ctx.state.version;
             settle(ctx.state, ctx.now, ctx.events);
             op.accept(ctx);
             remember(ctx.state, requestId);
-            ctx.state.version++;
+            ctx.state.version = base + 1;
             ctx.state.updatedAt = ctx.now;
-            store.save(ctx.state);
+            // Re-reads the document inside the transaction. The version checked above
+            // is the one this instance loaded; another instance may have committed
+            // since, and that commit must not be overwritten. Realm escrow commits
+            // with it, or not at all.
+            store.commit(ctx.state, base, ctx.realmWork);
+            ctx.events.addAll(ctx.sideEvents);
             return snapshot(ctx.state, ctx.now, ctx.events, null);
         }
     }
