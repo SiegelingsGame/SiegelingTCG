@@ -747,7 +747,6 @@ body.concept-board {
 .sg-pill img { width:14px; height:14px; }
 .sg-pill.on { color:var(--ink); border-color:var(--el,#c8a54f); background:color-mix(in srgb, var(--el,#c8a54f) 18%, transparent); }
 
-
 /* Binder filter chrome collapses into a FAB while scrolling; the FAB opens a
    liquid-glass sheet so search/filters stay reachable without eating the grid. */
 .sg-filter-chrome {
@@ -1480,10 +1479,7 @@ body.single-screen .sg-app { position:fixed; inset:0; }
   box-shadow:0 10px 28px rgba(242,160,61,.4);
 }
 .sg-cta img { width:18px; height:18px; }
-.sg-pack {
-  flex:0 0 132px; scroll-snap-align:start; display:flex; flex-direction:column; align-items:center; gap:6px;
-  background:none; border:none; padding:0; color:inherit; font:inherit; cursor:pointer;
-}
+
 /* The face fills its column rather than sitting at a fixed 132px: in the grid the
    tiles were narrower than their cell, so the art floated with gaps either side. */
 /* The card-back art is 520x760 (13:19), not 3:4. Forcing a 3:4 box and painting
@@ -1516,22 +1512,11 @@ body.single-screen .sg-app { position:fixed; inset:0; }
 }
 :root.sg-standalone { --sg-sat: calc(env(safe-area-inset-top, 0px) + 40px); }
 :root { --card-back-ratio: 520 / 760; }
-.sg-pack-face {
-  width:132px; height:auto; aspect-ratio:var(--card-back-ratio);
-  border-radius:16px; overflow:hidden; position:relative;
-  box-shadow:0 16px 30px rgba(0,0,0,.55), inset 0 0 0 1px rgba(200,165,79,.22);
-}
-.sg-pack-face::after {
-  content:''; position:absolute; inset:0;
-  background:radial-gradient(70% 50% at 50% 30%, var(--el,#f05b2f), transparent 72%);
-  opacity:.34; mix-blend-mode:screen;
-}
+
 /* `contain` rather than `cover`: the box already matches the art, and a pack
    given a custom back of some other proportion should letterbox, never lose its
    frame. */
-.sg-pack-face img { width:100%; height:100%; object-fit:contain; display:block; }
-.sg-pack strong { font-size:11.5px; font-weight:600; text-align:center; }
-.sg-pack span { font-size:10px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; }
+
 .sg-buy {
   margin-top:2px; height:30px; padding:0 14px; border-radius:999px; cursor:pointer;
   display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--gold-bright);
@@ -2494,7 +2479,6 @@ body.concept-board {
 .sg-help-body strong { display:block; font-family:var(--serif); font-size:15px; font-weight:600; line-height:1.2; }
 .sg-help-body span { display:block; margin-top:3px; font-size:10.5px; color:var(--muted); line-height:1.35; }
 
-
 /* Chapter popup.
    The grid tiles are buttons now, so they need the button reset the `<a>` did
    not; the popup itself is a scrim + one scrolling panel, capped at 88dvh so
@@ -2665,7 +2649,6 @@ body.concept-board {
   font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#2b0d02;
   background:linear-gradient(135deg,#ffe066,var(--amber)); box-shadow:0 8px 22px rgba(255,120,45,.42); }
 
-
 /* ---------- honest empty states ----------
    Several sections used to be backed by invented sample data (badges, friends,
    a match record, four daily objectives). They render nothing now when the
@@ -2685,21 +2668,12 @@ body.concept-board {
 
 /* The shop's pack rail became a grid once it was showing the real catalog
    (17 packs) rather than four invented ones. */
-.sg-pack-grid {
-  display:grid; grid-template-columns:repeat(auto-fill, minmax(104px, 1fr));
-  gap:12px; padding:0 18px 4px;
-}
-.sg-pack-grid .sg-pack {
-  width:auto; flex:none; height:100%;
-  display:flex; flex-direction:column; align-items:stretch; gap:5px;
-}
+
 /* Full-bleed within the cell, keeping the card back's own proportion. */
-.sg-pack-grid .sg-pack-face { width:100%; height:auto; aspect-ratio:var(--card-back-ratio); }
+
 /* A wrapping pack name must not push its price out of line with the row, so the
    buy button is pinned to the bottom of every tile. */
-.sg-pack-grid .sg-pack .sg-buy { margin-top:auto; align-self:center; }
-.sg-pack-grid .sg-pack .sg-pack-note { text-align:center; }
-.sg-pack-grid .sg-pack strong { text-align:center; line-height:1.25; }
+
 /* The featured pack's description sits over the brightest part of the plate, so
    the veil needs a second stop rather than a single top-down fade. */
 .sg-feature-veil {
@@ -2707,7 +2681,6 @@ body.concept-board {
     linear-gradient(180deg, rgba(13,10,38,.52) 0%, rgba(13,10,38,.10) 22%,
                     rgba(13,10,38,.62) 58%, rgba(13,10,38,.88) 100%);
 }
-
 
 /* ---------- sign in ----------
    Sign In used to leave the redesign: /login forwarded to the old hub, so the
@@ -2986,7 +2959,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   background:var(--notch-icon) center / 100% 100% no-repeat, var(--notch, #95a5a6);
   box-shadow:0 1px 4px rgba(0,0,0,.6);
 }
-
 
 /* ---------- the art gallery ----------
    The art is the interface here: plates run edge to edge in a two-column mosaic
@@ -3504,7 +3476,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-pick-grid { gap:7px; }
 }
 
-
 /* ---------- social: six tabs, three sub-tabs, and DMs ----------
    Social became a tab of its own, which makes six in the bar. At 320px that is
    53px per tab, so the label has to give: it steps down a point and loses some
@@ -3535,7 +3506,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-social-pad { padding-top:4px; }
 .sg-social-title { padding:6px 18px 2px; }
 .sg-social-title h2 { margin:0; font-family:var(--serif); font-size:26px; color:var(--ink); }
-
 
 /* ---- Social floating button ----
    Above the tab bar, bottom right, clear of the home indicator. Tapping it fans
@@ -3899,13 +3869,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-feature-body p { font-size:14px; max-width:52ch; line-height:1.6; }
   .sg-cta { font-size:15px; padding:15px 32px; }
   .sg-cta img { width:22px; height:22px; }
-  .sg-pack-grid {
-    grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
-    gap:26px 22px; padding:6px 18px 8px;
-  }
-  .sg-pack-grid .sg-pack { gap:9px; }
-  .sg-pack strong { font-size:14.5px; }
-  .sg-pack span, .sg-pack-grid .sg-pack .sg-pack-note { font-size:11px; }
+
+  
+
+  
   .sg-buy { font-size:13px; padding:9px 18px; }
   .sg-buy img { width:17px; height:17px; }
   .sg-bundle { padding:16px 20px; }
@@ -4006,10 +3973,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* A phone gets its feedback from :active; a pointer needs hover, and without it
    every plate on the desktop page is inert. */
 @media (min-width:1024px) and (hover:hover) {
-  .sg-feat, .sg-plate, .sg-mode, .sg-pack, .sg-deckrow, .sg-exp, .sg-art, .sg-gal-card {
+  .sg-feat, .sg-plate, .sg-mode, .sg-deckrow, .sg-exp, .sg-art, .sg-gal-card {
     transition:transform .26s cubic-bezier(.2,.8,.25,1), box-shadow .26s ease;
   }
-  .sg-feat:hover, .sg-plate:hover, .sg-pack:hover, .sg-art:hover, .sg-gal-card:hover {
+  .sg-feat:hover, .sg-plate:hover, .sg-art:hover, .sg-gal-card:hover {
     transform:translateY(-6px);
   }
   .sg-mode:hover, .sg-deckrow:hover, .sg-exp:hover { transform:translateY(-4px); }
@@ -4021,13 +3988,13 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 @media (min-width:1600px) {
   .sg-app { --sg-measure:1480px; }
   .sg-swipe { grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); }
-  .sg-pack-grid { grid-template-columns:repeat(auto-fill, minmax(215px, 1fr)); }
+
 }
 
 @media (min-width:1024px) and (prefers-reduced-motion:reduce) {
-  .sg-feat, .sg-plate, .sg-mode, .sg-pack, .sg-deckrow, .sg-exp, .sg-art,
+  .sg-feat, .sg-plate, .sg-mode, .sg-deckrow, .sg-exp, .sg-art,
   .sg-gal-card, .sg-mode-bg { transition:none; }
-  .sg-feat:hover, .sg-plate:hover, .sg-pack:hover, .sg-art:hover,
+  .sg-feat:hover, .sg-plate:hover, .sg-art:hover,
   .sg-gal-card:hover, .sg-mode:hover, .sg-deckrow:hover, .sg-exp:hover { transform:none; }
   .sg-mode:hover .sg-mode-bg { transform:none; }
 }
@@ -4110,49 +4077,17 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   color:#d8d2f4;
 }
 
-/* ---------- shop: daily offerings + titles ---------- */
+/* ---------- shop: purchase notices and two-tap buy buttons ---------- */
 .sg-shop-notice {
   margin:10px 18px 4px; padding:10px 14px; border-radius:14px; font-size:12px;
   background:rgba(100,201,135,.14); border:1px solid rgba(100,201,135,.36); color:#d9f5e3;
 }
 .sg-shop-notice.is-error { background:rgba(240,91,47,.14); border-color:rgba(240,91,47,.4); color:#ffd9cc; }
-.sg-offer-rail {
-  display:flex; gap:12px; padding:0 18px 6px; overflow-x:auto; overflow-y:hidden;
-  scroll-snap-type:x proximity; scroll-padding-inline:18px; scrollbar-width:none; touch-action:pan-x pan-y;
-}
-.sg-offer-rail::-webkit-scrollbar { display:none; }
-.sg-offer {
-  flex:0 0 118px; min-width:0; scroll-snap-align:start;
-  display:flex; flex-direction:column; align-items:stretch; gap:6px;
-}
-.sg-offer .sg-card-tile {
-  height:172px; display:flex; align-items:flex-end; justify-content:center;
-}
-.sg-offer-meta { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:2px; min-height:38px; text-align:center; min-width:0; }
-.sg-offer-meta b { font-size:11.5px; font-weight:600; line-height:1.25; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.sg-offer-meta i { font-style:normal; font-size:9.5px; line-height:1.25; letter-spacing:.08em; text-transform:uppercase; color:var(--el,var(--muted)); }
-.sg-offer .sg-buy, .sg-shop-title .sg-buy { align-self:center; white-space:nowrap; }
+
 .sg-buy:disabled { cursor:default; opacity:.6; color:var(--muted); }
 .sg-buy.is-armed {
   color:#22160a; border-color:transparent;
   background:linear-gradient(180deg,#ffd58a,var(--amber,#f2a03d));
-}
-.sg-shop-titles { display:flex; flex-direction:column; gap:9px; padding:0 18px 6px; }
-.sg-shop-title {
-  display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:16px;
-  background:rgba(11,17,32,.55); border:1px solid rgba(200,165,79,.22);
-}
-.sg-shop-title-ico {
-  flex:0 0 36px; height:36px; border-radius:12px; display:grid; place-items:center;
-  font-size:17px; color:var(--gold-bright,#f0cd8a); background:rgba(200,165,79,.14);
-}
-.sg-shop-title-copy { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:3px; }
-.sg-shop-title-copy b { font-size:13px; font-weight:600; }
-.sg-shop-title-copy i { font-style:normal; font-size:11px; color:var(--muted); line-height:1.4; }
-@media (min-width:1024px) {
-  .sg-offer { flex-basis:168px; }
-  .sg-offer .sg-card-tile { height:244px; }
-  .sg-shop-titles { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; }
 }
 
 /* ==========================================================================
@@ -4482,17 +4417,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-mode-body h3, .sg-mode.is-primary .sg-mode-body h3 { font-size:24px; }
   .sg-mode-body p { font-size:11px; line-height:1.35; }
   .sg-mode-go, .sg-mode.is-primary .sg-mode-go { left:14px; right:auto; bottom:14px; }
-
-  /* --- shop: the daily offers share the row instead of scrolling a strip ---
-     Each offer takes an equal column and its card grows to the column width,
-     whatever the day's offer count. */
-  .sg-offer-rail {
-    display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0, 1fr);
-    gap:14px; overflow:visible; scroll-snap-type:none;
-  }
-  .sg-offer .sg-card-tile { height:auto; aspect-ratio:var(--card-aspect-ratio, 2.5 / 3.5); }
-  .sg-offer-meta b { font-size:13px; }
-  .sg-offer-meta i { font-size:10px; }
 
   /* --- profile: showcase and signature side by side ---
      The wrapper is display:contents on a phone; here it becomes the grid the
@@ -5405,31 +5329,28 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   /* Small landscape phones fall below the desktop binder's 700px breakpoint,
      where two 1fr columns made each card ~300px wide. Pack card-width columns. */
   .sg-gal-grid { grid-template-columns:repeat(auto-fill, minmax(128px, 156px)); justify-content:center; gap:22px 16px; }
-  /* Every offer card is one size, and small enough that the card, its name
-     and its price fit between the top bar and the tab bar. */
-  .sg-offer { --offer-card-w:clamp(104px, calc((var(--sg-vh, 100dvh) - 230px) * 5 / 7), 170px); align-items:center; }
-  .sg-offer .sg-card-tile { width:var(--offer-card-w); height:auto; aspect-ratio:auto; }
-  .sg-offer-meta { max-width:100%; }
 }
 
 /* ==========================================================================
    SHOP: GACHA STOREFRONT
-   A full-bleed art stage per tab: framed portrait tabs down the left edge, a
+   One screen, no scroll: the tab's art fills the whole viewport behind the
+   top bar and the tab bar. On it: framed portrait tabs down the left edge, a
    plaque (kicker, name, ribbon, pitch), a selector row, round utility buttons
    and the blue ×1 / gold ×10 pair along the bottom, and a pennant of what the
-   offer holds on the right once there is room for it. --gstage-h is shared by
-   every tab so switching never moves the tabs or the buttons.
+   offer holds on the right once there is room for it.
    ========================================================================== */
+.sg-app[data-screen="shop"] .sg-scroll { overflow:hidden; display:flex; flex-direction:column; }
 .sg-shop {
-  position:relative;
-  --gstage-h:clamp(560px, calc(var(--sg-vh, 100dvh) - 190px), 690px);
+  position:relative; flex:1 1 auto; min-height:0;
   --gtabs-w:118px;
+  /* Clears the floating tab bar (its controls stand ~46px tall on a phone). */
+  --gnav:calc(58px + max(0px, calc(var(--sg-sab, 0px) * .4)));
   --gtop:calc(58px + max(6px, var(--sg-sat)));
   --navy-plate:linear-gradient(180deg, rgba(30,34,78,.94), rgba(13,14,40,.94));
   --gold-line:#d9b45f;
 }
 .sg-scroll > .sg-shop:first-child { margin-top:0; }
-.sg-gstage { position:relative; height:var(--gstage-h); overflow:hidden; isolation:isolate; }
+.sg-gstage { position:absolute; inset:0; overflow:hidden; isolation:isolate; }
 .sg-gstage-bg {
   position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:-2;
   /* Banner characters stand right of centre; a portrait crop keeps them. */
@@ -5484,7 +5405,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 
 /* --- body: plaque, selector, footer --- */
 .sg-gstage-body {
-  position:absolute; z-index:2; left:12px; right:12px; bottom:14px;
+  position:absolute; z-index:2; left:12px; right:12px; bottom:var(--gnav);
   display:flex; flex-direction:column; align-items:stretch; gap:9px;
 }
 .sg-gplaque { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
@@ -5528,6 +5449,31 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 .sg-gpk img { width:100%; height:100%; object-fit:contain; display:block; }
 .sg-gpk.on { opacity:1; transform:translateY(-3px) scale(1.08); border-color:#ffe39a; box-shadow:0 0 14px color-mix(in srgb, var(--el) 70%, transparent); }
+
+.sg-goffer {
+  position:relative; flex:0 0 auto; width:44px; height:44px; padding:0; border-radius:99px; cursor:pointer; overflow:hidden;
+  background:radial-gradient(circle, color-mix(in srgb, var(--el) 50%, #fff 8%), #10123a 75%);
+  border:2px solid var(--rar); opacity:.78; transition:transform .15s ease, opacity .15s ease, box-shadow .15s ease;
+}
+.sg-goffer img { width:100%; height:100%; object-fit:cover; object-position:50% 28%; display:block; }
+.sg-goffer.on { opacity:1; transform:scale(1.14); box-shadow:0 0 14px color-mix(in srgb, var(--rar) 75%, transparent); }
+.sg-goffer.is-owned::after {
+  content:'\2713'; position:absolute; inset:0; display:grid; place-items:center;
+  font-size:18px; font-weight:800; color:#fff; background:rgba(8,7,28,.55);
+}
+.sg-gtitle {
+  flex:0 0 auto; height:34px; padding:0 14px; border-radius:99px; cursor:pointer; white-space:nowrap;
+  font-family:var(--serif); font-size:12.5px; font-weight:700; color:#f4ecd6;
+  background:rgba(13,14,40,.78); border:1px solid rgba(217,180,95,.45);
+}
+.sg-gtitle i { font-style:normal; color:#8fe0a8; }
+.sg-gtitle.on { color:#2a1606; border-color:#fff3c9; background:linear-gradient(180deg,#ffe49a,#f0a83c); }
+.sg-gtitle.on i { color:#1f6b3a; }
+.sg-shop .sg-shop-notice {
+  position:absolute; z-index:6; margin:0; top:var(--gtop);
+  left:calc(var(--gtabs-w) + 22px); right:12px;
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+}
 
 .sg-gfoot { display:flex; align-items:flex-end; gap:8px; }
 .sg-gutil { display:flex; gap:6px; flex:0 0 auto; }
@@ -5594,9 +5540,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   font-style:normal; font-family:var(--serif); font-size:13px; letter-spacing:.06em;
   background:linear-gradient(90deg,#ffe7a8,#f2a03d); -webkit-background-clip:text; background-clip:text; color:transparent;
 }
-.sg-shop-title[data-title-preview] { cursor:pointer; }
-.sg-shop-title.on { border-color:var(--gold-bright); box-shadow:0 0 0 1px rgba(230,205,140,.35); }
-.sg-pack-grid .sg-pack.on { border-color:#ffe39a; box-shadow:0 0 0 1px #ffe39a, 0 0 18px rgba(255,200,90,.35); }
 
 /* --- pennant: what the offer holds (shown once there is room) --- */
 .sg-gpennant {
@@ -5635,12 +5578,24 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-godds-card dd { margin:0; font-weight:700; color:#ffe39a; }
 .sg-godds-card .sg-guest-primary { width:100%; }
 
+/* Short portrait phones (iPhone SE class): the tabs and the copy share the
+   height, so both tighten and the pitch line steps aside. */
+@media (orientation:portrait) and (max-height:740px) {
+  .sg-gtabs { gap:5px; }
+  .sg-gtab { height:46px; }
+  .sg-gplaque h2 { font-size:26px; }
+  .sg-gplaque p { display:none; }
+  .sg-gstage-card { width:min(34vw, 150px); }
+  .sg-gbtn { height:52px; }
+}
+
 /* Tablets and wide phones: wider tabs, the copy column starts past them. */
 @media (min-width:640px) {
   .sg-shop { --gtabs-w:176px; }
   .sg-gtab { height:68px; }
   .sg-gtab-label { font-size:14px; }
   .sg-gstage-body { left:calc(var(--gtabs-w) + 28px); right:20px; }
+  .sg-shop .sg-shop-notice { left:calc(var(--gtabs-w) + 28px); right:20px; }
   .sg-gplaque h2 { font-size:40px; }
 }
 @media (min-width:900px) {
@@ -5650,11 +5605,11 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* Short landscape phones: the stage is the viewport, so everything tightens
    and the pitch line gives way to the buttons. */
 @media (orientation:landscape) and (max-height:520px) {
-  .sg-shop { --gstage-h:calc(var(--sg-vh, 100dvh) - 66px); --gtabs-w:150px; --gtop:calc(48px + max(4px, var(--sg-sat))); }
+  .sg-shop { --gtabs-w:150px; --gtop:calc(48px + max(4px, var(--sg-sat))); }
   .sg-gtabs { gap:5px; }
   .sg-gtab { height:46px; }
   .sg-gtab-label { font-size:11.5px; }
-  .sg-gstage-body { left:calc(var(--gtabs-w) + 22px); top:var(--gtop); bottom:10px; gap:6px; }
+  .sg-gstage-body { left:calc(var(--gtabs-w) + 22px); top:var(--gtop); gap:6px; }
   .sg-gfoot { margin-top:auto; }
   .sg-gplaque h2 { font-size:26px; }
   .sg-gplaque p, .sg-gpennant { display:none; }
@@ -5663,16 +5618,17 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gstage-card { width:140px; right:16px; }
 }
 @media (min-width:1024px) {
-  .sg-shop { --gstage-h:min(80vh, 840px); --gtabs-w:clamp(240px, 17vw, 300px); --gtop:calc(76px + var(--sg-sat)); }
-  .sg-gstage { margin-inline:calc(-1 * var(--sg-gutter)); }
-  .sg-gtabs { left:0; gap:12px; }
+  /* The art runs edge to edge; the tabs and copy keep the page gutter. */
+  .sg-app[data-screen="shop"] .sg-scroll { padding-inline:0; }
+  .sg-shop { --gtabs-w:clamp(240px, 17vw, 300px); --gtop:calc(76px + var(--sg-sat)); --gnav:88px; }
+  .sg-gtabs { left:var(--sg-gutter); gap:12px; }
   .sg-gtab { height:clamp(84px, 6.4vw, 104px); border-radius:16px 8px 8px 16px; padding-right:26px; }
   .sg-gtab-art { border-radius:15px 0 0 15px; }
   .sg-gtab-label { font-size:19px; }
   .sg-gtab-gem { width:12px; height:18px; margin-top:-9px; right:10px; }
   .sg-gtab.on { transform:translateX(12px); }
   /* The stage bleeds past the page gutter but the tabs sit inside it. */
-  .sg-gstage-body { top:var(--gtop); bottom:36px; left:calc(var(--sg-gutter) + var(--gtabs-w) + 56px); right:calc(var(--sg-gutter) + 170px); }
+  .sg-gstage-body { top:var(--gtop); left:calc(var(--sg-gutter) + var(--gtabs-w) + 56px); right:calc(var(--sg-gutter) + 170px); }
   .sg-gfoot { margin-top:auto; }
   .sg-gplaque-kicker { font-size:13px; }
   .sg-gplaque-kicker img { width:26px; height:26px; }
@@ -5691,7 +5647,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gpennant { right:var(--sg-gutter); width:150px; padding:18px 10px 40px; }
   .sg-gpennant b { font-size:19px; }
   .sg-gpennant-face img { width:84px; height:84px; }
-  .sg-gstage-card { right:calc(var(--sg-gutter) + 200px); top:auto; bottom:150px; width:clamp(220px, 15vw, 290px); }
+  .sg-gstage-card { right:calc(var(--sg-gutter) + 200px); top:auto; bottom:calc(var(--gnav) + 120px); width:clamp(220px, 15vw, 290px); }
+  .sg-goffer { width:62px; height:62px; }
+  .sg-gtitle { height:42px; font-size:15px; padding:0 20px; }
+  .sg-shop .sg-shop-notice { left:calc(var(--sg-gutter) + var(--gtabs-w) + 56px); right:auto; }
   .sg-gplate { min-width:340px; }
   .sg-gplate b { font-size:20px; }
   .sg-gplate i { font-size:16px; }
