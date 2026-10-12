@@ -78,6 +78,19 @@ class PackCatalogServiceTest {
     }
 
     @Test
+    void everyPackAdvertisesTheBulkPriceTheServerCharges() throws Exception {
+        PackCatalogService service = createService(new FireKnightCardDefinitions());
+
+        for (Map<String, Object> pack : service.serializePacks()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> bulk = (Map<String, Object>) pack.get("bulk");
+            assertEquals(PlayerProgressionService.MAX_BULK_PACK_COUNT, bulk.get("count"));
+            assertEquals(PlayerProgressionService.bulkPackCost((Integer) pack.get("price"),
+                    PlayerProgressionService.MAX_BULK_PACK_COUNT), bulk.get("price"));
+        }
+    }
+
+    @Test
     void retiredPacksAreGoneFromTheCatalogEntirely() throws Exception {
         PackCatalogService service = createService(new FireKnightCardDefinitions());
 

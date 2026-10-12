@@ -3143,125 +3143,13 @@
     '</button>';
   }
 
-  // The featured band cycles every pack rather than parking on one starter, so
-  // the whole catalog gets its turn up top. Starters lead (a new player's first
-  // choice), then the catalog order; cheapest first within each group.
+  // Starters lead (a new player's first choice), then the catalog order;
+  // cheapest first within each group.
   function featuredPacks(packs) {
     function price(pk) { return pk.price == null ? 1e9 : pk.price; }
     return packs.slice().sort(function (x, y) {
       return (y.starterEligible ? 1 : 0) - (x.starterEligible ? 1 : 0) || price(x) - price(y);
     });
-  }
-
-  // Each slide's backdrop is the pack's own element: a cinematic gallery plate
-  // where that element has one, otherwise its production Land plate. The band
-  // used to be Skydon for every pack, so a Fire pack sat on a Wind sky.
-  var ELEMENT_SCENE = {
-    FIRE: 'bearby-longfuse', ICE: 'frostag-training',
-    WIND: 'skydon-skyreach', EARTH: 'cactyjackedty-ruins'
-  };
-  function packBackdrop(pk) {
-    var el = String(packElement(pk)).toUpperCase();
-    return ELEMENT_SCENE[el] ? plate(scene(ELEMENT_SCENE[el])) : land(el);
-  }
-
-  function featureSlide(pk, i) {
-    var el = packElement(pk);
-    return '<article class="sg-feature-slide" data-feature-slide="' + i + '" style="--el:' + color(el) + '"' +
-        ' role="group" aria-roledescription="slide" aria-label="' + esc(pk.name || pk.id) + '">' +
-      '<img class="sg-feature-bg" src="' + esc(packBackdrop(pk)) + '" alt=""' + (i ? ' loading="lazy"' : '') + '>' +
-      '<div class="sg-feature-veil"></div>' +
-      '<span class="sg-feature-pack"><img src="' + esc(packBack(pk)) + '" alt=""' + (i ? ' loading="lazy"' : '') + '></span>' +
-      '<div class="sg-feature-body">' +
-        '<span class="sg-tag">' + esc(title(el)) + ' &middot; ' + (pk.starterEligible ? 'Starter' : 'Pack') + '</span>' +
-        '<h2>' + esc(pk.name || pk.id) + '</h2>' +
-        '<p>' + esc(pk.description || '') + '</p>' +
-        '<button class="sg-cta" type="button" data-pack="' + esc(pk.id) + '">' +
-          '<img src="/img/ui/home-stats/siegecoin.png" alt="">' +
-          esc(pk.price != null ? pk.price : '—') + '</button>' +
-      '</div>' +
-    '</article>';
-  }
-
-  function featureCarousel(packs) {
-    var list = featuredPacks(packs);
-    var many = list.length > 1;
-    return '<section class="sg-feature sg-feature-carousel" data-feature aria-roledescription="carousel" aria-label="Featured packs">' +
-      '<div class="sg-feature-track" data-feature-track>' + list.map(featureSlide).join('') + '</div>' +
-      (many
-        ? '<button class="sg-feature-nav prev" type="button" data-feature-step="-1" aria-label="Previous pack">&#8249;</button>' +
-          '<button class="sg-feature-nav next" type="button" data-feature-step="1" aria-label="Next pack">&#8250;</button>' +
-          '<div class="sg-feature-dots" data-feature-dots>' + list.map(function (pk, i) {
-            return '<button type="button" class="sg-feature-dot' + (i ? '' : ' on') + '" data-feature-go="' + i + '" ' +
-              'style="--el:' + color(packElement(pk)) + '" aria-label="Show ' + esc(pk.name || pk.id) + '"></button>';
-          }).join('') + '</div>'
-        : '') +
-    '</section>';
-  }
-
-  // Swipe is native scroll-snap, so it pans like any iOS rail; the arrows,
-  // dots and the slow auto-advance just scroll that same track. Auto-advance
-  // stops for good once the player touches it - a band that keeps moving under
-  // a thumb reads as fighting them.
-  function mountFeatureCarousel(app, opts) {
-    var root = app.querySelector('[data-feature]');
-    var track = root && root.querySelector('[data-feature-track]');
-    if (!track) return;
-    var slides = track.querySelectorAll('[data-feature-slide]');
-    var dots = root.querySelectorAll('[data-feature-go]');
-    if (slides.length < 2) return;
-    var current = 0, timer = null, stopped = Boolean(opts && opts.freeze);
-
-    function go(i, instant) {
-      current = (i + slides.length) % slides.length;
-      if (opts) opts.featureIndex = current;
-      track.scrollTo({ left: current * track.clientWidth, behavior: instant || reducedMotion() ? 'auto' : 'smooth' });
-      sync();
-    }
-    function sync() {
-      dots.forEach(function (d, k) {
-        d.classList.toggle('on', k === current);
-        d.setAttribute('aria-current', k === current ? 'true' : 'false');
-      });
-    }
-    function stop() {
-      stopped = true;
-      if (timer) { clearInterval(timer); timer = null; }
-    }
-
-    root.addEventListener('click', function (e) {
-      var step = e.target.closest && e.target.closest('[data-feature-step]');
-      var dot = e.target.closest && e.target.closest('[data-feature-go]');
-      if (step) { stop(); go(current + Number(step.getAttribute('data-feature-step'))); }
-      else if (dot) { stop(); go(Number(dot.getAttribute('data-feature-go'))); }
-    });
-    ['pointerdown', 'touchstart', 'wheel'].forEach(function (type) {
-      track.addEventListener(type, stop, { passive: true });
-    });
-    var settle = null;
-    track.addEventListener('scroll', function () {
-      clearTimeout(settle);
-      settle = setTimeout(function () {
-        var w = track.clientWidth || 1;
-        var i = Math.round(track.scrollLeft / w);
-        if (i !== current) { current = i; if (opts) opts.featureIndex = i; sync(); }
-      }, 60);
-    }, { passive: true });
-    root.addEventListener('keydown', function (e) {
-      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-      stop();
-      go(current + (e.key === 'ArrowRight' ? 1 : -1));
-    });
-    // A purchase re-renders the screen; keep the pack the player was looking at.
-    if (opts && opts.featureIndex) go(opts.featureIndex, true);
-    if (!stopped && !reducedMotion()) {
-      timer = setInterval(function () {
-        // A slide leaving the page (screen change) must not keep a timer alive.
-        if (!root.isConnected) { stop(); return; }
-        if (document.hidden) return;
-        go(current + 1);
-      }, 6000);
-    }
   }
 
   /* ---------- daily offers ----------
@@ -3339,30 +3227,48 @@
   function mountShop(app, opts) {
     var packs = (opts.live && opts.live.packs) || [];
     mountSheet(app, opts);
-    mountFeatureCarousel(app, opts);
     app.addEventListener('click', function (e) {
       if (!e.target.closest) return;
       var tab = e.target.closest('[data-shop-tab]');
       var el = e.target.closest('[data-shop-element]');
+      var pick = e.target.closest('[data-shop-pack]');
+      var odds = e.target.closest('[data-shop-odds]');
       var preview = !e.target.closest('.sg-buy') && e.target.closest('[data-title-preview]');
       if (tab) {
         opts.shopTab = shopPref('tab', tab.getAttribute('data-shop-tab'));
-        opts.featureIndex = 0;
         refreshShop(opts);
       } else if (el) {
         opts.shopElement = shopPref('element', el.getAttribute('data-shop-element'));
         refreshShop(opts);
+      } else if (pick) {
+        var fromGrid = Boolean(pick.closest('.sg-pack-grid'));
+        opts.shopPack = pick.getAttribute('data-shop-pack');
+        refreshShop(opts);
+        // A pick from the grid below the fold brings the stage back into view.
+        var scroller = fromGrid && document.querySelector('.sg-app .sg-scroll');
+        if (scroller) scroller.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+      } else if (odds) {
+        var pk = packs.filter(function (p) { return p.id === odds.getAttribute('data-shop-odds'); })[0];
+        if (pk) showOdds(app, pk);
       } else if (preview) {
         opts.shopTitlePreview = preview.getAttribute('data-title-preview');
         refreshShop(opts);
       }
     });
+    // ×1 opens on one tap, as packs always have. A ×10 spends ten packs' worth
+    // of coins at once, so it takes a second tap to confirm, like the daily buys.
     app.addEventListener('click', function (e) {
       var btn = e.target.closest ? e.target.closest('[data-pack]') : null;
-      if (!btn) return;
+      if (!btn || btn.disabled) return;
       if (opts.guest) { window.location.href = '/login'; return; }
+      var count = Number(btn.getAttribute('data-count')) || 1;
+      if (count > 1 && !btn.classList.contains('is-armed')) {
+        btn.classList.add('is-armed');
+        btn.querySelector('.sg-gbtn-label').textContent = 'Tap to confirm';
+        return;
+      }
       var pk = packs.filter(function (p) { return p.id === btn.getAttribute('data-pack'); })[0];
-      if (pk) openPack(pk, opts);
+      if (pk) openPack(pk, opts, count);
     });
 
     var pending = false;
@@ -3422,20 +3328,33 @@
   }
 
   /* ---------- gacha storefront ----------
-     The shop is laid out like a summon screen: a full-bleed art stage with the
-     tabs stacked down its left edge (the left column of a 16:9 banner is
-     background, so the tabs cover scenery rather than the character), the offer
-     copy and the buy button along the bottom, and the tab's detail below the
-     fold. Every tab is drawn from the real /api/shop/packs payload; a tab with
-     nothing to sell is left out rather than shown empty. */
+     The shop is laid out like a summon screen: a full-bleed art stage, framed
+     portrait tabs stacked down its left edge (the left of each scene is
+     background, so they cover scenery rather than the characters), a plaque
+     with the offer's name, a pennant of what it holds, and the buy buttons
+     bottom right - blue for one, gold for ten. Every tab is drawn from the real
+     /api/shop/packs payload; a tab with nothing to sell is left out rather than
+     shown empty. */
   var SHOP_BANNER = { FIRE: 1, WATER: 1, ICE: 1, WIND: 1, EARTH: 1 };
   var SUMMON_PREFIX = 'pack_siegeling_';
 
-  // Commissioned banner art where an element has it, its Land plate otherwise.
-  function shopArt(el, thumb) {
+  // Painted shop scenes. `face` is where a tab's portrait crop finds the
+  // character in the 16:9 plate.
+  var SHOP_SCENE = {
+    vault:  { face: '20% 38%' },
+    market: { face: '14% 30%' },
+    cards:  { face: '18% 30%' },
+    throne: { face: '15% 28%' },
+    armory: { face: '15% 40%' }
+  };
+  function sceneArt(id, thumb) { return '/img/shop/scene-' + id + (thumb ? '-480' : '') + '.webp'; }
+
+  // Commissioned element banners where they exist; the treasure vault behind
+  // every other element's summon.
+  function summonArt(el, thumb) {
     var key = String(el || '').toUpperCase();
     if (SHOP_BANNER[key]) return '/img/shop/banner-' + key.toLowerCase() + (thumb ? '-480' : '') + '.webp';
-    return land(key);
+    return sceneArt('vault', thumb);
   }
 
   function isSummonPack(pk) {
@@ -3463,22 +3382,20 @@
     var live = opts.live || {};
     var all = live.packs || [];
     var summons = all.filter(isSummonPack);
-    var packs = all.filter(function (pk) { return !isSummonPack(pk); });
+    var packs = featuredPacks(all.filter(function (pk) { return !isSummonPack(pk); }));
     var offers = live.dailyOffers || [];
     var titles = live.dailyTitleOffers || [];
     var wanted = String(opts.shopElement || shopPref('element') || '').toUpperCase();
     var summon = summons.filter(function (pk) { return packElement(pk) === wanted; })[0] || summons[0] || null;
+    var pack = packs.filter(function (pk) { return pk.id === opts.shopPack; })[0] || packs[0] || null;
     var tabs = [];
-    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: shopArt(packElement(summon), true), el: packElement(summon) });
-    if (packs.length) {
-      var lead = featuredPacks(packs)[0];
-      tabs.push({ id: 'packs', label: 'Packs', art: packBackdrop(lead), el: packElement(lead) });
-    }
-    if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: shopArt('WATER', true), el: offerCard(offers[0]).element });
-    if (titles.length) tabs.push({ id: 'titles', label: 'Titles', art: shopArt('EARTH', true), el: 'EARTH' });
+    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: SHOP_BANNER[packElement(summon)] ? '72% 22%' : SHOP_SCENE.vault.face, el: packElement(summon) });
+    if (pack) tabs.push({ id: 'packs', label: 'Pack Market', art: sceneArt('market', true), face: SHOP_SCENE.market.face, el: 'EARTH' });
+    if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: sceneArt('cards', true), face: SHOP_SCENE.cards.face, el: 'LIGHT' });
+    if (titles.length) tabs.push({ id: 'titles', label: 'Title Hall', art: sceneArt('throne', true), face: SHOP_SCENE.throne.face, el: 'WATER' });
     var want = opts.shopTab || shopPref('tab');
     var tab = tabs.filter(function (t) { return t.id === want; })[0] || tabs[0] || null;
-    return { live: live, summons: summons, summon: summon, packs: packs, offers: offers, titles: titles, tabs: tabs, tab: tab };
+    return { live: live, summons: summons, summon: summon, packs: packs, pack: pack, offers: offers, titles: titles, tabs: tabs, tab: tab };
   }
 
   function shopTabsMarkup(m) {
@@ -3487,52 +3404,114 @@
       var on = t === m.tab;
       return '<button class="sg-gtab' + (on ? ' on' : '') + '" type="button" role="tab"' +
           ' aria-selected="' + (on ? 'true' : 'false') + '" data-shop-tab="' + esc(t.id) + '" style="--el:' + color(t.el) + '">' +
-        '<img src="' + esc(t.art) + '" alt="" loading="lazy">' +
-        '<span>' + esc(t.label) + '</span>' +
+        '<span class="sg-gtab-art"><img src="' + esc(t.art) + '" alt="" loading="lazy" style="object-position:' + esc(t.face) + ';--face:' + esc(t.face) + '"></span>' +
+        '<span class="sg-gtab-label">' + esc(t.label) + '</span>' +
+        '<i class="sg-gtab-gem" aria-hidden="true"></i>' +
       '</button>';
     }).join('') + '</nav>';
   }
 
-  function stageOpen(el, art, extra) {
-    return '<section class="sg-gstage' + (extra ? ' ' + extra : '') + '" style="--el:' + color(el) + '">' +
-      '<img class="sg-gstage-bg" src="' + esc(art) + '" alt="">' +
-      '<div class="sg-gstage-veil"></div>';
+  // One stage, every tab: the art, the plaque (name on a ribbon, then the
+  // pitch), an optional selector row, the pennant, and a footer with the round
+  // utility buttons on the left and the buy buttons on the right.
+  function stage(o) {
+    return '<section class="sg-gstage is-' + esc(o.kind) + '" style="--el:' + color(o.el) + ';--ribbon:' + esc(o.ribbon || color(o.el)) + '">' +
+      '<img class="sg-gstage-bg" src="' + esc(o.art) + '" alt="">' +
+      '<div class="sg-gstage-veil"></div>' +
+      (o.card ? '<div class="sg-gstage-card">' + o.card + '</div>' : '') +
+      (o.pennant ? '<aside class="sg-gpennant"><b>' + esc(o.pennant.title) + '</b>' + o.pennant.items + '</aside>' : '') +
+      '<div class="sg-gstage-body">' +
+        '<header class="sg-gplaque">' +
+          '<span class="sg-gplaque-kicker"><img src="/img/siegelings-icon-256.webp" alt="">' + esc(o.kicker) + '</span>' +
+          '<h2>' + esc(o.title) + '</h2>' +
+          (o.ribbon !== false && o.sub ? '<span class="sg-gribbon">' + esc(o.sub) + '</span>' : '') +
+          (o.extra || '') +
+          (o.text ? '<p>' + esc(o.text) + '</p>' : '') +
+        '</header>' +
+        (o.select || '') +
+        '<footer class="sg-gfoot">' +
+          '<nav class="sg-gutil">' + (o.utils || []).join('') + '</nav>' +
+          '<div class="sg-gbuy">' + o.buy + '</div>' +
+        '</footer>' +
+      '</div>' +
+    '</section>';
   }
 
-  function coinBtn(attrs, price, label, cls) {
-    return '<button class="sg-gbtn' + (cls ? ' ' + cls : '') + '" type="button" ' + attrs + '>' +
-      '<span class="sg-gbtn-label">' + label + '</span>' +
-      '<span class="sg-gbtn-price"><img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(price != null ? price : '—') + '</span>' +
-    '</button>';
+  function utilBtn(glyph, label, attrs) {
+    return '<' + (attrs.indexOf('href=') === 0 ? 'a ' : 'button type="button" ') + attrs + ' class="sg-gutil-btn">' +
+      '<span aria-hidden="true">' + glyph + '</span><em>' + esc(label) + '</em>' +
+    '</' + (attrs.indexOf('href=') === 0 ? 'a' : 'button') + '>';
   }
 
-  // The element row is the banner's selector: each element with a live summon
-  // gets its notch, and picking one swaps the art, the copy and the pack.
-  function summonPanel(m, opts) {
+  function coinLine(price) {
+    return '<span class="sg-gbtn-price"><img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(price != null ? price : '—') + '</span>';
+  }
+
+  // Blue ×1 and gold ×10, the pair every summon screen ends on. ×10 is the
+  // server's own bulk bundle and price; a pack without one gets only ×1.
+  function packButtons(pk, verb) {
+    var bulk = pk.bulk && pk.bulk.count > 1 ? pk.bulk : null;
+    return '<button class="sg-gbtn is-one" type="button" data-pack="' + esc(pk.id) + '" data-count="1">' +
+        '<span class="sg-gbtn-label">' + esc(verb) + ' &times;1</span>' + coinLine(pk.price) +
+      '</button>' +
+      (bulk
+        ? '<button class="sg-gbtn is-ten" type="button" data-pack="' + esc(pk.id) + '" data-count="' + esc(bulk.count) + '">' +
+            '<span class="sg-gbtn-label">' + esc(verb) + ' &times;' + esc(bulk.count) + '</span>' + coinLine(bulk.price) +
+          '</button>'
+        : '');
+  }
+
+  function oddsUtil(pk) { return utilBtn('%', 'Odds', 'data-shop-odds="' + esc(pk.id) + '"'); }
+  var BINDER_UTIL = utilBtn('&#9707;', 'Binder', 'href="/cards" data-screen="collection"');
+
+  function pennantFacts(pk) {
+    var odds = pk.odds || {};
+    var knight = odds.siegeKnight != null ? Math.round(odds.siegeKnight * 100) + '%' : null;
+    return {
+      title: 'Every pack',
+      items:
+        '<span class="sg-gpennant-fact"><strong>' + esc(odds.cardsPerPack || 5) + '</strong>cards</span>' +
+        (knight ? '<span class="sg-gpennant-fact"><strong>' + esc(knight) + '</strong>SiegeKnight</span>' : '') +
+        '<span class="sg-gpennant-fact"><strong>&#10022;</strong>Holo chance</span>'
+    };
+  }
+
+  function pennantFaces(title, cards) {
+    var withArt = cards.filter(function (c) { return c && c.cardArtUrl; }).slice(0, 4);
+    if (!withArt.length) return null;
+    return {
+      title: title,
+      items: withArt.map(function (c) {
+        return '<span class="sg-gpennant-face" style="--el:' + color(c.element) + ';--rar:' + rarityColor(c.rarity) + '">' +
+          '<img src="' + esc(c.cardArtUrl) + '" alt="" loading="lazy"><em>' + esc(c.name) + '</em></span>';
+      }).join('')
+    };
+  }
+
+  function summonPanel(m) {
     var pk = m.summon;
     var el = packElement(pk);
-    var odds = pk.odds || {};
-    var knight = odds.siegeKnight != null ? Math.round(odds.siegeKnight * 100) : null;
-    var pool = CARDS.filter(function (c) { return String(c.element || '').toUpperCase() === el; });
-    return stageOpen(el, shopArt(el), 'is-summon') +
-        '<div class="sg-gstage-body">' +
-          '<span class="sg-tag">Siegeling Summon</span>' +
-          '<h2>' + esc(title(el)) + ' Siegelings</h2>' +
-          '<p>' + esc(pk.description || '') + (knight ? ' Every summon has a ' + knight + '% chance at a bonus SiegeKnight.' : '') + '</p>' +
-          '<div class="sg-gelements" role="radiogroup" aria-label="Summon element">' + m.summons.map(function (s) {
-            var e = packElement(s);
-            var on = s === pk;
-            return '<button type="button" role="radio" aria-checked="' + (on ? 'true' : 'false') + '"' +
-              ' class="sg-gel' + (on ? ' on' : '') + '" data-shop-element="' + esc(e) + '" style="--el:' + color(e) + '"' +
-              ' aria-label="' + esc(title(e)) + '"><img src="' + esc(icon(e)) + '" alt=""></button>';
-          }).join('') + '</div>' +
-          '<div class="sg-gbuy">' + coinBtn('data-pack="' + esc(pk.id) + '"', pk.price, 'Summon &times;5', 'is-primary') + '</div>' +
-        '</div>' +
-      '</section>' +
+    var pool = CARDS.filter(function (c) { return String(c.element || '').toUpperCase() === el; })
+      .sort(function (a, b) { return rarityRank(b) - rarityRank(a); });
+    return stage({
+        kind: 'summon', el: el, art: summonArt(el),
+        kicker: 'Siegeling Summon', title: title(el) + ' Siegelings', sub: title(el) + ' only',
+        text: pk.description,
+        pennant: pennantFaces('Featured', pool),
+        select: '<div class="sg-gselect" role="radiogroup" aria-label="Summon element">' + m.summons.map(function (s) {
+          var e = packElement(s);
+          var on = s === pk;
+          return '<button type="button" role="radio" aria-checked="' + (on ? 'true' : 'false') + '"' +
+            ' class="sg-gel' + (on ? ' on' : '') + '" data-shop-element="' + esc(e) + '" style="--el:' + color(e) + '"' +
+            ' aria-label="' + esc(title(e)) + '"><img src="' + esc(icon(e)) + '" alt=""></button>';
+        }).join('') + '</div>',
+        utils: [oddsUtil(pk), BINDER_UTIL],
+        buy: packButtons(pk, 'Summon')
+      }) +
       (pool.length
         ? '<section class="sg-section">' +
             '<div class="sg-section-head"><h3>In this summon</h3><span class="sg-section-note">' + esc(title(el)) + '</span></div>' +
-            '<div class="sg-offer-rail sg-gpool">' + pool.slice(0, 12).map(function (c) {
+            '<div class="sg-offer-rail">' + pool.slice(0, 12).map(function (c) {
               return '<div class="sg-offer" style="--el:' + color(c.element) + '">' + galleryCard(c) +
                 '<span class="sg-offer-meta"><b>' + esc(c.name) + '</b><i>' + esc(title(c.rarity)) + '</i></span></div>';
             }).join('') + '</div>' +
@@ -3540,12 +3519,32 @@
         : '');
   }
 
+  // The selector is the packs themselves, face-up as their card backs; the grid
+  // below picks into the stage rather than buying, so nothing spends coins
+  // except the two buttons on the stage.
   function packsPanel(m) {
-    return featureCarousel(m.packs) +
+    var pk = m.pack;
+    var el = packElement(pk);
+    return stage({
+        kind: 'packs', el: el, art: sceneArt('market'),
+        kicker: 'Pack Market', title: pk.name || pk.id,
+        sub: pk.starterEligible ? 'Starter' : (pk.elements || []).map(title).slice(0, 3).join(' · '),
+        text: pk.description,
+        pennant: pennantFacts(pk),
+        select: '<div class="sg-gselect is-packs" role="radiogroup" aria-label="Pack">' + m.packs.map(function (p) {
+          var on = p === pk;
+          return '<button type="button" role="radio" aria-checked="' + (on ? 'true' : 'false') + '"' +
+            ' class="sg-gpk' + (on ? ' on' : '') + '" data-shop-pack="' + esc(p.id) + '" style="--el:' + color(packElement(p)) + '"' +
+            ' aria-label="' + esc(p.name || p.id) + '"><img src="' + esc(packBack(p)) + '" alt="" loading="lazy"></button>';
+        }).join('') + '</div>',
+        utils: [oddsUtil(pk), BINDER_UTIL],
+        buy: packButtons(pk, 'Open')
+      }) +
       '<section class="sg-section">' +
         '<div class="sg-section-head"><h3>All packs</h3><span class="sg-section-note">' + esc(m.packs.length) + '</span></div>' +
-        // A grid, not a swipe rail: a horizontal rail hides all but three packs.
-        '<div class="sg-pack-grid">' + m.packs.map(packCard).join('') + '</div>' +
+        '<div class="sg-pack-grid">' + m.packs.map(function (p) {
+          return packCard(p).replace('data-pack="', 'data-shop-pack="').replace('class="sg-pack"', 'class="sg-pack' + (p === pk ? ' on' : '') + '"');
+        }).join('') + '</div>' +
       '</section>';
   }
 
@@ -3555,22 +3554,20 @@
     var head = m.offers[0];
     var card = offerCard(head);
     var bought = (m.live.purchasedDailyOfferIds || []).indexOf(head.id) !== -1;
-    return stageOpen(card.element, shopArt(card.element), 'is-daily') +
-        '<div class="sg-gstage-card">' + galleryCard(card) + '</div>' +
-        '<div class="sg-gstage-body">' +
-          '<span class="sg-tag">Daily Offerings &middot; ' + esc(dailyResetText()) + '</span>' +
-          '<h2>' + esc(card.name || head.cardId) + '</h2>' +
-          '<p>' + esc(title(card.rarity)) + ' &middot; ' + esc(title(card.element)) + ' &middot; ' +
-            esc(title(card.type === 'SIEGEKNIGHT' ? 'SiegeKnight' : card.type)) +
-            '. One copy, today only. ' + esc(m.offers.length - 1) + ' more below.</p>' +
-          '<div class="sg-gbuy">' +
-            (bought
-              ? '<button class="sg-gbtn is-primary" type="button" disabled><span class="sg-gbtn-label">Owned</span></button>'
-              : '<button class="sg-buy sg-gbtn is-primary" type="button" data-buy-offer="' + esc(head.id) + '" data-price="' + esc(head.price) + '">' +
-                  '<img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(head.price) + '</button>') +
-          '</div>' +
-        '</div>' +
-      '</section>' +
+    return stage({
+        kind: 'daily', el: card.element, art: sceneArt('cards'),
+        kicker: 'Daily Offerings', title: card.name || head.cardId, sub: dailyResetText(),
+        text: title(card.rarity) + ' · ' + title(card.element) + ' · ' +
+          (card.type === 'SIEGEKNIGHT' ? 'SiegeKnight' : title(card.type)) +
+          '. One copy, today only.',
+        card: galleryCard(card),
+        pennant: pennantFaces('Also today', m.offers.slice(1).map(offerCard)),
+        utils: [BINDER_UTIL],
+        buy: bought
+          ? '<button class="sg-gbtn is-ten" type="button" disabled><span class="sg-gbtn-label">Owned</span></button>'
+          : '<button class="sg-buy sg-gbtn is-ten" type="button" data-buy-offer="' + esc(head.id) + '" data-price="' + esc(head.price) + '">' +
+              '<img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(head.price) + '</button>'
+      }) +
       '<section class="sg-section">' +
         '<div class="sg-section-head"><h3>Today’s rotation</h3><span class="sg-section-note">' + esc(dailyResetText()) + '</span></div>' +
         '<div class="sg-offer-rail">' + m.offers.map(function (o) { return dailyOfferTile(o, opts); }).join('') + '</div>' +
@@ -3583,20 +3580,17 @@
     var pick = m.titles.filter(function (t) { return t.id === opts.shopTitlePreview; })[0] ||
       m.titles.filter(function (t) { return !titleOwned(t, m.live); })[0] || m.titles[0];
     var name = (opts.live && opts.live.displayName) || 'Your name';
-    return stageOpen('EARTH', shopArt('EARTH'), 'is-titles') +
-        '<div class="sg-gstage-body">' +
-          '<span class="sg-tag">Titles &middot; ' + esc(dailyResetText()) + '</span>' +
-          '<h2>Wear your legend</h2>' +
-          '<div class="sg-gplate"><b>' + esc(name) + '</b><i>' + esc(pick.label || 'Title') + '</i></div>' +
-          '<p>' + esc(pick.description || 'Shown under your name in rooms, on the leaderboard and on your profile.') + '</p>' +
-          '<div class="sg-gbuy">' +
-            (titleOwned(pick, m.live)
-              ? '<button class="sg-gbtn is-primary" type="button" disabled><span class="sg-gbtn-label">Owned</span></button>'
-              : '<button class="sg-buy sg-gbtn is-primary" type="button" data-buy-title="' + esc(pick.id) + '" data-price="' + esc(pick.shopPrice) + '">' +
-                  '<img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(pick.shopPrice || 0) + '</button>') +
-          '</div>' +
-        '</div>' +
-      '</section>' +
+    return stage({
+        kind: 'titles', el: 'LIGHT', art: sceneArt('throne'), ribbon: '#3c4fa8',
+        kicker: 'Title Hall', title: 'Wear your legend', sub: dailyResetText(),
+        extra: '<div class="sg-gplate"><b>' + esc(name) + '</b><i>' + esc(pick.label || 'Title') + '</i></div>',
+        text: pick.description || 'Shown under your name in rooms, on the leaderboard and on your profile.',
+        utils: [utilBtn('&#9819;', 'Equip', 'href="/profile" data-screen="profile"')],
+        buy: titleOwned(pick, m.live)
+          ? '<button class="sg-gbtn is-ten" type="button" disabled><span class="sg-gbtn-label">Owned</span></button>'
+          : '<button class="sg-buy sg-gbtn is-ten" type="button" data-buy-title="' + esc(pick.id) + '" data-price="' + esc(pick.shopPrice) + '">' +
+              '<img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(pick.shopPrice || 0) + '</button>'
+      }) +
       '<section class="sg-section">' +
         '<div class="sg-section-head"><h3>Today’s titles</h3><span class="sg-section-note">Tap to preview</span></div>' +
         '<div class="sg-shop-titles">' + m.titles.map(function (t) {
@@ -3606,11 +3600,46 @@
       '</section>';
   }
 
+  // Published odds, read straight off the pack payload - the same numbers the
+  // server rolls with, never a restatement of them.
+  function showOdds(app, pk) {
+    var odds = pk.odds || {};
+    var holo = odds.holoPerCard || {};
+    var layer = document.createElement('div');
+    layer.className = 'sg-godds';
+    layer.setAttribute('role', 'dialog');
+    layer.setAttribute('aria-modal', 'true');
+    layer.setAttribute('aria-label', (pk.name || 'Pack') + ' odds');
+    layer.innerHTML =
+      '<div class="sg-godds-card">' +
+        '<h3>' + esc(pk.name || pk.id) + '</h3>' +
+        '<dl>' +
+          '<div><dt>Cards per pack</dt><dd>' + esc(odds.cardsPerPack || 5) + '</dd></div>' +
+          (odds.siegeKnight != null ? '<div><dt>Bonus SiegeKnight</dt><dd>' + esc(Math.round(odds.siegeKnight * 1000) / 10) + '%</dd></div>' : '') +
+          Object.keys(holo).map(function (r) {
+            return '<div><dt>Holo &middot; ' + esc(title(r)) + '</dt><dd>' + esc(Math.round(holo[r] * 1000) / 10) + '% per card</dd></div>';
+          }).join('') +
+          (pk.bulk && pk.bulk.count > 1
+            ? '<div><dt>&times;' + esc(pk.bulk.count) + ' bundle</dt><dd>' + esc(pk.bulk.price) + ' coins</dd></div>'
+            : '') +
+        '</dl>' +
+        '<button class="sg-guest-primary" type="button" data-godds-close>Close</button>' +
+      '</div>';
+    function close() { layer.remove(); document.removeEventListener('keydown', onKey); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    layer.addEventListener('click', function (e) {
+      if (e.target === layer || (e.target.closest && e.target.closest('[data-godds-close]'))) close();
+    });
+    document.addEventListener('keydown', onKey);
+    app.appendChild(layer);
+    layer.querySelector('[data-godds-close]').focus();
+  }
+
   function shopScreen(opts) {
     opts = opts || {};
     var m = shopModel(opts);
     var panel = !m.tab ? ''
-      : m.tab.id === 'summon' ? summonPanel(m, opts)
+      : m.tab.id === 'summon' ? summonPanel(m)
       : m.tab.id === 'packs' ? packsPanel(m)
       : m.tab.id === 'daily' ? dailyPanel(m, opts)
       : titlesPanel(m, opts);
@@ -3619,7 +3648,7 @@
         (m.tab
           ? '<div class="sg-shop" data-shop-panel="' + esc(m.tab.id) + '">' + shopTabsMarkup(m) + panel + '</div>'
           : '<div class="sg-empty-plate">' +
-              '<img src="' + plate(scene('frostag-training')) + '" alt="" loading="lazy">' +
+              '<img src="' + sceneArt('armory') + '" alt="" loading="lazy">' +
               '<div class="sg-empty-veil"></div>' +
               '<div class="sg-empty-body"><strong>The stall is closed</strong>' +
               '<p>The pack catalog did not answer. Try again in a moment.</p></div>' +
@@ -4310,14 +4339,14 @@
      converted into. Every card shown is a card the account now owns - the flip
      is presentation over a completed transaction, never a simulation of one. */
 
-  function gachaMarkup(pk) {
+  function gachaMarkup(pk, count) {
     return '<div class="sg-gacha" data-gacha style="--el:' + color(packElement(pk)) + '">' +
       '<div class="sg-gacha-veil"></div>' +
       '<div class="sg-gacha-motes" data-gacha-motes></div>' +
       '<div class="sg-gacha-body">' +
         '<div class="sg-gacha-head">' +
           '<span class="sg-gacha-kicker" data-gacha-kicker>Opening</span>' +
-          '<h3 data-gacha-title>' + esc(pk.name || 'Pack') + '</h3>' +
+          '<h3 data-gacha-title>' + esc(pk.name || 'Pack') + (count > 1 ? ' &times;' + esc(count) : '') + '</h3>' +
         '</div>' +
         '<div class="sg-gacha-stage" data-gacha-stage>' +
           '<div class="sg-gacha-pack" style="--el:' + color(packElement(pk)) + '">' +
@@ -4418,11 +4447,12 @@
     buzzForRarity(card);
   }
 
-  function openPack(pk, opts) {
+  function openPack(pk, opts, count) {
     var host = document.querySelector('.sg-app');
     if (!host) return;
+    count = count > 1 ? count : 1;
     var wrap = document.createElement('div');
-    wrap.innerHTML = gachaMarkup(pk);
+    wrap.innerHTML = gachaMarkup(pk, count);
     var gacha = wrap.firstChild;
     host.appendChild(gacha);
     var stage = gacha.querySelector('[data-gacha-stage]');
@@ -4455,7 +4485,7 @@
     fetch('/api/shop/open-pack', {
       method: 'POST', credentials: 'same-origin',
       headers: authHeaders(),
-      body: JSON.stringify({ packId: pk.id, count: 1, requestId: 'hub-' + Date.now() })
+      body: JSON.stringify({ packId: pk.id, count: count, requestId: 'hub-' + Date.now() })
     }).then(function (r) { return r.json().catch(function () { return null; }); })
       .then(function (data) {
         if (!data || data.error) { fail((data && data.error) || 'That pack could not be opened.'); return; }
@@ -4641,7 +4671,7 @@
 
       function toGrid() {
         stackMode = false;
-        stage.className = 'sg-gacha-stage is-grid';
+        stage.className = 'sg-gacha-stage is-grid' + (slots.length > 5 ? ' is-bulk' : '');
         if (stackBar) stackBar.hidden = true;
         slots.forEach(function (btn) {
           btn.classList.remove('is-stack-top', 'is-stack-out', 'is-stack-buried');

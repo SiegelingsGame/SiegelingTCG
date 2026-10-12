@@ -374,6 +374,12 @@ public class PackCatalogService {
         odds.put("holoPerCard", holoPerCard);
         odds.put("cardsPerPack", 5);
         out.put("odds", odds);
+        // The ×10 price the server will actually charge, so a client never
+        // re-derives the bulk discount and drifts from it.
+        Map<String, Object> bulk = new LinkedHashMap<>();
+        bulk.put("count", PlayerProgressionService.MAX_BULK_PACK_COUNT);
+        bulk.put("price", PlayerProgressionService.bulkPackCost(pack.price(), PlayerProgressionService.MAX_BULK_PACK_COUNT));
+        out.put("bulk", bulk);
         return out;
     }
 
