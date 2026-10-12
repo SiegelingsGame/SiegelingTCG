@@ -3313,9 +3313,33 @@
   // what is being summoned.
   function summonArt(el, thumb) {
     var key = String(el || '').toUpperCase();
+    if (SUMMON_KNIGHT[key]) return knightArt(SUMMON_KNIGHT[key], thumb);
     if (SHOP_BANNER[key]) return '/img/shop/banner-' + key.toLowerCase() + (thumb ? '-480' : '') + '.webp';
     return thumb ? '/img/lands/thumbs/' + (EL_LAND[key] || 'relic') + '.webp' : land(key);
   }
+
+  // SiegeKnight portraits, keyed by card id (several ids share one portrait).
+  // `pos` keeps the knight in frame when a 16:9 portrait is cropped to a phone.
+  var KNIGHT_ART = {
+    'isaac-tesla':       { file: 'isaac-tesla', pos: '46% 30%', thumb: true },
+    'pyla':              { file: 'pyla', pos: '40% 30%' },
+    'trainer10':         { file: 'pyla', pos: '40% 30%' },
+    'lady-clarice':      { file: 'lady-clarice', pos: '48% 30%' },
+    'cera':              { file: 'cera', pos: '44% 30%' },
+    'hera':              { file: 'hera', pos: '50% 30%' },
+    'new-siegeknight':   { file: 'catherine', pos: '50% 30%' },
+    'new-siegeknight-3': { file: 'high-cleric-catherine', pos: '52% 30%' },
+    'squire-bob':        { file: 'squire-bob', pos: '38% 35%' },
+    'squirebobsp':       { file: 'squire-bob', pos: '38% 35%' },
+    'new-siegeknight-2': { file: 'ser-bob', pos: '56% 30%' }
+  };
+  function knightArt(id, thumb) {
+    var k = KNIGHT_ART[id];
+    return k ? '/img/shop/knight-' + k.file + (thumb && k.thumb ? '-480' : '') + '.webp' : '';
+  }
+  // An element with no commissioned banner but a knight of its own leads its
+  // summon with that knight.
+  var SUMMON_KNIGHT = { ELECTRIC: 'isaac-tesla' };
 
   // The backdrop behind a pack or a daily card is its element: a scene of that
   // element's Siegelings where one exists (a gallery plate, or a shop scene
@@ -3336,6 +3360,7 @@
   function elementStage(el) {
     var key = String(el || '').toUpperCase();
     var pick = ELEMENT_STAGE[key];
+    if (SUMMON_KNIGHT[key] && !pick) return { art: knightArt(SUMMON_KNIGHT[key]), pos: KNIGHT_ART[SUMMON_KNIGHT[key]].pos };
     if (pick) return { art: pick.src || heroPlate(scene(pick.img)), pos: pick.pos };
     if (SHOP_BANNER[key]) return { art: summonArt(key), pos: '66% 34%' };
     return { art: land(key), pos: '50% 50%' };
@@ -3373,7 +3398,7 @@
     var summon = summons.filter(function (pk) { return packElement(pk) === wanted; })[0] || summons[0] || null;
     var pack = packs.filter(function (pk) { return pk.id === opts.shopPack; })[0] || packs[0] || null;
     var tabs = [];
-    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
+    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: SUMMON_KNIGHT[packElement(summon)] ? '46% 25%' : SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
     if (pack) tabs.push({ id: 'packs', label: 'Pack Market', art: sceneArt('market', true), face: SHOP_SCENE.market.face, el: 'EARTH' });
     if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: sceneArt('cards', true), face: SHOP_SCENE.cards.face, el: 'LIGHT' });
     if (titles.length) tabs.push({ id: 'titles', label: 'Title Hall', art: sceneArt('throne', true), face: SHOP_SCENE.throne.face, el: 'WATER' });
@@ -3478,7 +3503,7 @@
     var pool = CARDS.filter(function (c) { return String(c.element || '').toUpperCase() === el; })
       .sort(function (a, b) { return rarityRank(b) - rarityRank(a); });
     return stage({
-        kind: 'summon', el: el, art: summonArt(el),
+        kind: 'summon', el: el, art: summonArt(el), pos: SUMMON_KNIGHT[el] ? KNIGHT_ART[SUMMON_KNIGHT[el]].pos : '',
         kicker: 'Siegeling Summon', title: title(el) + ' Siegelings', sub: title(el) + ' only',
         text: pk.description,
         pennant: pennantFaces('Featured', pool),
@@ -3529,9 +3554,12 @@
     var head = m.offers.filter(function (o) { return o.id === opts.shopOffer; })[0] || m.offers[0];
     var card = offerCard(head);
     var owned = bought.indexOf(head.id) !== -1;
-    var bg = elementStage(card.element);
+    // A SiegeKnight offer stands on the knight's own portrait.
+    var bg = KNIGHT_ART[head.cardId]
+      ? { art: knightArt(head.cardId), pos: KNIGHT_ART[head.cardId].pos }
+      : elementStage(card.element);
     return stage({
-      kind: 'daily', el: card.element, art: bg.art, pos: bg.pos,
+      kind: 'daily' + (KNIGHT_ART[head.cardId] ? ' is-knight' : ''), el: card.element, art: bg.art, pos: bg.pos,
       kicker: 'Daily Offerings', title: card.name || head.cardId, sub: dailyResetText(),
       text: title(card.rarity) + ' · ' + title(card.element) + ' · ' +
         (card.type === 'SIEGEKNIGHT' ? 'SiegeKnight' : title(card.type)) +
