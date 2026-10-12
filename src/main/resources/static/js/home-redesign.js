@@ -3918,7 +3918,83 @@
     return Object.prototype.hasOwnProperty.call(TARGET_SIDE, t) ? TARGET_SIDE[t] : null;
   }
 
+  function isKnight(card) {
+    return String(card && card.type || '').toUpperCase() === 'SIEGEKNIGHT';
+  }
+
+  function knightAbility(name, pill, cost, text) {
+    return '<div class="sg-sheet-ability">' +
+      '<strong>' + esc(name) +
+        (pill ? '<em class="sg-sheet-pill">' + esc(pill) + '</em>' : '') +
+        (cost ? '<em class="sg-sheet-cost">' + esc(cost) + '</em>' : '') +
+      '</strong>' +
+      (text ? '<span>' + esc(text) + '</span>' : '') +
+    '</div>';
+  }
+
+  // A knight never enters play, so the Arena panel is its passive and its
+  // active rather than notches and moves. The text is /api/game/options' own,
+  // so it is the same copy the battle table's trainer panel quotes.
+  function knightArenaBlock(card) {
+    var out = '';
+    if (card.passive) out += knightAbility(card.passiveName || 'Passive', 'Passive', null, card.passive);
+    if (card.active) {
+      out += knightAbility(card.activeName || 'Active', card.oncePerGame ? 'Once per game' : 'Once per turn',
+        card.activeEnergy ? card.activeEnergy + ' energy' : null, card.active);
+    }
+    return out || '<p class="sg-sheet-empty">No Arena abilities listed.</p>';
+  }
+
+  /* Siege runs its knights through a different kit - a class passive, a
+     combat active and an Ultimate - and those only exist server-side in
+     /api/siege/roster. That call reads the account's veterans and progression,
+     so it is fetched the first time a knight sheet opens rather than on every
+     hub load, and cached for the page. Undefined = not asked yet, null = asked
+     and failed. */
+  var siegeKnights;
+  var siegeKnightsPending = null;
+
+  function loadSiegeKnights() {
+    if (siegeKnights !== undefined) return Promise.resolve(siegeKnights);
+    if (siegeKnightsPending) return siegeKnightsPending;
+    var api = window.SiegelingsHomeLive;
+    if (!api || !api.get) { siegeKnights = null; return Promise.resolve(null); }
+    siegeKnightsPending = api.get('/api/siege/roster').then(function (roster) {
+      siegeKnightsPending = null;
+      if (!roster || !Array.isArray(roster.knights)) { siegeKnights = null; return null; }
+      siegeKnights = {};
+      roster.knights.forEach(function (k) {
+        if (k && k.id) siegeKnights[String(k.id).toLowerCase()] = k;
+      });
+      return siegeKnights;
+    });
+    return siegeKnightsPending;
+  }
+
+  function knightSiegeBlock(card) {
+    if (siegeKnights === undefined) {
+      return '<p class="sg-sheet-note" data-knight-siege-loading>Loading Siege abilities…</p>';
+    }
+    if (siegeKnights === null) {
+      return '<p class="sg-sheet-empty">Siege abilities are unavailable right now.</p>';
+    }
+    var k = siegeKnights[String(card.id || '').toLowerCase()];
+    if (!k) return '<p class="sg-sheet-empty">Does not lead expeditions.</p>';
+    var notes = [];
+    if (k.startingParty) notes.push('Leads a warband of ' + k.startingParty);
+    // The roster scales the passive and Ultimate to this account's level, so
+    // say which level the numbers are quoted at.
+    if (k.level) notes.push('Values at level ' + k.level);
+    var active = k.active || {};
+    return (notes.length ? '<p class="sg-sheet-note">' + esc(notes.join(' · ')) + '</p>' : '') +
+      (k.passive ? knightAbility(k.passiveName || 'Passive', 'Passive', null, k.passive) : '') +
+      (k.activeDesc ? knightAbility(k.activeName || active.name || 'Active', 'Active',
+        active.actionCost ? active.actionCost + ' AP' : null, k.activeDesc) : '') +
+      (k.ultimateDesc ? knightAbility(k.ultimateName || 'Ultimate', 'Ultimate', null, k.ultimateDesc) : '');
+  }
+
   function siegeBlock(card, opts) {
+    if (isKnight(card)) return knightSiegeBlock(card);
     var abilities = card.abilities || (card.ability ? [card.ability] : []);
     var riders = (opts.live && opts.live.advantageRiders) || null;
     var rider = riders && riders[String(card.element || '').toUpperCase()];
@@ -4102,6 +4178,7 @@
     // keep HP/SPD only (Arena lists the flavour); Strategies/Deceptions keep
     // the effect in that slot.
     var faceType = String(card.type || 'SIEGLING').toUpperCase();
+    var knight = isKnight(card);
     return '<button class="sg-sheet-dismiss" type="button" aria-label="Close card details"></button>' +
       '<div class="sg-sheet-head">' +
         '<div class="sg-sheet-face" data-face-type="' + esc(faceType) + '">' + galleryCard(card) + '</div>' +
@@ -4114,10 +4191,15 @@
             '</div>' +
             peek +
           '</div>' +
-          '<div class="sg-sheet-stats is-tight">' +
-            '<div><span>HP</span><b>' + esc(card.health == null ? '\u2014' : card.health) + '</b></div>' +
-            '<div><span>SPD</span><b>' + esc(card.speed == null ? '\u2014' : card.speed) + '</b></div>' +
-            '<div><span>Row</span><b>' + esc(card.preferredRow ? title(card.preferredRow) : '\u2014') + '</b></div>' +
+          '<div class="sg-sheet-stats is-tight">' + (knight
+            // A knight has no Health, Speed or row - it never takes the board -
+            // so its slots carry what does vary between knights.
+            ? '<div><span>Tier</span><b>' + esc(card.tier || 'Knight') + '</b></div>' +
+              '<div><span>Level</span><b>' + esc(card.owned && card.level ? card.level : '\u2014') + '</b></div>' +
+              '<div><span>Active</span><b>' + (card.active ? (card.oncePerGame ? '1/game' : '1/turn') : '\u2014') + '</b></div>'
+            : '<div><span>HP</span><b>' + esc(card.health == null ? '\u2014' : card.health) + '</b></div>' +
+              '<div><span>SPD</span><b>' + esc(card.speed == null ? '\u2014' : card.speed) + '</b></div>' +
+              '<div><span>Row</span><b>' + esc(card.preferredRow ? title(card.preferredRow) : '\u2014') + '</b></div>') +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -4127,9 +4209,12 @@
       }).join('') + '</div>' +
       '<div class="sg-sheet-panels">' +
         '<div class="sg-sheet-panel" data-sheet-panel="arena">' +
-          (description ? '<div class="sg-sheet-summary">' + notches +
-            '<p class="sg-sheet-description">' + esc(description) + '</p></div>' : notches) +
-          abilityRows(card) +
+          (knight
+            ? (card.description ? '<p class="sg-sheet-note">' + esc(card.description) + '</p>' : '') +
+              knightArenaBlock(card)
+            : (description ? '<div class="sg-sheet-summary">' + notches +
+                '<p class="sg-sheet-description">' + esc(description) + '</p></div>' : notches) +
+              abilityRows(card)) +
         '</div>' +
         '<div class="sg-sheet-panel" data-sheet-panel="siege" hidden>' +
           siegeBlock(card, opts) +
@@ -4298,6 +4383,15 @@
       sheetCard.scrollTop = 0;
       var show = wireTabs(sheetCard);
       if (tab && sheetCard.querySelector('[data-sheet-tab="' + tab + '"]')) show(tab);
+      if (isKnight(card) && sheetCard.querySelector('[data-knight-siege-loading]')) {
+        loadSiegeKnights().then(function () {
+          // Only repaint if the sheet still shows this knight; the player may
+          // have moved on to another card while the roster was in flight.
+          if (sheetCard.getAttribute('data-zoom-card') !== String(card.id)) return;
+          var panel = sheetCard.querySelector('[data-sheet-panel="siege"]');
+          if (panel) panel.innerHTML = knightSiegeBlock(card);
+        });
+      }
       sheet.classList.add('open');
       sheetCard.querySelector('.sg-sheet-dismiss').focus({ preventScroll: true });
     }
