@@ -3175,11 +3175,30 @@
     if (!app) return;
     opts.shopNotice = notice || '';
     opts.shopNoticeError = Boolean(isError);
-    // Re-rendering must not restart the featured band or jump the page.
+    // Re-rendering must not jump the page, and a picker row the player has
+    // swiped along keeps its place: picking the tenth pack used to snap the row
+    // back to the first. Rows are matched by their label, so a row that only
+    // exists on another tab starts at its beginning.
     var scrollTop = current.scrollTop;
+    var rows = {};
+    app.querySelectorAll('.sg-gselect').forEach(function (row) {
+      rows[row.getAttribute('aria-label')] = row.scrollLeft;
+    });
     var next = render(document.createElement('div'), 'shop', Object.assign({}, opts, { freeze: true }));
     app.replaceWith(next);
     next.querySelector('.sg-scroll').scrollTop = scrollTop;
+    next.querySelectorAll('.sg-gselect').forEach(function (row) {
+      var label = row.getAttribute('aria-label');
+      if (Object.prototype.hasOwnProperty.call(rows, label)) row.scrollLeft = rows[label];
+      // A choice made from outside the row (a remembered element, say) is
+      // brought into view without moving a row that already shows it.
+      var on = row.querySelector('.on');
+      if (on) {
+        var r = row.getBoundingClientRect(), b = on.getBoundingClientRect();
+        if (b.left < r.left) row.scrollLeft -= r.left - b.left + 6;
+        else if (b.right > r.right) row.scrollLeft += b.right - r.right + 6;
+      }
+    });
   }
 
   // A guest has no account to grant the cards to, so the buy sends them to
