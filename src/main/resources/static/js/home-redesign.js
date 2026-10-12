@@ -3308,12 +3308,12 @@
   };
   function sceneArt(id, thumb) { return '/img/shop/scene-' + id + (thumb ? '-480' : '') + '.webp'; }
 
-  // Commissioned element banners where they exist; the element's own Land
-  // plate behind every other element's summon, so the backdrop always matches
-  // what is being summoned.
+  // Commissioned element banners where they exist, then a Siegeling scene the
+  // element owns in the shop (with its own tab thumb), then the element's Land
+  // plate, so the backdrop always matches what is being summoned.
   function summonArt(el, thumb) {
     var key = String(el || '').toUpperCase();
-    if (SUMMON_KNIGHT[key]) return knightArt(SUMMON_KNIGHT[key], thumb);
+    if (SUMMON_SCENE[key]) return sceneArt(SUMMON_SCENE[key], thumb);
     if (SHOP_BANNER[key]) return '/img/shop/banner-' + key.toLowerCase() + (thumb ? '-480' : '') + '.webp';
     return thumb ? '/img/lands/thumbs/' + (EL_LAND[key] || 'relic') + '.webp' : land(key);
   }
@@ -3321,7 +3321,7 @@
   // SiegeKnight portraits, keyed by card id (several ids share one portrait).
   // `pos` keeps the knight in frame when a 16:9 portrait is cropped to a phone.
   var KNIGHT_ART = {
-    'isaac-tesla':       { file: 'isaac-tesla', pos: '46% 30%', thumb: true },
+    'isaac-tesla':       { file: 'isaac-tesla', pos: '46% 30%' },
     'pyla':              { file: 'pyla', pos: '40% 30%' },
     'trainer10':         { file: 'pyla', pos: '40% 30%' },
     'lady-clarice':      { file: 'lady-clarice', pos: '48% 30%' },
@@ -3333,13 +3333,13 @@
     'squirebobsp':       { file: 'squire-bob', pos: '38% 35%' },
     'new-siegeknight-2': { file: 'ser-bob', pos: '56% 30%' }
   };
-  function knightArt(id, thumb) {
+  function knightArt(id) {
     var k = KNIGHT_ART[id];
-    return k ? '/img/shop/knight-' + k.file + (thumb && k.thumb ? '-480' : '') + '.webp' : '';
+    return k ? '/img/shop/knight-' + k.file + '.webp' : '';
   }
-  // An element with no commissioned banner but a knight of its own leads its
-  // summon with that knight.
-  var SUMMON_KNIGHT = { ELECTRIC: 'isaac-tesla' };
+  // Elements whose summon stands on a shop scene (`scene-<id>.webp`) rather
+  // than a banner; the same scene backs that element's packs and cards.
+  var SUMMON_SCENE = { ELECTRIC: 'electric' };
 
   // The backdrop behind a pack or a daily card is its element: a scene of that
   // element's Siegelings where one exists (a gallery plate, or a shop scene
@@ -3352,7 +3352,9 @@
     WIND:  { img: 'hurricrane-skyruins', pos: '62% 40%' },
     EARTH: { img: 'cactyjackedty-ruins', pos: '36% 40%' },
     // Portrait-only plate: a wide screen shows the band with the big turtle.
-    WATER: { src: '/img/shop/scene-water.webp', pos: '58% 42%' }
+    WATER: { src: '/img/shop/scene-water.webp', pos: '58% 42%' },
+    // Portrait-only plate: a wide screen shows the band with the big ape.
+    ELECTRIC: { src: '/img/shop/scene-electric.webp', pos: '50% 18%' }
   };
   // Molten Forge leads with Fire too; it gets the other Fire scene so it does
   // not look like the Fire starter.
@@ -3360,7 +3362,6 @@
   function elementStage(el) {
     var key = String(el || '').toUpperCase();
     var pick = ELEMENT_STAGE[key];
-    if (SUMMON_KNIGHT[key] && !pick) return { art: knightArt(SUMMON_KNIGHT[key]), pos: KNIGHT_ART[SUMMON_KNIGHT[key]].pos };
     if (pick) return { art: pick.src || heroPlate(scene(pick.img)), pos: pick.pos };
     if (SHOP_BANNER[key]) return { art: summonArt(key), pos: '66% 34%' };
     return { art: land(key), pos: '50% 50%' };
@@ -3398,7 +3399,7 @@
     var summon = summons.filter(function (pk) { return packElement(pk) === wanted; })[0] || summons[0] || null;
     var pack = packs.filter(function (pk) { return pk.id === opts.shopPack; })[0] || packs[0] || null;
     var tabs = [];
-    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: SUMMON_KNIGHT[packElement(summon)] ? '46% 25%' : SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
+    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: SUMMON_SCENE[packElement(summon)] ? '50% 28%' : SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
     if (pack) tabs.push({ id: 'packs', label: 'Pack Market', art: sceneArt('market', true), face: SHOP_SCENE.market.face, el: 'EARTH' });
     if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: sceneArt('cards', true), face: SHOP_SCENE.cards.face, el: 'LIGHT' });
     if (titles.length) tabs.push({ id: 'titles', label: 'Title Hall', art: sceneArt('throne', true), face: SHOP_SCENE.throne.face, el: 'WATER' });
@@ -3503,7 +3504,7 @@
     var pool = CARDS.filter(function (c) { return String(c.element || '').toUpperCase() === el; })
       .sort(function (a, b) { return rarityRank(b) - rarityRank(a); });
     return stage({
-        kind: 'summon', el: el, art: summonArt(el), pos: SUMMON_KNIGHT[el] ? KNIGHT_ART[SUMMON_KNIGHT[el]].pos : '',
+        kind: 'summon', el: el, art: summonArt(el), pos: ELEMENT_STAGE[el] && SUMMON_SCENE[el] ? ELEMENT_STAGE[el].pos : '',
         kicker: 'Siegeling Summon', title: title(el) + ' Siegelings', sub: title(el) + ' only',
         text: pk.description,
         pennant: pennantFaces('Featured', pool),
