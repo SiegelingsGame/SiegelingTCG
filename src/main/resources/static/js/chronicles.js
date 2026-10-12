@@ -1353,6 +1353,11 @@
       Array.prototype.forEach.call(document.querySelectorAll('[data-live="activity"]'), function (el) {
         el.style.width = pct(into, a.actionMs) + '%';
       });
+      // The server only banks finished actions when it settles, so fetch a fresh
+      // snapshot just after each one completes; otherwise the bag shows stale counts
+      // until the next page load.
+      var finished = a.remainderMs + (now - a.lastTickAt) >= a.actionMs + 600;
+      if (finished && canAutoRefresh()) refreshSnapshot();
     }
     var e = s.expedition;
     if (e) {
@@ -1364,11 +1369,24 @@
       Array.prototype.forEach.call(document.querySelectorAll('[data-live="exp-left"]'), function (el) {
         el.textContent = e.done ? 'Home!' : left > 0 ? duration(left) : 'arriving…';
       });
-      if (!e.done && left <= -1500 && !state.busy && !state.refreshing) {
-        state.refreshing = true;
-        load().then(function () { state.refreshing = false; });
-      }
+      if (!e.done && left <= -1500 && !state.busy && !state.refreshing) refreshSnapshot();
     }
+  }
+
+  function refreshSnapshot() {
+    state.refreshing = true;
+    state.refreshedAt = Date.now();
+    load().then(function () { state.refreshing = false; }, function () { state.refreshing = false; });
+  }
+
+  // A background refresh re-renders the tab, so hold it while the player is typing
+  // into a form or reading a modal, and space attempts out in case the clocks disagree.
+  function canAutoRefresh() {
+    if (state.busy || state.refreshing || document.hidden) return false;
+    if (Date.now() - (state.refreshedAt || 0) < 2500) return false;
+    if (!$('ckModal').hidden) return false;
+    var focused = document.activeElement;
+    return !(focused && /^(INPUT|SELECT|TEXTAREA)$/.test(focused.tagName));
   }
 
   // ── events ───────────────────────────────────────────────────────────────
