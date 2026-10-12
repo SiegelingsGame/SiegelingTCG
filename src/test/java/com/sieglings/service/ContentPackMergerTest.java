@@ -58,6 +58,51 @@ class ContentPackMergerTest {
     }
 
     @Test
+    void builtMetalSieglingsCarryTheAssignedMovesAndNewCardsBuild() throws Exception {
+        JsonNode pack = ContentPackMerger.loadClasspathPack(mapper, METAL_PACK);
+        ContentPackMerger.Result result = ContentPackMerger.merge(mapper, liveShapedSnapshot(), pack);
+        ManualSieglingCatalog.OverrideFile file = mapper.treeToValue(result.data(), ManualSieglingCatalog.OverrideFile.class);
+        MovesPoolService pool = new MovesPoolService(mapper, null);
+        pool.reloadClasspathAndOverlayEditor(file.moves());
+
+        // The same path the game uses to turn stored rows into playable Metal Sieglings.
+        List<com.sieglings.model.SieglingCard> metal = ManualSieglingCatalog.applyOverrides(
+                com.sieglings.model.enums.Element.METAL,
+                GeneratedCreatureCatalog.createGeneratedForElement(com.sieglings.model.enums.Element.METAL),
+                file.cards(), pool);
+        java.util.Map<String, List<String>> expected = new java.util.HashMap<>();
+        for (JsonNode patch : pack.get("cardPatches")) {
+            List<String> ids = new java.util.ArrayList<>();
+            patch.get("moveIds").forEach(id -> ids.add(id.asText()));
+            expected.put(patch.get("id").asText(), ids);
+        }
+        int checked = 0;
+        for (com.sieglings.model.SieglingCard card : metal) {
+            List<String> want = expected.get(card.getId());
+            if (want == null) {
+                continue;
+            }
+            assertEquals(want, card.getMoveIds(), card.getId());
+            List<String> resolvedNames = pool.resolvePrintedAbilities(card).stream().map(Ability::getName).toList();
+            assertEquals(want.size(), resolvedNames.size(), card.getId());
+            assertTrue(!resolvedNames.contains("Brassguard Guard"), card.getId() + " still on the placeholder");
+            checked++;
+        }
+        assertEquals(expected.size(), checked, "every live Metal Siegling was built");
+
+        Set<String> spellIds = new HashSet<>();
+        ManualSieglingCatalog.applySpellOverrides(GeneratedSpellCatalog.createSpells(), file.cards())
+                .forEach(c -> spellIds.add(c.getId()));
+        Set<String> trapIds = new HashSet<>();
+        ManualSieglingCatalog.applyTrapOverrides(CardDefinitionService.createBaseTraps(), file.cards())
+                .forEach(c -> trapIds.add(c.getId()));
+        for (JsonNode card : pack.get("cards")) {
+            Set<String> built = "SPELL".equals(card.get("type").asText()) ? spellIds : trapIds;
+            assertTrue(built.contains(card.get("id").asText()), card.get("id").asText() + " builds");
+        }
+    }
+
+    @Test
     void metalPackStaysOnThemeAndCostsItsOwnElement() {
         JsonNode pack = ContentPackMerger.loadClasspathPack(mapper, METAL_PACK);
         for (JsonNode move : pack.get("moves")) {
