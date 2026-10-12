@@ -1711,10 +1711,11 @@ class KeepServiceTest {
     }
 
     @Test
-    void rebirthIsRefusedBeforeTheGrandKeep() {
+    void rebirthIsRefusedBeforeTheHallsFirstEvolution() {
         Map<String, Object> snapshot = service.getSnapshot(user);
         assertEquals(false, valueAt(snapshot, "rebirth", "available"));
-        assertTrue(String.valueOf(valueAt(snapshot, "rebirth", "blocker")).contains("Grand Keep"));
+        assertTrue(String.valueOf(valueAt(snapshot, "rebirth", "blocker")).contains("Timber Outpost"));
+        assertEquals("Timber Outpost", valueAt(snapshot, "rebirth", "requiredRankName"));
         assertThrows(IllegalArgumentException.class,
                 () -> service.rebirth(user, "early-rebirth", store.state.getVersion()));
         assertEquals(0, store.state.getRebirthCount());
@@ -1827,32 +1828,41 @@ class KeepServiceTest {
     void eachRebirthAsksForDeeperProgressAndSpendsItsBill() {
         service.getSnapshot(user);
         KeepState state = store.state;
-        state.setHallLevel(KeepService.HALL_MAX_LEVEL);
+        state.setHallLevel(2);
         Map<String, Object> rebirth = (Map<String, Object>) service.getSnapshot(user).get("rebirth");
         assertEquals(false, rebirth.get("available"));
         assertTrue(String.valueOf(rebirth.get("blocker")).contains("Enclave"));
         List<Map<String, Object>> checks = (List<Map<String, Object>>) rebirth.get("checks");
-        assertEquals(List.of("hall:8", "enclave", "builders_yard"), checks.stream().map(c -> c.get("id")).toList());
-        assertEquals(true, checks.get(0).get("met"));
+        assertEquals(List.of("hall:2", "enclave"), checks.stream().map(c -> c.get("id")).toList());
+        assertEquals(true, checks.get(0).get("met"), "the first rebirth needs only the hall's first evolution");
         assertEquals(false, checks.get(1).get("met"));
 
         meetFirstRebirth(state);
-        state.getRefinedInventory().put("living_mortar", 1);
-        assertTrue(String.valueOf(valueAt(service.getSnapshot(user), "rebirth", "blocker")).contains("Living Mortar"),
+        state.setTimber(150);
+        assertTrue(String.valueOf(valueAt(service.getSnapshot(user), "rebirth", "blocker")).contains("Timber"),
                 "the resource bill is part of the requirement");
-        state.getRefinedInventory().put("living_mortar", 2);
+        state.setTimber(200);
         service.rebirth(user, "first-of-many", state.getVersion());
         assertEquals(1, store.state.getRebirthCount());
 
-        // The second rebirth reaches further into the tree.
-        store.state.setHallLevel(KeepService.HALL_MAX_LEVEL);
+        // The second rebirth asks for the next rank and reaches further into the tree.
+        store.state.setHallLevel(2);
         store.state.setEnclaveLevel(1);
-        store.state.setBuildersYardLevel(1);
         Map<String, Object> second = (Map<String, Object>) service.getSnapshot(user).get("rebirth");
-        assertEquals(List.of("hall:8", "workshops_built:6", "storehouse:2"),
+        assertEquals(List.of("hall:3", "builders_yard"),
                 ((List<Map<String, Object>>) second.get("checks")).stream().map(c -> c.get("id")).toList());
-        assertTrue(((List<Map<String, Object>>) second.get("costs")).stream().anyMatch(c -> "tempered_glass".equals(c.get("id"))));
+        assertEquals("Settled Courtyard", second.get("requiredRankName"));
+        assertTrue(((List<Map<String, Object>>) second.get("costs")).stream().anyMatch(c -> "stone".equals(c.get("id"))));
         assertThrows(IllegalArgumentException.class, () -> service.rebirth(user, "too-soon", store.state.getVersion()));
+    }
+
+    @Test
+    void rebirthHallRankClimbsOneRankPerRebirthUpToTheGrandKeep() {
+        for (int n = 1; n <= KeepRebirth.MAX_REBIRTHS; n++) {
+            int hall = Math.min(KeepService.HALL_MAX_LEVEL, n + 1);
+            assertEquals(hall, KeepRebirth.requiredHallLevel(n));
+            assertEquals("hall:" + hall, KeepRebirth.requirement(n).checks().get(0));
+        }
     }
 
     @Test
@@ -2015,15 +2025,11 @@ class KeepServiceTest {
                 "refined stock falls with the rest of the stores");
     }
 
-    /** Everything the first rebirth asks for: the Grand Keep, Enclave, Builder's Yard and its bill. */
+    /** Everything the first rebirth asks for: the Timber Outpost, the Enclave and its bill. */
     private static void meetFirstRebirth(KeepState state) {
-        state.setHallLevel(KeepService.HALL_MAX_LEVEL);
+        state.setHallLevel(Math.max(2, state.getHallLevel()));
         state.setEnclaveLevel(1);
-        state.setBuildersYardLevel(1);
-        state.setStorehouseLevel(Math.max(1, state.getStorehouseLevel()));
-        state.setTimber(Math.max(400, state.getTimber()));
-        state.getMaterialInventory().put("stone", 30);
-        state.getRefinedInventory().put("living_mortar", 2);
+        state.setTimber(Math.max(200, state.getTimber()));
     }
 
     private static void unlockAll(KeepState state) {
