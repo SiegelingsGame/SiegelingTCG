@@ -5465,3 +5465,161 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-offer .sg-card-tile { width:var(--offer-card-w); height:auto; aspect-ratio:auto; }
   .sg-offer-meta { max-width:100%; }
 }
+
+/* ==========================================================================
+   SHOP: GACHA STOREFRONT
+   The shop leads with a full-bleed art stage, tabs stacked down its left edge
+   over the banner's scenery, and the offer copy plus one big buy button along
+   the bottom. --gstage-h is shared by the summon/daily/title stages and the
+   packs carousel so switching tabs never moves the tabs or the button.
+   ========================================================================== */
+.sg-shop { position:relative; --gstage-h:clamp(500px, calc(var(--sg-vh, 100dvh) - 200px), 640px); }
+.sg-scroll > .sg-shop:first-child { margin-top:0; }
+.sg-gstage, .sg-shop .sg-feature-carousel { position:relative; height:var(--gstage-h); overflow:hidden; }
+.sg-gstage-bg {
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  /* The banner characters stand right of centre; a portrait crop keeps them. */
+  object-position:68% 30%;
+  animation:sg-gstage-in .5s ease both;
+}
+@keyframes sg-gstage-in { from { opacity:.25; transform:scale(1.04); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion:reduce) { .sg-gstage-bg { animation:none; } }
+.sg-gstage-veil {
+  position:absolute; inset:0; pointer-events:none;
+  background:
+    linear-gradient(90deg, rgba(8,6,26,.55) 0%, rgba(8,6,26,0) 34%),
+    linear-gradient(180deg, rgba(8,6,26,.5) 0%, rgba(8,6,26,0) 20%, rgba(8,6,26,0) 44%, rgba(8,6,26,.72) 70%, rgba(8,6,26,.94) 100%);
+}
+.sg-gstage-body {
+  position:absolute; left:0; right:0; bottom:18px; z-index:2; padding:0 16px;
+  display:flex; flex-direction:column; align-items:flex-start; gap:8px;
+}
+.sg-gstage-body h2 {
+  margin:0; font-family:var(--serif); font-size:30px; font-weight:600; line-height:1.08;
+  text-shadow:0 2px 14px rgba(0,0,0,.6), 0 0 22px color-mix(in srgb, var(--el) 45%, transparent);
+}
+.sg-gstage-body p { margin:0; max-width:46ch; font-size:12px; line-height:1.5; color:#d8deea; text-shadow:0 1px 6px rgba(0,0,0,.7); }
+
+/* --- tabs: art tiles down the left edge --- */
+.sg-gtabs {
+  position:absolute; z-index:3; left:10px; top:calc(58px + max(6px, var(--sg-sat)));
+  display:flex; flex-direction:column; gap:8px; width:92px;
+}
+.sg-gtab {
+  position:relative; height:60px; padding:0; border-radius:12px; overflow:hidden; cursor:pointer;
+  border:1.5px solid rgba(255,255,255,.3); background:#0d0a26; color:#fff;
+  box-shadow:0 6px 16px rgba(0,0,0,.45);
+  transition:transform .18s ease, border-color .18s ease, box-shadow .18s ease, opacity .18s ease;
+  opacity:.82;
+}
+.sg-gtab img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:70% 25%; }
+.sg-gtab span {
+  position:absolute; left:0; right:0; bottom:0; padding:12px 6px 5px; text-align:right;
+  font-family:var(--serif); font-size:11px; font-weight:700; line-height:1.1;
+  background:linear-gradient(180deg, transparent, rgba(8,6,26,.88) 60%);
+  text-shadow:0 1px 3px rgba(0,0,0,.8);
+}
+.sg-gtab.on {
+  opacity:1; transform:translateX(4px); border-color:#ffe7a8;
+  box-shadow:0 0 0 2px color-mix(in srgb, var(--el) 70%, transparent), 0 0 20px color-mix(in srgb, var(--el) 60%, transparent), 0 8px 20px rgba(0,0,0,.5);
+}
+.sg-gtab:focus-visible { outline:2px solid #ffe7a8; outline-offset:2px; }
+
+/* The packs carousel stands in for the stage, so its copy and pack art move
+   clear of the tab column. */
+.sg-shop .sg-feature-carousel .sg-feature-pack { top:calc(58px + max(6px, var(--sg-sat))); }
+.sg-shop .sg-feature-carousel .sg-feature-body { bottom:30px; }
+
+/* --- element selector + buy --- */
+.sg-gelements {
+  display:flex; gap:6px; max-width:100%; overflow-x:auto; padding:3px 2px 4px;
+  scrollbar-width:none; touch-action:pan-x pan-y;
+}
+.sg-gelements::-webkit-scrollbar { display:none; }
+.sg-gel {
+  flex:0 0 auto; width:36px; height:36px; padding:0; border-radius:99px; cursor:pointer;
+  display:grid; place-items:center; background:rgba(8,6,26,.55);
+  border:1.5px solid rgba(255,255,255,.22); transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.sg-gel img { width:26px; height:26px; object-fit:contain; }
+.sg-gel.on { border-color:var(--el); transform:scale(1.12); box-shadow:0 0 14px color-mix(in srgb, var(--el) 75%, transparent); background:color-mix(in srgb, var(--el) 30%, rgba(8,6,26,.6)); }
+.sg-gbuy { display:flex; gap:10px; align-self:stretch; justify-content:flex-end; margin-top:4px; }
+.sg-gbtn {
+  min-width:190px; height:54px; padding:0 22px; border-radius:16px 4px 16px 4px; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:space-between; gap:12px;
+  font-family:var(--serif); font-size:16px; font-weight:700; color:#2a1606;
+  border:1px solid rgba(255,240,200,.75);
+  background:linear-gradient(180deg,#ffe49a 0%,#f8b64c 55%,#ec8f2c 100%);
+  box-shadow:0 10px 26px rgba(242,140,45,.45), inset 0 1px 0 rgba(255,255,255,.7);
+}
+.sg-gbtn.sg-buy { margin:0; justify-content:center; font-size:17px; }
+.sg-gbtn img { width:20px; height:20px; }
+.sg-gbtn-price {
+  display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:99px;
+  font-family:var(--sans); font-size:14px; background:rgba(60,30,6,.18);
+}
+.sg-gbtn:disabled { cursor:default; filter:saturate(.3); opacity:.7; color:#2a1606; }
+.sg-gbtn.sg-buy.is-armed { background:linear-gradient(180deg,#fff2c4,#ffd36b); }
+
+/* --- daily: headline card on the stage --- */
+.sg-gstage-card {
+  position:absolute; z-index:1; right:14px; top:calc(58px + max(6px, var(--sg-sat)));
+  width:min(46vw, 210px); transform:rotate(3deg);
+  filter:drop-shadow(0 18px 30px rgba(0,0,0,.6)) drop-shadow(0 0 24px color-mix(in srgb, var(--el) 50%, transparent));
+}
+.sg-gstage-card { aspect-ratio:5 / 7; }
+.sg-gstage-card .sg-card-tile { width:100%; height:100%; display:flex; align-items:flex-end; justify-content:center; }
+
+/* --- titles: nameplate preview --- */
+.sg-gplate {
+  display:flex; flex-direction:column; gap:2px; padding:10px 18px 10px 14px; min-width:220px;
+  border-left:3px solid var(--gold-bright);
+  background:linear-gradient(90deg, rgba(8,6,26,.82), rgba(8,6,26,.35));
+  border-radius:4px 14px 14px 4px;
+}
+.sg-gplate b { font-size:16px; }
+.sg-gplate i {
+  font-style:normal; font-family:var(--serif); font-size:13px; letter-spacing:.06em;
+  background:linear-gradient(90deg,#ffe7a8,#f2a03d); -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.sg-shop-title[data-title-preview] { cursor:pointer; }
+.sg-shop-title.on { border-color:var(--gold-bright); box-shadow:0 0 0 1px rgba(230,205,140,.35); }
+
+/* Larger phones in landscape, tablets: wider tabs, copy clear of them. */
+@media (min-width:640px) {
+  .sg-gtabs { width:150px; gap:10px; }
+  .sg-gtab { height:72px; }
+  .sg-gtab span { font-size:13px; }
+  .sg-gstage-body, .sg-shop .sg-feature-carousel .sg-feature-body { padding-left:180px; padding-right:24px; }
+  .sg-gstage-body h2 { font-size:38px; }
+}
+/* Short landscape phones: the stage is the whole viewport, so the tabs shrink
+   to fit between the top bar and the copy. */
+@media (orientation:landscape) and (max-height:520px) {
+  .sg-shop { --gstage-h:calc(var(--sg-vh, 100dvh) - 70px); }
+  .sg-gtabs { width:128px; gap:6px; top:calc(50px + max(6px, var(--sg-sat))); }
+  .sg-gtab { height:52px; }
+  .sg-gstage-body h2 { font-size:26px; }
+  .sg-gstage-body p { display:none; }
+  .sg-gstage-card { width:150px; }
+}
+@media (min-width:1024px) {
+  .sg-shop { --gstage-h:min(72vh, 760px); }
+  .sg-gstage { margin-inline:calc(-1 * var(--sg-gutter)); }
+  .sg-gtabs { left:0; top:calc(70px + var(--sg-sat)); width:clamp(200px, 15vw, 250px); gap:12px; }
+  .sg-gtab { height:clamp(78px, 6vw, 96px); border-radius:14px; }
+  .sg-gtab span { font-size:17px; padding:16px 12px 8px; }
+  .sg-gtab.on { transform:translateX(10px); }
+  .sg-gstage-body, .sg-shop .sg-feature-carousel .sg-feature-body {
+    bottom:40px; padding-left:calc(clamp(200px, 15vw, 250px) + 80px); padding-right:var(--sg-gutter);
+  }
+  .sg-gstage-body h2 { font-size:52px; }
+  .sg-gstage-body p { font-size:14.5px; }
+  .sg-gel { width:46px; height:46px; }
+  .sg-gel img { width:34px; height:34px; }
+  .sg-gbtn { min-width:260px; height:64px; font-size:20px; }
+  .sg-gstage-card { right:calc(var(--sg-gutter) + 40px); top:auto; bottom:136px; width:clamp(220px, 16vw, 300px); }
+  .sg-gplate { min-width:320px; }
+  .sg-gplate b { font-size:20px; }
+  .sg-gplate i { font-size:16px; }
+}

@@ -58,6 +58,26 @@ class PackCatalogServiceTest {
     }
 
     @Test
+    void elementSiegelingSummonDealsOnlyThatElementsSiegelings() throws Exception {
+        PackCatalogService service = createService(new SummonCardDefinitions());
+
+        Set<String> ids = service.listAvailablePacks().stream()
+                .map(PackCatalogService.PackDefinition::id)
+                .collect(Collectors.toSet());
+        assertTrue(ids.contains("pack_siegeling_fire"));
+        // Earth has only three Siegelings live, so its summon would have to pad.
+        assertFalse(ids.contains("pack_siegeling_earth"));
+
+        for (int i = 0; i < 20; i++) {
+            PackCatalogService.PackOpenResult result = service.openPack("pack_siegeling_fire", false);
+            assertEquals(5, result.cards().size());
+            assertEquals(5, result.cards().stream().map(Card::getId).distinct().count());
+            assertTrue(result.cards().stream().allMatch(card ->
+                    card.getCardType() == CardType.SIEGLING && card.getElement() == Element.FIRE));
+        }
+    }
+
+    @Test
     void retiredPacksAreGoneFromTheCatalogEntirely() throws Exception {
         PackCatalogService service = createService(new FireKnightCardDefinitions());
 
@@ -336,6 +356,28 @@ class PackCatalogServiceTest {
 
         protected SieglingCard fireSiegling(String id, Row row) {
             return new SieglingCard(id, "Fire Unit", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), row);
+        }
+    }
+
+    private static class SummonCardDefinitions extends FireOnlyCardDefinitions {
+        @Override
+        public List<String> getActiveLiveElementNames() {
+            return List.of(Element.FIRE.name(), Element.EARTH.name());
+        }
+
+        @Override
+        public List<Card> getDeckBuilderCatalog() {
+            return List.of(
+                    fireSiegling("fire-a", Row.FRONT), fireSiegling("fire-b", Row.FRONT),
+                    fireSiegling("fire-c", Row.MIDDLE), fireSiegling("fire-d", Row.MIDDLE),
+                    fireSiegling("fire-e", Row.BACK), fireSiegling("fire-f", Row.BACK),
+                    new SieglingCard("neutral-a", "Neutral Unit", Element.NEUTRAL, Rarity.COMMON, 7, 3, List.of(), Row.FRONT),
+                    new SieglingCard("earth-a", "Earth Unit", Element.EARTH, Rarity.COMMON, 7, 3, List.of(), Row.FRONT),
+                    new SieglingCard("earth-b", "Earth Unit", Element.EARTH, Rarity.COMMON, 7, 3, List.of(), Row.FRONT),
+                    new SieglingCard("earth-c", "Earth Unit", Element.EARTH, Rarity.COMMON, 7, 3, List.of(), Row.FRONT),
+                    new SpellCard("fire-spell", "Fire Spell", Element.FIRE, Rarity.COMMON, 1,
+                            Ability.damage("Spark", "Deal 1 damage", TargetType.SINGLE_ENEMY, null, 1, 1))
+            );
         }
     }
 

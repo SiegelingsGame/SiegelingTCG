@@ -67,6 +67,9 @@ public class PackCatalogService {
             Card card
     ) {}
 
+    /** Id prefix of the per-element Siegeling-only summons ({@code pack_siegeling_fire}, ...). */
+    public static final String SIEGELING_SUMMON_PREFIX = "pack_siegeling_";
+
     @Autowired
     private CardDefinitionService cardDefinitionService;
 
@@ -104,6 +107,27 @@ public class PackCatalogService {
                 "Water and Wind cards for control and tempo.", true, 140,
                 List.of(Element.WATER, Element.WIND), false));
         List<Element> activeElements = activeGameplayElements();
+        // One Siegeling-only summon per element, so the shop can offer a banner
+        // the player points at an element instead of the random mix. An element
+        // without five distinct live Siegelings is left out rather than listed
+        // as a pack that would fail (or quietly pad with other elements) on open.
+        Map<Element, Long> sieglingsByElement = cardDefinitionService.getDeckBuilderCatalog().stream()
+                .filter(card -> card.getCardType() == CardType.SIEGLING && card.getElement() != null)
+                .collect(Collectors.groupingBy(Card::getElement, Collectors.counting()));
+        for (Element element : activeElements) {
+            if (sieglingsByElement.getOrDefault(element, 0L) < 5) {
+                continue;
+            }
+            packs.add(new PackDefinition(
+                    SIEGELING_SUMMON_PREFIX + element.name().toLowerCase(Locale.ROOT),
+                    formatElement(element) + " Siegeling Summon",
+                    "Five " + formatElement(element) + " Siegelings, nothing else.",
+                    true,
+                    160,
+                    List.of(element),
+                    false
+            ));
+        }
         packs.add(new PackDefinition("pack_siegeling_random", "Siegeling Pack",
                 "Five random Siegeling cards from a changing elemental mix.", true, 160,
                 activeElements, false));
@@ -155,6 +179,18 @@ public class PackCatalogService {
 
         List<Card> pool = cardPoolForPack(pack, !starterOnly);
         Optional<CardType> focusType = focusedType(pack.id());
+        if (focusType.isPresent() && !pack.id().equals("pack_siegeling_random")) {
+            // An element summon is strict: neutral filler would break the promise
+            // on the banner, and listPacks only lists it with five to draw from.
+            List<Card> focusCards = pool.stream()
+                    .filter(card -> card.getCardType() == focusType.get() && card.getElement() == pack.elements().get(0))
+                    .toList();
+            List<Card> cards = selectRandom(focusCards, 5);
+            if (cards.size() < 5) {
+                throw new IllegalArgumentException("This summon does not have enough live " + formatElement(pack.elements().get(0)) + " Siegelings configured.");
+            }
+            return new PackOpenResult(pack, cards, rollBonusTrainer(pack), rollHolographicDrops(cards));
+        }
         if (focusType.isPresent()) {
             List<Card> focusCards = randomElementPool(pool, focusType.get()).stream()
                     .filter(card -> card.getCardType() == focusType.get())
@@ -440,10 +476,7 @@ public class PackCatalogService {
     }
 
     private Optional<CardType> focusedType(String packId) {
-        return switch (packId) {
-            case "pack_siegeling_random" -> Optional.of(CardType.SIEGLING);
-            default -> Optional.empty();
-        };
+        return packId.startsWith(SIEGELING_SUMMON_PREFIX) ? Optional.of(CardType.SIEGLING) : Optional.empty();
     }
 
     private List<Element> activeGameplayElements() {

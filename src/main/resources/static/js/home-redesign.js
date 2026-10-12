@@ -3126,6 +3126,7 @@
 
   function packBack(pk) {
     if (PACK_BACK[pk.id]) return PACK_BACK[pk.id];
+    if (pk.id.indexOf('pack_siegeling_') === 0) return PACK_BACK.pack_siegeling_random;
     var el = String(packElement(pk)).toLowerCase();
     return '/img/decks/card-back-' + el + '.webp';
   }
@@ -3340,6 +3341,23 @@
     mountSheet(app, opts);
     mountFeatureCarousel(app, opts);
     app.addEventListener('click', function (e) {
+      if (!e.target.closest) return;
+      var tab = e.target.closest('[data-shop-tab]');
+      var el = e.target.closest('[data-shop-element]');
+      var preview = !e.target.closest('.sg-buy') && e.target.closest('[data-title-preview]');
+      if (tab) {
+        opts.shopTab = shopPref('tab', tab.getAttribute('data-shop-tab'));
+        opts.featureIndex = 0;
+        refreshShop(opts);
+      } else if (el) {
+        opts.shopElement = shopPref('element', el.getAttribute('data-shop-element'));
+        refreshShop(opts);
+      } else if (preview) {
+        opts.shopTitlePreview = preview.getAttribute('data-title-preview');
+        refreshShop(opts);
+      }
+    });
+    app.addEventListener('click', function (e) {
       var btn = e.target.closest ? e.target.closest('[data-pack]') : null;
       if (!btn) return;
       if (opts.guest) { window.location.href = '/login'; return; }
@@ -3403,45 +3421,212 @@
     });
   }
 
-  function shopScreen(opts) {
-    opts = opts || {};
+  /* ---------- gacha storefront ----------
+     The shop is laid out like a summon screen: a full-bleed art stage with the
+     tabs stacked down its left edge (the left column of a 16:9 banner is
+     background, so the tabs cover scenery rather than the character), the offer
+     copy and the buy button along the bottom, and the tab's detail below the
+     fold. Every tab is drawn from the real /api/shop/packs payload; a tab with
+     nothing to sell is left out rather than shown empty. */
+  var SHOP_BANNER = { FIRE: 1, WATER: 1, ICE: 1, WIND: 1, EARTH: 1 };
+  var SUMMON_PREFIX = 'pack_siegeling_';
+
+  // Commissioned banner art where an element has it, its Land plate otherwise.
+  function shopArt(el, thumb) {
+    var key = String(el || '').toUpperCase();
+    if (SHOP_BANNER[key]) return '/img/shop/banner-' + key.toLowerCase() + (thumb ? '-480' : '') + '.webp';
+    return land(key);
+  }
+
+  function isSummonPack(pk) {
+    return pk.id.indexOf(SUMMON_PREFIX) === 0 && pk.id !== 'pack_siegeling_random';
+  }
+
+  function shopPref(key, value) {
+    try {
+      if (value === undefined) return window.localStorage.getItem('sgShop.' + key) || '';
+      window.localStorage.setItem('sgShop.' + key, value);
+    } catch (err) { /* private mode: the choice just isn't remembered */ }
+    return value;
+  }
+
+  // Daily offers roll at the server's midnight, and Cloud Run runs on UTC.
+  function dailyResetText() {
+    var now = new Date();
+    var next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+    var mins = Math.max(1, Math.round((next - now.getTime()) / 60000));
+    var h = Math.floor(mins / 60), m = mins % 60;
+    return 'Resets in ' + (h ? h + 'h ' : '') + m + 'm';
+  }
+
+  function shopModel(opts) {
     var live = opts.live || {};
-    var packs = live.packs || [];
+    var all = live.packs || [];
+    var summons = all.filter(isSummonPack);
+    var packs = all.filter(function (pk) { return !isSummonPack(pk); });
     var offers = live.dailyOffers || [];
     var titles = live.dailyTitleOffers || [];
+    var wanted = String(opts.shopElement || shopPref('element') || '').toUpperCase();
+    var summon = summons.filter(function (pk) { return packElement(pk) === wanted; })[0] || summons[0] || null;
+    var tabs = [];
+    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: shopArt(packElement(summon), true), el: packElement(summon) });
+    if (packs.length) {
+      var lead = featuredPacks(packs)[0];
+      tabs.push({ id: 'packs', label: 'Packs', art: packBackdrop(lead), el: packElement(lead) });
+    }
+    if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: shopArt('WATER', true), el: offerCard(offers[0]).element });
+    if (titles.length) tabs.push({ id: 'titles', label: 'Titles', art: shopArt('EARTH', true), el: 'EARTH' });
+    var want = opts.shopTab || shopPref('tab');
+    var tab = tabs.filter(function (t) { return t.id === want; })[0] || tabs[0] || null;
+    return { live: live, summons: summons, summon: summon, packs: packs, offers: offers, titles: titles, tabs: tabs, tab: tab };
+  }
+
+  function shopTabsMarkup(m) {
+    if (m.tabs.length < 2) return '';
+    return '<nav class="sg-gtabs" role="tablist" aria-label="Shop">' + m.tabs.map(function (t) {
+      var on = t === m.tab;
+      return '<button class="sg-gtab' + (on ? ' on' : '') + '" type="button" role="tab"' +
+          ' aria-selected="' + (on ? 'true' : 'false') + '" data-shop-tab="' + esc(t.id) + '" style="--el:' + color(t.el) + '">' +
+        '<img src="' + esc(t.art) + '" alt="" loading="lazy">' +
+        '<span>' + esc(t.label) + '</span>' +
+      '</button>';
+    }).join('') + '</nav>';
+  }
+
+  function stageOpen(el, art, extra) {
+    return '<section class="sg-gstage' + (extra ? ' ' + extra : '') + '" style="--el:' + color(el) + '">' +
+      '<img class="sg-gstage-bg" src="' + esc(art) + '" alt="">' +
+      '<div class="sg-gstage-veil"></div>';
+  }
+
+  function coinBtn(attrs, price, label, cls) {
+    return '<button class="sg-gbtn' + (cls ? ' ' + cls : '') + '" type="button" ' + attrs + '>' +
+      '<span class="sg-gbtn-label">' + label + '</span>' +
+      '<span class="sg-gbtn-price"><img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(price != null ? price : '—') + '</span>' +
+    '</button>';
+  }
+
+  // The element row is the banner's selector: each element with a live summon
+  // gets its notch, and picking one swaps the art, the copy and the pack.
+  function summonPanel(m, opts) {
+    var pk = m.summon;
+    var el = packElement(pk);
+    var odds = pk.odds || {};
+    var knight = odds.siegeKnight != null ? Math.round(odds.siegeKnight * 100) : null;
+    var pool = CARDS.filter(function (c) { return String(c.element || '').toUpperCase() === el; });
+    return stageOpen(el, shopArt(el), 'is-summon') +
+        '<div class="sg-gstage-body">' +
+          '<span class="sg-tag">Siegeling Summon</span>' +
+          '<h2>' + esc(title(el)) + ' Siegelings</h2>' +
+          '<p>' + esc(pk.description || '') + (knight ? ' Every summon has a ' + knight + '% chance at a bonus SiegeKnight.' : '') + '</p>' +
+          '<div class="sg-gelements" role="radiogroup" aria-label="Summon element">' + m.summons.map(function (s) {
+            var e = packElement(s);
+            var on = s === pk;
+            return '<button type="button" role="radio" aria-checked="' + (on ? 'true' : 'false') + '"' +
+              ' class="sg-gel' + (on ? ' on' : '') + '" data-shop-element="' + esc(e) + '" style="--el:' + color(e) + '"' +
+              ' aria-label="' + esc(title(e)) + '"><img src="' + esc(icon(e)) + '" alt=""></button>';
+          }).join('') + '</div>' +
+          '<div class="sg-gbuy">' + coinBtn('data-pack="' + esc(pk.id) + '"', pk.price, 'Summon &times;5', 'is-primary') + '</div>' +
+        '</div>' +
+      '</section>' +
+      (pool.length
+        ? '<section class="sg-section">' +
+            '<div class="sg-section-head"><h3>In this summon</h3><span class="sg-section-note">' + esc(title(el)) + '</span></div>' +
+            '<div class="sg-offer-rail sg-gpool">' + pool.slice(0, 12).map(function (c) {
+              return '<div class="sg-offer" style="--el:' + color(c.element) + '">' + galleryCard(c) +
+                '<span class="sg-offer-meta"><b>' + esc(c.name) + '</b><i>' + esc(title(c.rarity)) + '</i></span></div>';
+            }).join('') + '</div>' +
+          '</section>'
+        : '');
+  }
+
+  function packsPanel(m) {
+    return featureCarousel(m.packs) +
+      '<section class="sg-section">' +
+        '<div class="sg-section-head"><h3>All packs</h3><span class="sg-section-note">' + esc(m.packs.length) + '</span></div>' +
+        // A grid, not a swipe rail: a horizontal rail hides all but three packs.
+        '<div class="sg-pack-grid">' + m.packs.map(packCard).join('') + '</div>' +
+      '</section>';
+  }
+
+  // The headline offer is the rotation's first slot (always a SiegeKnight when
+  // one is live), shown big on the stage; the whole rotation sits below it.
+  function dailyPanel(m, opts) {
+    var head = m.offers[0];
+    var card = offerCard(head);
+    var bought = (m.live.purchasedDailyOfferIds || []).indexOf(head.id) !== -1;
+    return stageOpen(card.element, shopArt(card.element), 'is-daily') +
+        '<div class="sg-gstage-card">' + galleryCard(card) + '</div>' +
+        '<div class="sg-gstage-body">' +
+          '<span class="sg-tag">Daily Offerings &middot; ' + esc(dailyResetText()) + '</span>' +
+          '<h2>' + esc(card.name || head.cardId) + '</h2>' +
+          '<p>' + esc(title(card.rarity)) + ' &middot; ' + esc(title(card.element)) + ' &middot; ' +
+            esc(title(card.type === 'SIEGEKNIGHT' ? 'SiegeKnight' : card.type)) +
+            '. One copy, today only. ' + esc(m.offers.length - 1) + ' more below.</p>' +
+          '<div class="sg-gbuy">' +
+            (bought
+              ? '<button class="sg-gbtn is-primary" type="button" disabled><span class="sg-gbtn-label">Owned</span></button>'
+              : '<button class="sg-buy sg-gbtn is-primary" type="button" data-buy-offer="' + esc(head.id) + '" data-price="' + esc(head.price) + '">' +
+                  '<img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(head.price) + '</button>') +
+          '</div>' +
+        '</div>' +
+      '</section>' +
+      '<section class="sg-section">' +
+        '<div class="sg-section-head"><h3>Today’s rotation</h3><span class="sg-section-note">' + esc(dailyResetText()) + '</span></div>' +
+        '<div class="sg-offer-rail">' + m.offers.map(function (o) { return dailyOfferTile(o, opts); }).join('') + '</div>' +
+      '</section>';
+  }
+
+  // The nameplate previews a title the way it reads under the player's name;
+  // tapping a row below swaps which one it shows.
+  function titlesPanel(m, opts) {
+    var pick = m.titles.filter(function (t) { return t.id === opts.shopTitlePreview; })[0] ||
+      m.titles.filter(function (t) { return !titleOwned(t, m.live); })[0] || m.titles[0];
+    var name = (opts.live && opts.live.displayName) || 'Your name';
+    return stageOpen('EARTH', shopArt('EARTH'), 'is-titles') +
+        '<div class="sg-gstage-body">' +
+          '<span class="sg-tag">Titles &middot; ' + esc(dailyResetText()) + '</span>' +
+          '<h2>Wear your legend</h2>' +
+          '<div class="sg-gplate"><b>' + esc(name) + '</b><i>' + esc(pick.label || 'Title') + '</i></div>' +
+          '<p>' + esc(pick.description || 'Shown under your name in rooms, on the leaderboard and on your profile.') + '</p>' +
+          '<div class="sg-gbuy">' +
+            (titleOwned(pick, m.live)
+              ? '<button class="sg-gbtn is-primary" type="button" disabled><span class="sg-gbtn-label">Owned</span></button>'
+              : '<button class="sg-buy sg-gbtn is-primary" type="button" data-buy-title="' + esc(pick.id) + '" data-price="' + esc(pick.shopPrice) + '">' +
+                  '<img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(pick.shopPrice || 0) + '</button>') +
+          '</div>' +
+        '</div>' +
+      '</section>' +
+      '<section class="sg-section">' +
+        '<div class="sg-section-head"><h3>Today’s titles</h3><span class="sg-section-note">Tap to preview</span></div>' +
+        '<div class="sg-shop-titles">' + m.titles.map(function (t) {
+          return shopTitleRow(t, opts).replace('<article class="sg-shop-title"',
+            '<article class="sg-shop-title' + (t === pick ? ' on' : '') + '" data-title-preview="' + esc(t.id) + '"');
+        }).join('') + '</div>' +
+      '</section>';
+  }
+
+  function shopScreen(opts) {
+    opts = opts || {};
+    var m = shopModel(opts);
+    var panel = !m.tab ? ''
+      : m.tab.id === 'summon' ? summonPanel(m, opts)
+      : m.tab.id === 'packs' ? packsPanel(m)
+      : m.tab.id === 'daily' ? dailyPanel(m, opts)
+      : titlesPanel(m, opts);
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
-        (packs.length ? featureCarousel(packs) : '') +
+        (m.tab
+          ? '<div class="sg-shop" data-shop-panel="' + esc(m.tab.id) + '">' + shopTabsMarkup(m) + panel + '</div>'
+          : '<div class="sg-empty-plate">' +
+              '<img src="' + plate(scene('frostag-training')) + '" alt="" loading="lazy">' +
+              '<div class="sg-empty-veil"></div>' +
+              '<div class="sg-empty-body"><strong>The stall is closed</strong>' +
+              '<p>The pack catalog did not answer. Try again in a moment.</p></div>' +
+            '</div>') +
         (opts.shopNotice
           ? '<p class="sg-shop-notice' + (opts.shopNoticeError ? ' is-error' : '') + '" role="status">' + esc(opts.shopNotice) + '</p>'
           : '') +
-        (offers.length
-          ? '<section class="sg-section">' +
-              '<div class="sg-section-head"><h3>Daily Offerings</h3><span class="sg-section-note">Refreshes daily</span></div>' +
-              '<div class="sg-offer-rail">' + offers.map(function (o) { return dailyOfferTile(o, opts); }).join('') + '</div>' +
-            '</section>'
-          : '') +
-        (titles.length
-          ? '<section class="sg-section">' +
-              '<div class="sg-section-head"><h3>Player Titles</h3><span class="sg-section-note">Refreshes daily</span></div>' +
-              '<div class="sg-shop-titles">' + titles.map(function (t) { return shopTitleRow(t, opts); }).join('') + '</div>' +
-            '</section>'
-          : '') +
-        '<section class="sg-section">' +
-          '<div class="sg-section-head"><h3>Packs</h3>' +
-            (packs.length ? '<span class="sg-section-note">' + esc(packs.length) + '</span>' : '') +
-          '</div>' +
-          (packs.length
-            // A grid, not a swipe rail: the real catalog is 17 packs, and a
-            // horizontal rail hides all but three of them.
-            ? '<div class="sg-pack-grid">' + packs.map(packCard).join('') + '</div>'
-            : '<div class="sg-empty-plate">' +
-                '<img src="' + plate(scene('frostag-training')) + '" alt="" loading="lazy">' +
-                '<div class="sg-empty-veil"></div>' +
-                '<div class="sg-empty-body"><strong>The stall is closed</strong>' +
-                '<p>The pack catalog did not answer. Try again in a moment.</p></div>' +
-              '</div>') +
-        '</section>' +
         '<div style="height:96px"></div>' +
       '</div>' +
       sheetHost() +
