@@ -2009,7 +2009,8 @@ img { display: block; }
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: center;
+    /* Top-anchored like style.css .knight-overlay-art-img. */
+    object-position: center top;
 }
 .knight-card-template {
     position: absolute;

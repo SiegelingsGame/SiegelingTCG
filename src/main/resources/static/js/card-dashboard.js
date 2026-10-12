@@ -4231,7 +4231,9 @@
                 setTrainerArtMeta(
                     goodFit
                         ? `${w}×${h} · good ${targetLabel} fit — fills the ${target} with no cropping.`
-                        : `${w}×${h} · ${ratio > targetAspect ? "wider" : "taller"} than a ${targetLabel} ${target}, so it's cropped to fit. Drag the art and use Scale below to frame it.`,
+                        : isOverlay && ratio < targetAspect
+                            ? `${w}×${h} · taller than a ${targetLabel} ${target}: it starts from the top and the rest runs below. Drag the art and use Scale below to frame it.`
+                            : `${w}×${h} · ${ratio > targetAspect ? "wider" : "taller"} than a ${targetLabel} ${target}, so it's cropped to fit. Drag the art and use Scale below to frame it.`,
                     goodFit ? "ok" : "warn"
                 );
                 // Clear any stale "could not load" error now that a good image rendered.
