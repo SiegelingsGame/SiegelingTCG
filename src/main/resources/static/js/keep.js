@@ -2304,7 +2304,8 @@
             <div class="button-row"><button class="panel-button secondary" type="button" data-open-panel="projects">Open Projects</button></div></section>`;
     }
 
-    // A Grand Keep can be reborn: the walls reset, the keeper keeps what they learned,
+    // A risen Keep can be reborn (the 1st rebirth needs the Timber Outpost, each later one
+    // a rank higher, up to the Grand Keep): the walls reset, the keeper keeps what they learned,
     // and every rebirth stacks permanent bonuses (KeepRebirth on the server). The
     // button arms on the first tap and acts on the second, because the reset is real.
     function rebirthBonusChips(bonuses, includeCost) {
@@ -2327,7 +2328,7 @@
         const next = rebirth.next || null;
         const current = count > 0
             ? `<p class="rebirth-now"><strong>${escapeHtml(rebirth.title || 'Reborn')}</strong> · reborn ${count}×. Bonuses held now:</p>${rebirthBonusChips(rebirth.bonuses, true)}`
-            : '<p>Once the hall stands as the Grand Keep, you may let the sanctuary return to the earth and raise it again, stronger.</p>';
+            : `<p>Once the hall stands as the ${escapeHtml(rebirth.requiredRankName || 'Timber Outpost')}, you may let the sanctuary return to the earth and raise it again, stronger. Each later rebirth asks for a higher rank.</p>`;
         let action = '';
         if (!next) {
             action = '<p class="rebirth-note">This Keep has been reborn as many times as the covenant allows.</p>';
