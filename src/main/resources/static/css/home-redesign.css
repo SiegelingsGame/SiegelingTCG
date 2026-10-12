@@ -747,7 +747,6 @@ body.concept-board {
 .sg-pill img { width:14px; height:14px; }
 .sg-pill.on { color:var(--ink); border-color:var(--el,#c8a54f); background:color-mix(in srgb, var(--el,#c8a54f) 18%, transparent); }
 
-
 /* Binder filter chrome collapses into a FAB while scrolling; the FAB opens a
    liquid-glass sheet so search/filters stay reachable without eating the grid. */
 .sg-filter-chrome {
@@ -1480,10 +1479,7 @@ body.single-screen .sg-app { position:fixed; inset:0; }
   box-shadow:0 10px 28px rgba(242,160,61,.4);
 }
 .sg-cta img { width:18px; height:18px; }
-.sg-pack {
-  flex:0 0 132px; scroll-snap-align:start; display:flex; flex-direction:column; align-items:center; gap:6px;
-  background:none; border:none; padding:0; color:inherit; font:inherit; cursor:pointer;
-}
+
 /* The face fills its column rather than sitting at a fixed 132px: in the grid the
    tiles were narrower than their cell, so the art floated with gaps either side. */
 /* The card-back art is 520x760 (13:19), not 3:4. Forcing a 3:4 box and painting
@@ -1516,22 +1512,11 @@ body.single-screen .sg-app { position:fixed; inset:0; }
 }
 :root.sg-standalone { --sg-sat: calc(env(safe-area-inset-top, 0px) + 40px); }
 :root { --card-back-ratio: 520 / 760; }
-.sg-pack-face {
-  width:132px; height:auto; aspect-ratio:var(--card-back-ratio);
-  border-radius:16px; overflow:hidden; position:relative;
-  box-shadow:0 16px 30px rgba(0,0,0,.55), inset 0 0 0 1px rgba(200,165,79,.22);
-}
-.sg-pack-face::after {
-  content:''; position:absolute; inset:0;
-  background:radial-gradient(70% 50% at 50% 30%, var(--el,#f05b2f), transparent 72%);
-  opacity:.34; mix-blend-mode:screen;
-}
+
 /* `contain` rather than `cover`: the box already matches the art, and a pack
    given a custom back of some other proportion should letterbox, never lose its
    frame. */
-.sg-pack-face img { width:100%; height:100%; object-fit:contain; display:block; }
-.sg-pack strong { font-size:11.5px; font-weight:600; text-align:center; }
-.sg-pack span { font-size:10px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; }
+
 .sg-buy {
   margin-top:2px; height:30px; padding:0 14px; border-radius:999px; cursor:pointer;
   display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--gold-bright);
@@ -2494,7 +2479,6 @@ body.concept-board {
 .sg-help-body strong { display:block; font-family:var(--serif); font-size:15px; font-weight:600; line-height:1.2; }
 .sg-help-body span { display:block; margin-top:3px; font-size:10.5px; color:var(--muted); line-height:1.35; }
 
-
 /* Chapter popup.
    The grid tiles are buttons now, so they need the button reset the `<a>` did
    not; the popup itself is a scrim + one scrolling panel, capped at 88dvh so
@@ -2665,7 +2649,6 @@ body.concept-board {
   font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#2b0d02;
   background:linear-gradient(135deg,#ffe066,var(--amber)); box-shadow:0 8px 22px rgba(255,120,45,.42); }
 
-
 /* ---------- honest empty states ----------
    Several sections used to be backed by invented sample data (badges, friends,
    a match record, four daily objectives). They render nothing now when the
@@ -2685,21 +2668,12 @@ body.concept-board {
 
 /* The shop's pack rail became a grid once it was showing the real catalog
    (17 packs) rather than four invented ones. */
-.sg-pack-grid {
-  display:grid; grid-template-columns:repeat(auto-fill, minmax(104px, 1fr));
-  gap:12px; padding:0 18px 4px;
-}
-.sg-pack-grid .sg-pack {
-  width:auto; flex:none; height:100%;
-  display:flex; flex-direction:column; align-items:stretch; gap:5px;
-}
+
 /* Full-bleed within the cell, keeping the card back's own proportion. */
-.sg-pack-grid .sg-pack-face { width:100%; height:auto; aspect-ratio:var(--card-back-ratio); }
+
 /* A wrapping pack name must not push its price out of line with the row, so the
    buy button is pinned to the bottom of every tile. */
-.sg-pack-grid .sg-pack .sg-buy { margin-top:auto; align-self:center; }
-.sg-pack-grid .sg-pack .sg-pack-note { text-align:center; }
-.sg-pack-grid .sg-pack strong { text-align:center; line-height:1.25; }
+
 /* The featured pack's description sits over the brightest part of the plate, so
    the veil needs a second stop rather than a single top-down fade. */
 .sg-feature-veil {
@@ -2707,7 +2681,6 @@ body.concept-board {
     linear-gradient(180deg, rgba(13,10,38,.52) 0%, rgba(13,10,38,.10) 22%,
                     rgba(13,10,38,.62) 58%, rgba(13,10,38,.88) 100%);
 }
-
 
 /* ---------- sign in ----------
    Sign In used to leave the redesign: /login forwarded to the old hub, so the
@@ -2820,6 +2793,13 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   /* Centred rather than top-aligned: a five-card pull fills the stage, a
      three-card pull would otherwise sit in the corner of a tall void. */
   align-content:center; width:100%; max-width:min(430px, 100%);
+}
+/* A ×10 pull is fifty cards: centring them would push the top rows up under
+   the heading, so they start at the top, spread wider, and the overlay body
+   scrolls them. */
+.sg-gacha-stage.is-grid.is-bulk {
+  flex:0 0 auto; align-content:start; max-width:min(1080px, 100%);
+  grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); gap:12px 10px;
 }
 /* The unopened pack breathes while the purchase is in flight. */
 .sg-gacha-pack { width:150px; aspect-ratio:var(--card-back-ratio); border-radius:16px; overflow:hidden;
@@ -2979,7 +2959,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   background:var(--notch-icon) center / 100% 100% no-repeat, var(--notch, #95a5a6);
   box-shadow:0 1px 4px rgba(0,0,0,.6);
 }
-
 
 /* ---------- the art gallery ----------
    The art is the interface here: plates run edge to edge in a two-column mosaic
@@ -3497,7 +3476,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-pick-grid { gap:7px; }
 }
 
-
 /* ---------- social: six tabs, three sub-tabs, and DMs ----------
    Social became a tab of its own, which makes six in the bar. At 320px that is
    53px per tab, so the label has to give: it steps down a point and loses some
@@ -3528,7 +3506,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-social-pad { padding-top:4px; }
 .sg-social-title { padding:6px 18px 2px; }
 .sg-social-title h2 { margin:0; font-family:var(--serif); font-size:26px; color:var(--ink); }
-
 
 /* ---- Social floating button ----
    Above the tab bar, bottom right, clear of the home indicator. Tapping it fans
@@ -3892,13 +3869,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-feature-body p { font-size:14px; max-width:52ch; line-height:1.6; }
   .sg-cta { font-size:15px; padding:15px 32px; }
   .sg-cta img { width:22px; height:22px; }
-  .sg-pack-grid {
-    grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
-    gap:26px 22px; padding:6px 18px 8px;
-  }
-  .sg-pack-grid .sg-pack { gap:9px; }
-  .sg-pack strong { font-size:14.5px; }
-  .sg-pack span, .sg-pack-grid .sg-pack .sg-pack-note { font-size:11px; }
+
+  
+
+  
   .sg-buy { font-size:13px; padding:9px 18px; }
   .sg-buy img { width:17px; height:17px; }
   .sg-bundle { padding:16px 20px; }
@@ -3999,10 +3973,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* A phone gets its feedback from :active; a pointer needs hover, and without it
    every plate on the desktop page is inert. */
 @media (min-width:1024px) and (hover:hover) {
-  .sg-feat, .sg-plate, .sg-mode, .sg-pack, .sg-deckrow, .sg-exp, .sg-art, .sg-gal-card {
+  .sg-feat, .sg-plate, .sg-mode, .sg-deckrow, .sg-exp, .sg-art, .sg-gal-card {
     transition:transform .26s cubic-bezier(.2,.8,.25,1), box-shadow .26s ease;
   }
-  .sg-feat:hover, .sg-plate:hover, .sg-pack:hover, .sg-art:hover, .sg-gal-card:hover {
+  .sg-feat:hover, .sg-plate:hover, .sg-art:hover, .sg-gal-card:hover {
     transform:translateY(-6px);
   }
   .sg-mode:hover, .sg-deckrow:hover, .sg-exp:hover { transform:translateY(-4px); }
@@ -4014,13 +3988,13 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 @media (min-width:1600px) {
   .sg-app { --sg-measure:1480px; }
   .sg-swipe { grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); }
-  .sg-pack-grid { grid-template-columns:repeat(auto-fill, minmax(215px, 1fr)); }
+
 }
 
 @media (min-width:1024px) and (prefers-reduced-motion:reduce) {
-  .sg-feat, .sg-plate, .sg-mode, .sg-pack, .sg-deckrow, .sg-exp, .sg-art,
+  .sg-feat, .sg-plate, .sg-mode, .sg-deckrow, .sg-exp, .sg-art,
   .sg-gal-card, .sg-mode-bg { transition:none; }
-  .sg-feat:hover, .sg-plate:hover, .sg-pack:hover, .sg-art:hover,
+  .sg-feat:hover, .sg-plate:hover, .sg-art:hover,
   .sg-gal-card:hover, .sg-mode:hover, .sg-deckrow:hover, .sg-exp:hover { transform:none; }
   .sg-mode:hover .sg-mode-bg { transform:none; }
 }
@@ -4103,108 +4077,17 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   color:#d8d2f4;
 }
 
-/* ---------- shop: featured carousel ----------
-   The featured band cycles every pack. Swiping is native scroll-snap on the
-   track so it pans like any iOS rail; each slide carries its own element
-   backdrop and the pack's card back, so the art always matches the pack. */
-.sg-feature-carousel { height:336px; }
-.sg-feature-track {
-  position:absolute; inset:0; display:flex;
-  overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory;
-  overscroll-behavior-x:contain; scrollbar-width:none; touch-action:pan-x pan-y;
-}
-.sg-feature-track::-webkit-scrollbar { display:none; }
-.sg-feature-slide {
-  position:relative; flex:0 0 100%; height:100%; overflow:hidden;
-  scroll-snap-align:start; scroll-snap-stop:always;
-}
-/* The pack sits upper right, clear of the copy column, lit in its element. */
-.sg-feature-pack {
-  position:absolute; right:18px; top:calc(var(--sg-sat) + 66px);
-  width:86px; aspect-ratio:var(--card-back-ratio); border-radius:10px; overflow:hidden;
-  transform:rotate(6deg);
-  box-shadow:0 16px 30px rgba(0,0,0,.55), 0 0 26px color-mix(in srgb, var(--el,#f05b2f) 55%, transparent);
-}
-.sg-feature-pack img { width:100%; height:100%; object-fit:contain; display:block; }
-.sg-feature-carousel .sg-feature-body { bottom:28px; }
-.sg-feature-carousel .sg-feature-body p { max-width:min(290px, calc(100% - 20px)); }
-.sg-feature-carousel .sg-feature-body h2 { max-width:calc(100% - 104px); line-height:1.12; }
-.sg-feature-dots {
-  position:absolute; left:0; right:0; bottom:6px; z-index:2;
-  display:flex; justify-content:center; gap:2px;
-}
-/* 8px dot, 22px hit area. */
-.sg-feature-dot {
-  width:22px; height:18px; padding:0; border:0; background:none; cursor:pointer; position:relative;
-}
-.sg-feature-dot::after {
-  content:''; position:absolute; left:50%; top:50%; width:6px; height:6px; margin:-3px 0 0 -3px;
-  border-radius:99px; background:rgba(255,255,255,.38); transition:width .25s ease, margin .25s ease, background .25s ease;
-}
-.sg-feature-dot.on::after { width:16px; margin-left:-8px; background:var(--el,#f0cd8a); }
-.sg-feature-nav {
-  position:absolute; top:50%; z-index:2; width:34px; height:34px; margin-top:-17px;
-  border-radius:99px; border:1px solid rgba(255,255,255,.22); cursor:pointer;
-  background:rgba(8,6,26,.46); color:#fff; font-size:22px; line-height:1;
-  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
-  display:none; align-items:center; justify-content:center;
-}
-.sg-feature-nav.prev { left:10px; }
-.sg-feature-nav.next { right:10px; }
-@media (hover:hover) and (pointer:fine) {
-  .sg-feature-nav { display:inline-flex; }
-}
-@media (min-width:1024px) {
-  .sg-feature-carousel { height:420px; }
-  .sg-feature-pack { width:150px; right:64px; top:auto; bottom:64px; }
-  .sg-feature-carousel .sg-feature-body { bottom:44px; padding:0 64px; }
-  .sg-feature-carousel .sg-feature-body h2 { max-width:none; }
-  .sg-feature-carousel .sg-feature-body p { max-width:52ch; }
-}
-
-/* ---------- shop: daily offerings + titles ---------- */
+/* ---------- shop: purchase notices and two-tap buy buttons ---------- */
 .sg-shop-notice {
   margin:10px 18px 4px; padding:10px 14px; border-radius:14px; font-size:12px;
   background:rgba(100,201,135,.14); border:1px solid rgba(100,201,135,.36); color:#d9f5e3;
 }
 .sg-shop-notice.is-error { background:rgba(240,91,47,.14); border-color:rgba(240,91,47,.4); color:#ffd9cc; }
-.sg-offer-rail {
-  display:flex; gap:12px; padding:0 18px 6px; overflow-x:auto; overflow-y:hidden;
-  scroll-snap-type:x proximity; scroll-padding-inline:18px; scrollbar-width:none; touch-action:pan-x pan-y;
-}
-.sg-offer-rail::-webkit-scrollbar { display:none; }
-.sg-offer {
-  flex:0 0 118px; min-width:0; scroll-snap-align:start;
-  display:flex; flex-direction:column; align-items:stretch; gap:6px;
-}
-.sg-offer .sg-card-tile {
-  height:172px; display:flex; align-items:flex-end; justify-content:center;
-}
-.sg-offer-meta { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:2px; min-height:38px; text-align:center; min-width:0; }
-.sg-offer-meta b { font-size:11.5px; font-weight:600; line-height:1.25; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.sg-offer-meta i { font-style:normal; font-size:9.5px; line-height:1.25; letter-spacing:.08em; text-transform:uppercase; color:var(--el,var(--muted)); }
-.sg-offer .sg-buy, .sg-shop-title .sg-buy { align-self:center; white-space:nowrap; }
+
 .sg-buy:disabled { cursor:default; opacity:.6; color:var(--muted); }
 .sg-buy.is-armed {
   color:#22160a; border-color:transparent;
   background:linear-gradient(180deg,#ffd58a,var(--amber,#f2a03d));
-}
-.sg-shop-titles { display:flex; flex-direction:column; gap:9px; padding:0 18px 6px; }
-.sg-shop-title {
-  display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:16px;
-  background:rgba(11,17,32,.55); border:1px solid rgba(200,165,79,.22);
-}
-.sg-shop-title-ico {
-  flex:0 0 36px; height:36px; border-radius:12px; display:grid; place-items:center;
-  font-size:17px; color:var(--gold-bright,#f0cd8a); background:rgba(200,165,79,.14);
-}
-.sg-shop-title-copy { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:3px; }
-.sg-shop-title-copy b { font-size:13px; font-weight:600; }
-.sg-shop-title-copy i { font-style:normal; font-size:11px; color:var(--muted); line-height:1.4; }
-@media (min-width:1024px) {
-  .sg-offer { flex-basis:168px; }
-  .sg-offer .sg-card-tile { height:244px; }
-  .sg-shop-titles { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; }
 }
 
 /* ==========================================================================
@@ -4232,11 +4115,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   /* The scene plate is a fixed 372px band above the copy on a phone; here it
      grows with the hero, leaving the same room below for the title and Play. */
   .sg-hero.is-scene .sg-hero-art { height:calc(100% - 110px); }
-  .sg-feature, .sg-feature-carousel { height:min(64vh, 720px); }
+  .sg-feature { height:min(64vh, 720px); }
   .sg-crest { height:min(56vh, 620px); }
   .sg-hero-copy, .sg-feature-body, .sg-crest-body { padding-inline:var(--sg-gutter); }
-  .sg-feature-carousel .sg-feature-body { padding-inline:calc(var(--sg-gutter) + 48px); }
-  .sg-feature-carousel .sg-feature-pack { right:calc(var(--sg-gutter) + 64px); width:clamp(150px, 11vw, 240px); }
   .sg-dots { right:var(--sg-gutter); }
 
   /* Play: the three mode plates use the whole width and grow tall, so each
@@ -4536,17 +4417,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-mode-body h3, .sg-mode.is-primary .sg-mode-body h3 { font-size:24px; }
   .sg-mode-body p { font-size:11px; line-height:1.35; }
   .sg-mode-go, .sg-mode.is-primary .sg-mode-go { left:14px; right:auto; bottom:14px; }
-
-  /* --- shop: the daily offers share the row instead of scrolling a strip ---
-     Each offer takes an equal column and its card grows to the column width,
-     whatever the day's offer count. */
-  .sg-offer-rail {
-    display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0, 1fr);
-    gap:14px; overflow:visible; scroll-snap-type:none;
-  }
-  .sg-offer .sg-card-tile { height:auto; aspect-ratio:var(--card-aspect-ratio, 2.5 / 3.5); }
-  .sg-offer-meta b { font-size:13px; }
-  .sg-offer-meta i { font-size:10px; }
 
   /* --- profile: showcase and signature side by side ---
      The wrapper is display:contents on a phone; here it becomes the grid the
@@ -5459,9 +5329,329 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   /* Small landscape phones fall below the desktop binder's 700px breakpoint,
      where two 1fr columns made each card ~300px wide. Pack card-width columns. */
   .sg-gal-grid { grid-template-columns:repeat(auto-fill, minmax(128px, 156px)); justify-content:center; gap:22px 16px; }
-  /* Every offer card is one size, and small enough that the card, its name
-     and its price fit between the top bar and the tab bar. */
-  .sg-offer { --offer-card-w:clamp(104px, calc((var(--sg-vh, 100dvh) - 230px) * 5 / 7), 170px); align-items:center; }
-  .sg-offer .sg-card-tile { width:var(--offer-card-w); height:auto; aspect-ratio:auto; }
-  .sg-offer-meta { max-width:100%; }
+}
+
+/* ==========================================================================
+   SHOP: GACHA STOREFRONT
+   One screen, no scroll: the tab's art fills the whole viewport behind the
+   top bar and the tab bar. On it: framed portrait tabs down the left edge, a
+   plaque (kicker, name, ribbon, pitch), a selector row, round utility buttons
+   and the blue ×1 / gold ×10 pair along the bottom, and a pennant of what the
+   offer holds on the right once there is room for it.
+   ========================================================================== */
+.sg-app[data-screen="shop"] .sg-scroll { overflow:hidden; display:flex; flex-direction:column; }
+.sg-shop {
+  position:relative; flex:1 1 auto; min-height:0;
+  --gtabs-w:118px;
+  /* Clears the floating tab bar (its controls stand ~46px tall on a phone). */
+  --gnav:calc(58px + max(0px, calc(var(--sg-sab, 0px) * .4)));
+  --gtop:calc(58px + max(6px, var(--sg-sat)));
+  --navy-plate:linear-gradient(180deg, rgba(30,34,78,.94), rgba(13,14,40,.94));
+  --gold-line:#d9b45f;
+}
+.sg-scroll > .sg-shop:first-child { margin-top:0; }
+.sg-gstage { position:absolute; inset:0; overflow:hidden; isolation:isolate; }
+.sg-gstage-bg {
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:-2;
+  /* Banner characters stand right of centre; a portrait crop keeps them. */
+  object-position:66% 34%;
+  animation:sg-gstage-in .5s ease both;
+}
+.sg-gstage.is-packs .sg-gstage-bg, .sg-gstage.is-daily .sg-gstage-bg { object-position:58% 40%; }
+.sg-gstage.is-titles .sg-gstage-bg { object-position:50% 40%; }
+@keyframes sg-gstage-in { from { opacity:.25; transform:scale(1.04); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion:reduce) { .sg-gstage-bg { animation:none; } }
+.sg-gstage-veil {
+  position:absolute; inset:0; z-index:-1; pointer-events:none;
+  background:
+    linear-gradient(90deg, rgba(8,7,28,.6) 0%, rgba(8,7,28,0) 36%),
+    linear-gradient(180deg, rgba(8,7,28,.55) 0%, rgba(8,7,28,0) 18%, rgba(8,7,28,0) 40%, rgba(8,7,28,.72) 66%, rgba(8,7,28,.95) 100%);
+}
+
+/* --- tabs: framed portrait plates --- */
+.sg-gtabs {
+  position:absolute; z-index:3; left:8px; top:var(--gtop);
+  display:flex; flex-direction:column; gap:7px; width:var(--gtabs-w);
+}
+.sg-gtab {
+  position:relative; display:flex; align-items:center; gap:0; height:56px; padding:0 18px 0 0;
+  border-radius:12px 6px 6px 12px; cursor:pointer; text-align:left; color:#f4ecd6;
+  background:var(--navy-plate); border:1px solid rgba(217,180,95,.45);
+  box-shadow:0 6px 16px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08);
+  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.sg-gtab-art {
+  flex:0 0 46%; align-self:stretch; overflow:hidden; border-radius:11px 0 0 11px;
+  clip-path:polygon(0 0, 100% 0, 84% 100%, 0 100%);
+}
+.sg-gtab-art img { width:100%; height:100%; object-fit:cover; display:block; transform:scale(1.5); transform-origin:var(--face, 30% 30%); }
+.sg-gtab-label {
+  flex:1 1 auto; min-width:0; padding-left:2px;
+  font-family:var(--serif); font-size:11px; font-weight:700; line-height:1.12;
+  text-shadow:0 1px 3px rgba(0,0,0,.7);
+}
+.sg-gtab-gem {
+  position:absolute; right:6px; top:50%; width:8px; height:12px; margin-top:-6px;
+  background:linear-gradient(180deg,#fff5d0,var(--gold-line)); clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);
+  opacity:.7;
+}
+.sg-gtab.on {
+  transform:translateX(5px); border-color:#ffe39a;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--el) 26%, rgba(36,38,92,.96)), rgba(15,14,42,.96));
+  box-shadow:0 0 0 1px rgba(255,227,154,.6), 0 0 18px rgba(255,200,90,.55), 0 8px 20px rgba(0,0,0,.5);
+}
+.sg-gtab.on .sg-gtab-gem { opacity:1; filter:drop-shadow(0 0 4px #ffd36b); }
+.sg-gtab:focus-visible { outline:2px solid #ffe39a; outline-offset:2px; }
+
+/* --- body: plaque, selector, footer --- */
+.sg-gstage-body {
+  position:absolute; z-index:2; left:12px; right:12px; bottom:var(--gnav);
+  display:flex; flex-direction:column; align-items:stretch; gap:9px;
+}
+.sg-gplaque { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+.sg-gplaque-kicker {
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:10px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:#ffe39a;
+  text-shadow:0 1px 4px rgba(0,0,0,.8);
+}
+.sg-gplaque-kicker img { width:18px; height:18px; }
+.sg-gplaque h2 {
+  margin:0; font-family:var(--serif); font-size:30px; font-weight:700; line-height:1.04;
+  color:#fff7e0; letter-spacing:.01em;
+  text-shadow:0 2px 0 #3a2508, 0 0 2px #3a2508, 0 4px 16px rgba(0,0,0,.65), 0 0 24px color-mix(in srgb, var(--el) 45%, transparent);
+}
+.sg-gribbon {
+  position:relative; display:inline-block; padding:4px 22px; margin-left:4px;
+  font-family:var(--serif); font-size:13px; font-weight:700; color:#fff7e0; letter-spacing:.04em;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--ribbon) 85%, #fff 15%), color-mix(in srgb, var(--ribbon) 80%, #000 20%));
+  border-top:1px solid var(--gold-line); border-bottom:1px solid var(--gold-line);
+  clip-path:polygon(0 0, 100% 0, calc(100% - 10px) 50%, 100% 100%, 0 100%, 10px 50%);
+  text-shadow:0 1px 2px rgba(0,0,0,.6);
+}
+.sg-gplaque p { margin:0; max-width:46ch; font-size:12px; line-height:1.45; color:#e1e6f2; text-shadow:0 1px 6px rgba(0,0,0,.85); }
+
+.sg-gselect {
+  display:flex; gap:6px; max-width:100%; overflow-x:auto; padding:4px 2px 4px;
+  scrollbar-width:none; touch-action:pan-x pan-y;
+}
+.sg-gselect::-webkit-scrollbar { display:none; }
+.sg-gel {
+  flex:0 0 auto; width:36px; height:36px; padding:0; border-radius:99px; cursor:pointer;
+  display:grid; place-items:center; background:rgba(8,7,28,.6);
+  border:1.5px solid rgba(255,255,255,.22); transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.sg-gel img { width:26px; height:26px; object-fit:contain; }
+.sg-gel.on { border-color:var(--el); transform:scale(1.12); box-shadow:0 0 14px color-mix(in srgb, var(--el) 75%, transparent); background:color-mix(in srgb, var(--el) 30%, rgba(8,7,28,.6)); }
+.sg-gpk {
+  flex:0 0 auto; width:38px; aspect-ratio:var(--card-back-ratio, 5 / 7); padding:0; cursor:pointer;
+  border-radius:6px; overflow:hidden; border:1.5px solid rgba(255,255,255,.2); background:#0d0a26;
+  opacity:.72; transition:transform .15s ease, opacity .15s ease, box-shadow .15s ease;
+}
+.sg-gpk img { width:100%; height:100%; object-fit:contain; display:block; }
+.sg-gpk.on { opacity:1; transform:translateY(-3px) scale(1.08); border-color:#ffe39a; box-shadow:0 0 14px color-mix(in srgb, var(--el) 70%, transparent); }
+
+.sg-goffer {
+  position:relative; flex:0 0 auto; width:44px; height:44px; padding:0; border-radius:99px; cursor:pointer; overflow:hidden;
+  background:radial-gradient(circle, color-mix(in srgb, var(--el) 50%, #fff 8%), #10123a 75%);
+  border:2px solid var(--rar); opacity:.78; transition:transform .15s ease, opacity .15s ease, box-shadow .15s ease;
+}
+.sg-goffer img { width:100%; height:100%; object-fit:cover; object-position:50% 28%; display:block; }
+.sg-goffer.on { opacity:1; transform:scale(1.14); box-shadow:0 0 14px color-mix(in srgb, var(--rar) 75%, transparent); }
+.sg-goffer.is-owned::after {
+  content:'\2713'; position:absolute; inset:0; display:grid; place-items:center;
+  font-size:18px; font-weight:800; color:#fff; background:rgba(8,7,28,.55);
+}
+.sg-gtitle {
+  flex:0 0 auto; height:34px; padding:0 14px; border-radius:99px; cursor:pointer; white-space:nowrap;
+  font-family:var(--serif); font-size:12.5px; font-weight:700; color:#f4ecd6;
+  background:rgba(13,14,40,.78); border:1px solid rgba(217,180,95,.45);
+}
+.sg-gtitle i { font-style:normal; color:#8fe0a8; }
+.sg-gtitle.on { color:#2a1606; border-color:#fff3c9; background:linear-gradient(180deg,#ffe49a,#f0a83c); }
+.sg-gtitle.on i { color:#1f6b3a; }
+.sg-shop .sg-shop-notice {
+  position:absolute; z-index:6; margin:0; top:var(--gtop);
+  left:calc(var(--gtabs-w) + 22px); right:12px;
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+}
+
+.sg-gfoot { display:flex; align-items:flex-end; gap:8px; }
+.sg-gutil { display:flex; gap:6px; flex:0 0 auto; }
+.sg-gutil-btn {
+  display:flex; flex-direction:column; align-items:center; gap:2px; width:44px; padding:0; cursor:pointer;
+  background:none; border:0; color:#f4ecd6; text-decoration:none;
+}
+.sg-gutil-btn span {
+  width:40px; height:40px; border-radius:99px; display:grid; place-items:center;
+  font-family:var(--serif); font-size:17px; font-weight:700;
+  background:radial-gradient(circle at 50% 35%, #2c3270, #121236 70%); border:1.5px solid var(--gold-line);
+  box-shadow:0 4px 12px rgba(0,0,0,.5);
+}
+.sg-gutil-btn em { font-style:normal; font-family:var(--serif); font-size:10px; font-weight:700; text-shadow:0 1px 3px #000; }
+.sg-gbuy { display:flex; gap:8px; flex:1 1 auto; justify-content:flex-end; min-width:0; }
+.sg-gbtn {
+  flex:0 1 160px; min-width:0; height:58px; padding:0 14px; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  font-family:var(--serif); font-size:15px; font-weight:700; line-height:1;
+  border:0; clip-path:polygon(12px 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 12px 100%, 0 50%);
+  transition:filter .15s ease, transform .1s ease;
+}
+.sg-gbtn:active { transform:scale(.97); }
+.sg-gbtn.is-one {
+  color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.5);
+  background:linear-gradient(180deg,#7fb2ff 0%,#3f78ec 48%,#2448b8 100%);
+  box-shadow:inset 0 0 0 2px #e9c975, inset 0 2px 0 3px rgba(255,255,255,.25);
+}
+.sg-gbtn.is-ten {
+  color:#3b2306;
+  background:linear-gradient(180deg,#fff0b8 0%,#ffc95a 48%,#e89a2a 100%);
+  box-shadow:inset 0 0 0 2px #fff3c9, inset 0 2px 0 3px rgba(255,255,255,.35);
+}
+.sg-gbtn-price {
+  display:inline-flex; align-items:center; gap:4px; padding:2px 12px; border-radius:99px;
+  font-family:var(--sans); font-size:12.5px; font-weight:700;
+  background:rgba(10,12,40,.55); color:#fff;
+}
+.sg-gbtn-price img, .sg-gbtn.sg-buy img { width:16px; height:16px; }
+.sg-gbtn.sg-buy { flex-direction:row; gap:8px; margin:0; font-size:18px; border:0; }
+.sg-gbtn.is-armed { filter:brightness(1.12) saturate(1.2); animation:sg-gbtn-armed 1s ease-in-out infinite alternate; }
+@keyframes sg-gbtn-armed { from { transform:scale(1); } to { transform:scale(1.04); } }
+@media (prefers-reduced-motion:reduce) { .sg-gbtn.is-armed { animation:none; } }
+.sg-gbtn:disabled { cursor:default; filter:saturate(.25); opacity:.75; }
+.sg-gbtn:focus-visible { outline:2px solid #fff; outline-offset:3px; }
+
+/* --- daily: headline card on the stage --- */
+.sg-gstage-card {
+  position:absolute; z-index:1; right:14px; top:var(--gtop);
+  width:min(42vw, 200px); aspect-ratio:5 / 7; transform:rotate(3deg);
+  filter:drop-shadow(0 18px 30px rgba(0,0,0,.6)) drop-shadow(0 0 24px color-mix(in srgb, var(--el) 50%, transparent));
+}
+.sg-gstage-card .sg-card-tile { width:100%; height:100%; display:flex; align-items:flex-end; justify-content:center; }
+
+/* --- titles: nameplate preview --- */
+.sg-gplate {
+  display:flex; flex-direction:column; gap:2px; padding:9px 18px 9px 14px; min-width:220px;
+  border-left:3px solid var(--gold-line);
+  background:linear-gradient(90deg, rgba(8,7,28,.85), rgba(8,7,28,.3));
+  border-radius:4px 14px 14px 4px;
+}
+.sg-gplate b { font-size:16px; }
+.sg-gplate i {
+  font-style:normal; font-family:var(--serif); font-size:13px; letter-spacing:.06em;
+  background:linear-gradient(90deg,#ffe7a8,#f2a03d); -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+
+/* --- pennant: what the offer holds (shown once there is room) --- */
+.sg-gpennant {
+  position:absolute; z-index:2; right:16px; top:var(--gtop); width:118px;
+  display:none; flex-direction:column; align-items:center; gap:10px; padding:14px 8px 34px;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--ribbon) 70%, #10123a), #10123a);
+  border:1.5px solid var(--gold-line); border-bottom:0;
+  clip-path:polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 20px), 0 100%);
+  box-shadow:inset 0 0 0 3px rgba(255,227,154,.12);
+}
+.sg-gpennant b { font-family:var(--serif); font-size:15px; text-align:center; line-height:1.1; color:#fff7e0; text-shadow:0 1px 3px #000; }
+.sg-gpennant-face { display:flex; flex-direction:column; align-items:center; gap:3px; }
+.sg-gpennant-face img {
+  width:64px; height:64px; border-radius:99px; object-fit:cover; object-position:50% 30%;
+  background:radial-gradient(circle, color-mix(in srgb, var(--el) 55%, #fff 10%), #10123a 75%);
+  border:2px solid var(--rar); box-shadow:0 0 12px color-mix(in srgb, var(--rar) 60%, transparent);
+}
+.sg-gpennant-face em { font-style:normal; font-size:10.5px; font-weight:600; text-align:center; line-height:1.15; }
+.sg-gpennant-fact { display:flex; flex-direction:column; align-items:center; font-size:10.5px; color:#dfe4f2; text-align:center; }
+.sg-gpennant-fact strong { font-family:var(--serif); font-size:26px; line-height:1.05; color:#ffe39a; text-shadow:0 0 12px rgba(255,200,90,.5); }
+
+/* --- odds dialog --- */
+.sg-godds {
+  position:absolute; inset:0; z-index:90; display:grid; place-items:center; padding:24px;
+  background:rgba(5,4,18,.72); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+}
+.sg-godds-card {
+  width:min(380px, 100%); padding:20px 20px 18px; border-radius:18px;
+  background:var(--navy-plate, linear-gradient(180deg,#1e224e,#0d0e28)); border:1.5px solid #d9b45f;
+  box-shadow:0 20px 50px rgba(0,0,0,.6);
+}
+.sg-godds-card h3 { margin:0 0 12px; font-family:var(--serif); font-size:20px; color:#fff7e0; }
+.sg-godds-card dl { margin:0 0 16px; display:flex; flex-direction:column; gap:7px; }
+.sg-godds-card dl div { display:flex; justify-content:space-between; gap:12px; font-size:13px; padding-bottom:6px; border-bottom:1px solid rgba(217,180,95,.18); }
+.sg-godds-card dt { color:var(--muted); }
+.sg-godds-card dd { margin:0; font-weight:700; color:#ffe39a; }
+.sg-godds-card .sg-guest-primary { width:100%; }
+
+/* Short portrait phones (iPhone SE class): the tabs and the copy share the
+   height, so both tighten and the pitch line steps aside. */
+@media (orientation:portrait) and (max-height:740px) {
+  .sg-gtabs { gap:5px; }
+  .sg-gtab { height:46px; }
+  .sg-gplaque h2 { font-size:26px; }
+  .sg-gplaque p { display:none; }
+  .sg-gstage-card { width:min(34vw, 150px); }
+  .sg-gbtn { height:52px; }
+}
+
+/* Tablets and wide phones: wider tabs, the copy column starts past them. */
+@media (min-width:640px) {
+  .sg-shop { --gtabs-w:176px; }
+  .sg-gtab { height:68px; }
+  .sg-gtab-label { font-size:14px; }
+  .sg-gstage-body { left:calc(var(--gtabs-w) + 28px); right:20px; }
+  .sg-shop .sg-shop-notice { left:calc(var(--gtabs-w) + 28px); right:20px; }
+  .sg-gplaque h2 { font-size:40px; }
+}
+@media (min-width:900px) {
+  .sg-gpennant { display:flex; }
+  .sg-gstage-card { right:160px; }
+}
+/* Short landscape phones: the stage is the viewport, so everything tightens
+   and the pitch line gives way to the buttons. */
+@media (orientation:landscape) and (max-height:520px) {
+  .sg-shop { --gtabs-w:150px; --gtop:calc(48px + max(4px, var(--sg-sat))); }
+  .sg-gtabs { gap:5px; }
+  .sg-gtab { height:46px; }
+  .sg-gtab-label { font-size:11.5px; }
+  .sg-gstage-body { left:calc(var(--gtabs-w) + 22px); top:var(--gtop); gap:6px; }
+  .sg-gfoot { margin-top:auto; }
+  .sg-gplaque h2 { font-size:26px; }
+  .sg-gplaque p, .sg-gpennant { display:none; }
+  .sg-gribbon { font-size:11.5px; padding:3px 18px; }
+  .sg-gbtn { height:48px; flex-basis:140px; }
+  .sg-gstage-card { width:140px; right:16px; }
+}
+@media (min-width:1024px) {
+  /* The art runs edge to edge; the tabs and copy keep the page gutter. */
+  .sg-app[data-screen="shop"] .sg-scroll { padding-inline:0; }
+  .sg-shop { --gtabs-w:clamp(240px, 17vw, 300px); --gtop:calc(76px + var(--sg-sat)); --gnav:88px; }
+  .sg-gtabs { left:var(--sg-gutter); gap:12px; }
+  .sg-gtab { height:clamp(84px, 6.4vw, 104px); border-radius:16px 8px 8px 16px; padding-right:26px; }
+  .sg-gtab-art { border-radius:15px 0 0 15px; }
+  .sg-gtab-label { font-size:19px; }
+  .sg-gtab-gem { width:12px; height:18px; margin-top:-9px; right:10px; }
+  .sg-gtab.on { transform:translateX(12px); }
+  /* The stage bleeds past the page gutter but the tabs sit inside it. */
+  .sg-gstage-body { top:var(--gtop); left:calc(var(--sg-gutter) + var(--gtabs-w) + 56px); right:calc(var(--sg-gutter) + 170px); }
+  .sg-gfoot { margin-top:auto; }
+  .sg-gplaque-kicker { font-size:13px; }
+  .sg-gplaque-kicker img { width:26px; height:26px; }
+  .sg-gplaque h2 { font-size:clamp(48px, 4.2vw, 72px); }
+  .sg-gribbon { font-size:20px; padding:6px 34px; }
+  .sg-gplaque p { font-size:15px; }
+  .sg-gel { width:46px; height:46px; }
+  .sg-gel img { width:34px; height:34px; }
+  .sg-gpk { width:52px; }
+  .sg-gutil-btn { width:72px; }
+  .sg-gutil-btn span { width:62px; height:62px; font-size:24px; }
+  .sg-gutil-btn em { font-size:13px; }
+  .sg-gbtn { flex-basis:250px; height:76px; font-size:22px; }
+  .sg-gbtn-price { font-size:15px; padding:3px 18px; }
+  .sg-gbtn.sg-buy { font-size:24px; }
+  .sg-gpennant { right:var(--sg-gutter); width:150px; padding:18px 10px 40px; }
+  .sg-gpennant b { font-size:19px; }
+  .sg-gpennant-face img { width:84px; height:84px; }
+  .sg-gstage-card { right:calc(var(--sg-gutter) + 200px); top:auto; bottom:calc(var(--gnav) + 120px); width:clamp(220px, 15vw, 290px); }
+  .sg-goffer { width:62px; height:62px; }
+  .sg-gtitle { height:42px; font-size:15px; padding:0 20px; }
+  .sg-shop .sg-shop-notice { left:calc(var(--sg-gutter) + var(--gtabs-w) + 56px); right:auto; }
+  .sg-gplate { min-width:340px; }
+  .sg-gplate b { font-size:20px; }
+  .sg-gplate i { font-size:16px; }
 }
