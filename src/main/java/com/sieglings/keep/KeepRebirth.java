@@ -1,12 +1,15 @@
 package com.sieglings.keep;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Keep rebirth: once the Covenant Hall reaches the Grand Keep, the keeper may let the
- * sanctuary return to the earth and rebuild it. Buildings, stock and stored production
+ * Keep rebirth: once the Covenant Hall has risen far enough, the keeper may let the
+ * sanctuary return to the earth and rebuild it. The first rebirth asks only for the
+ * hall's first evolution (the Timber Outpost); each later rebirth asks for one rank
+ * higher than the last, until every rebirth past the seventh asks for the Grand Keep. Buildings, stock and stored production
  * reset; what the keeper has learned does not — Siegeling rapport, lore and voices,
  * Keeper level and owned decorations all carry over.
  *
@@ -16,8 +19,8 @@ import java.util.Map;
  * count (+25% vs +15% per rebirth), so a rebirth is always a net gain.
  *
  * <p>Every rebirth has its own requirement ({@link #requirement}): progress checks that
- * reach deeper into the tech tree each time (the Enclave, then every workshop, then
- * level-2 workshops, Akhar's Front tiers, storage annexes and Keeper levels) plus a
+ * reach deeper into the tech tree each time (the hall rank above, the Enclave, the
+ * Builder's Yard, then every workshop, then level-2 workshops, Akhar's Front tiers, storage annexes and Keeper levels) plus a
  * resource bill that climbs through the refined tiers in {@link KeepEconomy}. The bill
  * is spent when the Keep is reborn.
  *
@@ -26,8 +29,6 @@ import java.util.Map;
  */
 final class KeepRebirth {
 
-    /** The Hall level a Keep must reach before it can be reborn (the Grand Keep). */
-    static final int REQUIRED_HALL_LEVEL = KeepService.HALL_MAX_LEVEL;
     /** Bounds the stacking so late counts cannot run away; the bonuses stop growing here. */
     static final int MAX_REBIRTHS = 10;
 
@@ -57,26 +58,27 @@ final class KeepRebirth {
      */
     record Requirement(List<String> checks, Map<String, Integer> costs) { }
 
+    /** Companion checks and bills; {@link #requirement} prepends the hall rank. */
     private static final List<Requirement> LADDER = List.of(
-            req(List.of("hall:8", "enclave", "builders_yard"),
+            req(List.of("enclave"),
+                    "timber", 200),
+            req(List.of("builders_yard"),
+                    "timber", 300, "stone", 20),
+            req(List.of("enclave", "builders_yard"),
                     "timber", 400, "stone", 30, "living_mortar", 2),
-            req(List.of("hall:8", "workshops_built:6", "storehouse:2"),
+            req(List.of("workshops_built:6", "storehouse:2"),
                     "timber", 600, "living_mortar", 3, "tempered_glass", 3, "charged_alloy", 2),
-            req(List.of("hall:8", "workshops_l2:3", "akhars_front:1"),
+            req(List.of("workshops_l2:3", "akhars_front:1"),
                     "timber", 800, "hearth_ration", 3, "covenant_keystone", 1),
-            req(List.of("hall:8", "workshops_l2:6", "akhars_front:2"),
+            req(List.of("workshops_l2:6", "akhars_front:2"),
                     "timber", 1000, "covenant_keystone", 2, "aether_core", 1),
-            req(List.of("hall:8", "akhars_front:3", "annexes:3"),
+            req(List.of("akhars_front:3", "annexes:3"),
                     "timber", 1200, "covenant_keystone", 2, "aether_core", 2, "heartwood_relic", 1),
-            req(List.of("hall:8", "akhars_front:4", "annexes:5"),
-                    "timber", 1200, "aether_core", 2, "heartwood_relic", 2),
-            req(List.of("hall:8", "annexes:7", "keeper_level:15"),
+            req(List.of("akhars_front:4", "annexes:5", "keeper_level:15"),
                     "timber", 1400, "covenant_keystone", 3, "heartwood_relic", 3),
-            req(List.of("hall:8", "annexes:7", "keeper_level:20"),
-                    "timber", 1400, "aether_core", 3, "heartwood_relic", 4),
-            req(List.of("hall:8", "annexes:7", "keeper_level:23"),
-                    "timber", 1600, "covenant_keystone", 4, "aether_core", 3, "heartwood_relic", 5),
-            req(List.of("hall:8", "annexes:7", "keeper_level:25"),
+            req(List.of("annexes:7", "keeper_level:20"),
+                    "timber", 1600, "aether_core", 3, "heartwood_relic", 4),
+            req(List.of("annexes:7", "keeper_level:25"),
                     "timber", 1800, "covenant_keystone", 4, "aether_core", 4, "heartwood_relic", 6));
 
     private static Requirement req(List<String> checks, Object... costs) {
@@ -85,9 +87,22 @@ final class KeepRebirth {
         return new Requirement(List.copyOf(checks), out);
     }
 
+    /**
+     * The Hall level the given rebirth (1-based) asks for: the 1st needs the hall's first
+     * evolution (level 2), each later one a rank higher, capped at the Grand Keep.
+     */
+    static int requiredHallLevel(int targetCount) {
+        return Math.max(2, Math.min(KeepService.HALL_MAX_LEVEL, targetCount + 1));
+    }
+
     /** The requirement for reaching the given rebirth (1-based), or null past the cap. */
     static Requirement requirement(int targetCount) {
-        return targetCount < 1 || targetCount > LADDER.size() ? null : LADDER.get(targetCount - 1);
+        if (targetCount < 1 || targetCount > LADDER.size()) return null;
+        Requirement base = LADDER.get(targetCount - 1);
+        List<String> checks = new ArrayList<>();
+        checks.add("hall:" + requiredHallLevel(targetCount));
+        checks.addAll(base.checks());
+        return new Requirement(List.copyOf(checks), base.costs());
     }
 
     private KeepRebirth() { }

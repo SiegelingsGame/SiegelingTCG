@@ -843,7 +843,7 @@ public class KeepService {
     }
 
     /**
-     * Lets a Grand Keep return to the earth for permanent bonuses (see {@link KeepRebirth}).
+     * Lets a risen Keep return to the earth for permanent bonuses (see {@link KeepRebirth}).
      * Buildings, stock, stored production, workshop tools and posts reset; rapport, lore,
      * voices, Keeper level and owned decorations carry over. Refused while any construction
      * is underway so a paid-for project is never silently lost.
@@ -1024,8 +1024,8 @@ public class KeepService {
         out.put("bonuses", KeepRebirth.bonuses(count));
         out.put("available", blocker == null);
         out.put("blocker", blocker);
-        out.put("requiredHallLevel", KeepRebirth.REQUIRED_HALL_LEVEL);
-        out.put("requiredRankName", rankName(KeepRebirth.REQUIRED_HALL_LEVEL));
+        out.put("requiredHallLevel", KeepRebirth.requiredHallLevel(next));
+        out.put("requiredRankName", rankName(KeepRebirth.requiredHallLevel(next)));
         KeepRebirth.Requirement requirement = KeepRebirth.requirement(next);
         if (count < KeepRebirth.MAX_REBIRTHS && requirement != null) {
             out.put("checks", requirement.checks().stream().map(check -> rebirthCheckProgress(state, check)).toList());
