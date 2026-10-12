@@ -1462,11 +1462,19 @@ public class GameController {
         m.put("owned", owned);
         m.put("level", Math.max(1, level));
         m.put("abilityBonus", PlayerProgressionService.trainerAbilityBonus(Math.max(1, level)));
+        // `passive`/`active` stay plain strings because existing loadout code
+        // reads them that way; the names and cost ride alongside for the
+        // collection sheet, which titles each ability.
         if (trainer.getAbility() != null) {
             m.put("passive", trainer.getAbility().getDescription());
+            m.put("passiveName", trainer.getAbility().getName());
         }
         if (trainer.getActiveAbility() != null) {
             m.put("active", trainer.getActiveAbility().getDescription());
+            m.put("activeName", trainer.getActiveAbility().getName());
+            if (trainer.getActiveAbility().getRequiredEnergy() > 0) {
+                m.put("activeEnergy", trainer.getActiveAbility().getRequiredEnergy());
+            }
         }
         return m;
     }
