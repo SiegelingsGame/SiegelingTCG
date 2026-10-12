@@ -3317,15 +3317,18 @@
     return thumb ? '/img/lands/thumbs/' + (EL_LAND[key] || 'relic') + '.webp' : land(key);
   }
 
-  // The backdrop behind a pack or a daily card is its element: a gallery scene
-  // of that element's Siegelings where one exists, the commissioned banner
-  // next, and the element's Land plate otherwise. `pos` keeps the creatures in
+  // The backdrop behind a pack or a daily card is its element: a scene of that
+  // element's Siegelings where one exists (a gallery plate, or a shop scene
+  // given as `src`), the commissioned banner next, and the element's Land plate
+  // otherwise. `pos` keeps the creatures in
   // frame when a 16:9 scene is cropped to a portrait screen.
   var ELEMENT_STAGE = {
     FIRE:  { img: 'draco-brood', pos: '50% 45%' },
     ICE:   { img: 'frostag-training', pos: '45% 40%' },
     WIND:  { img: 'hurricrane-skyruins', pos: '62% 40%' },
-    EARTH: { img: 'cactyjackedty-ruins', pos: '36% 40%' }
+    EARTH: { img: 'cactyjackedty-ruins', pos: '36% 40%' },
+    // Portrait-only plate: a wide screen shows the band with the big turtle.
+    WATER: { src: '/img/shop/scene-water.webp', pos: '58% 42%' }
   };
   // Molten Forge leads with Fire too; it gets the other Fire scene so it does
   // not look like the Fire starter.
@@ -3333,7 +3336,7 @@
   function elementStage(el) {
     var key = String(el || '').toUpperCase();
     var pick = ELEMENT_STAGE[key];
-    if (pick) return { art: heroPlate(scene(pick.img)), pos: pick.pos };
+    if (pick) return { art: pick.src || heroPlate(scene(pick.img)), pos: pick.pos };
     if (SHOP_BANNER[key]) return { art: summonArt(key), pos: '66% 34%' };
     return { art: land(key), pos: '50% 50%' };
   }
