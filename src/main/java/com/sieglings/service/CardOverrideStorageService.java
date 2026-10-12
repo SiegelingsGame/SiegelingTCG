@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.UnaryOperator;
 
 @Service
 public class CardOverrideStorageService {
@@ -71,6 +72,7 @@ public class CardOverrideStorageService {
     private final String firestoreCollection;
     private final String firestoreDocument;
     private final String firestorePublishSignalDocument;
+    private final String firestoreContentPackDocument;
 
     private volatile Firestore firestore;
     private volatile String firestoreInitializationError;
@@ -87,7 +89,8 @@ public class CardOverrideStorageService {
             @Value("${app.card-editor.firestore-database-id:(default)}") String firestoreDatabaseId,
             @Value("${app.card-editor.firestore-collection:appConfig}") String firestoreCollection,
             @Value("${app.card-editor.firestore-document:cardOverrides}") String firestoreDocument,
-            @Value("${app.card-editor.firestore-publish-signal-document:livePublishState}") String firestorePublishSignalDocument
+            @Value("${app.card-editor.firestore-publish-signal-document:livePublishState}") String firestorePublishSignalDocument,
+            @Value("${app.card-editor.firestore-content-pack-document:contentPacks}") String firestoreContentPackDocument
     ) {
         this.objectMapper = objectMapper;
         this.firestoreEnabled = firestoreEnabled;
@@ -101,6 +104,9 @@ public class CardOverrideStorageService {
         this.firestorePublishSignalDocument = firestorePublishSignalDocument == null || firestorePublishSignalDocument.isBlank()
                 ? "livePublishState"
                 : firestorePublishSignalDocument.trim();
+        this.firestoreContentPackDocument = firestoreContentPackDocument == null || firestoreContentPackDocument.isBlank()
+                ? "contentPacks"
+                : firestoreContentPackDocument.trim();
     }
 
     CardOverrideStorageService(
@@ -120,7 +126,8 @@ public class CardOverrideStorageService {
                 firestoreDatabaseId,
                 firestoreCollection,
                 firestoreDocument,
-                "livePublishState"
+                "livePublishState",
+                "contentPacks"
         );
     }
 
@@ -274,13 +281,7 @@ public class CardOverrideStorageService {
                                               ManualSieglingCatalog.OverrideFile file,
                                               String updatedByEmail) throws Exception {
         JsonNode data = objectMapper.valueToTree(file);
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("cards", FirestorePayloadSanitizer.sanitize(objectMapper.convertValue(data.get("cards"), Object.class)));
-        if (data.get("moves") != null) {
-            payload.put("moves", FirestorePayloadSanitizer.sanitize(objectMapper.convertValue(data.get("moves"), Object.class)));
-        }
-        payload.put("updatedBy", updatedByEmail == null || updatedByEmail.isBlank() ? "unknown" : updatedByEmail.trim().toLowerCase());
-        payload.put("updatedAt", Timestamp.now());
+        Map<String, Object> payload = buildFirestorePayload(data, updatedByEmail);
         docRef.set(payload).get(10, TimeUnit.SECONDS);
 
         return new LoadSnapshot(
@@ -291,6 +292,65 @@ public class CardOverrideStorageService {
                 (String) payload.get("updatedBy"),
                 Instant.now().toString()
         );
+    }
+
+    private Map<String, Object> buildFirestorePayload(JsonNode data, String updatedByEmail) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("cards", FirestorePayloadSanitizer.sanitize(objectMapper.convertValue(data.get("cards"), Object.class)));
+        if (data.get("moves") != null) {
+            payload.put("moves", FirestorePayloadSanitizer.sanitize(objectMapper.convertValue(data.get("moves"), Object.class)));
+        }
+        payload.put("updatedBy", updatedByEmail == null || updatedByEmail.isBlank() ? "unknown" : updatedByEmail.trim().toLowerCase());
+        payload.put("updatedAt", Timestamp.now());
+        return payload;
+    }
+
+    /**
+     * Merges a repo-shipped content pack into the live card document exactly once. The applied
+     * marker and the card write share one transaction, so a dashboard publish racing a deploy is
+     * either merged into or lands after the pack, and a second instance or redeploy never
+     * re-applies it over later dashboard edits. Returns false when Firestore is unavailable or the
+     * pack was already applied.
+     */
+    public boolean applyContentPackOnce(String packId, UnaryOperator<ObjectNode> merger) {
+        ensureFirestoreInitialized();
+        if (!isFirestoreReady()) {
+            return false;
+        }
+        // First boot seeds the card document from the classpath; the pack merges on top of that.
+        loadSnapshot();
+        String updatedBy = "system@content-pack:" + packId;
+        DocumentReference cardsRef = fireStoreDocRef();
+        DocumentReference markerRef = firestore.collection(firestoreCollection).document(firestoreContentPackDocument);
+        try {
+            boolean applied = firestore.runTransaction(tx -> {
+                DocumentSnapshot marker = tx.get(markerRef).get();
+                Object appliedMap = marker.exists() ? marker.get("applied") : null;
+                if (appliedMap instanceof Map<?, ?> map && map.containsKey(packId)) {
+                    return false;
+                }
+                DocumentSnapshot current = tx.get(cardsRef).get();
+                ObjectNode data = objectMapper.createObjectNode();
+                Object cards = current.exists() ? current.get("cards") : null;
+                Object moves = current.exists() ? current.get("moves") : null;
+                data.set("cards", cards == null ? objectMapper.createArrayNode() : objectMapper.valueToTree(cards));
+                data.set("moves", moves == null ? objectMapper.createArrayNode() : objectMapper.valueToTree(moves));
+                ManualSieglingCatalog.OverrideFile file = parseOverrideFile(merger.apply(data));
+                ManualSieglingCatalog.validateDefinitions(file);
+                tx.set(cardsRef, buildFirestorePayload(objectMapper.valueToTree(file), updatedBy));
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("appliedAt", Timestamp.now());
+                tx.set(markerRef, Map.of("applied", Map.of(packId, entry)), SetOptions.merge());
+                return true;
+            }).get(30, TimeUnit.SECONDS);
+            if (applied) {
+                cacheEntry = null;
+                markLivePublish(updatedBy);
+            }
+            return applied;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to apply content pack '" + packId + "' to Firestore.", ex);
+        }
     }
 
     private LoadSnapshot loadLocalSnapshot() {
