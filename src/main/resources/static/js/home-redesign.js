@@ -3358,7 +3358,7 @@
   }
   // Elements whose summon stands on a shop scene (`scene-<id>.webp`) rather
   // than a banner; the same scene backs that element's packs and cards.
-  var SUMMON_SCENE = { ELECTRIC: 'electric' };
+  var SUMMON_SCENE = { ELECTRIC: 'electric', METAL: 'metal' };
 
   // The backdrop behind a pack or a daily card is its element: a scene of that
   // element's Siegelings where one exists (a gallery plate, or a shop scene
@@ -3373,7 +3373,9 @@
     // Portrait-only plate: a wide screen shows the band with the big turtle.
     WATER: { src: '/img/shop/scene-water.webp', pos: '58% 42%' },
     // Portrait-only plate: a wide screen shows the band with the big ape.
-    ELECTRIC: { src: '/img/shop/scene-electric.webp', pos: '50% 18%' }
+    ELECTRIC: { src: '/img/shop/scene-electric.webp', pos: '50% 18%' },
+    // 16:9: a portrait crop centres on the spiked armoured lizard.
+    METAL: { src: '/img/shop/scene-metal.webp', pos: '66% 50%' }
   };
   // Molten Forge leads with Fire too; it gets the other Fire scene so it does
   // not look like the Fire starter.
@@ -3418,7 +3420,7 @@
     var summon = summons.filter(function (pk) { return packElement(pk) === wanted; })[0] || summons[0] || null;
     var pack = packs.filter(function (pk) { return pk.id === opts.shopPack; })[0] || packs[0] || null;
     var tabs = [];
-    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: SUMMON_SCENE[packElement(summon)] ? '50% 28%' : SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
+    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: SUMMON_SCENE[packElement(summon)] ? ELEMENT_STAGE[packElement(summon)].pos : SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
     if (pack) tabs.push({ id: 'packs', label: 'Pack Market', art: sceneArt('market', true), face: SHOP_SCENE.market.face, el: 'EARTH' });
     if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: sceneArt('cards', true), face: SHOP_SCENE.cards.face, el: 'LIGHT' });
     if (titles.length) tabs.push({ id: 'titles', label: 'Title Hall', art: sceneArt('throne', true), face: SHOP_SCENE.throne.face, el: 'WATER' });
