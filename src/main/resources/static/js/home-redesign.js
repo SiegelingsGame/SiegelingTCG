@@ -3227,8 +3227,13 @@
         btn.querySelector('.sg-gbtn-label').textContent = 'Tap to confirm';
         return;
       }
+      // A second tap while the seal is tearing, or a retry of a pull the server
+      // already took coins for, must not start another purchase.
+      if (opts.packOpenPendingId || document.querySelector('[data-gacha]')) return;
       var pk = packs.filter(function (p) { return p.id === btn.getAttribute('data-pack'); })[0];
-      if (pk) openPack(pk, opts, count);
+      if (!pk) return;
+      opts.packOpenPendingId = pk.id;
+      openPack(pk, opts, count);
     });
 
     var pending = false;
@@ -4290,11 +4295,115 @@
 
   /* ---------- pack opening ----------
      Buying a pack did nothing at all. This runs the real purchase
-     (/api/shop/open-pack) and reveals what it returned: the response carries the
-     pull as `progression.packHistory[0].cards`, each entry with its element,
-     rarity, whether the copy was granted, and the remnants a duplicate-at-cap
-     converted into. Every card shown is a card the account now owns - the flip
-     is presentation over a completed transaction, never a simulation of one. */
+     (/api/shop/open-pack) and reveals what it returned. The pull is the history
+     entry for this requestId — not blindly packHistory[0], which is whichever
+     open finished last. Every card shown is a card the account now owns. */
+
+  // Same ledger the shipping shop writes (`sieglingsPendingPackOpenRequest:<user>`).
+  // The server treats requestId as the idempotency key. Minting `hub-${Date.now()}`
+  // on every tap meant a retry after a dropped response — and the overlay used to
+  // say nothing was charged — opened a second pack, or a second ×10.
+  var PENDING_PACK_OPEN_REQUEST_KEY = 'sieglingsPendingPackOpenRequest';
+  var MAX_PENDING_PACK_OPEN_REQUESTS = 20;
+  var UNCONFIRMED_PACK_OPEN = 'Unable to confirm the pull. Refresh to check your collection before trying again.';
+
+  function packOpenAccountId(opts) {
+    var live = opts && opts.live;
+    return (live && (live.accountId || live.email)) || 'anonymous';
+  }
+
+  function packOpenRequestStorageKey(opts) {
+    return PENDING_PACK_OPEN_REQUEST_KEY + ':' + packOpenAccountId(opts);
+  }
+
+  function createPackOpenRequestId() {
+    try {
+      if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    } catch (e) { /* fall through */ }
+    return Date.now() + '-' + Math.random().toString(36).slice(2);
+  }
+
+  function normalizePackOpenRequestEntry(entry) {
+    if (!entry || !entry.requestId || !entry.packId) return null;
+    return {
+      requestId: String(entry.requestId),
+      packId: String(entry.packId),
+      count: Number(entry.count) || 1,
+      createdAt: Number(entry.createdAt) || 0
+    };
+  }
+
+  function readPendingPackOpenRequests(opts) {
+    try {
+      var raw = localStorage.getItem(packOpenRequestStorageKey(opts));
+      if (!raw) return [];
+      var parsed = JSON.parse(raw);
+      var entries = Array.isArray(parsed && parsed.requests)
+        ? parsed.requests
+        : (Array.isArray(parsed) ? parsed : (parsed && parsed.requestId ? [parsed] : []));
+      return entries.map(normalizePackOpenRequestEntry).filter(Boolean);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function writePendingPackOpenRequests(opts, entries) {
+    try {
+      var seen = {};
+      var normalized = [];
+      (entries || []).forEach(function (entry) {
+        var next = normalizePackOpenRequestEntry(entry);
+        if (!next) return;
+        var key = next.packId + ':' + next.count;
+        if (seen[key]) return;
+        seen[key] = true;
+        normalized.push(next);
+      });
+      normalized.sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+      var trimmed = normalized.slice(0, MAX_PENDING_PACK_OPEN_REQUESTS);
+      var storageKey = packOpenRequestStorageKey(opts);
+      if (trimmed.length) localStorage.setItem(storageKey, JSON.stringify({ requests: trimmed }));
+      else localStorage.removeItem(storageKey);
+    } catch (e) { /* persistence is best-effort; the in-flight body still carries the id */ }
+  }
+
+  function getOrCreatePackOpenRequestId(opts, packId, count) {
+    var safeCount = Number(count) || 1;
+    var pending = readPendingPackOpenRequests(opts);
+    var i;
+    for (i = 0; i < pending.length; i++) {
+      if (pending[i].packId === packId && pending[i].count === safeCount && pending[i].requestId) {
+        return pending[i].requestId;
+      }
+    }
+    var requestId = createPackOpenRequestId();
+    writePendingPackOpenRequests(opts, [{
+      requestId: requestId, packId: packId, count: safeCount, createdAt: Date.now()
+    }].concat(pending));
+    return requestId;
+  }
+
+  function clearPackOpenRequestId(opts, requestId) {
+    if (!requestId) return;
+    writePendingPackOpenRequests(opts, readPendingPackOpenRequests(opts).filter(function (entry) {
+      return entry.requestId !== requestId;
+    }));
+  }
+
+  function cardsForPackOpen(data, requestId) {
+    var history = (data && data.progression && data.progression.packHistory) || [];
+    var i;
+    if (requestId) {
+      for (i = 0; i < history.length; i++) {
+        if (history[i] && history[i].requestId === requestId &&
+            Array.isArray(history[i].cards) && history[i].cards.length) {
+          return history[i].cards;
+        }
+      }
+      return [];
+    }
+    return (history[0] && history[0].cards) || [];
+  }
 
   function gachaMarkup(pk, count) {
     return '<div class="sg-gacha" data-gacha style="--el:' + color(packElement(pk)) + '">' +
@@ -4406,8 +4515,14 @@
 
   function openPack(pk, opts, count) {
     var host = document.querySelector('.sg-app');
-    if (!host) return;
+    if (!host) {
+      opts.packOpenPendingId = '';
+      return;
+    }
+    if (document.querySelector('[data-gacha]')) return;
+    opts.packOpenPendingId = pk.id;
     count = count > 1 ? count : 1;
+    var requestId = getOrCreatePackOpenRequestId(opts, pk.id, count);
     var wrap = document.createElement('div');
     wrap.innerHTML = gachaMarkup(pk, count);
     var gacha = wrap.firstChild;
@@ -4432,6 +4547,9 @@
     });
 
     function fail(message) {
+      // The overlay still covers the buy buttons. Dropping the flag here only
+      // matters once that overlay is gone, so a confirmed failure can be retried.
+      opts.packOpenPendingId = '';
       kicker.textContent = 'Not opened';
       stage.innerHTML = '';
       note.textContent = message;
@@ -4442,18 +4560,22 @@
     fetch('/api/shop/open-pack', {
       method: 'POST', credentials: 'same-origin',
       headers: authHeaders(),
-      body: JSON.stringify({ packId: pk.id, count: count, requestId: 'hub-' + Date.now() })
+      body: JSON.stringify({ packId: pk.id, count: count, requestId: requestId })
     }).then(function (r) { return r.json().catch(function () { return null; }); })
       .then(function (data) {
-        if (!data || data.error) { fail((data && data.error) || 'That pack could not be opened.'); return; }
-        var history = (data.progression && data.progression.packHistory) || [];
-        var cards = (history[0] && history[0].cards) || [];
-        if (!cards.length) { fail('The pack came back empty. Nothing was charged.'); return; }
+        // A missing body is not proof the charge failed. Keep the request id so
+        // the next tap is the same purchase, which the server will not bill twice.
+        if (!data) { fail(UNCONFIRMED_PACK_OPEN); return; }
+        if (data.error) { fail(data.error); return; }
+        var cards = cardsForPackOpen(data, requestId);
+        if (!cards.length) { fail(UNCONFIRMED_PACK_OPEN); return; }
+        clearPackOpenRequestId(opts, requestId);
         reveal(cards);
       })
-      .catch(function () { fail('The server did not answer. Nothing was charged.'); });
+      .catch(function () { fail(UNCONFIRMED_PACK_OPEN); });
 
     function reveal(cards) {
+      opts.packOpenPendingId = '';
       var back = packBack(pk);
       kicker.textContent = 'Tap to reveal';
       note.textContent = cards.length + ' card' + (cards.length === 1 ? '' : 's');
