@@ -1808,19 +1808,28 @@ function preloadBattleArt() {
 // CSS transform for a SiegeKnight full-card image, from the dashboard crop/scale
 // controls (translate px + scale + rotate). Default (0,0,1,0) → no transform, so
 // existing 5:7 cards are unchanged.
+// Mirrors card-binder-visual.js buildArtTransformStyle, which the dashboard
+// preview uses: the dashboard saves card-relative *Pct offsets, and they must
+// win over the legacy pixel offsets or the knight lands somewhere other than
+// where it was framed (pixels shift differently at every card size).
 function knightArtTransformStyle(trainer) {
-    const x = Number(trainer?.cardArtOffsetX);
-    const y = Number(trainer?.cardArtOffsetY);
-    const scaleN = Number(trainer?.cardArtScale);
-    const rotN = Number(trainer?.cardArtRotation);
-    const tx = Number.isFinite(x) ? x : 0;
-    const ty = Number.isFinite(y) ? y : 0;
-    const scale = Number.isFinite(scaleN) ? Math.min(3, Math.max(0.25, scaleN)) : 1;
-    const rot = Number.isFinite(rotN) ? Math.min(180, Math.max(-180, rotN)) : 0;
+    const num = (value) => {
+        const n = Number(value);
+        return value !== null && value !== undefined && value !== '' && Number.isFinite(n) ? n : null;
+    };
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+    const xPct = num(trainer?.cardArtOffsetXPct);
+    const yPct = num(trainer?.cardArtOffsetYPct);
+    const usePct = xPct !== null || yPct !== null;
+    const tx = usePct ? clamp(xPct || 0, -200, 200) : (num(trainer?.cardArtOffsetX) || 0);
+    const ty = usePct ? clamp(yPct || 0, -200, 200) : (num(trainer?.cardArtOffsetY) || 0);
+    const unit = usePct ? '%' : 'px';
+    const scale = clamp(num(trainer?.cardArtScale) ?? 1, 0.25, 3);
+    const rot = clamp(num(trainer?.cardArtRotation) ?? 0, -180, 180);
     if (!tx && !ty && scale === 1 && !rot) {
         return '';
     }
-    return `transform:translate(${tx}px,${ty}px) scale(${scale}) rotate(${rot}deg);transform-origin:center center;`;
+    return `transform:translate(${tx}${unit},${ty}${unit}) scale(${scale}) rotate(${rot}deg);transform-origin:center center;`;
 }
 function knightArtStyleAttr(trainer) {
     const style = knightArtTransformStyle(trainer);
