@@ -74,7 +74,7 @@ body {
 }
 .kart-img { position:absolute; inset:0; display:block; width:100%; height:100%; object-fit:cover; }
 .kart-window { position:absolute; z-index:1; left:8.8%; right:8.6%; top:5.7%; bottom:7.1%; overflow:hidden; }
-.kart-window .kart-img { position:static; object-position:center; }
+.kart-window .kart-img { position:static; object-position:center top; } /* top-anchored like style.css .knight-overlay-art-img */
 .kart-template {
     position:absolute; inset:0; z-index:3; pointer-events:none;
     background:url('/img/knights/siegeknight-card-template.webp') 0 0 / 100% 100% no-repeat;
