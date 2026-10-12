@@ -3301,7 +3301,6 @@
   // Painted shop scenes. `face` is where a tab's portrait crop finds the
   // character in the 16:9 plate.
   var SHOP_SCENE = {
-    vault:  { face: '20% 38%' },
     market: { face: '14% 30%' },
     cards:  { face: '18% 30%' },
     throne: { face: '15% 28%' },
@@ -3309,12 +3308,34 @@
   };
   function sceneArt(id, thumb) { return '/img/shop/scene-' + id + (thumb ? '-480' : '') + '.webp'; }
 
-  // Commissioned element banners where they exist; the treasure vault behind
-  // every other element's summon.
+  // Commissioned element banners where they exist; the element's own Land
+  // plate behind every other element's summon, so the backdrop always matches
+  // what is being summoned.
   function summonArt(el, thumb) {
     var key = String(el || '').toUpperCase();
     if (SHOP_BANNER[key]) return '/img/shop/banner-' + key.toLowerCase() + (thumb ? '-480' : '') + '.webp';
-    return sceneArt('vault', thumb);
+    return thumb ? '/img/lands/thumbs/' + (EL_LAND[key] || 'relic') + '.webp' : land(key);
+  }
+
+  // The backdrop behind a pack or a daily card is its element: a gallery scene
+  // of that element's Siegelings where one exists, the commissioned banner
+  // next, and the element's Land plate otherwise. `pos` keeps the creatures in
+  // frame when a 16:9 scene is cropped to a portrait screen.
+  var ELEMENT_STAGE = {
+    FIRE:  { img: 'draco-brood', pos: '50% 45%' },
+    ICE:   { img: 'frostag-training', pos: '45% 40%' },
+    WIND:  { img: 'hurricrane-skyruins', pos: '62% 40%' },
+    EARTH: { img: 'cactyjackedty-ruins', pos: '36% 40%' }
+  };
+  // Molten Forge leads with Fire too; it gets the other Fire scene so it does
+  // not look like the Fire starter.
+  var PACK_STAGE = { pack_molten_forge: { img: 'bearzooka-rampage', pos: '55% 45%' } };
+  function elementStage(el) {
+    var key = String(el || '').toUpperCase();
+    var pick = ELEMENT_STAGE[key];
+    if (pick) return { art: heroPlate(scene(pick.img)), pos: pick.pos };
+    if (SHOP_BANNER[key]) return { art: summonArt(key), pos: '66% 34%' };
+    return { art: land(key), pos: '50% 50%' };
   }
 
   function isSummonPack(pk) {
@@ -3349,7 +3370,7 @@
     var summon = summons.filter(function (pk) { return packElement(pk) === wanted; })[0] || summons[0] || null;
     var pack = packs.filter(function (pk) { return pk.id === opts.shopPack; })[0] || packs[0] || null;
     var tabs = [];
-    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: SHOP_BANNER[packElement(summon)] ? '72% 22%' : SHOP_SCENE.vault.face, el: packElement(summon) });
+    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
     if (pack) tabs.push({ id: 'packs', label: 'Pack Market', art: sceneArt('market', true), face: SHOP_SCENE.market.face, el: 'EARTH' });
     if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: sceneArt('cards', true), face: SHOP_SCENE.cards.face, el: 'LIGHT' });
     if (titles.length) tabs.push({ id: 'titles', label: 'Title Hall', art: sceneArt('throne', true), face: SHOP_SCENE.throne.face, el: 'WATER' });
@@ -3376,7 +3397,7 @@
   // utility buttons on the left and the buy buttons on the right.
   function stage(o) {
     return '<section class="sg-gstage is-' + esc(o.kind) + '" style="--el:' + color(o.el) + ';--ribbon:' + esc(o.ribbon || color(o.el)) + '">' +
-      '<img class="sg-gstage-bg" src="' + esc(o.art) + '" alt="">' +
+      '<img class="sg-gstage-bg" src="' + esc(o.art) + '" alt=""' + (o.pos ? ' style="object-position:' + esc(o.pos) + '"' : '') + '>' +
       '<div class="sg-gstage-veil"></div>' +
       (o.card ? '<div class="sg-gstage-card">' + o.card + '</div>' : '') +
       (o.pennant ? '<aside class="sg-gpennant"><b>' + esc(o.pennant.title) + '</b>' + o.pennant.items + '</aside>' : '') +
@@ -3475,8 +3496,13 @@
   function packsPanel(m) {
     var pk = m.pack;
     var el = packElement(pk);
+    // The all-element Siegeling pack has no one element, so it keeps the
+    // market; a pack with a scene of its own uses it over its element's.
+    var mixed = (pk.elements || []).length > 2;
+    var own = PACK_STAGE[pk.id];
+    var bg = own ? { art: heroPlate(scene(own.img)), pos: own.pos } : mixed ? { art: sceneArt('market') } : elementStage(el);
     return stage({
-        kind: 'packs', el: el, art: sceneArt('market'),
+        kind: 'packs', el: el, art: bg.art, pos: bg.pos,
         kicker: 'Pack Market', title: pk.name || pk.id,
         sub: pk.starterEligible ? 'Starter' : (pk.elements || []).map(title).slice(0, 3).join(' · '),
         text: pk.description,
@@ -3500,8 +3526,9 @@
     var head = m.offers.filter(function (o) { return o.id === opts.shopOffer; })[0] || m.offers[0];
     var card = offerCard(head);
     var owned = bought.indexOf(head.id) !== -1;
+    var bg = elementStage(card.element);
     return stage({
-      kind: 'daily', el: card.element, art: sceneArt('cards'),
+      kind: 'daily', el: card.element, art: bg.art, pos: bg.pos,
       kicker: 'Daily Offerings', title: card.name || head.cardId, sub: dailyResetText(),
       text: title(card.rarity) + ' · ' + title(card.element) + ' · ' +
         (card.type === 'SIEGEKNIGHT' ? 'SiegeKnight' : title(card.type)) +
