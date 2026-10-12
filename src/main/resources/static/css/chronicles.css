@@ -27,6 +27,15 @@
   --sal:env(safe-area-inset-left, 0px);
   --sar:env(safe-area-inset-right, 0px);
 }
+/* An installed web app on iOS 26 draws its own soft blur-and-darken over the status bar
+   and roughly 40pt below it, across whatever the page puts there; no CSS reaches it. The
+   header is pushed past that band, as the hub does. The extra is tied to the top inset, so
+   it exists only where a status bar does: a landscape iPhone (inset 0) keeps every pixel,
+   while a portrait iPhone or an iPad gets the full 40px. A browser tab keeps the plain inset. */
+@media (display-mode: standalone) {
+  :root { --sat:calc(env(safe-area-inset-top, 0px) + min(40px, env(safe-area-inset-top, 0px) * 4)); }
+}
+:root.sg-standalone { --sat:calc(env(safe-area-inset-top, 0px) + min(40px, env(safe-area-inset-top, 0px) * 4)); }
 
 * { box-sizing:border-box; }
 /* Blocks pinch/double-tap zoom: a stray zoom permanently clips the fixed shell (see CLAUDE.md). */
@@ -58,7 +67,6 @@ a { color:var(--gold-bright); }
   position:absolute; top:0; left:0; right:0;
   height:var(--sg-vh, 100vh); height:max(100dvh, var(--sg-vh, 0px));
   display:flex; flex-direction:column; overflow:hidden;
-  max-width:1100px; margin:0 auto;
   padding-left:var(--sal); padding-right:var(--sar);
   /* Darkens the art just enough under the header and the tabs to keep them legible. */
   background:linear-gradient(180deg, rgba(5,8,16,.5), rgba(5,8,16,.12) 26%, rgba(5,8,16,.18) 70%, rgba(5,8,16,.6));
@@ -470,12 +478,14 @@ body.is-busy .ck-main { cursor:progress; }
   .ck-routes { grid-template-columns:1fr; }
 }
 
+/* The shell spans the whole screen at every size; on wide screens the content column is
+   centred inside it (capped at 1400px) instead of the shell itself shrinking to a strip. */
 @media (min-width:900px) {
-  .ck-main { padding:8px 20px 24px; }
+  .ck-main { padding:8px max(20px, calc((100% - 1400px) / 2)) 24px; }
   .ck-skillbar { margin-left:-20px; margin-right:-20px; padding-left:20px; padding-right:20px; grid-auto-columns:minmax(96px, 1fr); }
   .ck-cells { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); }
-  .ck-top { padding-left:20px; padding-right:20px; }
-  .ck-status { padding-left:20px; padding-right:20px; }
+  .ck-top, .ck-status { padding-left:max(20px, calc((100% - 1400px) / 2)); padding-right:max(20px, calc((100% - 1400px) / 2)); }
+  .ck-tabs { padding-left:max(6px, calc((100% - 1400px) / 2)); padding-right:max(6px, calc((100% - 1400px) / 2)); }
   .ck-starters { grid-template-columns:repeat(4, minmax(0, 1fr)); }
 }
 
@@ -836,3 +846,26 @@ body.is-busy .ck-main { cursor:progress; }
 @media (prefers-reduced-motion:reduce) {
   .ck-ico.is-spin, .ck-stage-ring, .ck-portrait.is-encounter, .ck-cell.is-on, .ck-cell.is-on .ck-ico { animation:none; }
 }
+
+/* Landscape phones: a bottom tab bar plus header and status rows left barely 230px of a
+   390px screen for content. The tabs become a rail down the left edge (clear of the notch
+   via the shell's safe-area padding) and the header tightens, so the content column keeps
+   most of the height. */
+@media (orientation:landscape) and (max-height:520px) {
+  .ck-shell { display:grid; grid-template-columns:auto minmax(0, 1fr); grid-template-rows:auto auto minmax(0, 1fr); }
+  .ck-top, .ck-status, .ck-main { grid-column:2; }
+  .ck-tabs:not([hidden]) {
+    grid-column:1; grid-row:1 / -1; display:flex; flex-direction:column; justify-content:center; gap:2px;
+    width:76px; padding:calc(4px + var(--sat)) 4px calc(4px + var(--sab)); border-top:0; border-right:1px solid var(--glass-line);
+    overflow-y:auto; scrollbar-width:none;
+  }
+  .ck-tabs::-webkit-scrollbar { display:none; }
+  .ck-tabs button { flex:0 1 48px; min-height:40px; padding:3px 0; font-size:9.5px; }
+  .ck-top { padding-top:calc(max(4px, var(--sat)) + 2px); padding-bottom:4px; }
+  .ck-kicker { display:none; }
+  .ck-avatar .ck-portrait { width:34px; height:34px; }
+  .ck-status { padding-bottom:6px; }
+  .ck-stat { padding:4px 10px; }
+  .ck-toasts { left:calc(50% + 38px); bottom:calc(12px + var(--sab)); }
+}
+

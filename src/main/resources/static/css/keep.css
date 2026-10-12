@@ -45,6 +45,17 @@
     font-family: "Segoe UI", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* An installed web app on iOS 26 draws its own soft blur-and-darken over the status bar
+   and roughly 40pt below it; no CSS reaches it, and the header's brand, counters and
+   buttons sat inside it. Every top offset keys off --safe-top, so the installed app's
+   inset is pushed past the band, as the hub does. The extra scales with the inset, so a
+   landscape iPhone (no status bar, inset 0) loses nothing, while a portrait iPhone or an
+   iPad gets the full 40px. A browser tab keeps the plain inset. */
+@media (display-mode: standalone) {
+    :root { --safe-top: calc(env(safe-area-inset-top, 0px) + min(40px, env(safe-area-inset-top, 0px) * 4)); }
+}
+:root.sg-standalone { --safe-top: calc(env(safe-area-inset-top, 0px) + min(40px, env(safe-area-inset-top, 0px) * 4)); }
+
 * { box-sizing: border-box; }
 
 /* Not height:100%. That is the layout viewport, which an installed iOS web app
