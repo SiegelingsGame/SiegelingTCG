@@ -5667,3 +5667,22 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gplate b { font-size:20px; }
   .sg-gplate i { font-size:16px; }
 }
+/* Landscape has width to spare but little height, so the pack backs share
+   the bottom row with Odds/Binder and the buy buttons. The footer dissolves
+   into the body grid so all three line up on one row. */
+@media (orientation:landscape) and (max-height:520px), (min-width:1024px) {
+  .sg-gstage.is-packs .sg-gstage-body {
+    display:grid; grid-template-columns:auto minmax(0, 1fr) auto; grid-template-rows:auto 1fr auto;
+    align-items:end; column-gap:14px; row-gap:0;
+  }
+  .sg-gstage.is-packs .sg-gplaque { grid-column:1 / -1; grid-row:1; align-self:start; margin-bottom:0; }
+  .sg-gstage.is-packs .sg-gfoot { display:contents; }
+  .sg-gstage.is-packs .sg-gutil { grid-column:1; grid-row:3; }
+  .sg-gstage.is-packs .sg-gselect { grid-column:2; grid-row:3; min-width:0; padding-top:8px; }
+  .sg-gstage.is-packs .sg-gbuy { grid-column:3; grid-row:3; }
+  /* The row gives way, not the buttons. */
+  .sg-gstage.is-packs .sg-gbtn { flex-shrink:0; }
+}
+@media (orientation:landscape) and (max-height:520px) {
+  .sg-gstage.is-packs .sg-gbtn { flex-basis:128px; }
+}
