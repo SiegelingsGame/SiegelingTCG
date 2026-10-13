@@ -373,8 +373,9 @@
     // which is extracted from style.css, draws it identically. Kept local
     // because the landing page cannot afford to load game.js just for this.
     const FRAME_FAMILY = {
-        FIRE: 'frame-fire-metal', METAL: 'frame-fire-metal', EARTH: 'frame-earth', PSYCHIC: 'frame-psychic',
-        ICE: 'frame-ice-water', WATER: 'frame-ice-water', WIND: 'frame-air-electric', AIR: 'frame-air-electric', ELECTRIC: 'frame-air-electric'
+        FIRE: 'frame-fire-metal', METAL: 'frame-metal', EARTH: 'frame-earth', PSYCHIC: 'frame-psychic', POISON: 'frame-poison',
+        ICE: 'frame-ice-water', WATER: 'frame-water', WIND: 'frame-air-electric', AIR: 'frame-air-electric', ELECTRIC: 'frame-electric',
+        LIGHT: 'frame-light', SHADOW: 'frame-shadow', UNDEAD: 'frame-undead'
     };
     const FRAME_RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
     const CARD_NOTCH_DIRECTIONS = ['TOP', 'TOP_RIGHT', 'RIGHT', 'BOTTOM_RIGHT', 'BOTTOM', 'BOTTOM_LEFT', 'LEFT', 'TOP_LEFT'];
@@ -391,7 +392,12 @@
         ICE:      ['#ffbd91', '#fff8d8', '#ffe2cf', 'rgba(28, 9, 3, 0.9)'],
         ELECTRIC: ['#cab8ff', '#fff8b8', '#e7ddff', 'rgba(16, 8, 35, 0.92)'],
         METAL:    ['#ffd1a5', '#f9fdff', '#ffe8d5', 'rgba(24, 13, 5, 0.9)'],
-        PSYCHIC:  ['#c9ffba', '#fff7c4', '#e5ffde', 'rgba(6, 24, 5, 0.92)']
+        PSYCHIC:  ['#c9ffba', '#fff7c4', '#e5ffde', 'rgba(6, 24, 5, 0.92)'],
+        POISON:   ['#ffb8df', '#fff4b7', '#ffe0ef', 'rgba(25, 4, 15, 0.9)'],
+        SHADOW:   ['#ffe889', '#f8fff4', '#fff4be', 'rgba(15, 9, 0, 0.94)'],
+        UNDEAD:   ['#ddffae', '#fff1c6', '#f0ffd8', 'rgba(11, 22, 4, 0.92)'],
+        // Pale cloud panel: dark ink, as game.js PALE_PANEL_INK_PALETTE.
+        LIGHT:    ['#1b2231', '#8a4b06', '#3d4658', 'rgba(255, 255, 255, 0.85)']
     };
     const DEFAULT_INK = ['#e8f1ff', '#fff0a8', '#cfdcff', 'rgba(2, 8, 18, 0.92)'];
 
