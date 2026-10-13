@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -118,6 +119,21 @@ class ContentPackMergerTest {
                 assertTrue(trapBuckets.add(card.get("trapBucketElement").asText()), "one Metal deception per trigger element");
             }
         }
+    }
+
+    @Test
+    void laterContentPackKeepsEarlierPackIdsOnTheMarker() {
+        // Firestore set+merge replaces a map field. A second pack must be written
+        // on top of the ids already stored, or the next boot re-applies the first
+        // pack's cardPatches over dashboard edits made after it landed.
+        Map<String, Object> first = CardOverrideStorageService.appliedMarker(
+                null, "metal-kit-2026-10", Map.of("appliedAt", "t1"));
+        Map<String, Object> second = CardOverrideStorageService.appliedMarker(
+                first, "water-kit", Map.of("appliedAt", "t2"));
+
+        assertEquals("t1", ((Map<?, ?>) second.get("metal-kit-2026-10")).get("appliedAt"));
+        assertEquals("t2", ((Map<?, ?>) second.get("water-kit")).get("appliedAt"));
+        assertTrue(second.containsKey("metal-kit-2026-10"));
     }
 
     @Test
