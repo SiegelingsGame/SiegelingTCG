@@ -63,6 +63,11 @@
         displayName: ""
     };
 
+    // Drafts whose ID still tracks their name: created, duplicated or imported this session and
+    // not yet published, with no ID typed over by hand. Published IDs never follow a rename —
+    // player collections, saved decks and replays point at them.
+    const idFollowsName = new WeakSet();
+
     const state = {
         metadata: null,
         cards: [],
@@ -928,7 +933,9 @@
     }
 
     function bindCardFieldEvents() {
-        refs.cardIdInput.addEventListener("input", (event) => updateSelectedCardField("id", event.target.value));
+        refs.cardIdInput.addEventListener("input", (event) => onCardIdTyped(event.target.value));
+        // Renders skip the focused field, so a cleared ID shows its name-derived value on blur.
+        refs.cardIdInput.addEventListener("blur", () => setInputValue(refs.cardIdInput, getSelectedCard()?.id));
         refs.cardTypeSelect.addEventListener("change", (event) => changeSelectedCardType(event.target.value));
         refs.cardNameInput.addEventListener("input", (event) => onCardNameChanged(event.target.value));
         refs.cardElementSelect.addEventListener("change", (event) => {
@@ -1003,8 +1010,9 @@
             state.selectedDeckId = row.dataset.deckId;
             renderAll();
         });
-        refs.deckIdInput.addEventListener("input", (event) => updateSelectedDeckField("id", slugify(event.target.value)));
-        refs.deckNameInput.addEventListener("input", (event) => updateSelectedDeckField("name", event.target.value));
+        refs.deckIdInput.addEventListener("input", (event) => onDeckIdTyped(event.target.value));
+        refs.deckIdInput.addEventListener("blur", () => setInputValue(refs.deckIdInput, getSelectedDeck()?.id));
+        refs.deckNameInput.addEventListener("input", (event) => onDeckNameChanged(event.target.value));
         refs.deckDescriptionInput.addEventListener("input", (event) => updateSelectedDeckField("description", event.target.value));
         refs.deckTrainerSelect.addEventListener("change", (event) => updateSelectedDeckField("recommendedTrainerId", event.target.value));
         refs.deckActiveCheckbox.addEventListener("change", (event) => updateSelectedDeckField("active", Boolean(event.target.checked)));
@@ -1066,9 +1074,10 @@
             state.selectedTrainerId = row.dataset.trainerId;
             renderAll();
         });
-        refs.trainerIdInput.addEventListener("input", (event) => updateSelectedTrainerField("id", slugify(event.target.value)));
+        refs.trainerIdInput.addEventListener("input", (event) => onTrainerIdTyped(event.target.value));
+        refs.trainerIdInput.addEventListener("blur", () => setInputValue(refs.trainerIdInput, getSelectedTrainer()?.id));
         refs.trainerTierInput.addEventListener("input", (event) => updateSelectedTrainerField("tier", event.target.value));
-        refs.trainerNameInput.addEventListener("input", (event) => updateSelectedTrainerField("name", event.target.value));
+        refs.trainerNameInput.addEventListener("input", (event) => onTrainerNameChanged(event.target.value));
         refs.trainerElementSelect.addEventListener("change", (event) => {
             mutateSelectedTrainer((trainer) => {
                 trainer.element = event.target.value;
@@ -1336,6 +1345,7 @@
 
     function createCard(cardType) {
         const card = createBlankCard(cardType);
+        idFollowsName.add(card);
         state.cards.unshift(card);
         state.selectedCardId = card.id;
         state.selectedAbilityIndex = 0;
@@ -1355,9 +1365,10 @@
         }
         const copy = normalizeCard({
             ...buildExportCard(card),
-            id: createUniqueCardId(`${card.id || "card"}-copy`),
+            id: createUniqueCardId(`${card.name || card.id || "card"} Copy`),
             name: `${card.name || "Unnamed"} Copy`
         });
+        idFollowsName.add(copy);
         state.cards.unshift(copy);
         state.selectedCardId = copy.id;
         state.selectedAbilityIndex = 0;
@@ -1453,9 +1464,8 @@
         if (!card) {
             return;
         }
-        const previousAutoId = refs.cardIdInput.dataset.autoId || "";
         const previousAbilityAutoName = refs.abilityNameInput.dataset.autoName || "";
-        const idIsAuto = (card.id || "") === previousAutoId;
+        const idIsAuto = idFollowsName.has(card);
         mutateSelectedCard((c) => {
             c.name = nextName;
             if (idIsAuto) {
@@ -1475,15 +1485,7 @@
     }
 
     function computeAutoCardId(card, name) {
-        const slugBase = slugify(name) || "card";
-        let candidate = slugBase;
-        let counter = 2;
-        const otherIds = new Set(state.cards.filter((other) => other !== card).map((other) => other.id));
-        while (otherIds.has(candidate)) {
-            candidate = `${slugBase}-${counter}`;
-            counter += 1;
-        }
-        return candidate;
+        return uniqueSlugAmong(slugify(name) || "card", state.cards, card);
     }
 
     function migrateCardIdReferences(oldId, newId) {
@@ -1505,6 +1507,132 @@
                 deck.cardIds = deck.cardIds.map((id) => (String(id || "").trim() === o ? n : id));
             }
         });
+    }
+
+    // An ID typed by hand stops following the name; clearing the field hands it back to the name.
+    function onCardIdTyped(value) {
+        const card = getSelectedCard();
+        if (!card) {
+            return;
+        }
+        const typed = String(value || "").trim();
+        mutateSelectedCard((c) => {
+            const nextId = typed || computeAutoCardId(c, c.name);
+            if (typed) {
+                idFollowsName.delete(c);
+            } else {
+                idFollowsName.add(c);
+            }
+            renameCardId(c, nextId);
+        });
+    }
+
+    function renameCardId(card, nextId) {
+        if (nextId === card.id) {
+            return;
+        }
+        if (state.selectedCardId === card.id) {
+            state.selectedCardId = nextId;
+        }
+        migrateCardIdReferences(card.id, nextId);
+        card.id = nextId;
+    }
+
+    function onDeckNameChanged(nextName) {
+        mutateSelectedDeck((deck) => {
+            deck.name = nextName;
+            if (idFollowsName.has(deck)) {
+                renameDeckId(deck, computeAutoDeckId(deck, nextName));
+            }
+        });
+    }
+
+    function onDeckIdTyped(value) {
+        mutateSelectedDeck((deck) => {
+            const typed = slugifyTyped(value);
+            if (typed) {
+                idFollowsName.delete(deck);
+            } else {
+                idFollowsName.add(deck);
+            }
+            renameDeckId(deck, typed || computeAutoDeckId(deck, deck.name));
+        });
+    }
+
+    function renameDeckId(deck, nextId) {
+        if (nextId === deck.id) {
+            return;
+        }
+        if (state.selectedDeckId === deck.id) {
+            state.selectedDeckId = nextId;
+        }
+        deck.id = nextId;
+    }
+
+    function onTrainerNameChanged(nextName) {
+        mutateSelectedTrainer((trainer) => {
+            trainer.name = nextName;
+            if (idFollowsName.has(trainer)) {
+                renameTrainerId(trainer, computeAutoTrainerId(trainer, nextName));
+            }
+        });
+    }
+
+    function onTrainerIdTyped(value) {
+        mutateSelectedTrainer((trainer) => {
+            const typed = slugifyTyped(value);
+            if (typed) {
+                idFollowsName.delete(trainer);
+            } else {
+                idFollowsName.add(trainer);
+            }
+            renameTrainerId(trainer, typed || computeAutoTrainerId(trainer, trainer.name));
+        });
+    }
+
+    // Decks name their recommended SiegeKnight by ID, so a rename carries them along.
+    function renameTrainerId(trainer, nextId) {
+        const previousId = trainer.id;
+        if (nextId === previousId) {
+            return;
+        }
+        if (state.selectedTrainerId === previousId) {
+            state.selectedTrainerId = nextId;
+        }
+        state.decks.forEach((deck) => {
+            if (previousId && deck.recommendedTrainerId === previousId) {
+                deck.recommendedTrainerId = nextId;
+            }
+        });
+        trainer.id = nextId;
+    }
+
+    function computeAutoDeckId(deck, name) {
+        return uniqueSlugAmong(slugify(name) || "deck", state.decks, deck);
+    }
+
+    function computeAutoTrainerId(trainer, name) {
+        return uniqueSlugAmong(slugify(name) || "siegeknight", state.trainers, trainer);
+    }
+
+    function uniqueSlugAmong(slugBase, entries, self) {
+        const otherIds = new Set(entries.filter((other) => other !== self).map((other) => other.id));
+        let candidate = slugBase;
+        let counter = 2;
+        while (otherIds.has(candidate)) {
+            candidate = `${slugBase}-${counter}`;
+            counter += 1;
+        }
+        return candidate;
+    }
+
+    // Like slugify, but keeps a trailing hyphen while the designer is mid-word ("fire-") and lets
+    // the field go empty instead of snapping to a placeholder.
+    function slugifyTyped(value) {
+        return String(value || "")
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+/, "");
     }
 
     function changeSelectedCardType(nextType) {
@@ -1912,13 +2040,13 @@
         const resolvedData = preparedData.data;
         const cards = Array.isArray(resolvedData?.cards)
             ? resolvedData.cards.map((card) => normalizeCard(card))
-            : state.cards.map((card) => normalizeCard(buildExportCard(card)));
+            : state.cards.map((card) => carryIdFollowsName(card, normalizeCard(buildExportCard(card))));
         const decks = Array.isArray(resolvedData?.decks)
             ? resolvedData.decks.map((deck) => normalizeDeck(deck))
-            : state.decks.map((deck) => normalizeDeck(buildExportDeck(deck)));
+            : state.decks.map((deck) => carryIdFollowsName(deck, normalizeDeck(buildExportDeck(deck))));
         const trainers = Array.isArray(resolvedData?.trainers)
             ? resolvedData.trainers.map((trainer) => normalizeTrainer(trainer))
-            : state.trainers.map((trainer) => normalizeTrainer(buildExportTrainer(trainer)));
+            : state.trainers.map((trainer) => carryIdFollowsName(trainer, normalizeTrainer(buildExportTrainer(trainer))));
         const packs = Array.isArray(resolvedData?.packs)
             ? resolvedData.packs.map((pack) => ({ ...pack }))
             : state.packs.map((pack) => ({ ...pack }));
@@ -1931,6 +2059,26 @@
             liveElements = state.liveElements.length
                 ? state.liveElements.map((row) => ({ element: row.element, active: row.active !== false }))
                 : defaultLiveElements();
+        }
+        if (dirty) {
+            const publishedIds = state.publishedIds || { cards: new Set(), decks: new Set(), trainers: new Set() };
+            const markDrafts = (entries, published) => entries.forEach((entry) => {
+                if (!published.has(entry.id) && entry.id === slugify(entry.name)) {
+                    idFollowsName.add(entry);
+                }
+            });
+            markDrafts(cards, publishedIds.cards);
+            markDrafts(decks, publishedIds.decks);
+            markDrafts(trainers, publishedIds.trainers);
+        } else {
+            state.publishedIds = {
+                cards: new Set(cards.map((card) => card.id)),
+                decks: new Set(decks.map((deck) => deck.id)),
+                trainers: new Set(trainers.map((trainer) => trainer.id)),
+                moves: new Set(Array.isArray(resolvedData?.moves)
+                    ? resolvedData.moves.map((move) => String(move?.id || "").trim()).filter(Boolean)
+                    : [])
+            };
         }
         state.cards = cards;
         // game.js resolves Evo corner-chip precursor art from this.
@@ -1955,6 +2103,13 @@
             state.movesPoolFormEpoch += 1;
         }
         return preparedData;
+    }
+
+    function carryIdFollowsName(previous, next) {
+        if (idFollowsName.has(previous)) {
+            idFollowsName.add(next);
+        }
+        return next;
     }
 
     function prepareImportedDataSet(data) {
@@ -2527,7 +2682,7 @@
         const element = firstMetaValue("elements", "FIRE");
         return normalizeCard({
             type: "SIEGLING",
-            id: createUniqueCardId("new-siegling"),
+            id: createUniqueCardId("New Siegeling"),
             name: "New Siegeling",
             element,
             rarity: firstMetaValue("rarities", "COMMON"),
@@ -2546,7 +2701,7 @@
         const name = "New Strategy";
         return normalizeCard({
             type: "SPELL",
-            id: createUniqueCardId("new-spell"),
+            id: createUniqueCardId(name),
             name,
             element,
             rarity: firstMetaValue("rarities", "COMMON"),
@@ -2564,7 +2719,7 @@
         const name = "New Deception";
         return normalizeCard({
             type: "TRAP",
-            id: createUniqueCardId("new-trap"),
+            id: createUniqueCardId(name),
             name,
             element,
             rarity: firstMetaValue("rarities", "UNCOMMON"),
@@ -2590,7 +2745,7 @@
 
     function createBlankDeck() {
         return normalizeDeck({
-            id: createUniqueDeckId("new-deck"),
+            id: createUniqueDeckId("New Premade Deck"),
             name: "New Premade Deck",
             description: "",
             elements: [],
@@ -2603,7 +2758,7 @@
     function createBlankTrainer() {
         const element = firstMetaValue("elements", "FIRE");
         return normalizeTrainer({
-            id: createUniqueTrainerId("new-siegeknight"),
+            id: createUniqueTrainerId("New Siegeknight"),
             name: "New Siegeknight",
             element,
             rarity: firstMetaValue("rarities", "RARE"),
@@ -2754,6 +2909,7 @@
 
     function createDeck() {
         const deck = createBlankDeck();
+        idFollowsName.add(deck);
         state.decks.unshift(deck);
         state.selectedDeckId = deck.id;
         state.editorPage = "DECKS";
@@ -2765,6 +2921,7 @@
 
     function createTrainer() {
         const trainer = createBlankTrainer();
+        idFollowsName.add(trainer);
         state.trainers.unshift(trainer);
         state.selectedTrainerId = trainer.id;
         state.editorPage = "TRAINERS";
@@ -2781,10 +2938,11 @@
         }
         const clone = normalizeTrainer({
             ...buildExportTrainer(trainer),
-            id: createUniqueTrainerId(`${trainer.id}-copy`),
+            id: createUniqueTrainerId(`${trainer.name || trainer.id} Copy`),
             name: `${trainer.name} Copy`,
             active: false
         });
+        idFollowsName.add(clone);
         state.trainers.unshift(clone);
         state.selectedTrainerId = clone.id;
         state.editorPage = "TRAINERS";
@@ -2824,10 +2982,11 @@
         }
         const clone = normalizeDeck({
             ...buildExportDeck(deck),
-            id: createUniqueDeckId(`${deck.id}-copy`),
+            id: createUniqueDeckId(`${deck.name || deck.id} Copy`),
             name: `${deck.name} Copy`,
             active: false
         });
+        idFollowsName.add(clone);
         state.decks.unshift(clone);
         state.selectedDeckId = clone.id;
         state.dirty = true;
@@ -3115,7 +3274,6 @@
         setInputValue(refs.cardIdInput, card.id);
         setInputValue(refs.cardNameInput, card.name);
         setInputValue(refs.cardDescriptionInput, card.description || "");
-        refs.cardIdInput.dataset.autoId = computeAutoCardId(card, card.name);
         setInputValue(refs.cardHealthInput, card.health);
         setInputValue(refs.cardSpeedInput, card.speed);
         setInputValue(refs.cardEvolvesFromInput, card.evolvesFromId);
@@ -3233,20 +3391,20 @@
         const value = Math.max(0, toNumber(ability?.effectValue, 0));
         const signedValue = `+${value}`;
         const scope = trainerPassiveTargetScope(ability, trainer);
-        const gainVerb = trainerPassiveGainVerb(ability);
+        const gainVerb = scope.single ? "gains" : "gain";
         switch (effectType) {
             case "damage_boost":
-                return `${scope} ${gainVerb} ${signedValue} Attack Damage`;
+                return `${scope.subject} ${gainVerb} ${signedValue} Attack Damage`;
             case "health_boost":
-                return `${scope} ${gainVerb} ${signedValue} max HP`;
+                return `${scope.subject} ${gainVerb} ${signedValue} max HP`;
             case "draw":
                 return `Draw ${value} ${value === 1 ? "card" : "cards"}`;
             case "shield":
-                return `${scope} ${gainVerb} ${signedValue} Shield`;
+                return `${scope.subject} ${gainVerb} ${signedValue} Shield`;
             case "speed_boost":
-                return `${scope} ${gainVerb} ${signedValue} Speed`;
+                return `${scope.subject} ${gainVerb} ${signedValue} Speed`;
             case "slow":
-                return `${scope} lose ${value} Speed`;
+                return `${scope.subject} ${scope.single ? "loses" : "lose"} ${value} Speed`;
             case "energy_boost":
                 return buildEnergyBoostDescription(value, ability?.targetElement || trainer?.element || "", Boolean(ability?.passive), ability?.targetType);
             case "connected_allies_damage_boost":
@@ -3254,7 +3412,7 @@
             case "connected_allies_health_boost":
                 return `Connected allies gain ${signedValue} max HP`;
             case "connected_allies_heal":
-                return `Heal connected allies for ${value}`;
+                return `Heal connected allies for ${value} HP`;
             case "connected_allies_shield":
                 return `Connected allies gain ${signedValue} Shield`;
             case "connected_allies_slow":
@@ -3290,26 +3448,24 @@
         });
     }
 
+    /**
+     * A SiegeKnight passive is an aura over its own side, so enemy-facing target types still read
+     * as "all allies" — the element filter is the knight's, as the engine applies it.
+     */
     function trainerPassiveTargetScope(ability, trainer) {
         const targetType = String(ability?.targetType || "").trim();
         const element = String(trainer?.element || "").trim();
         const elementPrefix = element && element !== "NEUTRAL" ? `${formatEnumLabel(element)} ` : "";
-        if (targetType === "ROW_ALLIES") {
-            const row = formatEnumLabel(ability?.targetRow || firstMetaValue("rows", "FRONT"));
-            return `${row} Row ${elementPrefix}allies`;
+        const row = ability?.targetRow || firstMetaValue("rows", "FRONT");
+        switch (targetType) {
+            case "ROW_ALLIES":
+            case "SINGLE_ALLY":
+                return moveTargetPhrase(targetType, elementPrefix, row, "This SiegeKnight");
+            case "SELF":
+                return moveTargetPhrase("SELF", elementPrefix, row, "This SiegeKnight");
+            default:
+                return moveTargetPhrase("ALL_ALLIES", elementPrefix, row, "This SiegeKnight");
         }
-        if (targetType === "SINGLE_ALLY") {
-            return `1 ${elementPrefix}ally`;
-        }
-        if (targetType === "SELF") {
-            return "This SiegeKnight";
-        }
-        return `All ${elementPrefix}allies`;
-    }
-
-    function trainerPassiveGainVerb(ability) {
-        const targetType = String(ability?.targetType || "").trim();
-        return targetType === "SINGLE_ALLY" || targetType === "SELF" ? "gains" : "gain";
     }
 
     function renderNotches(card) {
@@ -5779,9 +5935,14 @@
         renderMoveDraftLivePanels();
     }
 
+    // Typing an ID locks it; clearing the field hands it back to the name (unless the move is live).
     function onMoveDraftIdInput() {
         if (refs.moveDraftIdInput) {
-            refs.moveDraftIdInput.dataset.idIsAuto = "false";
+            const editingId = state.moveDraftEditingOriginalId ? String(state.moveDraftEditingOriginalId).trim() : null;
+            const isPublished = Boolean(editingId && state.publishedIds?.moves?.has(editingId));
+            const cleared = !String(refs.moveDraftIdInput.value || "").trim();
+            // Not refilled here: the field is focused, and the next name edit fills it.
+            refs.moveDraftIdInput.dataset.idIsAuto = cleared && !isPublished ? "true" : "false";
         }
         renderMoveDraftLivePanels();
     }
@@ -5818,8 +5979,73 @@
      * an Effect Value edit never strands the sentence, and case/spacing noise is dropped.
      */
     function autoDescriptionSignature(text) {
-        return String(text || "").toLowerCase().replace(/\d+/g, "#").replace(/\s+/g, " ").trim();
+        return String(text || "")
+            .toLowerCase()
+            .replace(/\d+/g, "#")
+            .replace(AUTO_DESCRIPTION_ELEMENT_WORDS, "@")
+            .replace(/\bturns\b/g, "turn")
+            .replace(/\s+/g, " ")
+            .trim();
     }
+
+    // Element names fold like digits: the sweep never varies the element, and a knight passive or
+    // an element-filtered move should still be recognised after its element changes.
+    const AUTO_DESCRIPTION_ELEMENT_WORDS = /\b(fire|earth|wind|air|ice|water|electric|metal|poison|psychic|light|shadow|undead|neutral)\b/g;
+
+    // Shapes earlier versions of the generator wrote (row targets that never named the row,
+    // "Nullify …", "1 ally lose …", connected heal without "HP"). Stored descriptions in these
+    // shapes are still dashboard-owned, so editing the skill rewrites them in today's wording
+    // instead of freezing them as if a designer had typed them.
+    const LEGACY_AUTO_DESCRIPTION_SIGNATURES = [
+        "# @ ally lose # speed",
+        "# all ally lose # speed",
+        "# ally lose # speed",
+        "@ row allies gain +# attack damage",
+        "@ row allies gain +# max hp",
+        "@ row allies gain +# shield",
+        "@ row allies gain +# speed",
+        "@ row enemies gain +# attack damage",
+        "@ row enemies gain +# max hp",
+        "@ row enemies gain +# shield",
+        "@ row enemies gain +# speed",
+        "chain # damage to @ row enemies and their connected allies",
+        "chain # damage to the row and their connected allies",
+        "deal # damage to @ row allies",
+        "deal # damage to @ row enemies",
+        "deal # damage to the row",
+        "destroy @ row allies",
+        "destroy @ row enemies",
+        "freeze @ row allies for # turn",
+        "freeze @ row enemies for # turn",
+        "heal @ row allies for # hp",
+        "heal @ row enemies for # hp",
+        "heal connected allies for #",
+        "nullify @ row allies' speed (# turn)",
+        "nullify @ row enemies' speed (# turn)",
+        "nullify all @ allies' speed (# turn)",
+        "nullify all @ enemies' speed (# turn)",
+        "nullify all allies' speed (# turn)",
+        "nullify all enemies' speed (# turn)",
+        "nullify row allies' speed (# turn)",
+        "nullify row enemies' speed (# turn)",
+        "nullify self speed (# turn)",
+        "nullify the selected @ allied row's speed (# turn)",
+        "nullify the selected @ enemy row's speed (# turn)",
+        "nullify the selected allied row's speed (# turn)",
+        "nullify the selected enemy row's speed (# turn)",
+        "reduce # @ ally speed by #",
+        "reduce # @ ally speed to # (# turn)",
+        "reduce # @ enemy speed by #",
+        "reduce # @ enemy speed to # (# turn)",
+        "reduce # ally speed by #",
+        "reduce # ally speed to # (# turn)",
+        "reduce # enemy speed by #",
+        "reduce # enemy speed to # (# turn)",
+        "reduce @ row allies' speed by #",
+        "reduce @ row enemies' speed by #",
+        "reduce self speed by #",
+        "this siegeknight lose # speed"
+    ];
 
     /**
      * Every blurb the generator could write for this skill across the target/effect/row/passive
@@ -5836,7 +6062,7 @@
         const targetTypes = state.metadata?.targetTypes || [];
         const effectKeys = (state.metadata?.effectTypes || []).map((effect) => effect.key);
         const rows = state.metadata?.rows || [];
-        const signatures = new Set();
+        const signatures = new Set(LEGACY_AUTO_DESCRIPTION_SIGNATURES);
         targetTypes.forEach((targetType) => {
             const rowOptions = getTargetRule(targetType).requiresRow && rows.length > 0 ? rows : [""];
             effectKeys.forEach((effectType) => {
@@ -5887,40 +6113,44 @@
         const signedValue = `+${value}`;
         const targetElement = String(move?.targetElement || "").trim();
         const elementPrefix = targetElement && targetElement !== "ALL" ? `${formatEnumLabel(targetElement)} ` : "";
-        const selectedEnemyRow = selectedRowTargetPhrase("enemy", elementPrefix);
-        const selectedAlliedRow = selectedRowTargetPhrase("allied", elementPrefix);
+        const target = moveTargetPhrase(targetType, elementPrefix, move?.targetRow, "This Siegeling");
 
         switch (effectType) {
             case "damage":
-                return buildDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
-            case "chain_damage":
-                return buildChainDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow);
             case "player_damage":
-                return `Deal ${value} damage to the enemy player`;
+                if (effectType === "player_damage" || targetType === "ENEMY_PLAYER") {
+                    return `Deal ${value} damage to the enemy player`;
+                }
+                return target ? `Deal ${value} damage to ${target.object}` : "";
+            case "chain_damage":
+                if (!target || target.self || target.player) {
+                    return `Chain ${value} damage to the target and its connected allies`;
+                }
+                return `Chain ${value} damage to ${target.object} and ${targetType.startsWith("SINGLE_") ? "its" : "their"} connected allies`;
             case "draw":
                 return `Draw ${value} ${value === 1 ? "card" : "cards"}`;
             case "heal":
-                return buildHealMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
+                return target && !target.player ? `Heal ${target.object} for ${value} HP` : "";
             case "freeze":
-                return buildFreezeMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
+                return target && !target.player ? `Freeze ${target.object} for ${turnText(value)}` : "";
             case "speed_zero":
-                return buildSpeedZeroMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
+                return target && !target.player ? `Reduce ${target.possessive} speed to 0 (${turnText(value)})` : "";
             case "slow":
-                return buildSlowMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
+                return target && !target.player ? `Reduce ${target.possessive} speed by ${Math.max(1, value)}` : "";
             case "damage_boost":
-                return buildStatBoostMoveDescription(signedValue, "Attack Damage", targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive);
+                return buildStatBoostMoveDescription(signedValue, "Attack Damage", target, isPassive);
             case "health_boost":
-                return buildStatBoostMoveDescription(signedValue, "max HP", targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive);
+                return buildStatBoostMoveDescription(signedValue, "max HP", target, isPassive);
             case "shield":
-                return buildStatBoostMoveDescription(signedValue, "Shield", targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive);
+                return buildStatBoostMoveDescription(signedValue, "Shield", target, isPassive);
             case "speed_boost":
-                return buildStatBoostMoveDescription(signedValue, "Speed", targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive);
+                return buildStatBoostMoveDescription(signedValue, "Speed", target, isPassive);
             case "connected_allies_damage_boost":
                 return `Connected allies gain ${signedValue} Attack Damage`;
             case "connected_allies_health_boost":
                 return `Connected allies gain ${signedValue} max HP`;
             case "connected_allies_heal":
-                return `Heal connected allies for ${value}`;
+                return `Heal connected allies for ${value} HP`;
             case "connected_allies_shield":
                 return `Connected allies gain ${signedValue} Shield`;
             case "connected_allies_slow":
@@ -5930,11 +6160,50 @@
             case "energy_boost":
                 return buildEnergyBoostDescription(value, targetElement, isPassive, targetType);
             case "destroy":
-                return buildDestroyMoveDescription(targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow);
+                return target && !target.player ? `Destroy ${target.object}` : "";
             case "move_link":
-                return `Move to an open linked point (${Math.max(0, toNumber(move?.energyCost, 0))} Cost)`;
+                // A Strategy/Deception aimed at an enemy relocates that enemy; anything else moves the caster.
+                return targetType === "SINGLE_ENEMY"
+                    ? `Move 1 ${elementPrefix}enemy to any empty cell on its board`
+                    : `Move to an open linked point (${Math.max(0, toNumber(move?.energyCost, 0))} Cost)`;
             default:
                 return "";
+        }
+    }
+
+    /**
+     * Who a skill lands on, in the three grammatical slots the blurbs need: `object` ("Heal X"),
+     * `subject` ("X gains"), and `possessive` ("X's speed"). `single` drives verb agreement.
+     * ROW_ENEMIES/ROW_ALLIES name the configured row, since that row is fixed on the card.
+     */
+    function moveTargetPhrase(targetType, elementPrefix, targetRow, selfSubject) {
+        const plural = (text) => ({ object: text, subject: sentenceCase(text), possessive: `${text}'`, single: false });
+        const single = (text) => ({ object: text, subject: sentenceCase(text), possessive: `${text}'s`, single: true });
+        const rowText = targetRow ? `${formatEnumLabel(targetRow).toLowerCase()} row ` : "row ";
+        switch (targetType) {
+            case "SINGLE_ENEMY":
+                return single(`1 ${elementPrefix}enemy`);
+            case "SINGLE_ALLY":
+                return single(`1 ${elementPrefix}ally`);
+            case "ROW_ENEMIES":
+                return plural(`${rowText}${elementPrefix}enemies`);
+            case "ROW_ALLIES":
+                return plural(`${rowText}${elementPrefix}allies`);
+            case "ROW_SELECT_ENEMIES":
+                return single(`the selected ${elementPrefix}enemy row`);
+            case "ROW_SELECT_ALLIES":
+                return single(`the selected ${elementPrefix}allied row`);
+            case "ALL_ENEMIES":
+                return plural(`all ${elementPrefix}enemies`);
+            case "ALL_ALLIES":
+                return plural(`all ${elementPrefix}allies`);
+            case "SELF":
+            case "PASSIVE":
+                return { object: "self", subject: selfSubject, possessive: `${selfSubject.charAt(0).toLowerCase()}${selfSubject.slice(1)}'s`, single: true, self: true };
+            case "ENEMY_PLAYER":
+                return { object: "the enemy player", subject: "The enemy player", possessive: "the enemy player's", single: true, player: true };
+            default:
+                return null;
         }
     }
 
@@ -5978,241 +6247,14 @@
         }
     }
 
-    function selectedRowTargetPhrase(sideLabel, elementPrefix) {
-        const elementText = elementPrefix ? `${elementPrefix.toLowerCase()}` : "";
-        return `the selected ${elementText}${sideLabel} row`;
-    }
-
-    function buildDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow) {
-        switch (targetType) {
-            case "SINGLE_ENEMY":
-                return `Deal ${value} damage to 1 ${elementPrefix}enemy`;
-            case "SINGLE_ALLY":
-                return `Deal ${value} damage to 1 ${elementPrefix}ally`;
-            case "ROW_ENEMIES":
-                return elementPrefix
-                    ? `Deal ${value} damage to ${elementPrefix.toLowerCase()}row enemies`
-                    : `Deal ${value} damage to the row`;
-            case "ROW_ALLIES":
-                return elementPrefix
-                    ? `Deal ${value} damage to ${elementPrefix.toLowerCase()}row allies`
-                    : `Deal ${value} damage to row allies`;
-            case "ROW_SELECT_ENEMIES":
-                return `Deal ${value} damage to ${selectedEnemyRow}`;
-            case "ROW_SELECT_ALLIES":
-                return `Deal ${value} damage to ${selectedAlliedRow}`;
-            case "ALL_ENEMIES":
-                return `Deal ${value} damage to all ${elementPrefix}enemies`;
-            case "ALL_ALLIES":
-                return `Deal ${value} damage to all ${elementPrefix}allies`;
-            case "SELF":
-            case "PASSIVE":
-                return `Deal ${value} damage to self`;
-            case "ENEMY_PLAYER":
-                return `Deal ${value} damage to the enemy player`;
-            default:
-                return "";
+    function buildStatBoostMoveDescription(signedValue, statLabel, target, isPassive) {
+        if (!target || target.player) {
+            return "";
         }
-    }
-
-    function buildChainDamageMoveDescription(value, targetType, elementPrefix, selectedEnemyRow) {
-        switch (targetType) {
-            case "SINGLE_ENEMY":
-                return `Chain ${value} damage to 1 ${elementPrefix}enemy and its connected allies`;
-            case "SINGLE_ALLY":
-                return `Chain ${value} damage to 1 ${elementPrefix}ally and its connected allies`;
-            case "ROW_SELECT_ENEMIES":
-                return `Chain ${value} damage to ${selectedEnemyRow} and their connected allies`;
-            case "ROW_ENEMIES":
-                return elementPrefix
-                    ? `Chain ${value} damage to ${elementPrefix.toLowerCase()}row enemies and their connected allies`
-                    : `Chain ${value} damage to the row and their connected allies`;
-            case "ALL_ENEMIES":
-                return `Chain ${value} damage to all ${elementPrefix}enemies and their connected allies`;
-            default:
-                return `Chain ${value} damage to the target and its connected allies`;
-        }
-    }
-
-    function buildHealMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow) {
-        switch (targetType) {
-            case "SINGLE_ENEMY":
-                return `Heal 1 ${elementPrefix}enemy for ${value} HP`;
-            case "SINGLE_ALLY":
-                return `Heal 1 ${elementPrefix}ally for ${value} HP`;
-            case "ROW_ENEMIES":
-                return elementPrefix
-                    ? `Heal ${elementPrefix}row enemies for ${value} HP`
-                    : `Heal row enemies for ${value} HP`;
-            case "ROW_ALLIES":
-                return elementPrefix
-                    ? `Heal ${elementPrefix}row allies for ${value} HP`
-                    : `Heal Row allies for ${value} HP`;
-            case "ROW_SELECT_ENEMIES":
-                return `Heal ${selectedEnemyRow} for ${value} HP`;
-            case "ROW_SELECT_ALLIES":
-                return `Heal ${selectedAlliedRow} for ${value} HP`;
-            case "ALL_ENEMIES":
-                return `Heal all ${elementPrefix}enemies for ${value} HP`;
-            case "ALL_ALLIES":
-                return `Heal all ${elementPrefix}allies for ${value} HP`;
-            case "SELF":
-            case "PASSIVE":
-                return `Heal self for ${value} HP`;
-            default:
-                return "";
-        }
-    }
-
-    function buildFreezeMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow) {
-        const turns = turnText(value);
-        switch (targetType) {
-            case "SINGLE_ENEMY":
-                return `Freeze 1 ${elementPrefix}enemy for ${turns}`;
-            case "SINGLE_ALLY":
-                return `Freeze 1 ${elementPrefix}ally for ${turns}`;
-            case "ROW_ENEMIES":
-                return elementPrefix
-                    ? `Freeze ${elementPrefix}row enemies for ${turns}`
-                    : `Freeze Row enemies for ${turns}`;
-            case "ROW_ALLIES":
-                return elementPrefix
-                    ? `Freeze ${elementPrefix}row allies for ${turns}`
-                    : `Freeze row allies for ${turns}`;
-            case "ROW_SELECT_ENEMIES":
-                return `Freeze ${selectedEnemyRow} for ${turns}`;
-            case "ROW_SELECT_ALLIES":
-                return `Freeze ${selectedAlliedRow} for ${turns}`;
-            case "ALL_ENEMIES":
-                return `Freeze All ${elementPrefix}enemies for ${turns}`;
-            case "ALL_ALLIES":
-                return `Freeze all ${elementPrefix}allies for ${turns}`;
-            case "SELF":
-            case "PASSIVE":
-                return `Freeze self for ${turns}`;
-            default:
-                return "";
-        }
-    }
-
-    function buildSpeedZeroMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow) {
-        const turns = turnText(value);
-        switch (targetType) {
-            case "SINGLE_ENEMY":
-                return `Reduce 1 ${elementPrefix}enemy speed to 0 (${turns})`;
-            case "SINGLE_ALLY":
-                return `Reduce 1 ${elementPrefix}ally speed to 0 (${turns})`;
-            case "ROW_ENEMIES":
-                return elementPrefix
-                    ? `Nullify ${elementPrefix}row enemies' speed (${turns})`
-                    : `Nullify Row enemies' speed (${turns})`;
-            case "ROW_ALLIES":
-                return elementPrefix
-                    ? `Nullify ${elementPrefix}row allies' speed (${turns})`
-                    : `Nullify row allies' speed (${turns})`;
-            case "ROW_SELECT_ENEMIES":
-                return `Nullify ${selectedEnemyRow}'s speed (${turns})`;
-            case "ROW_SELECT_ALLIES":
-                return `Nullify ${selectedAlliedRow}'s speed (${turns})`;
-            case "ALL_ENEMIES":
-                return `Nullify All ${elementPrefix}enemies' speed (${turns})`;
-            case "ALL_ALLIES":
-                return `Nullify all ${elementPrefix}allies' speed (${turns})`;
-            case "SELF":
-            case "PASSIVE":
-                return `Nullify self speed (${turns})`;
-            default:
-                return "";
-        }
-    }
-
-    function buildSlowMoveDescription(value, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow) {
-        const amount = Math.max(1, toNumber(value, 1));
-        switch (targetType) {
-            case "SINGLE_ENEMY":
-                return `Reduce 1 ${elementPrefix}enemy speed by ${amount}`;
-            case "SINGLE_ALLY":
-                return `Reduce 1 ${elementPrefix}ally speed by ${amount}`;
-            case "ROW_ENEMIES":
-                return elementPrefix
-                    ? `Reduce ${elementPrefix}row enemies' speed by ${amount}`
-                    : `Reduce row enemies' speed by ${amount}`;
-            case "ROW_ALLIES":
-                return elementPrefix
-                    ? `Reduce ${elementPrefix}row allies' speed by ${amount}`
-                    : `Reduce row allies' speed by ${amount}`;
-            case "ROW_SELECT_ENEMIES":
-                return `Reduce ${selectedEnemyRow}'s speed by ${amount}`;
-            case "ROW_SELECT_ALLIES":
-                return `Reduce ${selectedAlliedRow}'s speed by ${amount}`;
-            case "ALL_ENEMIES":
-                return `Reduce all ${elementPrefix}enemies' speed by ${amount}`;
-            case "ALL_ALLIES":
-                return `Reduce all ${elementPrefix}allies' speed by ${amount}`;
-            case "SELF":
-            case "PASSIVE":
-                return `Reduce self speed by ${amount}`;
-            default:
-                return "";
-        }
-    }
-
-    function buildStatBoostMoveDescription(signedValue, statLabel, targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow, isPassive) {
-        if (targetType === "PASSIVE" || (isPassive && targetType === "SELF")) {
+        if (target.self && isPassive) {
             return `Passively gains ${signedValue} ${statLabel}`;
         }
-        switch (targetType) {
-            case "SINGLE_ENEMY":
-                return `1 ${elementPrefix}enemy gains ${signedValue} ${statLabel}`;
-            case "SINGLE_ALLY":
-                return `1 ${elementPrefix}ally gains ${signedValue} ${statLabel}`;
-            case "ROW_ENEMIES":
-                return elementPrefix
-                    ? `${elementPrefix}row enemies gain ${signedValue} ${statLabel}`
-                    : `Row enemies gain ${signedValue} ${statLabel}`;
-            case "ROW_ALLIES":
-                return elementPrefix
-                    ? `${elementPrefix}row allies gain ${signedValue} ${statLabel}`
-                    : `Row allies gain ${signedValue} ${statLabel}`;
-            case "ROW_SELECT_ENEMIES":
-                return `${sentenceCase(selectedEnemyRow)} gains ${signedValue} ${statLabel}`;
-            case "ROW_SELECT_ALLIES":
-                return `${sentenceCase(selectedAlliedRow)} gains ${signedValue} ${statLabel}`;
-            case "ALL_ENEMIES":
-                return `All ${elementPrefix}enemies gain ${signedValue} ${statLabel}`;
-            case "ALL_ALLIES":
-                return `All ${elementPrefix}allies gain ${signedValue} ${statLabel}`;
-            case "SELF":
-                return `This Siegeling gains ${signedValue} ${statLabel}`;
-            default:
-                return "";
-        }
-    }
-
-    function buildDestroyMoveDescription(targetType, elementPrefix, selectedEnemyRow, selectedAlliedRow) {
-        switch (targetType) {
-            case "SINGLE_ENEMY":
-                return `Destroy 1 ${elementPrefix}enemy`;
-            case "SINGLE_ALLY":
-                return `Destroy 1 ${elementPrefix}ally`;
-            case "ROW_ENEMIES":
-                return elementPrefix ? `Destroy ${elementPrefix}row enemies` : "Destroy Row enemies";
-            case "ROW_ALLIES":
-                return elementPrefix ? `Destroy ${elementPrefix}row allies` : "Destroy row allies";
-            case "ROW_SELECT_ENEMIES":
-                return `Destroy ${selectedEnemyRow}`;
-            case "ROW_SELECT_ALLIES":
-                return `Destroy ${selectedAlliedRow}`;
-            case "ALL_ENEMIES":
-                return `Destroy all ${elementPrefix}enemies`;
-            case "ALL_ALLIES":
-                return `Destroy all ${elementPrefix}allies`;
-            case "SELF":
-            case "PASSIVE":
-                return "Destroy self";
-            default:
-                return "";
-        }
+        return `${target.subject} ${target.single ? "gains" : "gain"} ${signedValue} ${statLabel}`;
     }
 
     function sentenceCase(value) {
@@ -6725,9 +6767,11 @@
         setInputValue(refs.moveDraftIdInput, move.id);
         setInputValue(refs.moveDraftNameInput, move.name);
         if (refs.moveDraftIdInput) {
+            // A pool move already on the live server keeps its ID: cards list their moves by it.
             const slugOfName = slugify(move.name || "");
             const isFreshDraft = !editingOriginalId;
-            refs.moveDraftIdInput.dataset.idIsAuto = (isFreshDraft || move.id === slugOfName) ? "true" : "false";
+            const isPublished = Boolean(editingOriginalId && state.publishedIds?.moves?.has(String(editingOriginalId).trim()));
+            refs.moveDraftIdInput.dataset.idIsAuto = !isPublished && (isFreshDraft || move.id === slugOfName) ? "true" : "false";
         }
         setInputValue(refs.moveDraftEffectValueInput, move.effectValue);
         setInputValue(refs.moveDraftEnergyInput, move.energyCost);
