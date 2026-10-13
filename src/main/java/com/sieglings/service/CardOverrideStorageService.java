@@ -340,7 +340,10 @@ public class CardOverrideStorageService {
                 tx.set(cardsRef, buildFirestorePayload(objectMapper.valueToTree(file), updatedBy));
                 Map<String, Object> entry = new LinkedHashMap<>();
                 entry.put("appliedAt", Timestamp.now());
-                tx.set(markerRef, Map.of("applied", Map.of(packId, entry)), SetOptions.merge());
+                // set+merge replaces a map field wholesale. Writing only this pack's
+                // key would drop every earlier pack id, and the next boot would
+                // re-apply those cardPatches over later dashboard edits.
+                tx.set(markerRef, Map.of("applied", appliedMarker(appliedMap, packId, entry)), SetOptions.merge());
                 return true;
             }).get(30, TimeUnit.SECONDS);
             if (applied) {
@@ -351,6 +354,24 @@ public class CardOverrideStorageService {
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to apply content pack '" + packId + "' to Firestore.", ex);
         }
+    }
+
+    /**
+     * Copies pack ids already stored on the marker, then records {@code packId}.
+     * Firestore merge does not deep-merge maps, so the caller must write the whole
+     * {@code applied} field.
+     */
+    static Map<String, Object> appliedMarker(Object existingApplied, String packId, Object entry) {
+        Map<String, Object> applied = new LinkedHashMap<>();
+        if (existingApplied instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> existing : map.entrySet()) {
+                if (existing.getKey() != null) {
+                    applied.put(String.valueOf(existing.getKey()), existing.getValue());
+                }
+            }
+        }
+        applied.put(packId, entry);
+        return applied;
     }
 
     private LoadSnapshot loadLocalSnapshot() {
