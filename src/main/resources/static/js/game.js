@@ -1078,15 +1078,18 @@ const ARENA_BOARD_NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'R
 // of the CSS-drawn chrome; geometry lives in style.css under .element-frame.
 const ELEMENT_FRAME_CLASS = {
     FIRE: 'frame-fire-metal',
-    METAL: 'frame-fire-metal',
+    METAL: 'frame-metal',
     EARTH: 'frame-earth',
     PSYCHIC: 'frame-psychic',
     POISON: 'frame-poison',
     ICE: 'frame-ice-water',
-    WATER: 'frame-ice-water',
+    WATER: 'frame-water',
     WIND: 'frame-air-electric',
     AIR: 'frame-air-electric',
-    ELECTRIC: 'frame-air-electric'
+    ELECTRIC: 'frame-electric',
+    LIGHT: 'frame-light',
+    SHADOW: 'frame-shadow',
+    UNDEAD: 'frame-undead'
 };
 
 const ELEMENT_FRAME_RARITIES = new Set(['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY']);
@@ -3858,6 +3861,11 @@ function getCompactSummaryInkPalette(element, card) {
     // Element alone cannot decide this: a metal Siegling keeps the dark painted
     // creature frame while a metal spell sits on the pale grey template.
     if (isSpellTrapCard(card) && PALE_SPELL_TRAP_FRAMES.has(normalized)) {
+        return PALE_PANEL_INK_PALETTE;
+    }
+    // The Light creature frame's info panel is a pale cloud wash. Light spells have no
+    // painted template yet and keep the dark chrome, so they keep the light-on-dark ink.
+    if (!isSpellTrapCard(card) && normalized === 'LIGHT') {
         return PALE_PANEL_INK_PALETTE;
     }
     switch (normalized) {
