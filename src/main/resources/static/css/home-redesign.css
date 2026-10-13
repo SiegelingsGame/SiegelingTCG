@@ -5618,7 +5618,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gtab { height:46px; }
   .sg-gtab-label { font-size:11.5px; }
   .sg-gstage-body { left:calc(var(--gtabs-w) + 22px); top:var(--gtop); gap:6px; }
-  .sg-gfoot { margin-top:auto; }
+  /* The plaque holds the top; the selector rides down with the footer. */
+  .sg-gplaque { margin-bottom:auto; }
   .sg-gplaque h2 { font-size:26px; }
   .sg-gplaque p, .sg-gpennant { display:none; }
   .sg-gribbon { font-size:11.5px; padding:3px 18px; }
@@ -5639,7 +5640,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gtab.on { transform:translateX(12px); }
   /* The stage bleeds past the page gutter but the tabs sit inside it. */
   .sg-gstage-body { top:var(--gtop); left:calc(var(--sg-gutter) + var(--gtabs-w) + 56px); right:calc(var(--sg-gutter) + 170px); }
-  .sg-gfoot { margin-top:auto; }
+  /* The plaque holds the top; the selector rides down with the footer. */
+  .sg-gplaque { margin-bottom:auto; }
   .sg-gplaque-kicker { font-size:13px; }
   .sg-gplaque-kicker img { width:26px; height:26px; }
   .sg-gplaque h2 { font-size:clamp(48px, 4.2vw, 72px); }

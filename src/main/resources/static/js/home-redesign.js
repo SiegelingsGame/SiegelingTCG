@@ -3554,7 +3554,7 @@
     return stage({
         kind: 'packs', el: el, art: bg.art, pos: bg.pos,
         kicker: 'Pack Market', title: pk.name || pk.id,
-        sub: pk.starterEligible ? 'Starter' : (pk.elements || []).map(title).slice(0, 3).join(' · '),
+        sub: pk.starterEligible ? 'Starter' : mixed ? 'All Elements' : (pk.elements || []).map(title).join(' · '),
         text: pk.description,
         pennant: pennantFacts(pk),
         select: '<div class="sg-gselect is-packs" role="radiogroup" aria-label="Pack">' + m.packs.map(function (p) {
