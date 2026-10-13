@@ -8702,7 +8702,13 @@
     for (var i = 0; i < ALL_CARDS.length && urls.length < BINDER_WARM_COUNT; i++) {
       var c = ALL_CARDS[i];
       var mode = String(c && c.cardArtMode || '').toUpperCase();
-      if (c && c.cardArtUrl && (mode === 'OVERLAY' || mode === 'REPLACE')) {
+      if (!c || !c.cardArtUrl) continue;
+      // Knights lead the binder and their tiles ask for bigger cuts (knightCard:
+      // 960 overlay window, 640 full card); warming the 480 cut would download twice.
+      if (String(c.type || '').toUpperCase() === 'SIEGEKNIGHT') {
+        if (mode === 'OVERLAY') urls.push(visual.artThumbSrc(c.cardArtUrl, 960));
+        else if (mode === 'FULL_CARD') urls.push(visual.artThumbSrc(c.cardArtUrl, 640));
+      } else if (mode === 'OVERLAY' || mode === 'REPLACE') {
         urls.push(visual.artThumbSrc(c.cardArtUrl, 480));
       }
     }
