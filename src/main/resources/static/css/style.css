@@ -9116,6 +9116,26 @@ body.placement-active .board-cell.legal {
     background: url('/img/frames/frame-psychic-legendary.webp') center / 100% 100% no-repeat !important;
 }
 
+.element-frame.frame-poison.frame-rarity-common {
+    background: url('/img/frames/frame-poison-common.webp') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-poison.frame-rarity-uncommon {
+    background: url('/img/frames/frame-poison-uncommon.webp') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-poison.frame-rarity-rare {
+    background: url('/img/frames/frame-poison-rare.webp') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-poison.frame-rarity-epic {
+    background: url('/img/frames/frame-poison-epic.webp') center / 100% 100% no-repeat !important;
+}
+
+.element-frame.frame-poison.frame-rarity-legendary {
+    background: url('/img/frames/frame-poison-legendary.webp') center / 100% 100% no-repeat !important;
+}
+
 .element-frame.frame-earth-psychic.frame-rarity-common {
     background: url('/img/frames/frame-earth-psychic-common.webp') center / 100% 100% no-repeat !important;
 }

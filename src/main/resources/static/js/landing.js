@@ -373,7 +373,7 @@
     // which is extracted from style.css, draws it identically. Kept local
     // because the landing page cannot afford to load game.js just for this.
     const FRAME_FAMILY = {
-        FIRE: 'frame-fire-metal', METAL: 'frame-fire-metal', EARTH: 'frame-earth', PSYCHIC: 'frame-psychic',
+        FIRE: 'frame-fire-metal', METAL: 'frame-fire-metal', EARTH: 'frame-earth', PSYCHIC: 'frame-psychic', POISON: 'frame-poison',
         ICE: 'frame-ice-water', WATER: 'frame-ice-water', WIND: 'frame-air-electric', AIR: 'frame-air-electric', ELECTRIC: 'frame-air-electric'
     };
     const FRAME_RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
@@ -391,7 +391,8 @@
         ICE:      ['#ffbd91', '#fff8d8', '#ffe2cf', 'rgba(28, 9, 3, 0.9)'],
         ELECTRIC: ['#cab8ff', '#fff8b8', '#e7ddff', 'rgba(16, 8, 35, 0.92)'],
         METAL:    ['#ffd1a5', '#f9fdff', '#ffe8d5', 'rgba(24, 13, 5, 0.9)'],
-        PSYCHIC:  ['#c9ffba', '#fff7c4', '#e5ffde', 'rgba(6, 24, 5, 0.92)']
+        PSYCHIC:  ['#c9ffba', '#fff7c4', '#e5ffde', 'rgba(6, 24, 5, 0.92)'],
+        POISON:   ['#ffb8df', '#fff4b7', '#ffe0ef', 'rgba(25, 4, 15, 0.9)']
     };
     const DEFAULT_INK = ['#e8f1ff', '#fff0a8', '#cfdcff', 'rgba(2, 8, 18, 0.92)'];
 

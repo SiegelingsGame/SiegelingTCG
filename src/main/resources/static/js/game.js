@@ -1081,6 +1081,7 @@ const ELEMENT_FRAME_CLASS = {
     METAL: 'frame-fire-metal',
     EARTH: 'frame-earth',
     PSYCHIC: 'frame-psychic',
+    POISON: 'frame-poison',
     ICE: 'frame-ice-water',
     WATER: 'frame-ice-water',
     WIND: 'frame-air-electric',
