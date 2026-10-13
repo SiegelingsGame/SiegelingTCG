@@ -17,6 +17,8 @@ public class TrainerCard extends Card {
     private Boolean expeditionStarter;
     /** Siegecoins required to unlock for expeditions; null uses rarity default. */
     private Integer siegeUnlockCost;
+    /** Painted frame drawn over OVERLAY art; null is the original shield-top template. */
+    private String cardTemplate;
 
     public TrainerCard() {
         setCardType(CardType.TRAINER);
@@ -60,8 +62,12 @@ public class TrainerCard extends Card {
         copy.setHolographic(isHolographic());
         copy.setExpeditionStarter(getExpeditionStarter());
         copy.setSiegeUnlockCost(getSiegeUnlockCost());
+        copy.setCardTemplate(cardTemplate);
         return copy;
     }
+
+    public String getCardTemplate() { return cardTemplate; }
+    public void setCardTemplate(String cardTemplate) { this.cardTemplate = cardTemplate; }
 
     public boolean canUseActive() {
         if (activeAbility == null) return false;

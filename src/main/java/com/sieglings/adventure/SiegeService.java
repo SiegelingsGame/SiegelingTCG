@@ -231,6 +231,7 @@ public class SiegeService {
         if (k.getCardArtOffsetX() != null) m.put("artOffsetX", k.getCardArtOffsetX());
         if (k.getCardArtOffsetY() != null) m.put("artOffsetY", k.getCardArtOffsetY());
         if (k.getCardArtRotation() != null) m.put("artRotation", k.getCardArtRotation());
+        if (k.getCardTemplate() != null) m.put("cardTemplate", k.getCardTemplate());
     }
 
     /** The authenticated user's banked veteran teams (newest first); empty for guests. */

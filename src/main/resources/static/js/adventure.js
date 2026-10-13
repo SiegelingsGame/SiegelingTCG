@@ -1480,7 +1480,8 @@
         '<div class="kart-template" aria-hidden="true"></div>' +
         (mode ? '' : '<div class="kart-sigil" aria-hidden="true">' + icon(k.element) + '</div>');
     }
-    return '<div class="kart kart-' + (mode ? mode.toLowerCase().replace('_', '-') : 'back') + '">' + layers +
+    var tplClass = mode === 'OVERLAY' && String(k.cardTemplate || '').toUpperCase() === 'CORNER_CREST' ? ' knight-tpl-corner-crest' : '';
+    return '<div class="kart kart-' + (mode ? mode.toLowerCase().replace('_', '-') : 'back') + tplClass + '">' + layers +
       '<div class="kspine" aria-hidden="true"><span class="kspine-icon">' + icon(k.element) + '</span>' +
         '<span class="kspine-name">' + esc(k.name) + '</span>' +
         '<span class="kspine-flavor">' + esc(knightFlavor(k)) + '</span></div>' +

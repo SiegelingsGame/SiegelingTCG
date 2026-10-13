@@ -1391,6 +1391,9 @@ public class GameController {
                 m.put("cardArtRotation", card.getCardArtRotation());
             }
         }
+        if (card instanceof TrainerCard knight && knight.getCardTemplate() != null) {
+            m.put("cardTemplate", knight.getCardTemplate());
+        }
         if (card.getHolographicCardArtUrl() != null && !card.getHolographicCardArtUrl().isBlank()) {
             m.put("holographicCardArtUrl", card.getHolographicCardArtUrl());
             if (card.getHolographicCardArtScale() != null && card.getHolographicCardArtScale() != 1.0) {
@@ -1503,6 +1506,9 @@ public class GameController {
             if (card.getCardArtRotation() != null) {
                 m.put("cardArtRotation", card.getCardArtRotation());
             }
+        }
+        if (card instanceof TrainerCard knight && knight.getCardTemplate() != null) {
+            m.put("cardTemplate", knight.getCardTemplate());
         }
         if (card.getHolographicCardArtUrl() != null && !card.getHolographicCardArtUrl().isBlank()) {
             m.put("holographicCardArtUrl", card.getHolographicCardArtUrl());

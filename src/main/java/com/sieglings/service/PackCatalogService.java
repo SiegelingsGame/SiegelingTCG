@@ -437,6 +437,9 @@ public class PackCatalogService {
                 target.put("cardArtRotation", card.getCardArtRotation());
             }
         }
+        if (card instanceof TrainerCard knight && knight.getCardTemplate() != null) {
+            target.put("cardTemplate", knight.getCardTemplate());
+        }
         if (card.getHolographicCardArtUrl() != null && !card.getHolographicCardArtUrl().isBlank()) {
             target.put("holographicCardArtUrl", card.getHolographicCardArtUrl());
             if (card.getHolographicCardArtScale() != null) {

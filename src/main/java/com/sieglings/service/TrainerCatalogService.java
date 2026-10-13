@@ -429,7 +429,8 @@ public class TrainerCatalogService {
                         definition.cardArtRotation(),
                         definition.holographic(),
                         definition.expeditionStarter(),
-                        definition.siegeUnlockCost()
+                        definition.siegeUnlockCost(),
+                        normalizeCardTemplate(definition.cardTemplate())
                 ))
                 .toList();
     }
@@ -595,6 +596,12 @@ public class TrainerCatalogService {
         };
     }
 
+    /** Unknown or default values collapse to null so old rows and the classic frame read the same. */
+    static String normalizeCardTemplate(String value) {
+        String normalized = value == null ? null : value.trim().toUpperCase(Locale.ROOT);
+        return "CORNER_CREST".equals(normalized) ? normalized : null;
+    }
+
     record TrainerFile(List<TrainerDefinition> trainers) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -618,14 +625,29 @@ public class TrainerCatalogService {
             Double cardArtRotation,
             Boolean holographic,
             Boolean expeditionStarter,
-            Integer siegeUnlockCost
+            Integer siegeUnlockCost,
+            String cardTemplate
     ) {
+        public TrainerDefinition(String id, String name, Element element, Rarity rarity, String tier,
+                                 Boolean active, Boolean oncePerGame,
+                                 ManualSieglingCatalog.ManualAbilityDefinition passiveAbility,
+                                 ManualSieglingCatalog.ManualAbilityDefinition activeAbility,
+                                 String cardArtUrl, String cardArtMode,
+                                 Double cardArtOffsetX, Double cardArtOffsetY,
+                                 Double cardArtOffsetXPct, Double cardArtOffsetYPct,
+                                 Double cardArtScale, Double cardArtRotation,
+                                 Boolean holographic, Boolean expeditionStarter, Integer siegeUnlockCost) {
+            this(id, name, element, rarity, tier, active, oncePerGame, passiveAbility, activeAbility,
+                    cardArtUrl, cardArtMode, cardArtOffsetX, cardArtOffsetY, cardArtOffsetXPct, cardArtOffsetYPct,
+                    cardArtScale, cardArtRotation, holographic, expeditionStarter, siegeUnlockCost, null);
+        }
+
         public TrainerDefinition(String id, String name, Element element, Rarity rarity, String tier,
                                  Boolean active, Boolean oncePerGame,
                                  ManualSieglingCatalog.ManualAbilityDefinition passiveAbility,
                                  ManualSieglingCatalog.ManualAbilityDefinition activeAbility) {
             this(id, name, element, rarity, tier, active, oncePerGame, passiveAbility, activeAbility,
-                    null, null, null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null, null, null);
         }
     }
 }

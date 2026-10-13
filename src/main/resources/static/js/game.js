@@ -10501,6 +10501,7 @@ function knightSplashInfo(trainer, fallbackName) {
         tier: trainer?.tier || '',
         art: trainer?.cardArtUrl || '',
         artMode: trainer?.cardArtMode || '',
+        cardTemplate: trainer?.cardTemplate || '',
         passive: text(trainer?.passive),
         active: text(trainer?.active)
     };
@@ -11621,7 +11622,7 @@ function renderLoadoutOptions() {
             // does not load that module.
             const holoClass = cardShowsPlayerHolographic(trainer) ? ' is-holographic' : '';
             const holoOverlay = cardShowsPlayerHolographic(trainer) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
-            return `<button type="button" class="knight-card knight-full-card-art knight-overlay-art${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
+            return `<button type="button" class="knight-card knight-full-card-art knight-overlay-art${knightTemplateClass(trainer)}${holoClass}${selected}${recommended} rarity-frame-${rarityClass} el-${trainer.element.toLowerCase()}" data-trainer-id="${escapeHtmlAttribute(trainer.id)}" style="--knight-color:${elHex};--knight-glow:${hexToRgba(elHex, 0.36)};${siegeknightCardBackStyle()}" onclick="selectTrainerOption('${trainer.id}')" aria-pressed="${trainer.id === selectedTrainerId ? 'true' : 'false'}">
                 ${topRibbon}
                 ${levelBadge}
                 <div class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${webpImgAttrs(fullCardArtUrl)} alt="" loading="eager" decoding="async"${knightArtStyleAttr(trainer)}></div>
@@ -13688,6 +13689,12 @@ function knightCardArtMode(trainer) {
     return String(trainer?.cardArtMode || '').trim().toUpperCase();
 }
 
+// Overlay art sits behind one of several painted frames (dashboard "Overlay
+// template"); the modifier class swaps the frame image and art-window insets.
+function knightTemplateClass(trainer) {
+    return String(trainer?.cardTemplate || '').trim().toUpperCase() === 'CORNER_CREST' ? ' knight-tpl-corner-crest' : '';
+}
+
 function knightHasOverlayCardArt(trainer) {
     return Boolean(knightUploadedCardArtUrl(trainer) && knightCardArtMode(trainer) === 'OVERLAY');
 }
@@ -13728,7 +13735,7 @@ function knightHudOverlayCardInnerHtml(trainer, url) {
     const element = String(trainer?.element || 'NEUTRAL').toUpperCase();
     const elementHex = getElementHex(element);
     const cardStyle = `--knight-color:${elementHex};--knight-glow:${hexToRgba(elementHex, 0.36)};${siegeknightCardBackStyle()}`;
-    return `<span class="hud-knight-art-card hud-knight-art-overlay" role="img" aria-label="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight card')}" style="${escapeHtmlAttribute(cardStyle)}">
+    return `<span class="hud-knight-art-card hud-knight-art-overlay${knightTemplateClass(trainer)}" role="img" aria-label="${escapeHtmlAttribute(trainer?.name || 'SiegeKnight card')}" style="${escapeHtmlAttribute(cardStyle)}">
         <span class="knight-overlay-art-window"><img class="knight-overlay-art-img" ${webpImgAttrs(url)} alt="" loading="lazy"${knightArtStyleAttr(trainer)}></span>
         <span class="knight-card-template" aria-hidden="true"></span>
     </span>`;

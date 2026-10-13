@@ -1993,7 +1993,8 @@
         body + '</div>';
     }
     if (visual.usesKnightOverlayArt && visual.usesKnightOverlayArt(card)) {
-      return '<div class="knight-card knight-full-card-art knight-overlay-art knight-binder-card rarity-frame-' +
+      var tplClass = visual.knightTemplateClass ? visual.knightTemplateClass(card) : '';
+      return '<div class="knight-card knight-full-card-art knight-overlay-art' + tplClass + ' knight-binder-card rarity-frame-' +
         esc(rarity) + ' el-' + esc(el) + '" style="--knight-color:' + visual.elementColor(card.element) +
         ";--knight-card-back:url('/img/knights/card-back-siegeknight.png');--knight-card-template:url('/img/knights/siegeknight-card-template.png')\">" +
         visual.renderKnightOverlayArtWindow(card) +

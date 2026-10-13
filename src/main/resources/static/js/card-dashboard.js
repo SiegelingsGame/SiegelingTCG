@@ -21,6 +21,9 @@
     // the fit message lets on.
     const TRAINER_CARD_ASPECT = 639 / 919;
     const TRAINER_OVERLAY_WINDOW_ASPECT = ((100 - 8.8 - 8.6) / (100 - 5.7 - 7.1)) * TRAINER_CARD_ASPECT;
+    // The Corner Crest template's thinner border (left/right 5.6%, top 4.2%, bottom 4.1%).
+    const TRAINER_CORNER_CREST_WINDOW_ASPECT = ((100 - 5.6 - 5.6) / (100 - 4.2 - 4.1)) * TRAINER_CARD_ASPECT;
+    const TRAINER_CARD_TEMPLATES = ["CORNER_CREST"];
     const HOLOGRAPHIC_CARD_TEMPLATE_WIDTH = 638;
     const HOLOGRAPHIC_CARD_TEMPLATE_HEIGHT = 919;
     const HOLOGRAPHIC_BACKGROUND_TOLERANCE = 28;
@@ -444,6 +447,7 @@
             "trainerArtControls",
             "trainerArtFileInput",
             "trainerArtUrlInput",
+            "trainerTemplatePicker",
             "clearTrainerArtBtn",
             "trainerArtTransformControls",
             "trainerArtScaleInput",
@@ -2467,10 +2471,17 @@
             oncePerGame: Boolean(trainer?.oncePerGame),
             expeditionStarter: trainer?.expeditionStarter === true,
             siegeUnlockCost: toNumber(trainer?.siegeUnlockCost, 0),
+            cardTemplate: normalizeTrainerCardTemplate(trainer?.cardTemplate),
             passiveAbility,
             activeAbility,
             ...normalizeCardArtFields(trainer)
         };
+    }
+
+    // "" is the classic shield-top frame; unknown values fall back to it.
+    function normalizeTrainerCardTemplate(value) {
+        const template = String(value || "").trim().toUpperCase();
+        return TRAINER_CARD_TEMPLATES.includes(template) ? template : "";
     }
 
     function normalizeAbility(ability, fallbackElement) {
@@ -3919,6 +3930,13 @@
 
     function bindTrainerArtFieldEvents() {
         refs.trainerArtControls?.addEventListener("change", (event) => {
+            const templateInput = event.target.closest('input[name="trainerCardTemplate"]');
+            if (templateInput) {
+                mutateSelectedTrainer((trainer) => {
+                    trainer.cardTemplate = normalizeTrainerCardTemplate(templateInput.value);
+                });
+                return;
+            }
             const modeInput = event.target.closest('input[name="trainerArtMode"]');
             if (!modeInput) {
                 return;
@@ -4174,6 +4192,11 @@
         radios.forEach((radio) => {
             radio.checked = radio.value === mode;
         });
+        const cardTemplate = normalizeTrainerCardTemplate(trainer?.cardTemplate);
+        refs.trainerTemplatePicker?.classList.toggle("hidden", mode !== "OVERLAY");
+        refs.trainerTemplatePicker?.querySelectorAll('input[name="trainerCardTemplate"]').forEach((radio) => {
+            radio.checked = radio.value === cardTemplate;
+        });
 
         if (refs.trainerArtUrlInput && document.activeElement !== refs.trainerArtUrlInput) {
             refs.trainerArtUrlInput.value = url;
@@ -4202,7 +4225,10 @@
         stage.innerHTML = "";
         const isOverlay = mode === "OVERLAY";
         const portrait = document.createElement("div");
-        portrait.className = isOverlay ? "trainer-art-portrait is-overlay" : "trainer-art-portrait";
+        const isCornerCrest = isOverlay && normalizeTrainerCardTemplate(trainer?.cardTemplate) === "CORNER_CREST";
+        portrait.className = isOverlay
+            ? `trainer-art-portrait is-overlay${isCornerCrest ? " is-corner-crest" : ""}`
+            : "trainer-art-portrait";
         if (url) {
             const img = document.createElement("img");
             img.className = "trainer-art-full-img";
@@ -4223,7 +4249,9 @@
                 // so it needs its own (tighter) target aspect ratio to fit without
                 // cropping — using the full-card ratio here understated how much
                 // gets cropped and could report "good fit" on art that isn't.
-                const targetAspect = isOverlay ? TRAINER_OVERLAY_WINDOW_ASPECT : 5 / 7;
+                const targetAspect = isCornerCrest
+                    ? TRAINER_CORNER_CREST_WINDOW_ASPECT
+                    : isOverlay ? TRAINER_OVERLAY_WINDOW_ASPECT : 5 / 7;
                 const tolerance = 0.055;
                 const goodFit = ratio >= targetAspect - tolerance && ratio <= targetAspect + tolerance;
                 const target = isOverlay ? "art window" : "card";
@@ -5032,6 +5060,9 @@
         }
         if (toNumber(trainer.siegeUnlockCost, 0) > 0) {
             exported.siegeUnlockCost = toNumber(trainer.siegeUnlockCost, 0);
+        }
+        if (trainer.cardTemplate) {
+            exported.cardTemplate = trainer.cardTemplate;
         }
         return appendCardArtExport(exported, trainer);
     }
