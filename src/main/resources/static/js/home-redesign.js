@@ -3175,11 +3175,30 @@
     if (!app) return;
     opts.shopNotice = notice || '';
     opts.shopNoticeError = Boolean(isError);
-    // Re-rendering must not restart the featured band or jump the page.
+    // Re-rendering must not jump the page, and a picker row the player has
+    // swiped along keeps its place: picking the tenth pack used to snap the row
+    // back to the first. Rows are matched by their label, so a row that only
+    // exists on another tab starts at its beginning.
     var scrollTop = current.scrollTop;
+    var rows = {};
+    app.querySelectorAll('.sg-gselect').forEach(function (row) {
+      rows[row.getAttribute('aria-label')] = row.scrollLeft;
+    });
     var next = render(document.createElement('div'), 'shop', Object.assign({}, opts, { freeze: true }));
     app.replaceWith(next);
     next.querySelector('.sg-scroll').scrollTop = scrollTop;
+    next.querySelectorAll('.sg-gselect').forEach(function (row) {
+      var label = row.getAttribute('aria-label');
+      if (Object.prototype.hasOwnProperty.call(rows, label)) row.scrollLeft = rows[label];
+      // A choice made from outside the row (a remembered element, say) is
+      // brought into view without moving a row that already shows it.
+      var on = row.querySelector('.on');
+      if (on) {
+        var r = row.getBoundingClientRect(), b = on.getBoundingClientRect();
+        if (b.left < r.left) row.scrollLeft -= r.left - b.left + 6;
+        else if (b.right > r.right) row.scrollLeft += b.right - r.right + 6;
+      }
+    });
   }
 
   // A guest has no account to grant the cards to, so the buy sends them to
@@ -3339,7 +3358,7 @@
   }
   // Elements whose summon stands on a shop scene (`scene-<id>.webp`) rather
   // than a banner; the same scene backs that element's packs and cards.
-  var SUMMON_SCENE = { ELECTRIC: 'electric' };
+  var SUMMON_SCENE = { ELECTRIC: 'electric', METAL: 'metal' };
 
   // The backdrop behind a pack or a daily card is its element: a scene of that
   // element's Siegelings where one exists (a gallery plate, or a shop scene
@@ -3354,7 +3373,9 @@
     // Portrait-only plate: a wide screen shows the band with the big turtle.
     WATER: { src: '/img/shop/scene-water.webp', pos: '58% 42%' },
     // Portrait-only plate: a wide screen shows the band with the big ape.
-    ELECTRIC: { src: '/img/shop/scene-electric.webp', pos: '50% 18%' }
+    ELECTRIC: { src: '/img/shop/scene-electric.webp', pos: '50% 18%' },
+    // 16:9: a portrait crop centres on the spiked armoured lizard.
+    METAL: { src: '/img/shop/scene-metal.webp', pos: '66% 50%' }
   };
   // Molten Forge leads with Fire too; it gets the other Fire scene so it does
   // not look like the Fire starter.
@@ -3399,7 +3420,7 @@
     var summon = summons.filter(function (pk) { return packElement(pk) === wanted; })[0] || summons[0] || null;
     var pack = packs.filter(function (pk) { return pk.id === opts.shopPack; })[0] || packs[0] || null;
     var tabs = [];
-    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: SUMMON_SCENE[packElement(summon)] ? '50% 28%' : SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
+    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: SUMMON_SCENE[packElement(summon)] ? ELEMENT_STAGE[packElement(summon)].pos : SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
     if (pack) tabs.push({ id: 'packs', label: 'Pack Market', art: sceneArt('market', true), face: SHOP_SCENE.market.face, el: 'EARTH' });
     if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: sceneArt('cards', true), face: SHOP_SCENE.cards.face, el: 'LIGHT' });
     if (titles.length) tabs.push({ id: 'titles', label: 'Title Hall', art: sceneArt('throne', true), face: SHOP_SCENE.throne.face, el: 'WATER' });
