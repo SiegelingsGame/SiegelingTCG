@@ -175,6 +175,11 @@
         return normalizeCardType(card) === 'SIEGEKNIGHT' && Boolean(knightOverlayArtUrl(card));
     }
 
+    // Modifier for the painted frame drawn over overlay art (dashboard "Overlay template").
+    function knightTemplateClass(card) {
+        return String(card?.cardTemplate || '').trim().toUpperCase() === 'CORNER_CREST' ? ' knight-tpl-corner-crest' : '';
+    }
+
     function renderKnightOverlayArtWindow(card) {
         const artUrl = knightOverlayArtUrl(card);
         if (!artUrl) return '';
@@ -733,6 +738,7 @@
         usesKnightOverlayArt,
         knightOverlayArtUrl,
         renderKnightOverlayArtWindow,
+        knightTemplateClass,
         isHolographic,
         holographicClass,
         normalizeArtMode,

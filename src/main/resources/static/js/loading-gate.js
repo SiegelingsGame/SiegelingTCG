@@ -180,7 +180,8 @@
         const artImg = `<img class="sgl-knight-art" src="${escapeHtml(info?.art)}" alt="" draggable="false" loading="eager">`;
         let portrait;
         if (info?.art && overlayArt) {
-            portrait = `<div class="sgl-knight-portrait has-art is-overlay" aria-hidden="true">
+            const tplClass = String(info?.cardTemplate || '').trim().toUpperCase() === 'CORNER_CREST' ? ' knight-tpl-corner-crest' : '';
+            portrait = `<div class="sgl-knight-portrait has-art is-overlay${tplClass}" aria-hidden="true">
                    <div class="sgl-knight-art-window">${artImg}</div>
                    <div class="sgl-knight-card-template"></div>
                </div>`;

@@ -1229,6 +1229,7 @@
         const tier = trainer.tier || 'SiegeKnight';
         const art = String(trainer.cardArtUrl || '').trim();
         const overlay = String(trainer.cardArtMode || '').trim().toUpperCase() === 'OVERLAY';
+        const cornerCrest = overlay && String(trainer.cardTemplate || '').trim().toUpperCase() === 'CORNER_CREST';
         const activeLabel = trainer.oncePerGame ? 'Ultimate' : 'Active';
         const artStyle = knightArtTransformStyle(trainer);
         const body = `
@@ -1243,7 +1244,7 @@
                <div class="knight-card-template" aria-hidden="true"></div>`
             : `<img class="knight-full-art" ${thumbAttrs(art, 480)} alt="${escapeAttr(trainer.name || 'SiegeKnight card')}" loading="lazy" decoding="async"${artStyle}>`;
         return `
-            <article class="knight-card${overlay ? ' is-overlay-art' : ''}" style="--knight-color: var(--element-${key}, var(--siegelings-gold)); --knight-glow: var(--element-${key}-glow, rgba(245,166,35,.45))">
+            <article class="knight-card${overlay ? ' is-overlay-art' : ''}${cornerCrest ? ' knight-tpl-corner-crest' : ''}" style="--knight-color: var(--element-${key}, var(--siegelings-gold)); --knight-glow: var(--element-${key}-glow, rgba(245,166,35,.45))">
                 <div class="knight-card-art">${artLayer}${body}</div>
             </article>`;
     }

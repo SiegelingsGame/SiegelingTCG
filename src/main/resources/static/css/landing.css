@@ -2021,6 +2021,18 @@ img { display: block; }
     background-size: 100% 100%;
     background-repeat: no-repeat;
 }
+/* Corner Crest template: thinner border, so the art window widens (style.css). */
+.knight-card.is-overlay-art.knight-tpl-corner-crest .knight-overlay-art-window,
+.sgl-knight-portrait.knight-tpl-corner-crest .sgl-knight-art-window {
+    left: 5.6%;
+    right: 5.6%;
+    top: 4.2%;
+    bottom: 4.1%;
+}
+.knight-tpl-corner-crest .knight-card-template,
+.knight-tpl-corner-crest .sgl-knight-card-template {
+    background-image: url('/img/knights/siegeknight-card-template-corner-crest.webp');
+}
 .knight-card-body {
     position: absolute;
     z-index: 4;

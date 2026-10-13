@@ -12804,6 +12804,24 @@ body.placement-active .board-cell.legal {
     background-repeat: no-repeat;
 }
 
+/* Corner Crest template (dashboard "Overlay template"): the shield sits in the
+   top-left corner and the transparent window runs the whole inner frame, so the
+   art window widens to the thinner border. The description box lands within a
+   percent of the classic one, so the body text keeps its geometry. Not driven
+   by --knight-card-template because callers pin that inline to the classic frame. */
+.knight-card.knight-tpl-corner-crest .knight-overlay-art-window,
+.hud-knight-art-card.knight-tpl-corner-crest .knight-overlay-art-window {
+    left: 5.6%;
+    right: 5.6%;
+    top: 4.2%;
+    bottom: 4.1%;
+}
+
+.knight-tpl-corner-crest .knight-card-template,
+.hud-knight-art-card.knight-tpl-corner-crest .knight-card-template {
+    background-image: url('/img/knights/siegeknight-card-template-corner-crest.webp');
+}
+
 .knight-card.has-knight-back .knight-card-body,
 .knight-card.knight-full-card-art .knight-card-body {
     position: absolute;

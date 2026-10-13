@@ -2373,7 +2373,8 @@
         const holoClass = card.holographic ? ' is-holographic' : '';
         const holoOverlay = card.holographic ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
         if (window.SieglingsCardBinderVisual?.usesKnightOverlayArt?.(card)) {
-            return `<div class="knight-card knight-full-card-art knight-overlay-art knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
+            const tplClass = window.SieglingsCardBinderVisual.knightTemplateClass?.(card) || '';
+            return `<div class="knight-card knight-full-card-art knight-overlay-art${tplClass} knight-binder-card${extraClassAttr} rarity-frame-${escapeAttr(rarityClass)} el-${escapeAttr(elClass)}${holoClass}" style="--knight-color:${elHex};--knight-glow:${elHex}5c;${backStyle}" role="img" aria-label="${escapeAttr(card.name || 'SiegeKnight card')}">
                 ${window.SieglingsCardBinderVisual.renderKnightOverlayArtWindow(card)}
                 <div class="knight-card-template" aria-hidden="true"></div>
                 ${holoOverlay}

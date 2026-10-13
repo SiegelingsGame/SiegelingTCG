@@ -1123,6 +1123,7 @@ public class CardDefinitionService {
         card.setHolographic(definition.holographic() != null && definition.holographic());
         card.setExpeditionStarter(definition.expeditionStarter());
         card.setSiegeUnlockCost(definition.siegeUnlockCost());
+        card.setCardTemplate(definition.cardTemplate());
         return card;
     }
 

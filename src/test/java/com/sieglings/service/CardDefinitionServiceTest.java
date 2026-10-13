@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -356,6 +357,28 @@ class CardDefinitionServiceTest {
         assertEquals(-7.25, trainer.getCardArtOffsetYPct());
         assertEquals(1.43, trainer.getCardArtScale());
         assertEquals("OVERLAY", trainer.getCardArtMode());
+    }
+
+    @Test
+    void trainerOverlayTemplateReachesGameCatalogAndUnknownValuesFallBackToClassic() {
+        CardDefinitionService service = serviceWithTrainerDefinitions(List.of(
+                new TrainerCatalogService.TrainerDefinition(
+                        "corner-knight", "Corner Knight", Element.FIRE, Rarity.RARE, "Raider",
+                        true, false, null, null,
+                        "https://example.test/corner-knight.png", "OVERLAY",
+                        null, null, null, null, null, null,
+                        false, false, null,
+                        "CORNER_CREST"
+                )
+        ));
+
+        var trainer = service.getTrainerById("corner-knight");
+        assertEquals("CORNER_CREST", trainer.getCardTemplate());
+        assertEquals("CORNER_CREST", trainer.copy().getCardTemplate());
+
+        assertEquals("CORNER_CREST", TrainerCatalogService.normalizeCardTemplate(" corner_crest "));
+        assertNull(TrainerCatalogService.normalizeCardTemplate("CLASSIC"));
+        assertNull(TrainerCatalogService.normalizeCardTemplate(null));
     }
 
     @Test

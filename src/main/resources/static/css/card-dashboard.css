@@ -2595,6 +2595,18 @@ body.move-picker-open {
     background-repeat: no-repeat;
 }
 
+/* Corner Crest template: thinner border, so the window widens (style.css). */
+.trainer-art-portrait.is-overlay.is-corner-crest .trainer-art-overlay-window {
+    left: 5.6%;
+    right: 5.6%;
+    top: 4.2%;
+    bottom: 4.1%;
+}
+
+.trainer-art-portrait.is-overlay.is-corner-crest .trainer-art-template {
+    background-image: url('/img/knights/siegeknight-card-template-corner-crest.webp');
+}
+
 .trainer-art-meta {
     margin: 6px auto 0;
     max-width: 320px;
@@ -2785,6 +2797,69 @@ body.move-picker-open {
 
 .card-art-actions {
     flex-wrap: wrap;
+}
+
+.trainer-template-picker {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+}
+
+.trainer-template-picker legend {
+    margin-bottom: 6px;
+    padding: 0;
+    color: var(--text-soft);
+    font-size: 0.85rem;
+}
+
+.trainer-template-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px;
+}
+
+.trainer-template-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    color: var(--text-soft);
+    font-size: 0.88rem;
+    cursor: pointer;
+}
+
+.trainer-template-option:has(input:checked) {
+    border-color: var(--accent);
+    color: var(--text-main);
+}
+
+.trainer-template-option input {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.trainer-template-option img {
+    flex: 0 0 auto;
+    width: 40px;
+    height: auto;
+    aspect-ratio: 639 / 919;
+}
+
+.trainer-template-option span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.trainer-template-option small {
+    font-size: 0.75rem;
+    opacity: 0.8;
 }
 
 .card-art-url-field {
