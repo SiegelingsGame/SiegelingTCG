@@ -5731,14 +5731,24 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gselect { grid-column:2; grid-row:3; min-width:0; align-self:center; }
   .sg-gstage.is-packs .sg-gselect { padding-top:8px; }
   /* The row gives way, not the buttons. The buy group is right-justified, so
-     a column narrower than its buttons spilled them leftwards over the strip
-     (iOS Safari did); max-content holds the column to the buttons' width. */
+     a column narrower than its buttons spills them leftwards over the strip.
+     Safari sizes a max-content column from a flex item's text, not its
+     flex-basis (~200px for two 128px buttons), so the buttons carry a real
+     width that every engine counts. */
   .sg-gbuy { grid-column:3; grid-row:3; min-width:max-content; }
-  .sg-gbtn { flex-shrink:0; }
+  .sg-gbtn { flex:0 0 auto; width:clamp(170px, 13vw, 250px); }
   .sg-gstage.is-daily .sg-gselect { max-width:none; }
 }
+/* 1024-1279px (iPad landscape, small laptops): the tabs, the pennant gutter
+   and the buy buttons leave the middle column a few pixels wide, so the
+   selector takes its own line just above the footer row instead. */
+@media (min-width:1024px) and (max-width:1279px) and (min-height:521px) {
+  .sg-gselect { grid-column:1 / -1; grid-row:2; align-self:end; margin-bottom:10px; }
+  /* The daily headline card steps up and in so the offer row clears it. */
+  .sg-gstage-card { bottom:calc(var(--gnav) + 176px); width:190px; }
+}
 @media (orientation:landscape) and (max-height:520px) {
-  .sg-gbtn { flex-basis:128px; }
+  .sg-gbtn { width:128px; }
 }
 /* Short landscape phones: the column under the tab rail sat empty while the
    footer's round utility buttons (Odds, Binder, ...) took width from the pack
