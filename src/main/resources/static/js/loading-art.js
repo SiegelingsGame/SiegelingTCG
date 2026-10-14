@@ -18,6 +18,9 @@
   'use strict';
 
   var CACHE_KEY = 'sgLoadingArtCache';
+  // Ids a designer removed in the dashboard. The API already leaves them out of
+  // its list; this is what keeps the scenes compiled in below out as well.
+  var REMOVED_KEY = 'sgLoadingArtRemoved';
 
   // 16:9 scenes, painted with `cover`. The two tall scenes also carry a 9:16
   // file, which portrait screens (most phones) take instead of a cropped band.
@@ -119,6 +122,26 @@
     }
   }
 
+  function removedIds() {
+    try {
+      var list = JSON.parse(localStorage.getItem(REMOVED_KEY) || '[]');
+      return Array.isArray(list) ? list : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function isRemoved(id) {
+    return removedIds().indexOf(String(id || '').toLowerCase()) !== -1;
+  }
+
+  function find(id) {
+    var key = String(id || '').toLowerCase();
+    var list = pool();
+    for (var i = 0; i < list.length; i++) if (String(list[i].id).toLowerCase() === key) return list[i];
+    return null;
+  }
+
   function pool() {
     // Deduplicate by id so cinematic GALLERY plates and the same id from
     // /api/art/loading do not appear twice in backgrounds / gallery pickers.
@@ -132,10 +155,14 @@
         if (!p || !p.id) continue;
         var key = String(p.id).toLowerCase();
         var existing = seen[key];
+        // A name the dashboard set is one the API title differs from its
+        // file-derived default; only that may replace a hand-written title.
+        var custom = Boolean(p.title && p.defaultTitle && p.title !== p.defaultTitle);
         if (existing) {
           if (p.landscape) existing.landscape = p.landscape;
           if (p.portrait) existing.portrait = p.portrait;
-          if (p.title) existing.title = p.title;
+          if (p.title && (custom || !existing.title)) existing.title = p.title;
+          if (custom) existing.customTitle = true;
           if (p.place) existing.place = p.place;
           if (p.cards) existing.cards = p.cards;
           if (p.shop) existing.shop = p.shop;
@@ -145,6 +172,7 @@
         var copy = {
           id: p.id,
           title: p.title,
+          customTitle: custom,
           place: p.place,
           landscape: p.landscape,
           portrait: p.portrait,
@@ -160,7 +188,10 @@
     }
     addAll(GALLERY);
     addAll(cached());
-    return out;
+    var removed = removedIds();
+    return removed.length
+      ? out.filter(function (p) { return removed.indexOf(String(p.id).toLowerCase()) === -1; })
+      : out;
   }
 
   function prefersPortrait() {
@@ -206,7 +237,10 @@
       .then(function (data) {
         var art = data && Array.isArray(data.art) ? data.art : null;
         if (!art || !art.length) return null;
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify(art)); } catch (e) { /* private mode */ }
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(art));
+          localStorage.setItem(REMOVED_KEY, JSON.stringify(Array.isArray(data.removed) ? data.removed : []));
+        } catch (e) { /* private mode */ }
         // Screens that read card tags (shop backdrops, "Cards in this image")
         // repaint on this, so a first visit or a fresh dashboard edit shows
         // without waiting for the next load.
@@ -217,5 +251,6 @@
   }
 
   window.SiegelingsLoadingArt = { pool: pool, pick: pick, paint: paint, refresh: refresh,
+                                  find: find, isRemoved: isRemoved,
                                   hints: hints, mountHints: mountHints };
 })();

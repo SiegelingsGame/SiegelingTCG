@@ -88,7 +88,7 @@ class ArtCardTagServiceTest {
         // Untouched seeded pieces keep their baseline tag.
         assertEquals(List.of("draco"), service.tagFor("draco-brood").cards());
 
-        service.save("draco-brood", Map.of("cards", List.of(), "shop", List.of()), "Editor@Example.com");
+        service.save("draco-brood", Map.of("cards", List.of(), "shop", List.of(), "focus", ""), "Editor@Example.com");
         assertNull(service.tagFor("draco-brood"));
         assertFalse(service.tags().containsKey("draco-brood"));
 
@@ -98,5 +98,68 @@ class ArtCardTagServiceTest {
         assertTrue(pieces.containsKey("draco-brood"), "the clear is stored so the seed does not come back");
         assertTrue(pieces.containsKey("frostag-training"), "other edits survive a save");
         assertEquals("editor@example.com", written.getValue().get("updatedBy"));
+    }
+
+    @Test
+    void renameAndRemoveKeepTheTagsAndASaveOnlyChangesWhatItSends() {
+        CardOverrideStorageService storage = mock(CardOverrideStorageService.class);
+        when(storage.isFirestoreReady()).thenReturn(false);
+        ArtCardTagService service = new ArtCardTagService(new ObjectMapper(), storage, "appConfig", "artCardTags");
+        ArtCardTagService.ArtTag renamed = ArtCardTagService.parseTag(Map.of(
+                "title", "  Skyward   Coil ", "place", "The Drifting Isles", "hidden", true));
+        assertEquals("Skyward Coil", renamed.title());
+        assertEquals("The Drifting Isles", renamed.place());
+        assertTrue(renamed.hidden());
+        assertFalse(renamed.isEmpty(), "a rename or a removal alone is worth storing");
+        assertFalse(ArtCardTagService.parseTag(Map.of("hidden", "false")).hidden());
+        assertThrows(IllegalArgumentException.class,
+                () -> ArtCardTagService.parseTag(Map.of("title", "x".repeat(ArtCardTagService.MAX_NAME_LENGTH + 1))));
+
+        // The three-field form the tag editor has always used still builds.
+        ArtCardTagService.ArtTag legacy = new ArtCardTagService.ArtTag(List.of("draco"), List.of(), "");
+        assertEquals("", legacy.title());
+        assertFalse(legacy.hidden());
+        assertTrue(service.tagFor("draco-brood") != null);
+        assertEquals(List.of("draco"), service.tagFor("draco-brood").cards());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aRenameKeepsTheCardsAndARemovalKeepsTheName() {
+        CardOverrideStorageService storage = mock(CardOverrideStorageService.class);
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference collection = mock(CollectionReference.class);
+        DocumentReference doc = mock(DocumentReference.class);
+        DocumentSnapshot snapshot = mock(DocumentSnapshot.class);
+        when(storage.isFirestoreReady()).thenReturn(true);
+        when(storage.requireFirestore()).thenReturn(firestore);
+        when(firestore.collection("appConfig")).thenReturn(collection);
+        when(collection.document("artCardTags")).thenReturn(doc);
+        when(doc.get()).thenReturn(ApiFutures.immediateFuture(snapshot));
+        when(snapshot.exists()).thenReturn(false);
+        when(doc.set(any(Map.class))).thenReturn(ApiFutures.immediateFuture(mock(WriteResult.class)));
+        ArtCardTagService service = new ArtCardTagService(new ObjectMapper(), storage, "appConfig", "artCardTags");
+
+        service.save("draco-brood", Map.of("title", "Cinder Brood"), "editor@example.com");
+        ArtCardTagService.ArtTag afterRename = service.tagFor("draco-brood");
+        assertEquals("Cinder Brood", afterRename.title());
+        assertEquals(List.of("draco"), afterRename.cards(), "renaming does not drop the seeded cards");
+        assertEquals("50% 45%", afterRename.focus());
+
+        service.save("draco-brood", Map.of("hidden", true), "editor@example.com");
+        ArtCardTagService.ArtTag afterRemove = service.tagFor("draco-brood");
+        assertTrue(afterRemove.hidden());
+        assertEquals("Cinder Brood", afterRemove.title(), "removing keeps the name for a restore");
+
+        service.save("draco-brood", Map.of("hidden", false, "title", ""), "editor@example.com");
+        ArtCardTagService.ArtTag restored = service.tagFor("draco-brood");
+        assertFalse(restored.hidden());
+        assertEquals("", restored.title(), "an empty name goes back to the file's");
+
+        ArgumentCaptor<Map<String, Object>> written = ArgumentCaptor.forClass(Map.class);
+        verify(doc, org.mockito.Mockito.atLeastOnce()).set(written.capture());
+        Map<String, Object> piece = (Map<String, Object>) ((Map<String, Object>) written.getValue().get("pieces")).get("draco-brood");
+        assertEquals(false, piece.get("hidden"));
+        assertEquals(List.of("draco"), piece.get("cards"));
     }
 }
