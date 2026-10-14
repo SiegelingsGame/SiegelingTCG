@@ -5705,3 +5705,17 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 @media (orientation:landscape) and (max-height:520px) {
   .sg-gstage.is-packs .sg-gbtn { flex-basis:128px; }
 }
+/* Short landscape phones: the column under the tab rail sat empty while the
+   footer's round utility buttons (Odds, Binder, ...) took width from the pack
+   strip. The body now starts at the stage edge so those buttons drop into
+   that column, centred under the tabs; the copy and selector rows keep their
+   indent past the rail. The rail ends well above the footer row, and its
+   higher z-index keeps it clickable over the wider body. */
+@media (orientation:landscape) and (max-height:520px) {
+  .sg-gstage-body { left:12px; }
+  .sg-gstage-body > .sg-gplaque,
+  .sg-gstage-body > .sg-gselect { margin-left:calc(var(--gtabs-w) + 10px); }
+  .sg-gutil { width:calc(var(--gtabs-w) - 4px); justify-content:center; }
+  .sg-gstage.is-packs .sg-gstage-body { grid-template-columns:calc(var(--gtabs-w) - 4px) minmax(0, 1fr) auto; column-gap:10px; }
+  .sg-gstage.is-packs .sg-gstage-body > .sg-gselect { margin-left:0; }
+}
