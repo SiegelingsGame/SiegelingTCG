@@ -5508,6 +5508,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   background:rgba(13,14,40,.88); border:1.5px solid var(--gold-line); box-shadow:0 4px 12px rgba(0,0,0,.55);
 }
 .sg-gmore.is-prev { left:0; }
+/* Sideways drags that start on an arrow are handed to the row in JS. */
+.sg-gmore { touch-action:pan-y; }
 .sg-gmore.is-next { right:0; }
 .sg-gselwrap.has-prev .sg-gmore.is-prev,
 .sg-gselwrap.has-next .sg-gmore.is-next { display:grid; }

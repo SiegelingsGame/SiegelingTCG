@@ -3369,10 +3369,33 @@
     window.addEventListener('resize', syncRows);
     // After refreshShop has put each row back where the player left it.
     window.requestAnimationFrame(syncRows);
+    // The arrows sit over the row's ends, and a swipe that starts on one would
+    // otherwise go nowhere: the browser pans the element under the finger, and
+    // the arrow is not inside the row. A drag that starts there moves the row
+    // by hand instead, and only a touch that stays put counts as a tap.
+    var drag = null;
+    app.addEventListener('touchstart', function (e) {
+      var more = e.target.closest && e.target.closest('[data-shop-more]');
+      if (!more || e.touches.length !== 1) { drag = null; return; }
+      drag = { row: more.parentNode.querySelector('.sg-gselect'), x: e.touches[0].clientX, left: 0, moved: false };
+      drag.left = drag.row.scrollLeft;
+    }, { passive: true });
+    app.addEventListener('touchmove', function (e) {
+      if (!drag || e.touches.length !== 1) return;
+      var dx = e.touches[0].clientX - drag.x;
+      if (Math.abs(dx) > 8) drag.moved = true;
+      if (drag.moved) drag.row.scrollLeft = drag.left - dx;
+    }, { passive: true });
+    app.addEventListener('touchend', function () {
+      if (drag && drag.moved) app._sgSwiped = Date.now();
+      drag = null;
+    }, { passive: true });
     app.addEventListener('click', function (e) {
       if (!e.target.closest) return;
       var more = e.target.closest('[data-shop-more]');
       if (more) {
+        // The click a browser may still send after a drag off an arrow.
+        if (app._sgSwiped && Date.now() - app._sgSwiped < 400) return;
         var row = more.parentNode.querySelector('.sg-gselect');
         row.scrollBy({ left: Number(more.getAttribute('data-shop-more')) * row.clientWidth * 0.75, behavior: 'smooth' });
         return;
