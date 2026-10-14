@@ -1868,8 +1868,25 @@
       d + '</svg>';
   }
 
-  function binderFilterRowsMarkup(elements, rarities) {
+  // Owned / All / Unowned. Only offered when the payload can tell what is
+  // owned (see binderOwnership); Owned is the binder's default view.
+  var OWNERSHIP_PILLS = [['OWNED', 'Owned'], ['ALL', 'All'], ['MISSING', 'Unowned']];
+  var UNOWNED_GLYPH = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" ' +
+    'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="3 2.4">' +
+    '<rect x="5" y="3" width="14" height="18" rx="2.2"/></svg>';
+
+  function binderFilterRowsMarkup(elements, rarities, withOwnership) {
     return '' +
+      (withOwnership
+        ? '<div class="sg-filter-label">Collection</div>' +
+          '<div class="sg-filter-row sg-filter-row-owned">' + OWNERSHIP_PILLS.map(function (o, i) {
+            return '<button class="sg-pill sg-pill-owned' + (i === 0 ? ' on' : '') + '" type="button" data-owned="' + o[0] + '" ' +
+              'style="--el:' + (o[0] === 'ALL' ? 'var(--acc-lemon)' : o[0] === 'OWNED' ? '#5fd38a' : '#9aa3c7') + '">' +
+              (o[0] === 'ALL' ? '<i class="sg-pill-prism" aria-hidden="true"></i>'
+                : (o[0] === 'OWNED' ? OWNED_GLYPH : UNOWNED_GLYPH).replace('<svg ', '<svg class="sg-pill-glyph" ')) +
+              esc(o[1]) + '</button>';
+          }).join('') + '</div>'
+        : '') +
       '<div class="sg-filter-label">Element</div>' +
       '<div class="sg-filter-row sg-filter-row-element">' + elements.map(function (e, i) {
         return '<button class="sg-pill sg-pill-element' + (i === 0 ? ' on' : '') + '" type="button" data-el="' + e + '" style="--el:' +
@@ -1964,7 +1981,7 @@
     // with duplicates was told they owned more cards than exist. Collected counts
     // distinct cards on both sides of the "of".
     var counts = collectionCounts(opts.live);
-    var filterRows = binderFilterRowsMarkup(elements, rarities);
+    var filterRows = binderFilterRowsMarkup(elements, rarities, Boolean(binderOwnership(opts.live)));
     return topMarkup(opts) +
       binderSkinMarkup() +
       '<div class="sg-scroll" data-gal-scroll>' +
@@ -2235,8 +2252,9 @@
     var reveal = makeTileReveal(grid, scroll);
     var ownedToggle = app.querySelector('[data-owned-toggle]');
     var isOwned = binderOwnership(opts.live);
-    // Owned-only is the default whenever the payload can tell what is owned.
-    var ownedOnly = Boolean(isOwned && ownedToggle);
+    // Owned is the default view whenever the payload can tell what is owned;
+    // the Collection pills also offer every card, or only the unowned ones.
+    var ownership = isOwned && ownedToggle ? 'OWNED' : 'ALL';
     var activeEl = 'ALL', activeRarity = 'ALL', activeType = 'ALL', query = '';
     var COMPACT_AFTER = 72;
     // The binder loads one element section at a time: a section is appended as
@@ -2246,7 +2264,8 @@
 
     function matches() {
       return binderSort(ALL_CARDS.filter(function (c) {
-        if (ownedOnly && !isOwned(c)) return false;
+        if (ownership === 'OWNED' && !isOwned(c)) return false;
+        if (ownership === 'MISSING' && isOwned(c)) return false;
         if (activeType !== 'ALL' && String(c.type || 'SIEGLING').toUpperCase() !== activeType) return false;
         if (activeEl !== 'ALL' && c.element !== activeEl) return false;
         if (activeRarity !== 'ALL' && String(c.rarity || '').toUpperCase() !== activeRarity) return false;
@@ -2278,7 +2297,7 @@
 
     function activeFilterCount() {
       return (activeEl !== 'ALL' ? 1 : 0) + (activeType !== 'ALL' ? 1 : 0) +
-        (activeRarity !== 'ALL' ? 1 : 0) + (query ? 1 : 0);
+        (activeRarity !== 'ALL' ? 1 : 0) + (query ? 1 : 0) + (ownership === 'MISSING' ? 1 : 0);
     }
 
     function syncPills(root, attr, value) {
@@ -2295,6 +2314,12 @@
       syncPills(glassFilters, 'data-el', activeEl);
       syncPills(glassFilters, 'data-type', activeType);
       syncPills(glassFilters, 'data-rarity', activeRarity);
+      syncPills(filters, 'data-owned', ownership);
+      syncPills(glassFilters, 'data-owned', ownership);
+      if (ownedToggle) {
+        ownedToggle.classList.toggle('on', ownership === 'OWNED');
+        ownedToggle.setAttribute('aria-pressed', String(ownership === 'OWNED'));
+      }
       var inlineSearch = app.querySelector('[data-search-input]');
       if (inlineSearch && inlineSearch.value !== query) inlineSearch.value = query;
       if (glassSearch && glassSearch.value !== query) glassSearch.value = query;
@@ -2316,8 +2341,9 @@
     }
 
     function emptyMarkup() {
-      return '<p class="sg-gal-empty">' + (ownedOnly
-        ? 'No owned cards match. Tap the Owned button to browse the whole binder.'
+      return '<p class="sg-gal-empty">' + (ownership === 'OWNED'
+        ? 'No owned cards match. Pick All under Collection to browse the whole binder.'
+        : ownership === 'MISSING' ? 'You own every card that matches.'
         : 'No cards match these filters.') + '</p>';
     }
 
@@ -2416,6 +2442,8 @@
     bindPillGroup(glassFilters, 'data-el', function (v) { activeEl = v; });
     bindPillGroup(glassFilters, 'data-type', function (v) { activeType = v; });
     bindPillGroup(glassFilters, 'data-rarity', function (v) { activeRarity = v; });
+    bindPillGroup(filters, 'data-owned', function (v) { ownership = v; });
+    bindPillGroup(glassFilters, 'data-owned', function (v) { ownership = v; });
 
     // (looked up above, beside the other chrome handles)
     if (filterToggle) {
@@ -2458,6 +2486,7 @@
     if (clearBtn) {
       clearBtn.addEventListener('click', function () {
         activeEl = 'ALL'; activeType = 'ALL'; activeRarity = 'ALL'; query = '';
+        if (ownership === 'MISSING') ownership = 'OWNED';
         repaint();
       });
     }
@@ -2467,9 +2496,7 @@
     }
     if (ownedToggle) {
       ownedToggle.addEventListener('click', function () {
-        ownedOnly = !ownedOnly;
-        this.classList.toggle('on', ownedOnly);
-        this.setAttribute('aria-pressed', String(ownedOnly));
+        ownership = ownership === 'OWNED' ? 'ALL' : 'OWNED';
         repaint();
       });
     }
