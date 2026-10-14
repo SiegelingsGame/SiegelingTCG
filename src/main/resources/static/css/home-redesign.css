@@ -5674,10 +5674,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gplaque h2 { font-size:26px; }
   .sg-gplaque p, .sg-gpennant { display:none; }
   .sg-gribbon { font-size:11.5px; padding:3px 18px; }
-  .sg-gbtn { height:48px; flex-basis:140px; }
+  .sg-gbtn { height:48px; }
   .sg-gstage-card { width:140px; right:16px; }
-  /* The offer row scrolls short of the headline card on the right. */
-  .sg-gstage.is-daily .sg-gselect { max-width:calc(100% - 150px); }
 }
 @media (min-width:1024px) {
   /* The art runs edge to edge; the tabs and copy keep the page gutter. */
@@ -5718,24 +5716,29 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gplate b { font-size:20px; }
   .sg-gplate i { font-size:16px; }
 }
-/* Landscape has width to spare but little height, so the pack backs share
-   the bottom row with Odds/Binder and the buy buttons. The footer dissolves
-   into the body grid so all three line up on one row. */
+/* Landscape has width to spare but little height, so every tab's selector
+   (pack backs, element gems, daily offers, title chips) shares the bottom row
+   with the utility buttons and the buy buttons. The footer dissolves into the
+   body grid so all three line up on one row. */
 @media (orientation:landscape) and (max-height:520px), (min-width:1024px) {
-  .sg-gstage.is-packs .sg-gstage-body {
-    display:grid; grid-template-columns:auto minmax(0, 1fr) auto; grid-template-rows:auto 1fr auto;
+  .sg-gstage-body {
+    display:grid; grid-template-columns:auto minmax(0, 1fr) max-content; grid-template-rows:auto 1fr auto;
     align-items:end; column-gap:14px; row-gap:0;
   }
-  .sg-gstage.is-packs .sg-gplaque { grid-column:1 / -1; grid-row:1; align-self:start; margin-bottom:0; }
-  .sg-gstage.is-packs .sg-gfoot { display:contents; }
-  .sg-gstage.is-packs .sg-gutil { grid-column:1; grid-row:3; }
-  .sg-gstage.is-packs .sg-gselect { grid-column:2; grid-row:3; min-width:0; padding-top:8px; }
-  .sg-gstage.is-packs .sg-gbuy { grid-column:3; grid-row:3; }
-  /* The row gives way, not the buttons. */
-  .sg-gstage.is-packs .sg-gbtn { flex-shrink:0; }
+  .sg-gplaque { grid-column:1 / -1; grid-row:1; align-self:start; margin-bottom:0; }
+  .sg-gfoot { display:contents; }
+  .sg-gutil { grid-column:1; grid-row:3; }
+  .sg-gselect { grid-column:2; grid-row:3; min-width:0; align-self:center; }
+  .sg-gstage.is-packs .sg-gselect { padding-top:8px; }
+  /* The row gives way, not the buttons. The buy group is right-justified, so
+     a column narrower than its buttons spilled them leftwards over the strip
+     (iOS Safari did); max-content holds the column to the buttons' width. */
+  .sg-gbuy { grid-column:3; grid-row:3; min-width:max-content; }
+  .sg-gbtn { flex-shrink:0; }
+  .sg-gstage.is-daily .sg-gselect { max-width:none; }
 }
 @media (orientation:landscape) and (max-height:520px) {
-  .sg-gstage.is-packs .sg-gbtn { flex-basis:128px; }
+  .sg-gbtn { flex-basis:128px; }
 }
 /* Short landscape phones: the column under the tab rail sat empty while the
    footer's round utility buttons (Odds, Binder, ...) took width from the pack
@@ -5745,9 +5748,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    higher z-index keeps it clickable over the wider body. */
 @media (orientation:landscape) and (max-height:520px) {
   .sg-gstage-body { left:12px; }
-  .sg-gstage-body > .sg-gplaque,
-  .sg-gstage-body > .sg-gselect { margin-left:calc(var(--gtabs-w) + 10px); }
+  .sg-gstage-body > .sg-gplaque { margin-left:calc(var(--gtabs-w) + 10px); }
   .sg-gutil { width:calc(var(--gtabs-w) - 4px); justify-content:center; }
-  .sg-gstage.is-packs .sg-gstage-body { grid-template-columns:calc(var(--gtabs-w) - 4px) minmax(0, 1fr) auto; column-gap:10px; }
-  .sg-gstage.is-packs .sg-gstage-body > .sg-gselect { margin-left:0; }
+  .sg-gstage-body { grid-template-columns:calc(var(--gtabs-w) - 4px) minmax(0, 1fr) max-content; column-gap:10px; }
 }
