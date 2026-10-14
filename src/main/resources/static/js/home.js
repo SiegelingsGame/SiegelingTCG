@@ -176,14 +176,14 @@
     const ENERGY_COST_FILTERS = ['ALL', 'FREE', '1', '2', '3', '4', '5+'];
     const NOTCH_DIRECTIONS = ['TOP_LEFT', 'TOP', 'TOP_RIGHT', 'LEFT', 'RIGHT', 'BOTTOM_LEFT', 'BOTTOM', 'BOTTOM_RIGHT'];
     const DECK_ASSET_KEYS = [
-        'FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC',
-        'METAL', 'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD'
+        'FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'ELECTRIC',
+        'METAL', 'POISON', 'PSYCHIC', 'UNDEAD', 'LIGHT', 'SHADOW'
     ];
     // Canonical filter/sort order across hub surfaces. Keep in sync with
     // LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.
     const ELEMENT_SORT_ORDER = [
-        'FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC',
-        'METAL', 'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD'
+        'FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'ELECTRIC',
+        'METAL', 'POISON', 'PSYCHIC', 'UNDEAD', 'LIGHT', 'SHADOW'
     ];
     // Element defaults for hub decks, shop packs, and profile card backs.
     const DECK_ASSET_PATHS = {

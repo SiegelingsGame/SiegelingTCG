@@ -9,8 +9,8 @@
 
     /** Must match server live-element roster order (see LiveElementCatalogService). */
     const DEFAULT_LIVE_ELEMENT_ORDER = [
-        "FIRE", "EARTH", "WIND", "ICE", "WATER", "ELECTRIC", "METAL", "POISON",
-        "PSYCHIC", "LIGHT", "SHADOW", "UNDEAD"
+        "FIRE", "ICE", "EARTH", "WIND", "WATER", "ELECTRIC", "METAL", "POISON",
+        "PSYCHIC", "UNDEAD", "LIGHT", "SHADOW"
     ];
 
     // Matches .trainer-art-portrait.is-overlay { aspect-ratio: 639/919 } and the

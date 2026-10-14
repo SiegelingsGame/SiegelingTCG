@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
@@ -183,7 +184,15 @@ public class CardOverrideEditorService {
 
     private Map<String, Object> buildMetadata() {
         Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("elements", enumNames(Element.values()));
+        // Roster order (Fire first), then whatever the enum adds beyond it (Neutral),
+        // so the dashboard's element pickers read the same as every other surface.
+        List<Element> elementOrder = new ArrayList<>(LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER);
+        for (Element element : Element.values()) {
+            if (!elementOrder.contains(element)) {
+                elementOrder.add(element);
+            }
+        }
+        metadata.put("elements", elementOrder.stream().map(Enum::name).toList());
         metadata.put("cardTypes", List.of("SIEGLING", "SPELL", "TRAP"));
         metadata.put("rarities", enumNames(Rarity.values()));
         metadata.put("sieglingSizes", enumNames(SieglingSize.values()));

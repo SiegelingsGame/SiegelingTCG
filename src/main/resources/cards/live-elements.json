@@ -3,13 +3,13 @@
     "element" : "FIRE",
     "active" : true
   }, {
+    "element" : "ICE",
+    "active" : true
+  }, {
     "element" : "EARTH",
     "active" : true
   }, {
     "element" : "WIND",
-    "active" : true
-  }, {
-    "element" : "ICE",
     "active" : true
   }, {
     "element" : "WATER",
@@ -27,13 +27,13 @@
     "element" : "PSYCHIC",
     "active" : true
   }, {
+    "element" : "UNDEAD",
+    "active" : true
+  }, {
     "element" : "LIGHT",
     "active" : false
   }, {
     "element" : "SHADOW",
-    "active" : true
-  }, {
-    "element" : "UNDEAD",
     "active" : true
   } ]
 }

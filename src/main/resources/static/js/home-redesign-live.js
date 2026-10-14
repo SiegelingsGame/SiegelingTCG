@@ -148,9 +148,8 @@
           // SiegeKnights live in `trainers`, not the card catalog, but a binder
           // that omits them is not the binder. Tag them so the renderer picks the
           // knight treatment (full card art, or overlay art behind the template).
-          // Knights lead the list: the binder pages 24 at a time, so appended
-          // after ~200 catalog cards they only surfaced after eight "Show more"
-          // taps, under All and under an element filter alike.
+          // The binder re-sorts this list itself (element sections, knights
+          // after each element's Legendaries), so the order here is not load-bearing.
           cards: ((options && options.trainers) || []).map(function (t) {
             var k = {}; for (var key in t) if (Object.prototype.hasOwnProperty.call(t, key)) k[key] = t[key];
             k.type = 'SIEGEKNIGHT';

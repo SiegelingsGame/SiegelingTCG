@@ -2269,6 +2269,25 @@ body.concept-board {
 .sg-pill-rarity { gap:7px; }
 .sg-pill-rarity .sg-rar { width:8px; height:8px; }
 .sg-gal-more { display:flex; justify-content:center; padding:4px 18px 8px; }
+.sg-gal-more[hidden] { display:none; }
+/* Element section heading: spans the binder row like an index tab. */
+.sg-gal-section {
+  grid-column:1 / -1; display:flex; align-items:center; gap:9px; margin:6px 0 -6px;
+  font-family:var(--serif); font-size:17px; font-weight:600; letter-spacing:.02em;
+  color:color-mix(in srgb, var(--el) 55%, #fff);
+}
+.sg-gal-section:first-child { margin-top:0; }
+.sg-gal-section img { width:24px; height:24px; flex:0 0 auto; }
+.sg-gal-section em {
+  font-style:normal; font-family:inherit; font-size:11px; font-weight:700; letter-spacing:.08em;
+  color:var(--muted); padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.14);
+}
+.sg-gal-section::after {
+  content:''; flex:1 1 auto; height:1px;
+  background:linear-gradient(90deg, color-mix(in srgb, var(--el) 50%, transparent), transparent);
+}
+.sg-gal-empty { grid-column:1 / -1; margin:24px 0; text-align:center; color:var(--muted); font-size:13px; line-height:1.5; }
+.sg-owned-toggle svg { display:block; }
 .sg-gal-more button {
   height:42px; padding:0 26px; border-radius:999px; cursor:pointer;
   font-size:11.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
@@ -5685,4 +5704,18 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 @media (orientation:landscape) and (max-height:520px) {
   .sg-gstage.is-packs .sg-gbtn { flex-basis:128px; }
+}
+/* Short landscape phones: the column under the tab rail sat empty while the
+   footer's round utility buttons (Odds, Binder, ...) took width from the pack
+   strip. The body now starts at the stage edge so those buttons drop into
+   that column, centred under the tabs; the copy and selector rows keep their
+   indent past the rail. The rail ends well above the footer row, and its
+   higher z-index keeps it clickable over the wider body. */
+@media (orientation:landscape) and (max-height:520px) {
+  .sg-gstage-body { left:12px; }
+  .sg-gstage-body > .sg-gplaque,
+  .sg-gstage-body > .sg-gselect { margin-left:calc(var(--gtabs-w) + 10px); }
+  .sg-gutil { width:calc(var(--gtabs-w) - 4px); justify-content:center; }
+  .sg-gstage.is-packs .sg-gstage-body { grid-template-columns:calc(var(--gtabs-w) - 4px) minmax(0, 1fr) auto; column-gap:10px; }
+  .sg-gstage.is-packs .sg-gstage-body > .sg-gselect { margin-left:0; }
 }
