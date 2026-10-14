@@ -53,17 +53,17 @@ public class LiveElementCatalogService {
      */
     public static final List<Element> DEFAULT_GAMEPLAY_ELEMENT_ORDER = List.of(
             Element.FIRE,
+            Element.ICE,
             Element.EARTH,
             Element.WIND,
-            Element.ICE,
             Element.WATER,
             Element.ELECTRIC,
             Element.METAL,
             Element.POISON,
             Element.PSYCHIC,
+            Element.UNDEAD,
             Element.LIGHT,
-            Element.SHADOW,
-            Element.UNDEAD
+            Element.SHADOW
     );
 
     private final ObjectMapper objectMapper;

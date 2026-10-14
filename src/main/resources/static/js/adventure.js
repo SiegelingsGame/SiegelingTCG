@@ -2071,8 +2071,8 @@
         availability.appendChild(button);
       });
     }
-    var ELEMENT_SORT_ORDER = ['FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC', 'METAL', 'POISON',
-      'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD'];
+    var ELEMENT_SORT_ORDER = ['FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'ELECTRIC', 'METAL', 'POISON',
+      'PSYCHIC', 'UNDEAD', 'LIGHT', 'SHADOW'];
     var elements = ['ALL'];
     siegelings.forEach(function (s) { if (elements.indexOf(s.element) < 0) elements.push(s.element); });
     elements = elements.sort(function (a, b) {

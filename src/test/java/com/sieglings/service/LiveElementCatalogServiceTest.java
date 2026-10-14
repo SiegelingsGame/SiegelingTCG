@@ -46,7 +46,7 @@ class LiveElementCatalogServiceTest {
         assertFalse(active.contains(Element.POISON), "Poison is absent from the roster, so it is not live");
         assertFalse(active.contains(Element.LIGHT), "Light is absent from the roster, so it is not live");
         assertEquals(
-                List.of(Element.FIRE, Element.EARTH, Element.WIND, Element.ICE, Element.WATER, Element.ELECTRIC),
+                List.of(Element.FIRE, Element.ICE, Element.EARTH, Element.WIND, Element.WATER, Element.ELECTRIC),
                 List.copyOf(active),
                 "only the rows the roster switched on stay live"
         );

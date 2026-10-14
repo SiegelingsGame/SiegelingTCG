@@ -42,9 +42,9 @@ class CardDefinitionServiceTest {
                 .toList();
 
         assertEquals(
-                List.of(Element.FIRE, Element.EARTH, Element.WIND, Element.ICE),
+                List.of(Element.FIRE, Element.ICE, Element.EARTH, Element.WIND),
                 leadingSingletons.subList(0, 4),
-                "Fire, Earth, Wind, and Ice singleton decks must lead the list."
+                "Fire, Ice, Earth, and Wind singleton decks must lead the list."
         );
         assertTrue(
                 options.stream().limit(4).allMatch(option -> option.elements().size() == 1

@@ -1890,26 +1890,32 @@
       }).join('') + '</div>';
   }
 
-  // Binder page order: the live element roster (keep in sync with
-  // LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER), with Neutral last
-  // because it belongs to no element section of its own.
-  var BINDER_ELEMENT_ORDER = ['FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC', 'METAL',
-    'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD', 'NEUTRAL'];
+  // The one element order every hub surface uses (binder sections and filters,
+  // shop summons and packs, profile pickers). Keep in sync with
+  // LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER; Neutral is last
+  // because it is not part of the gameplay roster.
+  var ELEMENT_ORDER = ['FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'ELECTRIC', 'METAL',
+    'POISON', 'PSYCHIC', 'UNDEAD', 'LIGHT', 'SHADOW', 'NEUTRAL'];
   var BINDER_TYPE_ORDER = { SIEGLING: 0, SPELL: 1, TRAP: 2 };
 
   function binderElementKey(card) {
     var el = String((card && card.element) || 'NEUTRAL').toUpperCase();
-    return BINDER_ELEMENT_ORDER.indexOf(el) === -1 ? 'NEUTRAL' : el;
+    return ELEMENT_ORDER.indexOf(el) === -1 ? 'NEUTRAL' : el;
   }
 
   /* Element by element, Fire first. Inside an element every card climbs from
      Common to Legendary, and that element's SiegeKnights follow its Legendaries
      (also by rarity) rather than all knights heading the binder. Ties keep the
      catalog's order, which already runs each evolution line in sequence. */
+  function elementRank(el) {
+    var i = ELEMENT_ORDER.indexOf(String(el || '').toUpperCase());
+    return i === -1 ? ELEMENT_ORDER.length : i;
+  }
+
   function binderSort(cards) {
     return cards.map(function (c, i) { return { c: c, i: i }; }).sort(function (a, b) {
-      var ea = BINDER_ELEMENT_ORDER.indexOf(binderElementKey(a.c));
-      var eb = BINDER_ELEMENT_ORDER.indexOf(binderElementKey(b.c));
+      var ea = elementRank(binderElementKey(a.c));
+      var eb = elementRank(binderElementKey(b.c));
       if (ea !== eb) return ea - eb;
       var ka = String(a.c.type || '').toUpperCase() === 'SIEGEKNIGHT' ? 1 : 0;
       var kb = String(b.c.type || '').toUpperCase() === 'SIEGEKNIGHT' ? 1 : 0;
@@ -1949,7 +1955,7 @@
   function galleryScreen(opts) {
     opts = opts || {};
     // Keep in sync with LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.
-    var elements = ['ALL'].concat(BINDER_ELEMENT_ORDER);
+    var elements = ['ALL'].concat(ELEMENT_ORDER);
     var rarities = ['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
     var total = ALL_CARDS.length;
     // "X of Y cards owned" compared copies held against unique cards, so a player
@@ -3258,12 +3264,13 @@
     return '/img/decks/card-back-' + el + '.webp';
   }
 
-  // Starters lead (a new player's first choice), then the catalog order;
-  // cheapest first within each group.
+  // Starters lead (a new player's first choice), cheapest first within each
+  // group, then the shared element order (Fire first) on the pack's lead element.
   function featuredPacks(packs) {
     function price(pk) { return pk.price == null ? 1e9 : pk.price; }
     return packs.slice().sort(function (x, y) {
-      return (y.starterEligible ? 1 : 0) - (x.starterEligible ? 1 : 0) || price(x) - price(y);
+      return (y.starterEligible ? 1 : 0) - (x.starterEligible ? 1 : 0) || price(x) - price(y) ||
+        elementRank(packElement(x)) - elementRank(packElement(y));
     });
   }
 
@@ -3539,7 +3546,9 @@
   function shopModel(opts) {
     var live = opts.live || {};
     var all = live.packs || [];
-    var summons = all.filter(isSummonPack);
+    var summons = all.filter(isSummonPack).sort(function (x, y) {
+      return elementRank(packElement(x)) - elementRank(packElement(y));
+    });
     var packs = featuredPacks(all.filter(function (pk) { return !isSummonPack(pk); }));
     var offers = live.dailyOffers || [];
     var titles = live.dailyTitleOffers || [];
@@ -5086,8 +5095,8 @@
   var PROFILE_DRAFT = null;
   var PROFILE_SHOWCASE_MAX = 3;
 
-  var PROFILE_ELEMENTS = ['FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC',
-                          'METAL', 'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD', 'NEUTRAL'];
+  var PROFILE_ELEMENTS = ['FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'ELECTRIC',
+                          'METAL', 'POISON', 'PSYCHIC', 'UNDEAD', 'LIGHT', 'SHADOW', 'NEUTRAL'];
 
   // The premade backs, named exactly as the legacy hub names them, because the
   // stored value is the NAME and the two surfaces have to agree on it.

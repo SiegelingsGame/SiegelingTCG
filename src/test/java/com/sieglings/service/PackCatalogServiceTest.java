@@ -224,12 +224,12 @@ class PackCatalogServiceTest {
     }
 
     @Test
-    void gameplayElementOrderIsFireEarthWindIceThenSupportRows() {
+    void gameplayElementOrderIsFireIceEarthWindThenSupportRows() {
         assertEquals(
                 List.of(
-                        Element.FIRE, Element.EARTH, Element.WIND, Element.ICE, Element.WATER,
+                        Element.FIRE, Element.ICE, Element.EARTH, Element.WIND, Element.WATER,
                         Element.ELECTRIC, Element.METAL, Element.POISON, Element.PSYCHIC,
-                        Element.LIGHT, Element.SHADOW, Element.UNDEAD
+                        Element.UNDEAD, Element.LIGHT, Element.SHADOW
                 ),
                 LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER
         );
@@ -245,9 +245,9 @@ class PackCatalogServiceTest {
                 .toList();
 
         assertEquals(
-                List.of("pack_fire", "pack_earth", "pack_wind", "pack_ice", "pack_water",
+                List.of("pack_fire", "pack_ice", "pack_earth", "pack_wind", "pack_water",
                         "pack_electric", "pack_metal", "pack_poison", "pack_psychic",
-                        "pack_light", "pack_shadow", "pack_undead"),
+                        "pack_undead", "pack_light", "pack_shadow"),
                 starterIds
         );
         assertTrue(starterIds.indexOf("pack_water") > starterIds.indexOf("pack_ice"),
