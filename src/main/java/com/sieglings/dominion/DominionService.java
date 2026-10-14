@@ -316,7 +316,7 @@ public class DominionService {
 
     static int defenseLevel(Guild g) {
         int level = 0;
-        for (int t : ChroniclesContent.DEFENSE_THRESHOLDS) if (g.defensePoints >= t) level++;
+        for (long t : ChroniclesContent.DEFENSE_THRESHOLDS) if (g.defensePoints >= t) level++;
         return level;
     }
 

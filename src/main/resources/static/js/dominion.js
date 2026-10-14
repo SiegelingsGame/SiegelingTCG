@@ -478,6 +478,7 @@
             wsl: { forge: 1, fridge: 1, generator: 1, garden: 1, kitchen: 1, quarry: 1 }, annex: {},
             wings: { sanctuary: 0, forge: 0, garden: 0, war_room: 0, stable: 0, library: 0 },
             builds: [], rebirths: 0, events: [], nextEventAt: t + 12 * HOUR, market: null, crafted: {}, theme: 'covenant',
+            sync: { version: 0 }, applied: [], opReports: [],
             lore: {}, voices: { done: {}, flags: {}, rapport: {}, nextAt: 0, log: [] }, claims: {}, steward: '', loadouts: [],
             // 3x3 Quarter: index = row*3+col; rot 0=N 1=E 2=S 3=W. Starts unconnected on purpose.
             grid: [null, null, { id: 'generator', rot: 2 },
@@ -1019,7 +1020,7 @@
         const busy = (id) => (s.builds || []).some((b) => b.id === id);
         if (s.b.archive < 1) push('archive', 'Archive', 'Restore the Living Archive', 60, { tempered_glass: 3 }, 8 * 3600, 'Opens Elemental Studies and Runecrafting for the Knight, and the Archive’s lore.');
         if (s.b.hall < 8) {
-            const n = s.b.hall + 1, hp = HALL_PROJECTS[n], need = (n - 1) * 3;
+            const n = s.b.hall + 1, hp = HALL_PROJECTS[n], need = Math.max(0, (n - 2) * 3);
             push('hall_' + n, 'Great Hall', hp[0], hp[1], hp[2], hp[3], 'Keep rank: ' + HALL_RANKS[n - 1] + '. +5% Keep production per rank' + (n === 2 ? '; expeditions need 1 fewer provision; proficiency +25%' : '') + '.', rankLvl(s) < need ? 'Needs Knight Rank ' + need + '.' : '');
         }
         if (s.b.woodlot < 2) push('woodlot_2', 'Woodlot', 'Cultivate the Woodlot', 140, { stone: 20 }, 2 * 3600, 'Woodlot produces 120 Timber/h instead of 60.');
@@ -1655,16 +1656,17 @@
     function finishTrial(s, x) {
         const uid = x.trial, c = s.comps[uid];
         if (!c) return;
-        const lvl = compLevel(c), ok = lvl >= 20;
+        // Level 20, or the form's cap for base forms that stop at 10.
+        const need = Math.min(20, C(uid).cap), lvl = compLevel(c), ok = lvl >= need;
         if (ok) { c.legend = true; grantBond(s, uid, 50); }
         grantRank(s, TRIAL_HOURS * 60);
         pushReport(s, {
             id: x.id, dest: 'trial', trial: uid, at: x.endAt, seen: false, weapon: x.weapon, weaponId: x.weaponId, tool: '', party: [uid], rations: 0,
-            lines: [{ status: ok ? 'ok' : 'miss', title: 'Legendary Bond Trial', by: ok ? C(uid).name : '', need: 'level 20',
-                text: ok ? C(uid).name + ' and the Knight fought as one. ' + C(uid).name + ' is now Legendary: +5 party power and +5% at any post.' : C(uid).name + ' was not ready (level ' + lvl + ' of 20). The trial can be tried again.' }],
+            lines: [{ status: ok ? 'ok' : 'miss', title: 'Legendary Bond Trial', by: ok ? C(uid).name : '', need: 'level ' + need,
+                text: ok ? C(uid).name + ' and the Knight fought as one. ' + C(uid).name + ' is now Legendary: +5 party power and +5% at any post.' : C(uid).name + ' was not ready (level ' + lvl + ' of ' + need + '). The trial can be tried again.' }],
             total: {}, xp: {}, prof: 0, bonds: {}, levels: {}, discs: [], summary: ok ? C(uid).name + ' became Legendary.' : 'The trial ended without a bond-forged victory.', resumed: [], lootPct: 100, minutes: TRIAL_HOURS * 60
         });
-        FRESH.push(ok ? C(uid).name + ' is now Legendary.' : 'The Bond Trial failed. Try again at level 20.');
+        FRESH.push(ok ? C(uid).name + ' is now Legendary.' : 'The Bond Trial failed. Try again at level ' + need + '.');
         s.rev++;
     }
 
@@ -1780,6 +1782,221 @@
             if (i >= 0) return { ch: ch, i: i, step: ch.steps[i] };
         }
         return null;
+    }
+
+    // —— Account sync and the shared realm (server: DominionController) ——
+    // dominion.html sets DOMINION_ONLINE; the offline artifact preview never calls the API.
+    const ONLINE = !!window.DOMINION_ONLINE;
+    const AUTH_TOKEN_KEY = 'sieglingsAuthToken';
+    const COOKIE_SESSION_VALUE = 'cookie';
+    const API_BASE = String((window.SIEGLINGS_CONFIG && window.SIEGLINGS_CONFIG.apiBaseUrl) || '').replace(/\/$/, '');
+    const NET = { signedIn: false, checked: false, busy: false, lastSync: 0, syncedRev: -1, error: '', guild: null, market: null, loading: '', pending: null };
+    const DOMINION_GOODS = ['timber', 'stone', 'ore', 'fiber', 'produce', 'provisions', 'ember', 'frost', 'storm', 'glass', 'alloy', 'rations', 'relic', 'insight', 'fittings', 'living_mortar', 'covenant_keystone', 'aether_core', 'heartwood_relic'];
+    const tradeable = (k) => DOMINION_GOODS.includes(k) || (!!CH.items[k] && !ALIAS[k] && (CH.tradeable || []).includes(CH.items[k].kind));
+    function authToken() { try { return localStorage.getItem(AUTH_TOKEN_KEY) || ''; } catch (e) { return ''; } }
+    function api(path, body) {
+        const t = authToken(), headers = { 'Content-Type': 'application/json' };
+        // The sentinel means the session rides the cookie; anything else is a Bearer token.
+        if (t && t !== COOKIE_SESSION_VALUE) headers.Authorization = 'Bearer ' + t;
+        const opts = { method: body ? 'POST' : 'GET', headers: headers, credentials: 'same-origin' };
+        if (body) opts.body = JSON.stringify(body);
+        return fetch(API_BASE + path, opts).then((res) => res.text().then((raw) => {
+            let data = {};
+            try { data = raw ? JSON.parse(raw) : {}; } catch (e) { data = { error: 'Unexpected server response.' }; }
+            if (!res.ok) { data.error = data.error || res.statusText || 'Request failed.'; data.status = res.status; }
+            return data;
+        }), () => ({ error: 'Could not reach the server. Progress is kept on this device.', status: 0 }));
+    }
+    // Realm deltas (escrow, sales, spoils) arrive once each; the ids applied ride the next sync.
+    function applyInbox(s, list) {
+        let n = 0;
+        (list || []).forEach((e) => {
+            if (!e || !e.id || s.applied.includes(e.id)) return;
+            Object.keys(e.delta || {}).forEach((k) => { s.inv[k] = Math.max(0, (s.inv[k] || 0) + Number(e.delta[k] || 0)); });
+            s.applied.push(e.id);
+            logEvent(s, (e.note || 'Realm') + ': ' + Object.keys(e.delta || {}).map((k) => (e.delta[k] > 0 ? '+' : '') + e.delta[k] + ' ' + itemName(k)).join(', ') + '.');
+            n++;
+        });
+        if (s.applied.length > 300) s.applied = s.applied.slice(-300);
+        if (n) s.rev++;
+        return n;
+    }
+    function adoptServer(stateText, version) {
+        try {
+            const saved = JSON.parse(stateText);
+            if (!saved || typeof saved.t !== 'number') return false;
+            S = sanitize(merge(defaults(saved.t), migrate(saved)));
+            S.sync.version = version;
+            return true;
+        } catch (e) { return false; }
+    }
+    function bootOnline() {
+        if (!ONLINE) return Promise.resolve();
+        api('/api/dominion/art').then((m) => { if (m && !m.error) { ART_URLS = m; renderAll(); } });
+        if (!authToken()) { NET.checked = true; renderAll(); return Promise.resolve(); }
+        return api('/api/dominion').then((d) => {
+            NET.checked = true;
+            if (d.status === 401) { NET.signedIn = false; renderAll(); return; }
+            if (d.error) { NET.error = d.error; renderAll(); return; }
+            NET.signedIn = true;
+            if (d.name && S.knight.name === 'Ser Airek') S.knight.name = d.name;
+            const v = Number(d.version) || 0;
+            if (d.state && v > (S.sync.version || 0)) { if (adoptServer(d.state, v)) toast('Loaded your synced Dominion progress.'); }
+            applyInbox(S, d.inbox);
+            advance(S, now());
+            save();
+            renderAll();
+            return syncNow(true);
+        });
+    }
+    function syncNow(force) {
+        if (!ONLINE || !NET.signedIn) return Promise.resolve();
+        if (NET.busy) return NET.pending || Promise.resolve();
+        if (!force && S.rev === NET.syncedRev && Date.now() - NET.lastSync < 120000) return Promise.resolve();
+        NET.busy = true;
+        const rev = S.rev;
+        NET.pending = api('/api/dominion/save', { state: JSON.stringify(S), baseVersion: S.sync.version || 0, applied: S.applied.slice(-300) }).then((d) => {
+            NET.busy = false;
+            if (d.status === 409 && d.state) {
+                if (adoptServer(d.state, Number(d.version) || 0)) { applyInbox(S, d.inbox); advance(S, now()); save(); renderAll(); toast(d.error); }
+                return;
+            }
+            if (d.status === 401) { NET.signedIn = false; renderAll(); return; }
+            if (d.error) { NET.error = d.error; return; }
+            NET.error = '';
+            S.sync.version = Number(d.version) || S.sync.version;
+            NET.syncedRev = rev;
+            NET.lastSync = Date.now();
+            if (applyInbox(S, d.inbox)) renderAll();
+            save();
+            flushReports();
+        });
+        return NET.pending;
+    }
+    // Operation returns are reported once each (the server dedupes by journey id).
+    function flushReports() {
+        (S.opReports || []).slice().forEach((r) => {
+            api('/api/dominion/operation/report', { reportId: r.id, front: r.front, damage: r.damage }).then((d) => {
+                if (!d.error || d.status === 400) { S.opReports = S.opReports.filter((x) => x.id !== r.id); save(); }
+                if (!d.error) { NET.guild = d; renderView(); }
+            });
+        });
+    }
+    function realmCall(path, body) {
+        if (NET.loading) return Promise.resolve();
+        NET.loading = path;
+        renderView();
+        return syncNow(true).then(() => api(path, body)).then((d) => {
+            NET.loading = '';
+            if (d.error) { toast(d.error); renderView(); return d; }
+            applyInbox(S, d.inbox);
+            if (path.indexOf('/market') >= 0) NET.market = d; else NET.guild = d;
+            save();
+            renderAll();
+            syncNow(true);
+            return d;
+        });
+    }
+    function loadRealm() {
+        if (!ONLINE || !NET.signedIn || NET.loading) return;
+        NET.loading = 'load';
+        Promise.all([api('/api/dominion/guild'), api('/api/dominion/market')]).then((r) => {
+            NET.loading = '';
+            if (!r[0].error) { NET.guild = r[0]; applyInbox(S, r[0].inbox); }
+            if (!r[1].error) NET.market = r[1];
+            NET.realmAt = Date.now();
+            renderView();
+        });
+    }
+    window.dmRealmSubmit = function (f) {
+        const val = (n) => { const el = f.querySelector('[name="' + n + '"]'); return el ? el.value : ''; };
+        if (f.dataset.form === 'guild-create') realmCall('/api/dominion/guild/create', { name: val('name') });
+        if (f.dataset.form === 'guild-join') realmCall('/api/dominion/guild/join', { code: val('code') });
+        if (f.dataset.form === 'market-list') realmCall('/api/dominion/market/list', { itemId: val('item'), qty: Number(val('qty')) || 1, price: Number(val('price')) || 1 });
+    };
+
+    // —— Siege Operation journeys (the guild's weekly threat) ——
+    const OPERATION_HOURS = 8;
+    function operationBlock(s) {
+        if (!NET.guild || !NET.guild.guild) return 'Join a guild first.';
+        if (s.exp) return 'The Knight is away.';
+        if (NET.guild.guild.operation.won) return 'This week’s threat has fallen.';
+        return '';
+    }
+    function startOperation(s, front) {
+        if (operationBlock(s) || !(CH.fronts || {})[front]) return false;
+        s.seq++;
+        const x = context(s, prepParty(s), 'operation');
+        s.exp = Object.assign(x, { id: 'x' + s.seq + '-' + s.t + '-op', operation: true, front: front, threatEl: NET.guild.guild.operation.element, startAt: s.t, endAt: s.t + OPERATION_HOURS * HOUR, rations: 0, potions: {}, rune: '' });
+        logEvent(s, 'The Knight marched to the ' + CH.fronts[front].name + ' front.');
+        s.rev++;
+        return true;
+    }
+    function finishOperation(s, x) {
+        const f = (CH.fronts || {})[x.front] || { favoredClasses: [], favoredElements: [], name: 'front' };
+        const favored = x.party.filter((id) => s.comps[id] && (f.favoredClasses.includes(C(id).cls) || f.favoredElements.includes(C(id).EL))).length;
+        const damage = Math.min(600, partyPower(s, x) * 8 + favored * 60 + 40);
+        s.opReports = s.opReports || [];
+        s.opReports.push({ id: x.id, front: x.front, damage: damage });
+        add(s, { crowns: 20 });
+        grantRank(s, OPERATION_HOURS * 60);
+        grantSkill(s, 'command', 60 + 20 * x.party.length);
+        x.party.forEach((id) => { if (s.comps[id]) { grantBond(s, id, 30); grantMastery(s, C(id).cls, 24); } });
+        pushReport(s, {
+            id: x.id, dest: 'operation', operation: true, at: x.endAt, seen: false, weapon: x.weapon, weaponId: x.weaponId, tool: '', party: x.party, rations: 0,
+            lines: [{ status: 'ok', title: 'Siege Operation: ' + f.name, by: favored ? favored + ' favoured companion' + (favored > 1 ? 's' : '') : '', need: '',
+                text: 'The party struck the threat on the ' + f.name + ' front for ' + damage + ' damage (power ' + partyPower(s, x) + (favored ? ', ' + favored + ' suited to this front' : '') + ').' }],
+            total: { crowns: 20 }, xp: {}, prof: 0, bonds: {}, levels: {}, discs: [], summary: 'The guild’s threat took ' + damage + ' damage.', resumed: [], lootPct: 100, minutes: OPERATION_HOURS * 60
+        });
+        FRESH.push('Back from the Siege Operation: ' + damage + ' damage dealt.');
+        s.rev++;
+        if (ONLINE) setTimeout(flushReports, 0);
+    }
+
+    function realmHtml() {
+        if (!ONLINE) return '<div class="dm-card is-quiet"><h3>The realm</h3><p class="dm-muted">Guilds, the weekly Siege Operation and the Crowns market are shared between players, so they run on the live server at /dominion. This preview is offline.</p></div>';
+        if (!NET.checked) return '<div class="dm-card"><p class="dm-muted">Checking your account…</p></div>';
+        if (!NET.signedIn) return '<div class="dm-card"><h3>Sign in to join the realm</h3><p class="dm-muted">Dominion is playing on this device only. Sign in at the hub to sync your progress across devices and to use guilds, operations and the market.</p><a class="dm-btn" href="/home">Sign in at the hub</a></div>';
+        if (!NET.realmAt && !NET.loading) setTimeout(loadRealm, 0);
+        const sync = '<div class="dm-row"><small class="dm-muted dm-grow">' + (NET.error ? esc(NET.error) : 'Synced ' + (NET.lastSync ? new Date(NET.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—') + ' · save v' + (S.sync.version || 0)) + '</small><button class="dm-btn small secondary" type="button" data-act="realm-refresh">Refresh</button></div>';
+        let h = '<div class="dm-card">' + sync + '</div>';
+        const G = NET.guild;
+        if (!G) return h + '<div class="dm-card"><p class="dm-muted">' + (NET.loading ? 'Loading the realm…' : 'The realm could not be loaded. Try Refresh.') + '</p></div>';
+        if (!G.guild) {
+            h += '<div class="dm-card"><h3>Guilds</h3><p class="dm-muted">Found or join a guild to fight its weekly Siege Operation and build its defenses. Needs Knight Rank ' + G.guildRank + ' (you are ' + G.rank + ').</p>' +
+                '<form class="dm-row" data-form="guild-create"><input class="dm-input dm-grow" name="name" id="dmGuildName" maxlength="24" placeholder="Guild name" aria-label="Guild name"><button class="dm-btn small" type="submit">Found</button></form>' +
+                '<form class="dm-row" data-form="guild-join"><input class="dm-input dm-grow" name="code" id="dmGuildCode" maxlength="8" placeholder="Invite code" aria-label="Invite code" style="text-transform:uppercase"><button class="dm-btn small secondary" type="submit">Join</button></form></div>';
+        } else {
+            const g = G.guild, op = g.operation, nextT = (g.defenseThresholds || []).find((t) => t > g.defensePoints);
+            h += '<div class="dm-card"><div class="dm-row"><h3 class="dm-grow">' + esc(g.name) + '</h3><span class="dm-chip">Code ' + esc(g.code) + '</span></div>' +
+                '<p class="dm-muted">Defense level ' + g.defenseLevel + ' (' + g.defensePoints + (nextT ? ' / ' + nextT : '') + ' points): operation damage +' + 10 * g.defenseLevel + '%.</p>' +
+                '<div class="dm-chips">' + g.members.map((m) => '<span class="dm-chip ' + (m.you ? 'good' : '') + '">' + esc(m.name) + ' · ' + m.contribution + '</span>').join('') + '</div>' +
+                '<div class="dm-label">Donate to the defenses</div><div class="dm-chips">' + Object.keys(CH.donationPoints || {}).filter((k) => fl(S.inv[k]) > 0).map((k) =>
+                    '<button class="dm-btn small secondary" type="button" data-act="donate" data-arg="' + k + '">' + icon(k) + esc(itemName(k)) + ' ×' + Math.min(10, fl(S.inv[k])) + ' (+' + CH.donationPoints[k] * Math.min(10, fl(S.inv[k])) + ')</button>').join('') +
+                (Object.keys(CH.donationPoints || {}).some((k) => fl(S.inv[k]) > 0) ? '' : '<span class="dm-muted">Planks, bars, rope, linen, rune stones, tonics and relics count.</span>') + '</div>' +
+                '<button class="dm-btn small secondary" type="button" data-act="guild-leave">Leave guild</button></div>';
+            const pct = Math.min(100, Math.round(op.damage / Math.max(1, op.maxHp) * 100));
+            h += '<div class="dm-card"><span class="dm-eyebrow">Siege Operation · ' + esc(op.week) + '</span><div class="dm-row"><h3 class="dm-grow">' + esc(op.threat) + '</h3><span class="dm-chip el" style="--el:' + EL_HEX[op.element] + '">' + titleCase(op.element) + '</span></div>' +
+                '<p class="dm-muted">' + esc(op.blurb) + '</p><div class="dm-bar"><b style="width:' + pct + '%"></b></div><small class="dm-muted">' + op.damage + ' / ' + op.maxHp + (op.won ? ' · defeated' : '') + ' · your share ' + op.yours + '</small>' +
+                ((S.opReports || []).length ? '<small class="dm-muted">' + S.opReports.length + ' report waiting to send.</small>' : '');
+            if (op.won) h += '<button class="dm-btn" type="button" data-act="op-claim"' + (op.claimed || !op.yours ? ' disabled' : '') + '>' + (op.claimed ? 'Spoils claimed' : op.yours ? 'Claim the spoils' : 'Fight next week to share spoils') + '</button>';
+            else {
+                const ob = operationBlock(S);
+                h += '<div class="dm-list">' + Object.keys(CH.fronts || {}).map((fid) => { const f = CH.fronts[fid]; return '<div class="dm-enc"><span class="dm-mark">⚔</span><span><strong>' + esc(f.name) + '</strong><small>' + esc(f.text) + '</small></span><button class="dm-btn small" type="button" data-act="op-go" data-arg="' + fid + '"' + (ob ? ' disabled title="' + esc(ob) + '"' : '') + '>Send · 8h</button></div>'; }).join('') + '</div>' +
+                    '<small class="dm-muted">Uses your Travel party and gear. Damage comes from party power and companions suited to the front.' + (ob ? ' ' + esc(ob) : '') + '</small>';
+            }
+            h += '</div>';
+        }
+        const M = NET.market;
+        if (M) {
+            const owned = Object.keys(S.inv).filter((k) => tradeable(k) && fl(S.inv[k]) > 0).sort();
+            h += '<div class="dm-card"><h3>Crowns market</h3><p class="dm-muted">Trade with other players. Listed goods leave your storage until sold or cancelled; sellers pay a ' + Math.round(M.fee * 100) + '% fee. You hold ' + fl(S.inv.crowns) + ' Crowns.</p><div class="dm-list">' +
+                (M.open.filter((l) => !l.mine).map((l) => '<div class="dm-enc"><span class="dm-mark">' + icon(l.itemId) + '</span><span><strong>' + l.qty + ' ' + esc(itemName(l.itemId)) + '</strong><small>from ' + esc(l.seller) + '</small></span><button class="dm-btn small" type="button" data-act="mk-buy" data-arg="' + esc(l.id) + '"' + (fl(S.inv.crowns) < l.price ? ' disabled' : '') + '>' + icon('crowns') + l.price + '</button></div>').join('') || '<p class="dm-muted">No listings from other players yet.</p>') + '</div>' +
+                (M.mine.length ? '<div class="dm-label">Your listings</div><div class="dm-list">' + M.mine.map((l) => '<div class="dm-enc ' + (l.status === 'sold' ? 'ok' : '') + '"><span class="dm-mark">' + icon(l.itemId) + '</span><span><strong>' + l.qty + ' ' + esc(itemName(l.itemId)) + '</strong><small>' + l.price + ' Crowns · ' + l.status + '</small></span>' + (l.status === 'open' ? '<button class="dm-btn small secondary" type="button" data-act="mk-cancel" data-arg="' + esc(l.id) + '">Cancel</button>' : '<span></span>') + '</div>').join('') + '</div>' : '') +
+                (owned.length ? '<form class="dm-market-form" data-form="market-list"><select class="dm-input" name="item" id="dmListItem" aria-label="Item to sell">' + owned.map((k) => '<option value="' + k + '">' + esc(itemName(k)) + ' (' + fl(S.inv[k]) + ')</option>').join('') + '</select>' +
+                    '<input class="dm-input" name="qty" id="dmListQty" type="number" min="1" max="999" value="1" aria-label="Quantity"><input class="dm-input" name="price" id="dmListPrice" type="number" min="1" value="10" aria-label="Price in Crowns"><button class="dm-btn small" type="submit">List</button></form>' : '') + '</div>';
+        }
+        return h;
     }
 
     // —— UI state ——
@@ -2002,6 +2219,12 @@
             h += '<button class="dm-option" type="button" data-act="tool" data-arg="' + t + '" aria-pressed="' + (S.knight.tool === t) + '"' + (busy ? ' disabled' : '') + '>' + glyph(TOOL_GLYPH[t]) + '<strong>' + esc(RES[t].name) + '</strong><small>' + esc(RES[t].blurb) + '</small></button>';
         });
         h += '</div></div>';
+        const slots = loadoutSlots(S);
+        h += '<div class="dm-card' + (slots ? '' : ' is-quiet') + '"><h3>War Room loadouts</h3>' + (slots ? '<p class="dm-muted">Save gear, tool, party and rune together, and switch in one tap.</p><div class="dm-list">' + Array.from({ length: slots }, (_, i) => {
+            const l = S.loadouts[i];
+            return '<div class="dm-enc"><span class="dm-mark">' + (i + 1) + '</span><span><strong>' + (l ? esc(itemName(l.equip.weapon)) + (l.party.length ? ' \u00b7 ' + l.party.map((p) => S.comps[p] ? C(p).name : p).join(', ') : '') : 'Empty') + '</strong></span><span class="dm-chips"><button class="dm-btn small secondary" type="button" data-act="loadout-save" data-arg="' + i + '">Save</button>' +
+                (l ? '<button class="dm-btn small" type="button" data-act="loadout-apply" data-arg="' + i + '"' + (busy ? ' disabled' : '') + '>Use</button>' : '') + '</span></div>';
+        }).join('') + '</div>' : '<p class="dm-muted">Build the War Room (Chronicles wing in the Great Hall) to save loadouts.</p>') + '</div>';
         return h;
     }
     function gearNote(id) {
@@ -2553,6 +2776,9 @@
     function step() {
         advance(S, now());
         flushToasts();
+        // Never rebuild a screen under someone typing a guild name, invite code or price.
+        const a = document.activeElement;
+        if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) { renderStrip(); renderClock(); updateLive(); return; }
         if (S.rev !== lastRev) { save(); renderAll(); maybeShowReport(); }
         else if (signature() !== lastSig) {
             // Stock ticks over often; avoid rebuilding a sheet the player is mid-way through.
@@ -2687,6 +2913,13 @@
         case 'voice': { const parts = String(arg).split(':'); const ch = chooseVoice(s, parts[0], parts[1]); if (ch) toast('+2 Silver. ' + (ch.response || '').slice(0, 80)); break; }
         case 'lore': if (s.lore[arg]) { s.ui.lore = s.ui.lore === arg ? '' : arg; break; } if (!readLore(s, arg)) { toast(readLoreBlock(s, arg)); return; } s.ui.lore = arg; break;
         case 'claim': if (!claimJourney(s, Number(arg))) return; toast('Journey reward claimed.'); break;
+        case 'realm-refresh': NET.realmAt = 0; syncNow(true).then(loadRealm); return;
+        case 'donate': realmCall('/api/dominion/guild/donate', { itemId: arg, qty: Math.min(10, fl(s.inv[arg])) }); return;
+        case 'guild-leave': realmCall('/api/dominion/guild/leave', {}); return;
+        case 'op-claim': realmCall('/api/dominion/operation/claim', {}); return;
+        case 'op-go': if (!startOperation(s, arg)) { toast(operationBlock(s)); return; } toast('The Knight marches to the operation.'); break;
+        case 'mk-buy': realmCall('/api/dominion/market/buy', { listingId: arg }); return;
+        case 'mk-cancel': realmCall('/api/dominion/market/cancel', { listingId: arg }); return;
         case 'loadout-save': if (!saveLoadout(s, Number(arg))) return; toast('Loadout saved.'); break;
         case 'loadout-apply': if (!applyLoadout(s, Number(arg))) return; toast('Loadout applied.'); break;
         case 'depart':
@@ -2790,19 +3023,25 @@
             }
             if (f.dataset.form && window.dmRealmSubmit) window.dmRealmSubmit(f);
         });
-        document.addEventListener('visibilitychange', () => { if (document.hidden) save(); else step(); });
+        document.addEventListener('visibilitychange', () => { if (document.hidden) { save(); syncNow(true); } else step(); });
         window.addEventListener('pagehide', save);
         setTab(S.ui.tab || 'keep');
         renderAll();
         if (S.away) openSheet('away'); else maybeShowReport();
         setInterval(step, 1000);
         setInterval(save, 10000);
+        setInterval(() => syncNow(false), 30000);
+        bootOnline();
     }
 
     // Test hook for headless checks; harmless in the prototype.
     window.dominionDebug = {
         state: () => S, advance: (ms) => { S.offset += ms; advance(S, now()); save(); flushToasts(); renderAll(); maybeShowReport(); }, pass: passTime,
-        links: () => links(S.grid), encounter: encounter, save: save, now: now
+        links: () => links(S.grid), encounter: encounter, save: save, now: now,
+        encounters: (id) => DEST[id].encounters, tame: (id, lure) => { const r = tame(S, id, lure); save(); renderAll(); return r; }, tameBlock: (id, lure) => tameBlock(S, id, lure),
+        evolveBlock: (id) => evolveBlock(S, id), buildBlock: (id) => buildBlock(S, id), startBuild: (id) => { const r = startBuild(S, id); save(); renderAll(); return r; },
+        timberCap: () => timberCap(S), workshopRates: (id) => workshopRates(S, id), woodlotRate: () => woodlotRate(S), marketOffers: () => marketOffers(S),
+        voicesReady: () => voicesReady(S), rebirthBlock: () => rebirthBlock(S), rebirth: () => { const r = rebirth(S); save(); renderAll(); return r; }, prodMul: () => prodMul(S)
     };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

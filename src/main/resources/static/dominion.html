@@ -6,13 +6,17 @@
 <title>Siegelings Dominion</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="robots" content="noindex">
-<link rel="stylesheet" href="/css/dominion.css?v=2">
+<meta name="theme-color" content="#0e1822">
+<link rel="icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="stylesheet" href="/css/dominion.css?v=3">
 </head>
 <body>
 <div class="dm-app" id="dmApp">
     <header class="dm-top">
         <div class="dm-top-row">
-            <div class="dm-brand"><strong>Dominion</strong><span class="dm-tag">Prototype</span></div>
+            <a class="dm-brand" href="/home" aria-label="Back to the hub"><strong>Dominion</strong><span class="dm-tag">Test mode</span></a>
             <div class="dm-clock" id="dmClock"><b>—</b>local save</div>
             <button class="dm-pass" id="dmPass" type="button" title="Demo control: advances the shared clock by 4 hours">
                 <span>+4h</span><small>Pass time</small>
@@ -78,7 +82,10 @@
     </nav>
 </div>
 <div class="dm-toast-wrap" id="dmToasts" aria-live="polite"></div>
-<script src="/js/dominion-data.js?v=1"></script>
-<script src="/js/dominion.js?v=2"></script>
+<script src="/js/config.js?v=1"></script>
+<script>window.DOMINION_ONLINE = true;</script>
+<script src="/js/dominion-data.js?v=2"></script>
+<script src="/js/dominion-keep-data.js?v=1"></script>
+<script src="/js/dominion.js?v=3"></script>
 </body>
 </html>

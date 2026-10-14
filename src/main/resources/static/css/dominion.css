@@ -204,7 +204,9 @@ button:disabled { cursor: not-allowed; }
 .dm-scene .ar-lamp, .dm-scene .ar-lamp-halo { animation: window-glow 3.2s ease-in-out infinite; }
 .dm-scene .ar-glimmer { animation: window-glow 5s ease-in-out infinite; }
 .dm-scene .kh-upgrade { display: none; }
-.dm-scene[data-hall="2"] .kh-lvl2 { display: block; }
+.dm-scene.hall-l2 .kh-lvl2, .dm-scene.hall-l3 .kh-lvl3, .dm-scene.hall-l4 .kh-lvl4, .dm-scene.hall-l6 .kh-lvl6, .dm-scene.hall-l7 .kh-lvl7 { display: block; }
+.dm-scene:not([data-theme="covenant"]) .kh-banner polygon { fill: var(--hall-accent); }
+.dm-scene .kh-tower-light { fill: var(--hall-accent); animation: window-glow 2.6s ease-in-out infinite; }
 .dm-scene .wl-lvl2 { display: none; }
 .dm-scene:not([data-woodlot="1"]) .wl-lvl2 { display: block; }
 .dm-scene .ar-restored { display: none; }
@@ -437,3 +439,21 @@ button:disabled { cursor: not-allowed; }
 .dm-enc small { overflow-wrap: anywhere; }
 .dm-enc > .dm-btn { justify-self: end; }
 .dm-res.is-full { box-shadow: inset 0 0 0 1px var(--gold); color: var(--gold); }
+
+/* Destination and project rows: thumbnail, text that wraps, a chip that keeps its size. */
+.dm-route { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 6px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,.03); text-align: left; }
+.dm-route img { width: 56px; height: 42px; object-fit: cover; border-radius: 8px; }
+.dm-route strong { display: block; font: 700 13px/1.25 var(--display); color: #fff1b7; }
+.dm-route small { display: block; color: var(--dim); font-size: 11px; overflow-wrap: anywhere; }
+.dm-route .dm-lock { color: var(--gold); }
+.dm-route[aria-pressed="true"], .dm-route[aria-expanded="true"] { border-color: var(--gold); background: rgba(244,204,98,.08); }
+.dm-route:disabled { opacity: .55; }
+.dm-input { min-height: 36px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--cream); font: 600 14px/1 var(--body); min-width: 0; }
+select.dm-input { padding-right: 4px; }
+.dm-market-form { display: grid; grid-template-columns: minmax(0, 1fr) 64px 76px auto; gap: 6px; align-items: center; }
+.dm-seg-5 { grid-auto-columns: minmax(0, 1fr); }
+.dm-seg-5 button { font-size: 11px; padding: 0 2px; }
+.dm-scene .is-damaged .building-illustration { filter: grayscale(.7) brightness(.8); }
+.dm-scene .is-damaged .building-label { border-color: rgba(255,138,115,.7); }
+a.dm-btn { text-decoration: none; }
+.dm-brand { text-decoration: none; }

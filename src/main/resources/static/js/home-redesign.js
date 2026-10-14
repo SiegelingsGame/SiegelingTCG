@@ -326,7 +326,7 @@
     'Gallery': 'art'
   };
   var EXTERNAL = {
-    'Battle': '/battle', 'Siege': '/siege', 'Keep': '/keep', 'Chronicles': '/chronicles',
+    'Battle': '/battle', 'Siege': '/siege', 'Keep': '/keep', 'Chronicles': '/chronicles', 'Dominion': '/dominion',
     'Social Lobbies': 'social',
     'Featured Packs': 'shop', 'Open Packs': 'shop', 'Siegelcoins': 'shop'
   };
@@ -2545,6 +2545,8 @@
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<div class="sg-modes">' + MODES.map(function (m) { return modePanel(m, opts); }).join('') + '</div>' +
+        // Temporary fifth mode for live testing: a band, so the four-plate grid keeps its fit.
+        '<a class="sg-lobbies sg-dominion"' + linkAttrs('Dominion') + '><span class="sg-lobbies-dot"></span>Dominion<em>Test \u00b7 Keep + Chronicles</em><span class="go">\u203a</span></a>' +
         expeditionsSection(opts) +
         (function () {
           // The count is whatever /api/match/rooms reported. Unknown says so
@@ -8734,6 +8736,7 @@
       ['/siege expedition',    'Play tray › Siege Expedition',            'play'],
       ['/keep',                'Play tray › Keep',                        'play'],
       ['/chronicles',          'Play tray › Chronicles',                  'play'],
+      ['/dominion',            'Play tray › Dominion (test band)',        'play'],
       ['/help',                'More tray › Help',                        'more']
     ]},
     { area: 'Dashboard actions', rows: [
