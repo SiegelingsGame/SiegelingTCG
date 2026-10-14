@@ -369,6 +369,7 @@ button:disabled { cursor: not-allowed; }
 .dm-enc { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 8px; border-radius: 10px; background: rgba(255,255,255,.04); font-size: 12px; }
 .dm-enc strong { display: block; font-size: 12px; color: var(--cream); }
 .dm-enc small { display: block; color: var(--faint); font-size: 11px; }
+.dm-enc .dm-mark svg { width: 18px; height: 18px; }
 .dm-enc .dm-mark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; font: 800 12px/1 var(--body); }
 .dm-enc.ok .dm-mark { background: rgba(111,207,139,.2); color: var(--green); }
 .dm-enc.miss .dm-mark { background: rgba(255,138,115,.16); color: var(--red); }
@@ -430,3 +431,9 @@ button:disabled { cursor: not-allowed; }
     .dm-res-strip, .dm-objective { display: none; }
     .dm-top { padding-bottom: 6px; }
 }
+
+/* Profession rows: wrap long recipe text, keep the action button its own size. */
+.dm-enc > span:nth-child(2) { min-width: 0; }
+.dm-enc small { overflow-wrap: anywhere; }
+.dm-enc > .dm-btn { justify-self: end; }
+.dm-res.is-full { box-shadow: inset 0 0 0 1px var(--gold); color: var(--gold); }
