@@ -844,8 +844,8 @@ public class KeepService {
 
     /**
      * Lets a risen Keep return to the earth for permanent bonuses (see {@link KeepRebirth}).
-     * Buildings, stock, stored production, workshop tools and posts reset; rapport, lore,
-     * voices, Keeper level and owned decorations carry over. Refused while any construction
+     * Buildings, stock, stored production, workshop tools, posts and the Keeper level (with its
+     * Journey claims) reset; rapport, lore, voices and owned decorations carry over. Refused while any construction
      * is underway so a paid-for project is never silently lost.
      */
     public Map<String, Object> rebirth(AccountUser user, String requestId, long expectedVersion) {
@@ -862,6 +862,11 @@ public class KeepService {
             context.afterKeepPersist(p -> {
                 p.setGold(p.getGold() + coins);
                 p.setRemnants(p.getRemnants() + remnants);
+                // The Journey restarts at Keeper Level 1, so its level rewards pay out again
+                // as the keeper climbs back; other one-time claims stay spent.
+                p.setKeepRewardClaimIds(p.getKeepRewardClaimIds().stream()
+                        .filter(claimId -> !claimId.startsWith("keeper_level:"))
+                        .toList());
                 p.setUpdatedAt(context.now());
             });
             Map<String, Object> reborn = new LinkedHashMap<>();
@@ -965,6 +970,10 @@ public class KeepService {
     private void resetForRebirth(KeepState state, int newCount, Instant now) {
         state.setRebirthCount(newCount);
         state.setLastRebirthAt(now);
+        // Hall ranks ask for matching Keeper Levels, so the reborn Keep's climb is gated by
+        // leveling again rather than handed back at once. The backfill flag stays set so the
+        // one-time seeding never re-grants XP from carried-over lore.
+        state.setKeeperXp(0);
         state.setTimber(KeepRebirth.startingTimber(newCount));
         state.setEssence(0);
         state.setStorehouseLevel(0);

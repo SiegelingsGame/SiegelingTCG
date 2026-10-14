@@ -1722,7 +1722,7 @@ class KeepServiceTest {
     }
 
     @Test
-    void rebirthResetsTheKeepButKeepsWhatTheKeeperLearnedAndPaysOut() {
+    void rebirthResetsTheKeepAndKeeperLevelButKeepsWhatTheKeeperLearnedAndPaysOut() {
         service.getSnapshot(user);
         KeepState state = store.state;
         meetFirstRebirth(state);
@@ -1743,6 +1743,7 @@ class KeepServiceTest {
         int loreBefore = state.getUnlockedLoreIds().size();
         progression.setGold(100);
         progression.setRemnants(0);
+        progression.setKeepRewardClaimIds(List.of("keeper_level:2", "keeper_level:5", "first_build"));
         assertEquals(true, valueAt(service.getSnapshot(user), "rebirth", "available"));
 
         Map<String, Object> result = service.rebirth(user, "rebirth-1", state.getVersion());
@@ -1762,7 +1763,10 @@ class KeepServiceTest {
         assertEquals(0, after.getMaterialInventory().getOrDefault("verdant_fiber", 0));
         assertEquals(KeepRebirth.startingTimber(1), after.getTimber());
         assertEquals(30, after.getResidentRapport().get("mossling"), "rapport belongs to the Siegeling, not the walls");
-        assertEquals(5_000, after.getKeeperXp());
+        assertEquals(0, after.getKeeperXp(), "the keeper climbs the Journey again");
+        assertEquals(List.of("first_build"), progression.getKeepRewardClaimIds(),
+                "Keeper Level rewards pay out again; other one-time claims stay spent");
+        assertEquals(1, intAt(service.getSnapshot(user), "keeper", "level"));
         assertEquals(loreBefore, after.getUnlockedLoreIds().size());
         assertEquals(1, after.getCraftedItemCounts().get("carved_waypost"), "decorations are the keeper's own");
         assertFalse(after.getCraftedItemCounts().containsKey("gardener_tools"), "tools fall with their workshop");
