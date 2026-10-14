@@ -92,7 +92,18 @@ public class ArtGalleryController {
      * files into either folder (or uploading from the card dashboard).
      */
     @GetMapping("/api/art/loading")
-    public Map<String, Object> listLoadingArt() {
+    public Map<String, Object> listLoadingArt(
+            @RequestParam(value = "all", required = false, defaultValue = "false") boolean all) {
+        return catalog(all);
+    }
+
+    /**
+     * {@code all=false} is what the game reads: pieces a designer removed are left
+     * out, and their ids ride along in {@code removed} so clients can also drop
+     * the scenes they compile in. The dashboard asks for {@code all=true} to list
+     * removed pieces (flagged {@code hidden}) so they can be restored.
+     */
+    private Map<String, Object> catalog(boolean includeHidden) {
         Map<String, Map<String, Object>> pieces = new TreeMap<>();
         for (Map.Entry<String, ArtFile> artEntry : collectArtFilesByFilename().entrySet()) {
             String filename = artEntry.getKey();
@@ -163,6 +174,8 @@ public class ArtGalleryController {
             piece.put(orientation, artFile.url());
         }
         Map<String, ArtCardTagService.ArtTag> tags = artCardTagService.tags();
+        List<Map<String, Object>> art = new ArrayList<>();
+        List<String> removed = new ArrayList<>();
         for (Map.Entry<String, Map<String, Object>> entry : pieces.entrySet()) {
             Map<String, Object> piece = entry.getValue();
             piece.put("hasLandscape", piece.get("landscape") instanceof String);
@@ -171,8 +184,35 @@ public class ArtGalleryController {
             piece.put("cards", tag == null ? List.of() : tag.cards());
             piece.put("shop", tag == null ? List.of() : tag.shop());
             piece.put("focus", tag == null || tag.focus() == null ? "" : tag.focus());
+            // The name the file gives a piece is only a default.
+            piece.put("defaultTitle", piece.get("title"));
+            if (tag != null && !tag.title().isEmpty()) {
+                piece.put("title", tag.title());
+            }
+            if (tag != null && !tag.place().isEmpty()) {
+                piece.put("place", tag.place());
+            }
+            boolean hidden = tag != null && tag.hidden();
+            piece.put("hidden", hidden);
+            if (hidden) {
+                removed.add(entry.getKey());
+                if (!includeHidden) {
+                    continue;
+                }
+            }
+            art.add(piece);
         }
-        return Map.of("art", new ArrayList<>(pieces.values()));
+        // A removed piece the game compiles in (a cinematic scene) may have no
+        // file listed here at all; it still has to be named as removed.
+        tags.forEach((id, tag) -> {
+            if (tag.hidden() && !removed.contains(id)) {
+                removed.add(id);
+            }
+        });
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("art", art);
+        out.put("removed", removed);
+        return out;
     }
 
     /**
@@ -205,7 +245,7 @@ public class ArtGalleryController {
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("ok", true);
             response.put("url", url);
-            response.put("art", listLoadingArt().get("art"));
+            response.put("art", catalog(true).get("art"));
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException ex) {
             return error(HttpStatus.BAD_REQUEST, ex.getMessage());
@@ -232,7 +272,7 @@ public class ArtGalleryController {
                 email = authService.requireEditor(editorToken).email();
             }
             String id = ArtCardTagService.normalizePieceId(pieceId);
-            boolean known = listLoadingArt().get("art") instanceof List<?> art && art.stream()
+            boolean known = catalog(true).get("art") instanceof List<?> art && art.stream()
                     .anyMatch(p -> p instanceof Map<?, ?> m && id.equals(String.valueOf(m.get("id")).toLowerCase(Locale.ROOT)));
             if (!known) {
                 return error(HttpStatus.NOT_FOUND, "No art piece named " + pieceId + ".");
@@ -244,7 +284,10 @@ public class ArtGalleryController {
             response.put("cards", tag.cards());
             response.put("shop", tag.shop());
             response.put("focus", tag.focus());
-            response.put("art", listLoadingArt().get("art"));
+            response.put("title", tag.title());
+            response.put("place", tag.place());
+            response.put("hidden", tag.hidden());
+            response.put("art", catalog(true).get("art"));
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException ex) {
             // requireEditor signals a missing/expired sign-in this way too.

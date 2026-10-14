@@ -34,7 +34,10 @@ import java.util.regex.Pattern;
  * element's Siegeling Summon), {@code element:FIRE} (packs and daily offers of
  * that element) and {@code pack:<packId>}. {@code focus} is the CSS
  * object-position that keeps the subjects in frame when a 16:9 plate is cropped
- * to a phone.
+ * to a phone. {@code title} and {@code place} replace the name the catalog
+ * derives from the file name, and {@code hidden} takes the piece out of the game
+ * (gallery, loading screens, backgrounds, shop) without deleting its files, which
+ * for art packaged in the jar is not possible at runtime anyway.
  *
  * <p>{@code catalog/art-card-tags.json} is the baseline; the dashboard's edits
  * live in Firestore ({@code appConfig/artCardTags}) and replace the baseline
@@ -55,10 +58,17 @@ public class ArtCardTagService {
     // Two CSS lengths ("50% 40%"); anything else would be written straight
     // into a style attribute, so it is refused rather than escaped.
     private static final Pattern FOCUS = Pattern.compile("\\d{1,3}(\\.\\d+)?% \\d{1,3}(\\.\\d+)?%");
+    static final int MAX_NAME_LENGTH = 60;
 
-    public record ArtTag(List<String> cards, List<String> shop, String focus) {
+    public record ArtTag(List<String> cards, List<String> shop, String focus,
+                         String title, String place, boolean hidden) {
+        public ArtTag(List<String> cards, List<String> shop, String focus) {
+            this(cards, shop, focus, "", "", false);
+        }
+
         public boolean isEmpty() {
-            return cards.isEmpty() && shop.isEmpty() && (focus == null || focus.isEmpty());
+            return cards.isEmpty() && shop.isEmpty() && (focus == null || focus.isEmpty())
+                    && title.isEmpty() && place.isEmpty() && !hidden;
         }
 
         Map<String, Object> toMap() {
@@ -66,6 +76,9 @@ public class ArtCardTagService {
             out.put("cards", cards);
             out.put("shop", shop);
             out.put("focus", focus == null ? "" : focus);
+            out.put("title", title);
+            out.put("place", place);
+            out.put("hidden", hidden);
             return out;
         }
     }
@@ -105,15 +118,28 @@ public class ArtCardTagService {
     }
 
     /**
-     * Replaces one piece's tag. An all-empty tag is still stored, so clearing a
-     * piece that the baseline seeds stays cleared.
+     * Updates one piece's tag. Fields the body leaves out keep their current
+     * value, so the tag editor (cards, shop, focus) and the rename/remove
+     * controls can each save without wiping the other's fields. An all-empty
+     * tag is still stored, so clearing a piece that the baseline seeds stays
+     * cleared.
      */
     public ArtTag save(String pieceId, Map<String, Object> body, String updatedByEmail) {
         String id = normalizePieceId(pieceId);
         if (id.isEmpty()) {
             throw new IllegalArgumentException("Choose an art piece first.");
         }
-        ArtTag tag = parseTag(body == null ? Map.of() : body);
+        Map<String, Object> merged = new LinkedHashMap<>();
+        Map<String, ArtTag> current = new TreeMap<>(baseline());
+        current.putAll(overrides());
+        ArtTag existing = current.get(id);
+        if (existing != null) {
+            merged.putAll(existing.toMap());
+        }
+        if (body != null) {
+            merged.putAll(body);
+        }
+        ArtTag tag = parseTag(merged);
         Map<String, ArtTag> next = new TreeMap<>(overrides());
         next.put(id, tag);
         if (storageService.isFirestoreReady()) {
@@ -133,7 +159,21 @@ public class ArtCardTagService {
         if (!focus.isEmpty() && !FOCUS.matcher(focus).matches()) {
             throw new IllegalArgumentException("Focus must look like \"50% 40%\".");
         }
-        return new ArtTag(cards, shop, focus);
+        String title = cleanName(body.get("title"), "Name");
+        String place = cleanName(body.get("place"), "Place");
+        Object rawHidden = body.get("hidden");
+        boolean hidden = rawHidden instanceof Boolean b ? b : "true".equalsIgnoreCase(String.valueOf(rawHidden));
+        return new ArtTag(cards, shop, focus, title, place, hidden);
+    }
+
+    // Display text only (every renderer escapes it); trimmed, single-spaced and
+    // capped so a stray paste cannot blow out a caption.
+    private static String cleanName(Object raw, String label) {
+        String value = raw == null ? "" : String.valueOf(raw).replaceAll("\\s+", " ").trim();
+        if (value.length() > MAX_NAME_LENGTH) {
+            throw new IllegalArgumentException(label + " must be " + MAX_NAME_LENGTH + " characters or fewer.");
+        }
+        return value;
     }
 
     private static List<String> cleanList(Object raw, Pattern pattern, int max, boolean shopSlot, String label) {

@@ -113,9 +113,32 @@
   // order of the weakness chart (Fire > Ice > Wind > Earth > Fire), so the
   // front door never reads as a fire game. Draco is filed as Fire, not Earth.
   var HERO_SCENES = ['bearby-longfuse', 'frostag-training', 'skydon-skyreach', 'cactyjackedty-ruins'];
+  // The dashboard can rename a scene or take it out of the game; the art pool
+  // (loading-art.js) carries both, so the hub's own plates follow it too.
+  function artRemoved(id) {
+    var la = window.SiegelingsLoadingArt;
+    return Boolean(la && la.isRemoved && la.isRemoved(id));
+  }
+  function liveScene(g, byPiece) {
+    var p = byPiece[g.img];
+    if (!p || (!p.customTitle && !p.place)) return g;
+    var copy = {};
+    for (var k in g) if (Object.prototype.hasOwnProperty.call(g, k)) copy[k] = g[k];
+    if (p.customTitle) copy.title = p.title;
+    if (p.place) copy.place = p.place;
+    return copy;
+  }
+  function galleryScenes() {
+    var la = window.SiegelingsLoadingArt;
+    var byPiece = {};
+    ((la && la.pool()) || []).forEach(function (p) { byPiece[p.id] = p; });
+    var list = GALLERY.filter(function (g) { return !artRemoved(g.img); });
+    return (list.length ? list : GALLERY).map(function (g) { return liveScene(g, byPiece); });
+  }
   function scene(id) {
-    for (var i = 0; i < GALLERY.length; i++) if (GALLERY[i].img === id) return GALLERY[i];
-    return GALLERY[0];
+    var list = galleryScenes();
+    for (var i = 0; i < list.length; i++) if (list[i].img === id) return list[i];
+    return list[0];
   }
   function isPortraitScreen() {
     return Boolean(window.matchMedia && window.matchMedia('(orientation: portrait)').matches);
@@ -242,7 +265,8 @@
     var creditEl = hero.querySelector('[data-hero-credit]');
     var motes = hero.querySelector('[data-motes]');
 
-    var heroScenes = HERO_SCENES.map(scene);
+    var heroScenes = HERO_SCENES.filter(function (id) { return !artRemoved(id); }).map(scene);
+    if (!heroScenes.length) heroScenes = galleryScenes().slice(0, HERO_SCENES.length);
     function paint(i) {
       var scene = heroScenes[i % heroScenes.length];
       var card = byId(scene.card) || CARDS[0];
@@ -702,7 +726,7 @@
   function gallerySection() {
     return '<section class="sg-section" data-home-section="From the Gallery">' +
       '<div class="sg-section-head"><h3>From the Gallery</h3><a href="/gallery" data-screen="art">See All</a></div>' +
-      '<div class="sg-swipe sg-swipe-wide">' + GALLERY.map(function (g) {
+      '<div class="sg-swipe sg-swipe-wide">' + galleryScenes().map(function (g) {
         var card = byId(g.card) || CARDS[0];
         return '<a class="sg-plate" href="/gallery" data-screen="art" style="--el:' + color(card.element) + '">' +
           '<img src="' + plate(g, true) + '" alt="' + esc(g.title) + '" loading="lazy">' +
@@ -1129,7 +1153,7 @@
     }).filter(function (p) { return p.art; });
     // The hub's own plates are not all in the loading pool (the Sunscar Ruins
     // scene is hub-only), and the default rotation names them.
-    GALLERY.forEach(function (g) {
+    galleryScenes().forEach(function (g) {
       if (out.some(function (p) { return p.id === g.img; })) return;
       out.push({ id: g.img, title: g.title, place: g.place, thumb: plate(g, true), art: plate(g) });
     });
@@ -3610,6 +3634,7 @@
     var tagged = artForSlot('element:' + key);
     if (tagged) return pieceStage(tagged);
     var pick = ELEMENT_STAGE[key];
+    if (pick && pick.img && artRemoved(pick.img)) pick = null;
     if (pick) return { art: pick.src || heroPlate(scene(pick.img)), pos: pick.pos };
     if (SHOP_BANNER[key]) return { art: summonArt(key), pos: '66% 34%' };
     return { art: land(key), pos: '50% 50%' };
@@ -3789,7 +3814,7 @@
     // The all-element Siegeling pack has no one element, so it keeps the
     // market; a pack with a scene of its own uses it over its element's.
     var mixed = (pk.elements || []).length > 2;
-    var own = PACK_STAGE[pk.id];
+    var own = PACK_STAGE[pk.id] && !artRemoved(PACK_STAGE[pk.id].img) ? PACK_STAGE[pk.id] : null;
     var tagged = artForSlot('pack:' + pk.id);
     var bg = tagged ? pieceStage(tagged)
       : own ? { art: heroPlate(scene(own.img)), pos: own.pos } : mixed ? { art: sceneArt('market') } : elementStage(el);

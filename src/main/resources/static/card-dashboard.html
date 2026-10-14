@@ -27,7 +27,7 @@
          and before card-dashboard.css so the dashboard's own chrome rules stay
          authoritative. -->
     <link rel="stylesheet" href="/css/style.css?v=276">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=52">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=53">
     <link rel="stylesheet" href="/css/holographic.css?v=3">
 </head>
 <body>
@@ -954,6 +954,7 @@
                     <button type="button" class="btn btn-secondary" data-art-filter="incomplete">Incomplete</button>
                     <button type="button" class="btn btn-secondary" data-art-filter="landscape-only">Landscape only</button>
                     <button type="button" class="btn btn-secondary" data-art-filter="portrait-only">Portrait only</button>
+                    <button type="button" class="btn btn-secondary" data-art-filter="removed">Removed</button>
                 </div>
             </div>
             <div id="loadingArtGallery" class="loading-art-gallery" aria-live="polite"></div>
@@ -972,6 +973,14 @@
                         <i class="loading-art-focus-dot hidden" id="loadingArtFocusDot" aria-hidden="true"></i>
                     </div>
                     <section class="loading-art-tags" aria-label="Cards in this image">
+                        <div class="loading-art-tags-row">
+                            <h4>Name</h4>
+                            <p class="section-help">Shown in the gallery, on loading screens and on the home hero. Leave the name blank to use the file's.</p>
+                            <div class="loading-art-tag-add">
+                                <input id="loadingArtName" type="text" maxlength="60" autocomplete="off" aria-label="Art name">
+                                <input id="loadingArtPlace" type="text" maxlength="60" autocomplete="off" placeholder="Place (optional)" aria-label="Place">
+                            </div>
+                        </div>
                         <div class="loading-art-tags-row">
                             <h4>Cards in this image</h4>
                             <div class="loading-art-tag-chips" id="loadingArtTagCards"></div>
@@ -1003,6 +1012,7 @@
                     </section>
                     <footer class="loading-art-tags-foot">
                         <span id="loadingArtTagsStatus" class="section-help" role="status"></span>
+                        <button class="btn btn-danger" id="loadingArtRemove" type="button">Remove from game</button>
                         <button class="btn" id="loadingArtTagsSave" type="button">Save tags</button>
                     </footer>
                 </div>
@@ -1276,7 +1286,7 @@
 <script src="/js/card-binder-visual.js?v=30"></script>
 <script src="/js/dashboard-info.js?v=13"></script>
 <script src="/js/card-dashboard.js?v=69"></script>
-<script src="/js/loading-art-admin.js?v=6"></script>
+<script src="/js/loading-art-admin.js?v=7"></script>
 <script src="/js/siege-class-admin.js?v=3"></script>
 <script src="/js/siege-item-admin.js?v=2"></script>
 <script src="/js/siege-event-admin.js?v=3"></script>
