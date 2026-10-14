@@ -2350,7 +2350,7 @@
                 ${requirement}
                 ${rebirthBonusChips(next.bonuses, true)}
                 <p class="rebirth-reward">Reward: <strong>${escapeHtml(String(number(next.coins)))} Siegecoins</strong> and <strong>${escapeHtml(String(number(next.remnants)))} remnants</strong></p>
-                <p class="rebirth-note">Resets buildings, workshops, tools, stock and posts. Keeps rapport, lore, voices, Keeper level and decorations.</p></div>`
+                <p class="rebirth-note">Resets buildings, workshops, tools, stock, posts and Keeper level. Keeps rapport, lore, voices and decorations.</p></div>`
             : '';
         return `<section class="detail-card rebirth-card"><span class="eyebrow">Rebirth${count ? ` · ${count}/${number(rebirth.maxCount) || 10}` : ''}</span>
             <h3>${count ? escapeHtml(rebirth.title || 'Reborn') : 'Rebirth of the Keep'}</h3>${current}${preview}${action}</section>`;

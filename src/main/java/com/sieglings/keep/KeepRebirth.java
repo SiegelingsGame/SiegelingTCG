@@ -9,9 +9,9 @@ import java.util.Map;
  * Keep rebirth: once the Covenant Hall has risen far enough, the keeper may let the
  * sanctuary return to the earth and rebuild it. The first rebirth asks only for the
  * hall's first evolution (the Timber Outpost); each later rebirth asks for one rank
- * higher than the last, until every rebirth past the seventh asks for the Grand Keep. Buildings, stock and stored production
- * reset; what the keeper has learned does not — Siegeling rapport, lore and voices,
- * Keeper level and owned decorations all carry over.
+ * higher than the last, until every rebirth past the seventh asks for the Grand Keep. Buildings, stock,
+ * stored production and the Keeper level reset; Siegeling rapport, lore and voices and owned
+ * decorations carry over.
  *
  * <p>Each rebirth stacks permanent bonuses (production, storage, build speed, a larger
  * starting stockpile) and also scales build costs up, so a reborn Keep rebuilds faster
