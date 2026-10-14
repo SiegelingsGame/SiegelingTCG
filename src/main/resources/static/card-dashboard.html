@@ -27,7 +27,7 @@
          and before card-dashboard.css so the dashboard's own chrome rules stay
          authoritative. -->
     <link rel="stylesheet" href="/css/style.css?v=276">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=51">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=52">
     <link rel="stylesheet" href="/css/holographic.css?v=3">
 </head>
 <body>
@@ -965,6 +965,8 @@
                         <button class="btn btn-secondary" id="loadingArtPreviewClose" type="button" aria-label="Close">&times;</button>
                     </div>
                     <div class="loading-art-preview-tabs" id="loadingArtPreviewTabs"></div>
+                    <!-- Pinned above the scrolling editor so the art stays in view while
+                         tagging, and so a tap on it can set the crop focus. -->
                     <div class="loading-art-preview-frame" id="loadingArtPreviewFrame">
                         <img id="loadingArtPreviewImg" alt="">
                         <i class="loading-art-focus-dot hidden" id="loadingArtFocusDot" aria-hidden="true"></i>
@@ -973,30 +975,36 @@
                         <div class="loading-art-tags-row">
                             <h4>Cards in this image</h4>
                             <div class="loading-art-tag-chips" id="loadingArtTagCards"></div>
-                            <div class="loading-art-tag-add">
-                                <input id="loadingArtCardInput" type="text" list="loadingArtCardOptions" placeholder="Add a card by name or id…" aria-label="Add a card to this image">
-                                <button class="btn btn-secondary" id="loadingArtCardAdd" type="button">Add card</button>
-                            </div>
-                            <datalist id="loadingArtCardOptions"></datalist>
+                            <input id="loadingArtCardInput" type="search" autocomplete="off" placeholder="Search cards to add…" aria-label="Search cards to add to this image" aria-controls="loadingArtCardResults">
+                            <div class="loading-art-tag-results" id="loadingArtCardResults" role="listbox" aria-label="Matching cards"></div>
                         </div>
                         <div class="loading-art-tags-row">
                             <h4>Shop backdrop</h4>
-                            <p class="section-help">Where the shop hangs this piece: <code>summon:FIRE</code> (that element's Siegeling Summon), <code>element:FIRE</code> (packs and daily offers of that element), <code>pack:pack_id</code>. A daily offer of a tagged card uses this piece automatically.</p>
+                            <p class="section-help">Where the shop hangs this piece. Summon = that element's Siegeling Summon; Element = its packs and daily offers; Pack = one pack. A daily offer of a tagged card uses this piece automatically.</p>
                             <div class="loading-art-tag-chips" id="loadingArtTagShop"></div>
                             <div class="loading-art-tag-add">
-                                <input id="loadingArtShopInput" type="text" list="loadingArtShopOptions" placeholder="summon:FIRE, element:ICE, pack:…" aria-label="Add a shop slot">
-                                <button class="btn btn-secondary" id="loadingArtShopAdd" type="button">Add slot</button>
+                                <select id="loadingArtShopKind" aria-label="Shop slot kind">
+                                    <option value="summon">Summon</option>
+                                    <option value="element">Element</option>
+                                    <option value="pack">Pack</option>
+                                </select>
+                                <select id="loadingArtShopTarget" aria-label="Element or pack"></select>
+                                <button class="btn btn-secondary" id="loadingArtShopAdd" type="button">Add</button>
                             </div>
-                            <datalist id="loadingArtShopOptions"></datalist>
                         </div>
-                        <div class="loading-art-tags-row loading-art-tag-add">
-                            <label for="loadingArtFocus">Phone crop focus</label>
-                            <input id="loadingArtFocus" type="text" placeholder="50% 40%" style="max-width:110px;">
-                            <span class="section-help" style="margin:0;">Click the image to set it.</span>
-                            <button class="btn" id="loadingArtTagsSave" type="button" style="margin-left:auto;">Save tags</button>
-                            <span id="loadingArtTagsStatus" class="section-help" style="margin:0;"></span>
+                        <div class="loading-art-tags-row">
+                            <h4>Phone crop focus</h4>
+                            <p class="section-help">Tap the image above on the spot that should stay in view when a phone crops it.</p>
+                            <div class="loading-art-tag-add">
+                                <input id="loadingArtFocus" type="text" placeholder="50% 40%" aria-label="Crop focus" style="max-width:140px;">
+                                <button class="btn btn-secondary" id="loadingArtFocusClear" type="button">Clear</button>
+                            </div>
                         </div>
                     </section>
+                    <footer class="loading-art-tags-foot">
+                        <span id="loadingArtTagsStatus" class="section-help" role="status"></span>
+                        <button class="btn" id="loadingArtTagsSave" type="button">Save tags</button>
+                    </footer>
                 </div>
             </div>
         </div>
@@ -1268,7 +1276,7 @@
 <script src="/js/card-binder-visual.js?v=30"></script>
 <script src="/js/dashboard-info.js?v=13"></script>
 <script src="/js/card-dashboard.js?v=68"></script>
-<script src="/js/loading-art-admin.js?v=4"></script>
+<script src="/js/loading-art-admin.js?v=5"></script>
 <script src="/js/siege-class-admin.js?v=3"></script>
 <script src="/js/siege-item-admin.js?v=2"></script>
 <script src="/js/siege-event-admin.js?v=3"></script>

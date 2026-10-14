@@ -19,6 +19,11 @@
     var artCache = [];
     var activeFilter = 'all';
 
+    // The workspace panel it is written inside creates a containing block
+    // (backdrop-filter), so `position: fixed` pinned the overlay to the panel
+    // and it scrolled away with the page. Hosted on <body>, it covers the screen.
+    if (overlay && overlay.parentNode !== document.body) document.body.appendChild(overlay);
+
     /* ---- Cards in this image ----
        Each piece carries the cards it shows and the shop stages it backs
        (PUT /api/art/tags/{id}, ArtCardTagService). The hub reads them for
@@ -26,7 +31,9 @@
     var tagCardsEl = document.getElementById('loadingArtTagCards');
     var tagShopEl = document.getElementById('loadingArtTagShop');
     var cardInput = document.getElementById('loadingArtCardInput');
-    var shopInput = document.getElementById('loadingArtShopInput');
+    var cardResults = document.getElementById('loadingArtCardResults');
+    var shopKind = document.getElementById('loadingArtShopKind');
+    var shopTarget = document.getElementById('loadingArtShopTarget');
     var focusInput = document.getElementById('loadingArtFocus');
     var focusDot = document.getElementById('loadingArtFocusDot');
     var tagStatus = document.getElementById('loadingArtTagsStatus');
@@ -45,36 +52,62 @@
         return card ? (card.name || id) : null;
     }
 
-    // Accepts an id, an exact name, or a datalist pick ("Name (id)").
-    function resolveCardId(text) {
-        var value = String(text || '').trim();
-        if (!value) return null;
-        var list = tagCatalog();
-        var paren = /\(([^()]+)\)\s*$/.exec(value);
-        if (paren && list.some(function (c) { return c.id === paren[1]; })) return paren[1];
-        var byId = list.find(function (c) { return c.id === value; });
-        if (byId) return byId.id;
-        var lower = value.toLowerCase();
-        var byName = list.find(function (c) { return String(c.name || '').toLowerCase() === lower; });
-        return byName ? byName.id : null;
+    // Name or id, case-insensitive; exact hits first, then prefix, then
+    // anywhere. A tappable list rather than a <datalist>, which iOS Safari
+    // shows only as a cramped strip above the keyboard.
+    function searchCards(text) {
+        var q = String(text || '').trim().toLowerCase();
+        if (!q) return [];
+        function rank(c) {
+            var name = String(c.name || '').toLowerCase();
+            var id = String(c.id).toLowerCase();
+            if (name === q || id === q) return 0;
+            if (name.indexOf(q) === 0 || id.indexOf(q) === 0) return 1;
+            if (name.indexOf(q) !== -1 || id.indexOf(q) !== -1) return 2;
+            return -1;
+        }
+        return tagCatalog()
+            .map(function (c) { return { card: c, rank: rank(c) }; })
+            .filter(function (r) { return r.rank >= 0; })
+            .sort(function (x, y) {
+                return x.rank - y.rank || String(x.card.name || x.card.id).localeCompare(String(y.card.name || y.card.id));
+            })
+            .slice(0, 8)
+            .map(function (r) { return r.card; });
+    }
+
+    function renderResults() {
+        if (!cardResults) return;
+        var q = cardInput ? cardInput.value.trim() : '';
+        var hits = searchCards(q);
+        if (!q) { cardResults.innerHTML = ''; return; }
+        if (!hits.length) {
+            cardResults.innerHTML = '<p class="section-help">' +
+                (tagCatalog().length ? 'No card matches "' + escapeHtml(q) + '".' : 'The card catalog is still loading…') + '</p>';
+            return;
+        }
+        cardResults.innerHTML = hits.map(function (c) {
+            var added = draft && draft.cards.indexOf(c.id) !== -1;
+            return '<button type="button" role="option" class="loading-art-tag-result' + (added ? ' is-added' : '') +
+                '" data-add-card="' + escapeHtml(c.id) + '"' + (added ? ' aria-disabled="true"' : '') + '>' +
+                '<strong>' + escapeHtml(c.name || c.id) + '</strong>' +
+                '<small>' + escapeHtml([c.element, c.type, added ? 'added' : c.id].filter(Boolean).join(' · ').toLowerCase()) + '</small>' +
+                '</button>';
+        }).join('');
     }
 
     function fillOptions() {
-        var cardList = document.getElementById('loadingArtCardOptions');
-        if (cardList) {
-            cardList.innerHTML = tagCatalog().map(function (c) {
-                return '<option value="' + escapeHtml((c.name || c.id) + ' (' + c.id + ')') + '"></option>';
-            }).join('');
-        }
-        var shopList = document.getElementById('loadingArtShopOptions');
-        if (shopList) {
-            var slots = [];
-            ELEMENTS.forEach(function (el) { slots.push('summon:' + el, 'element:' + el); });
-            packIds.forEach(function (id) { slots.push('pack:' + id); });
-            shopList.innerHTML = slots.map(function (v) {
-                return '<option value="' + escapeHtml(v) + '"></option>';
-            }).join('');
-        }
+        if (!shopTarget || !shopKind) return;
+        var kind = shopKind.value;
+        var values = kind === 'pack' ? packIds : ELEMENTS;
+        var keep = shopTarget.value;
+        shopTarget.innerHTML = values.length
+            ? values.map(function (v) {
+                var label = kind === 'pack' ? v : v.charAt(0) + v.slice(1).toLowerCase();
+                return '<option value="' + escapeHtml(v) + '">' + escapeHtml(label) + '</option>';
+            }).join('')
+            : '<option value="">No packs loaded</option>';
+        if (values.indexOf(keep) !== -1) shopTarget.value = keep;
     }
 
     function chip(label, value, kind, unknown) {
@@ -120,37 +153,29 @@
         };
         if (tagStatus) tagStatus.textContent = '';
         if (cardInput) cardInput.value = '';
-        if (shopInput) shopInput.value = '';
         fillOptions();
+        renderResults();
         renderDraft();
     }
 
-    function addCard() {
-        if (!draft || !cardInput) return;
-        var id = resolveCardId(cardInput.value);
-        if (!id) {
-            if (tagStatus) tagStatus.textContent = 'No card matches "' + cardInput.value.trim() + '".';
-            return;
-        }
-        if (draft.cards.indexOf(id) === -1) draft.cards.push(id);
-        cardInput.value = '';
+    function markDirty() {
         if (tagStatus) tagStatus.textContent = 'Unsaved changes.';
+    }
+
+    function addCard(id) {
+        if (!draft || !id) return;
+        if (draft.cards.indexOf(id) === -1) draft.cards.push(id);
+        // Keep the query so several cards from one search can be tapped in turn.
+        markDirty();
         renderDraft();
+        renderResults();
     }
 
     function addSlot() {
-        if (!draft || !shopInput) return;
-        var raw = shopInput.value.trim();
-        var m = /^(summon|element|pack):\s*([A-Za-z0-9_-]+)$/i.exec(raw);
-        if (!m) {
-            if (tagStatus) tagStatus.textContent = 'Slots look like summon:FIRE, element:ICE or pack:pack_id.';
-            return;
-        }
-        var kind = m[1].toLowerCase();
-        var slot = kind + ':' + (kind === 'pack' ? m[2] : m[2].toUpperCase());
+        if (!draft || !shopKind || !shopTarget || !shopTarget.value) return;
+        var slot = shopKind.value + ':' + shopTarget.value;
         if (draft.shop.indexOf(slot) === -1) draft.shop.push(slot);
-        shopInput.value = '';
-        if (tagStatus) tagStatus.textContent = 'Unsaved changes.';
+        markDirty();
         renderDraft();
     }
 
@@ -184,11 +209,26 @@
             .catch(function () { if (tagStatus) tagStatus.textContent = 'Save failed — network error.'; });
     }
 
-    document.getElementById('loadingArtCardAdd')?.addEventListener('click', addCard);
     document.getElementById('loadingArtShopAdd')?.addEventListener('click', addSlot);
     document.getElementById('loadingArtTagsSave')?.addEventListener('click', saveDraft);
-    cardInput?.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addCard(); } });
-    shopInput?.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addSlot(); } });
+    shopKind?.addEventListener('change', fillOptions);
+    cardInput?.addEventListener('input', renderResults);
+    cardInput?.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        var first = searchCards(cardInput.value)[0];
+        if (first) addCard(first.id);
+    });
+    cardResults?.addEventListener('click', function (e) {
+        var hit = e.target.closest('[data-add-card]');
+        if (hit) addCard(hit.getAttribute('data-add-card'));
+    });
+    document.getElementById('loadingArtFocusClear')?.addEventListener('click', function () {
+        if (!draft) return;
+        draft.focus = '';
+        markDirty();
+        renderDraft();
+    });
     focusInput?.addEventListener('input', function () {
         if (!draft) return;
         draft.focus = focusInput.value.trim();
@@ -201,8 +241,9 @@
             if (!draft || (!card && !slot)) return;
             if (card) draft.cards = draft.cards.filter(function (id) { return id !== card.getAttribute('data-remove-card'); });
             if (slot) draft.shop = draft.shop.filter(function (v) { return v !== slot.getAttribute('data-remove-slot'); });
-            if (tagStatus) tagStatus.textContent = 'Unsaved changes.';
+            markDirty();
             renderDraft();
+            renderResults();
         });
     });
     // The point clicked becomes the crop focus the shop uses on a phone.
@@ -312,6 +353,7 @@
             previewImg.classList.add('hidden');
         }
         overlay.classList.remove('hidden');
+        lockPageScroll();
 
         Array.prototype.forEach.call(previewTabs.querySelectorAll('button[data-url]'), function (btn) {
             btn.addEventListener('click', function () {
@@ -345,7 +387,34 @@
         return true;
     }
 
+    // iOS scrolls the page under a fixed overlay, which carried the editor off
+    // screen mid-edit. Pinning the body in place (and restoring the scroll
+    // position after) is the one lock Safari honours.
+    var lockedScrollY = null;
+    function lockPageScroll() {
+        if (lockedScrollY !== null) return;
+        lockedScrollY = window.scrollY || window.pageYOffset || 0;
+        var body = document.body.style;
+        body.position = 'fixed';
+        body.top = (-lockedScrollY) + 'px';
+        body.left = '0';
+        body.right = '0';
+        body.overflow = 'hidden';
+    }
+    function unlockPageScroll() {
+        if (lockedScrollY === null) return;
+        var body = document.body.style;
+        body.position = '';
+        body.top = '';
+        body.left = '';
+        body.right = '';
+        body.overflow = '';
+        window.scrollTo(0, lockedScrollY);
+        lockedScrollY = null;
+    }
+
     function closePreview() {
+        if (overlay && !overlay.classList.contains('hidden')) unlockPageScroll();
         if (overlay) overlay.classList.add('hidden');
         if (previewImg) {
             previewImg.src = '';

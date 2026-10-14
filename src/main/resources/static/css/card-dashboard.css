@@ -1328,9 +1328,30 @@ textarea {
     cursor: crosshair;
 }
 
-/* The tag editor sits under the image, so the modal scrolls instead of clipping it. */
-.loading-art-preview-modal { overflow-y: auto; }
-.loading-art-preview-frame { position: relative; }
+/* The preview is a fixed-height column: header, tabs and art stay put, only
+   the tag editor scrolls, and Save sits in a footer that never leaves view.
+   One tall scrolling modal let the art and the Save button drift apart, and on
+   iOS the page behind kept scrolling (loading-art-admin.js also locks it). */
+.loading-art-preview-overlay { overscroll-behavior: contain; }
+.loading-art-preview-modal {
+    height: min(92vh, 92dvh);
+    max-height: min(92vh, 92dvh);
+}
+.loading-art-preview-head,
+.loading-art-preview-tabs,
+.loading-art-tags-foot { flex: 0 0 auto; }
+.loading-art-preview-frame {
+    position: relative;
+    flex: 0 0 auto;
+    min-height: 0;
+    padding: 10px 16px;
+}
+.loading-art-preview-frame img {
+    max-height: 38vh;
+    max-height: 38dvh;
+    cursor: crosshair;
+    touch-action: manipulation;
+}
 .loading-art-focus-dot {
     position: absolute;
     width: 18px;
@@ -1342,37 +1363,103 @@ textarea {
     pointer-events: none;
 }
 .loading-art-tags {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 0 16px 16px;
+    gap: 16px;
+    padding: 4px 16px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
-.loading-art-tags h4 { margin: 0 0 6px; font-size: 13px; letter-spacing: 0.04em; }
-.loading-art-tags .section-help { margin: 0 0 6px; }
-.loading-art-tag-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.loading-art-tags h4 { margin: 10px 0 6px; font-size: 13px; letter-spacing: 0.04em; }
+.loading-art-tags .section-help { margin: 0 0 8px; }
+.loading-art-tag-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .loading-art-tag-chips:empty::before { content: "None yet."; opacity: 0.55; font-size: 12px; }
 .loading-art-tag-chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 6px 4px 10px;
+    gap: 4px;
+    min-height: 34px;
+    padding: 2px 2px 2px 12px;
     border-radius: 99px;
-    font-size: 12px;
+    font-size: 13px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(212, 175, 55, 0.4);
 }
 .loading-art-tag-chip.is-unknown { border-color: rgba(255, 140, 100, 0.7); color: #ffc8a8; }
 .loading-art-tag-chip button {
+    width: 30px;
+    height: 30px;
     border: 0;
+    border-radius: 50%;
     background: none;
     color: inherit;
     cursor: pointer;
-    font-size: 15px;
+    font-size: 18px;
     line-height: 1;
-    padding: 0 2px;
 }
 .loading-art-tag-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.loading-art-tag-add input[type="text"] { min-width: 220px; flex: 0 1 320px; }
+.loading-art-tag-add select { width: auto; flex: 1 1 140px; }
+.loading-art-tag-add input { flex: 1 1 140px; }
+.loading-art-tag-results { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.loading-art-tag-results:empty { display: none; }
+.loading-art-tag-result {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.loading-art-tag-result:hover,
+.loading-art-tag-result:focus-visible { background: rgba(212, 175, 55, 0.15); }
+.loading-art-tag-result small { margin-left: auto; opacity: 0.6; font-size: 11px; }
+.loading-art-tag-result.is-added { opacity: 0.45; }
+.loading-art-tags-foot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: #121820;
+}
+.loading-art-tags-foot .section-help { flex: 1 1 auto; margin: 0; min-width: 0; }
+.loading-art-tags-foot .btn { flex: 0 0 auto; }
+
+/* Phones: the preview becomes a full-screen editor rather than a floating card. */
+@media (max-width: 720px) {
+    .loading-art-preview-overlay { padding: 0; align-items: stretch; }
+    .loading-art-preview-modal {
+        width: 100%;
+        height: 100vh;
+        height: 100dvh;
+        max-height: none;
+        border-radius: 0;
+        border: 0;
+        padding-top: env(safe-area-inset-top);
+    }
+    .loading-art-preview-head { padding: 8px 12px; }
+    .loading-art-preview-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding: 8px 12px 0;
+        scrollbar-width: none;
+    }
+    .loading-art-preview-tabs button { flex: 0 0 auto; white-space: nowrap; padding: 6px 10px; }
+    .loading-art-preview-frame { padding: 8px 12px; min-height: 0; }
+    .loading-art-preview-frame img { max-height: 30vh; max-height: 30dvh; }
+    .loading-art-tags { padding: 0 12px 12px; }
+    .loading-art-tags-foot { padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); }
+}
 
 .siege-mode-panel {
     grid-column: 1 / -1;
