@@ -253,7 +253,12 @@ public class ArtGalleryController {
                     : HttpStatus.BAD_REQUEST;
             return error(status, ex.getMessage());
         } catch (IllegalStateException ex) {
-            return error(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+            Throwable cause = ex.getCause();
+            return error(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage()
+                    + (cause != null && cause.getMessage() != null ? " (" + cause.getMessage() + ")" : ""));
+        } catch (RuntimeException ex) {
+            // Anything else still answers in JSON, so the dashboard can show why.
+            return error(HttpStatus.INTERNAL_SERVER_ERROR, "Saving art tags failed: " + ex.getMessage());
         }
     }
 

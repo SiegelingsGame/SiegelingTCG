@@ -179,6 +179,9 @@
         renderDraft();
     }
 
+    // Every failure used to read "network error": an unreachable server, a
+    // reply that was not JSON (a proxy error page) and a throw while redrawing
+    // after a save that had worked. Each now says which it was.
     function saveDraft() {
         if (!draft) return;
         if (focusInput) draft.focus = focusInput.value.trim();
@@ -186,27 +189,54 @@
         try {
             var token = localStorage.getItem('sieglingsCardEditorToken');
             if (token) headers['X-Card-Editor-Token'] = token;
+            var gate = localStorage.getItem('sieglingsCardDashboardGate');
+            if (gate) headers['X-Card-Editor-Gate'] = gate;
         } catch (e) { /* anonymous save attempt */ }
         if (tagStatus) tagStatus.textContent = 'Saving…';
         var pieceId = draft.pieceId;
-        fetch('/api/art/tags/' + encodeURIComponent(pieceId), {
+        var request = {
             method: 'PUT',
             headers: headers,
             body: JSON.stringify({ cards: draft.cards, shop: draft.shop, focus: draft.focus })
-        })
-            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        };
+        var url = '/api/art/tags/' + encodeURIComponent(pieceId);
+        // A PUT of the whole tag set is safe to repeat, so a dropped phone
+        // connection gets one more try before the save is reported as failed.
+        fetch(url, request)
+            .catch(function () {
+                if (tagStatus) tagStatus.textContent = 'Saving… (retrying)';
+                return new Promise(function (resolve) { setTimeout(resolve, 1200); })
+                    .then(function () { return fetch(url, request); });
+            })
+            .then(function (r) {
+                return r.text().then(function (text) {
+                    var d = null;
+                    try { d = text ? JSON.parse(text) : null; } catch (e) { d = null; }
+                    return { ok: r.ok, status: r.status, d: d };
+                });
+            }, function () {
+                throw new Error('unreachable');
+            })
             .then(function (res) {
+                if (!res.d) {
+                    if (tagStatus) tagStatus.textContent = 'Save failed — the server replied ' + res.status +
+                        ' without data. Try again in a moment.';
+                    return;
+                }
                 if (!res.ok) {
-                    if (tagStatus) tagStatus.textContent = (res.d && res.d.error) || 'Save failed. Sign in under Live Publishing first.';
+                    if (tagStatus) tagStatus.textContent = res.d.error ||
+                        (res.status === 401 ? 'Save failed. Sign in under Live Publishing first.' : 'Save failed (' + res.status + ').');
                     return;
                 }
                 if (tagStatus) tagStatus.textContent = 'Saved. Players see it on their next art refresh.';
                 if (res.d.art) {
                     artCache = res.d.art;
-                    renderGallery();
+                    try { renderGallery(); } catch (e) { /* the save stands; the list redraws on the next load */ }
                 }
             })
-            .catch(function () { if (tagStatus) tagStatus.textContent = 'Save failed — network error.'; });
+            .catch(function () {
+                if (tagStatus) tagStatus.textContent = 'Save failed — could not reach the server. Check the connection and try again.';
+            });
     }
 
     document.getElementById('loadingArtShopAdd')?.addEventListener('click', addSlot);
