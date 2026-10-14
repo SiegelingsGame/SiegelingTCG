@@ -19,6 +19,209 @@
     var artCache = [];
     var activeFilter = 'all';
 
+    /* ---- Cards in this image ----
+       Each piece carries the cards it shows and the shop stages it backs
+       (PUT /api/art/tags/{id}, ArtCardTagService). The hub reads them for
+       "Cards in this image" and to pick shop backdrops. */
+    var tagCardsEl = document.getElementById('loadingArtTagCards');
+    var tagShopEl = document.getElementById('loadingArtTagShop');
+    var cardInput = document.getElementById('loadingArtCardInput');
+    var shopInput = document.getElementById('loadingArtShopInput');
+    var focusInput = document.getElementById('loadingArtFocus');
+    var focusDot = document.getElementById('loadingArtFocusDot');
+    var tagStatus = document.getElementById('loadingArtTagsStatus');
+    var ELEMENTS = ['FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'ELECTRIC', 'METAL', 'POISON',
+        'PSYCHIC', 'UNDEAD', 'LIGHT', 'SHADOW', 'NEUTRAL'];
+    var packIds = [];
+    var draft = null;
+
+    function tagCatalog() {
+        return (window.SieglingsCardCatalog || []).concat(window.SieglingsTrainerCatalog || [])
+            .filter(function (c) { return c && c.id; });
+    }
+
+    function cardLabel(id) {
+        var card = tagCatalog().find(function (c) { return c.id === id; });
+        return card ? (card.name || id) : null;
+    }
+
+    // Accepts an id, an exact name, or a datalist pick ("Name (id)").
+    function resolveCardId(text) {
+        var value = String(text || '').trim();
+        if (!value) return null;
+        var list = tagCatalog();
+        var paren = /\(([^()]+)\)\s*$/.exec(value);
+        if (paren && list.some(function (c) { return c.id === paren[1]; })) return paren[1];
+        var byId = list.find(function (c) { return c.id === value; });
+        if (byId) return byId.id;
+        var lower = value.toLowerCase();
+        var byName = list.find(function (c) { return String(c.name || '').toLowerCase() === lower; });
+        return byName ? byName.id : null;
+    }
+
+    function fillOptions() {
+        var cardList = document.getElementById('loadingArtCardOptions');
+        if (cardList) {
+            cardList.innerHTML = tagCatalog().map(function (c) {
+                return '<option value="' + escapeHtml((c.name || c.id) + ' (' + c.id + ')') + '"></option>';
+            }).join('');
+        }
+        var shopList = document.getElementById('loadingArtShopOptions');
+        if (shopList) {
+            var slots = [];
+            ELEMENTS.forEach(function (el) { slots.push('summon:' + el, 'element:' + el); });
+            packIds.forEach(function (id) { slots.push('pack:' + id); });
+            shopList.innerHTML = slots.map(function (v) {
+                return '<option value="' + escapeHtml(v) + '"></option>';
+            }).join('');
+        }
+    }
+
+    function chip(label, value, kind, unknown) {
+        return '<span class="loading-art-tag-chip' + (unknown ? ' is-unknown' : '') + '"' +
+            (unknown ? ' title="Not in the loaded catalog"' : '') + '>' + escapeHtml(label) +
+            '<button type="button" data-remove-' + kind + '="' + escapeHtml(value) + '" aria-label="Remove ' +
+            escapeHtml(label) + '">&times;</button></span>';
+    }
+
+    function renderDraft() {
+        if (!draft) return;
+        if (tagCardsEl) {
+            tagCardsEl.innerHTML = draft.cards.map(function (id) {
+                var name = cardLabel(id);
+                return chip(name ? name + ' · ' + id : id, id, 'card', !name && tagCatalog().length > 0);
+            }).join('');
+        }
+        if (tagShopEl) {
+            tagShopEl.innerHTML = draft.shop.map(function (slot) { return chip(slot, slot, 'slot', false); }).join('');
+        }
+        if (focusInput) focusInput.value = draft.focus || '';
+        placeFocusDot();
+    }
+
+    function placeFocusDot() {
+        if (!focusDot || !previewImg) return;
+        var m = /^(\d+(?:\.\d+)?)% (\d+(?:\.\d+)?)%$/.exec(draft && draft.focus || '');
+        if (!m || previewImg.classList.contains('hidden') || !previewImg.naturalWidth) {
+            focusDot.classList.add('hidden');
+            return;
+        }
+        focusDot.style.left = (previewImg.offsetLeft + previewImg.offsetWidth * Number(m[1]) / 100) + 'px';
+        focusDot.style.top = (previewImg.offsetTop + previewImg.offsetHeight * Number(m[2]) / 100) + 'px';
+        focusDot.classList.remove('hidden');
+    }
+
+    function startDraft(piece) {
+        draft = {
+            pieceId: piece.id,
+            cards: (piece.cards || []).slice(),
+            shop: (piece.shop || []).slice(),
+            focus: piece.focus || ''
+        };
+        if (tagStatus) tagStatus.textContent = '';
+        if (cardInput) cardInput.value = '';
+        if (shopInput) shopInput.value = '';
+        fillOptions();
+        renderDraft();
+    }
+
+    function addCard() {
+        if (!draft || !cardInput) return;
+        var id = resolveCardId(cardInput.value);
+        if (!id) {
+            if (tagStatus) tagStatus.textContent = 'No card matches "' + cardInput.value.trim() + '".';
+            return;
+        }
+        if (draft.cards.indexOf(id) === -1) draft.cards.push(id);
+        cardInput.value = '';
+        if (tagStatus) tagStatus.textContent = 'Unsaved changes.';
+        renderDraft();
+    }
+
+    function addSlot() {
+        if (!draft || !shopInput) return;
+        var raw = shopInput.value.trim();
+        var m = /^(summon|element|pack):\s*([A-Za-z0-9_-]+)$/i.exec(raw);
+        if (!m) {
+            if (tagStatus) tagStatus.textContent = 'Slots look like summon:FIRE, element:ICE or pack:pack_id.';
+            return;
+        }
+        var kind = m[1].toLowerCase();
+        var slot = kind + ':' + (kind === 'pack' ? m[2] : m[2].toUpperCase());
+        if (draft.shop.indexOf(slot) === -1) draft.shop.push(slot);
+        shopInput.value = '';
+        if (tagStatus) tagStatus.textContent = 'Unsaved changes.';
+        renderDraft();
+    }
+
+    function saveDraft() {
+        if (!draft) return;
+        if (focusInput) draft.focus = focusInput.value.trim();
+        var headers = { 'Content-Type': 'application/json' };
+        try {
+            var token = localStorage.getItem('sieglingsCardEditorToken');
+            if (token) headers['X-Card-Editor-Token'] = token;
+        } catch (e) { /* anonymous save attempt */ }
+        if (tagStatus) tagStatus.textContent = 'Saving…';
+        var pieceId = draft.pieceId;
+        fetch('/api/art/tags/' + encodeURIComponent(pieceId), {
+            method: 'PUT',
+            headers: headers,
+            body: JSON.stringify({ cards: draft.cards, shop: draft.shop, focus: draft.focus })
+        })
+            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+            .then(function (res) {
+                if (!res.ok) {
+                    if (tagStatus) tagStatus.textContent = (res.d && res.d.error) || 'Save failed. Sign in under Live Publishing first.';
+                    return;
+                }
+                if (tagStatus) tagStatus.textContent = 'Saved. Players see it on their next art refresh.';
+                if (res.d.art) {
+                    artCache = res.d.art;
+                    renderGallery();
+                }
+            })
+            .catch(function () { if (tagStatus) tagStatus.textContent = 'Save failed — network error.'; });
+    }
+
+    document.getElementById('loadingArtCardAdd')?.addEventListener('click', addCard);
+    document.getElementById('loadingArtShopAdd')?.addEventListener('click', addSlot);
+    document.getElementById('loadingArtTagsSave')?.addEventListener('click', saveDraft);
+    cardInput?.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addCard(); } });
+    shopInput?.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addSlot(); } });
+    focusInput?.addEventListener('input', function () {
+        if (!draft) return;
+        draft.focus = focusInput.value.trim();
+        placeFocusDot();
+    });
+    [tagCardsEl, tagShopEl].forEach(function (host) {
+        host?.addEventListener('click', function (e) {
+            var card = e.target.closest('[data-remove-card]');
+            var slot = e.target.closest('[data-remove-slot]');
+            if (!draft || (!card && !slot)) return;
+            if (card) draft.cards = draft.cards.filter(function (id) { return id !== card.getAttribute('data-remove-card'); });
+            if (slot) draft.shop = draft.shop.filter(function (v) { return v !== slot.getAttribute('data-remove-slot'); });
+            if (tagStatus) tagStatus.textContent = 'Unsaved changes.';
+            renderDraft();
+        });
+    });
+    // The point clicked becomes the crop focus the shop uses on a phone.
+    previewImg?.addEventListener('click', function (e) {
+        if (!draft) return;
+        var box = previewImg.getBoundingClientRect();
+        if (!box.width || !box.height) return;
+        var x = Math.round(Math.min(100, Math.max(0, (e.clientX - box.left) / box.width * 100)));
+        var y = Math.round(Math.min(100, Math.max(0, (e.clientY - box.top) / box.height * 100)));
+        draft.focus = x + '% ' + y + '%';
+        if (tagStatus) tagStatus.textContent = 'Unsaved changes.';
+        renderDraft();
+    });
+    previewImg?.addEventListener('load', placeFocusDot);
+    fetch('/api/shop/packs').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+        packIds = ((d && d.packs) || []).map(function (p) { return p && p.id; }).filter(Boolean);
+        fillOptions();
+    }).catch(function () { /* pack slots can still be typed */ });
+
     function setStatus(msg) {
         if (status) status.textContent = msg;
     }
@@ -81,6 +284,7 @@
 
         var startOrient = orients.length ? orients[0].key : missing[0];
         selectForEdit(pieceId, startOrient);
+        startDraft(piece);
         previewTitle.textContent = (piece.title || piece.id) +
             (piece.place ? ' — ' + piece.place : '');
 
@@ -117,6 +321,7 @@
                 btn.classList.add('active');
                 previewImg.src = btn.getAttribute('data-url');
                 previewImg.classList.remove('hidden');
+                placeFocusDot();
                 selectForEdit(pieceId, btn.getAttribute('data-orient'));
             });
         });
@@ -162,7 +367,7 @@
         if (!searchInput) return true;
         var q = (searchInput.value || '').trim().toLowerCase();
         if (!q) return true;
-        var hay = [piece.id, piece.title, piece.place, piece.source]
+        var hay = [piece.id, piece.title, piece.place, piece.source].concat(piece.cards || [], piece.shop || [])
             .filter(Boolean)
             .join(' ')
             .toLowerCase();
@@ -194,6 +399,8 @@
                 var missing = missingSlots(piece);
                 if (missing.length) tags.push('needs ' + missing.join('+'));
                 if (piece.source === 'cinematic') tags.push('cinematic');
+                if (piece.cards && piece.cards.length) tags.push(piece.cards.length + ' card' + (piece.cards.length === 1 ? '' : 's'));
+                if (piece.shop && piece.shop.length) tags.push('shop');
                 return '<article class="loading-art-card' +
                     (missing.length ? ' is-incomplete' : '') +
                     (piece.source === 'cinematic' ? ' is-cinematic' : '') +

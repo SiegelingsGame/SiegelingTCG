@@ -1,5 +1,6 @@
 package com.sieglings.controller;
 
+import com.sieglings.service.ArtCardTagService;
 import com.sieglings.service.CardEditorAuthService;
 import com.sieglings.service.CardOverrideStorageService;
 import com.sieglings.service.GalleryRewardService;
@@ -12,7 +13,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,6 +28,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -62,6 +67,9 @@ public class ArtGalleryController {
 
     @Autowired
     private GalleryRewardService galleryRewardService;
+
+    @Autowired
+    private ArtCardTagService artCardTagService;
 
     /**
      * Which gallery pieces are achievement rewards, and what unlocks each. Public
@@ -154,9 +162,15 @@ public class ArtGalleryController {
             }
             piece.put(orientation, artFile.url());
         }
-        for (Map<String, Object> piece : pieces.values()) {
+        Map<String, ArtCardTagService.ArtTag> tags = artCardTagService.tags();
+        for (Map.Entry<String, Map<String, Object>> entry : pieces.entrySet()) {
+            Map<String, Object> piece = entry.getValue();
             piece.put("hasLandscape", piece.get("landscape") instanceof String);
             piece.put("hasPortrait", piece.get("portrait") instanceof String);
+            ArtCardTagService.ArtTag tag = tags.get(entry.getKey());
+            piece.put("cards", tag == null ? List.of() : tag.cards());
+            piece.put("shop", tag == null ? List.of() : tag.shop());
+            piece.put("focus", tag == null || tag.focus() == null ? "" : tag.focus());
         }
         return Map.of("art", new ArrayList<>(pieces.values()));
     }
@@ -199,6 +213,47 @@ public class ArtGalleryController {
             return error(HttpStatus.UNAUTHORIZED, ex.getMessage());
         } catch (Exception ex) {
             return error(HttpStatus.INTERNAL_SERVER_ERROR, "Loading art upload failed: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Tags one piece with the cards it shows and the shop stages it backs (see
+     * {@link ArtCardTagService}). Same editor sign-in as art uploads; answers
+     * with the refreshed catalog so the dashboard repaints from one call.
+     */
+    @PutMapping("/api/art/tags/{pieceId}")
+    public ResponseEntity<Map<String, Object>> saveArtTags(
+            @RequestHeader(value = EDITOR_TOKEN_HEADER, required = false) String editorToken,
+            @PathVariable("pieceId") String pieceId,
+            @RequestBody(required = false) Map<String, Object> body) {
+        try {
+            String email = null;
+            if (storageService.isFirestoreReady()) {
+                email = authService.requireEditor(editorToken).email();
+            }
+            String id = ArtCardTagService.normalizePieceId(pieceId);
+            boolean known = listLoadingArt().get("art") instanceof List<?> art && art.stream()
+                    .anyMatch(p -> p instanceof Map<?, ?> m && id.equals(String.valueOf(m.get("id")).toLowerCase(Locale.ROOT)));
+            if (!known) {
+                return error(HttpStatus.NOT_FOUND, "No art piece named " + pieceId + ".");
+            }
+            ArtCardTagService.ArtTag tag = artCardTagService.save(id, body, email);
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("ok", true);
+            response.put("pieceId", id);
+            response.put("cards", tag.cards());
+            response.put("shop", tag.shop());
+            response.put("focus", tag.focus());
+            response.put("art", listLoadingArt().get("art"));
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException ex) {
+            // requireEditor signals a missing/expired sign-in this way too.
+            HttpStatus status = ex.getMessage() != null && ex.getMessage().startsWith("Sign in")
+                    ? HttpStatus.UNAUTHORIZED
+                    : HttpStatus.BAD_REQUEST;
+            return error(status, ex.getMessage());
+        } catch (IllegalStateException ex) {
+            return error(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
         }
     }
 

@@ -3029,6 +3029,38 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   color:var(--ink); border:1px solid rgba(180,140,255,.3); background:rgba(13,10,38,.7);
 }
 
+/* "Cards in this image": tagged cards under a gallery piece, and in the
+   shop's "In art" dialog. The gallery's sheet and full-screen card open over
+   the lightbox (z 75), so on that screen they sit above it. */
+.sg-app[data-screen="art"] .sg-sheet { z-index:78; }
+.sg-app[data-screen="art"] .sg-zoom { z-index:82; }
+.sg-artcards { display:flex; flex-direction:column; align-items:center; gap:6px; margin-top:8px; max-width:100%; }
+.sg-artcards > span { font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+.sg-artcards > div {
+  display:flex; flex-wrap:wrap; justify-content:center; gap:8px; max-width:100%;
+  max-height:96px; overflow-y:auto; padding:2px 2px 4px;
+  scrollbar-width:none; -webkit-overflow-scrolling:touch;
+}
+.sg-artcards > div::-webkit-scrollbar { display:none; }
+.sg-artcards.is-sheet { margin:0 0 16px; align-items:stretch; }
+.sg-artcards.is-sheet > div { justify-content:flex-start; max-height:none; overflow:visible; }
+.sg-artcards-sub { margin:-6px 0 14px; font-size:12px; color:var(--muted); }
+.sg-artcard {
+  flex:0 0 auto; display:flex; align-items:center; gap:7px; min-height:40px; padding:4px 12px 4px 4px;
+  border-radius:99px; cursor:pointer; color:#f4ecd6; font:inherit; text-shadow:none;
+  background:rgba(13,10,38,.82); border:1.5px solid var(--rar, var(--gold-line));
+}
+.sg-artcard img {
+  width:32px; height:32px; border-radius:50%; object-fit:cover; flex:0 0 auto;
+  background:var(--el); box-shadow:0 0 0 1.5px var(--el);
+}
+/* Beats .sg-lightbox-foot em, the caption style, which would set the names in muted capitals. */
+.sg-artcard em, .sg-lightbox-foot .sg-artcard em {
+  font-style:normal; font-family:var(--serif); font-size:13px; font-weight:700; white-space:nowrap;
+  letter-spacing:0; text-transform:none; color:#f4ecd6;
+}
+.sg-artcard:focus-visible { outline:2px solid #ffe39a; outline-offset:2px; }
+
 /* ---------- card sheet: tabbed, and short enough to read whole ----------
    The sheet used to stack Arena, Siege and Keep in one column, which on a phone
    ran past both ends of the glass - the card face was clipped at the top and the
