@@ -1089,7 +1089,8 @@ const ELEMENT_FRAME_CLASS = {
     ELECTRIC: 'frame-electric',
     LIGHT: 'frame-light',
     SHADOW: 'frame-shadow',
-    UNDEAD: 'frame-undead'
+    UNDEAD: 'frame-undead',
+    NEUTRAL: 'frame-neutral'
 };
 
 const ELEMENT_FRAME_RARITIES = new Set(['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY']);

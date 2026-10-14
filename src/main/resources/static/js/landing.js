@@ -375,7 +375,7 @@
     const FRAME_FAMILY = {
         FIRE: 'frame-fire-metal', METAL: 'frame-metal', EARTH: 'frame-earth', PSYCHIC: 'frame-psychic', POISON: 'frame-poison',
         ICE: 'frame-ice-water', WATER: 'frame-water', WIND: 'frame-air-electric', AIR: 'frame-air-electric', ELECTRIC: 'frame-electric',
-        LIGHT: 'frame-light', SHADOW: 'frame-shadow', UNDEAD: 'frame-undead'
+        LIGHT: 'frame-light', SHADOW: 'frame-shadow', UNDEAD: 'frame-undead', NEUTRAL: 'frame-neutral'
     };
     const FRAME_RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
     const CARD_NOTCH_DIRECTIONS = ['TOP', 'TOP_RIGHT', 'RIGHT', 'BOTTOM_RIGHT', 'BOTTOM', 'BOTTOM_LEFT', 'LEFT', 'TOP_LEFT'];

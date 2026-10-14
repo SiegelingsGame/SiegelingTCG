@@ -1890,11 +1890,66 @@
       }).join('') + '</div>';
   }
 
+  // Binder page order: the live element roster (keep in sync with
+  // LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER), with Neutral last
+  // because it belongs to no element section of its own.
+  var BINDER_ELEMENT_ORDER = ['FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC', 'METAL',
+    'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD', 'NEUTRAL'];
+  var BINDER_TYPE_ORDER = { SIEGLING: 0, SPELL: 1, TRAP: 2 };
+
+  function binderElementKey(card) {
+    var el = String((card && card.element) || 'NEUTRAL').toUpperCase();
+    return BINDER_ELEMENT_ORDER.indexOf(el) === -1 ? 'NEUTRAL' : el;
+  }
+
+  /* Element by element, Fire first. Inside an element every card climbs from
+     Common to Legendary, and that element's SiegeKnights follow its Legendaries
+     (also by rarity) rather than all knights heading the binder. Ties keep the
+     catalog's order, which already runs each evolution line in sequence. */
+  function binderSort(cards) {
+    return cards.map(function (c, i) { return { c: c, i: i }; }).sort(function (a, b) {
+      var ea = BINDER_ELEMENT_ORDER.indexOf(binderElementKey(a.c));
+      var eb = BINDER_ELEMENT_ORDER.indexOf(binderElementKey(b.c));
+      if (ea !== eb) return ea - eb;
+      var ka = String(a.c.type || '').toUpperCase() === 'SIEGEKNIGHT' ? 1 : 0;
+      var kb = String(b.c.type || '').toUpperCase() === 'SIEGEKNIGHT' ? 1 : 0;
+      if (ka !== kb) return ka - kb;
+      var ra = rarityRank(a.c) - rarityRank(b.c);
+      if (ra) return ra;
+      var ta = BINDER_TYPE_ORDER[String(a.c.type || 'SIEGLING').toUpperCase()];
+      var tb = BINDER_TYPE_ORDER[String(b.c.type || 'SIEGLING').toUpperCase()];
+      if (ta !== tb) return (ta == null ? 3 : ta) - (tb == null ? 3 : tb);
+      return a.i - b.i;
+    }).map(function (row) { return row.c; });
+  }
+
+  // Ownership for the binder's Owned filter. Catalog cards are counted copies in
+  // `ownedCards`; SiegeKnights are not cards in that map but trainers in
+  // `knights`. Null means this payload cannot say (guest, offline board), so
+  // the filter is not offered at all rather than emptying the binder.
+  function binderOwnership(live) {
+    var cards = live && live.ownedCards;
+    if (!cards) return null;
+    var knights = {};
+    ((live && live.knights) || []).forEach(function (k) {
+      var id = k && (k.id || k);
+      if (id) knights[String(id).toLowerCase()] = true;
+    });
+    return function (c) {
+      if (!c) return false;
+      if (String(c.type || '').toUpperCase() === 'SIEGEKNIGHT') return Boolean(knights[String(c.id).toLowerCase()]);
+      return Number(cards[c.id]) > 0;
+    };
+  }
+
+  var OWNED_GLYPH = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" ' +
+    'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="5" y="3" width="14" height="18" rx="2.2"/><path d="M8.6 12.2l2.4 2.4 4.4-4.8"/></svg>';
+
   function galleryScreen(opts) {
     opts = opts || {};
     // Keep in sync with LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.
-    var elements = ['ALL', 'FIRE', 'EARTH', 'WIND', 'ICE', 'WATER', 'ELECTRIC', 'METAL',
-      'POISON', 'PSYCHIC', 'LIGHT', 'SHADOW', 'UNDEAD'];
+    var elements = ['ALL'].concat(BINDER_ELEMENT_ORDER);
     var rarities = ['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'];
     var total = ALL_CARDS.length;
     // "X of Y cards owned" compared copies held against unique cards, so a player
@@ -1920,6 +1975,10 @@
               '<button class="sg-icon-btn sg-filter-toggle" type="button" data-filter-toggle aria-label="Filters">≡' +
                 '<span class="sg-filter-toggle-badge" data-filter-toggle-badge hidden>0</span></button>' +
               '<button class="sg-icon-btn" type="button" data-look-toggle aria-label="Dress the binder">\u2756</button>' +
+              (binderOwnership(opts.live)
+                ? '<button class="sg-icon-btn sg-owned-toggle on" type="button" data-owned-toggle aria-pressed="true" ' +
+                  'aria-label="Owned cards only" title="Owned cards only">' + OWNED_GLYPH + '</button>'
+                : '') +
               '<span class="sg-count" data-count></span>' +
             '</div>' +
             '<div class="sg-filters" data-filters><div>' + filterRows + '</div></div>' +
@@ -2166,18 +2225,47 @@
     var openSheet = mountSheet(app, opts) || function () {};
     mountBinderLook(app);
     var reveal = makeTileReveal(grid, scroll);
-    var painted = 0;
-    var activeEl = 'ALL', activeRarity = 'ALL', activeType = 'ALL', query = '', limit = 24;
+    var ownedToggle = app.querySelector('[data-owned-toggle]');
+    var isOwned = binderOwnership(opts.live);
+    // Owned-only is the default whenever the payload can tell what is owned.
+    var ownedOnly = Boolean(isOwned && ownedToggle);
+    var activeEl = 'ALL', activeRarity = 'ALL', activeType = 'ALL', query = '';
     var COMPACT_AFTER = 72;
+    // The binder loads one element section at a time: a section is appended as
+    // the reader nears the end of the last one, so a phone never paints ~200
+    // art-heavy tiles up front.
+    var sections = [], shownSections = 0;
 
     function matches() {
-      return ALL_CARDS.filter(function (c) {
+      return binderSort(ALL_CARDS.filter(function (c) {
+        if (ownedOnly && !isOwned(c)) return false;
         if (activeType !== 'ALL' && String(c.type || 'SIEGLING').toUpperCase() !== activeType) return false;
         if (activeEl !== 'ALL' && c.element !== activeEl) return false;
         if (activeRarity !== 'ALL' && String(c.rarity || '').toUpperCase() !== activeRarity) return false;
         if (query && String(c.name || '').toLowerCase().indexOf(query) === -1) return false;
         return true;
+      }));
+    }
+
+    function groupSections(rows) {
+      var out = [];
+      rows.forEach(function (c) {
+        var key = binderElementKey(c);
+        var last = out[out.length - 1];
+        if (!last || last.key !== key) out.push(last = { key: key, cards: [] });
+        last.cards.push(c);
       });
+      return out;
+    }
+
+    function sectionMarkup(section) {
+      // A heading spans the grid row; it is not a tile, so the reveal observer
+      // and the tile handlers (which look for [data-card]) pass over it.
+      return '<div class="sg-gal-section" role="heading" aria-level="3" style="--el:' + color(section.key) + '">' +
+        '<img src="' + icon(section.key) + '" alt="">' +
+        '<span>' + esc(title(section.key)) + '</span>' +
+        '<em>' + esc(section.cards.length) + '</em></div>' +
+        section.cards.map(galleryCard).join('');
     }
 
     function activeFilterCount() {
@@ -2219,23 +2307,55 @@
       }
     }
 
-    function repaint(keepPainted) {
+    function emptyMarkup() {
+      return '<p class="sg-gal-empty">' + (ownedOnly
+        ? 'No owned cards match. Tap the Owned button to browse the whole binder.'
+        : 'No cards match these filters.') + '</p>';
+    }
+
+    // Appends the next element section without repainting the ones already on
+    // the page, so the reader's place and the settled tiles stay put.
+    function showNextSection() {
+      if (shownSections >= sections.length) return;
+      var settled = grid.children.length;
+      grid.insertAdjacentHTML('beforeend', sectionMarkup(sections[shownSections]));
+      shownSections++;
+      reveal.observe(settled);
+      scheduleFit(app);
+      syncMore();
+    }
+
+    function syncMore() {
+      var left = shownSections < sections.length;
+      if (more) {
+        more.hidden = !left;
+        var btn = more.querySelector('button');
+        if (btn && left) btn.textContent = 'Show ' + title(sections[shownSections].key);
+      }
+      if (sentinel) {
+        sentinel.unobserve(more);
+        // Re-observing fires a fresh initial callback, so a short section that
+        // leaves the trigger already on screen loads the next one straight away.
+        if (left) sentinel.observe(more);
+      }
+    }
+
+    function repaint() {
       var rows = matches();
-      grid.innerHTML = rows.slice(0, limit).map(galleryCard).join('');
-      reveal.observe(keepPainted ? painted : 0);
-      painted = grid.children.length;
+      sections = groupSections(rows);
+      shownSections = 0;
+      grid.innerHTML = rows.length ? '' : emptyMarkup();
+      showNextSection();
+      if (!rows.length) syncMore();
       var label = rows.length + (rows.length === 1 ? ' card' : ' cards');
       if (count) count.textContent = label;
       if (glassCount) glassCount.textContent = label;
       syncChrome();
-      // Every filter change and Show more paints fresh card faces, so the
-      // descriptions have to be re-fitted - the initial render's pass only saw
-      // the first page.
-      scheduleFit(app);
-      // A binder is browsed, not scrolled forever: page it rather than paint
-      // hundreds of art-heavy tiles at once.
-      if (more) more.hidden = rows.length <= limit;
     }
+
+    var sentinel = more && window.IntersectionObserver ? new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) { if (entry.isIntersecting) showNextSection(); });
+    }, { root: scroll || null, rootMargin: '0px 0px 900px 0px' }) : null;
 
     // The inline tools are too narrow beside the title for a search field or
     // the pill rows, so either one widens the chrome to a full row.
@@ -2277,7 +2397,6 @@
       root.querySelectorAll('[' + attr + ']').forEach(function (pill) {
         pill.addEventListener('click', function () {
           apply(pill.getAttribute(attr));
-          limit = 24;
           repaint();
         });
       });
@@ -2313,12 +2432,12 @@
     var inlineSearch = app.querySelector('[data-search-input]');
     if (inlineSearch) {
       inlineSearch.addEventListener('input', function () {
-        query = this.value.trim().toLowerCase(); limit = 24; repaint();
+        query = this.value.trim().toLowerCase(); repaint();
       });
     }
     if (glassSearch) {
       glassSearch.addEventListener('input', function () {
-        query = this.value.trim().toLowerCase(); limit = 24; repaint();
+        query = this.value.trim().toLowerCase(); repaint();
       });
     }
     if (fab) {
@@ -2331,13 +2450,20 @@
     if (clearBtn) {
       clearBtn.addEventListener('click', function () {
         activeEl = 'ALL'; activeType = 'ALL'; activeRarity = 'ALL'; query = '';
-        limit = 24;
         repaint();
       });
     }
     if (more) {
       var moreBtn = more.querySelector('button');
-      if (moreBtn) moreBtn.addEventListener('click', function () { limit += 24; repaint(true); });
+      if (moreBtn) moreBtn.addEventListener('click', showNextSection);
+    }
+    if (ownedToggle) {
+      ownedToggle.addEventListener('click', function () {
+        ownedOnly = !ownedOnly;
+        this.classList.toggle('on', ownedOnly);
+        this.setAttribute('aria-pressed', String(ownedOnly));
+        repaint();
+      });
     }
     if (scroll) scroll.addEventListener('scroll', onScroll, { passive: true });
     app.addEventListener('keydown', function (ev) {
