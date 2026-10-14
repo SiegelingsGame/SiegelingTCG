@@ -27,11 +27,12 @@ public class WebConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
                 .allowedOriginPatterns(allowedOriginPatterns.toArray(String[]::new))
-                .allowedMethods("GET", "POST", "OPTIONS")
+                // Art-tag saves use PUT. Hosting's proxy can make even the
+                // dashboard's same-origin browser request pass through CORS.
+                .allowedMethods("GET", "POST", "PUT", "OPTIONS")
                 .allowedHeaders("*")
                 // Allow the session cookie to ride cross-origin dev requests. Safe
-                // with allowedOriginPatterns (never "*"); same-origin prod is
-                // unaffected.
+                // with the explicitly configured allowed origin patterns.
                 .allowCredentials(true)
                 .maxAge(3600);
     }
