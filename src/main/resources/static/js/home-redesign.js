@@ -3349,8 +3349,34 @@
       if (!app.querySelector('.sg-godds, .sg-sheet.open')) refreshShop(opts);
     }
     window.addEventListener('sg:art-refreshed', onArt);
+    // A picker row that runs past its space says so: its ends fade and an
+    // arrow shows on each side that has more, so packs added to the catalog
+    // are never hidden off the edge of a row that looks complete.
+    function syncRow(row) {
+      var wrap = row.parentNode;
+      if (!wrap || !wrap.classList.contains('sg-gselwrap')) return;
+      var max = row.scrollWidth - row.clientWidth;
+      wrap.classList.toggle('has-prev', row.scrollLeft > 2);
+      wrap.classList.toggle('has-next', row.scrollLeft < max - 2);
+    }
+    function syncRows() {
+      if (!app.isConnected) { window.removeEventListener('resize', syncRows); return; }
+      app.querySelectorAll('.sg-gselect').forEach(syncRow);
+    }
+    app.addEventListener('scroll', function (e) {
+      if (e.target.classList && e.target.classList.contains('sg-gselect')) syncRow(e.target);
+    }, true);
+    window.addEventListener('resize', syncRows);
+    // After refreshShop has put each row back where the player left it.
+    window.requestAnimationFrame(syncRows);
     app.addEventListener('click', function (e) {
       if (!e.target.closest) return;
+      var more = e.target.closest('[data-shop-more]');
+      if (more) {
+        var row = more.parentNode.querySelector('.sg-gselect');
+        row.scrollBy({ left: Number(more.getAttribute('data-shop-more')) * row.clientWidth * 0.75, behavior: 'smooth' });
+        return;
+      }
       var tab = e.target.closest('[data-shop-tab]');
       var el = e.target.closest('[data-shop-element]');
       var pick = e.target.closest('[data-shop-pack]');
@@ -3616,7 +3642,12 @@
           (o.extra || '') +
           (o.text ? '<p>' + esc(o.text) + '</p>' : '') +
         '</header>' +
-        (o.select || '') +
+        (o.select
+          ? '<div class="sg-gselwrap">' + o.select +
+              '<button type="button" class="sg-gmore is-prev" data-shop-more="-1" aria-label="Scroll back">&lsaquo;</button>' +
+              '<button type="button" class="sg-gmore is-next" data-shop-more="1" aria-label="Scroll for more">&rsaquo;</button>' +
+            '</div>'
+          : '') +
         '<footer class="sg-gfoot">' +
           '<nav class="sg-gutil">' + (o.utils || []).join('') + '</nav>' +
           '<div class="sg-gbuy">' + o.buy + '</div>' +

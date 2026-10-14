@@ -5486,6 +5486,32 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   scrollbar-width:none; touch-action:pan-x pan-y;
 }
 .sg-gselect::-webkit-scrollbar { display:none; }
+.sg-gselwrap { position:relative; min-width:0; }
+/* An overflowing row fades at each end that has more and shows an arrow
+   there (has-prev / has-next are set from its scroll position). */
+.sg-gselwrap.has-next .sg-gselect {
+  -webkit-mask-image:linear-gradient(90deg, #000 calc(100% - 48px), transparent);
+  mask-image:linear-gradient(90deg, #000 calc(100% - 48px), transparent);
+}
+.sg-gselwrap.has-prev .sg-gselect {
+  -webkit-mask-image:linear-gradient(90deg, transparent, #000 48px);
+  mask-image:linear-gradient(90deg, transparent, #000 48px);
+}
+.sg-gselwrap.has-prev.has-next .sg-gselect {
+  -webkit-mask-image:linear-gradient(90deg, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+  mask-image:linear-gradient(90deg, transparent, #000 48px, #000 calc(100% - 48px), transparent);
+}
+.sg-gmore {
+  position:absolute; z-index:1; top:50%; width:32px; height:32px; margin-top:-16px; padding:0 0 3px;
+  display:none; place-items:center; border-radius:99px; cursor:pointer;
+  font-family:var(--serif); font-size:22px; font-weight:700; line-height:1; color:#ffe39a;
+  background:rgba(13,14,40,.88); border:1.5px solid var(--gold-line); box-shadow:0 4px 12px rgba(0,0,0,.55);
+}
+.sg-gmore.is-prev { left:0; }
+.sg-gmore.is-next { right:0; }
+.sg-gselwrap.has-prev .sg-gmore.is-prev,
+.sg-gselwrap.has-next .sg-gmore.is-next { display:grid; }
+.sg-gmore:focus-visible { outline:2px solid #ffe39a; outline-offset:2px; }
 .sg-gel {
   flex:0 0 auto; width:36px; height:36px; padding:0; border-radius:99px; cursor:pointer;
   display:grid; place-items:center; background:rgba(8,7,28,.6);
@@ -5728,7 +5754,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gplaque { grid-column:1 / -1; grid-row:1; align-self:start; margin-bottom:0; }
   .sg-gfoot { display:contents; }
   .sg-gutil { grid-column:1; grid-row:3; }
-  .sg-gselect { grid-column:2; grid-row:3; min-width:0; align-self:center; }
+  .sg-gselwrap { grid-column:2; grid-row:3; align-self:center; }
   .sg-gstage.is-packs .sg-gselect { padding-top:8px; }
   /* The row gives way, not the buttons. The buy group is right-justified, so
      a column narrower than its buttons spills them leftwards over the strip.
@@ -5737,13 +5763,12 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
      width that every engine counts. */
   .sg-gbuy { grid-column:3; grid-row:3; min-width:max-content; }
   .sg-gbtn { flex:0 0 auto; width:clamp(170px, 13vw, 250px); }
-  .sg-gstage.is-daily .sg-gselect { max-width:none; }
 }
 /* 1024-1279px (iPad landscape, small laptops): the tabs, the pennant gutter
    and the buy buttons leave the middle column a few pixels wide, so the
    selector takes its own line just above the footer row instead. */
 @media (min-width:1024px) and (max-width:1279px) and (min-height:521px) {
-  .sg-gselect { grid-column:1 / -1; grid-row:2; align-self:end; margin-bottom:10px; }
+  .sg-gselwrap { grid-column:1 / -1; grid-row:2; align-self:end; margin-bottom:10px; }
   /* The daily headline card steps up and in so the offer row clears it. */
   .sg-gstage-card { bottom:calc(var(--gnav) + 176px); width:190px; }
 }
