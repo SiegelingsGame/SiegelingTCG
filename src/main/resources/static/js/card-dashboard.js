@@ -67,6 +67,9 @@
     // not yet published, with no ID typed over by hand. Published IDs never follow a rename —
     // player collections, saved decks and replays point at them.
     const idFollowsName = new WeakSet();
+    // Live ids captured at load. Clearing a published ID field restores this value instead of
+    // the name slug, and never arms name-following. A later name edit must not mint a new id.
+    const publishedOrigin = new WeakMap();
 
     const state = {
         metadata: null,
@@ -934,7 +937,8 @@
 
     function bindCardFieldEvents() {
         refs.cardIdInput.addEventListener("input", (event) => onCardIdTyped(event.target.value));
-        // Renders skip the focused field, so a cleared ID shows its name-derived value on blur.
+        // Renders skip the focused field, so a cleared ID shows its resolved value on blur
+        // (the name slug for a draft, the live id for anything already published).
         refs.cardIdInput.addEventListener("blur", () => setInputValue(refs.cardIdInput, getSelectedCard()?.id));
         refs.cardTypeSelect.addEventListener("change", (event) => changeSelectedCardType(event.target.value));
         refs.cardNameInput.addEventListener("input", (event) => onCardNameChanged(event.target.value));
@@ -1465,7 +1469,7 @@
             return;
         }
         const previousAbilityAutoName = refs.abilityNameInput.dataset.autoName || "";
-        const idIsAuto = idFollowsName.has(card);
+        const idIsAuto = idFollowsName.has(card) && !publishedOrigin.has(card);
         mutateSelectedCard((c) => {
             c.name = nextName;
             if (idIsAuto) {
@@ -1509,13 +1513,17 @@
         });
     }
 
-    // An ID typed by hand stops following the name; clearing the field hands it back to the name.
+    // An ID typed by hand stops following the name; clearing a draft hands it back to the name.
+    // Clearing a published id restores the live id and does not arm name-following.
     function onCardIdTyped(value) {
         const card = getSelectedCard();
         if (!card) {
             return;
         }
         const typed = String(value || "").trim();
+        if (!typed && restorePublishedId(card, renameCardId, mutateSelectedCard)) {
+            return;
+        }
         mutateSelectedCard((c) => {
             const nextId = typed || computeAutoCardId(c, c.name);
             if (typed) {
@@ -1541,21 +1549,28 @@
     function onDeckNameChanged(nextName) {
         mutateSelectedDeck((deck) => {
             deck.name = nextName;
-            if (idFollowsName.has(deck)) {
+            if (idFollowsName.has(deck) && !publishedOrigin.has(deck)) {
                 renameDeckId(deck, computeAutoDeckId(deck, nextName));
             }
         });
     }
 
     function onDeckIdTyped(value) {
-        mutateSelectedDeck((deck) => {
-            const typed = slugifyTyped(value);
+        const deck = getSelectedDeck();
+        if (!deck) {
+            return;
+        }
+        const typed = slugifyTyped(value);
+        if (!typed && restorePublishedId(deck, renameDeckId, mutateSelectedDeck)) {
+            return;
+        }
+        mutateSelectedDeck((selected) => {
             if (typed) {
-                idFollowsName.delete(deck);
+                idFollowsName.delete(selected);
             } else {
-                idFollowsName.add(deck);
+                idFollowsName.add(selected);
             }
-            renameDeckId(deck, typed || computeAutoDeckId(deck, deck.name));
+            renameDeckId(selected, typed || computeAutoDeckId(selected, selected.name));
         });
     }
 
@@ -1572,22 +1587,43 @@
     function onTrainerNameChanged(nextName) {
         mutateSelectedTrainer((trainer) => {
             trainer.name = nextName;
-            if (idFollowsName.has(trainer)) {
+            if (idFollowsName.has(trainer) && !publishedOrigin.has(trainer)) {
                 renameTrainerId(trainer, computeAutoTrainerId(trainer, nextName));
             }
         });
     }
 
     function onTrainerIdTyped(value) {
-        mutateSelectedTrainer((trainer) => {
-            const typed = slugifyTyped(value);
+        const trainer = getSelectedTrainer();
+        if (!trainer) {
+            return;
+        }
+        const typed = slugifyTyped(value);
+        if (!typed && restorePublishedId(trainer, renameTrainerId, mutateSelectedTrainer)) {
+            return;
+        }
+        mutateSelectedTrainer((selected) => {
             if (typed) {
-                idFollowsName.delete(trainer);
+                idFollowsName.delete(selected);
             } else {
-                idFollowsName.add(trainer);
+                idFollowsName.add(selected);
             }
-            renameTrainerId(trainer, typed || computeAutoTrainerId(trainer, trainer.name));
+            renameTrainerId(selected, typed || computeAutoTrainerId(selected, selected.name));
         });
+    }
+
+    // Empty ID on a live record snaps back to the id players already hold. Returns true when
+    // the caller should leave the record alone (or already restored it).
+    function restorePublishedId(entry, rename, mutate) {
+        if (!entry || !publishedOrigin.has(entry)) {
+            return false;
+        }
+        idFollowsName.delete(entry);
+        const origin = publishedOrigin.get(entry);
+        if (origin && entry.id !== origin) {
+            mutate((selected) => rename(selected, origin));
+        }
+        return true;
     }
 
     // Decks name their recommended SiegeKnight by ID, so a rename carries them along.
@@ -2040,13 +2076,13 @@
         const resolvedData = preparedData.data;
         const cards = Array.isArray(resolvedData?.cards)
             ? resolvedData.cards.map((card) => normalizeCard(card))
-            : state.cards.map((card) => carryIdFollowsName(card, normalizeCard(buildExportCard(card))));
+            : state.cards.map((card) => carryRecordIdentity(card, normalizeCard(buildExportCard(card))));
         const decks = Array.isArray(resolvedData?.decks)
             ? resolvedData.decks.map((deck) => normalizeDeck(deck))
-            : state.decks.map((deck) => carryIdFollowsName(deck, normalizeDeck(buildExportDeck(deck))));
+            : state.decks.map((deck) => carryRecordIdentity(deck, normalizeDeck(buildExportDeck(deck))));
         const trainers = Array.isArray(resolvedData?.trainers)
             ? resolvedData.trainers.map((trainer) => normalizeTrainer(trainer))
-            : state.trainers.map((trainer) => carryIdFollowsName(trainer, normalizeTrainer(buildExportTrainer(trainer))));
+            : state.trainers.map((trainer) => carryRecordIdentity(trainer, normalizeTrainer(buildExportTrainer(trainer))));
         const packs = Array.isArray(resolvedData?.packs)
             ? resolvedData.packs.map((pack) => ({ ...pack }))
             : state.packs.map((pack) => ({ ...pack }));
@@ -2086,6 +2122,12 @@
         state.decks = decks;
         state.packs = packs;
         state.trainers = trainers;
+        // A clean load publishes every id. An import keeps the ids that were already live,
+        // so renaming those still cannot orphan player collections.
+        const publishedNow = state.publishedIds || { cards: new Set(), decks: new Set(), trainers: new Set() };
+        rememberPublishedIds(cards, publishedNow.cards);
+        rememberPublishedIds(decks, publishedNow.decks);
+        rememberPublishedIds(trainers, publishedNow.trainers);
         state.liveElements = liveElements;
         if (resolvedData && Object.prototype.hasOwnProperty.call(resolvedData, "moves")) {
             state.movesPool = Array.isArray(resolvedData.moves)
@@ -2105,11 +2147,25 @@
         return preparedData;
     }
 
-    function carryIdFollowsName(previous, next) {
+    function carryRecordIdentity(previous, next) {
         if (idFollowsName.has(previous)) {
             idFollowsName.add(next);
         }
+        if (publishedOrigin.has(previous)) {
+            publishedOrigin.set(next, publishedOrigin.get(previous));
+        }
         return next;
+    }
+
+    function rememberPublishedIds(entries, published) {
+        if (!published) {
+            return;
+        }
+        entries.forEach((entry) => {
+            if (entry && entry.id && published.has(entry.id)) {
+                publishedOrigin.set(entry, entry.id);
+            }
+        });
     }
 
     function prepareImportedDataSet(data) {
