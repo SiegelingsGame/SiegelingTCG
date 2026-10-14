@@ -137,6 +137,9 @@
           if (p.portrait) existing.portrait = p.portrait;
           if (p.title) existing.title = p.title;
           if (p.place) existing.place = p.place;
+          if (p.cards) existing.cards = p.cards;
+          if (p.shop) existing.shop = p.shop;
+          if (p.focus != null) existing.focus = p.focus;
           continue;
         }
         var copy = {
@@ -144,7 +147,12 @@
           title: p.title,
           place: p.place,
           landscape: p.landscape,
-          portrait: p.portrait
+          portrait: p.portrait,
+          // Which cards the piece shows and which shop stages it backs
+          // (ArtCardTagService); only the API list carries them.
+          cards: p.cards || [],
+          shop: p.shop || [],
+          focus: p.focus || ''
         };
         seen[key] = copy;
         out.push(copy);
@@ -199,6 +207,10 @@
         var art = data && Array.isArray(data.art) ? data.art : null;
         if (!art || !art.length) return null;
         try { localStorage.setItem(CACHE_KEY, JSON.stringify(art)); } catch (e) { /* private mode */ }
+        // Screens that read card tags (shop backdrops, "Cards in this image")
+        // repaint on this, so a first visit or a fresh dashboard edit shows
+        // without waiting for the next load.
+        try { window.dispatchEvent(new CustomEvent('sg:art-refreshed')); } catch (e) { /* old browser */ }
         return art;
       })
       .catch(function () { return null; });

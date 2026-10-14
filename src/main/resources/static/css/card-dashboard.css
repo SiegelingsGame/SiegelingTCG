@@ -1322,10 +1322,57 @@ textarea {
 
 .loading-art-preview-frame img {
     max-width: 100%;
-    max-height: 70vh;
+    max-height: 60vh;
     border-radius: 8px;
     object-fit: contain;
+    cursor: crosshair;
 }
+
+/* The tag editor sits under the image, so the modal scrolls instead of clipping it. */
+.loading-art-preview-modal { overflow-y: auto; }
+.loading-art-preview-frame { position: relative; }
+.loading-art-focus-dot {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    margin: -9px 0 0 -9px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #d4af37, 0 0 10px rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+}
+.loading-art-tags {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 0 16px 16px;
+}
+.loading-art-tags h4 { margin: 0 0 6px; font-size: 13px; letter-spacing: 0.04em; }
+.loading-art-tags .section-help { margin: 0 0 6px; }
+.loading-art-tag-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.loading-art-tag-chips:empty::before { content: "None yet."; opacity: 0.55; font-size: 12px; }
+.loading-art-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 10px;
+    border-radius: 99px;
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(212, 175, 55, 0.4);
+}
+.loading-art-tag-chip.is-unknown { border-color: rgba(255, 140, 100, 0.7); color: #ffc8a8; }
+.loading-art-tag-chip button {
+    border: 0;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0 2px;
+}
+.loading-art-tag-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.loading-art-tag-add input[type="text"] { min-width: 220px; flex: 0 1 320px; }
 
 .siege-mode-panel {
     grid-column: 1 / -1;

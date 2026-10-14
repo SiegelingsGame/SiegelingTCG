@@ -1158,6 +1158,8 @@
   // The card a piece portrays, for the caption. Gallery scenes name it; API
   // pieces usually open with the card id ("bearby-longfuse" -> bearby).
   function stageCard(piece) {
+    var tagged = artCards(piece)[0];
+    if (tagged) return tagged;
     for (var i = 0; i < GALLERY.length; i++) {
       if (GALLERY[i].img === piece.id) return byId(GALLERY[i].card);
     }
@@ -3340,6 +3342,13 @@
   function mountShop(app, opts) {
     var packs = (opts.live && opts.live.packs) || [];
     mountSheet(app, opts);
+    // Backdrops come from art tags, which can land after the first paint (a
+    // first visit has no cached art list), so the stage repaints once they do.
+    function onArt() {
+      if (!app.isConnected) { window.removeEventListener('sg:art-refreshed', onArt); return; }
+      if (!app.querySelector('.sg-godds, .sg-sheet.open')) refreshShop(opts);
+    }
+    window.addEventListener('sg:art-refreshed', onArt);
     app.addEventListener('click', function (e) {
       if (!e.target.closest) return;
       var tab = e.target.closest('[data-shop-tab]');
@@ -3347,6 +3356,7 @@
       var pick = e.target.closest('[data-shop-pack]');
       var offer = e.target.closest('[data-shop-offer]');
       var odds = e.target.closest('[data-shop-odds]');
+      var inArt = e.target.closest('[data-art-cards]');
       var preview = e.target.closest('[data-title-preview]');
       if (tab) {
         opts.shopTab = shopPref('tab', tab.getAttribute('data-shop-tab'));
@@ -3363,6 +3373,9 @@
       } else if (odds) {
         var pk = packs.filter(function (p) { return p.id === odds.getAttribute('data-shop-odds'); })[0];
         if (pk) showOdds(app, pk);
+      } else if (inArt) {
+        var piece = artPiece(inArt.getAttribute('data-art-cards'));
+        if (piece) showArtCards(app, piece);
       } else if (preview) {
         opts.shopTitlePreview = preview.getAttribute('data-title-preview');
         refreshShop(opts);
@@ -3466,6 +3479,8 @@
   // plate, so the backdrop always matches what is being summoned.
   function summonArt(el, thumb) {
     var key = String(el || '').toUpperCase();
+    var tagged = artForSlot('summon:' + key);
+    if (tagged) return pieceStage(tagged, thumb).art;
     if (SUMMON_SCENE[key]) return sceneArt(SUMMON_SCENE[key], thumb);
     if (SHOP_BANNER[key]) return '/img/shop/banner-' + key.toLowerCase() + (thumb ? '-480' : '') + '.webp';
     return thumb ? '/img/lands/thumbs/' + (EL_LAND[key] || 'relic') + '.webp' : land(key);
@@ -3516,6 +3531,8 @@
   var PACK_STAGE = { pack_molten_forge: { img: 'bearzooka-rampage', pos: '55% 45%' } };
   function elementStage(el) {
     var key = String(el || '').toUpperCase();
+    var tagged = artForSlot('element:' + key);
+    if (tagged) return pieceStage(tagged);
     var pick = ELEMENT_STAGE[key];
     if (pick) return { art: pick.src || heroPlate(scene(pick.img)), pos: pick.pos };
     if (SHOP_BANNER[key]) return { art: summonArt(key), pos: '66% 34%' };
@@ -3556,7 +3573,8 @@
     var summon = summons.filter(function (pk) { return packElement(pk) === wanted; })[0] || summons[0] || null;
     var pack = packs.filter(function (pk) { return pk.id === opts.shopPack; })[0] || packs[0] || null;
     var tabs = [];
-    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: SUMMON_SCENE[packElement(summon)] ? ELEMENT_STAGE[packElement(summon)].pos : SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
+    var summonTag = summon && artForSlot('summon:' + packElement(summon));
+    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: summonTag ? summonTag.focus || '50% 50%' : SUMMON_SCENE[packElement(summon)] ? ELEMENT_STAGE[packElement(summon)].pos : SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
     if (pack) tabs.push({ id: 'packs', label: 'Pack Market', art: sceneArt('market', true), face: SHOP_SCENE.market.face, el: 'EARTH' });
     if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: sceneArt('cards', true), face: SHOP_SCENE.cards.face, el: 'LIGHT' });
     if (titles.length) tabs.push({ id: 'titles', label: 'Title Hall', art: sceneArt('throne', true), face: SHOP_SCENE.throne.face, el: 'WATER' });
@@ -3582,6 +3600,9 @@
   // pitch), an optional selector row, the pennant, and a footer with the round
   // utility buttons on the left and the buy buttons on the right.
   function stage(o) {
+    if (o.piece && artCards(o.piece).length) {
+      o.utils = (o.utils || []).concat(utilBtn('&#9673;', 'In art', 'data-art-cards="' + esc(o.piece.id) + '"'));
+    }
     return '<section class="sg-gstage is-' + esc(o.kind) + '" style="--el:' + color(o.el) + ';--ribbon:' + esc(o.ribbon || color(o.el)) + '">' +
       '<img class="sg-gstage-bg" src="' + esc(o.art) + '" alt=""' + (o.pos ? ' style="object-position:' + esc(o.pos) + '"' : '') + '>' +
       '<div class="sg-gstage-veil"></div>' +
@@ -3660,8 +3681,10 @@
     var el = packElement(pk);
     var pool = CARDS.filter(function (c) { return String(c.element || '').toUpperCase() === el; })
       .sort(function (a, b) { return rarityRank(b) - rarityRank(a); });
+    var tagged = artForSlot('summon:' + el);
     return stage({
-        kind: 'summon', el: el, art: summonArt(el), pos: ELEMENT_STAGE[el] && SUMMON_SCENE[el] ? ELEMENT_STAGE[el].pos : '',
+        kind: 'summon', el: el, art: summonArt(el), piece: tagged,
+        pos: tagged ? tagged.focus : ELEMENT_STAGE[el] && SUMMON_SCENE[el] ? ELEMENT_STAGE[el].pos : '',
         kicker: 'Siegeling Summon', title: title(el) + ' Siegelings', sub: title(el) + ' only',
         text: pk.description,
         pennant: pennantFaces('Featured', pool),
@@ -3686,9 +3709,11 @@
     // market; a pack with a scene of its own uses it over its element's.
     var mixed = (pk.elements || []).length > 2;
     var own = PACK_STAGE[pk.id];
-    var bg = own ? { art: heroPlate(scene(own.img)), pos: own.pos } : mixed ? { art: sceneArt('market') } : elementStage(el);
+    var tagged = artForSlot('pack:' + pk.id);
+    var bg = tagged ? pieceStage(tagged)
+      : own ? { art: heroPlate(scene(own.img)), pos: own.pos } : mixed ? { art: sceneArt('market') } : elementStage(el);
     return stage({
-        kind: 'packs', el: el, art: bg.art, pos: bg.pos,
+        kind: 'packs', el: el, art: bg.art, pos: bg.pos, piece: bg.piece,
         kicker: 'Pack Market', title: pk.name || pk.id,
         sub: pk.starterEligible ? 'Starter' : mixed ? 'All Elements' : (pk.elements || []).map(title).join(' · '),
         text: pk.description,
@@ -3712,12 +3737,14 @@
     var head = m.offers.filter(function (o) { return o.id === opts.shopOffer; })[0] || m.offers[0];
     var card = offerCard(head);
     var owned = bought.indexOf(head.id) !== -1;
-    // A SiegeKnight offer stands on the knight's own portrait.
+    // A SiegeKnight offer stands on the knight's own portrait; any other card
+    // on a scene it was tagged in, then on its element's.
+    var ownArt = !KNIGHT_ART[head.cardId] && artForCard(head.cardId);
     var bg = KNIGHT_ART[head.cardId]
       ? { art: knightArt(head.cardId), pos: KNIGHT_ART[head.cardId].pos }
-      : elementStage(card.element);
+      : ownArt ? pieceStage(ownArt) : elementStage(card.element);
     return stage({
-      kind: 'daily' + (KNIGHT_ART[head.cardId] ? ' is-knight' : ''), el: card.element, art: bg.art, pos: bg.pos,
+      kind: 'daily' + (KNIGHT_ART[head.cardId] ? ' is-knight' : ''), el: card.element, art: bg.art, pos: bg.pos, piece: bg.piece,
       kicker: 'Daily Offerings', title: card.name || head.cardId, sub: dailyResetText(),
       text: title(card.rarity) + ' · ' + title(card.element) + ' · ' +
         (card.type === 'SIEGEKNIGHT' ? 'SiegeKnight' : title(card.type)) +
@@ -3802,6 +3829,31 @@
     layer.querySelector('[data-godds-close]').focus();
   }
 
+  // "In art": who is in the backdrop. Same dialog shell as the odds; a chip
+  // closes it and the app's [data-card] delegation opens the card sheet.
+  function showArtCards(app, piece) {
+    var layer = document.createElement('div');
+    layer.className = 'sg-godds';
+    layer.setAttribute('role', 'dialog');
+    layer.setAttribute('aria-modal', 'true');
+    layer.setAttribute('aria-label', 'Cards in this image');
+    layer.innerHTML =
+      '<div class="sg-godds-card">' +
+        '<h3>Cards in this image</h3>' +
+        '<p class="sg-artcards-sub">' + esc(piece.title) + (piece.place ? ' \u00b7 ' + esc(piece.place) : '') + '</p>' +
+        '<div class="sg-artcards is-sheet"><div>' + artCardChips(piece) + '</div></div>' +
+        '<button class="sg-guest-primary" type="button" data-godds-close>Close</button>' +
+      '</div>';
+    function close() { layer.remove(); document.removeEventListener('keydown', onKey); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    layer.addEventListener('click', function (e) {
+      if (e.target === layer || (e.target.closest && e.target.closest('[data-godds-close], [data-card]'))) close();
+    });
+    document.addEventListener('keydown', onKey);
+    app.appendChild(layer);
+    layer.querySelector('[data-godds-close]').focus();
+  }
+
   // One screen, no scroll: the stage fills the viewport behind the top bar and
   // the tab bar, and everything a tab offers is on it.
   function shopScreen(opts) {
@@ -3851,9 +3903,75 @@
         title: piece.title || title(piece.id),
         place: piece.place || '',
         thumb: piece.landscape || piece.portrait || '',
-        full: piece.portrait || piece.landscape || ''
+        full: piece.portrait || piece.landscape || '',
+        landscape: piece.landscape || '',
+        portrait: piece.portrait || '',
+        cards: piece.cards || [],
+        shop: piece.shop || [],
+        focus: piece.focus || ''
       };
     }).filter(function (p) { return p.thumb; });
+  }
+
+  /* ---------- cards in the art ----------
+     Designers tag each gallery piece in the dashboard with the cards it shows
+     and the shop stages it backs (ArtCardTagService, merged into
+     /api/art/loading). The tags are what let a scene say who is in it, and let
+     the shop choose art by what it is selling instead of a hard-coded table -
+     the tables below stay as the fallback for untagged stages. */
+
+  function artPiece(id) {
+    var key = String(id || '').toLowerCase();
+    return galleryPieces().filter(function (p) { return String(p.id).toLowerCase() === key; })[0] || null;
+  }
+
+  // byId() falls back to the first card, which would put a stranger in the art.
+  function artCards(piece) {
+    return ((piece && piece.cards) || []).map(function (id) {
+      return byIdIn(ALL_CARDS, id) || byIdIn(CARDS, id);
+    }).filter(Boolean);
+  }
+
+  function artForSlot(slot) {
+    return galleryPieces().filter(function (p) { return p.shop.indexOf(slot) !== -1; })[0] || null;
+  }
+
+  // The scene most about this card: of the pieces that show it, the one with
+  // the fewest other cards in frame.
+  function artForCard(cardId) {
+    var best = null;
+    galleryPieces().forEach(function (p) {
+      if (p.cards.indexOf(cardId) === -1) return;
+      if (!best || p.cards.length < best.cards.length) best = p;
+    });
+    return best;
+  }
+
+  // A tagged piece as a shop backdrop; the tall file on a tall screen, like heroPlate.
+  function pieceStage(p, thumb) {
+    var art = !thumb && p.portrait && isPortraitScreen() ? p.portrait : (p.landscape || p.portrait);
+    return { art: art, pos: p.focus || '50% 50%', piece: p };
+  }
+
+  function chipArtAttrs(url, fallback) {
+    var attrs = artAttrs(url, 96);
+    var failed = 'this.src=\'' + esc(fallback) + '\'';
+    return attrs.indexOf('onerror="sgWebpFallback(this)"') >= 0
+      ? attrs.replace('onerror="sgWebpFallback(this)"', 'onerror="sgWebpFallback(this);if(!this.onerror){this.onerror=null;' + failed + '}"')
+      : attrs + ' onerror="this.onerror=null;' + failed + '"';
+  }
+
+  function artCardChips(piece) {
+    return artCards(piece).map(function (c) {
+      return '<button class="sg-artcard" type="button" data-card="' + esc(c.id) + '"' +
+        ' style="--el:' + color(c.element) + ';--rar:' + rarityColor(c.rarity) + '">' +
+        // A 32px face: the smallest Storage cut, and the element icon if
+        // there is no art or every fallback fails.
+        (c.cardArtUrl
+          ? '<img ' + chipArtAttrs(c.cardArtUrl, icon(c.element)) + ' alt="" loading="lazy">'
+          : '<img src="' + esc(icon(c.element)) + '" alt="" loading="lazy">') +
+        '<em>' + esc(c.name || c.id) + '</em></button>';
+    }).join('');
   }
 
   function artScreen(opts) {
@@ -3882,10 +4000,13 @@
         '<div class="sg-lightbox-foot" data-lightbox-foot></div>' +
         '<button class="sg-lightbox-close" type="button" data-lightbox-close aria-label="Close">\u00d7</button>' +
       '</div>' +
+      sheetHost() +
       bottomMarkup('collection', opts);
   }
 
-  function mountArt(app) {
+  function mountArt(app, opts) {
+    // A tagged card opens the same sheet the binder does, over the lightbox.
+    mountSheet(app, opts || {});
     var grid = app.querySelector('[data-art-grid]');
     var box = app.querySelector('[data-lightbox]');
     if (!box) return;
@@ -3908,7 +4029,11 @@
       if (!p) return;
       img.src = p.full;
       img.alt = p.title;
-      foot.innerHTML = '<strong>' + esc(p.title) + '</strong>' + (p.place ? '<em>' + esc(p.place) + '</em>' : '');
+      // Read by id at tap time: the background refresh may have brought tags
+      // the grid's own snapshot of the pool did not have.
+      var chips = artCardChips(artPiece(p.id) || p);
+      foot.innerHTML = '<strong>' + esc(p.title) + '</strong>' + (p.place ? '<em>' + esc(p.place) + '</em>' : '') +
+        (chips ? '<div class="sg-artcards"><span>Cards in this image</span><div>' + chips + '</div></div>' : '');
       box.hidden = false;
     });
   }
@@ -8650,7 +8775,7 @@
     if (screen === 'shop') mountShop(app, opts);
     if (screen === 'decks') mountDecks(app, opts);
     if (screen === 'builder') mountBuilder(app, opts);
-    if (screen === 'art') mountArt(app);
+    if (screen === 'art') mountArt(app, opts);
     if (screen === 'lobbies') mountLobbies(app, opts); else stopLobbyTimers();
     if (screen === 'room') mountRoom(app, opts); else stopRoomTimers();
     if (screen === 'profile') { mountSheet(app, opts); mountProfile(app, opts); }

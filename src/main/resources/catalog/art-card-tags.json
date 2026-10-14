@@ -1,0 +1,13 @@
+{
+  "pieces" : {
+    "bearby-blastoff" : { "cards" : [ "bearby" ], "shop" : [ ], "focus" : "" },
+    "bearby-longfuse" : { "cards" : [ "bearby" ], "shop" : [ ], "focus" : "" },
+    "bearnade-payload" : { "cards" : [ "bearnade" ], "shop" : [ ], "focus" : "" },
+    "bearzooka-rampage" : { "cards" : [ "bearzooka" ], "shop" : [ "pack:pack_molten_forge" ], "focus" : "55% 45%" },
+    "cactyjackedty-ruins" : { "cards" : [ "cactyjacked-ty" ], "shop" : [ "element:EARTH" ], "focus" : "36% 40%" },
+    "draco-brood" : { "cards" : [ "draco" ], "shop" : [ "element:FIRE" ], "focus" : "50% 45%" },
+    "frostag-training" : { "cards" : [ "frostag" ], "shop" : [ "element:ICE" ], "focus" : "45% 40%" },
+    "hurricrane-skyruins" : { "cards" : [ "hurricrane" ], "shop" : [ "element:WIND" ], "focus" : "62% 40%" },
+    "skydon-skyreach" : { "cards" : [ "skydon" ], "shop" : [ ], "focus" : "" }
+  }
+}
