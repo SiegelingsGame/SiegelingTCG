@@ -91,8 +91,22 @@
     const RECIPES = {
         glass: { name: 'Tempered Glass', pair: ['forge', 'fridge'], input: { ember: 2, frost: 2 }, output: { glass: 1 }, mins: 45 },
         alloy: { name: 'Charged Alloy', pair: ['forge', 'generator'], input: { ember: 1, storm: 1, ore: 1 }, output: { alloy: 1 }, mins: 60 },
-        rations: { name: 'Hearth Rations', pair: ['garden', 'kitchen'], input: { produce: 2, provisions: 1 }, output: { rations: 1 }, mins: 30 }
+        rations: { name: 'Hearth Rations', pair: ['garden', 'kitchen'], input: { produce: 2, provisions: 1 }, output: { rations: 1 }, mins: 30 },
+        // Extra partners so a workshop with more notches has more than one link worth making.
+        mortar: { name: 'Living Mortar', pair: ['quarry', 'garden'], input: { stone: 4, fiber: 3 }, output: { living_mortar: 1 }, mins: 90 },
+        preserves: { name: 'Cold Preserves', pair: ['fridge', 'kitchen'], input: { produce: 2, frost: 1 }, output: { provisions: 3 }, mins: 40 },
+        smelt: { name: 'Charged Ore', pair: ['generator', 'quarry'], input: { stone: 4, storm: 1 }, output: { ore: 2 }, mins: 50 }
     };
+    // A workshop's level sets its notches: 1 facing its rotation, then the opposite side,
+    // then both flanks. Two facing notches on neighbouring plots make a link, like the TCG.
+    const MAX_WS_LEVEL = 4;
+    const notchCount = (s, id) => Math.max(1, Math.min(MAX_WS_LEVEL, (s && s.wsl && s.wsl[id]) || 1));
+    function notchDirs(rot, n) {
+        if (n >= 4) return [0, 1, 2, 3];
+        if (n === 3) return [rot, (rot + 1) % 4, (rot + 3) % 4];
+        if (n === 2) return [rot, (rot + 2) % 4];
+        return [rot];
+    }
     const RESERVABLE = ['ember', 'frost', 'storm', 'ore', 'produce', 'provisions'];
 
     // Costs follow the Keep's own scale (Woodlot 1 Timber/min, Archive 60 Timber).
@@ -506,8 +520,8 @@
             lore: {}, voices: { done: {}, flags: {}, rapport: {}, nextAt: 0, log: [] }, claims: {}, steward: '', loadouts: [],
             // 3x3 Quarter: index = row*3+col; rot 0=N 1=E 2=S 3=W. Empty until workshops are built.
             grid: [null, null, null, null, null, null, null, null, null],
-            refine: { glass: 0, alloy: 0, rations: 0 },
-            made: { glass: 0, alloy: 0, rations: 0 },
+            refine: { glass: 0, alloy: 0, rations: 0, mortar: 0, preserves: 0, smelt: 0 },
+            made: { glass: 0, alloy: 0, rations: 0, mortar: 0, preserves: 0, smelt: 0 },
             knight: {
                 name: 'Ser Airek', task: { kind: 'gather', id: 'chop_pine' }, prog: 0, stall: '', counts: {},
                 equip: { weapon: 'wooden_sword', armor: null, helmet: null, boots: null, accessory: null, relic: null }, tool: 'woodaxe',
@@ -627,7 +641,7 @@
         return base * helperMul(s, 'woodlot') * prodMul(s) * toolMul(s, 'woodlot');
     }
     function workshopRates(s, id) {
-        const mul = damaged(s, id) || !wsBuilt(s, id) ? 0 : helperMul(s, id) * prodMul(s) * toolMul(s, id) * ((s.wsl[id] || 0) >= 2 ? 2 : 1) * (s.annex[id] ? 1.25 : 1), out = {};
+        const mul = damaged(s, id) || !wsBuilt(s, id) ? 0 : helperMul(s, id) * prodMul(s) * toolMul(s, id) * ((s.wsl[id] || 0) >= 2 ? 2 + 0.5 * Math.max(0, (s.wsl[id] || 0) - 2) : 1) * (s.annex[id] ? 1.25 : 1), out = {};
         Object.keys(WS[id].makes).forEach((k) => { out[k] = WS[id].makes[k] * mul; });
         return out;
     }
@@ -862,16 +876,19 @@
         const out = [];
         grid.forEach((c, i) => {
             if (!c) return;
-            const r = Math.floor(i / 3), col = i % 3, d = DIRS[c.rot];
-            const nr = r + d[0], nc = col + d[1];
-            if (nr < 0 || nr > 2 || nc < 0 || nc > 2) return;
-            const j = nr * 3 + nc, o = grid[j];
-            if (!o || (o.rot + 2) % 4 !== c.rot || j < i) return;
-            const recipe = Object.keys(RECIPES).find((rid) => {
-                const p = RECIPES[rid].pair;
-                return (p[0] === c.id && p[1] === o.id) || (p[1] === c.id && p[0] === o.id);
-            }) || null;
-            out.push({ a: i, b: j, dir: c.rot, recipe: recipe });
+            const r = Math.floor(i / 3), col = i % 3;
+            notchDirs(c.rot, notchCount(S, c.id)).forEach((d) => {
+                const nr = r + DIRS[d][0], nc = col + DIRS[d][1];
+                if (nr < 0 || nr > 2 || nc < 0 || nc > 2) return;
+                const j = nr * 3 + nc, o = grid[j];
+                // Each pair is found from its lower-index plot, so j is to the right (1) or below (2).
+                if (!o || j < i || !notchDirs(o.rot, notchCount(S, o.id)).includes((d + 2) % 4)) return;
+                const recipe = Object.keys(RECIPES).find((rid) => {
+                    const p = RECIPES[rid].pair;
+                    return (p[0] === c.id && p[1] === o.id) || (p[1] === c.id && p[0] === o.id);
+                }) || null;
+                out.push({ a: i, b: j, dir: d, recipe: recipe });
+            });
         });
         return out;
     }
@@ -965,6 +982,8 @@
         ['frost', 'Frostglass', '#a9e8f2', 4], ['storm', 'Stormcall', '#ffe63c', 5], ['shadow', 'Shadowveil', '#b087e0', 6], ['light', 'Dawnlight', '#ffe9a8', 7]];
     const WS_LEVEL2 = { garden: { frost_crystal: 18, ember_ingot: 14 }, forge: { verdant_fiber: 24, storm_cell: 10 }, fridge: { verdant_fiber: 20, ember_ingot: 16 },
         generator: { verdant_fiber: 12, ember_ingot: 12, frost_crystal: 12 }, quarry: { ember_ingot: 14, storm_cell: 8 }, kitchen: { stone: 14, frost_crystal: 10 } };
+    // [timber, materials, seconds, hall level] for a workshop's third and fourth notches.
+    const WS_NOTCH_UP = { 3: [320, { stone: 24, living_mortar: 2 }, 28800, 4], 4: [420, { living_mortar: 3, tempered_glass: 3, charged_alloy: 2 }, 43200, 6] };
     const FRONT_PROJECTS = { 1: ['Raise Akhar’s Wall', 240, { stone: 20 }, 7200], 2: ['Reinforce the Rampart', 320, { stone: 24 }, 21600],
         3: ['Raise the Battlements', 420, { stone: 32, ember_ingot: 14 }, 36000], 4: ['Crown the Bastion', 540, { stone: 44, ember_ingot: 18, frost_crystal: 14 }, 57600] };
     const WING_HOME = { sanctuary: 'Enclave', forge: 'Forge', garden: 'Garden', war_room: 'Great Hall', stable: 'Stable yard', library: 'Archive' };
@@ -1067,8 +1086,16 @@
         Object.keys(WS).forEach((w) => {
             const wb = WS_BUILD[w], makes = Object.keys(WS[w].makes).map((k) => RES[k].name).join(', ');
             if (!wsBuilt(s, w)) push('ws_' + w + '_1', 'Elemental Quarter', 'Build the ' + WS[w].name, wb[0], wb[1], wb[2], 'A ' + titleCase(WS[w].el) + ' workshop in the Elemental Quarter: makes ' + makes + '. Its socket can link to a neighbour.', s.b.woodlot < 1 ? 'Raise the Woodlot first.' : '');
-            else if ((s.wsl[w] || 0) < 2) push('ws_' + w + '_2', 'Workshops', 'Expand the ' + WS[w].name, 260, WS_LEVEL2[w], 21600, WS[w].name + ' produces twice as much.', !s.b.yard ? 'Raise the Builder’s Yard first.' : '');
-            else if (!s.annex[w]) push('annex_' + w, 'Workshops', WS[w].name + ' storage annex', 220, { stone: 10 }, 14400, WS[w].name + ' output +25%.');
+            else {
+                const lv = s.wsl[w] || 0;
+                if (lv < 2) push('ws_' + w + '_2', 'Workshops', 'Expand the ' + WS[w].name, 260, WS_LEVEL2[w], 21600, WS[w].name + ' produces twice as much and opens a second notch on the far side.', !s.b.yard ? 'Raise the Builder’s Yard first.' : '');
+                else if (lv < MAX_WS_LEVEL) {
+                    const up = WS_NOTCH_UP[lv + 1];
+                    push('ws_' + w + '_' + (lv + 1), 'Workshops', (lv === 2 ? 'Notch the flanks of the ' : 'Open every side of the ') + WS[w].name, up[0], up[1], up[2],
+                        WS[w].name + ' gains ' + (lv === 2 ? 'a third notch on its flanks' : 'its fourth notch: it can link on every side') + ', and +25% output.', s.b.hall < up[3] ? 'Needs ' + HALL_RANKS[up[3] - 1] + ' (Hall ' + up[3] + ').' : '');
+                }
+                if (lv >= 2 && !s.annex[w]) push('annex_' + w, 'Workshops', WS[w].name + ' storage annex', 220, { stone: 10 }, 14400, WS[w].name + ' output +25%.');
+            }
         });
         Object.keys(CH.buildings || {}).forEach((id) => {
             const B = CH.buildings[id], lvl = (s.wings[id] || 0);
@@ -1088,7 +1115,7 @@
         else if ((m = id.match(/^storehouse_(\d)$/))) s.b.storehouse = Math.max(s.b.storehouse || 0, +m[1]);
         else if (id === 'yard') s.b.yard = 1;
         else if ((m = id.match(/^front_(\d)$/))) s.b.front = Math.max(s.b.front || 0, +m[1]);
-        else if ((m = id.match(/^ws_(\w+)_2$/))) s.wsl[m[1]] = 2;
+        else if ((m = id.match(/^ws_(\w+)_([234])$/))) s.wsl[m[1]] = Math.max(s.wsl[m[1]] || 0, +m[2]);
         else if ((m = id.match(/^annex_(\w+)$/))) s.annex[m[1]] = true;
         else if ((m = id.match(/^wing_(\w+)_(\d)$/))) s.wings[m[1]] = Math.max(s.wings[m[1]] || 0, +m[2]);
     }
@@ -2395,7 +2422,11 @@
         const main = $('ckMain');
         const scroll = main.scrollTop;
         parkScene();
+        // A journey already on screen keeps walking: the same trip's node survives the re-render.
+        const keepJ = {};
+        main.querySelectorAll('.dm-journey').forEach((j) => { keepJ[j.dataset.start + ':' + j.dataset.end] = j; });
         main.innerHTML = view();
+        main.querySelectorAll('.dm-journey').forEach((j) => { const old = keepJ[j.dataset.start + ':' + j.dataset.end]; if (old) j.replaceWith(old); });
         main.dataset.tab = S.ui.tab;
         mountScene();
         decorateRoom();
@@ -2450,6 +2481,7 @@
             e.style.width = Math.max(0, Math.min(100, (t - a) / (b - a) * 100)) + '%';
         });
         document.querySelectorAll('[data-live="action"]').forEach((e) => { e.style.width = Math.round(Math.min(1, S.knight.prog) * 100) + '%'; });
+        updateJourneys(t);
         document.querySelectorAll('[data-live="walker"]').forEach((e) => {
             const a = Number(e.dataset.start), b = Number(e.dataset.end);
             e.style.left = Math.max(0, Math.min(100, (t - a) / (b - a) * 100)) + '%';
@@ -2716,6 +2748,87 @@
         if (!ids.length) return '<span class="ck-faces is-empty">No one in the company yet</span>';
         return '<span class="ck-faces">' + ids.filter((id) => S.comps[id]).map((id) => '<span class="ck-face" style="--el:var(--' + C(id).el + ')" title="' + esc(C(id).name) + '">' + portrait(id) + '</span>').join('') + '</span>';
     }
+    // —— The road, watched: the squad walks through one area per encounter on the route ——
+    // Presentation only: areas split the trip evenly and read the same encounter preview the
+    // report uses, so what the player watches matches what the journey resolves to.
+    const BIOME_OF = { EARTH: 'forest', WIND: 'meadow', POISON: 'bog', ICE: 'snow', FIRE: 'ember', WATER: 'coast', METAL: 'ruins', ELECTRIC: 'storm',
+        SHADOW: 'dusk', UNDEAD: 'dusk', PSYCHIC: 'dusk', LIGHT: 'dawn' };
+    const AREA_KIND = (id) => (/^hazard/.test(id) ? 'hazard' : /^twist:/.test(id) ? 'twist' : ['pack', 'ambush', 'elite', 'boss'].includes(id) ? 'foe'
+        : ['rubble', 'sealed', 'maze'].includes(id) ? 'ruin' : ['seam', 'ironwood'].includes(id) ? 'resource' : id === 'grove' ? 'grove' : 'trail');
+    const AREA_PROP = { foe: '', ruin: '<i class="dm-j-arch"></i>', resource: '<i class="dm-j-rock"></i><i class="dm-j-log"></i>', grove: '<i class="dm-j-bloom"></i><i class="dm-j-bloom"></i><i class="dm-j-bloom"></i>',
+        hazard: '<i class="dm-j-motes"></i>', twist: '<i class="dm-j-fog"></i>', trail: '<i class="dm-j-prints"></i>' };
+    function treeStrip(biome) {
+        const tree = (x, h, k) => biome === 'snow' || biome === 'forest' || biome === 'storm'
+            ? '<path d="M' + x + ' ' + (100 - h) + 'l' + (k * 9) + ' ' + (h * 0.45) + 'h-' + (k * 5) + 'l' + (k * 8) + ' ' + (h * 0.35) + 'h-' + (k * 24) + 'l' + (k * 8) + '-' + (h * 0.35) + 'h-' + (k * 5) + 'z" class="t-crown"/><rect x="' + (x - 1.5) + '" y="' + (100 - h * 0.2) + '" width="3" height="' + (h * 0.2) + '" class="t-trunk"/>'
+            : biome === 'ember' || biome === 'dusk' ? '<path d="M' + x + ' 100V' + (100 - h) + 'm0 ' + (h * 0.3) + 'l-' + (k * 7) + '-' + (h * 0.18) + 'M' + x + ' ' + (100 - h * 0.55) + 'l' + (k * 8) + '-' + (h * 0.2) + '" class="t-dead"/>'
+            : biome === 'coast' ? '<path d="M' + x + ' 100q-2-' + (h * 0.6) + ' 3-' + h + 'M' + (x + 3) + ' ' + (100 - h) + 'q-9 2-12 8M' + (x + 3) + ' ' + (100 - h) + 'q9 1 12 8M' + (x + 3) + ' ' + (100 - h) + 'q-2-6-9-7" class="t-palm"/>'
+            : biome === 'ruins' ? '<rect x="' + (x - 4) + '" y="' + (100 - h * 0.7) + '" width="8" height="' + (h * 0.7) + '" class="t-pillar"/><rect x="' + (x - 6) + '" y="' + (100 - h * 0.74) + '" width="12" height="4" class="t-pillar"/>'
+            : '<circle cx="' + x + '" cy="' + (100 - h * 0.62) + '" r="' + (h * 0.32) + '" class="t-crown"/><rect x="' + (x - 1.5) + '" y="' + (100 - h * 0.35) + '" width="3" height="' + (h * 0.35) + '" class="t-trunk"/>';
+        let g = '';
+        for (let i = 0; i < 12; i++) g += tree(10 + i * 33 + (i % 3) * 6, 38 + ((i * 37) % 30), 1);
+        return '<svg viewBox="0 0 400 100" preserveAspectRatio="none" aria-hidden="true">' + g + '</svg>';
+    }
+    function journeyView(o) {
+        const n = Math.max(1, o.areas.length), strip = treeStrip(o.biome);
+        return '<section class="dm-journey" data-biome="' + o.biome + '" data-live="journey" data-start="' + o.start + '" data-end="' + o.end + '" data-n="' + n + '">' +
+            '<img class="dm-j-far" src="' + esc(o.scene) + '" alt="" decoding="async"><i class="dm-j-sky"></i>' +
+            '<div class="dm-j-layer dm-j-hills"><i></i><i></i></div>' +
+            '<div class="dm-j-layer dm-j-trees is-back">' + strip + strip + '</div>' +
+            '<div class="dm-j-areas">' + o.areas.map((a, i) => '<div class="dm-j-area" data-kind="' + a.kind + '" data-i="' + i + '">' + (AREA_PROP[a.kind] || '') +
+                (a.kind === 'foe' && a.foe ? '<b class="dm-j-foe"><img class="dm-shade" src="' + esc(a.foe) + '" alt=""></b>' : a.kind === 'foe' ? '<b class="dm-j-foe is-blank"></b>' : '') + '</div>').join('') + '</div>' +
+            '<div class="dm-j-ground"><i></i></div>' +
+            '<div class="dm-j-squad">' + o.walkers.map((w, i) => '<b class="dm-j-walker' + (w.knight ? ' is-knight' : '') + '" style="--i:' + i + '">' + w.html + '</b>').join('') + '</div>' +
+            '<div class="dm-j-layer dm-j-trees is-front">' + strip + strip + '</div>' +
+            '<div class="dm-j-hud"><span class="ck-kicker">' + o.kicker + '</span><b class="dm-j-title">' + esc(o.title) + '</b>' +
+            '<span class="dm-j-now" data-j="label">' + esc(o.areas[0] ? o.areas[0].title : 'On the road') + '</span></div>' +
+            '<div class="dm-j-track">' + o.areas.map((a, i) => '<i class="dm-j-stop is-' + a.status + '" style="left:' + ((i + 0.5) / n * 100) + '%" title="' + esc(a.title) + '"></i>').join('') +
+            '<span class="dm-j-marker" data-live="walker" data-start="' + o.start + '" data-end="' + o.end + '"></span></div>' +
+            '<script type="application/json" class="dm-j-labels">' + JSON.stringify(o.areas.map((a) => a.title + (a.status === 'ok' ? ' · handled' : a.status === 'part' ? ' · a struggle' : a.status === 'miss' ? ' · unanswered' : ''))).replace(/</g, '\\u003c') + '</script></section>';
+    }
+    const knightWalker = () => ({ knight: true, html: '<span class="dm-j-knight"><img src="' + KNIGHT_ART + '" alt=""></span>' });
+    const compWalker = (id) => ({ html: compArt(id, C(id).name) });
+    function foeArt(seed, element) {
+        const pool = Object.keys(SPECIES).filter((k) => (!element || SPECIES[k].element === element) && catalogArt(k, 240));
+        const any = pool.length ? pool : Object.keys(SPECIES).filter((k) => catalogArt(k, 240));
+        return any.length ? catalogArt(any[(hashOf(seed) % any.length + any.length) % any.length], 240) : '';
+    }
+    function expeditionJourney(x) {
+        const d = DEST[x.dest] || {};
+        const el = x.trial ? C(x.trial).EL : x.operation ? (x.threatEl || 'FIRE') : (d.element || 'EARTH');
+        let areas;
+        if (x.trial || x.operation) {
+            areas = [0, 1, 2].map((i) => ({ kind: i === 2 ? 'foe' : 'trail', title: x.trial ? ['The echo stirs', 'Facing its own echo', 'The strongest of its element'][i] : ['The march out', 'Skirmish lines', 'Breaking the threat'][i], status: 'pending', foe: i === 2 ? foeArt(x.id, el) : '' }));
+        } else {
+            areas = (d.encounters || []).map((id) => { const r = encounter(id, x, S); return { id: id, r: r }; }).filter((a) => a.r.status !== 'skip')
+                .map((a, i) => ({ kind: AREA_KIND(a.id), title: a.r.title, status: a.r.status, foe: AREA_KIND(a.id) === 'foe' ? foeArt(x.id + i, d.element) : '' }));
+        }
+        return journeyView({ biome: x.dest === 'ruins' ? 'ruins' : BIOME_OF[el] || 'forest', scene: x.trial || x.operation ? namedScene(elKey(el) + (x.operation ? '-boss' : '-journey')) : sceneUrl(x.dest),
+            kicker: esc(x.trial ? 'Legendary Bond Trial' : x.operation ? 'Siege Operation' : (d.region || 'On the road')), title: expTitle(x), start: x.startAt, end: x.endAt,
+            areas: areas, walkers: (x.trial ? [] : [knightWalker()]).concat(x.party.filter((id) => S.comps[id]).map(compWalker)) });
+    }
+    // Siegelings on the Explore job wander the Rootwild in a little party of their own.
+    function scoutJourney() {
+        const scouts = joinedIds(S).filter((id) => S.comps[id].job.kind === 'explore' && !onExpedition(S, id));
+        if (!scouts.length) return '';
+        const c = S.comps[scouts[0]], start = Math.round((S.t - c.explore * HOUR) / MIN) * MIN, end = start + EXPLORE_HOURS * HOUR;
+        return '<div class="ck-section-head"><h3>🧭 Scouting party</h3><span class="ck-count">' + scouts.length + '</span></div>' +
+            journeyView({ biome: BIOME_OF[C(scouts[0]).EL] || 'forest', scene: namedScene(C(scouts[0]).el + '-journey'), kicker: 'Exploring the wilds', title: scouts.map((id) => C(id).name).join(', '),
+                start: start, end: end, areas: [{ kind: 'trail', title: 'Following old trails', status: 'pending' }, { kind: 'grove', title: 'Searching for a cache', status: 'pending' }], walkers: scouts.map(compWalker) }) +
+            '<p class="ck-hint">Each scout brings back a cache every ' + EXPLORE_HOURS + ' hours. Their Keep job is Explore, so nothing else pauses.</p>';
+    }
+    function updateJourneys(t) {
+        document.querySelectorAll('[data-live="journey"]').forEach((j) => {
+            const a = Number(j.dataset.start), b = Number(j.dataset.end), n = Number(j.dataset.n) || 1;
+            const p = Math.max(0, Math.min(0.9999, (t - a) / Math.max(1, b - a))), seg = p * n, idx = Math.floor(seg), f = seg - idx;
+            j.style.setProperty('--f', f.toFixed(3));
+            j.querySelectorAll('.dm-j-area').forEach((el) => el.classList.toggle('is-here', Number(el.dataset.i) === idx));
+            if (j.dataset.area !== String(idx)) {
+                j.dataset.area = String(idx);
+                const labels = JSON.parse((j.querySelector('.dm-j-labels') || {}).textContent || '[]'), lab = j.querySelector('[data-j="label"]');
+                if (lab && labels[idx]) lab.textContent = 'Area ' + (idx + 1) + '/' + n + ' · ' + labels[idx];
+            }
+        });
+    }
     function viewExpedition() {
         let h = '';
         S.reports.filter((r) => !r.seen).forEach((r) => {
@@ -2723,9 +2836,7 @@
         });
         if (S.exp) {
             const x = S.exp, d = DEST[x.dest] || {};
-            h += hero({ cls: 'is-road', el: d.element, scene: x.trial || x.operation ? namedScene('relic-journey') : sceneUrl(x.dest), kicker: esc(d.region || 'On the road'), title: esc(expTitle(x)),
-                body: liveBar(x.startAt, x.endAt, 'is-fat is-live-road') + '<p class="ck-banner-line">Back in ' + eta(x.endAt) + ' · ' + esc(RES[x.weaponId] ? RES[x.weaponId].name : WEAPONS[x.weapon].name) + (x.tool ? ' and ' + esc(itemName(x.tool)) : '') + '</p>',
-                foot: partyFaces(x.party) });
+            h += expeditionJourney(x) + '<section class="ck-card is-tight"><div class="ck-row"><span class="ck-small">Back in ' + eta(x.endAt) + ' · ' + esc(RES[x.weaponId] ? RES[x.weaponId].name : WEAPONS[x.weapon].name) + (x.tool ? ' and ' + esc(itemName(x.tool)) : '') + '</span>' + partyFaces(x.party) + '</div>' + liveBar(x.startAt, x.endAt, 'is-fat') + '</section>';
             if (!x.trial && !x.operation && d.encounters) {
                 const enc = d.encounters.map((id) => encounter(id, x, S)).filter((r) => r.status !== 'skip');
                 h += '<section class="ck-card"><h3>📜 What the road holds</h3><ol class="ck-timeline">' + enc.map((r) => '<li class="is-' + (r.status === 'ok' ? 'good' : r.status === 'part' ? 'info' : 'bad') + '"><time>' + (r.status === 'ok' ? '✓' : r.status === 'part' ? '~' : '✕') + '</time><span><b>' + esc(r.title) + '.</b> ' +
@@ -2742,6 +2853,7 @@
         h += hero({ cls: 'is-road', scene: namedScene('wind-journey'), kicker: 'Expeditions', title: 'Choose your road',
             body: '<p class="ck-banner-line">Preparation decides every encounter: weapon, tool, gear, runes and the company you bring.</p>',
             foot: partyFaces(party) + '<button type="button" class="ck-btn is-glass is-sm" data-act="tab" data-arg="company">Change company</button>' });
+        h += scoutJourney();
         h += '<details class="ck-card ck-prep"' + (S.ui.prepOpen ? ' open' : '') + '><summary data-act="prep-toggle"><span class="ck-prep-title">⚙️ Loadout &amp; supplies</span><span class="ck-prep-sum">' +
             '<span class="ck-chip">' + (WEAPON_EMOJI[wi.weaponType] || '🗡️') + ' ' + esc(wi.name) + '</span><span class="ck-chip">🥖 ' + fl(S.inv.provisions) + '</span><span class="ck-chip">🧪 ' + packed + '</span>' + (S.prep.rune ? '<span class="ck-chip is-rare">📜 Rune</span>' : '') + '</span></summary>' +
             '<h4>Weapon</h4><div class="ck-pills">' + weapons.map((w) => '<button type="button" class="ck-pill' + (S.knight.equip.weapon === w ? ' is-on' : '') + '" data-act="equip" data-arg="weapon:' + w + '">' + (WEAPON_EMOJI[RES[w].weaponType] || '') + ' ' + esc(RES[w].name) + '</button>').join('') + '</div>' +
@@ -3076,8 +3188,13 @@
             if (l.dir === 1) extra += '<i class="dm-link ' + cls + '" style="right:-12px;top:calc(50% - 3px);width:14px;height:6px"></i><span class="dm-link-label" style="left:100%;top:50%">' + esc(name) + '</span>';
             else extra += '<i class="dm-link ' + cls + '" style="bottom:-12px;left:calc(50% - 3px);height:14px;width:6px"></i><span class="dm-link-label" style="left:50%;top:100%">' + esc(name) + '</span>';
         });
-        return '<button class="dm-plot' + (sel ? ' is-selected' : '') + '" type="button" data-act="plot" data-arg="' + i + '" style="--el:var(--' + W.el + ')" aria-label="' + esc(W.name) + ', ' + lab + ', socket faces ' + ['north', 'east', 'south', 'west'][c.rot] + '" aria-pressed="' + sel + '">' +
-            '<span class="dm-ws-art">' + (WORKSHOP_ART[c.id] || '') + '</span><span class="dm-ws-name">' + esc(W.name) + (storedCount(S, c.id) ? ' · ' + storedCount(S, c.id) : '') + '</span><i class="dm-socket" data-dir="' + c.rot + '"></i>' + extra + '</button>';
+        return '<button class="dm-plot' + (sel ? ' is-selected' : '') + '" type="button" data-act="plot" data-arg="' + i + '" style="--el:var(--' + W.el + ')" aria-label="' + esc(W.name) + ', ' + lab + ', ' + notchCount(S, c.id) + ' notch' + (notchCount(S, c.id) > 1 ? 'es' : '') + ' facing ' + notchDirs(c.rot, notchCount(S, c.id)).map((d) => ['north', 'east', 'south', 'west'][d]).join(', ') + '" aria-pressed="' + sel + '">' +
+            '<span class="dm-ws-art">' + (WORKSHOP_ART[c.id] || '') + '</span><span class="dm-ws-name">' + esc(W.name) + (storedCount(S, c.id) ? ' · ' + storedCount(S, c.id) : '') + '</span>' +
+            notchDirs(c.rot, notchCount(S, c.id)).map((d) => '<i class="dm-socket' + (linkedOn(i, d) ? ' is-linked' : '') + '" data-dir="' + d + '"></i>').join('') + extra + '</button>';
+    }
+    // A notch is lit when it is one end of a link, so the grid shows which sides are working.
+    function linkedOn(i, d) {
+        return links(S.grid).some((l) => (l.a === i && l.dir === d) || (l.b === i && (l.dir + 2) % 4 === d));
     }
     function projectCard(p) {
         const b = buildBlock(S, p.id);
@@ -3133,11 +3250,12 @@
         }
         if (WS[id]) {
             const rs = Object.keys(RECIPES).filter((r) => RECIPES[r].pair.includes(id));
-            return produceCard(id) + '<section class="ck-card"><h3>🔗 Socket links</h3><p class="ck-small ck-muted">' + esc(WS[id].blurb) + '</p><ul class="ck-cross">' + rs.map((r) => {
+            const nn = notchCount(S, id);
+            return produceCard(id) + '<section class="ck-card"><div class="ck-row"><h3>🔗 Notches &amp; links</h3>' + chip('Level ' + (S.wsl[id] || 1) + ' · ' + nn + '/4 notches') + '</div><p class="ck-small ck-muted">' + esc(WS[id].blurb) + ' Upgrading opens more notches, so it can link to more neighbours at once.</p><ul class="ck-cross">' + rs.map((r) => {
                 const on = activeRecipes(S).includes(r);
                 return '<li class="' + (on ? 'is-on' : '') + '"><b>' + esc(RECIPES[r].name) + '</b> <span class="ck-small">' + esc(WS[RECIPES[r].pair[0]].name + ' + ' + WS[RECIPES[r].pair[1]].name) + '</span><span class="ck-small ck-muted">' + (on ? 'Linked and refining.' : 'Face the two sockets at each other in the Quarter.') + '</span></li>';
             }).join('') + '</ul><div class="ck-actions"><button type="button" class="ck-btn is-sm" data-act="room" data-arg="quarter">Arrange the Quarter</button></div></section>' +
-                roomCrafts(id) + projects(new RegExp('^(ws_' + id + '_2|annex_' + id + ')$'));
+                roomCrafts(id) + projects(new RegExp('^(ws_' + id + '_[234]|annex_' + id + ')$'));
         }
         if (id === 'archive') {
             if (S.b.archive < 1) return '<section class="ck-card"><p class="ck-small">' + esc(BUILDINGS.archive.blurb) + '</p></section>' + projects(/^archive$/);
@@ -3170,7 +3288,7 @@
             roomCrafts('great_hall') + projects(/^(hall_|yard|storehouse|wing_war_room)/) + rebirthCard();
     }
     function quarterActions() {
-        let h = '<section class="ck-card"><p class="ck-small">' + (arranging ? 'Tap a workshop, then an empty plot to move it. Rotate turns its socket; two sockets facing each other make a link.' : 'Every workshop produces on its own. Linked pairs also refine automatically, using stock from storage. Tap a workshop to step inside.') + '</p>' +
+        let h = '<section class="ck-card"><p class="ck-small">' + (arranging ? 'Tap a workshop, then an empty plot to move it. Rotate turns all of its notches; two notches facing each other make a link.' : 'Every workshop produces on its own. Two notches facing each other on neighbouring plots make a link, and linked pairs refine automatically from storage. Upgrade a workshop to open more notches. Tap a workshop to step inside.') + '</p>' +
             '<div class="ck-actions">' + (arranging ? '<button type="button" class="ck-btn is-primary" data-act="rotate"' + (quarterSel >= 0 && S.grid[quarterSel] ? '' : ' disabled') + '>Rotate socket ↻</button><button type="button" class="ck-btn" data-act="arrange">Done</button>'
                 : '<button type="button" class="ck-btn" data-act="arrange"' + (S.grid.some(Boolean) ? '' : ' disabled') + '>Arrange</button>') + '</div></section>';
         h += projects(/^ws_\w+_1$/);

@@ -1,4 +1,28 @@
 Original prompt: Go with earth based art for endless
+- October 15, 2026 **Dominion: workshop upgrades open more notches, and expeditions can be watched as a squad walking the road.**
+  - **Change.**
+    - **Notches.** Quarter workshops now carry notches like a card's perimeter dots:
+      - level 1 has one notch, facing the workshop's rotation;
+      - level 2 (the existing Expand, which still doubles output) adds the opposite side;
+      - new level 3 and 4 upgrades open both flanks and then every side, each adding 25% output. They need Hall 4 and Hall 6 plus Living Mortar, glass and alloy.
+    - `links()` pairs any two facing notches on neighbouring plots, so an upgraded workshop can feed several neighbours at once. Three new link recipes give every workshop at least two partners: Living Mortar (Quarry + Garden), Cold Preserves (Fridge + Kitchen) and Charged Ore (Generator + Quarry).
+    - Plot tiles always show their notches and light the ones carrying a link. Workshop rooms show their level and notch count.
+    - Fixed the Quarter tile art, which rendered blank because the construction-art rules copied from `keep.css` hid it.
+    - **Journey view.** While the Knight is on the road (including Bond Trials and Siege Operations), the Expedition tab shows an animated road:
+      - a biome by element (forest, meadow, bog, snow, ember, coast, ruins, storm, dusk, dawn) over the destination scene art, with parallax hills and two tree layers;
+      - a scrolling path, with the Knight and the party walking as bouncing paper standees;
+      - one area per encounter on the route. Areas use the same encounter preview as the report, and each one slides past with its props: shaded foes, ruined arches, rocks and logs, blooms, hazard motes, twist fog, footprints;
+      - a waypoint track with a marker and an "Area n/N" caption.
+    - Siegelings on the Explore job walk their own scouting party on the planning screen.
+    - A journey node survives re-renders, so the walk never restarts mid-trip. Animations stop under reduced motion.
+  - **Verification.**
+    - `node --check js/dominion.js`.
+    - Headless Chromium at 390x844:
+      - forge, fridge and generator in a row: a level-1 forge links only glass, at level 2 it links glass and alloy, and adding a quarry above a level-4 forge makes an unrecipe'd link;
+      - the third-notch project shows up gated by materials;
+      - a Rootwild departure renders the journey;
+      - after 118 minutes the caption reads "Area 3/5 · Fallen ironwood · handled", and the rock and log props are on screen beside the walkers;
+      - no page errors.
 - October 15, 2026 **Dominion moves into the Chronicles shell, with the Keep in Base: building interiors, visitors with requests and trust, the Chronicle, Enclave rapport, a bare-ground start and crafted-only gear.**
   - **Change.** `dominion.html` now uses the Chronicles shell and `chronicles.css` unchanged: the header, status strip, seven tabs (Knight, Company, Work, Expedition, Base, Realm, Wilds) and the modal. The UI layer of `dominion.js` (v4) was rewritten on Chronicles' markup; the rules engine is unchanged apart from what follows. The Keep lives in **Base**. Its scene is one persistent node that the tab mounts. It has a new Akhar's Wall location (renamed from Akhar's Front; raised from Hall 2), and its sub-sections are Grounds, Visitors, Chronicle, Build, Stores and Log. Tapping a building opens the Keep's own interior room. The room markup is a `<template>` copied from `keep.html`, and its styles are copied from `keep.css` into the new `css/dominion-keep.css`. Rooms can be toured with prev/next arrows. Inside, each room shows its stores and Collect button, a resident shown as a paper standee, crafted tools and displayed decorations, socket links, and its own projects. An unbuilt room is a building site. The Quarter's room is the plot grid, and the Wall's room is a rampart stage with posted defenders and Akhar's shaded raiders. Keep mechanics ported from KeepService:
     - Rooms fill their own stores (8 hours' worth) until collected. Collecting pays rank XP and drives lore and resident tasks.
