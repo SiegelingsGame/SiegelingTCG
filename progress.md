@@ -1,4 +1,26 @@
 Original prompt: Go with earth based art for endless
+- October 15, 2026 **Dominion sinks round 3: rush builds, more crews, Wall drill, siege waves, decoration sets, masterwork tools, a growing grounds, and one-line tips.**
+  - **Change.**
+    - **Rush builds.** Any build under way can be finished at once for 30 Crowns per hour left (minimum 5).
+    - **Crews 3 and 4.** Builder's Yard projects, needing Hall 4 and Hall 6; they cost Silver and Crowns.
+    - **Wall drill.** A posted Siegeling can be drilled to Wall rank 10 for Crowns, Silver and stone (cost grows with the square of the rank). Each rank gives +10% post pay, +0.25 shot damage, 4% faster volleys and +1 siege defense. The rank shows as a gold ★ badge over the defender.
+    - **Siege waves.** Once the Wall stands, a wave comes every 12 hours. Its strength is `4 + 3 × Wall level + 0.5 × waves so far`. The Wall's defense comes from posted defenders (3 + rank + bond/10 each) plus 2 × Wall level. If the wave is held, it pays Crowns and Silver (with a 15% relic chance from Wall level 5). A breach damages the Great Hall, the Woodlot or a workshop through the existing repair events. The Wall room shows the next wave's strength against the current defense, and the last result.
+    - **Decoration sets.** Displaying every decoration in a room gives that room +5% output; for the Great Hall, +5% Keep production.
+    - **Masterwork tools.** Tier 6 for each tool room needs tier 5 and room level 4, and costs 2 Ancient Relics, a Keystone, an Aether Core, Silver and Crowns.
+    - **A growing grounds.** Buildings raise banners, gilt and a glow over three growth tiers, with ★ marks. Storehouse levels 3 and up stack crates by the Hall, Woodlot levels enlarge its grove, Wall levels recolour the far wall, and workshops at level 3 and up (gilt at 5 and up) change their roofs in the Quarter miniature.
+    - **Tips instead of the walkthrough.** The first visit to each tab shows a single dismissible tip above the tab bar, remembered in `S.ui.hints`.
+  - **Verification.**
+    - `node --check js/dominion.js`. No Java changes this round; the full `./mvnw -q test` passed on the previous commit.
+    - Headless Chromium at 390x844 and 1920x1080:
+      - **Tip:** shows, and is dismissed and remembered.
+      - **Rush:** rushing the Woodlot build charged 60 Crowns and finished it.
+      - **Crews:** a rushed third crew sets `crews` to 1.
+      - **Drill:** two ranks for Cacty cost 200 Crowns.
+      - **Sieges:** defense 12 against strength 10 is repelled for +54 Crowns. An empty level-6 Wall is breached (defense 12 against strength 23) and damages the Great Hall.
+      - **Set bonus:** a full Kitchen set lifts its rate ×1.113 (5% set × 6% decorations).
+      - **Masterwork:** it crafts after tier 5; Woodcutting speed reaches +60%.
+      - **Grounds:** growth tiers show ★★★ on the Hall, Quarter, Woodlot and Wall.
+    - The smoke, deep UI, journey, food, Vault, Wall, tool and Knight checks all still pass with no page errors.
 - October 15, 2026 **Dominion: the Keep's full Akhar's Wall, working tool tiers, deeper upgrade ladders, an overlay-art SiegeKnight, and the guide shelved.**
   - **Change.**
     - **Full Akhar's Wall.** The Wall room now runs the Keep's Front battle (`keep.js` `initializeFrontCombat`/`updateFrontCombatStep` and the `keep.css` front rules, rescoped to `.dm-front`). It has a tiered rampart SVG with palette swaps, patches, banners and a gilt crown; torches lighting the gaps between posts; defenders as paper cutouts on the inner walk; raiders as real catalog Siegelings recoloured with `#paper-siegling-shadow`, each with a health bar; elemental projectiles; and a coin burst on each kill. A single `requestAnimationFrame` loop steps the fight only while a manned Wall is on screen. The battle node survives the per-minute re-render, so raiders keep marching. Raiders felled while you watch pay a Crowns bounty (`1 + floor(level/2)` each, up to `20 × level` an hour). The steady posted pay is still the Wall's main income.
