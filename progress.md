@@ -1,4 +1,24 @@
 Original prompt: Go with earth based art for endless
+- October 15, 2026 **Dominion: start with provisions, forage them from the first minute, and cook meals that buff a whole expedition.**
+  - **Change.**
+    - The bare-ground start left a new Keep unable to leave: it had 0 provisions, the Kitchen was unbuilt, and Cooking sat behind Fishing 3, which needs Carpentry 3. Now:
+      - A new Keep starts with 6 provisions.
+      - New level-1 Foraging work, **Trail Forage**, yields Provisions (plus Sunleaf every 4th action). It is offered from the supplies panel and from the "can't depart" message.
+      - Cooking opens at Foraging 3 in Dominion.
+    - Six repeatable Cooking **meals** (new MEAL kind). One can be packed per expedition, it is eaten on departure, and the report names it:
+      - Camp Stew, Cooking 1: +15% bond.
+      - Forager's Hash, Cooking 5: +10% haul.
+      - Smoked Fish Wraps, Cooking 10: 10% shorter road.
+      - Frostbloom Broth, Cooking 15: losses halved.
+      - Hunter's Feast, Cooking 22: +20% haul and XP.
+      - Covenant Banquet, Cooking 30: a mix of all four.
+    - Effects feed the existing loot, bond, XP, loss and trip-time math. Hearth Rations keep their provision-replacing role.
+  - **Verification.** `node --check js/dominion.js`. Headless Chromium on a fresh save:
+    - provisions 6, and the Rootwild trip departs and reports;
+    - with 0 provisions, an hour of Trail Forage gave 12;
+    - at Foraging 3 a Camp Stew cooks and packs; departure consumes it (0 left) and the expedition and report carry `camp_stew`;
+    - the supplies panel shows the meal picker with its effect line;
+    - no page errors.
 - October 15, 2026 **Dominion portraits no longer flash.**
   - **Change.**
     - The header avatar was rebuilt every second, and the whole tab re-rendered whenever any stock count changed (every few seconds while the Knight works). Each rebuild reloaded every portrait.

@@ -75,8 +75,17 @@
             heatWard: it.heatWard, relicEffect: it.relicEffect, bondXp: it.bondXp, healPct: it.healPct, lureElement: it.lureElement, prefers: it.prefers };
     });
     const STRIP = ['timber', 'stone', 'glass', 'provisions'];
-    const KIND_ORDER = ['CURRENCY', 'MATERIAL', 'ESSENCE', 'FOOD', 'POTION', 'LURE', 'RUNE', 'WEAPON', 'ARMOR', 'HELMET', 'BOOTS', 'ACCESSORY', 'RELIC', 'TOOL'];
-    const KIND_LABEL = { CURRENCY: 'Currencies', MATERIAL: 'Materials', ESSENCE: 'Essences', FOOD: 'Food', POTION: 'Potions', LURE: 'Lures', RUNE: 'Runes', WEAPON: 'Weapons', ARMOR: 'Armor', HELMET: 'Helmets', BOOTS: 'Boots', ACCESSORY: 'Accessories', RELIC: 'Relics', TOOL: 'Tools' };
+    // Meals for the road: one is packed per expedition and shapes how it goes.
+    const MEALS = {
+        camp_stew: { name: 'Camp Stew', level: 1, inputs: { provisions: 2, sunleaf: 2 }, secs: 20, xp: 8, bond: 0.15, text: '+15% bond for the company' },
+        foragers_hash: { name: 'Forager’s Hash', level: 5, inputs: { provisions: 1, produce: 2, sunleaf: 2 }, secs: 24, xp: 12, haul: 0.1, text: '+10% to the haul' },
+        smoked_wraps: { name: 'Smoked Fish Wraps', level: 10, inputs: { provisions: 1, minnow: 2, fiber: 1 }, secs: 28, xp: 16, speed: 0.1, text: 'The road is 10% shorter' },
+        frostbloom_broth: { name: 'Frostbloom Broth', level: 15, inputs: { frostbloom: 2, produce: 2 }, secs: 30, xp: 20, ward: 0.5, text: 'Hazard and encounter losses halved' },
+        hunters_feast: { name: 'Hunter’s Feast', level: 22, inputs: { silverfin: 1, galeberry: 2, rations: 1 }, secs: 36, xp: 28, haul: 0.2, xpMul: 0.2, text: '+20% haul and +20% road XP' },
+        covenant_banquet: { name: 'Covenant Banquet', level: 30, inputs: { silverfin: 2, berry_tart: 1, living_mortar: 1 }, secs: 44, xp: 40, haul: 0.15, bond: 0.25, speed: 0.1, ward: 0.25, text: '+15% haul, +25% bond, 10% shorter, losses down a quarter' }
+    };
+    const KIND_ORDER = ['CURRENCY', 'MATERIAL', 'ESSENCE', 'MEAL', 'FOOD', 'POTION', 'LURE', 'RUNE', 'WEAPON', 'ARMOR', 'HELMET', 'BOOTS', 'ACCESSORY', 'RELIC', 'TOOL'];
+    const KIND_LABEL = { CURRENCY: 'Currencies', MATERIAL: 'Materials', ESSENCE: 'Essences', MEAL: 'Meals', FOOD: 'Food', POTION: 'Potions', LURE: 'Lures', RUNE: 'Runes', WEAPON: 'Weapons', ARMOR: 'Armor', HELMET: 'Helmets', BOOTS: 'Boots', ACCESSORY: 'Accessories', RELIC: 'Relics', TOOL: 'Tools' };
     const SLOTS = [['weapon', 'WEAPON', 'Weapon'], ['armor', 'ARMOR', 'Armor'], ['helmet', 'HELMET', 'Helmet'], ['boots', 'BOOTS', 'Boots'], ['accessory', 'ACCESSORY', 'Accessory'], ['relic', 'RELIC', 'Relic']];
 
     // Workshop blurbs are the Keep's own facility descriptions.
@@ -154,7 +163,10 @@
     const CLASSES = ['Guardian', 'Bruiser', 'Assassin', 'Mage', 'Support'];
 
     // Professions come from Chronicles; the Keep decides where each is practised.
-    const SKILLS = CH.skills;
+    // Cooking opens off Foraging in Dominion: Chronicles gates it behind Fishing 3 (itself
+    // behind Carpentry 3), which left a new Keep with no way to cook for the road.
+    const SKILLS = Object.assign({}, CH.skills);
+    if (SKILLS.cooking) SKILLS.cooking = Object.assign({}, SKILLS.cooking, { unlock: [{ kind: 'SKILL', key: 'foraging', level: 3 }] });
     const SKILL_GROUPS = [['Gathering', 'Gather'], ['Production', 'Craft'], ['Knowledge', 'Study'], ['Siegeling', 'Siegeling'], ['Expedition', 'Road']];
     const SKILL_PLACE = { mining: 'Quarry', woodcutting: 'Woodlot', foraging: 'Garden', fishing: 'River', excavation: 'Quarry', smelting: 'Forge', smithing: 'Forge',
         carpentry: 'Woodlot sawpit', weaving: 'Garden loom', cooking: 'Kitchen', alchemy: 'Garden', runecrafting: 'Archive', elemental_studies: 'Archive' };
@@ -177,8 +189,11 @@
     };
     // Extra Knight work that only exists at the Keep.
     const ACTIVITIES = Object.assign({}, CH.activities, {
+        // Provisions from the first minute: the Knight can always forage for the road.
+        forage_trail: { id: 'forage_trail', skillId: 'foraging', name: 'Trail Forage', place: 'Rootwild edge', level: 1, actionSeconds: 30, xp: 5, output: 'provisions', bonusOutput: 'sunleaf', bonusEvery: 4, helperElements: ['EARTH', 'WIND'], dominion: true },
         read_records: { id: 'read_records', skillId: 'elemental_studies', name: 'Covenant Records', place: 'Archive', level: 1, actionSeconds: 12, xp: 6, output: 'insight', bonusOutput: null, bonusEvery: 0, helperElements: ['PSYCHIC', 'LIGHT'], dominion: true }
     });
+    Object.keys(MEALS).forEach((id) => { const m = MEALS[id]; RES[id] = { name: m.name, kind: 'MEAL', blurb: 'Pack it for an expedition: ' + m.text + '.' }; });
     const CRAFTS = Object.assign({}, CH.recipes, {
         forge_fittings: { id: 'forge_fittings', skillId: 'smithing', output: 'fittings', outputQty: 2, level: 1, extraReqs: [], inputs: { copper_bar: 1 }, actionSeconds: 12, xp: 12, repeatable: true, helperElements: ['FIRE', 'METAL'], studyElement: null, dominion: true },
         // Wooden gear so a Knight who only owns the starter sword can still arm every approach.
@@ -188,6 +203,7 @@
         carve_practice_bow: { id: 'carve_practice_bow', skillId: 'carpentry', output: 'practice_bow', outputQty: 1, level: 2, extraReqs: [], inputs: { pine_plank: 3, fiber: 3 }, actionSeconds: 0, xp: 20, repeatable: false, helperElements: [], studyElement: null, dominion: true },
         carve_practice_staff: { id: 'carve_practice_staff', skillId: 'carpentry', output: 'practice_staff', outputQty: 1, level: 3, extraReqs: [], inputs: { pine_plank: 3, sunleaf: 2 }, actionSeconds: 0, xp: 24, repeatable: false, helperElements: [], studyElement: null, dominion: true },
         carve_practice_hammer: { id: 'carve_practice_hammer', skillId: 'carpentry', output: 'practice_hammer', outputQty: 1, level: 3, extraReqs: [], inputs: { pine_plank: 2, stone: 6 }, actionSeconds: 0, xp: 24, repeatable: false, helperElements: [], studyElement: null, dominion: true },
+        ...Object.fromEntries(Object.keys(MEALS).map((id) => [id, { id: id, skillId: 'cooking', output: id, outputQty: 1, level: MEALS[id].level, extraReqs: [], inputs: MEALS[id].inputs, actionSeconds: MEALS[id].secs, xp: MEALS[id].xp, repeatable: true, helperElements: ['FIRE', 'WATER'], studyElement: null, dominion: true }])),
         sew_travelers_coat: { id: 'sew_travelers_coat', skillId: 'weaving', output: 'travelers_coat', outputQty: 1, level: 1, extraReqs: [], inputs: { linen: 3 }, actionSeconds: 0, xp: 20, repeatable: false, helperElements: [], studyElement: null, dominion: true }
     });
 
@@ -499,7 +515,7 @@
         Object.keys(RES).forEach((k) => { inv[k] = 0; });
         // A fresh Keep is bare ground: just enough Timber to raise the Woodlot, the Knight's
         // carved sword and two hand tools. Everything else is built, gathered or crafted.
-        Object.assign(inv, { timber: WOODLOT_COST, wooden_sword: 1, woodaxe: 1, pickaxe: 1 });
+        Object.assign(inv, { timber: WOODLOT_COST, provisions: 6, wooden_sword: 1, woodaxe: 1, pickaxe: 1 });
         const skills = {};
         Object.keys(SKILLS).forEach((k) => { skills[k] = 0; });
         const affinity = {}, mastery = {}, prof = {};
@@ -537,7 +553,7 @@
             reports: [],
             disc: { fawny: false, vaultMap: false },
             obj: {},
-            prep: { dest: 'rootwild', party: ['cacty'], useRations: false, rune: '', potions: {} },
+            prep: { dest: 'rootwild', party: ['cacty'], useRations: false, rune: '', potions: {}, meal: '' },
             sightings: [],
             log: [],
             ui: { tab: 'keep', knight: 'work', act: 'expedition', group: 'Gathering', prof: 'woodcutting', slot: '' }
@@ -1583,8 +1599,9 @@
 
     // —— Expeditions ——
     function needProvisions(s, dest) { return DEST[dest] ? Math.max(0, DEST[dest].provisions - (s.b.hall >= 2 ? 1 : 0)) : 0; }
+    const packedMeal = (s) => (s.prep.meal && MEALS[s.prep.meal] && fl(s.inv[s.prep.meal]) >= 1 ? s.prep.meal : '');
     function tripMs(s, dest) {
-        const cut = Math.min(0.3, bonusLvl(s, 'pathfinding') * 0.004) + gearStats(s).roadCut;
+        const cut = Math.min(0.3, bonusLvl(s, 'pathfinding') * 0.004) + gearStats(s).roadCut + ((MEALS[packedMeal(s)] || {}).speed || 0);
         return Math.round((DEST[dest] ? DEST[dest].hours : 8) * HOUR * Math.max(0.5, 1 - cut));
     }
     const supplyCap = (s) => 20 + 4 * ((s.wings && s.wings.stable) || 0);
@@ -1608,7 +1625,7 @@
         const b = destBlock(s, s.prep.dest);
         if (b) return b;
         const p = packPlan(s);
-        if (fl(s.inv.provisions) < p.provisions) return 'Pack ' + p.provisions + ' Provisions to depart (you have ' + fl(s.inv.provisions) + ').';
+        if (fl(s.inv.provisions) < p.provisions) return 'Pack ' + p.provisions + ' Provisions to depart (you have ' + fl(s.inv.provisions) + '). Forage them: Work › Foraging › Trail Forage.';
         return '';
     }
     function context(s, party, dest) {
@@ -1633,7 +1650,9 @@
         const ms = tripMs(s, s.prep.dest);
         const x = context(s, prepParty(s), s.prep.dest);
         if (x.rune) s.inv[x.rune] = Math.max(0, s.inv[x.rune] - 1);
-        s.exp = Object.assign(x, { id: 'x' + s.seq + '-' + s.t, startAt: s.t, endAt: s.t + ms, rations: p.rations, potions: potions });
+        const meal = packedMeal(s);
+        if (meal) s.inv[meal] -= 1;
+        s.exp = Object.assign(x, { id: 'x' + s.seq + '-' + s.t, startAt: s.t, endAt: s.t + ms, rations: p.rations, potions: potions, meal: meal });
         logEvent(s, 'The Knight left for ' + d.name + ' with ' + (s.exp.party.length ? s.exp.party.map((id) => C(id).name).join(', ') : 'no companions') + '.');
         s.rev++;
         return true;
@@ -1851,12 +1870,14 @@
             if (r.disc) discs.push(r.disc);
         });
         loss *= 1 - Math.min(0.5, x.armor * 0.02);
+        const meal = MEALS[x.meal] || {};
+        if (meal.ward) loss *= 1 - meal.ward;
         if (x.rune === 'rune_warding') loss = Math.max(0, loss - 0.06);
         // Potions patch up after a bad encounter: each point of healing trims the losses.
         const heal = Object.keys(x.potions || {}).reduce((a, k) => a + (RES[k].healPct || 0.3) * x.potions[k], 0);
         loss = Math.max(0, loss - heal * 0.15);
         const okN = lines.filter((r) => r.status === 'ok').length;
-        const lootMul = Math.max(0.4, 1 - loss) + 0.05 * x.rations + x.skills.cartography * 0.003 + x.crit;
+        const lootMul = Math.max(0.4, 1 - loss) + 0.05 * x.rations + x.skills.cartography * 0.003 + x.crit + (meal.haul || 0);
         const total = rollLoot(d, x.id + ':loot', lootMul);
         Object.keys(gains).forEach((k) => { total[k] = (total[k] || 0) + gains[k]; });
         // Essences: the road's element, plus one for each companion's element.
@@ -1874,6 +1895,7 @@
         if (hazards) xp.survival = (xp.survival || 0) + hazards * 10;
         xp.cartography = (xp.cartography || 0) + lines.length * 5;
         if (okN) xp.class_tactics = (xp.class_tactics || 0) + okN * 4;
+        if (meal.xpMul) Object.keys(xp).forEach((k) => { xp[k] *= 1 + meal.xpMul; });
         const gained = {};
         Object.keys(xp).forEach((k) => { const before = s.knight.skills[k] || 0; grantSkill(s, k, xp[k]); const g = (s.knight.skills[k] || 0) - before; if (g > 0) gained[k] = Math.round(g); });
         const prof = Math.round(d.prof * (s.b.hall >= 2 ? 1.25 : 1));
@@ -1886,7 +1908,7 @@
         x.party.forEach((id) => {
             const c = s.comps[id];
             if (!c) return;
-            const raw = (d.bond + 10 * okN) * bondMul * (x.weapon === 'spear' ? 1.5 : 1) * (1 + x.rest) + 2 * x.rations;
+            const raw = (d.bond + 10 * okN) * bondMul * (x.weapon === 'spear' ? 1.5 : 1) * (1 + x.rest) * (1 + (meal.bond || 0)) + 2 * x.rations;
             bonds[id] = Math.round(grantBond(s, id, raw));
             grantAffinity(s, C(id).EL, okN * 12);
             grantMastery(s, C(id).cls, okN * 12);
@@ -1914,7 +1936,7 @@
         if (s.knight.task.kind !== 'idle') resumed.push('Knight: ' + taskLabel(s));
         x.party.forEach((id) => { if (s.comps[id]) resumed.push(C(id).name + ': ' + jobLabel(s, id)); });
         pushReport(s, {
-            id: x.id, dest: x.dest, at: x.endAt, seen: false, weapon: x.weapon, weaponId: x.weaponId, tool: x.tool, party: x.party, rations: x.rations,
+            id: x.id, dest: x.dest, at: x.endAt, seen: false, weapon: x.weapon, weaponId: x.weaponId, tool: x.tool, party: x.party, rations: x.rations, meal: x.meal || '',
             lines: lines.filter((r) => r.status !== 'skip').map((r) => ({ status: r.status, title: r.title, by: r.by, text: r.text, need: r.need })),
             total: total, xp: gained, prof: prof, bonds: bonds, levels: levels, discs: discs, sighting: sighting, summary: summary, resumed: resumed,
             lootPct: Math.round(lootMul * 100), minutes: minutes, rune: x.rune, potions: x.potions
@@ -2293,6 +2315,7 @@
     const KIND_EMOJI = { MATERIAL: '🪨', ESSENCE: '✨', POTION: '🧪', LURE: '🪝', FOOD: '🍲', WEAPON: '🗡️', ARMOR: '🛡️', RELIC: '🏺', RUNE: '📜',
         HELMET: '⛑️', BOOTS: '👢', ACCESSORY: '💍', TOOL: '🪓', CURRENCY: '🪙' };
     const ITEM_EMOJI = { timber: '🪵', stone: '🪨', ore: '🟤', ember: '🔥', frost: '❄️', storm: '⚡', fiber: '🌾', produce: '🥕', provisions: '🥖', glass: '🔷',
+        camp_stew: '🍲', foragers_hash: '🥘', smoked_wraps: '🌯', frostbloom_broth: '🍵', hunters_feast: '🍖', covenant_banquet: '🍱',
         alloy: '⚙️', rations: '🍱', relic: '💠', insight: '📜', fittings: '🔩', silver: '🪙', crowns: '👑', living_mortar: '🧱', covenant_keystone: '🗝️',
         aether_core: '💠', heartwood_relic: '🌳', woodaxe: '🪓', pickaxe: '⛏️', sunleaf: '🌿', frostbloom: '🌸', galeberry: '🫐', gale_feather: '🪶',
         minnow: '🐟', silverfin: '🐠', copper_bar: '🧱', iron_bar: '🧱', ancient_relic: '🏺', fossil: '🦴', rune_stone: '🔷', linen: '🧶', rope: '🪢',
@@ -2866,12 +2889,14 @@
             foot: partyFaces(party) + '<button type="button" class="ck-btn is-glass is-sm" data-act="tab" data-arg="company">Change company</button>' });
         h += scoutJourney();
         h += '<details class="ck-card ck-prep"' + (S.ui.prepOpen ? ' open' : '') + '><summary data-act="prep-toggle"><span class="ck-prep-title">⚙️ Loadout &amp; supplies</span><span class="ck-prep-sum">' +
-            '<span class="ck-chip">' + (WEAPON_EMOJI[wi.weaponType] || '🗡️') + ' ' + esc(wi.name) + '</span><span class="ck-chip">🥖 ' + fl(S.inv.provisions) + '</span><span class="ck-chip">🧪 ' + packed + '</span>' + (S.prep.rune ? '<span class="ck-chip is-rare">📜 Rune</span>' : '') + '</span></summary>' +
+            '<span class="ck-chip">' + (WEAPON_EMOJI[wi.weaponType] || '🗡️') + ' ' + esc(wi.name) + '</span><span class="ck-chip">🥖 ' + fl(S.inv.provisions) + '</span>' + (packedMeal(S) ? '<span class="ck-chip is-help">' + itemEmoji(packedMeal(S)) + ' ' + esc(MEALS[packedMeal(S)].name) + '</span>' : '') + '<span class="ck-chip">🧪 ' + packed + '</span>' + (S.prep.rune ? '<span class="ck-chip is-rare">📜 Rune</span>' : '') + '</span></summary>' +
             '<h4>Weapon</h4><div class="ck-pills">' + weapons.map((w) => '<button type="button" class="ck-pill' + (S.knight.equip.weapon === w ? ' is-on' : '') + '" data-act="equip" data-arg="weapon:' + w + '">' + (WEAPON_EMOJI[RES[w].weaponType] || '') + ' ' + esc(RES[w].name) + '</button>').join('') + '</div>' +
             '<p class="ck-small ck-muted">' + esc(WEAPONS[wi.weaponType || 'sword'].approach + ': ' + WEAPONS[wi.weaponType || 'sword'].detail) + '</p>' +
             '<h4>Tool</h4><div class="ck-pills">' + ['woodaxe', 'pickaxe'].filter((t) => fl(S.inv[t]) > 0).map((t) => '<button type="button" class="ck-pill' + (S.knight.tool === t ? ' is-on' : '') + '" data-act="tool" data-arg="' + t + '">' + itemEmoji(t) + ' ' + esc(RES[t].name) + '</button>').join('') + '</div>' +
-            '<h4>Provisions</h4><p class="ck-small">' + fl(S.inv.provisions) + ' in store. The Kitchen packs more.</p>' +
-            '<div class="ck-pills"><button type="button" class="ck-pill' + (S.prep.useRations ? ' is-on' : '') + '" data-act="rations"' + (fl(S.inv.rations) < 1 ? ' disabled' : '') + '>🍱 Pack Hearth Rations first (' + fl(S.inv.rations) + ')</button></div>' +
+            '<h4>Provisions</h4><p class="ck-small">' + fl(S.inv.provisions) + ' in store. Forage more (Work › Foraging › Trail Forage), or build the Kitchen to make them while you play.</p>' +
+            '<div class="ck-pills"><button type="button" class="ck-pill' + (S.prep.useRations ? ' is-on' : '') + '" data-act="rations"' + (fl(S.inv.rations) < 1 ? ' disabled' : '') + '>🍱 Pack Hearth Rations first (' + fl(S.inv.rations) + ')</button>' +
+                (!S.exp && !(S.knight.task.kind === 'gather' && S.knight.task.id === 'forage_trail') ? '<button type="button" class="ck-pill" data-act="task" data-arg="gather:forage_trail">🥖 Forage provisions</button>' : '') + '</div>' +
+            '<h4>Meal (one, eaten on the road)</h4>' + mealPicker() +
             '<h4>Rune (one, spent on the road)</h4>' + (runes.length ? '<div class="ck-pills"><button type="button" class="ck-pill' + (S.prep.rune ? '' : ' is-on') + '" data-act="rune" data-arg="">None</button>' + runes.map((k) => '<button type="button" class="ck-pill' + (S.prep.rune === k ? ' is-on' : '') + '" data-act="rune" data-arg="' + k + '">📜 ' + esc(RES[k].name) + ' ×' + fl(S.inv[k]) + '</button>').join('') + '</div>' : '<p class="ck-hint">Inscribe runes with Runecrafting at the Archive.</p>') +
             '<h4>Potions (up to ' + supplyCap(S) + ')</h4>' + (pots.length ? '<div class="ck-supplies">' + pots.map((k) => '<div class="ck-supply">' + itemIcon(k, 'is-sm') + '<span class="ck-supply-name">' + esc(RES[k].name) + ' <span class="ck-small">(' + fl(S.inv[k]) + ')</span></span><span class="ck-stepper"><button type="button" data-act="potion" data-arg="' + k + ':-1" aria-label="Fewer">−</button><b>' + ((S.prep.potions || {})[k] || 0) + '</b><button type="button" data-act="potion" data-arg="' + k + ':1" aria-label="More">+</button></span></div>').join('') + '</div>' : '<p class="ck-hint">Brew Herb Tonics with Alchemy.</p>') + '</details>';
         [0, 1, 2, 3, 4].forEach((tier) => {
@@ -2880,6 +2905,13 @@
             h += '<div class="ck-section-head"><h3>🗺️ ' + esc(TIER_NAMES[tier]) + '</h3></div><div class="ck-routes">' + ids.map(routeCard).join('') + '</div>';
         });
         return h;
+    }
+    function mealPicker() {
+        const owned = Object.keys(MEALS).filter((m) => fl(S.inv[m]) > 0);
+        if (!owned.length) return '<p class="ck-hint">Cook meals with Cooking (opens at Foraging 3): Camp Stew first, richer meals as you level. Each one buffs a whole trip.</p>';
+        return '<div class="ck-pills"><button type="button" class="ck-pill' + (packedMeal(S) ? '' : ' is-on') + '" data-act="meal" data-arg="">None</button>' + owned.map((m) =>
+            '<button type="button" class="ck-pill' + (packedMeal(S) === m ? ' is-on' : '') + '" data-act="meal" data-arg="' + m + '" title="' + esc(MEALS[m].text) + '">' + itemEmoji(m) + ' ' + esc(MEALS[m].name) + ' ×' + fl(S.inv[m]) + '</button>').join('') + '</div>' +
+            (packedMeal(S) ? '<p class="ck-small is-ready">' + esc(MEALS[packedMeal(S)].text) + '.</p>' : '');
     }
     function routeCard(id) {
         const d = DEST[id], b = d.planned ? d.blurb : destBlock(S, id);
@@ -2904,7 +2936,7 @@
             '<p class="ck-small">' + esc(d.blurb || '') + (d.sighting ? ' Wild Siegeling sighting chance about ' + Math.round(d.sighting * (x.weapon === 'bow' ? 150 : 100)) + '%.' : '') + '</p>' +
             '<h3>Expected encounters · ' + okN + '/' + enc.length + '</h3><ol class="ck-timeline">' + enc.map((r) => '<li class="is-' + (r.status === 'ok' ? 'good' : r.status === 'part' ? 'info' : 'bad') + '"><time>' + (r.status === 'ok' ? '✓' : r.status === 'part' ? '~' : '✕') + '</time><span><b>' + esc(r.title) + '.</b> ' +
                 esc(r.status === 'ok' ? 'Handled by ' + r.by + '.' : r.status === 'part' ? (r.by ? r.by + ' helps a little. ' : '') + 'Best answer: ' + r.need + '.' : 'Answer: ' + r.need + '.') + '</span></li>').join('') + '</ol>' +
-            '<div class="ck-row">' + partyFaces(prepParty(S)) + '<span class="ck-small">' + esc(weaponItem(S).name) + (S.knight.tool ? ' · ' + esc(itemName(S.knight.tool)) : '') + '</span></div>' +
+            '<div class="ck-row">' + partyFaces(prepParty(S)) + '<span class="ck-small">' + esc(weaponItem(S).name) + (S.knight.tool ? ' · ' + esc(itemName(S.knight.tool)) : '') + (packedMeal(S) ? ' · ' + itemEmoji(packedMeal(S)) + ' ' + esc(MEALS[packedMeal(S)].name) : '') + '</span></div>' +
             '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="depart" data-arg="' + id + '"' + (block && !/destination/i.test(block) ? ' disabled' : '') + '>🚀 Set out</button><button type="button" class="ck-btn" data-act="close-modal">Not yet</button></div>' +
             (block ? '<p class="ck-small ck-warn">' + esc(block) + '</p>' : '');
     }
@@ -2916,7 +2948,7 @@
             (r.discs.length || r.sighting ? '<h3>Discoveries</h3><ul class="ck-milestones">' + r.discs.map((d) => '<li>' + (d === 'fawny' ? 'Fawny joined the Keep.' : 'The Sealed Vault Map.') + '</li>').join('') + (r.sighting ? '<li>A wild ' + esc((SPECIES[r.sighting.species] || {}).name || r.sighting.species) + ' was sighted. Visit the Wilds within 48 hours.</li>' : '') + '</ul>' : '') +
             '<h3>Company</h3><ul class="ck-xp">' + Object.keys(r.bonds).map((k) => '<li><span>' + esc(S.comps[k] ? C(k).name : k) + '</span><b>+' + r.bonds[k] + ' bond' + (r.levels && r.levels[k] ? ' · Lv ' + r.levels[k] : '') + '</b></li>').join('') + '</ul>' +
             '<h3>Knowledge</h3><ul class="ck-xp">' + Object.keys(r.xp).map((k) => '<li><span>' + esc(SKILLS[k].name) + '</span><b>+' + r.xp[k] + ' xp</b></li>').join('') + (r.prof ? '<li><span>' + esc(WEAPONS[r.weapon].name) + '</span><b>+' + r.prof + ' xp</b></li>' : '') + '</ul>' +
-            '<h3>Loot</h3>' + lootRow(r.total) + '<p class="ck-small ck-muted">Haul kept: ' + r.lootPct + '% of the base find.' + (r.resumed.length ? ' Resumed: ' + esc(r.resumed.join(' · ')) + '.' : '') + '</p>' +
+            (r.meal && MEALS[r.meal] ? '<p class="ck-small is-ready">' + itemEmoji(r.meal) + ' The company ate ' + esc(MEALS[r.meal].name) + ': ' + esc(MEALS[r.meal].text) + '.</p>' : '') + '<h3>Loot</h3>' + lootRow(r.total) + '<p class="ck-small ck-muted">Haul kept: ' + r.lootPct + '% of the base find.' + (r.resumed.length ? ' Resumed: ' + esc(r.resumed.join(' · ')) + '.' : '') + '</p>' +
             '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="close-modal">Home again</button></div>';
     }
     function awayModal() {
@@ -3557,6 +3589,7 @@
         }
         case 'prep-toggle': s.ui.prepOpen = !s.ui.prepOpen; return;
         case 'rations': s.prep.useRations = !s.prep.useRations; break;
+        case 'meal': s.prep.meal = arg || ''; break;
         case 'rune': s.prep.rune = arg || ''; break;
         case 'potion': {
             const parts = String(arg).split(':');
