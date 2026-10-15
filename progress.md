@@ -1,4 +1,28 @@
 Original prompt: Go with earth based art for endless
+- October 15, 2026 **Dominion expedition food: raw forage for a small buff, cooked meals for two or three.**
+  - **Change.**
+    - An expedition's portions can now be paid in food. A raw forage covers 1 portion and gives one small buff by type:
+      - Sunleaf: +5% bond
+      - Garden Produce: +5% haul
+      - Galeberry: 5% shorter road
+      - Frostbloom: losses −15%
+      - Minnow: +5% road XP
+    - A cooked meal covers 2 portions and gives 2–3 stronger buffs:
+      - Camp Stew
+      - Forager's Hash
+      - Smoked Fish Wraps
+      - Frostbloom Broth
+      - the new Galeberry Roast
+      - Hunter's Feast
+      - Covenant Banquet, which has 4
+    - Whatever the food doesn't cover comes from provisions, and then Hearth Rations if they are toggled.
+    - The supplies panel has a "Food for the road" picker. Raw forage and cooked meals are listed separately, with the buffs and portions spelled out. The summary chip, the plan modal and the report name the food.
+    - `prep.food` replaces the earlier single `prep.meal`.
+  - **Verification.** `node --check js/dominion.js`. Headless Chromium:
+    - 5 Sunleaf with 0 provisions departs on the Rootwild Trail, using 2 Sunleaf and no provisions;
+    - one Camp Stew covers both portions (0 provisions used), is consumed, and the report carries `camp_stew`;
+    - the picker renders both rows with the buff line;
+    - no page errors.
 - October 15, 2026 **Dominion: start with provisions, forage them from the first minute, and cook meals that buff a whole expedition.**
   - **Change.**
     - The bare-ground start left a new Keep unable to leave: it had 0 provisions, the Kitchen was unbuilt, and Cooking sat behind Fishing 3, which needs Carpentry 3. Now:
