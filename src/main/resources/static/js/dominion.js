@@ -6,7 +6,7 @@
     'use strict';
 
     const SAVE_KEY = 'siegelingsDominionPrototype';
-    const SCHEMA = 2;
+    const SCHEMA = 3;
     const MIN = 60000;
     const HOUR = 60 * MIN;
     // Five-minute slices keep refining batches (30-60 min) accurate without a heavy loop.
@@ -16,9 +16,6 @@
     // —— Art (existing project assets; crops aim at the subject) ——
     const ART = {
         knight: { src: '/img/knights/ser-airek-full-card.webp', pos: '50% 0%', origin: '46% 34%', zoom: 1.8 },
-        cacty: { src: '/img/art/loading/cacty-landscape.webp', pos: '16% 50%', origin: '50% 58%', zoom: 1.7 },
-        sundile: { src: '/img/art/loading/sundile-landscape.webp', pos: '7% 50%', origin: '50% 36%', zoom: 1.8 },
-        fawny: { src: '/img/art/loading/fawny-landscape.webp', pos: '50% 50%', origin: '30% 40%', zoom: 2.3 },
         rootwild: { src: '/img/chronicles/scenes/earth-journey.webp' },
         ruins: { src: '/img/chronicles/scenes/relic-journey.webp' },
         vault: { src: '/img/chronicles/scenes/water-journey.webp' }
@@ -58,12 +55,14 @@
         fittings: { name: 'Copper Fittings', kind: 'MATERIAL', blurb: 'Nails, hinges and brackets for Keep construction.', icon: '<path d="M7 4h4v16H7zM13 8h5v3h-5zM13 14h5v3h-5z" fill="#d08a55" stroke="#7a4a26" stroke-width="1.2"/>' },
         woodaxe: { name: 'Woodaxe', kind: 'TOOL', tool: 'woodcutting', blurb: 'Woodcutting +60%. Fallen ironwood on the road becomes Timber.' },
         pickaxe: { name: 'Pickaxe', kind: 'TOOL', tool: 'mining', blurb: 'Mining and Excavation +60%. Copper seams on the road become Ore.' },
-        // Practice weapons from the Great Hall rack, so every approach is open on day one.
-        practice_spear: { name: 'Practice Spear', kind: 'WEAPON', weaponType: 'spear', tier: 0, blurb: 'A blunted drill spear from the Hall rack.' },
-        practice_bow: { name: 'Practice Bow', kind: 'WEAPON', weaponType: 'bow', tier: 0, blurb: 'A light hunting bow from the Hall rack.' },
-        practice_staff: { name: 'Practice Staff', kind: 'WEAPON', weaponType: 'staff', tier: 0, blurb: 'An ash staff for channelling drills.' },
-        practice_hammer: { name: 'Practice Hammer', kind: 'WEAPON', weaponType: 'hammer', tier: 0, blurb: 'A mason’s hammer from the Hall rack.' },
-        practice_daggers: { name: 'Practice Daggers', kind: 'WEAPON', weaponType: 'daggers', tier: 0, blurb: 'Paired training knives.' }
+        // Dominion gear starts as a carved Wooden Sword. Every other weapon or garment the Knight
+        // wears is made at the workbench (ids kept from the old Hall rack so saves still load).
+        wooden_sword: { name: 'Wooden Sword', kind: 'WEAPON', weaponType: 'sword', tier: 0, blurb: 'A whittled pine practice blade. Every Knight starts here.' },
+        practice_spear: { name: 'Wooden Spear', kind: 'WEAPON', weaponType: 'spear', tier: 0, blurb: 'A fire-hardened pine spear, carved at the Keep.' },
+        practice_bow: { name: 'Pine Shortbow', kind: 'WEAPON', weaponType: 'bow', tier: 0, blurb: 'A plank bow strung with flax.' },
+        practice_staff: { name: 'Ash Staff', kind: 'WEAPON', weaponType: 'staff', tier: 0, blurb: 'A carved staff with a sunleaf wrap for channelling.' },
+        practice_hammer: { name: 'Wooden Mallet', kind: 'WEAPON', weaponType: 'hammer', tier: 0, blurb: 'A mallet with a stone-weighted head.' },
+        practice_daggers: { name: 'Wooden Daggers', kind: 'WEAPON', weaponType: 'daggers', tier: 0, blurb: 'Paired carved knives.' }
     };
     const CH = window.DOMINION_CHRONICLES || { skills: {}, activities: {}, recipes: {}, items: {}, weapons: {}, gearBonuses: {}, hazardWards: {}, routes: {}, buildings: {}, bondMilestones: [], affinityMilestones: [] };
     const ALIAS = { pine_log: 'timber', copper_ore: 'ore', frost_crystal: 'frost', relic_shard: 'relic', flax: 'fiber' };
@@ -114,6 +113,19 @@
                 unlock: 'Opens Elemental Studies and Runecrafting for the Knight.' }]
         }
     };
+    // The Keep is raised piece by piece: [timber, materials, seconds]. A new Keep owns exactly
+    // WOODLOT_COST Timber, so the Woodlot is the only thing it can afford on day one.
+    const WOODLOT_COST = 30;
+    const WS_BUILD = { garden: [40, {}, 1800], kitchen: [60, {}, 2700], quarry: [80, {}, 3600],
+        forge: [100, { stone: 12 }, 7200], fridge: [100, { stone: 12 }, 7200], generator: [140, { stone: 20, ore: 6 }, 10800] };
+    const wsBuilt = (s, id) => ((s.wsl && s.wsl[id]) || 0) >= 1;
+    // Centre plots first so the first few workshops land next to each other, ready to link.
+    const PLOT_ORDER = [4, 3, 5, 1, 7, 0, 2, 6, 8];
+    function placeWorkshop(s, id) {
+        if (s.grid.some((c) => c && c.id === id)) return;
+        const free = PLOT_ORDER.find((i) => !s.grid[i]);
+        if (free != null) s.grid[free] = { id: id, rot: 0 };
+    }
     const HELP_TARGETS = ['woodlot', 'forge', 'fridge', 'generator', 'garden', 'kitchen', 'quarry'];
 
     // Chronicles' progression curves (ChroniclesContent.xpForLevel / bondForLevel).
@@ -154,7 +166,15 @@
         read_records: { id: 'read_records', skillId: 'elemental_studies', name: 'Covenant Records', place: 'Archive', level: 1, actionSeconds: 12, xp: 6, output: 'insight', bonusOutput: null, bonusEvery: 0, helperElements: ['PSYCHIC', 'LIGHT'], dominion: true }
     });
     const CRAFTS = Object.assign({}, CH.recipes, {
-        forge_fittings: { id: 'forge_fittings', skillId: 'smithing', output: 'fittings', outputQty: 2, level: 1, extraReqs: [], inputs: { copper_bar: 1 }, actionSeconds: 12, xp: 12, repeatable: true, helperElements: ['FIRE', 'METAL'], studyElement: null, dominion: true }
+        forge_fittings: { id: 'forge_fittings', skillId: 'smithing', output: 'fittings', outputQty: 2, level: 1, extraReqs: [], inputs: { copper_bar: 1 }, actionSeconds: 12, xp: 12, repeatable: true, helperElements: ['FIRE', 'METAL'], studyElement: null, dominion: true },
+        // Wooden gear so a Knight who only owns the starter sword can still arm every approach.
+        carve_wooden_sword: { id: 'carve_wooden_sword', skillId: 'carpentry', output: 'wooden_sword', outputQty: 1, level: 1, extraReqs: [], inputs: { pine_plank: 2 }, actionSeconds: 0, xp: 16, repeatable: false, helperElements: [], studyElement: null, dominion: true },
+        carve_practice_spear: { id: 'carve_practice_spear', skillId: 'carpentry', output: 'practice_spear', outputQty: 1, level: 1, extraReqs: [], inputs: { pine_plank: 3 }, actionSeconds: 0, xp: 20, repeatable: false, helperElements: [], studyElement: null, dominion: true },
+        carve_practice_daggers: { id: 'carve_practice_daggers', skillId: 'carpentry', output: 'practice_daggers', outputQty: 1, level: 2, extraReqs: [], inputs: { pine_plank: 2, fiber: 2 }, actionSeconds: 0, xp: 20, repeatable: false, helperElements: [], studyElement: null, dominion: true },
+        carve_practice_bow: { id: 'carve_practice_bow', skillId: 'carpentry', output: 'practice_bow', outputQty: 1, level: 2, extraReqs: [], inputs: { pine_plank: 3, fiber: 3 }, actionSeconds: 0, xp: 20, repeatable: false, helperElements: [], studyElement: null, dominion: true },
+        carve_practice_staff: { id: 'carve_practice_staff', skillId: 'carpentry', output: 'practice_staff', outputQty: 1, level: 3, extraReqs: [], inputs: { pine_plank: 3, sunleaf: 2 }, actionSeconds: 0, xp: 24, repeatable: false, helperElements: [], studyElement: null, dominion: true },
+        carve_practice_hammer: { id: 'carve_practice_hammer', skillId: 'carpentry', output: 'practice_hammer', outputQty: 1, level: 3, extraReqs: [], inputs: { pine_plank: 2, stone: 6 }, actionSeconds: 0, xp: 24, repeatable: false, helperElements: [], studyElement: null, dominion: true },
+        sew_travelers_coat: { id: 'sew_travelers_coat', skillId: 'weaving', output: 'travelers_coat', outputQty: 1, level: 1, extraReqs: [], inputs: { linen: 3 }, actionSeconds: 0, xp: 20, repeatable: false, helperElements: [], studyElement: null, dominion: true }
     });
 
     const WEAPONS = {
@@ -246,13 +266,15 @@
         img.onerror = null;
         img.style.display = 'none';
     };
-    function compArt(uid, alt) {
-        const sp = speciesOf(uid);
-        if (ART[sp.id]) return artImg(sp.id, alt);
-        const thumb = catalogArt(sp.id, 240);
-        if (thumb) return '<img src="' + esc(thumb) + '" data-raw="' + esc(ART_URLS[sp.id]) + '" alt="' + esc(alt || '') + '" loading="lazy" onerror="dmArtFallback(this)">';
-        return '<svg viewBox="0 0 24 24" style="width:100%;height:100%;background:#23343f">' + SHAPE.orb(EL_HEX[sp.element] || '#ccc') + '</svg>';
+    // Siegelings are drawn as the Keep draws residents: the card's overlay cutout on a
+    // die-cut paper rim (#paper-siegling-cutout in dominion.html), never a cropped landscape.
+    function speciesArt(speciesId, alt, element) {
+        const thumb = catalogArt(speciesId, 240);
+        if (thumb) return '<img class="dm-paper" src="' + esc(thumb) + '" data-raw="' + esc(ART_URLS[speciesId] || '') + '" alt="' + esc(alt || '') + '" loading="lazy" onerror="dmArtFallback(this)">';
+        const sp = SPECIES[speciesId] || {};
+        return '<span class="dm-paper-token" style="--el:' + (EL_HEX[element || sp.element] || '#c9b98a') + '">' + esc(((sp.name || speciesId || '?')[0] || '?').toUpperCase()) + '</span>';
     }
+    function compArt(uid, alt) { const sp = speciesOf(uid); return speciesArt(sp.id, alt, sp.element); }
     // Deterministic per-journey luck: the same expedition always rolls the same way, so a
     // reload or a second device can never re-roll a sighting.
     function rng(seedText) {
@@ -461,9 +483,9 @@
     function defaults(t) {
         const inv = {};
         Object.keys(RES).forEach((k) => { inv[k] = 0; });
-        Object.assign(inv, { timber: 80, stone: 20, ore: 6, ember: 2, frost: 1, fiber: 4, produce: 2, provisions: 4, sunleaf: 4,
-            squires_sword: 1, travelers_coat: 1, woodaxe: 1, pickaxe: 1,
-            practice_spear: 1, practice_bow: 1, practice_staff: 1, practice_hammer: 1, practice_daggers: 1 });
+        // A fresh Keep is bare ground: just enough Timber to raise the Woodlot, the Knight's
+        // carved sword and two hand tools. Everything else is built, gathered or crafted.
+        Object.assign(inv, { timber: WOODLOT_COST, wooden_sword: 1, woodaxe: 1, pickaxe: 1 });
         const skills = {};
         Object.keys(SKILLS).forEach((k) => { skills[k] = 0; });
         const affinity = {}, mastery = {}, prof = {};
@@ -474,21 +496,20 @@
             schema: SCHEMA, t: t, offset: 0, rev: 0, runs: 0, seq: 0,
             inv: inv,
             reserve: { ember: 0, frost: 0, storm: 0, ore: 0, produce: 0, provisions: 2 },
-            b: { hall: 1, woodlot: 1, archive: 0, storehouse: 0, yard: 0, front: 0 },
-            wsl: { forge: 1, fridge: 1, generator: 1, garden: 1, kitchen: 1, quarry: 1 }, annex: {},
+            b: { hall: 1, woodlot: 0, archive: 0, storehouse: 0, yard: 0, front: 0 },
+            // Workshop level 0 = not built yet; each one is a construction project.
+            wsl: { forge: 0, fridge: 0, generator: 0, garden: 0, kitchen: 0, quarry: 0 }, annex: {},
             wings: { sanctuary: 0, forge: 0, garden: 0, war_room: 0, stable: 0, library: 0 },
             builds: [], rebirths: 0, events: [], nextEventAt: t + 12 * HOUR, market: null, crafted: {}, theme: 'covenant',
             sync: { version: 0 }, applied: [], opReports: [],
             lore: {}, voices: { done: {}, flags: {}, rapport: {}, nextAt: 0, log: [] }, claims: {}, steward: '', loadouts: [],
-            // 3x3 Quarter: index = row*3+col; rot 0=N 1=E 2=S 3=W. Starts unconnected on purpose.
-            grid: [null, null, { id: 'generator', rot: 2 },
-                { id: 'forge', rot: 1 }, null, { id: 'quarry', rot: 3 },
-                { id: 'garden', rot: 0 }, { id: 'kitchen', rot: 0 }, { id: 'fridge', rot: 0 }],
+            // 3x3 Quarter: index = row*3+col; rot 0=N 1=E 2=S 3=W. Empty until workshops are built.
+            grid: [null, null, null, null, null, null, null, null, null],
             refine: { glass: 0, alloy: 0, rations: 0 },
             made: { glass: 0, alloy: 0, rations: 0 },
             knight: {
                 name: 'Ser Airek', task: { kind: 'gather', id: 'chop_pine' }, prog: 0, stall: '', counts: {},
-                equip: { weapon: 'squires_sword', armor: 'travelers_coat', helmet: null, boots: null, accessory: null, relic: null }, tool: 'woodaxe',
+                equip: { weapon: 'wooden_sword', armor: null, helmet: null, boots: null, accessory: null, relic: null }, tool: 'woodaxe',
                 skills: skills, prof: prof, affinity: affinity, mastery: mastery, rankXp: 0
             },
             comps: {
@@ -516,9 +537,17 @@
         });
         return base;
     }
-    // Schema 1 had three hand-made professions and free weapon choice.
+    // Schema 1 had three hand-made professions and free weapon choice. Schema 2 started with a
+    // standing Woodlot and all six workshops; those Keeps keep what they had.
     function migrate(saved) {
-        if ((saved.schema || 1) >= 2) return saved;
+        if ((saved.schema || 1) === 2) {
+            saved.b = Object.assign({ woodlot: 1 }, saved.b);
+            saved.wsl = saved.wsl || {};
+            Object.keys(WS).forEach((w) => { saved.wsl[w] = Math.max(1, saved.wsl[w] || 0); });
+            saved.schema = 3;
+            return saved;
+        }
+        if ((saved.schema || 1) >= 3) return saved;
         const k = saved.knight || {};
         const sk = k.skills || {};
         saved.knight = {
@@ -529,7 +558,7 @@
         if (saved.ui) { saved.ui.knight = 'work'; }
         Object.keys(saved.comps || {}).forEach((id) => { saved.comps[id].bond = (saved.comps[id].bond || 0) * 5; });
         saved.schema = 2;
-        return saved;
+        return migrate(saved);
     }
     // Repairs anything an older or hand-edited save could break: grids missing a
     // workshop, negative stock, parties naming companions who never joined.
@@ -537,10 +566,8 @@
         Object.keys(s.inv).forEach((k) => { s.inv[k] = Math.max(0, Number(s.inv[k]) || 0); });
         if (!Array.isArray(s.grid) || s.grid.length !== 9) s.grid = defaults(s.t).grid;
         const seen = {};
-        s.grid = s.grid.map((c) => (c && WS[c.id] && !seen[c.id] && (seen[c.id] = true)) ? { id: c.id, rot: ((c.rot | 0) % 4 + 4) % 4 } : null);
-        Object.keys(WS).forEach((id) => {
-            if (!seen[id]) { const free = s.grid.indexOf(null); if (free >= 0) s.grid[free] = { id: id, rot: 0 }; }
-        });
+        s.grid = s.grid.map((c) => (c && WS[c.id] && wsBuilt(s, c.id) && !seen[c.id] && (seen[c.id] = true)) ? { id: c.id, rot: ((c.rot | 0) % 4 + 4) % 4 } : null);
+        Object.keys(WS).forEach((id) => { if (wsBuilt(s, id) && !seen[id]) placeWorkshop(s, id); });
         Object.keys(s.comps).forEach((id) => {
             const c = s.comps[id];
             if (!c.job || !['help', 'explore', 'rest', 'knight', 'front'].includes(c.job.kind)) c.job = { kind: 'rest' };
@@ -549,7 +576,7 @@
         const k = s.knight, t = k.task || {};
         if (!(t.kind === 'idle' || (t.kind === 'gather' && ACTIVITIES[t.id]) || (t.kind === 'craft' && CRAFTS[t.id] && CRAFTS[t.id].repeatable))) k.task = { kind: 'idle' };
         SLOTS.forEach((sl) => { const id = k.equip[sl[0]]; if (id && (!RES[id] || RES[id].kind !== sl[1] || fl(s.inv[id]) < 1)) k.equip[sl[0]] = null; });
-        if (!k.equip.weapon) k.equip.weapon = fl(s.inv.squires_sword) ? 'squires_sword' : null;
+        if (!k.equip.weapon) k.equip.weapon = ['wooden_sword', 'squires_sword'].find((w) => fl(s.inv[w]) >= 1) || null;
         if (!RES[k.tool] || fl(s.inv[k.tool]) < 1) k.tool = fl(s.inv.woodaxe) ? 'woodaxe' : fl(s.inv.pickaxe) ? 'pickaxe' : '';
         s.prep.party = (s.prep.party || []).filter((id) => s.comps[id] && s.comps[id].joined);
         if (s.exp && (!DEST[s.exp.dest] || !(s.exp.endAt > 0))) s.exp = null;
@@ -593,12 +620,12 @@
         return 1 + 0.3 + Math.min(0.5, bondLvl(c) * 0.02) + (C(id).likes.includes(target) ? 0.3 : 0);
     }
     function woodlotRate(s) {
-        if (damaged(s, 'woodlot')) return 0;
+        if (damaged(s, 'woodlot') || s.b.woodlot < 1) return 0;
         const base = (s.b.woodlot >= 2 ? 120 : 60) + (skillLvl(s, 'woodcutting') >= 20 ? 20 : 0);
         return base * helperMul(s, 'woodlot') * prodMul(s) * toolMul(s, 'woodlot');
     }
     function workshopRates(s, id) {
-        const mul = damaged(s, id) ? 0 : helperMul(s, id) * prodMul(s) * toolMul(s, id) * ((s.wsl[id] || 1) >= 2 ? 2 : 1) * (s.annex[id] ? 1.25 : 1), out = {};
+        const mul = damaged(s, id) || !wsBuilt(s, id) ? 0 : helperMul(s, id) * prodMul(s) * toolMul(s, id) * ((s.wsl[id] || 0) >= 2 ? 2 : 1) * (s.annex[id] ? 1.25 : 1), out = {};
         Object.keys(WS[id].makes).forEach((k) => { out[k] = WS[id].makes[k] * mul; });
         return out;
     }
@@ -933,7 +960,7 @@
         ['frost', 'Frostglass', '#a9e8f2', 4], ['storm', 'Stormcall', '#ffe63c', 5], ['shadow', 'Shadowveil', '#b087e0', 6], ['light', 'Dawnlight', '#ffe9a8', 7]];
     const WS_LEVEL2 = { garden: { frost_crystal: 18, ember_ingot: 14 }, forge: { verdant_fiber: 24, storm_cell: 10 }, fridge: { verdant_fiber: 20, ember_ingot: 16 },
         generator: { verdant_fiber: 12, ember_ingot: 12, frost_crystal: 12 }, quarry: { ember_ingot: 14, storm_cell: 8 }, kitchen: { stone: 14, frost_crystal: 10 } };
-    const FRONT_PROJECTS = { 1: ['Raise Akhar’s Front', 360, { stone: 20 }, 14400], 2: ['Reinforce the Rampart', 320, { stone: 24 }, 21600],
+    const FRONT_PROJECTS = { 1: ['Raise Akhar’s Wall', 240, { stone: 20 }, 7200], 2: ['Reinforce the Rampart', 320, { stone: 24 }, 21600],
         3: ['Raise the Battlements', 420, { stone: 32, ember_ingot: 14 }, 36000], 4: ['Crown the Bastion', 540, { stone: 44, ember_ingot: 18, frost_crystal: 14 }, 57600] };
     const WING_HOME = { sanctuary: 'Enclave', forge: 'Forge', garden: 'Garden', war_room: 'Great Hall', stable: 'Stable yard', library: 'Archive' };
     const WING_EFFECT = {
@@ -993,7 +1020,7 @@
     const scaleCost = (s, m) => { const o = {}; Object.keys(m).forEach((k) => { o[k] = Math.round(m[k] * costMul(s)); }); return o; };
     const timberCap = (s) => Math.round((300 + 300 * (s.b.storehouse || 0) + (s.crafted && s.crafted.covenant_crates ? 75 : 0)) * (1 + rebirths(s) * 0.2));
     const crews = (s) => 1 + ((s.b.yard || 0) >= 1 ? 1 : 0);
-    const KEY_OF = (id) => id.indexOf('hall_') === 0 ? 'hall' : id === 'woodlot_2' ? 'woodlot' : id === 'archive' ? 'archive' : id.indexOf('front_') === 0 ? 'front' : '';
+    const KEY_OF = (id) => id.indexOf('hall_') === 0 ? 'hall' : /^woodlot_/.test(id) ? 'woodlot' : /^ws_\w+_1$/.test(id) ? 'quarter' : id === 'archive' ? 'archive' : id.indexOf('front_') === 0 ? 'front' : '';
     const buildFor = (s, key) => (s.builds || []).find((b) => KEY_OF(b.id) === key) || null;
     const damaged = (s, target) => (s.events || []).some((e) => e.target === target && !e.repaired);
     function prodMul(s) {
@@ -1023,16 +1050,19 @@
             const n = s.b.hall + 1, hp = HALL_PROJECTS[n], need = Math.max(0, (n - 2) * 3);
             push('hall_' + n, 'Great Hall', hp[0], hp[1], hp[2], hp[3], 'Keep rank: ' + HALL_RANKS[n - 1] + '. +5% Keep production per rank' + (n === 2 ? '; expeditions need 1 fewer provision; proficiency +25%' : '') + '.', rankLvl(s) < need ? 'Needs Knight Rank ' + need + '.' : '');
         }
-        if (s.b.woodlot < 2) push('woodlot_2', 'Woodlot', 'Cultivate the Woodlot', 140, { stone: 20 }, 2 * 3600, 'Woodlot produces 120 Timber/h instead of 60.');
+        if (s.b.woodlot < 1) push('woodlot_1', 'Woodlot', 'Raise the Woodlot', WOODLOT_COST, {}, 600, 'Restorative forestry: 60 Timber/h for the rest of the Keep.');
+        else if (s.b.woodlot < 2) push('woodlot_2', 'Woodlot', 'Cultivate the Woodlot', 140, { stone: 20 }, 2 * 3600, 'Woodlot produces 120 Timber/h instead of 60.');
         if ((s.b.storehouse || 0) < 1) push('storehouse_1', 'Storehouse', 'Raise the Covenant Storehouse', 180, {}, 1800, 'Timber store +300; opens Keep refining, recycling and the market.', s.b.woodlot < 2 ? 'Cultivate the Woodlot first.' : '');
         else if (s.b.storehouse < 2) push('storehouse_2', 'Storehouse', 'Vault the Storehouse', 320, { verdant_fiber: 18, ember_ingot: 12, frost_crystal: 12, storm_cell: 8 }, 28800, 'Timber store +300 more; opens tier 2 refining.', !s.b.yard ? 'Raise the Builder’s Yard first.' : '');
         if (!s.b.yard) push('yard', 'Builder’s Yard', 'Raise the Builder’s Yard', 260, { stone: 18 }, 10800, 'A second construction crew, workshop expansions and annexes.', s.b.hall < 2 ? 'Raise the Timber Outpost first.' : '');
         if ((s.b.front || 0) < 4) {
             const n = (s.b.front || 0) + 1, fp = FRONT_PROJECTS[n];
-            push('front_' + n, 'Akhar’s Front', fp[0], fp[1], fp[2], fp[3], n + ' defender post' + (n > 1 ? 's' : '') + ' on the rampart, ' + 2 * n + ' Crowns/h each.', s.b.hall < 3 ? 'Needs the Settled Courtyard (Hall 3).' : '');
+            push('front_' + n, 'Akhar’s Wall', fp[0], fp[1], fp[2], fp[3], n + ' defender post' + (n > 1 ? 's' : '') + ' on the rampart, ' + 2 * n + ' Crowns/h each.', s.b.hall < 2 ? 'Needs the Timber Outpost (Hall 2).' : '');
         }
         Object.keys(WS).forEach((w) => {
-            if ((s.wsl[w] || 1) < 2) push('ws_' + w + '_2', 'Workshops', 'Expand the ' + WS[w].name, 260, WS_LEVEL2[w], 21600, WS[w].name + ' produces twice as much.', !s.b.yard ? 'Raise the Builder’s Yard first.' : '');
+            const wb = WS_BUILD[w], makes = Object.keys(WS[w].makes).map((k) => RES[k].name).join(', ');
+            if (!wsBuilt(s, w)) push('ws_' + w + '_1', 'Elemental Quarter', 'Build the ' + WS[w].name, wb[0], wb[1], wb[2], 'A ' + titleCase(WS[w].el) + ' workshop in the Elemental Quarter: makes ' + makes + '. Its socket can link to a neighbour.', s.b.woodlot < 1 ? 'Raise the Woodlot first.' : '');
+            else if ((s.wsl[w] || 0) < 2) push('ws_' + w + '_2', 'Workshops', 'Expand the ' + WS[w].name, 260, WS_LEVEL2[w], 21600, WS[w].name + ' produces twice as much.', !s.b.yard ? 'Raise the Builder’s Yard first.' : '');
             else if (!s.annex[w]) push('annex_' + w, 'Workshops', WS[w].name + ' storage annex', 220, { stone: 10 }, 14400, WS[w].name + ' output +25%.');
         });
         Object.keys(CH.buildings || {}).forEach((id) => {
@@ -1047,7 +1077,9 @@
         let m;
         if (id === 'archive') s.b.archive = 1;
         else if ((m = id.match(/^hall_(\d)$/))) s.b.hall = Math.max(s.b.hall, +m[1]);
+        else if (id === 'woodlot_1') s.b.woodlot = Math.max(1, s.b.woodlot);
         else if (id === 'woodlot_2') s.b.woodlot = 2;
+        else if ((m = id.match(/^ws_(\w+)_1$/))) { s.wsl[m[1]] = Math.max(1, s.wsl[m[1]] || 0); placeWorkshop(s, m[1]); }
         else if ((m = id.match(/^storehouse_(\d)$/))) s.b.storehouse = Math.max(s.b.storehouse || 0, +m[1]);
         else if (id === 'yard') s.b.yard = 1;
         else if ((m = id.match(/^front_(\d)$/))) s.b.front = Math.max(s.b.front || 0, +m[1]);
@@ -1086,7 +1118,7 @@
     const EVENT_EVERY = 12 * HOUR;
     function rollEvent(s) {
         const list = ((window.DOMINION_KEEP && window.DOMINION_KEEP.events) || []).filter((e) => (e.minHallLevel || 1) <= s.b.hall && !(s.events || []).some((x) => x.id === e.id && !x.repaired)
-            && (e.targetType === 'DECORATION' ? s.crafted[e.targetId] : ['great_hall', 'woodlot', 'archive', 'enclave'].includes(e.targetId) || WS[e.targetId] || (e.targetId === 'storehouse' && s.b.storehouse) || (e.targetId === 'builders_yard' && s.b.yard)));
+            && (e.targetType === 'DECORATION' ? s.crafted[e.targetId] : ['great_hall', 'archive', 'enclave'].includes(e.targetId) || (e.targetId === 'woodlot' && s.b.woodlot >= 1) || (WS[e.targetId] && wsBuilt(s, e.targetId)) || (e.targetId === 'storehouse' && s.b.storehouse) || (e.targetId === 'builders_yard' && s.b.yard)));
         const r = rng('event:' + Math.floor(s.t / EVENT_EVERY));
         if (!list.length || r() > 0.4 || (s.events || []).filter((e) => !e.repaired).length >= 2) return;
         const e = list[Math.floor(r() * list.length)];
@@ -1256,16 +1288,17 @@
     }
     function checkMet(s, chk) {
         const [k, v] = chk.split(':'), n = +v || 0;
-        if (k === 'enclave' || k === 'workshops_built') return true;
+        if (k === 'enclave') return true;
+        if (k === 'workshops_built') return Object.keys(WS).filter((w) => wsBuilt(s, w)).length >= (n || 6);
         if (k === 'builders_yard') return !!s.b.yard;
         if (k === 'storehouse') return (s.b.storehouse || 0) >= n;
-        if (k === 'workshops_l2') return Object.keys(WS).filter((w) => (s.wsl[w] || 1) >= 2).length >= n;
+        if (k === 'workshops_l2') return Object.keys(WS).filter((w) => (s.wsl[w] || 0) >= 2).length >= n;
         if (k === 'akhars_front') return (s.b.front || 0) >= n;
         if (k === 'annexes') return Object.keys(s.annex).filter((w) => s.annex[w]).length >= n;
         if (k === 'keeper_level') return rankLvl(s) >= n;
         return false;
     }
-    const checkText = (chk) => { const [k, v] = chk.split(':'); return ({ enclave: 'Enclave', builders_yard: 'Builder’s Yard', storehouse: 'Storehouse ' + v, workshops_built: 'All six workshops', workshops_l2: v + ' expanded workshops', akhars_front: 'Akhar’s Front ' + v, annexes: v + ' storage annexes', keeper_level: 'Knight Rank ' + v })[k] || chk; };
+    const checkText = (chk) => { const [k, v] = chk.split(':'); return ({ enclave: 'Enclave', builders_yard: 'Builder’s Yard', storehouse: 'Storehouse ' + v, workshops_built: 'All six workshops', workshops_l2: v + ' expanded workshops', akhars_front: 'Akhar’s Wall ' + v, annexes: v + ' storage annexes', keeper_level: 'Knight Rank ' + v })[k] || chk; };
     function rebirthBlock(s) {
         const r = rebirthReq(s);
         if (!r) return 'The Keep has been reborn ten times.';
@@ -1283,7 +1316,7 @@
         s.rebirths = r.n;
         // Rapport, lore, voices, crafts and the Knight carry over; the Keep's buildings start again.
         s.b.hall = 1; s.b.woodlot = 1; s.b.storehouse = 0; s.b.yard = 0; s.b.front = 0;
-        Object.keys(WS).forEach((w) => { s.wsl[w] = 1; s.annex[w] = false; });
+        Object.keys(WS).forEach((w) => { s.wsl[w] = s.wsl[w] ? 1 : 0; s.annex[w] = false; });
         s.inv.timber = Math.max(s.inv.timber, 80 + 120 * r.n);
         RAW.forEach((k) => { s.inv[k] = 0; });
         Object.keys(s.comps).forEach((id) => { if (s.comps[id].job.kind === 'front') s.comps[id].job = { kind: 'rest' }; });
@@ -1675,7 +1708,7 @@
         if (j.kind === 'help') return 'Helping the ' + (WS[j.target] ? WS[j.target].name : 'Woodlot');
         if (j.kind === 'explore') return 'Exploring the wilds';
         if (j.kind === 'knight') return 'Assisting the Knight';
-        if (j.kind === 'front') return 'Defending Akhar’s Front';
+        if (j.kind === 'front') return 'Defending Akhar’s Wall';
         return 'Resting at the Enclave';
     }
     function feedBlock(s, id, food) {
@@ -1753,6 +1786,14 @@
 
     // —— Objectives ——
     const OBJECTIVES = [
+        { chapter: 'Breaking Ground', steps: [
+            { id: 'woodlot', title: 'Raise the Woodlot', hint: 'Tap the cleared ground by the river. Your 30 Timber is exactly enough.', done: (s) => s.b.woodlot >= 1 },
+            { id: 'garden', title: 'Build the Garden', hint: 'Open the Elemental Quarter and build its first workshop. The Garden grows Flax, Sunleaf and produce.', done: (s) => wsBuilt(s, 'garden') },
+            { id: 'quarry', title: 'Build the Quarry', hint: 'Stone for the Forge, the Fridge and the walls.', done: (s) => wsBuilt(s, 'quarry') },
+            { id: 'kitchen', title: 'Build the Kitchen', hint: 'Provisions for the road: expeditions need them.', done: (s) => wsBuilt(s, 'kitchen') },
+            { id: 'pair', title: 'Build the Forge and the Fridge', hint: 'Both need Stone from the Quarry. Linked, they make Tempered Glass.', done: (s) => wsBuilt(s, 'forge') && wsBuilt(s, 'fridge') },
+            { id: 'carve', title: 'Carve a second weapon', hint: 'Knight › Work › Craft › Carpentry (opens at Woodcutting 5). Every weapon and garment is crafted.', done: (s) => Object.keys(s.inv).some((k) => k !== 'wooden_sword' && RES[k] && RES[k].kind === 'WEAPON' && fl(s.inv[k]) >= 1) }
+        ] },
         { chapter: 'Restoration: the Archive', steps: [
             { id: 'link', title: 'Connect the Forge and Fridge', hint: 'Open the Elemental Quarter, tap Arrange, then turn both sockets to face each other.', done: (s) => activeRecipes(s).includes('glass') },
             { id: 'glass', title: 'Refine 3 Tempered Glass', hint: 'The link turns Ember Ingots and Frost Crystals into glass. A companion at the Fridge speeds it up.', done: (s) => fl(s.inv.glass) >= 3 },
@@ -1792,7 +1833,9 @@
     const API_BASE = String((window.SIEGLINGS_CONFIG && window.SIEGLINGS_CONFIG.apiBaseUrl) || '').replace(/\/$/, '');
     const NET = { signedIn: false, checked: false, busy: false, lastSync: 0, syncedRev: -1, error: '', guild: null, market: null, loading: '', pending: null };
     const DOMINION_GOODS = ['timber', 'stone', 'ore', 'fiber', 'produce', 'provisions', 'ember', 'frost', 'storm', 'glass', 'alloy', 'rations', 'relic', 'insight', 'fittings', 'living_mortar', 'covenant_keystone', 'aether_core', 'heartwood_relic'];
-    const tradeable = (k) => DOMINION_GOODS.includes(k) || (!!CH.items[k] && !ALIAS[k] && (CH.tradeable || []).includes(CH.items[k].kind));
+    // Weapons and garments are worn only by the Knight who made them, so they never reach the market.
+    const GEAR_KINDS = ['WEAPON', 'ARMOR', 'HELMET', 'BOOTS', 'ACCESSORY', 'RELIC'];
+    const tradeable = (k) => DOMINION_GOODS.includes(k) || (!!CH.items[k] && !ALIAS[k] && (CH.tradeable || []).includes(CH.items[k].kind) && !GEAR_KINDS.includes(CH.items[k].kind));
     function authToken() { try { return localStorage.getItem(AUTH_TOKEN_KEY) || ''; } catch (e) { return ''; } }
     function api(path, body) {
         const t = authToken(), headers = { 'Content-Type': 'application/json' };
@@ -2096,7 +2139,7 @@
         });
         const dmg = (S.events || []).filter((e) => !e.repaired);
         if (dmg.length) ov.push('<button class="dm-pip" type="button" data-act="goto-keep" style="right:4%;top:31%;pointer-events:auto;border-color:rgba(255,138,115,.7);color:#ffb3a3">' + dmg.length + ' to repair</button>');
-        if (S.b.front >= 1) ov.push('<span class="dm-pip" style="left:50%;top:27%;transform:translateX(-50%)">Akhar\u2019s Front \u00b7 ' + Math.min(defenders(S).length, frontCap(S)) + '/' + frontCap(S) + ' posted</span>');
+        if (S.b.front >= 1) ov.push('<span class="dm-pip" style="left:50%;top:27%;transform:translateX(-50%)">Akhar\u2019s Wall \u00b7 ' + Math.min(defenders(S).length, frontCap(S)) + '/' + frontCap(S) + ' posted</span>');
         if (act.length) ov.push('<span class="dm-pip green" style="left:4%;top:37.5%">' + act.map((r) => esc(RECIPES[r].name)).join(' + ') + '</span>');
         $('dmSceneOverlay').innerHTML = ov.join('');
     }
@@ -2452,7 +2495,7 @@
                 const sp = SPECIES[sg.species] || { name: sg.species, element: 'EARTH', rarity: 'COMMON' };
                 const lures = Object.keys(RES).filter((k) => RES[k].kind === 'LURE' && fl(S.inv[k]) > 0 && (!RES[k].lureElement || RES[k].lureElement === sp.element));
                 const block = tameBlock(S, sg.id, '');
-                h += '<div class="dm-comp" style="--el:' + EL_HEX[sp.element] + '"><span class="dm-art"><img src="' + esc(catalogArt(sg.species, 240) || '') + '" data-raw="' + esc(ART_URLS[sg.species] || '') + '" alt="" onerror="dmArtFallback(this)"></span><div style="display:grid;gap:5px;min-width:0">' +
+                h += '<div class="dm-comp" style="--el:' + EL_HEX[sp.element] + '"><span class="dm-art">' + speciesArt(sg.species, '', sp.element) + '</span><div style="display:grid;gap:5px;min-width:0">' +
                     '<div class="dm-row"><h3 class="dm-grow">' + esc(sp.name) + '</h3><span class="dm-chip el" style="--el:' + EL_HEX[sp.element] + '">' + titleCase(sp.rarity) + ' ' + titleCase(sp.element) + '</span></div>' +
                     '<small class="dm-muted">Near ' + esc(destName(sg.route)) + ' · trail fades in <span data-live="eta" data-end="' + sg.expiresAt + '"></span></small>' +
                     '<div class="dm-chips"><button class="dm-btn small" type="button" data-act="tame" data-arg="' + esc(sg.id) + ':"' + (block ? ' disabled' : '') + '>Approach (' + Math.round(tameChance(S, sg, '') * 100) + '%)</button>' +
@@ -2463,7 +2506,7 @@
         }
         ids.forEach((id) => { h += companionCard(id); });
         if (S.comps.fawny && !S.comps.fawny.joined) {
-            h += '<div class="dm-card"><div class="dm-comp is-locked" style="--el:var(--line)"><span class="dm-art">' + artImg('fawny', '') + '</span><div style="display:grid;gap:4px;min-width:0"><span class="dm-eyebrow">Undiscovered</span><h3>A Siegeling in the frost</h3><p class="dm-muted">' + esc(STARTER_TRAITS.fawny.findText) + '</p></div></div></div>';
+            h += '<div class="dm-card"><div class="dm-comp is-locked" style="--el:var(--line)"><span class="dm-art">' + speciesArt('fawny', '') + '</span><div style="display:grid;gap:4px;min-width:0"><span class="dm-eyebrow">Undiscovered</span><h3>A Siegeling in the frost</h3><p class="dm-muted">' + esc(STARTER_TRAITS.fawny.findText) + '</p></div></div></div>';
         }
         h += '</div>';
         $('view-companions').innerHTML = h;
@@ -2589,7 +2632,7 @@
                 if (S.disc.vaultMap) body += '<div class="dm-card is-quiet"><div class="dm-row"><h3 class="dm-grow">Sealed Vault Map</h3><span class="dm-planned">Planned</span></div><p class="dm-muted">' + (skillLvl(S, 'elemental_studies') >= 10 ? 'Vault Cipher reads the map: it points to the Sunken Vault. That destination is not built in this slice.' : 'The map’s script needs Elemental Studies 10 to read.') + '</p></div>';
             }
         } else if (id === 'hall') {
-            body += '<div class="dm-card"><h3>The Knight</h3><p class="dm-muted">' + esc(S.exp ? 'Away on ' + DEST[S.exp.dest].name + '.' : S.knight.task.kind === 'idle' ? 'Waiting at the Hall.' : 'Working: ' + taskLabel(S) + '.') + ' The weapon rack holds practice weapons for every approach.' + '</p>' +
+            body += '<div class="dm-card"><h3>The Knight</h3><p class="dm-muted">' + esc(S.exp ? 'Away on ' + DEST[S.exp.dest].name + '.' : S.knight.task.kind === 'idle' ? 'Waiting at the Hall.' : 'Working: ' + taskLabel(S) + '.') + ' Every weapon and garment is crafted: Carpentry carves wooden gear, Smithing forges metal, Weaving sews cloth.' + '</p>' +
                 '<div class="dm-chips"><button class="dm-btn small secondary" type="button" data-act="tab" data-arg="knight">Equipment and skills</button><button class="dm-btn small secondary" type="button" data-act="tab" data-arg="activities">Expeditions</button></div></div>';
         }
         const keyFilter = { hall: (p) => /^(hall_|wing_war_room|yard|front_|storehouse)/.test(p.id), woodlot: (p) => /^(woodlot_2|wing_stable)/.test(p.id), archive: (p) => /^(archive|wing_library)/.test(p.id) }[id];
@@ -2711,7 +2754,7 @@
             '<div class="dm-card"><h3>From Chronicles</h3><p class="dm-muted">All 21 professions with their real gathering spots, 80 recipes and 105 items (exported from ChroniclesContent), level and bond curves, gear slots and bonuses, weapon proficiency, elemental affinity and class mastery, essences and studies, feeding treats, and Command party slots. Ser Airek, Cacty, Sundile and Fawny, and the region scene art.</p></div>' +
             '<div class="dm-card"><h3>From the Keep</h3><p class="dm-muted">The illustrated Great Hall, Woodlot, Archive (ruined and restored), Enclave and the six Quarter workshops with their art; Keep production and cost scale (Woodlot 1 Timber per minute, Archive 60 Timber); one construction crew.</p></div>' +
             '<div class="dm-card"><h3>New in Dominion</h3><p class="dm-muted">One shared clock, storage and roster. Quarter sockets, links, refining and reserves. Knight work versus expeditions. Preparation-driven encounters. Companion jobs. Practice weapons and Copper Fittings. The objective chapters.</p></div>' +
-            '<div class="dm-card"><h3>Also merged</h3><p class="dm-muted">Chronicles: all 35 routes with hazards, twists, elites and bosses, wild sightings and taming with lures, companion levels and evolution, renaming, runes and potions on the road, Legendary Bond Trials, the six base buildings as Keep wings, War Room loadouts, guilds, weekly Siege Operations and the Crowns market. Keep: Hall ranks 1 to 8 with banners, Storehouse and Builder\u2019s Yard (second crew), workshop expansions and annexes, Akhar\u2019s Front, Voices and Archive lore, Keep events and repairs, refining, recycling, the daily market, stewardship, Keep crafts, the Keeper\u2019s Journey and ten rebirths.</p></div>' +
+            '<div class="dm-card"><h3>Also merged</h3><p class="dm-muted">Chronicles: all 35 routes with hazards, twists, elites and bosses, wild sightings and taming with lures, companion levels and evolution, renaming, runes and potions on the road, Legendary Bond Trials, the six base buildings as Keep wings, War Room loadouts, guilds, weekly Siege Operations and the Crowns market. Keep: Hall ranks 1 to 8 with banners, Storehouse and Builder\u2019s Yard (second crew), workshop expansions and annexes, Akhar\u2019s Wall, Voices and Archive lore, Keep events and repairs, refining, recycling, the daily market, stewardship, Keep crafts, the Keeper\u2019s Journey and ten rebirths.</p></div>' +
             '<div class="dm-card is-quiet"><h3>Test-mode limits</h3><p class="dm-muted">The rules run in this browser and sync to your account, so a determined player could edit their save. Siegecoin prices are paid in Crowns and nothing touches real currencies. The pass-time button is for testing. ' + (ONLINE ? 'Guilds, operations and the market are shared with other testers.' : 'This offline preview has no guilds, operations or market.') + '</p></div>' +
             '<div class="dm-card is-quiet"><h3>Start over</h3><p class="dm-muted">Erase this prototype save.</p>' + (confirmReset ?
                 '<div class="dm-chips"><button class="dm-btn small" type="button" data-act="reset-yes">Erase and restart</button><button class="dm-btn small secondary" type="button" data-act="reset-no">Keep my save</button></div>' :
@@ -2831,9 +2874,10 @@
         case 'reset-no': confirmReset = false; break;
         case 'reset-yes':
             try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
-            S = defaults(Date.now()); sheet = null;
+            // Keep the sync ledger: a fresh version 0 would lose the 409 race and re-adopt the old save.
+            { const keep = { sync: S.sync, applied: S.applied }; S = defaults(Date.now()); Object.assign(S, keep); S.rev++; } sheet = null;
             document.querySelectorAll('.dm-sheet,.dm-scrim').forEach((e) => e.remove());
-            save(); setTab('keep'); renderAll(); toast('Prototype reset.'); return;
+            save(); syncNow(true); setTab('keep'); renderAll(); toast('Prototype reset.'); return;
         case 'building': if (arg === 'quarter') openSheet('quarter'); else openSheet('building', arg); return;
         case 'knight-sec': s.ui.knight = arg; break;
         case 'act-sec': s.ui.act = arg; break;

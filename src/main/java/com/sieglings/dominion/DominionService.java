@@ -55,6 +55,8 @@ public class DominionService {
     /** Keep goods and Dominion-only goods that may be listed, beside Chronicles' tradeable kinds. */
     static final Set<String> DOMINION_GOODS = Set.of("timber", "stone", "ore", "fiber", "produce", "provisions", "ember", "frost",
             "storm", "glass", "alloy", "rations", "relic", "insight", "fittings", "living_mortar", "covenant_keystone", "aether_core", "heartwood_relic");
+    /** In Dominion a Knight wears only what they crafted, so gear never changes hands. */
+    static final Set<String> GEAR_KINDS = Set.of("WEAPON", "ARMOR", "HELMET", "BOOTS", "ACCESSORY", "RELIC");
     /** Chronicles ids the browser folds into Keep goods; listing them under the old id would duplicate stock. */
     static final Set<String> ALIASED = Set.of("pine_log", "copper_ore", "frost_crystal", "relic_shard", "flax");
     private static final long ART_TTL_MS = 5 * 60_000L;
@@ -376,7 +378,7 @@ public class DominionService {
         if (itemId == null || itemId.isBlank() || ALIASED.contains(itemId)) return false;
         if (DOMINION_GOODS.contains(itemId)) return true;
         ChroniclesContent.Item item = ChroniclesContent.ITEMS.get(itemId);
-        return item != null && ChroniclesContent.TRADEABLE.contains(item.kind());
+        return item != null && ChroniclesContent.TRADEABLE.contains(item.kind()) && !GEAR_KINDS.contains(item.kind().name());
     }
 
     public Map<String, Object> market(AccountUser user) {
