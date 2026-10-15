@@ -336,3 +336,88 @@
 .dm-base-nav .ck-type { padding: 8px 12px; min-height: 36px; }
 /* Level-up chatter stays short so toasts never bury the screen. */
 .ck-toasts .ck-toast { font-size: 13px; padding: 8px 12px; }
+
+/* Notches are always visible like a card's perimeter dots; lit ones are carrying a link. */
+.dm-socket { display: block; width: 13px; height: 13px; border-width: 2px; opacity: .55; }
+.dm-socket.is-linked { opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--el) 60%, transparent), 0 0 10px var(--el); }
+.dm-quarter.is-arranging .dm-socket { opacity: 1; width: 16px; height: 16px; border-width: 3px; }
+.dm-socket[data-dir="0"] { top: -5px; left: calc(50% - 6px); }
+.dm-socket[data-dir="1"] { right: -5px; top: calc(50% - 6px); }
+.dm-socket[data-dir="2"] { bottom: -5px; left: calc(50% - 6px); }
+.dm-socket[data-dir="3"] { left: -5px; top: calc(50% - 6px); }
+
+/* —— The road, watched —— */
+.dm-journey { position: relative; height: clamp(260px, 44vh, 380px); border-radius: 20px; overflow: hidden; margin: 0 0 10px; border: 1px solid var(--glass-line); box-shadow: 0 14px 30px rgba(0,0,0,.45);
+    --sky1: #8fc7e8; --sky2: #e9f3d8; --hill1: #5f8f55; --hill2: #3f6b3c; --tree: #2f5a34; --tree2: #24452a; --trunk: #5b3d26; --ground: #6c8a47; --path: #b99566; --mote: #fff6c9; --f: 0; }
+.dm-journey[data-biome="meadow"] { --sky1: #9fd6ef; --sky2: #f4f7d6; --hill1: #8fbf6a; --hill2: #6a9d4f; --tree: #4f8a46; --tree2: #3a6b37; --ground: #93b360; }
+.dm-journey[data-biome="bog"] { --sky1: #8aa38a; --sky2: #cfd9b5; --hill1: #5c7a4a; --hill2: #3e5a37; --tree: #3d5b30; --tree2: #2c4425; --ground: #5d6f3b; --path: #7d6a45; --mote: #b8f07a; }
+.dm-journey[data-biome="snow"] { --sky1: #b9d8ee; --sky2: #f2f7fb; --hill1: #e3eef5; --hill2: #c2d6e4; --tree: #2f5a4c; --tree2: #24463c; --ground: #eef4f8; --path: #c9d7e2; --mote: #ffffff; }
+.dm-journey[data-biome="ember"] { --sky1: #4a2a2a; --sky2: #e7864a; --hill1: #6b3a2a; --hill2: #3e2219; --tree: #2a1a16; --tree2: #1a100d; --ground: #5b3a2a; --path: #8c5a3a; --mote: #ffb35a; }
+.dm-journey[data-biome="coast"] { --sky1: #7fc4ee; --sky2: #f6efcf; --hill1: #4fa2c8; --hill2: #2f7aa0; --tree: #3b7a3e; --tree2: #2c5d30; --ground: #e2d29a; --path: #f0e2b5; --mote: #e8fbff; }
+.dm-journey[data-biome="ruins"] { --sky1: #9fb0bd; --sky2: #e7e1cf; --hill1: #8a8b7c; --hill2: #66675b; --tree: #8f8a7a; --tree2: #6f6b5e; --ground: #8d876d; --path: #b0a585; --mote: #f3ead0; }
+.dm-journey[data-biome="storm"] { --sky1: #3f4a63; --sky2: #9aa7bd; --hill1: #4c5b52; --hill2: #36423b; --tree: #24342c; --tree2: #18241e; --ground: #4f5f4a; --path: #7c7a63; --mote: #fff27a; }
+.dm-journey[data-biome="dusk"] { --sky1: #2c1f45; --sky2: #8a5f8f; --hill1: #3d2f52; --hill2: #2a2040; --tree: #1d1530; --tree2: #140f22; --ground: #3e3350; --path: #6c5a7a; --mote: #d6a8ff; }
+.dm-journey[data-biome="dawn"] { --sky1: #f2c98a; --sky2: #fff4d6; --hill1: #d9b77a; --hill2: #b89257; --tree: #8f9d55; --tree2: #6f7d40; --ground: #d7c48a; --path: #f0dfae; --mote: #fff8d0; }
+.dm-j-far { position: absolute; inset: 0 0 35%; width: 100%; height: 65%; object-fit: cover; opacity: .55; filter: saturate(.8); animation: dm-j-drift 90s linear infinite alternate; }
+.dm-j-sky { position: absolute; inset: 0; background: linear-gradient(180deg, color-mix(in srgb, var(--sky1) 70%, transparent), color-mix(in srgb, var(--sky2) 55%, transparent) 62%, transparent 63%); }
+.dm-j-layer { position: absolute; left: 0; display: flex; width: 200%; animation: dm-j-scroll var(--speed, 40s) linear infinite; }
+.dm-j-hills { bottom: 30%; height: 34%; --speed: 70s; }
+.dm-j-hills i { flex: 1; background: radial-gradient(60% 100% at 25% 100%, var(--hill1) 70%, transparent 71%), radial-gradient(55% 90% at 75% 100%, var(--hill2) 70%, transparent 71%); }
+.dm-j-trees { height: 34%; }
+.dm-j-trees svg { flex: 1; width: 50%; height: 100%; }
+.dm-j-trees.is-back { bottom: 27%; --speed: 34s; opacity: .85; }
+.dm-j-trees.is-back .t-crown, .dm-j-trees.is-back .t-palm, .dm-j-trees.is-back .t-dead { fill: var(--tree2); stroke: var(--tree2); }
+.dm-j-trees.is-front { bottom: -6%; height: 30%; --speed: 13s; z-index: 6; opacity: .95; filter: blur(.4px); }
+.dm-j-trees .t-crown { fill: var(--tree); }
+.dm-j-trees .t-trunk { fill: var(--trunk); }
+.dm-j-trees .t-dead, .dm-j-trees .t-palm { fill: none; stroke: var(--tree); stroke-width: 3; stroke-linecap: round; }
+.dm-j-trees .t-pillar { fill: var(--tree); stroke: var(--tree2); stroke-width: 1; }
+.dm-j-ground { position: absolute; left: 0; right: 0; bottom: 0; height: 30%; background: linear-gradient(180deg, var(--ground), color-mix(in srgb, var(--ground) 70%, #000)); }
+.dm-j-ground i { position: absolute; left: 0; width: 200%; top: 30%; height: 26%; border-radius: 50%;
+    background: repeating-linear-gradient(90deg, var(--path) 0 46px, color-mix(in srgb, var(--path) 80%, #000) 46px 52px); animation: dm-j-scroll 6s linear infinite; opacity: .9; }
+.dm-j-squad { position: absolute; left: 14%; bottom: 17%; z-index: 5; display: flex; align-items: flex-end; gap: 2px; flex-direction: row-reverse; }
+.dm-j-walker { position: relative; display: block; width: clamp(58px, 15vw, 88px); height: clamp(70px, 18vw, 106px); margin-left: -10px;
+    animation: dm-j-bounce .52s ease-in-out infinite; animation-delay: calc(var(--i) * -.17s); transform-origin: 50% 100%; }
+.dm-j-walker::after { content: ""; position: absolute; left: 18%; right: 18%; bottom: -4px; height: 8px; border-radius: 50%; background: rgba(0,0,0,.28); animation: dm-j-shadow .52s ease-in-out infinite; animation-delay: inherit; }
+.dm-j-walker img.dm-paper, .dm-j-walker img { width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; display: block;
+    filter: drop-shadow(1px 0 0 #282019) drop-shadow(-1px 0 0 #282019) drop-shadow(0 1px 0 #282019) drop-shadow(2px 4px 2px rgba(23,19,15,.4)); }
+@supports (filter: url("#paper-siegling-cutout")) { .dm-j-walker img.dm-paper { filter: url("#paper-siegling-cutout"); } }
+.dm-j-walker .dm-paper-token { width: 54px; height: 54px; margin: auto auto 0; }
+.dm-j-walker.is-knight { width: clamp(62px, 16vw, 92px); }
+.dm-j-knight { position: absolute; inset: auto 0 0; height: 78%; border-radius: 50% 50% 14px 14px; overflow: hidden; border: 3px solid #f4cc62; box-shadow: 0 6px 10px rgba(0,0,0,.4); background: #23343f; }
+.dm-j-knight img { object-fit: cover; object-position: 50% 4%; transform: scale(1.5); transform-origin: 50% 12%; filter: none; }
+/* Each area slides in from the right as the squad walks into it (--f is the share walked). */
+.dm-j-areas { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.dm-j-area { position: absolute; bottom: 16%; left: calc(96% - var(--f) * 120%); width: 34%; height: 50%; display: none; }
+.dm-j-area.is-here { display: block; }
+.dm-j-foe { position: absolute; right: 8%; bottom: 0; width: 70%; height: 90%; animation: front-raider-march 1.1s ease-in-out infinite; }
+.dm-j-foe img { width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; filter: brightness(.22) saturate(.4) drop-shadow(0 0 4px rgba(168,107,255,.6)); }
+@supports (filter: url("#paper-siegling-shadow")) { .dm-j-foe img { filter: url("#paper-siegling-shadow"); } }
+.dm-j-foe.is-blank { background: radial-gradient(50% 60% at 50% 60%, #271b3c 60%, transparent 62%); }
+.dm-j-arch { position: absolute; left: 10%; bottom: 0; width: 70%; height: 90%; border: 12px solid #8f8a7a; border-bottom: 0; border-radius: 50% 50% 0 0; box-shadow: inset 0 0 0 3px #5f5a4c; }
+.dm-j-rock { position: absolute; left: 6%; bottom: 0; width: 46%; height: 42%; border-radius: 40% 46% 10% 10%; background: linear-gradient(160deg, #a59e8b, #6d6758); }
+.dm-j-log { position: absolute; right: 4%; bottom: 0; width: 46%; height: 18%; border-radius: 8px; background: repeating-linear-gradient(90deg, #8a6142 0 10px, #6c4a2e 10px 12px); }
+.dm-j-bloom { position: absolute; bottom: 0; width: 22%; height: 30%; border-radius: 50% 50% 0 0; background: radial-gradient(circle at 50% 30%, #f0a5bd 0 22%, #7fb35c 24% 100%); }
+.dm-j-bloom:nth-child(2) { left: 32%; height: 40%; } .dm-j-bloom:nth-child(3) { left: 64%; height: 26%; }
+.dm-j-motes { position: absolute; inset: -40% -80% 0; background: radial-gradient(circle, var(--mote) 0 2px, transparent 3px) 0 0 / 34px 30px; animation: dm-j-rise 3s linear infinite; opacity: .8; }
+.dm-j-fog { position: absolute; inset: -20% -120% -10%; background: radial-gradient(40% 50% at 50% 60%, rgba(240,240,255,.55), transparent 70%); animation: dm-j-drift 8s ease-in-out infinite alternate; }
+.dm-j-prints { position: absolute; left: 0; bottom: 2%; width: 100%; height: 12%; background: radial-gradient(ellipse 6px 3px, rgba(40,28,18,.5) 70%, transparent 72%) 0 0 / 26px 100%; }
+.dm-j-hud { position: absolute; left: 12px; top: 10px; right: 12px; z-index: 7; display: grid; gap: 2px; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
+.dm-j-hud .ck-kicker { color: #fff3c6; }
+.dm-j-title { font: 800 18px/1.15 var(--fun); color: #fff; }
+.dm-j-now { justify-self: start; margin-top: 4px; padding: 4px 10px; border-radius: 999px; background: rgba(11,16,32,.72); border: 1px solid var(--glass-line); font: 700 12px/1.3 var(--sans); color: var(--ink); text-shadow: none; }
+.dm-j-track { position: absolute; left: 14px; right: 14px; bottom: 10px; z-index: 8; height: 6px; border-radius: 6px; background: rgba(11,16,32,.55); }
+.dm-j-stop { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: #9aa6b8; border: 2px solid rgba(11,16,32,.9); }
+.dm-j-stop.is-ok { background: var(--good); } .dm-j-stop.is-part { background: var(--warn); } .dm-j-stop.is-miss { background: var(--bad); }
+.dm-j-marker { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: #f4cc62; border: 3px solid #2b1f0c; box-shadow: 0 0 10px rgba(244,204,98,.8); }
+@keyframes dm-j-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes dm-j-bounce { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-9px) rotate(3deg); } }
+@keyframes dm-j-shadow { 0%, 100% { transform: scaleX(1); opacity: .32; } 50% { transform: scaleX(.7); opacity: .18; } }
+@keyframes dm-j-drift { from { transform: translateX(0); } to { transform: translateX(-6%); } }
+@keyframes dm-j-rise { from { transform: translateY(0); } to { transform: translateY(-30px); } }
+@media (prefers-reduced-motion: reduce) {
+    .dm-j-layer, .dm-j-ground i, .dm-j-walker, .dm-j-walker::after, .dm-j-far, .dm-j-foe, .dm-j-motes, .dm-j-fog { animation: none; }
+}
+/* The Quarter tiles reuse the Keep's construction art fully raised (keep.css hides each
+   stage until the build reaches it). */
+.dm-ws-art .build-art-svg > g { opacity: 1; transform: none; }
