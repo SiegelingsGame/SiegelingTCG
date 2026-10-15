@@ -5789,3 +5789,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gutil { width:calc(var(--gtabs-w) - 4px); justify-content:center; }
   .sg-gstage-body { grid-template-columns:calc(var(--gtabs-w) - 4px) minmax(0, 1fr) max-content; column-gap:10px; }
 }
+
+/* Dominion test-mode band under the Play plates: gold so it reads as separate from Lobbies. */
+.sg-dominion { margin-top:10px; border-color:rgba(244,204,98,.45); }
+.sg-dominion .sg-lobbies-dot { background:#f4cc62; box-shadow:0 0 8px rgba(244,204,98,.8); }
+.sg-dominion em, .sg-dominion .go { color:#f4cc62; }
