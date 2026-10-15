@@ -2384,8 +2384,9 @@
 
     function renderHeader() {
         $('ckKnightName').textContent = S.knight.name;
-        const lead = leadComp();
-        $('ckAvatar').innerHTML = lead ? portrait(lead) : '';
+        // Rebuilding the avatar every tick reloads its art and makes it flash.
+        const lead = leadComp(), av = $('ckAvatar'), key = lead + '|' + (lead ? catalogArt(speciesOf(lead).id, 240) : '');
+        if (av.dataset.key !== key) { av.dataset.key = key; av.innerHTML = lead ? portrait(lead) : ''; }
         $('ckCrownsNum').textContent = fl(S.inv.crowns);
         $('ckRankNum').textContent = rankLvl(S);
         $('ckRankTitle').textContent = HALL_RANKS[S.b.hall - 1] + (rebirths(S) ? ' · ' + REBIRTH_TITLES[rebirths(S)] : '');
@@ -2426,8 +2427,16 @@
         // A journey already on screen keeps walking: the same trip's node survives the re-render.
         const keepJ = {};
         main.querySelectorAll('.dm-journey').forEach((j) => { keepJ[j.dataset.start + ':' + j.dataset.end] = j; });
+        const oldImgs = {};
+        main.querySelectorAll('img').forEach((im) => { const k = im.getAttribute('src'); if (k && im.complete && im.naturalWidth) (oldImgs[k] = oldImgs[k] || []).push(im); });
         main.innerHTML = view();
         main.querySelectorAll('.dm-journey').forEach((j) => { const old = keepJ[j.dataset.start + ':' + j.dataset.end]; if (old) j.replaceWith(old); });
+        // Reuse already-decoded images so portraits and art never blink on a re-render.
+        main.querySelectorAll('img').forEach((im) => {
+            if (im.closest('.dm-journey') && !im.isConnected) return;
+            const pool = oldImgs[im.getAttribute('src')], old = pool && pool.pop();
+            if (old && old !== im) { old.className = im.className; old.alt = im.alt; im.replaceWith(old); }
+        });
         main.dataset.tab = S.ui.tab;
         main.classList.toggle('dm-fill', S.ui.tab === 'base' && (S.ui.base || 'grounds') === 'grounds' && !S.ui.room);
         mountScene();
@@ -2471,9 +2480,9 @@
         lastSig = signature();
         lastRev = S.rev;
     }
-    function signature() {
-        return Object.keys(RES).map((k) => fl(S.inv[k])).join(',') + '|' + S.rev + '|' + Math.floor(S.t / MIN);
-    }
+    // Stock counts tick every few seconds while the Knight works; they update in place via
+    // data-res, so only real state changes and the minute rebuild the tab.
+    function signature() { return S.rev + '|' + Math.floor(S.t / MIN); }
     function updateLive() {
         const t = S.t;
         document.querySelectorAll('[data-res]').forEach((e) => { e.textContent = fl(S.inv[e.dataset.res]); });

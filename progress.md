@@ -1,4 +1,11 @@
 Original prompt: Go with earth based art for endless
+- October 15, 2026 **Dominion portraits no longer flash.**
+  - **Change.**
+    - The header avatar was rebuilt every second, and the whole tab re-rendered whenever any stock count changed (every few seconds while the Knight works). Each rebuild reloaded every portrait.
+    - The avatar is now built only when the lead companion or its art changes.
+    - The render signature is now `rev` + minute, since stock counts already update in place through `data-res`.
+    - `renderView` hands already-decoded `<img>` nodes back into the new markup by `src`.
+  - **Verification.** On the Company tab, with three forced state re-renders plus clock ticks, all 7 image nodes were the same elements afterwards, and a MutationObserver saw 0 avatar rebuilds. The earlier smoke, journey and one-screen HUD checks still pass with no page errors.
 - October 15, 2026 **Dominion Grounds fits on one screen: the Keep scene fills the Base tab and its HUD floats on it.**
   - **Change.**
     - On the open Grounds, `viewBase` returns `groundsHud()` instead of the stacked resource row, section tabs, objective card, buttons and hint. `.ck-main.dm-fill` stops the tab scrolling, and the scene box flexes to fill the space between the header and the tab bar.
