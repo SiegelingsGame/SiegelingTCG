@@ -1,4 +1,24 @@
 Original prompt: Go with earth based art for endless
+- October 15, 2026 **Dominion fills its gaps (Sunken Vault, Keep tool tiers and decorations, phased construction art, Akhar's Wall battle, visitor follow-ups, first-visit guide), and fixes Chronicles' stuck Smithing.**
+  - **Change.**
+    - **Sunken Vault.** It is now a real Keep road. It opens with the Sealed Vault Map and Elemental Studies 10 (`destBlock` explains which is missing) and runs 10 hours through tide hazard, sealed door, rubble and elite to a boss. The warden is the registry's rarest Water Siegeling, at level 16. The first warden kill opens the hoard once (2 Covenant Keystones, an Aether Core, 2 Ancient Relics, 250 Crowns), records `disc.vaultCleared`, and completes "The Sealed Door" chapter.
+    - **Keep crafts.** `ExportDominionContent` now exports `KeepService.RECIPES` reflectively into `dominion-keep-data.js` (80 recipes). Every room now has tool tiers 1–5, each needing the previous tier and some needing room level 2, plus decorations 1–6, so every Keep decoration slot can be filled. Each installed tool tier adds 20% (`toolMul`), and the room shows the matching tier icons.
+    - **Construction art.** Building sites use the Keep's `BUILD_ART` drawings, copied from `keep.js`, raising one stage per quarter of the build ("stage n/4").
+    - **Akhar's Wall battle.** Posted defenders fire a volley each, raiders break and fall in a loop with impact bursts, a "+N Crowns an hour" pop appears, and a running tally of raiders turned back is kept. An unguarded wall says so.
+    - **Visitor follow-ups.** A choice whose flag opens a follow-up brings that conversation straight to the gate, skipping the roll and the speaker's cooldown, as `KeepService.activateConsequenceFollowup` does. The result screen offers "Face what follows".
+    - **First-visit guide.** Six cards on a fresh Keep, each highlighting its control on a lightly dimmed screen. It can be reopened from ⋯.
+    - **Chronicles fix.** `forge_copper_sword` is now level 1, because Smithing earns XP only from its own recipes and a first recipe at level 2 left it stuck at 1. New `ChroniclesServiceTest.everyCraftingSkillCanEarnItsFirstLevel` guards every non-gathering skill.
+  - **Verification.**
+    - `node --check js/dominion.js`. Full `./mvnw -q test` passes (0 failures).
+    - Live check before this change: on https://siegelingstcgtesting.web.app/dominion, all 7 real catalog paper cutouts load (`naturalWidth` 240), and Cacty walks the Rootwild journey as a standee.
+    - Headless Chromium at 390x844 on a fresh save:
+      - the guide opens and highlights the Base tab;
+      - six minutes into the Woodlot build, 3 drawing stages are raised and the caption reads "stage 3/4";
+      - crafting tool tier 2 before tier 1 is refused; all 5 Woodlot tiers then craft, the room shows 5 tier icons, and the Woodlot rate rises;
+      - a strong company clears the Vault: the warden falls, the report shows `vaultCleared`, 2 Keystones and an Aether Core are paid, and the objective latches;
+      - a posted Wall shows the battle stage and a volley per defender;
+      - choosing Cook Mira's flagging choice puts `interaction_mira_second_kettle` at the gate and shows "Face what follows".
+    - The earlier smoke, journey, HUD, food and flashing checks still pass with no page errors.
 - October 15, 2026 **Dominion expedition food: raw forage for a small buff, cooked meals for two or three.**
   - **Change.**
     - An expedition's portions can now be paid in food. A raw forage covers 1 portion and gives one small buff by type:

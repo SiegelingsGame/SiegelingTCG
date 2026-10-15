@@ -137,6 +137,18 @@ class ChroniclesServiceTest {
     }
 
     @Test
+    void everyCraftingSkillCanEarnItsFirstLevel() {
+        // A skill that only levels from its own recipes needs one it can use at level 1.
+        java.util.Set<String> gathered = new java.util.HashSet<>();
+        ChroniclesContent.ACTIVITIES.values().forEach(a -> gathered.add(a.skillId()));
+        java.util.Map<String, Integer> lowest = new java.util.HashMap<>();
+        ChroniclesContent.RECIPES.values().forEach(r -> lowest.merge(r.skillId(), r.level(), Math::min));
+        lowest.forEach((skill, level) -> {
+            if (!gathered.contains(skill)) assertEquals(1, level, skill + " has no level-1 recipe, so it can never gain XP");
+        });
+    }
+
+    @Test
     void forgingGearChecksLevelsAndCanBeEquipped() {
         service.start(user, "cacty", "Ari", null);
         store.state.skillXp.put("mining", ChroniclesContent.xpForLevel(5));

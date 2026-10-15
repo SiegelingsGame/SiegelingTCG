@@ -450,3 +450,43 @@
 .ck-kicker .dm-clock { white-space: nowrap; }
 .ck-title .ck-kicker { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 380px) { .ck-kicker .dm-clock { display: none; } }
+
+/* Building sites use the Keep's phased construction drawing over a dimmed room. */
+.dm-site-art { position: absolute; left: 6%; right: 6%; top: 6%; bottom: 16%; }
+.dm-site-art .build-art-svg { width: 100%; height: 100%; }
+.dm-site .dm-site-label { position: relative; z-index: 3; }
+
+/* Akhar's Wall in battle: volleys from each post, raiders breaking, Crowns popping. */
+.dm-wall-shots { position: absolute; left: 10%; right: 30%; bottom: 52%; z-index: 4; pointer-events: none; }
+.dm-wall-shots i { position: absolute; left: calc(var(--i) * 26%); bottom: 0; width: 9px; height: 9px; border-radius: 50%;
+    background: radial-gradient(circle, #fff, var(--el)); box-shadow: 0 0 8px var(--el); animation: front-projectile-flight 2.6s ease-in infinite; animation-delay: calc(var(--i) * -.7s); }
+.dm-wall-stage.is-fighting .dm-wall-raiders b { animation: dm-raider-cycle 2.6s ease-in-out infinite; }
+.dm-wall-stage.is-fighting .dm-wall-raiders b:nth-child(2) { animation-delay: -.9s; }
+.dm-wall-stage.is-fighting .dm-wall-raiders b:nth-child(3) { animation-delay: -1.7s; }
+.dm-wall-stage.is-fighting .dm-wall-raiders b::after { content: ""; position: absolute; left: 30%; top: 20%; width: 40%; height: 40%; border-radius: 50%;
+    background: radial-gradient(circle, #fff7c2, rgba(255,180,80,.6) 45%, transparent 70%); opacity: 0; animation: front-impact-burst 2.6s ease-out infinite; animation-delay: inherit; }
+.dm-wall-raiders b { position: relative; }
+.dm-wall-burst { position: absolute; right: 8%; top: 18%; z-index: 6; display: grid; justify-items: center; padding: 4px 10px; border-radius: 12px; background: rgba(11,16,32,.75);
+    color: #ffe08a; font: 800 15px/1.1 var(--fun); animation: front-coin-award 3.2s ease-in-out infinite; }
+.dm-wall-burst small { font: 700 9px/1.2 var(--sans); color: var(--ink); opacity: .8; }
+.dm-wall-tally { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); z-index: 6; padding: 4px 12px; border-radius: 999px; background: rgba(11,16,32,.82); color: var(--ink); font: 700 12px/1.3 var(--sans); white-space: nowrap; }
+@keyframes dm-raider-cycle {
+    0% { opacity: 0; translate: 30px 0; } 15% { opacity: 1; translate: 0 0; } 55% { opacity: 1; translate: -14px 2px; rotate: 0deg; }
+    70% { opacity: .9; translate: -10px 4px; rotate: 10deg; } 85%, 100% { opacity: 0; translate: 6px 26px; rotate: 22deg; }
+}
+@media (prefers-reduced-motion: reduce) { .dm-wall-shots i, .dm-wall-stage.is-fighting .dm-wall-raiders b, .dm-wall-burst, .dm-wall-raiders b::after { animation: none; } }
+
+/* First-visit guide */
+.dm-coach { display: grid; gap: 6px; }
+.dm-coach-ico { font-size: 34px; line-height: 1; }
+.dm-coach p { margin: 0; line-height: 1.5; }
+.dm-coach .dm-steps { display: flex; gap: 4px; margin: 6px 0 2px; }
+.dm-coach .dm-steps i { flex: 1; height: 4px; border-radius: 4px; background: rgba(255,255,255,.14); }
+.dm-coach .dm-steps i.done { background: var(--good); } .dm-coach .dm-steps i.now { background: var(--gold); }
+.dm-coach-target { position: relative; box-shadow: 0 0 0 3px var(--gold-bright), 0 0 22px rgba(230,205,140,.8) !important; border-radius: 14px; animation: dm-coach-pulse 1.4s ease-in-out infinite; }
+@keyframes dm-coach-pulse { 50% { box-shadow: 0 0 0 5px rgba(230,205,140,.6), 0 0 30px rgba(230,205,140,.9); } }
+/* The guide keeps the screen visible so its highlighted control can be seen through it. */
+#ckModal[data-kind="coach"] { background: rgba(3,6,12,.38); backdrop-filter: none; place-items: center; pointer-events: none; }
+#ckModal[data-kind="coach"] .ck-modal-card { pointer-events: auto; width: min(420px, 100%); box-shadow: 0 16px 40px rgba(0,0,0,.55); }
+.dm-coach-target { z-index: auto; }
+#ckModal[data-kind="coach"] ~ * .dm-coach-target, body:has(#ckModal[data-kind="coach"]:not([hidden])) .ck-tabs, body:has(#ckModal[data-kind="coach"]:not([hidden])) .ck-status { position: relative; z-index: 41; }

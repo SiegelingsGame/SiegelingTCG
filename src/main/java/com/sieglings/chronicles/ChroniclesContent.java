@@ -504,7 +504,8 @@ public final class ChroniclesContent {
                     Map.of("copper_ore", 2), 10, 8, FORGE_HELPERS),
             repeatable("smelt_iron", "smelting", "iron_bar", 10, List.of(),
                     Map.of("iron_ore", 2), 14, 16, FORGE_HELPERS),
-            forge("forge_copper_sword", "copper_sword", 2, List.of(), Map.of("copper_bar", 3, "pine_log", 2), 40),
+            // Level 1: Smithing only earns XP from its own recipes, so a first recipe at 2 left it stuck at 1.
+            forge("forge_copper_sword", "copper_sword", 1, List.of(), Map.of("copper_bar", 3, "pine_log", 2), 40),
             forge("forge_copper_daggers", "copper_daggers", 3, List.of(), Map.of("copper_bar", 3), 40),
             forge("forge_copper_spear", "copper_spear", 3, List.of(), Map.of("copper_bar", 2, "pine_log", 4), 40),
             forge("forge_copper_mail", "copper_mail", 4, List.of(), Map.of("copper_bar", 5), 55),

@@ -339,7 +339,10 @@
         ruins: { name: 'Covenant Ruins', hours: 8, provisions: 4, element: 'METAL', blurb: 'Collapsed halls of the first Covenant. Ruins and materials.',
             loot: { stone: 30, ore: 20, timber: 20, relic: 1, fossil: 3, rune_stone: 1 }, xp: 240, prof: 80, bond: 40,
             encounters: ['rubble', 'hazard', 'seam', 'pack', 'sealed', 'ambush'] },
-        vault: { name: 'Sunken Vault', planned: true, blurb: 'Needs the Sealed Vault Map and Elemental Studies 10.' },
+        // The first Covenant's flooded vault under the Ruins: the payoff of "The Sealed Door".
+        vault: { name: 'Sunken Vault', hours: 10, provisions: 4, element: 'WATER', blurb: 'Beneath the Covenant Ruins the first Covenant sealed a vault and let the river in. The map shows the way; its wards need Elemental Studies 10.',
+            loot: { relic: 4, rune_stone: 3, tide_pearl: 2, glass: 2, fossil: 2 }, xp: 400, prof: 120, bond: 60, levelMin: 10, levelMax: 16, bossLevel: 16, sighting: 0.12,
+            encounters: ['hazard_tide', 'sealed', 'rubble', 'elite', 'boss'] },
         trial: { name: 'Legendary Bond Trial', special: true, hours: 8, provisions: 0, element: 'LIGHT', encounters: [], loot: {}, blurb: 'A solo journey with one Bond 100 companion.' },
         operation: { name: 'Siege Operation', special: true, hours: 8, provisions: 2, element: 'FIRE', encounters: [], loot: {}, blurb: 'Your guild\u2019s weekly threat.' }
     };
@@ -376,11 +379,16 @@
         };
     });
     DEST.rootwild.tier = 0; DEST.ruins.tier = 0; DEST.vault.tier = 0;
+    // The Vault's warden is the rarest Water Siegeling in the registry.
+    const RARITY_RANK = { COMMON: 0, UNCOMMON: 1, RARE: 2, EPIC: 3, LEGENDARY: 4 };
+    DEST.vault.bossId = (Object.keys(SPECIES).map((k) => SPECIES[k]).filter((c) => c.element === 'WATER').sort((a, b) => (RARITY_RANK[b.rarity] || 0) - (RARITY_RANK[a.rarity] || 0))[0] || {}).id || '';
     DEST.rootwild.sighting = 0.15; DEST.ruins.sighting = 0.1;
     function destBlock(s, id) {
         const d = DEST[id];
         if (!d) return 'Unknown destination.';
         if (d.planned) return d.blurb;
+        if (id === 'vault' && !s.disc.vaultMap) return 'Find the Sealed Vault Map behind the sealed door in the Covenant Ruins (bring a Hammer).';
+        if (id === 'vault' && skillLvl(s, 'elemental_studies') < 10) return 'Needs Elemental Studies 10 to read the map’s wards.';
         if (d.rankReq && rankLvl(s) < d.rankReq) return 'Needs Knight Rank ' + d.rankReq + '.';
         const miss = (d.reqs || []).filter((r) => !meets(s, r));
         if (miss.length) return 'Needs ' + miss.map(reqText).join(', ') + '.';
@@ -1064,6 +1072,11 @@
         stone_sentinel: ['Quarry Stone Sentinel', 'DECORATION', 'quarry', { stone: 8 }], hearth_garland: ['Harvest Hearth Garland', 'DECORATION', 'kitchen', { provisions: 7 }],
         carved_waypost: ['Carved Covenant Waypost', 'DECORATION', 'woodlot', { verdant_fiber: 6 }]
     };
+    // The Keep's own craft table (every tool tier and decoration) when the export carries it:
+    // [name, type, room, costs, tier, prerequisite, room level needed, description, bonus].
+    ((window.DOMINION_KEEP && window.DOMINION_KEEP.crafts) || []).forEach((r) => {
+        KEEP_CRAFTS[r.id] = [r.name, r.type, r.roomId, r.materialCosts || {}, r.tier || 1, r.prerequisiteId || '', r.requiredLevel || 1, r.description || '', r.bonusLabel || ''];
+    });
     const REBIRTH_LADDER = [
         [['enclave'], { timber: 200 }], [['builders_yard'], { timber: 300, stone: 20 }], [['enclave', 'builders_yard'], { timber: 400, stone: 30, living_mortar: 2 }],
         [['workshops_built:6', 'storehouse:2'], { timber: 600, living_mortar: 3, tempered_glass: 3, charged_alloy: 2 }],
@@ -1283,11 +1296,16 @@
         const k = KEEP_CRAFTS[id];
         if (!k) return 'Unknown craft.';
         if (s.crafted[id]) return 'Already made.';
+        if (k[5] && !s.crafted[k[5]]) return 'Craft the ' + ((KEEP_CRAFTS[k[5]] || [k[5]])[0]) + ' first.';
+        if ((k[6] || 1) > roomLevel(s, k[2])) return 'Needs the ' + titleCase(k[2]) + ' at level ' + k[6] + '.';
         if (!canAfford(s, ka(k[3]))) return 'Missing materials.';
         return '';
     }
     function keepCraft(s, id) { if (keepCraftBlock(s, id)) return false; spend(s, ka(KEEP_CRAFTS[id][3])); s.crafted[id] = true; keepEvent(s, 'CRAFTING'); s.rev++; return true; }
-    const toolMul = (s, room) => Object.keys(KEEP_CRAFTS).some((k) => KEEP_CRAFTS[k][1] === 'TOOL' && KEEP_CRAFTS[k][2] === room && s.crafted[k]) ? 1.2 : 1;
+    // Each installed tool tier lifts its room by 20%, as the Keep's tool ladder does.
+    const toolTiers = (s, room) => Object.keys(KEEP_CRAFTS).filter((k) => KEEP_CRAFTS[k][1] === 'TOOL' && KEEP_CRAFTS[k][2] === room && s.crafted[k]).length;
+    const toolMul = (s, room) => 1 + 0.2 * toolTiers(s, room);
+    const roomLevel = (s, room) => (room === 'woodlot' ? s.b.woodlot : room === 'great_hall' ? s.b.hall : WS[room] ? (s.wsl[room] || 0) : 1);
 
     // —— The Chronicle: Keep lore unlocks as in KeepService; reading only marks it read ——
     const LORE = () => (window.DOMINION_KEEP && window.DOMINION_KEEP.lore) || { entries: [], conversations: [] };
@@ -1391,20 +1409,29 @@
         const before = n.trust;
         n.trust = Math.max(0, Math.min(TRUST_MAX, n.trust + (o.relationshipDelta != null ? o.relationshipDelta : ch.relationshipDelta || 0)));
         n.met = true; n.name = c.npcName; n.role = c.npcRole || ''; n.cooldownUntil = s.t + (c.cooldownHours || 6) * HOUR;
-        if (o.flag || ch.flag) s.voices.flags[o.flag || ch.flag] = true;
+        const flag = o.flag || ch.flag;
+        if (flag) s.voices.flags[flag] = true;
         s.voices.done[c.id] = true;
         s.visitors.active = s.visitors.active.filter((a) => a.id !== c.id);
         const reply = o.response || ch.response || '';
         s.voices.log.unshift({ npc: c.npcName, npcId: c.npcId, prompt: c.prompt, said: ch.label, reply: reply, at: s.t, gains: gains, trust: n.trust - before });
         if (s.voices.log.length > 30) s.voices.log.length = 30;
         unlockLore(s, o.unlockLoreId || ch.unlockLoreId);
+        // A consequence comes straight to the gate (KeepService.activateConsequenceFollowup):
+        // it skips the roll and the speaker's cooldown, since it answers what just happened.
+        let follow = null;
+        if (flag) {
+            follow = LORE().conversations.find((f) => (f.requiresFlags || []).includes(flag) && !(f.oneTime !== false && s.voices.done[f.id]) &&
+                !(f.requiresLoreIds || []).some((l) => !loreOpen(s, l)) && !(f.requiresFlags || []).some((g) => !s.voices.flags[g]) && !s.visitors.active.some((a) => a.id === f.id)) || null;
+            if (follow) s.visitors.active.push({ id: follow.id, at: s.t, followup: true });
+        }
         add(s, { silver: 2 });
         grantRank(s, 25);
         keepEvent(s, 'CONVERSATION');
         maybeRequest(s, c.npcId);
         if (n.trust >= TRUST_MAX && !n.keepsake) { n.keepsake = true; add(s, { crowns: 100, relic: 1 }); FRESH.push(c.npcName + ' is Bonded to the Keep and leaves a keepsake: 100 Crowns and a relic.'); }
         s.rev++;
-        return { reply: reply, gains: gains, loss: loss, trust: n.trust, delta: n.trust - before, stage: trustStage(n.trust) };
+        return { reply: reply, gains: gains, loss: loss, trust: n.trust, delta: n.trust - before, stage: trustStage(n.trust), follow: follow ? follow.npcName : '' };
     }
 
     // —— Visitor requests: Dominion's quest layer on top of the Keep's visitors ——
@@ -1900,6 +1927,13 @@
         const lootMul = Math.max(0.4, 1 - loss) + 0.05 * x.rations + x.skills.cartography * 0.003 + x.crit + (meal.haul || 0);
         const total = rollLoot(d, x.id + ':loot', lootMul);
         Object.keys(gains).forEach((k) => { total[k] = (total[k] || 0) + gains[k]; });
+        // The first warden kill opens the Vault's hoard, once.
+        if (x.dest === 'vault' && !s.disc.vaultCleared && lines.some((l) => l.id === 'boss' && l.status === 'ok')) {
+            s.disc.vaultCleared = true;
+            [['covenant_keystone', 2], ['aether_core', 1], ['ancient_relic', 2], ['crowns', 250]].forEach((g) => { total[g[0]] = (total[g[0]] || 0) + g[1]; });
+            discs.push('vaultCleared');
+            FRESH.push('The Sunken Vault is open: its hoard is yours.');
+        }
         // Essences: the road's element, plus one for each companion's element.
         const ess = 'essence_' + d.element.toLowerCase();
         total[ess] = (total[ess] || 0) + 2;
@@ -2094,7 +2128,7 @@
         { chapter: 'The Sealed Door', steps: [
             { id: 'map', title: 'Open the sealed door in the Covenant Ruins', hint: 'Bring a Hammer. A Siegeling with Frost Sight can spot the door, but cannot open it.', done: (s) => s.disc.vaultMap },
             { id: 'cipher', title: 'Reach Elemental Studies 10', hint: 'Vault Cipher lets the Knight read the map.', done: (s) => skillLvl(s, 'elemental_studies') >= 10 },
-            { id: 'vault', title: 'Sunken Vault (planned, beyond this slice)', hint: 'The next destination and its rewards are not built yet.', done: () => false, planned: true }
+            { id: 'vault', title: 'Break the warden of the Sunken Vault', hint: 'Expedition › The Keep’s roads › Sunken Vault. A 10-hour flooded road: Water hazards, a sealed door (Hammer), an elite and the Vault’s warden. Bring a strong company.', done: (s) => !!s.disc.vaultCleared }
         ] }
     ];
     function latchObjectives(s) {
@@ -2413,7 +2447,7 @@
     function renderModal() {
         if (!modal) return;
         const m = $('ckModal'), body = $('ckModalBody');
-        const html = ({ report: reportModal, away: awayModal, plan: planModal, item: itemModal, skill: skillModal, menu: menuModal, objective: objectiveModal, lore: loreModal, voice: voiceModal, comp: null }[modal.kind] || (() => ''))(modal.arg);
+        const html = ({ report: reportModal, away: awayModal, plan: planModal, item: itemModal, skill: skillModal, menu: menuModal, objective: objectiveModal, coach: coachModal, lore: loreModal, voice: voiceModal, comp: null }[modal.kind] || (() => ''))(modal.arg);
         const scroll = body.scrollTop;
         m.dataset.kind = modal.kind;
         body.innerHTML = html;
@@ -2967,7 +3001,7 @@
         if (!r) return '<p class="ck-muted">This report is no longer stored.</p><div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
         return '<h2 id="ckModalTitle">' + esc(reportTitle(r)) + '</h2><p class="ck-outcome is-complete">' + esc(r.summary) + '</p>' +
             '<h3>How preparation shaped the journey</h3><ol class="ck-timeline">' + r.lines.map((l) => '<li class="is-' + (l.status === 'ok' ? 'good' : l.status === 'miss' ? 'bad' : 'info') + '"><time>' + (l.status === 'ok' ? '✓' : l.status === 'part' ? '~' : '✕') + '</time><span><b>' + esc(l.title) + '.</b> ' + esc(l.text) + (l.status !== 'ok' && l.need ? ' <i>Next time: ' + esc(l.need) + '</i>' : '') + '</span></li>').join('') + '</ol>' +
-            (r.discs.length || r.sighting ? '<h3>Discoveries</h3><ul class="ck-milestones">' + r.discs.map((d) => '<li>' + (d === 'fawny' ? 'Fawny joined the Keep.' : 'The Sealed Vault Map.') + '</li>').join('') + (r.sighting ? '<li>A wild ' + esc((SPECIES[r.sighting.species] || {}).name || r.sighting.species) + ' was sighted. Visit the Wilds within 48 hours.</li>' : '') + '</ul>' : '') +
+            (r.discs.length || r.sighting ? '<h3>Discoveries</h3><ul class="ck-milestones">' + r.discs.map((d) => '<li>' + (d === 'fawny' ? 'Fawny joined the Keep.' : d === 'vaultCleared' ? 'The Sunken Vault’s warden fell: 2 Covenant Keystones, an Aether Core, 2 Ancient Relics and 250 Crowns.' : 'The Sealed Vault Map.') + '</li>').join('') + (r.sighting ? '<li>A wild ' + esc((SPECIES[r.sighting.species] || {}).name || r.sighting.species) + ' was sighted. Visit the Wilds within 48 hours.</li>' : '') + '</ul>' : '') +
             '<h3>Company</h3><ul class="ck-xp">' + Object.keys(r.bonds).map((k) => '<li><span>' + esc(S.comps[k] ? C(k).name : k) + '</span><b>+' + r.bonds[k] + ' bond' + (r.levels && r.levels[k] ? ' · Lv ' + r.levels[k] : '') + '</b></li>').join('') + '</ul>' +
             '<h3>Knowledge</h3><ul class="ck-xp">' + Object.keys(r.xp).map((k) => '<li><span>' + esc(SKILLS[k].name) + '</span><b>+' + r.xp[k] + ' xp</b></li>').join('') + (r.prof ? '<li><span>' + esc(WEAPONS[r.weapon].name) + '</span><b>+' + r.prof + ' xp</b></li>' : '') + '</ul>' +
             (r.food && FOODS[r.food] ? '<p class="ck-small is-ready">' + itemEmoji(r.food) + ' The company ate ' + esc(itemName(r.food)) + ': ' + esc(buffText(FOODS[r.food])) + '.</p>' : '') + '<h3>Loot</h3>' + lootRow(r.total) + '<p class="ck-small ck-muted">Haul kept: ' + r.lootPct + '% of the base find.' + (r.resumed.length ? ' Resumed: ' + esc(r.resumed.join(' · ')) + '.' : '') + '</p>' +
@@ -3181,6 +3215,223 @@
         $('dmSceneOverlay').innerHTML = ov.join('');
     }
 
+    // The Keep's construction drawings (keep.js BUILD_ART): each group rises at its phase.
+    const BUILD_ART_GROUND = `<ellipse class="b-shadow" cx="200" cy="215" rx="158" ry="14"/>`;
+    const BUILD_ART_DUST = `<g class="b-dust"><circle cx="104" cy="198" r="3.2"/><circle cx="196" cy="186" r="2.4"/>
+        <circle cx="292" cy="200" r="3.6"/><circle cx="244" cy="172" r="2"/></g>`;
+
+    const BUILD_ART_FALLBACK = `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M104 204h192M132 186h136"/>
+            <rect class="b-tim-d" x="96" y="188" width="96" height="9" rx="4"/>
+            <rect class="b-tim" x="104" y="176" width="80" height="9" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M148 66v138M256 66v138M144 70h116"/>
+            <path class="b-beam-d" d="M148 126h108"/></g>
+        <g data-phase-min="2">
+            <g class="b-hoist"><path class="b-rope" d="M202 74v42"/><rect class="b-stone" x="184" y="116" width="36" height="26" rx="4"/></g>
+            <rect class="b-stone-d" x="150" y="170" width="50" height="20" rx="3"/>
+            <rect class="b-stone-d" x="204" y="170" width="50" height="20" rx="3"/></g>
+        <g data-phase-min="3">
+            <rect class="b-stone" x="150" y="148" width="104" height="20" rx="3"/>
+            <circle class="b-glow b-lamp" cx="286" cy="96" r="9"/></g>`;
+
+    const BUILD_ART = {
+        // Covenant Hall ranks are cut stone: a timber gantry lifts ashlar onto rising courses.
+        great_hall: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M96 206h208M124 186h152M124 186v20M276 186v20"/>
+            <rect class="b-tim-d" x="80" y="186" width="94" height="9" rx="4"/>
+            <rect class="b-stone" x="86" y="168" width="40" height="18" rx="3"/>
+            <rect class="b-stone" x="130" y="168" width="40" height="18" rx="3"/>
+            <rect class="b-stone-d" x="108" y="150" width="40" height="18" rx="3"/>
+            <rect class="b-tim" x="292" y="180" width="70" height="8" rx="4"/>
+            <rect class="b-tim" x="300" y="169" width="54" height="8" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M152 58v148M254 58v148M146 62h114"/>
+            <path class="b-beam-d" d="M152 96l44-30M254 96l-44-30"/></g>
+        <g data-phase-min="2">
+            <rect class="b-stone" x="168" y="182" width="34" height="18" rx="3"/>
+            <rect class="b-stone" x="206" y="182" width="34" height="18" rx="3"/>
+            <rect class="b-stone-d" x="180" y="162" width="34" height="18" rx="3"/>
+            <rect class="b-stone-d" x="218" y="162" width="34" height="18" rx="3"/>
+            <g class="b-hoist"><path class="b-rope" d="M203 66v44"/><rect class="b-stone" x="184" y="110" width="38" height="26" rx="4"/></g></g>
+        <g data-phase-min="3">
+            <rect class="b-stone" x="160" y="140" width="100" height="20" rx="4"/>
+            <path class="b-banner" d="M120 62h34v52l-17-13-17 13z"/>
+            <circle class="b-glow b-lamp" cx="292" cy="120" r="9"/></g>`,
+        // The Woodlot is cultivated, not felled: saw pit first, drying racks, then staked saplings.
+        woodlot: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-soil" d="M84 206q26-16 52 0zM160 206q26-16 52 0zM236 206q26-16 52 0z"/>
+            <rect class="b-tim-d" x="300" y="176" width="58" height="30" rx="4"/>
+            <path class="b-beam-d" d="M118 190l-8-38"/>
+            <rect class="b-tim-l" x="102" y="140" width="18" height="14" rx="3"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M150 200l30-46M210 200l-30-46M162 200l30-46M222 200l-30-46"/>
+            <rect class="b-tim-l" x="140" y="142" width="106" height="12" rx="5"/>
+            <path class="b-saw" d="M252 148l38-16"/></g>
+        <g data-phase-min="2">
+            <path class="b-beam" d="M96 200V96M304 200V96"/>
+            <path class="b-rope" d="M96 106h208M96 128h208M96 150h208"/>
+            <path class="b-bundle" d="M132 106v22M180 128v20M236 106v20M276 128v22"/></g>
+        <g data-phase-min="3">
+            <path class="b-leaf" d="M110 200q6-52 24-64 12 20 4 64zM196 200q6-58 24-70 12 22 4 70zM282 200q6-48 22-58 12 18 4 58z"/>
+            <circle class="b-glow b-lamp" cx="330" cy="118" r="9"/></g>`,
+        // The Archive is shored before it is shelved — props, then ladder, shelves, and lamp.
+        archive: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <rect class="b-stone-d" x="96" y="46" width="208" height="18" rx="3"/>
+            <path class="b-crack" d="M186 64l12 26-9 22 14 24"/>
+            <path class="b-rubble" d="M152 204l26-30 26 30zM210 204l20-22 20 22z"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M116 202l12-136M284 202l-12-136M200 202V68"/>
+            <path class="b-beam-d" d="M312 200l-12-92M340 200l-12-92"/>
+            <path class="b-rope" d="M302 128h30M306 152h30M310 176h30"/></g>
+        <g data-phase-min="2">
+            <rect class="b-tim-d" x="44" y="116" width="8" height="88" rx="3"/>
+            <rect class="b-tim-d" x="98" y="116" width="8" height="88" rx="3"/>
+            <rect class="b-tim" x="38" y="126" width="74" height="9" rx="4"/>
+            <rect class="b-tim" x="38" y="156" width="74" height="9" rx="4"/>
+            <rect class="b-tim" x="38" y="186" width="74" height="9" rx="4"/></g>
+        <g data-phase-min="3">
+            <rect class="b-canvas" x="48" y="104" width="21" height="22" rx="2"/>
+            <rect class="b-canvas" x="76" y="108" width="18" height="18" rx="2"/>
+            <rect class="b-canvas" x="52" y="136" width="23" height="20" rx="2"/>
+            <circle class="b-glow b-lamp" cx="238" cy="144" r="10"/></g>`,
+        // The Garden raises a trellis over turned beds; blossom is the finishing coat.
+        garden: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-soil" d="M78 202h110v14H78zM212 202h110v14H212z"/>
+            <path class="b-chalk" d="M86 196h94M220 196h94"/>
+            <rect class="b-tim-d" x="176" y="178" width="48" height="26" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M104 200V92M172 200V80M228 200V80M296 200V92M100 84h200"/></g>
+        <g data-phase-min="2">
+            <path class="b-lattice" d="M104 120h192M104 152h192M136 200V88M200 200V84M264 200V88"/>
+            <path class="b-hoop" d="M92 200a34 34 0 0168 0M240 200a34 34 0 0168 0"/></g>
+        <g data-phase-min="3">
+            <path class="b-leaf" d="M116 118q26 6 26 34-26-4-26-34zM196 96q28 8 26 38-28-6-26-38zM266 132q26 8 24 36-26-6-24-36z"/>
+            <circle class="b-bloom" cx="150" cy="106" r="7"/><circle class="b-bloom" cx="238" cy="132" r="6"/>
+            <circle class="b-glow b-lamp" cx="322" cy="128" r="9"/></g>`,
+        // The Forge builds upward from the ash pit: scaffold, flue courses, then first fire.
+        forge: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-soil" d="M150 208a50 22 0 01100 0z"/>
+            <rect class="b-brick" x="72" y="180" width="76" height="12" rx="2"/>
+            <rect class="b-brick" x="80" y="166" width="60" height="12" rx="2"/>
+            <rect class="b-tim-d" x="66" y="192" width="90" height="10" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M156 202V52M252 202V52"/>
+            <path class="b-beam-d" d="M156 84h96M156 130h96M156 172h96"/></g>
+        <g data-phase-min="2">
+            <rect class="b-brick" x="172" y="150" width="64" height="16" rx="2"/>
+            <rect class="b-brick" x="172" y="130" width="64" height="16" rx="2"/>
+            <rect class="b-brick" x="176" y="110" width="56" height="16" rx="2"/>
+            <path class="b-anvil" d="M276 196h56l-10-14h-14l4-14h-18l4 14h-12z"/>
+            <path class="b-beam-d" d="M282 202h44"/></g>
+        <g data-phase-min="3">
+            <rect class="b-brick" x="180" y="88" width="48" height="16" rx="2"/>
+            <path class="b-fire" d="M204 190q-22-16-14-38 10 12 16 4 6 16 16 6 8 22-18 28z"/>
+            <g class="b-sparks"><circle cx="188" cy="140" r="3"/><circle cx="222" cy="126" r="2.4"/><circle cx="206" cy="108" r="2"/></g></g>`,
+        // The Fridge is a lattice cage packed with panels before the frost coil is charged.
+        fridge: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-straw" d="M70 202h110"/>
+            <rect class="b-ice" x="80" y="176" width="38" height="26" rx="3"/>
+            <rect class="b-ice" x="122" y="176" width="38" height="26" rx="3"/>
+            <rect class="b-canvas" x="286" y="164" width="66" height="38" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M150 202V64M256 202V64M144 68h118M146 132h114"/></g>
+        <g data-phase-min="2">
+            <rect class="b-panel" x="156" y="76" width="46" height="48" rx="3"/>
+            <rect class="b-panel" x="206" y="76" width="46" height="48" rx="3"/>
+            <rect class="b-panel" x="156" y="140" width="46" height="52" rx="3"/>
+            <rect class="b-panel" x="206" y="140" width="46" height="52" rx="3"/></g>
+        <g data-phase-min="3">
+            <path class="b-coil" d="M170 168h68M170 152h68M170 184h68"/>
+            <path class="b-ice b-crystal" d="M203 84l20 30-20 30-20-30z"/>
+            <circle class="b-glow b-lamp b-frost" cx="300" cy="120" r="10"/></g>`,
+        // The Generator winds an armature ring before the conduit carries the first arc.
+        generator: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <circle class="b-spool" cx="106" cy="180" r="26"/><circle class="b-spool-hub" cx="106" cy="180" r="9"/>
+            <rect class="b-canvas" x="272" y="170" width="76" height="34" rx="4"/>
+            <path class="b-beam-d" d="M272 186h76"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-ring" d="M138 148a64 64 0 01128 0"/>
+            <path class="b-beam" d="M138 148v54M266 148v54"/></g>
+        <g data-phase-min="2">
+            <path class="b-winding" d="M152 122l16 34M172 104l16 40M196 96l14 44M222 104l14 40M246 122l14 34"/>
+            <path class="b-beam" d="M202 96V60"/><rect class="b-tim-l" x="188" y="52" width="28" height="12" rx="4"/></g>
+        <g data-phase-min="3">
+            <path class="b-arc" d="M172 132q30 22 60 0M162 158q40 30 80 0"/>
+            <circle class="b-glow b-lamp" cx="202" cy="176" r="12"/></g>`,
+        // The Quarry cuts along a chalked face; a derrick lifts each block onto the sled.
+        quarry: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-face" d="M60 204V70h116l-14 134z"/>
+            <path class="b-chalk" d="M72 104h92M72 142h84M72 178h76"/>
+            <path class="b-rubble" d="M186 204l24-24 24 24z"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M300 202V56M300 60L212 92"/>
+            <path class="b-rope" d="M300 84l-64 26M300 202l-48-30"/></g>
+        <g data-phase-min="2">
+            <g class="b-hoist"><path class="b-rope" d="M214 94v34"/><rect class="b-stone" x="196" y="128" width="38" height="26" rx="3"/></g>
+            <rect class="b-tim-d" x="180" y="192" width="96" height="10" rx="4"/>
+            <circle class="b-tim" cx="196" cy="204" r="7"/><circle class="b-tim" cx="260" cy="204" r="7"/></g>
+        <g data-phase-min="3">
+            <rect class="b-stone" x="188" y="168" width="40" height="20" rx="3"/>
+            <rect class="b-stone-d" x="232" y="168" width="40" height="20" rx="3"/>
+            <rect class="b-stone" x="208" y="146" width="40" height="20" rx="3"/>
+            <circle class="b-glow b-lamp" cx="330" cy="104" r="9"/></g>`,
+        // The Kitchen turns a wooden former into a brick dome, then lights its first fire.
+        kitchen: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M132 204h136"/>
+            <rect class="b-brick" x="66" y="180" width="72" height="12" rx="2"/>
+            <rect class="b-brick" x="74" y="166" width="56" height="12" rx="2"/>
+            <rect class="b-tim-d" x="126" y="192" width="148" height="12" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-former" d="M140 192a60 60 0 01120 0"/>
+            <path class="b-beam-d" d="M200 192v-60M170 192l14-52M230 192l-14-52"/></g>
+        <g data-phase-min="2">
+            <path class="b-dome" d="M132 192a68 68 0 01136 0z"/>
+            <path class="b-line" d="M148 160h104M162 138h76M180 122h40"/>
+            <rect class="b-tim" x="286" y="150" width="64" height="9" rx="4"/></g>
+        <g data-phase-min="3">
+            <rect class="b-brick" x="238" y="88" width="30" height="52" rx="3"/>
+            <path class="b-fire" d="M200 190q-18-14-12-32 8 10 14 3 5 13 13 5 7 18-15 24z"/>
+            <path class="b-steam" d="M254 76q10-14 0-26M270 78q10-14 0-26"/>
+            <circle class="b-glow b-lamp" cx="322" cy="120" r="9"/></g>`,
+        // The Enclave is woven, not cut: rafters, then nests, then lanterns for the residents.
+        enclave: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M100 202h200"/>
+            <path class="b-bundle" d="M74 202l18-46M88 202l16-46M102 202l14-46"/>
+            <rect class="b-tim-d" x="286" y="176" width="66" height="28" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M140 202l60-96 60 96M120 202l52-84M280 202l-52-84"/>
+            <path class="b-beam-d" d="M156 152h88"/></g>
+        <g data-phase-min="2">
+            <path class="b-nest" d="M118 170a24 16 0 0148 0zM234 170a24 16 0 0148 0zM178 196a22 15 0 0144 0z"/>
+            <path class="b-rope" d="M156 152l-14 18M244 152l14 18"/></g>
+        <g data-phase-min="3">
+            <path class="b-banner" d="M186 110h28v46l-14-11-14 11z"/>
+            <circle class="b-glow b-lamp" cx="140" cy="140" r="8"/>
+            <circle class="b-glow b-lamp" cx="262" cy="140" r="8"/></g>`
+    };
     // —— Interiors: the Keep's rooms, entered from the scene ——
     const ROOM_KEY = { hall: 'great_hall', woodlot: 'woodlot', archive: 'archive', enclave: 'enclave', garden: 'garden', forge: 'forge', fridge: 'fridge', generator: 'generator', quarry: 'quarry', kitchen: 'kitchen' };
     const ROOM_TITLE = { hall: 'Great Hall', woodlot: 'Woodlot Lodge', archive: 'Archive', enclave: 'Siegeling Enclave', quarter: 'Elemental Quarter', front: 'Akhar’s Wall' };
@@ -3200,11 +3451,16 @@
         const key = ROOM_KEY[id], tpl = ROOM_HTML[key] || '';
         let site = '';
         const b = (S.builds || []).find((x) => (id === 'woodlot' && x.id === 'woodlot_1') || x.id === 'ws_' + id + '_1' || (id === 'archive' && x.id === 'archive'));
-        if (!roomBuilt(id) || b) {
-            site = '<div class="dm-site' + (b ? ' is-working' : '') + '"><span class="dm-site-scaffold"><i></i><i></i><i></i></span><span class="dm-site-crates"><i></i><i></i></span>' +
-                '<span class="dm-site-label">' + (b ? '⚒ ' + esc(b.name) + ' · ' + eta(b.endAt) : 'Cleared ground, waiting for a crew') + '</span>' + (b ? liveBar(b.startAt, b.endAt, 'dm-site-bar') : '') + '</div>';
-        }
+        if (!roomBuilt(id) || b) site = siteArt(key, b);
         return tpl + site;
+    }
+    // A building site drawn as the Keep draws it: the crew raises one stage per quarter of the build.
+    function siteArt(key, b) {
+        const phase = b ? Math.max(0, Math.min(3, Math.floor((S.t - b.startAt) / Math.max(1, b.endAt - b.startAt) * 4))) : 0;
+        const svg = '<svg class="build-art-svg" viewBox="0 0 400 240" preserveAspectRatio="xMidYMax meet" aria-hidden="true">' +
+            (BUILD_ART[key] || BUILD_ART_FALLBACK).replace(/<g data-phase-min="(\d)"/g, (m, n) => '<g class="' + (+n <= phase ? 'is-raised' : '') + '" data-phase-min="' + n + '"') + '</svg>';
+        return '<div class="dm-site' + (b ? ' is-working' : '') + '"><div class="dm-site-art">' + svg + '</div>' +
+            '<span class="dm-site-label">' + (b ? '⚒ ' + esc(b.name) + ' · stage ' + (phase + 1) + '/4 · ' + eta(b.endAt) : 'Cleared ground, waiting for a crew') + '</span>' + (b ? liveBar(b.startAt, b.endAt, 'dm-site-bar') : '') + '</div>';
     }
     function roomView(id) {
         const rooms = tourRooms(), i = Math.max(0, rooms.indexOf(id)), prev = rooms[(i - 1 + rooms.length) % rooms.length], next = rooms[(i + 1) % rooms.length];
@@ -3238,21 +3494,35 @@
             b.className = show ? 'dm-room-cutout' : '';
         });
         st.querySelectorAll('[data-decoration-art]').forEach((d) => d.classList.toggle('is-placed', !!S.placed[d.dataset.decorationArt]));
-        const tool = Object.keys(KEEP_CRAFTS).find((k) => KEEP_CRAFTS[k][1] === 'TOOL' && KEEP_CRAFTS[k][2] === id && S.crafted[k]);
-        st.querySelectorAll('.room-tool-set').forEach((t) => { t.classList.toggle('has-installed-tools', !!tool); const one = t.querySelector('[data-tool-tier="1"]'); if (one) one.classList.toggle('is-crafted', !!tool); });
+        const tiers = Object.keys(KEEP_CRAFTS).filter((k) => KEEP_CRAFTS[k][1] === 'TOOL' && KEEP_CRAFTS[k][2] === id && S.crafted[k]).map((k) => KEEP_CRAFTS[k][4] || 1);
+        st.querySelectorAll('.room-tool-set').forEach((t) => {
+            t.classList.toggle('has-installed-tools', tiers.length > 0);
+            t.querySelectorAll('[data-tool-tier]').forEach((i) => i.classList.toggle('is-crafted', tiers.includes(Number(i.dataset.toolTier))));
+        });
         const plinth = st.querySelector('.arch-plinth');
         if (plinth) plinth.classList.toggle('hidden', !loreOpen(S, 'memorabilia_petrified_root'));
+    }
+    // A running tally for the Wall: three raiders an hour per posted defender since the save began.
+    function raidersTurned() {
+        S.frontTally = S.frontTally || { n: 0, at: S.t };
+        const hrs = Math.max(0, (S.t - S.frontTally.at) / HOUR);
+        S.frontTally.n += Math.floor(hrs * 3 * Math.min(defenders(S).length, frontCap(S)));
+        if (hrs >= 1) S.frontTally.at = S.t;
+        return S.frontTally.n;
     }
     function wallStage() {
         const lvl = S.b.front || 0, defs = defenders(S).slice(0, frontCap(S));
         const pool = Object.keys(SPECIES).filter((k) => SPECIES[k].rarity === 'COMMON');
         const raiders = lvl ? [0, 1, 2].map((i) => pool[(hashOf('raid' + Math.floor(S.t / HOUR) + i) % pool.length + pool.length) % pool.length]) : [];
-        return '<div class="dm-wall-stage" data-level="' + lvl + '"><i class="dm-wall-sky"></i><i class="dm-wall-hills"></i>' +
+        return '<div class="dm-wall-stage' + (defs.length ? ' is-fighting' : '') + '" data-level="' + lvl + '"><i class="dm-wall-sky"></i><i class="dm-wall-hills"></i>' +
             '<div class="dm-wall-raiders">' + raiders.map((sp) => '<b>' + (catalogArt(sp, 240) ? '<img class="dm-shade" src="' + esc(catalogArt(sp, 240)) + '" alt="">' : '') + '</b>').join('') + '</div>' +
             (lvl ? '<svg class="dm-wall-svg" viewBox="0 0 360 150" preserveAspectRatio="none"><path d="M0 64h28V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h52v86H0z" fill="#b48b58" stroke="#3d2a1b" stroke-width="5"/><path d="M0 77h360" stroke="#e0bd83" stroke-width="4" opacity=".6"/></svg>'
                 : '<svg class="dm-wall-svg is-ruin" viewBox="0 0 360 150" preserveAspectRatio="none"><path d="M0 128h60v-14h40v14h70v-8h50v8h140v22H0z" fill="#7b6650" stroke="#3d2a1b" stroke-width="4"/><path d="M20 112l14-10 10 12M200 116l18-12 8 10M290 118l12-8 10 10" stroke="#5a4634" stroke-width="5" fill="none"/></svg>') +
             '<div class="dm-wall-defenders">' + defs.map((id) => '<b class="dm-room-cutout">' + compArt(id, '') + '</b>').join('') + '</div>' +
-            (lvl ? '' : '<span class="dm-site-label">Foundations of Akhar’s Wall</span>') + '</div>';
+            // The fight is presentation over the Wall's real yield: shots and falls loop while posts are manned.
+            (lvl && defs.length ? '<div class="dm-wall-shots">' + defs.map((id, i) => '<i style="--i:' + i + ';--el:var(--' + C(id).el + ')"></i>').join('') + '</div>' +
+                '<span class="dm-wall-burst"><b>+' + frontRatePer(S) * defs.length + '</b><small>Crowns an hour</small></span>' : '') +
+            (lvl ? '<span class="dm-wall-tally">' + (defs.length ? '⚔️ ' + raidersTurned() + ' raiders turned back' : '⚠️ Unguarded: post a Siegeling to hold the rampart') + '</span>' : '<span class="dm-site-label">Foundations of Akhar’s Wall</span>') + '</div>';
     }
     function quarterGrid() {
         return '<div class="dm-quarter' + (arranging ? ' is-arranging' : '') + (quarterSel >= 0 && arranging ? ' has-selection' : '') + '" role="grid" aria-label="Elemental Quarter plots">' + S.grid.map((c, i) => plotHtml(i)).join('') + '</div>';
@@ -3298,12 +3568,13 @@
             '<p class="ck-hint">♥ marks a favourite room: +30%. Rapport from the Enclave lifts every helper further.</p></section>';
     }
     function roomCrafts(room) {
-        const ids = Object.keys(KEEP_CRAFTS).filter((k) => KEEP_CRAFTS[k][2] === room);
+        // Tools in tier order, then decorations; locked tiers show what they need.
+        const ids = Object.keys(KEEP_CRAFTS).filter((k) => KEEP_CRAFTS[k][2] === room).sort((a, b) => (KEEP_CRAFTS[a][1] === 'TOOL' ? 0 : 1) - (KEEP_CRAFTS[b][1] === 'TOOL' ? 0 : 1) || (KEEP_CRAFTS[a][4] || 1) - (KEEP_CRAFTS[b][4] || 1));
         if (!ids.length) return '';
         return '<section class="ck-card"><h3>🛠️ Tools &amp; decorations</h3>' + ids.map((k) => {
             const c = KEEP_CRAFTS[k], b = keepCraftBlock(S, k), made = !!S.crafted[k];
-            return '<div class="ck-recipe">' + emojiIcon(c[1] === 'TOOL' ? '🔧' : c[1] === 'BONUS' ? '📦' : '🎨', 'earth', 'is-lg') + '<div class="ck-recipe-main"><div class="ck-row"><b>' + esc(c[0]) + '</b><span class="ck-small">' + titleCase(c[1]) + '</span></div>' +
-                '<span class="ck-small ck-muted">' + (c[1] === 'TOOL' ? 'Lifts this room’s output 20%.' : c[1] === 'BONUS' ? 'A lasting bonus for the Keep.' : 'Displayed in the room. Residents notice new pieces.') + '</span>' + (made ? '' : costRow(ka(c[3]))) +
+            return '<div class="ck-recipe">' + emojiIcon(c[1] === 'TOOL' ? '🔧' : c[1] === 'BONUS' ? '📦' : '🎨', 'earth', 'is-lg') + '<div class="ck-recipe-main"><div class="ck-row"><b>' + esc(c[0]) + '</b><span class="ck-small">' + titleCase(c[1]) + (c[1] === 'TOOL' && c[4] ? ' · tier ' + c[4] : '') + '</span></div>' +
+                '<span class="ck-small ck-muted">' + esc(c[7] || (c[1] === 'TOOL' ? 'Lifts this room’s output 20%.' : c[1] === 'BONUS' ? 'A lasting bonus for the Keep.' : 'Displayed in the room. Residents notice new pieces.')) + (c[8] ? ' <b>' + esc(c[8]) + '.</b>' : '') + '</span>' + (made ? '' : costRow(ka(c[3])) + (b && b !== 'Missing materials.' ? '<span class="ck-small ck-warn">' + esc(b) + '</span>' : '')) +
                 '<div class="ck-pills">' + (made ? (c[1] === 'DECORATION' ? '<button type="button" class="ck-pill' + (S.placed[k] ? ' is-on' : '') + '" data-act="decor" data-arg="' + k + '">' + (S.placed[k] ? 'Displayed · store it' : 'Display it') + '</button>' : '<span class="ck-small is-ready">Installed</span>')
                     : '<button type="button" class="ck-pill is-forge" data-act="kcraft" data-arg="' + k + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '>Craft</button>') + '</div></div></div>';
         }).join('') + '</section>';
@@ -3421,7 +3692,9 @@
     function voiceModal(r) {
         return '<h2 id="ckModalTitle">' + esc(r.npc) + '</h2><p class="dm-prompt">' + esc(r.reply) + '</p>' + (Object.keys(r.gains).length ? '<h3>Received</h3>' + lootRow(r.gains) : '') +
             (Object.keys(r.loss).length ? '<p class="ck-small ck-warn">Lost: ' + esc(Object.keys(r.loss).map((k) => r.loss[k] + ' ' + itemName(k)).join(', ')) + '</p>' : '') +
-            '<p class="ck-small">Trust ' + (r.delta > 0 ? '+' + r.delta : r.delta) + ' · ' + esc(r.stage) + ' (' + r.trust + '/' + TRUST_MAX + ') · +2 Silver</p><div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="close-modal">Continue</button></div>';
+            '<p class="ck-small">Trust ' + (r.delta > 0 ? '+' + r.delta : r.delta) + ' · ' + esc(r.stage) + ' (' + r.trust + '/' + TRUST_MAX + ') · +2 Silver</p>' +
+            (r.follow ? '<p class="ck-small ck-warn">Something follows from this: ' + esc(r.follow) + ' is at the gate.</p>' : '') +
+            '<div class="ck-actions">' + (r.follow ? '<button type="button" class="ck-btn is-primary" data-act="voice-follow">Face what follows</button><button type="button" class="ck-btn" data-act="close-modal">Later</button>' : '<button type="button" class="ck-btn is-primary" data-act="close-modal">Continue</button>') + '</div>';
     }
 
     // —— The Chronicle: letters, relics and chronicles recovered across the Keep ——
@@ -3501,6 +3774,25 @@
         h += '<section class="ck-card"><h3>📜 Keep log</h3>' + (S.log.length ? '<ol class="ck-timeline">' + S.log.map((l) => '<li class="is-info"><time>' + new Date(l.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</time><span>' + esc(l.text) + '</span></li>').join('') + '</ol>' : '<p class="ck-muted">Nothing has happened yet.</p>') + '</section>';
         return h;
     }
+    // First-visit walkthrough, like the Keep's coach: a few cards, each pointing at a real control.
+    const COACH = [
+        ['🏰', 'Your Keep, from bare ground', 'This is Base. You start with 30 Timber, exactly enough to raise the Woodlot. Tap the cleared ground by the river, then build the Elemental Quarter piece by piece.', '#ckTabs [data-tab="base"]'],
+        ['⛏️', 'The Knight works while you are away', 'Work runs one task at a time: cutting pine, foraging provisions, mining, crafting. Every weapon and garment you wear is crafted here, starting from a Wooden Sword.', '#ckTabs [data-tab="work"]'],
+        ['🐾', 'Siegelings hold jobs', 'In Company, post Siegelings to rooms for bonus output, let them rest, explore or stand on Akhar’s Wall, and choose who joins your expedition.', '#ckTabs [data-tab="company"]'],
+        ['🧭', 'Expeditions are about preparation', 'Weapon, tool, company and food decide each encounter. Pack raw forage for a small buff, or cooked meals for stronger ones, then watch the squad walk the road.', '#ckTabs [data-tab="expedition"]'],
+        ['🚪', 'Visitors, the Chronicle and more', 'The bar at the bottom of the Keep opens visitors (choices, requests and trust), the Chronicle of recovered records, construction, stores and the log.', '.dm-dock'],
+        ['⏩', 'A test mode', 'Dominion is a test mode on the live server. +4h fast-forwards the shared clock; ⋯ resets your save or reopens this guide.', '.dm-pass']
+    ];
+    function coachModal(i) {
+        const c = COACH[i] || COACH[0];
+        document.querySelectorAll('.dm-coach-target').forEach((e) => e.classList.remove('dm-coach-target'));
+        const t = document.querySelector(c[3]);
+        if (t) t.classList.add('dm-coach-target');
+        return '<div class="dm-coach"><span class="dm-coach-ico" aria-hidden="true">' + c[0] + '</span><span class="ck-kicker">Guide · ' + (i + 1) + '/' + COACH.length + '</span><h2 id="ckModalTitle">' + esc(c[1]) + '</h2><p>' + esc(c[2]) + '</p>' +
+            '<div class="dm-steps">' + COACH.map((_, j) => '<i class="' + (j < i ? 'done' : j === i ? 'now' : '') + '"></i>').join('') + '</div>' +
+            '<div class="ck-actions">' + (i < COACH.length - 1 ? '<button type="button" class="ck-btn is-primary" data-act="coach" data-arg="' + (i + 1) + '">Next</button><button type="button" class="ck-btn" data-act="coach-done">Skip</button>'
+                : '<button type="button" class="ck-btn is-primary" data-act="coach-done">Start playing</button>') + '</div></div>';
+    }
     function objectiveModal() {
         return '<h2 id="ckModalTitle">Objectives</h2>' + OBJECTIVES.map((ch) => '<h3>' + esc(ch.chapter) + '</h3><ol class="ck-ladder">' + ch.steps.map((st) => '<li class="' + (S.obj[st.id] ? 'is-on' : '') + '"><b>' + esc(st.title) + '</b><span>' + esc(st.hint) + '</span></li>').join('') + '</ol>').join('') +
             '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="close-modal">Close</button></div>';
@@ -3510,7 +3802,7 @@
             '<h3>Test time</h3><div class="ck-pills"><button type="button" class="ck-pill" data-act="pass" data-arg="1">Pass 1 hour</button><button type="button" class="ck-pill" data-act="pass" data-arg="4">Pass 4 hours</button><button type="button" class="ck-pill" data-act="pass" data-arg="12">Pass 12 hours</button></div>' +
             '<h3>Start over</h3><p class="ck-small ck-muted">Erase this save and begin again on bare ground' + (ONLINE && NET.signedIn ? ' (your synced save is replaced too)' : '') + '.</p>' +
             '<div class="ck-actions">' + (confirmReset ? '<button type="button" class="ck-btn is-primary" data-act="reset-yes">Erase and restart</button><button type="button" class="ck-btn" data-act="reset-no">Keep my save</button>' : '<button type="button" class="ck-btn" data-act="reset">Reset Dominion</button>') + '</div>' +
-            '<div class="ck-actions"><a class="ck-btn is-glass" href="/home">Back to the hub</a><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
+            '<div class="ck-actions"><button type="button" class="ck-btn" data-act="coach" data-arg="0">Open the guide</button><a class="ck-btn is-glass" href="/home">Back to the hub</a><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
     }
 
     // —— Clock ——
@@ -3666,6 +3958,9 @@
             if (r) { latchObjectives(s); save(); renderAll(); openModal('voice', Object.assign({ npc: c.npcName }, r)); }
             return;
         }
+        case 'coach': openModal('coach', Number(arg) || 0); return;
+        case 'coach-done': s.ui.coachDone = true; document.querySelectorAll('.dm-coach-target').forEach((e) => e.classList.remove('dm-coach-target')); closeModal(); return;
+        case 'voice-follow': modal = null; $('ckModal').hidden = true; s.ui.base = 'visitors'; setTab('base'); $('ckMain').scrollTop = 0; break;
         case 'deliver': { const q = deliver(s, arg); if (!q) { toast(requestBlock(s, arg)); return; } toast(q.name + ' thanks you: +' + q.reward.silver + ' Silver, +' + q.reward.crowns + ' Crowns.'); break; }
         case 'bank': { const parts = String(arg).split(':'), t = bankTask(s, parts[0], parts[1]); if (!t) return; toast(C(parts[0]).name + ': “' + t.name + '” banked. +' + t.rapport + ' rapport.'); break; }
         case 'lore-filter': s.ui.loreFilter = arg; break;
@@ -3759,7 +4054,8 @@
         document.body.dataset.screen = 'main';
         ['ckTabs', 'ckRank', 'ckStatus', 'ckAvatar', 'ckCrowns'].forEach((id) => { $(id).hidden = false; });
         renderAll();
-        if (S.away) openModal('away'); else maybeShowReport();
+        if (!S.ui.coachDone && !S.runs && S.b.woodlot < 1) openModal('coach', 0);
+        else if (S.away) openModal('away'); else maybeShowReport();
         setInterval(step, 1000);
         setInterval(save, 10000);
         setInterval(() => syncNow(false), 30000);
