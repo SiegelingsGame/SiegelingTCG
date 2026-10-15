@@ -1,4 +1,7 @@
 Original prompt: Go with earth based art for endless
+- October 15, 2026 **Neutral Siegelings now reach the binder, deck builder and catalog.**
+  - **Change.** `CardDefinitionService` only built Siegeling rosters for the 12 gameplay elements, so dashboard-authored Neutral Siegelings (live: Cosmosis, `cosmicoracle`) never entered `/api/game/options` `cardCatalog` and the binder's Neutral section stayed empty. A `sieglingRosterElements()` helper appends `NEUTRAL` to the roster order used by the deck-builder catalog and the element index, and Neutral Siegelings are treated as always live (like Neutral spells and trainers) rather than gated on the live-element toggles.
+  - **Verification.** Confirmed against prod: `/api/cards/editor` holds a `NEUTRAL` Siegling while `/api/game/options` returned 214 cards with none. New `CardDefinitionServiceTest.neutralSieglingsReachTheCatalogWhateverElementsAreLive` fails without the fix and passes with it; full `./mvnw -q test` green.
 - October 15, 2026 **Dominion expedition food: raw forage for a small buff, cooked meals for two or three.**
   - **Change.**
     - An expedition's portions can now be paid in food. A raw forage covers 1 portion and gives one small buff by type:

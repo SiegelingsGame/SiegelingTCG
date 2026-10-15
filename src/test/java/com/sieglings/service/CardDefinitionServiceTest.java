@@ -488,6 +488,51 @@ class CardDefinitionServiceTest {
         }
     }
 
+    @Test
+    void neutralSieglingsReachTheCatalogWhateverElementsAreLive() throws Exception {
+        // Neutral is not a gameplay element, so the roster loader skipped it and
+        // dashboard-authored Neutral Siegelings (e.g. Cosmosis) never reached the
+        // binder or deck builder. Like Neutral spells, they are always live.
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode file;
+        try (var in = getClass().getClassLoader().getResourceAsStream(ManualSieglingCatalog.RESOURCE_PATH)) {
+            file = (ObjectNode) mapper.readTree(in);
+        }
+        ArrayNode cards = (ArrayNode) file.get("cards");
+        ObjectNode draco = null;
+        for (JsonNode card : cards) {
+            if ("draco".equals(card.path("id").asText())) draco = (ObjectNode) card;
+        }
+        assertTrue(draco != null, "fixture expects the classpath Draco override");
+        ObjectNode neutral = draco.deepCopy();
+        neutral.put("id", "test-neutral");
+        neutral.put("name", "Test Neutral");
+        neutral.put("element", Element.NEUTRAL.name());
+        neutral.putNull("evolvesFromId");
+        neutral.putNull("evolvesToId");
+        for (JsonNode ability : neutral.withArray("abilities")) ((ObjectNode) ability).putNull("requiredElement");
+        cards.add(neutral);
+
+        CardOverrideStorageService storage = new CardOverrideStorageService(
+                mapper, false, "", "", "(default)", "appConfig", "cardOverrides") {
+            @Override
+            public LoadSnapshot loadSnapshot() {
+                return new LoadSnapshot(file, StorageBackend.values()[0], null, false, null, null);
+            }
+        };
+        storage.registerInstance();
+        try {
+            Card found = serviceWithLiveElements(Set.of(Element.FIRE)).getDeckBuilderCatalog().stream()
+                    .filter(card -> "test-neutral".equals(card.getId()))
+                    .findFirst()
+                    .orElse(null);
+            assertTrue(found != null, "Neutral Siegeling missing from catalog");
+            assertEquals(Element.NEUTRAL, found.getElement());
+        } finally {
+            storage.cleanup();
+        }
+    }
+
     private String resolveLineRoot(SieglingCard card, Map<String, SieglingCard> sieglingsById) {
         SieglingCard current = card;
         while (current.getEvolvesFromId() != null && sieglingsById.containsKey(current.getEvolvesFromId())) {
