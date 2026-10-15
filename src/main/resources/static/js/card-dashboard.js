@@ -387,9 +387,9 @@
             "cardArtControls",
             "cardArtFileInput",
             "cardArtUrlInput",
-            "holographicCardArtFileInput",
-            "holographicCardArtUrlInput",
-            "clearHolographicCardArtBtn",
+            "cardArtVariantTitle",
+            "cardArtVariantHint",
+            "cardArtUploadHelp",
             "clearCardArtBtn",
             "cardArtTransformControls",
             "cardArtTransformHelp",
@@ -571,6 +571,7 @@
             const previewVariantInput = event.target.closest('input[name="cardArtPreviewVariant"]');
             if (previewVariantInput) {
                 state.cardArtPreviewVariant = previewVariantInput.value === "HOLOGRAPHIC" ? "HOLOGRAPHIC" : "STANDARD";
+                if (refs.cardArtFileInput) refs.cardArtFileInput.value = "";
                 renderCardVisual();
                 return;
             }
@@ -578,31 +579,24 @@
             if (!modeInput) {
                 return;
             }
-            mutateSelectedCard((card) => {
-                card.cardArtMode = normalizeCardArtMode(modeInput.value);
-                if (!card.cardArtMode) {
-                    clearEphemeralCardArtPreview();
-                    card.cardArtUrl = "";
+            mutateSelectedArt((art) => {
+                art.cardArtMode = normalizeCardArtMode(modeInput.value);
+                if (!art.cardArtMode) {
+                    clearActiveEphemeralArtPreview();
+                    art.cardArtUrl = "";
                 }
             });
         });
 
         refs.cardArtUrlInput?.addEventListener("input", (event) => {
-            mutateSelectedCard((card) => {
-                card.cardArtUrl = String(event.target.value || "").trim();
-                if (card.cardArtUrl && !card.cardArtMode) {
-                    card.cardArtMode = "REPLACE";
+            mutateSelectedArt((art) => {
+                art.cardArtUrl = String(event.target.value || "").trim();
+                if (art.cardArtUrl && !art.cardArtMode) {
+                    art.cardArtMode = "REPLACE";
                 }
-                if (!card.cardArtUrl) {
-                    card.cardArtMode = "";
+                if (!art.cardArtUrl) {
+                    art.cardArtMode = "";
                 }
-            });
-        });
-
-        refs.holographicCardArtUrlInput?.addEventListener("input", (event) => {
-            mutateSelectedCard((card) => {
-                card.holographicCardArtUrl = String(event.target.value || "").trim();
-                state.cardArtPreviewVariant = card.holographicCardArtUrl ? "HOLOGRAPHIC" : "STANDARD";
             });
         });
 
@@ -646,6 +640,12 @@
                 return;
             }
 
+            if (activeArtVariant() === "HOLOGRAPHIC") {
+                await uploadHolographicArt(cardId, file);
+                event.target.value = "";
+                return;
+            }
+
             const localPreviewUrl = URL.createObjectURL(file);
             setEphemeralCardArtPreview(cardId, localPreviewUrl);
             mutateSelectedCard((selected) => {
@@ -686,72 +686,16 @@
             }
         });
 
-        refs.holographicCardArtFileInput?.addEventListener("change", async (event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            const card = getSelectedCard();
-            const cardId = String(card?.id || "").trim();
-            if (!cardId) {
-                setStatus("Set a card id before uploading holographic art.", "error");
-                event.target.value = "";
-                return;
-            }
-            if (state.liveEditingEnabled && !state.auth?.canEdit) {
-                setStatus("Sign in under Live Publishing before uploading holographic card art.", "error");
-                event.target.value = "";
-                renderStatus();
-                return;
-            }
-            try {
-                setStatus("Aligning holographic art to the 638 x 919 card template...", "warning");
-                renderStatus();
-                const normalizedFile = await normalizeHolographicCardArtFile(file, cardId);
-                const localPreviewUrl = URL.createObjectURL(normalizedFile);
-                setEphemeralHolographicCardArtPreview(cardId, localPreviewUrl);
-                state.cardArtPreviewVariant = "HOLOGRAPHIC";
-                renderCardVisual();
-                const payload = await uploadCardArtFile(cardId, normalizedFile, "HOLOGRAPHIC");
-                const hostedUrl = String(payload?.url || "").trim();
-                if (!hostedUrl) throw new Error("Upload finished but the server did not return an image URL.");
-                clearEphemeralHolographicCardArtPreview();
-                mutateCardById(cardId, (selected) => {
-                    selected.holographicCardArtUrl = hostedUrl;
-                    delete selected.holographicCardArtScale;
-                }, { render: false });
-                setStatus(
-                    state.liveEditingEnabled
-                        ? `Uploaded ${cardId} holographic art at the shared 638 x 919 template size. Click Publish Live Changes when ready.`
-                        : `Uploaded ${cardId} holographic art at the shared 638 x 919 template size. Click Save To Project File when ready.`,
-                    "success"
-                );
-            } catch (error) {
-                setStatus(`${error?.message || "Unable to upload holographic card art."} Your local preview remains visible.`, "error");
-            } finally {
-                event.target.value = "";
-                renderAll();
-            }
-        });
-
         refs.clearCardArtBtn?.addEventListener("click", () => {
-            clearEphemeralCardArtPreview();
-            mutateSelectedCard((card) => {
-                card.cardArtUrl = "";
-                card.cardArtMode = "";
-                resetCardArtTransform(card);
+            clearActiveEphemeralArtPreview();
+            mutateSelectedArt((art) => {
+                art.cardArtUrl = "";
+                art.cardArtMode = "";
+                resetCardArtTransform(art);
             });
             if (refs.cardArtFileInput) {
                 refs.cardArtFileInput.value = "";
             }
-        });
-
-        refs.clearHolographicCardArtBtn?.addEventListener("click", () => {
-            clearEphemeralHolographicCardArtPreview();
-            state.cardArtPreviewVariant = "STANDARD";
-            mutateSelectedCard((card) => {
-                card.holographicCardArtUrl = "";
-                delete card.holographicCardArtScale;
-            });
-            if (refs.holographicCardArtFileInput) refs.holographicCardArtFileInput.value = "";
         });
 
         refs.cardArtScaleInput?.addEventListener("input", (event) => {
@@ -1716,17 +1660,118 @@
         }
     }
 
+    // The art builder edits one art at a time: the standard art, or the
+    // holographic art a card shows once upgraded. Both share every control, so
+    // the controls read and write a view with the standard field names, mapped
+    // onto whichever fields the Standard/Holographic toggle has picked.
+    const HOLOGRAPHIC_ART_FIELDS = {
+        cardArtUrl: "holographicCardArtUrl",
+        cardArtMode: "holographicCardArtMode",
+        cardArtOffsetXPct: "holographicCardArtOffsetXPct",
+        cardArtOffsetYPct: "holographicCardArtOffsetYPct",
+        cardArtScale: "holographicCardArtScale",
+        cardArtRotation: "holographicCardArtRotation"
+    };
+
+    function activeArtVariant() {
+        return state.cardArtPreviewVariant === "HOLOGRAPHIC" ? "HOLOGRAPHIC" : "STANDARD";
+    }
+
+    function artView(card, variant = activeArtVariant()) {
+        if (variant !== "HOLOGRAPHIC") {
+            return card;
+        }
+        const view = { id: card?.id, cardType: card?.cardType, cardArtOffsetX: 0, cardArtOffsetY: 0 };
+        Object.entries(HOLOGRAPHIC_ART_FIELDS).forEach(([standardKey, holoKey]) => {
+            view[standardKey] = card?.[holoKey];
+        });
+        view.cardArtUrl = String(view.cardArtUrl || "").trim();
+        // A holo URL saved before holo art had its own builder is a full-card face.
+        view.cardArtMode = normalizeCardArtMode(view.cardArtMode) || (view.cardArtUrl ? "FULL_CARD" : "");
+        return view;
+    }
+
+    function writeArtView(card, view, variant = activeArtVariant()) {
+        if (variant !== "HOLOGRAPHIC") {
+            return;
+        }
+        Object.entries(HOLOGRAPHIC_ART_FIELDS).forEach(([standardKey, holoKey]) => {
+            card[holoKey] = view[standardKey];
+        });
+    }
+
+    function mutateSelectedArt(mutator, options = {}) {
+        mutateSelectedCard((card) => {
+            const view = artView(card);
+            mutator(view);
+            writeArtView(card, view);
+        }, options);
+    }
+
+    function clearActiveEphemeralArtPreview() {
+        if (activeArtVariant() === "HOLOGRAPHIC") {
+            clearEphemeralHolographicCardArtPreview();
+        } else {
+            clearEphemeralCardArtPreview();
+        }
+    }
+
+    // Callers have already checked the card id and the editor sign-in.
+    async function uploadHolographicArt(cardId, file) {
+        const card = findCardById(cardId);
+        const mode = artView(card, "HOLOGRAPHIC").cardArtMode || "REPLACE";
+        try {
+            // Full-card faces are aligned to the shared template; Replace and
+            // Overlay art is placed by hand like the standard art, so it uploads as is.
+            let uploadFile = file;
+            if (mode === "FULL_CARD") {
+                setStatus("Aligning holographic art to the 638 x 919 card template...", "warning");
+                renderStatus();
+                uploadFile = await normalizeHolographicCardArtFile(file, cardId);
+            } else {
+                setStatus("Uploading holographic art...", "warning");
+                renderStatus();
+            }
+            setEphemeralHolographicCardArtPreview(cardId, URL.createObjectURL(uploadFile));
+            mutateCardById(cardId, (selected) => {
+                selected.holographicCardArtMode = mode;
+            }, { render: false });
+            renderCardVisual();
+            const payload = await uploadCardArtFile(cardId, uploadFile, "HOLOGRAPHIC");
+            const hostedUrl = String(payload?.url || "").trim();
+            if (!hostedUrl) throw new Error("Upload finished but the server did not return an image URL.");
+            clearEphemeralHolographicCardArtPreview();
+            mutateCardById(cardId, (selected) => {
+                selected.holographicCardArtUrl = hostedUrl;
+                selected.holographicCardArtMode = mode;
+            }, { render: false });
+            const next = state.liveEditingEnabled ? "Publish Live Changes" : "Save To Project File";
+            setStatus(mode === "FULL_CARD"
+                ? `Uploaded ${cardId} holographic full-card art at the shared 638 x 919 template size. Click ${next} when ready.`
+                : `Uploaded ${cardId} holographic art. Adjust scale/placement below, then click ${next}.`, "success");
+            if (mode !== "FULL_CARD") {
+                refs.cardArtTransformControls?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        } catch (error) {
+            setStatus(`${error?.message || "Unable to upload holographic card art."} Your local preview remains visible.`, "error");
+        } finally {
+            renderAll();
+        }
+    }
+
     function updateSelectedCardArtTransform(mutator) {
         const card = getSelectedCard();
         if (!card) {
             return;
         }
-        mutator(card);
+        const art = artView(card);
+        mutator(art);
+        writeArtView(card, art);
         state.dirty = true;
         state.validation = validateDashboard();
         setStatus("You have unsaved changes in the dashboard.", "warning");
-        applyCardArtTransformToPreview(card);
-        syncCardArtTransformControls(card);
+        applyCardArtTransformToPreview(art);
+        syncCardArtTransformControls(art);
         renderPreview();
         renderValidation();
         // renderChrome() never existed — it threw a ReferenceError here on every
@@ -2419,7 +2464,7 @@
             const nextXPct = dragState.startXPct + pctDelta(event.clientX - dragState.startClientX, dragState.imgW);
             const nextYPct = dragState.startYPct + pctDelta(event.clientY - dragState.startClientY, dragState.imgH);
             dragState = null;
-            mutateSelectedCard((selectedCard) => {
+            mutateSelectedArt((selectedCard) => {
                 selectedCard.cardArtOffsetXPct = nextXPct;
                 selectedCard.cardArtOffsetYPct = nextYPct;
                 // Drop the legacy pixel offset so the (now card-relative) percent
@@ -2505,6 +2550,11 @@
         return {
             cardArtUrl,
             holographicCardArtUrl: String(card?.holographicCardArtUrl || "").trim(),
+            holographicCardArtMode: normalizeCardArtMode(card?.holographicCardArtMode),
+            holographicCardArtOffsetXPct: toNumber(card?.holographicCardArtOffsetXPct, 0),
+            holographicCardArtOffsetYPct: toNumber(card?.holographicCardArtOffsetYPct, 0),
+            holographicCardArtScale: clampCardArtScale(card?.holographicCardArtScale ?? 1),
+            holographicCardArtRotation: clampCardArtRotation(card?.holographicCardArtRotation ?? 0),
             cardArtMode,
             holographic: card?.holographic === true,
             ...normalizeCardArtTransformFields(card)
@@ -2544,6 +2594,17 @@
         const holographicCardArtUrl = String(card?.holographicCardArtUrl || "").trim();
         if (holographicCardArtUrl) {
             exported.holographicCardArtUrl = holographicCardArtUrl;
+            exported.holographicCardArtMode = normalizeCardArtMode(card?.holographicCardArtMode) || "FULL_CARD";
+            if (exported.holographicCardArtMode !== "FULL_CARD") {
+                const holoXPct = toNumber(card.holographicCardArtOffsetXPct, 0);
+                const holoYPct = toNumber(card.holographicCardArtOffsetYPct, 0);
+                const holoScale = clampCardArtScale(card.holographicCardArtScale ?? 1);
+                const holoRotation = clampCardArtRotation(card.holographicCardArtRotation ?? 0);
+                if (holoXPct !== 0) exported.holographicCardArtOffsetXPct = holoXPct;
+                if (holoYPct !== 0) exported.holographicCardArtOffsetYPct = holoYPct;
+                if (holoScale !== 1) exported.holographicCardArtScale = holoScale;
+                if (holoRotation !== 0) exported.holographicCardArtRotation = holoRotation;
+            }
         }
         if (card?.holographic === true) {
             exported.holographic = true;
@@ -3548,10 +3609,13 @@
             preview.cardArtMode = preview.cardArtMode || "REPLACE";
         }
         if (state.cardArtPreviewVariant === "HOLOGRAPHIC") {
+            // Without holo art of its own an upgraded card keeps its standard
+            // art under the foil, so the preview shows exactly that.
+            preview.holographic = true;
             const holographicUrl = ephemeralHolographicArtUrl || String(card.holographicCardArtUrl || "").trim();
             if (holographicUrl) {
                 preview.holographicCardArtUrl = holographicUrl;
-                preview.holographic = true;
+                preview.holographicCardArtMode = artView(card).cardArtMode;
             }
         }
         if (card.cardType !== "SIEGLING" && preview.abilities[0]) {
@@ -3603,30 +3667,41 @@
         });
         refs.cardArtControls?.classList.remove("hidden");
 
-        const mode = normalizeCardArtMode(card.cardArtMode);
+        const holo = activeArtVariant() === "HOLOGRAPHIC";
+        const art = artView(card);
+        const mode = normalizeCardArtMode(art.cardArtMode);
         refs.cardArtControls?.querySelectorAll('input[name="cardArtMode"]').forEach((input) => {
             input.checked = input.value === mode;
+            const label = input.parentElement?.querySelector("span");
+            if (label && input.value === "") {
+                label.textContent = holo ? "Standard art" : "Default icon";
+            }
         });
         refs.cardArtControls?.querySelectorAll('input[name="cardArtPreviewVariant"]').forEach((input) => {
             input.checked = input.value === state.cardArtPreviewVariant;
-            if (input.value === "HOLOGRAPHIC") {
-                input.disabled = !String(card.holographicCardArtUrl || "").trim()
-                    && !getEphemeralHolographicCardArtPreviewUrl(card.id);
-            }
         });
+        if (refs.cardArtVariantTitle) {
+            refs.cardArtVariantTitle.textContent = holo ? "Holographic art" : "Standard / Siege art";
+        }
+        if (refs.cardArtVariantHint) {
+            refs.cardArtVariantHint.textContent = holo
+                ? "Shown once this card receives its holographic upgrade. Same template as the standard card, with its own image and placement."
+                : "Used on the battlefield and everywhere the regular card is shown.";
+        }
+        if (refs.cardArtUploadHelp) {
+            refs.cardArtUploadHelp.classList.toggle("hidden", !(holo && mode === "FULL_CARD"));
+        }
         if (refs.cardArtUrlInput && document.activeElement !== refs.cardArtUrlInput) {
-            setInputValue(refs.cardArtUrlInput, card.cardArtUrl || "");
-            refs.cardArtUrlInput.placeholder = defaultCardArtPath(card.id) || "/assets/cards/example.png";
+            setInputValue(refs.cardArtUrlInput, art.cardArtUrl || "");
+            refs.cardArtUrlInput.placeholder = holo
+                ? `/assets/cards/${String(card.id || "example").trim().toLowerCase()}-holographic.png`
+                : (defaultCardArtPath(card.id) || "/assets/cards/example.png");
         }
         if (refs.cardHolographicCheckbox) {
             refs.cardHolographicCheckbox.checked = Boolean(card.holographic);
         }
-        if (refs.holographicCardArtUrlInput && document.activeElement !== refs.holographicCardArtUrlInput) {
-            setInputValue(refs.holographicCardArtUrlInput, card.holographicCardArtUrl || "");
-            refs.holographicCardArtUrlInput.placeholder = `/assets/cards/${String(card.id || "example").trim().toLowerCase()}-holographic.png`;
-        }
-        syncCardArtTransformControls(card);
-        setupCardArtDragInteraction(card);
+        syncCardArtTransformControls(art);
+        setupCardArtDragInteraction(art);
         attachCardArtPreviewErrorHandler(card);
     }
 

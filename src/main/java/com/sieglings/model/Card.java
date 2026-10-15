@@ -26,8 +26,18 @@ public abstract class Card {
     private String cardArtUrl;
     /** Optional complete-card artwork shown in binder views when this card is holographic. */
     private String holographicCardArtUrl;
-    /** Independent crop scale for holographic full-card art; does not affect the standard/Siege artwork. */
+    /** Independent scale for the holographic art; does not affect the standard/Siege artwork. */
     private Double holographicCardArtScale;
+    /**
+     * How the holographic art sits in the card template, with the same values as
+     * {@link #cardArtMode}. Blank with a holographic URL means FULL_CARD, which is
+     * how every holographic upload rendered before the holo art had its own builder.
+     */
+    private String holographicCardArtMode;
+    /** Holographic art placement (percent of the art element) and rotation, independent of the standard art. */
+    private Double holographicCardArtOffsetXPct;
+    private Double holographicCardArtOffsetYPct;
+    private Double holographicCardArtRotation;
     /** REPLACE replaces the element icon; OVERLAY draws art on top of the default frame; FULL_CARD renders the image as the complete card. */
     private String cardArtMode;
     /** Custom art transform within the binder art frame (pixels / scale / degrees). */
@@ -76,6 +86,14 @@ public abstract class Card {
     public void setHolographicCardArtUrl(String holographicCardArtUrl) { this.holographicCardArtUrl = holographicCardArtUrl; }
     public Double getHolographicCardArtScale() { return holographicCardArtScale; }
     public void setHolographicCardArtScale(Double holographicCardArtScale) { this.holographicCardArtScale = holographicCardArtScale; }
+    public String getHolographicCardArtMode() { return holographicCardArtMode; }
+    public void setHolographicCardArtMode(String holographicCardArtMode) { this.holographicCardArtMode = holographicCardArtMode; }
+    public Double getHolographicCardArtOffsetXPct() { return holographicCardArtOffsetXPct; }
+    public void setHolographicCardArtOffsetXPct(Double holographicCardArtOffsetXPct) { this.holographicCardArtOffsetXPct = holographicCardArtOffsetXPct; }
+    public Double getHolographicCardArtOffsetYPct() { return holographicCardArtOffsetYPct; }
+    public void setHolographicCardArtOffsetYPct(Double holographicCardArtOffsetYPct) { this.holographicCardArtOffsetYPct = holographicCardArtOffsetYPct; }
+    public Double getHolographicCardArtRotation() { return holographicCardArtRotation; }
+    public void setHolographicCardArtRotation(Double holographicCardArtRotation) { this.holographicCardArtRotation = holographicCardArtRotation; }
     public String getCardArtMode() { return cardArtMode; }
     public void setCardArtMode(String cardArtMode) { this.cardArtMode = cardArtMode; }
     public Double getCardArtOffsetX() { return cardArtOffsetX; }
