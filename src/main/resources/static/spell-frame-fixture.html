@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Spell / trap frame fixture</title>
-<link rel="stylesheet" href="/css/style.css?v=225">
+<link rel="stylesheet" href="/css/style.css?v=277">
 <style>
   body { margin:0; padding:16px; background:#0b0f18; font-family:system-ui, sans-serif; }
   #stage { display:flex; flex-wrap:wrap; gap:14px; }
@@ -18,7 +18,7 @@
 <script>
 // One card per SPELL_TRAP_FRAME_CLASS element so a frame swap can be eyeballed
 // (and the art-window/panel alignment measured) without booting the backend.
-var ELEMENTS = ['FIRE', 'EARTH', 'ICE', 'WIND', 'WATER', 'ELECTRIC', 'METAL', 'PSYCHIC', 'NEUTRAL'];
+var ELEMENTS = ['FIRE', 'EARTH', 'ICE', 'WIND', 'WATER', 'ELECTRIC', 'METAL', 'POISON', 'PSYCHIC', 'UNDEAD', 'LIGHT', 'SHADOW', 'NEUTRAL'];
 var stage = document.getElementById('stage');
 stage.innerHTML = ELEMENTS.map(function (element, i) {
   var card = {

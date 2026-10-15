@@ -9897,6 +9897,22 @@ body.placement-active .board-cell.legal {
     --spell-trap-frame-url: url('/img/frames/frame-spell-psychic.webp');
 }
 
+.hand-card.spell-trap-frame.frame-spell-poison {
+    --spell-trap-frame-url: url('/img/frames/frame-spell-poison.webp');
+}
+
+.hand-card.spell-trap-frame.frame-spell-undead {
+    --spell-trap-frame-url: url('/img/frames/frame-spell-undead.webp');
+}
+
+.hand-card.spell-trap-frame.frame-spell-light {
+    --spell-trap-frame-url: url('/img/frames/frame-spell-light.webp');
+}
+
+.hand-card.spell-trap-frame.frame-spell-shadow {
+    --spell-trap-frame-url: url('/img/frames/frame-spell-shadow.webp');
+}
+
 .hand-card.spell-trap-frame.frame-spell-neutral {
     --spell-trap-frame-url: url('/img/frames/frame-spell-neutral.webp');
 }
@@ -10014,8 +10030,12 @@ body.placement-active .board-cell.legal {
 .hand-card.spell-trap-frame.frame-spell-electric .card-summary-description,
 .hand-card.spell-trap-frame.frame-spell-metal .card-summary-row,
 .hand-card.spell-trap-frame.frame-spell-metal .card-summary-description,
+.hand-card.spell-trap-frame.frame-spell-poison .card-summary-row,
+.hand-card.spell-trap-frame.frame-spell-poison .card-summary-description,
 .hand-card.spell-trap-frame.frame-spell-psychic .card-summary-row,
-.hand-card.spell-trap-frame.frame-spell-psychic .card-summary-description {
+.hand-card.spell-trap-frame.frame-spell-psychic .card-summary-description,
+.hand-card.spell-trap-frame.frame-spell-light .card-summary-row,
+.hand-card.spell-trap-frame.frame-spell-light .card-summary-description {
     color: #1b2231;
     text-shadow:
         0 1px 1px rgba(255, 255, 255, 0.85),

@@ -1103,7 +1103,11 @@ const SPELL_TRAP_FRAME_CLASS = {
     WATER: 'frame-spell-water',
     ELECTRIC: 'frame-spell-electric',
     METAL: 'frame-spell-metal',
+    POISON: 'frame-spell-poison',
     PSYCHIC: 'frame-spell-psychic',
+    UNDEAD: 'frame-spell-undead',
+    LIGHT: 'frame-spell-light',
+    SHADOW: 'frame-spell-shadow',
     NEUTRAL: 'frame-spell-neutral'
 };
 
@@ -1111,7 +1115,7 @@ const SPELL_TRAP_FRAME_CLASS = {
 // invert to dark ink (see getCompactSummaryInkPalette and the matching
 // .card-summary-row rule in style.css). Neutral is deliberately absent: it
 // moved to the black template and takes the default light-on-dark ink.
-const PALE_SPELL_TRAP_FRAMES = new Set(['WATER', 'ELECTRIC', 'METAL', 'PSYCHIC']);
+const PALE_SPELL_TRAP_FRAMES = new Set(['WATER', 'ELECTRIC', 'METAL', 'POISON', 'PSYCHIC', 'LIGHT']);
 
 function hasElementFrame(element) {
     return Boolean(ELEMENT_FRAME_CLASS[String(element || '').toUpperCase()]);
@@ -3864,9 +3868,9 @@ function getCompactSummaryInkPalette(element, card) {
     if (isSpellTrapCard(card) && PALE_SPELL_TRAP_FRAMES.has(normalized)) {
         return PALE_PANEL_INK_PALETTE;
     }
-    // The Light creature frame's info panel is a pale cloud wash. Light spells have no
-    // painted template yet and keep the dark chrome, so they keep the light-on-dark ink.
-    if (!isSpellTrapCard(card) && normalized === 'LIGHT') {
+    // The Light creature frame's info panel is a pale cloud wash; Light spells are
+    // covered above by their cream template.
+    if (normalized === 'LIGHT') {
         return PALE_PANEL_INK_PALETTE;
     }
     switch (normalized) {
