@@ -359,8 +359,8 @@ public class CardDefinitionService {
     private List<Card> buildDeckBuilderCatalogUncached(Set<Element> live) {
         syncMovesPoolFromSources();
         return Stream.concat(
-                        LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER.stream()
-                                .filter(live::contains)
+                        sieglingRosterElements().stream()
+                                .filter(element -> element == Element.NEUTRAL || live.contains(element))
                                 .flatMap(element -> loadSieglingsUnchecked(element).stream().map(this::copyCard)),
                         Stream.concat(
                                 createSpells().stream().filter(spell -> isSpellLiveForMeta(spell, live)).map(this::copyCard),
@@ -934,7 +934,7 @@ public class CardDefinitionService {
             // decks that mention a toggled-off element still fail the live check
             // without rescanning every element list per card id.
             Map<String, Element> byId = new LinkedHashMap<>();
-            for (Element element : LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER) {
+            for (Element element : sieglingRosterElements()) {
                 for (SieglingCard card : loadSieglingsUnchecked(element)) {
                     if (card.getId() != null) {
                         byId.putIfAbsent(card.getId().toLowerCase(), card.getElement());
@@ -999,10 +999,22 @@ public class CardDefinitionService {
     }
 
     private List<SieglingCard> getSieglingsForElement(Element element) {
-        if (!activeGameplayElements().contains(element)) {
+        if (element != Element.NEUTRAL && !activeGameplayElements().contains(element)) {
             return List.of();
         }
         return loadSieglingsUnchecked(element);
+    }
+
+    /**
+     * Elements that can own a Siegeling roster. Neutral is not a gameplay element
+     * (no live toggle, no energy pool), but dashboard-authored Neutral Siegelings
+     * are real cards; like Neutral spells and trainers they are always live, or
+     * they never reach the catalog, binder or deck builder.
+     */
+    private static List<Element> sieglingRosterElements() {
+        List<Element> elements = new ArrayList<>(LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER);
+        elements.add(Element.NEUTRAL);
+        return elements;
     }
 
     private List<SieglingCard> loadSieglingsUnchecked(Element element) {
