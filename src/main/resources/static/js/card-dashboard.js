@@ -938,6 +938,9 @@
         refs.cardIdInput.addEventListener("blur", () => setInputValue(refs.cardIdInput, getSelectedCard()?.id));
         refs.cardTypeSelect.addEventListener("change", (event) => changeSelectedCardType(event.target.value));
         refs.cardNameInput.addEventListener("input", (event) => onCardNameChanged(event.target.value));
+        // Typing only repaints what shows the name; the full render waits for
+        // the field to be left (see renderWhileTyping).
+        refs.cardNameInput.addEventListener("change", () => renderAll());
         refs.cardElementSelect.addEventListener("change", (event) => {
             mutateSelectedCard((card) => {
                 card.element = event.target.value;
@@ -1466,6 +1469,7 @@
         }
         const previousAbilityAutoName = refs.abilityNameInput.dataset.autoName || "";
         const idIsAuto = idFollowsName.has(card);
+        let abilityFollowed = false;
         mutateSelectedCard((c) => {
             c.name = nextName;
             if (idIsAuto) {
@@ -1479,9 +1483,32 @@
                 const ability = c.abilities[0];
                 if ((ability.name || "") === previousAbilityAutoName) {
                     ability.name = nextName;
+                    abilityFollowed = true;
                 }
             }
-        });
+        }, { render: false });
+        // renderEditor normally refreshes this; the next keystroke compares against it.
+        if (abilityFollowed) {
+            refs.abilityNameInput.dataset.autoName = nextName;
+            setInputValue(refs.abilityNameInput, nextName);
+        }
+        renderWhileTyping();
+    }
+
+    // A full renderAll rebuilds selects, datalists and button grids around the
+    // focused field on every keystroke. iOS Safari re-indexes its keyboard
+    // toolbar (field arrows, AutoFill bar) when form controls change under a
+    // focused input, which hid the caret and scrolled the page to the bottom.
+    // While a name is typed, only what shows the name is repainted.
+    function renderWhileTyping() {
+        const card = getSelectedCard();
+        setInputValue(refs.cardIdInput, card?.id);
+        renderStatus();
+        renderCardList();
+        renderCardVisual();
+        renderSummary();
+        renderPreview();
+        renderButtons();
     }
 
     function computeAutoCardId(card, name) {

@@ -1434,6 +1434,17 @@ textarea {
 }
 .loading-art-tags-foot .section-help { flex: 1 1 auto; margin: 0; min-width: 0; }
 .loading-art-tags-foot .btn { flex: 0 0 auto; }
+/* Status, Remove and Save share the footer; on a phone the status takes its
+   own line above the two buttons instead of squeezing them. */
+.loading-art-tags-foot { flex-wrap: wrap; }
+@media (max-width: 520px) {
+    .loading-art-tags-foot .section-help { flex-basis: 100%; }
+    .loading-art-tags-foot .btn { flex: 1 1 0; }
+}
+/* Removed pieces stay listed (so they can be restored) but read as out of play. */
+.loading-art-card.is-removed { opacity: 0.45; border-style: dashed; }
+.loading-art-card.is-removed:hover { opacity: 0.8; }
+#loadingArtName, #loadingArtPlace { flex: 1 1 160px; min-width: 0; }
 
 /* Phones: the preview becomes a full-screen editor rather than a floating card. */
 @media (max-width: 720px) {

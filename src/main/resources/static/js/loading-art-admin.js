@@ -144,7 +144,29 @@
         focusDot.classList.remove('hidden');
     }
 
+    var nameInput = document.getElementById('loadingArtName');
+    var placeInput = document.getElementById('loadingArtPlace');
+    var removeBtn = document.getElementById('loadingArtRemove');
+
+    // A piece's own name, as opposed to the one its file gives it.
+    function customTitle(piece) {
+        return piece.title && piece.title !== piece.defaultTitle ? piece.title : '';
+    }
+
+    function syncRemoveButton(piece) {
+        if (!removeBtn) return;
+        var hidden = Boolean(piece && piece.hidden);
+        removeBtn.textContent = hidden ? 'Restore to game' : 'Remove from game';
+        removeBtn.classList.toggle('btn-danger', !hidden);
+    }
+
     function startDraft(piece) {
+        if (nameInput) {
+            nameInput.value = customTitle(piece);
+            nameInput.placeholder = piece.defaultTitle || piece.title || piece.id;
+        }
+        if (placeInput) placeInput.value = piece.place || '';
+        syncRemoveButton(piece);
         draft = {
             pieceId: piece.id,
             cards: (piece.cards || []).slice(),
@@ -179,38 +201,100 @@
         renderDraft();
     }
 
+    // Every failure used to read "network error": an unreachable server, a
+    // reply that was not JSON (a proxy error page) and a throw while redrawing
+    // after a save that had worked. Each now says which it was.
     function saveDraft() {
         if (!draft) return;
         if (focusInput) draft.focus = focusInput.value.trim();
+        putTag({
+            cards: draft.cards, shop: draft.shop, focus: draft.focus,
+            title: nameInput ? nameInput.value.trim() : undefined,
+            place: placeInput ? placeInput.value.trim() : undefined
+        }, 'Saved. Players see it on their next art refresh.');
+    }
+
+    // Takes the piece out of the game (or puts it back) on its own, without
+    // touching unsaved tag edits; the server keeps every other field.
+    function toggleRemoved() {
+        if (!draft) return;
+        var piece = artCache.find(function (p) { return p.id === draft.pieceId; });
+        var hide = !(piece && piece.hidden);
+        if (hide && !window.confirm('Remove "' + ((piece && piece.title) || draft.pieceId) +
+                '" from the game? It leaves the gallery, loading screens, backgrounds and the shop. ' +
+                'You can restore it from the Removed filter.')) {
+            return;
+        }
+        putTag({ hidden: hide }, hide
+            ? 'Removed from the game. Restore it any time from the Removed filter.'
+            : 'Restored. Players see it on their next art refresh.');
+    }
+
+    function putTag(body, doneMessage) {
+        var pieceId = draft.pieceId;
         var headers = { 'Content-Type': 'application/json' };
         try {
             var token = localStorage.getItem('sieglingsCardEditorToken');
             if (token) headers['X-Card-Editor-Token'] = token;
+            var gate = localStorage.getItem('sieglingsCardDashboardGate');
+            if (gate) headers['X-Card-Editor-Gate'] = gate;
         } catch (e) { /* anonymous save attempt */ }
         if (tagStatus) tagStatus.textContent = 'Saving…';
-        var pieceId = draft.pieceId;
-        fetch('/api/art/tags/' + encodeURIComponent(pieceId), {
+        var request = {
             method: 'PUT',
             headers: headers,
-            body: JSON.stringify({ cards: draft.cards, shop: draft.shop, focus: draft.focus })
-        })
-            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+            body: JSON.stringify(body)
+        };
+        var url = '/api/art/tags/' + encodeURIComponent(pieceId);
+        // A PUT of the whole tag set is safe to repeat, so a dropped phone
+        // connection gets one more try before the save is reported as failed.
+        fetch(url, request)
+            .catch(function () {
+                if (tagStatus) tagStatus.textContent = 'Saving… (retrying)';
+                return new Promise(function (resolve) { setTimeout(resolve, 1200); })
+                    .then(function () { return fetch(url, request); });
+            })
+            .then(function (r) {
+                return r.text().then(function (text) {
+                    var d = null;
+                    try { d = text ? JSON.parse(text) : null; } catch (e) { d = null; }
+                    return { ok: r.ok, status: r.status, d: d };
+                });
+            }, function () {
+                throw new Error('unreachable');
+            })
             .then(function (res) {
-                if (!res.ok) {
-                    if (tagStatus) tagStatus.textContent = (res.d && res.d.error) || 'Save failed. Sign in under Live Publishing first.';
+                if (!res.d) {
+                    if (tagStatus) tagStatus.textContent = 'Save failed — the server replied ' + res.status +
+                        ' without data. Try again in a moment.';
                     return;
                 }
-                if (tagStatus) tagStatus.textContent = 'Saved. Players see it on their next art refresh.';
+                if (!res.ok) {
+                    if (tagStatus) tagStatus.textContent = res.d.error ||
+                        (res.status === 401 ? 'Save failed. Sign in under Live Publishing first.' : 'Save failed (' + res.status + ').');
+                    return;
+                }
+                if (tagStatus) tagStatus.textContent = doneMessage;
                 if (res.d.art) {
                     artCache = res.d.art;
-                    renderGallery();
+                    var saved = artCache.find(function (p) { return p.id === pieceId; });
+                    if (saved) {
+                        syncRemoveButton(saved);
+                        if (previewTitle) previewTitle.textContent = (saved.title || saved.id) + (saved.place ? ' — ' + saved.place : '');
+                    }
+                    try { renderGallery(); } catch (e) { /* the save stands; the list redraws on the next load */ }
                 }
             })
-            .catch(function () { if (tagStatus) tagStatus.textContent = 'Save failed — network error.'; });
+            .catch(function () {
+                if (tagStatus) tagStatus.textContent = 'Save failed — could not reach the server. Check the connection and try again.';
+            });
     }
 
     document.getElementById('loadingArtShopAdd')?.addEventListener('click', addSlot);
     document.getElementById('loadingArtTagsSave')?.addEventListener('click', saveDraft);
+    removeBtn?.addEventListener('click', toggleRemoved);
+    nameInput?.addEventListener('input', markDirty);
+    placeInput?.addEventListener('input', markDirty);
     shopKind?.addEventListener('change', fillOptions);
     cardInput?.addEventListener('input', renderResults);
     cardInput?.addEventListener('keydown', function (e) {
@@ -429,6 +513,7 @@
         if (activeFilter === 'incomplete') return missingSlots(piece).length > 0;
         if (activeFilter === 'landscape-only') return !!piece.landscape && !piece.portrait;
         if (activeFilter === 'portrait-only') return !!piece.portrait && !piece.landscape;
+        if (activeFilter === 'removed') return !!piece.hidden;
         return true;
     }
 
@@ -436,7 +521,7 @@
         if (!searchInput) return true;
         var q = (searchInput.value || '').trim().toLowerCase();
         if (!q) return true;
-        var hay = [piece.id, piece.title, piece.place, piece.source].concat(piece.cards || [], piece.shop || [])
+        var hay = [piece.id, piece.title, piece.defaultTitle, piece.place, piece.source].concat(piece.cards || [], piece.shop || [])
             .filter(Boolean)
             .join(' ')
             .toLowerCase();
@@ -470,9 +555,11 @@
                 if (piece.source === 'cinematic') tags.push('cinematic');
                 if (piece.cards && piece.cards.length) tags.push(piece.cards.length + ' card' + (piece.cards.length === 1 ? '' : 's'));
                 if (piece.shop && piece.shop.length) tags.push('shop');
+                if (piece.hidden) tags.unshift('removed from game');
                 return '<article class="loading-art-card' +
                     (missing.length ? ' is-incomplete' : '') +
                     (piece.source === 'cinematic' ? ' is-cinematic' : '') +
+                    (piece.hidden ? ' is-removed' : '') +
                     '" data-piece-id="' + escapeHtml(piece.id) + '" tabindex="0" role="button" aria-label="Preview ' +
                     escapeHtml(piece.title || piece.id) + '">' +
                     '<div class="loading-art-card-thumb">' +
@@ -511,7 +598,7 @@
     }
 
     function refreshList() {
-        return fetch('/api/art/loading').then(function (r) { return r.json(); }).then(function (data) {
+        return fetch('/api/art/loading?all=true').then(function (r) { return r.json(); }).then(function (data) {
             artCache = (data && data.art) || [];
             renderGallery();
             return artCache;
