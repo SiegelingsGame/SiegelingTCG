@@ -1,150 +1,19 @@
-/* Siegelings: Dominion — prototype that merges the Keep (place) and Chronicles (person)
-   into one idle loop. Scene rules are lifted from keep.css so the buildings look the
-   same; everything else is scoped under .dm-app so it cannot leak into live pages. */
-:root {
-    /* Layout: one phone-height column — top bar, one scrolling region, tab bar. */
-    --fire: #ff501e; --water: #3296ff; --earth: #b48c50; --wind: #96ffb4; --ice: #76e6ff;
-    --shadow: #7832b4; --electric: #ffe63c; --metal: #a0aab4; --undead: #8c78a0;
-    --psychic: #c896ff; --light: #ffe9a8; --neutral: #c8b997;
-    --ink: #172333; --night: #0e1822; --panel: #14232b; --panel-2: #1b2e38;
-    --cream: #fff7dc; --dim: rgba(255, 247, 220, .72); --faint: rgba(255, 247, 220, .5);
-    --gold: #f4cc62; --green: #6fcf8b; --red: #ff8a73; --line: rgba(255, 247, 220, .16);
-    --display: Georgia, "Times New Roman", serif;
-    --body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    color-scheme: dark;
-}
-* { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--night); color: var(--cream); }
-html, body { touch-action: pan-x pan-y; }
-body { font: 14px/1.4 var(--body); -webkit-font-smoothing: antialiased; overflow: hidden; }
-button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; touch-action: manipulation; }
-button:disabled { cursor: not-allowed; }
-:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* Dominion: the Keep and Chronicles as one test mode. The shell is chronicles.css; this
+   file adds the Keep scene and Quarter (lifted from keep.css), the interiors' seating
+   inside the Base tab, Akhar's Wall, and the paper-cutout treatment for Siegelings. */
 .hidden { display: none !important; }
-
-.dm-app { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--night); max-width: 680px; margin: 0 auto; }
-/* Wider screens get the phone-shaped column centred; the game is designed portrait-first. */
-@media (min-width: 700px) {
-    body { background: #09111a; }
-    .dm-app { box-shadow: 0 0 0 1px var(--line), 0 0 60px rgba(0,0,0,.5); }
+/* The Keep scene was drawn against the Keep's palette; scope it so chronicles.css keeps its own. */
+#dmScene, .dm-interior, .dm-quarter-stage {
+    --cream: #fff7dc; --dim: rgba(255, 247, 220, .72); --faint: rgba(255, 247, 220, .5); --night: #0e1822;
+    --green: #6fcf8b; --red: #ff8a73; --display: Georgia, "Times New Roman", serif;
+    --body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; --panel-2: #1b2e38;
 }
-
-/* —— Top bar —— */
-.dm-top {
-    flex: none; display: grid; gap: 8px;
-    padding: calc(env(safe-area-inset-top, 0px) + 8px) max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px));
-    background: linear-gradient(180deg, #172a35, #122029);
-    border-bottom: 1px solid var(--line);
-}
-.dm-top-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.dm-brand { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1 1 auto; }
-.dm-brand strong { font: 700 17px/1 var(--display); color: #fff1b7; letter-spacing: .02em; white-space: nowrap; }
-.dm-tag { font: 700 9px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--night); background: var(--gold); padding: 3px 5px; border-radius: 4px; }
-.dm-clock { font: 600 11px/1.1 var(--body); color: var(--faint); white-space: nowrap; text-align: right; }
-.dm-clock b { display: block; color: var(--dim); font-variant-numeric: tabular-nums; }
-.dm-pass {
-    flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 0 10px;
-    border: 1px dashed rgba(244, 204, 98, .7); border-radius: 9px; color: var(--gold);
-    font: 700 12px/1 var(--body); background: rgba(244, 204, 98, .08);
-}
-.dm-pass small { font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
-.dm-icon-btn { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; background: rgba(255,255,255,.06); color: var(--dim); font: 700 16px/1 var(--display); }
-.dm-res-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
-.dm-res {
-    min-width: 0; display: flex; align-items: center; gap: 4px; padding: 4px 5px; border-radius: 8px;
-    background: rgba(255,255,255,.05); font: 700 12px/1 var(--body); font-variant-numeric: tabular-nums;
-}
-.dm-res svg { width: 16px; height: 16px; flex: none; }
-.dm-res span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dm-res.is-bag { justify-content: center; color: var(--gold); font-size: 11px; }
-
-/* —— Main region —— */
-.dm-main { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; }
-.dm-view { position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
-.dm-view.is-scene { overflow: hidden; }
-.dm-pad { padding: 14px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 12px; align-content: start; max-width: 640px; margin: 0 auto; }
-
-/* —— Tab bar —— */
-.dm-tabs {
-    flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-    padding: 4px max(6px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 4px) max(6px, env(safe-area-inset-left, 0px));
-    background: #101c25; border-top: 1px solid var(--line);
-}
-.dm-tab { position: relative; display: grid; justify-items: center; gap: 2px; padding: 6px 2px; border-radius: 10px; color: var(--faint); font: 700 11px/1 var(--body); }
-.dm-tab svg { width: 22px; height: 22px; }
-.dm-tab[aria-selected="true"] { color: var(--gold); background: rgba(244, 204, 98, .09); }
-.dm-tab .dm-dot { position: absolute; top: 4px; right: calc(50% - 18px); width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 2px #101c25; }
-
-/* —— Generic pieces —— */
-.dm-card { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 12px; display: grid; gap: 10px; min-width: 0; }
-.dm-card.is-quiet { background: rgba(255,255,255,.03); }
-.dm-card h2, .dm-card h3 { margin: 0; font: 700 16px/1.2 var(--display); color: #fff1b7; text-wrap: balance; }
-.dm-card h3 { font-size: 14px; }
-.dm-eyebrow { font: 700 10px/1.2 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
-.dm-muted { color: var(--dim); font-size: 12px; margin: 0; }
-.dm-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.dm-row > .dm-grow { flex: 1 1 auto; min-width: 0; }
-.dm-btn {
-    min-height: 44px; padding: 0 14px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    background: var(--gold); color: #1d1608; font: 800 14px/1 var(--body); text-align: center;
-}
-.dm-btn.secondary { background: rgba(255,255,255,.08); color: var(--cream); font-weight: 700; }
-.dm-btn.small { min-height: 34px; padding: 0 10px; font-size: 12px; border-radius: 9px; }
-.dm-btn:disabled { opacity: .45; }
-.dm-btn.block { width: 100%; }
-.dm-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 999px; background: rgba(255,255,255,.07); font: 700 11px/1.2 var(--body); white-space: nowrap; }
-.dm-chip svg { width: 13px; height: 13px; }
-.dm-chip.good { background: rgba(111, 207, 139, .16); color: #a8f0bd; }
-.dm-chip.bad { background: rgba(255, 138, 115, .14); color: #ffb3a3; }
-.dm-chip.warn { background: rgba(244, 204, 98, .14); color: var(--gold); }
-.dm-chip.el { background: color-mix(in srgb, var(--el) 22%, transparent); color: color-mix(in srgb, var(--el) 70%, white); }
-.dm-chips { display: flex; flex-wrap: wrap; gap: 5px; }
-.dm-bar { height: 7px; border-radius: 7px; background: rgba(255,255,255,.09); overflow: hidden; }
-.dm-bar b { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #d79c3e, var(--gold)); transition: width .4s; }
-.dm-bar.green b { background: linear-gradient(90deg, #3f9d62, var(--green)); }
-.dm-bar.blue b { background: linear-gradient(90deg, #4c86b8, var(--ice)); }
-.dm-kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 12px; }
-.dm-kv dt { color: var(--faint); }
-.dm-kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
-.dm-seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 4px; border-radius: 12px; background: rgba(255,255,255,.05); }
-.dm-seg button { min-height: 36px; border-radius: 9px; font: 700 12px/1 var(--body); color: var(--dim); }
-.dm-seg button[aria-pressed="true"] { background: var(--panel-2); color: var(--gold); box-shadow: inset 0 0 0 1px rgba(244,204,98,.3); }
-.dm-label { font: 700 10px/1.2 var(--body); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 4px 0 -4px; }
-.dm-planned { font: 700 9px/1 var(--body); letter-spacing: .1em; text-transform: uppercase; color: #c9b8ff; border: 1px dashed rgba(201,184,255,.5); padding: 3px 6px; border-radius: 5px; white-space: nowrap; }
-.dm-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.dm-cost { display: flex; flex-wrap: wrap; gap: 5px; }
-
+#dmScene { --line: rgba(255, 247, 220, .16); --gold: #f4cc62; }
+@keyframes cloud-drift { 0% { translate: -18vw 0; } 100% { translate: 105vw 0; } }
 /* Art frames: square crops of existing card art; object-position aims each crop. */
 .dm-art { position: relative; flex: none; overflow: hidden; border-radius: 12px; background: #23343f; }
 .dm-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .dm-art.round { border-radius: 50%; }
-
-/* Option tiles (weapons, tools, assignments, destinations) */
-.dm-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
-.dm-option {
-    min-width: 0; text-align: left; display: grid; gap: 4px; align-content: start; padding: 10px; border-radius: 12px;
-    border: 1px solid var(--line); background: rgba(255,255,255,.03);
-}
-.dm-option strong { font: 700 13px/1.2 var(--display); color: #fff1b7; }
-.dm-option small { color: var(--dim); font-size: 11px; line-height: 1.35; }
-.dm-option[aria-pressed="true"] { border-color: var(--gold); background: rgba(244,204,98,.09); box-shadow: inset 0 0 0 1px rgba(244,204,98,.4); }
-.dm-option:disabled { opacity: .5; }
-.dm-option .dm-glyph { width: 30px; height: 30px; }
-
-/* —— Bottom sheet —— */
-.dm-scrim { position: fixed; inset: 0; z-index: 40; background: rgba(4, 9, 13, .62); }
-.dm-sheet {
-    position: fixed; z-index: 41; left: 0; right: 0; bottom: 0; max-height: min(88dvh, 88%); display: flex; flex-direction: column;
-    border-radius: 18px 18px 0 0; background: #13212a; border-top: 1px solid rgba(244,204,98,.3);
-    box-shadow: 0 -12px 40px rgba(0,0,0,.45); max-width: 680px; margin: 0 auto;
-}
-.dm-sheet-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 12px max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px)); }
-.dm-sheet-head h2 { margin: 0; font: 700 18px/1.15 var(--display); color: #fff1b7; flex: 1 1 auto; min-width: 0; }
-.dm-sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px max(16px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 18px) max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 12px; align-content: start; }
-
-.dm-toast-wrap { position: fixed; z-index: 60; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + 50px); display: grid; justify-items: center; gap: 6px; pointer-events: none; padding: 0 16px; }
-.dm-toast { max-width: 360px; padding: 7px 12px; font-size: 12px !important; border-radius: 11px; background: #22394a; border: 1px solid rgba(244,204,98,.35); box-shadow: 0 8px 24px rgba(0,0,0,.4); font-size: 13px; animation: dm-toast-in .25s ease-out; }
-@keyframes dm-toast-in { from { opacity: 0; transform: translateY(-8px); } }
 
 /* ———————————————————— KEEP SCENE (from keep.css) ———————————————————— */
 .dm-scene { position: absolute; inset: 0; overflow: hidden; --heal: 0;
@@ -337,123 +206,133 @@ button:disabled { cursor: not-allowed; }
 .build-art-svg .b-sparks circle:nth-child(2) { animation-delay: -.9s; }
 .build-art-svg .b-sparks circle:nth-child(3) { animation-delay: -1.6s; }
 
-/* —— Knight / companions / expedition screens —— */
-.dm-hero { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: center; }
-.dm-hero .dm-art { width: 76px; height: 76px; border: 2px solid var(--gold); }
-.dm-hero h2 { font-size: 19px; }
-.dm-skill { display: grid; gap: 6px; }
-.dm-skill-head { display: flex; align-items: baseline; gap: 8px; }
-.dm-skill-head strong { font: 700 14px/1.2 var(--display); color: #fff1b7; flex: 1; }
-.dm-skill-head span { font: 700 12px/1 var(--body); color: var(--gold); font-variant-numeric: tabular-nums; }
-.dm-milestones { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.dm-milestones li { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 6px; font-size: 12px; color: var(--faint); }
-.dm-milestones li b { color: var(--faint); font-variant-numeric: tabular-nums; }
-.dm-milestones li.done { color: var(--cream); }
-.dm-milestones li.done b { color: var(--green); }
+/* Siegelings are paper standees, as in the Keep: overlay cutout + die-cut rim filter. */
+.dm-art img.dm-paper, .dm-resident img.dm-paper { object-fit: contain; padding: 6%; transform: rotate(-1deg); transform-origin: 50% 92%;
+    filter: drop-shadow(1px 0 0 #282019) drop-shadow(-1px 0 0 #282019) drop-shadow(0 1px 0 #282019) drop-shadow(0 -1px 0 #282019) drop-shadow(2px 4px 2px rgba(23,19,15,.5)); }
+@supports (filter: url("#paper-siegling-cutout")) { .dm-art img.dm-paper, .dm-resident img.dm-paper { filter: url("#paper-siegling-cutout"); } }
+.dm-paper-token { display: grid; place-items: center; width: 100%; height: 100%; font: 800 1.1em/1 Georgia, serif; color: #2b2119;
+    background: radial-gradient(circle at 50% 40%, #f6ead0, #e2cf9f); box-shadow: inset 0 0 0 3px var(--el), inset 0 0 0 5px #f2e2b8; border-radius: 50%; }
+.dm-resident { overflow: visible; border: 0; border-radius: 0; box-shadow: none; background: transparent; width: 44px; height: 44px; }
+.dm-resident img.dm-paper { padding: 0; }
 
-.dm-comp { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; }
-.dm-comp .dm-art { width: 72px; height: 72px; border: 2px solid var(--el); }
-.dm-comp.is-locked .dm-art img { filter: grayscale(1) brightness(.35); }
-.dm-status { font-size: 12px; color: var(--dim); }
-.dm-status.paused { color: var(--gold); }
 
-.dm-dest { position: relative; overflow: hidden; border-radius: 14px; min-height: 112px; display: grid; align-content: end; padding: 10px; text-align: left; border: 1px solid var(--line); }
-.dm-dest img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
-.dm-dest::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,16,22,0) 20%, rgba(10,16,22,.88)); z-index: 1; }
-.dm-dest > :not(img) { position: relative; z-index: 2; }
-.dm-dest strong { font: 700 16px/1.2 var(--display); color: #fff1b7; }
-.dm-dest small { color: var(--dim); font-size: 11px; }
-.dm-dest[aria-pressed="true"] { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold); }
-.dm-dest:disabled { filter: grayscale(.7); }
-.dm-dest .dm-planned { position: absolute; top: 8px; right: 8px; background: rgba(14,24,34,.8); }
-.dm-dests { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+/* —— Header extras —— */
+.dm-clock { margin-left: 4px; font-variant-numeric: tabular-nums; opacity: .8; }
+.dm-menu-btn { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 12px; border: 1px solid var(--glass-line); background: var(--glass); color: var(--ink); font: 700 18px/1 var(--fun); }
+.ck-stat.dm-pass { border-style: dashed; color: var(--gold-bright); }
+.ck-tabs button { position: relative; }
+.dm-inline-badge { position: static; margin-left: 4px; vertical-align: 1px; }
 
-.dm-enc { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 8px; border-radius: 10px; background: rgba(255,255,255,.04); font-size: 12px; }
-.dm-enc strong { display: block; font-size: 12px; color: var(--cream); }
-.dm-enc small { display: block; color: var(--faint); font-size: 11px; }
-.dm-enc .dm-mark svg { width: 18px; height: 18px; }
-.dm-enc .dm-mark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; font: 800 12px/1 var(--body); }
-.dm-enc.ok .dm-mark { background: rgba(111,207,139,.2); color: var(--green); }
-.dm-enc.miss .dm-mark { background: rgba(255,138,115,.16); color: var(--red); }
-.dm-enc.part .dm-mark { background: rgba(244,204,98,.16); color: var(--gold); }
+/* —— Base —— */
+.dm-base-head { margin-bottom: 8px; }
+.dm-res-strip { flex-wrap: wrap; gap: 6px; }
+.dm-res { font-variant-numeric: tabular-nums; }
+.dm-res small { opacity: .6; margin-left: 1px; }
+.dm-base-nav { overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; }
+.dm-base-nav::-webkit-scrollbar { display: none; }
+.dm-base-nav .ck-type { flex: 0 0 auto; white-space: nowrap; }
+.dm-objective-card { display: grid; gap: 4px; width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.dm-objective-card .dm-steps { display: flex; gap: 3px; margin-top: 4px; }
+.dm-objective-card .dm-steps i { flex: 1; height: 4px; border-radius: 4px; background: rgba(255,255,255,.12); }
+.dm-objective-card .dm-steps i.done { background: var(--good); }
+.dm-objective-card .dm-steps i.now { background: var(--gold); }
+.dm-scene-box { position: relative; height: min(70vh, 600px); min-height: 420px; border-radius: 20px; overflow: hidden; margin: 10px 0; box-shadow: 0 14px 30px rgba(0,0,0,.4); border: 1px solid var(--glass-line); }
+.dm-scene-box .dm-scene { position: absolute; inset: 0; }
+.dm-grounds-actions { justify-content: center; flex-wrap: wrap; }
+.dm-scene .building-hotspot.is-ready::before { content: "🧺"; position: absolute; z-index: 9; right: 8%; top: 4%; font-size: 18px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); animation: dm-bob 1.8s ease-in-out infinite; }
+.dm-scene[data-woodlot="0"] .woodlot-hotspot .building-illustration { opacity: .28; filter: grayscale(.8) brightness(.8); }
+.dm-scene[data-woodlot="0"] .woodlot-hotspot .tree-cluster { opacity: .55; }
 
-.dm-party { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.dm-party-slot { display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,.03); min-width: 0; }
-.dm-party-slot .dm-art { width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--el, var(--line)); }
-.dm-party-slot small { font-size: 10px; color: var(--faint); text-align: center; }
-.dm-party-slot strong { font: 700 12px/1.1 var(--display); color: #fff1b7; }
-.dm-party-slot[aria-pressed="true"] { border-color: var(--gold); background: rgba(244,204,98,.08); }
-.dm-party-slot:disabled { opacity: .45; }
+/* Akhar's Wall: a rampart on the eastern ridge, ruined footings until it is raised. */
+.dm-scene .wall-hotspot { left: 1%; top: 3%; width: min(27%, 170px); height: 15%; z-index: 7; }
+.wall-illustration { position: absolute; inset: 0 0 26px; display: block; }
+.wall-illustration svg { position: absolute; inset: 20% 0 0; width: 100%; height: 80%; }
+.wall-illustration .wall-built { fill: #b48b58; stroke: #3d2a1b; stroke-width: 6; display: none; }
+.wall-illustration .wall-ruin { fill: #7b6650; stroke: #3d2a1b; stroke-width: 5; opacity: .85; }
+.dm-scene:not([data-front="0"]) .wall-illustration .wall-built { display: block; }
+.dm-scene:not([data-front="0"]) .wall-illustration .wall-ruin { display: none; }
+.wall-defenders { position: absolute; left: 6%; right: 6%; top: -6%; display: flex; justify-content: space-around; }
+.wall-defenders b { width: 26px; height: 32px; display: block; }
+.wall-defenders img { width: 100%; height: 100%; object-fit: contain; }
+.dm-scene .wall-hotspot .building-label { bottom: 0; }
 
-.dm-sticky-cta { position: sticky; bottom: 0; z-index: 3; padding: 10px 0 2px; background: linear-gradient(180deg, rgba(14,24,34,0), var(--night) 30%); display: grid; gap: 6px; }
-.dm-travel { position: relative; overflow: hidden; border-radius: 16px; min-height: 170px; display: grid; align-content: end; padding: 12px; border: 1px solid rgba(244,204,98,.35); }
-.dm-travel > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.dm-travel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,16,22,.1), rgba(10,16,22,.9)); }
-.dm-travel > :not(img) { position: relative; z-index: 2; }
-.dm-travel .dm-trail { position: relative; height: 26px; margin-top: 6px; }
-.dm-travel .dm-trail::before { content: ""; position: absolute; left: 0; right: 0; top: 12px; border-top: 2px dashed rgba(255,247,220,.4); }
-.dm-travel .dm-walker { position: absolute; top: 0; width: 26px; height: 26px; border-radius: 50%; overflow: hidden; border: 2px solid var(--gold); transform: translateX(-50%); transition: left 1s linear; }
-.dm-travel .dm-walker img { width: 100%; height: 100%; object-fit: cover; }
+/* —— Interiors seated in the tab (keep.css drew them as a full-screen overlay) —— */
+.dm-interior { margin: 10px 0; }
+.dm-interior .keep-interior { position: relative; inset: auto; z-index: auto; visibility: visible; opacity: 1; display: grid; grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto clamp(240px, 46vh, 380px); border-radius: 20px; overflow: hidden; border: 1px solid var(--glass-line); box-shadow: 0 14px 30px rgba(0,0,0,.4); animation: interior-in .3s ease; }
+.dm-interior .interior-bar { padding: 8px 10px; gap: 10px; }
+.dm-interior .interior-exit { min-height: 34px; padding: 6px 11px; }
+.dm-interior .interior-heading h2 { font-size: 17px; color: #fff1b7; }
+.dm-interior .interior-heading .eyebrow { font: 800 10px/1.2 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: rgba(255,247,220,.6); }
+.dm-interior .interior-arrow small { font-size: 10px; max-width: 70px; }
+.dm-room-actions { margin-top: 10px; }
+.dm-room-cutout { display: block; }
+.dm-room-cutout img, .lodge-resident img, .facility-room-resident img, .hall-favorite-resident img { width: 100%; height: 100%; object-fit: contain; display: block;
+    filter: drop-shadow(1px 0 0 #282019) drop-shadow(-1px 0 0 #282019) drop-shadow(0 1px 0 #282019) drop-shadow(2px 5px 3px rgba(23,19,15,.5)); }
+@supports (filter: url("#paper-siegling-cutout")) { .dm-room-cutout img, .lodge-resident img, .facility-room-resident img, .hall-favorite-resident img { filter: url("#paper-siegling-cutout"); } }
+.lodge-resident > span, .facility-room-resident > span, .hall-favorite-resident > span { width: clamp(70px, 20vw, 120px); height: clamp(86px, 24vw, 146px); }
+.enclave-interior-residents b { width: clamp(52px, 14vw, 90px); height: clamp(64px, 17vw, 110px); }
+.enclave-interior-residents b img { width: 100%; height: 100%; object-fit: contain; }
 
-.dm-report-line { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 8px; font-size: 13px; }
-.dm-report-line .dm-mark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; font: 800 12px/1 var(--body); background: rgba(255,255,255,.07); }
-.dm-report-line.ok .dm-mark { background: rgba(111,207,139,.2); color: var(--green); }
-.dm-report-line.miss .dm-mark { background: rgba(255,138,115,.16); color: var(--red); }
-.dm-report-line.disc .dm-mark { background: rgba(201,184,255,.2); color: #d9ccff; }
-.dm-report-line em { display: block; font-style: normal; color: var(--faint); font-size: 11px; }
-.dm-stepper { display: inline-flex; align-items: center; gap: 4px; }
-.dm-stepper button { width: 30px; height: 30px; border-radius: 8px; background: rgba(255,255,255,.08); font: 700 16px/1 var(--body); }
-.dm-stepper b { min-width: 26px; text-align: center; font-variant-numeric: tabular-nums; }
-.dm-inv { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
-.dm-inv div { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 10px; background: rgba(255,255,255,.04); font-size: 12px; min-width: 0; }
-.dm-inv div svg { width: 20px; height: 20px; flex: none; }
-.dm-inv div span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); }
-.dm-inv div b { font-variant-numeric: tabular-nums; }
-.dm-log { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--dim); }
-.dm-log li { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 8px; }
-.dm-log time { color: var(--faint); font-variant-numeric: tabular-nums; }
+/* An unbuilt room is a site: scaffold, crates and the crew's clock. */
+.dm-site { position: absolute; inset: 0; z-index: 6; display: grid; place-items: end center; padding-bottom: 14%; background: linear-gradient(180deg, rgba(20,30,40,.55), rgba(40,30,20,.75)); }
+.dm-site-scaffold { position: absolute; left: 18%; right: 18%; top: 14%; bottom: 26%; border: 6px solid #b7863f; border-bottom: 0; }
+.dm-site-scaffold i { position: absolute; top: 0; bottom: 0; width: 6px; background: #8a5f2a; }
+.dm-site-scaffold i:nth-child(1) { left: 30%; } .dm-site-scaffold i:nth-child(2) { left: 62%; }
+.dm-site-scaffold i:nth-child(3) { left: 0; right: 0; top: 48%; bottom: auto; width: auto; height: 6px; }
+.dm-site-crates { position: absolute; left: 8%; bottom: 10%; display: flex; gap: 4px; }
+.dm-site-crates i { width: 34px; height: 28px; background: #a97b3a; border: 3px solid #6c4a22; }
+.dm-site.is-working .dm-site-scaffold { animation: scaffold-pulse 2.4s ease-in-out infinite; }
+.dm-site-label { position: relative; z-index: 2; padding: 6px 12px; border-radius: 999px; background: rgba(14,24,34,.88); color: #fff1b7; font: 700 12px/1.2 var(--sans); }
+.dm-site-bar { position: absolute; left: 20%; right: 20%; bottom: 6%; }
 
-@keyframes cloud-drift { 0% { translate: -40vw 0; } 100% { translate: 105vw 0; } }
-@keyframes mote-rise { 0%, 100% { transform: translateY(8px); opacity: .15; } 48% { transform: translateY(-20px); opacity: 1; } }
-@keyframes banner-wave { 50% { transform: skewX(8deg) scaleX(.9); } }
-@keyframes window-glow { 50% { opacity: .55; } }
-@keyframes hearth-flicker { 0%, 100% { opacity: .85; transform: scaleY(1); } 40% { opacity: 1; transform: scaleY(1.08); } 70% { opacity: .7; transform: scaleY(.94); } }
-@keyframes facility-glow { 50% { box-shadow: 0 0 13px #ff8151; filter: brightness(1.25); } }
-@keyframes facility-shimmer { 50% { box-shadow: 0 0 12px #b8efff; } }
-@keyframes generator-pulse { 50% { transform: scale(1.28); box-shadow: 0 0 18px #9eefff; } }
-@keyframes build-lamp { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
-@keyframes build-motes { 0% { opacity: 0; transform: translateY(6px); } 40% { opacity: .9; } 100% { opacity: 0; transform: translateY(-26px); } }
-@media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation: none !important; transition: none !important; }
-}
-@media (max-width: 359px) {
-    .dm-tag, .dm-pass small { display: none; }
-}
-@media (max-height: 500px) {
-    .dm-res-strip, .dm-objective { display: none; }
-    .dm-top { padding-bottom: 6px; }
-}
+/* The Quarter's own "room" is its plot grid. */
+.dm-quarter-stage { position: absolute; inset: 0; display: grid; place-items: center; padding: 10px 40px 26px; background: radial-gradient(ellipse at 50% 30%, #4d6a46, #263526); overflow: auto; }
+.dm-quarter-stage .dm-quarter { width: min(100%, 330px); }
 
-/* Profession rows: wrap long recipe text, keep the action button its own size. */
-.dm-enc > span:nth-child(2) { min-width: 0; }
-.dm-enc small { overflow-wrap: anywhere; }
-.dm-enc > .dm-btn { justify-self: end; }
-.dm-res.is-full { box-shadow: inset 0 0 0 1px var(--gold); color: var(--gold); }
+/* Akhar's Wall stage: raiders march on the far side, defenders stand on the walk. */
+.dm-wall-stage { position: absolute; inset: 0; overflow: hidden; background: linear-gradient(180deg, #4b3e66, #b06c4f 60%, #5a3f2c); }
+.dm-wall-hills { position: absolute; left: -10%; right: -10%; bottom: 30%; height: 30%; border-radius: 50% 50% 0 0; background: #3b2c3e; }
+.dm-wall-raiders { position: absolute; left: 0; right: 0; bottom: 36%; display: flex; justify-content: space-around; }
+.dm-wall-raiders b { width: 54px; height: 66px; animation: front-raider-march 1.4s ease-in-out infinite; }
+.dm-wall-raiders b:nth-child(2) { animation-delay: -.4s; } .dm-wall-raiders b:nth-child(3) { animation-delay: -.9s; }
+.dm-wall-raiders img { width: 100%; height: 100%; object-fit: contain; filter: brightness(.22) saturate(.4) drop-shadow(0 0 4px rgba(168,107,255,.6)); }
+@supports (filter: url("#paper-siegling-shadow")) { .dm-wall-raiders img { filter: url("#paper-siegling-shadow"); } }
+.dm-wall-svg { position: absolute; left: -2%; right: -2%; bottom: 0; width: 104%; height: 48%; }
+.dm-wall-defenders { position: absolute; left: 6%; right: 6%; bottom: 38%; display: flex; justify-content: space-around; }
+.dm-wall-defenders b { width: clamp(52px, 14vw, 86px); height: clamp(64px, 17vw, 104px); animation: front-defender-brace 2.4s ease-in-out infinite; }
+.dm-wall-stage .dm-site-label { position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); }
+@keyframes front-raider-march { 0%, 100% { translate: 6px -4px; } 50% { translate: -5px 4px; } }
+@keyframes front-defender-brace { 0%, 100% { translate: 0 0; rotate: -1deg; } 50% { translate: 0 -3px; rotate: 2deg; } }
+@keyframes scaffold-pulse { 50% { filter: brightness(1.16); } }
 
-/* Destination and project rows: thumbnail, text that wraps, a chip that keeps its size. */
-.dm-route { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 6px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,.03); text-align: left; }
-.dm-route img { width: 56px; height: 42px; object-fit: cover; border-radius: 8px; }
-.dm-route strong { display: block; font: 700 13px/1.25 var(--display); color: #fff1b7; }
-.dm-route small { display: block; color: var(--dim); font-size: 11px; overflow-wrap: anywhere; }
-.dm-route .dm-lock { color: var(--gold); }
-.dm-route[aria-pressed="true"], .dm-route[aria-expanded="true"] { border-color: var(--gold); background: rgba(244,204,98,.08); }
-.dm-route:disabled { opacity: .55; }
-.dm-input { min-height: 36px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--cream); font: 600 14px/1 var(--body); min-width: 0; }
-select.dm-input { padding-right: 4px; }
-.dm-market-form { display: grid; grid-template-columns: minmax(0, 1fr) 64px 76px auto; gap: 6px; align-items: center; }
-.dm-seg-5 { grid-auto-columns: minmax(0, 1fr); }
-.dm-seg-5 button { font-size: 11px; padding: 0 2px; }
-.dm-scene .is-damaged .building-illustration { filter: grayscale(.7) brightness(.8); }
-.dm-scene .is-damaged .building-label { border-color: rgba(255,138,115,.7); }
-a.dm-btn { text-decoration: none; }
-.dm-brand { text-decoration: none; }
+/* —— Visitors, Chronicle, cards —— */
+.dm-prompt { margin: 6px 0; font: italic 15px/1.45 var(--serif); color: var(--gold-bright); }
+.dm-choices { display: grid; gap: 8px; }
+.dm-lore { display: grid; gap: 3px; width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.dm-lore.is-new { border-color: color-mix(in srgb, var(--gold) 70%, transparent); box-shadow: 0 0 0 1px rgba(200,165,79,.35); }
+.dm-lore.is-buried { opacity: .7; border-style: dashed; }
+.dm-lore-body { font: 15px/1.6 var(--serif); color: var(--ink); white-space: normal; margin: 10px 0; }
+.dm-report-card { display: grid; gap: 4px; width: 100%; text-align: left; color: inherit; font: inherit; border-color: rgba(95,208,138,.55); cursor: pointer; }
+.dm-grow { flex: 1 1 auto; min-width: 0; }
+.dm-people li > span { display: grid; gap: 4px; flex: 1; min-width: 0; }
+.dm-event { padding: 8px 0; border-top: 1px solid var(--line); }
+.dm-event:first-of-type { border-top: 0; }
+.dm-project .ck-row b { flex: 1; }
+.dm-knight-portrait img { object-fit: cover; object-position: 50% 0; }
+
+/* Paper standees inside Chronicles' round and card frames. */
+.ck-portrait.dm-paper-frame { background: radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--el) 40%, #f6ead0), color-mix(in srgb, var(--el) 30%, #1a2230)); overflow: visible; }
+.ck-portrait.dm-paper-frame img.dm-paper { object-fit: contain; object-position: 50% 100%; padding: 6%; transform: rotate(-1deg); transform-origin: 50% 92%;
+    filter: drop-shadow(1px 0 0 #282019) drop-shadow(-1px 0 0 #282019) drop-shadow(0 1px 0 #282019) drop-shadow(0 -1px 0 #282019) drop-shadow(2px 4px 2px rgba(23,19,15,.5)); }
+@supports (filter: url("#paper-siegling-cutout")) { .ck-portrait.dm-paper-frame img.dm-paper { filter: url("#paper-siegling-cutout"); } }
+.ck-portrait.dm-paper-frame .dm-paper-token { font-size: 1.4em; }
+.ck-portrait.dm-locked img { filter: grayscale(1) brightness(.4); }
+
+/* chronicles.css leaves buttons with UA borders; the scene's hotspots must be bare. */
+#dmScene button { border: 0; background: none; padding: 0; color: inherit; font: inherit; }
+/* Base sections sit on one swipeable row instead of Chronicles' two-column type switch. */
+.ck-worktype.dm-base-nav { display: flex; gap: 6px; overflow-x: auto; padding: 4px; }
+.dm-base-nav .ck-type { padding: 8px 12px; min-height: 36px; }
+/* Level-up chatter stays short so toasts never bury the screen. */
+.ck-toasts .ck-toast { font-size: 13px; padding: 8px 12px; }

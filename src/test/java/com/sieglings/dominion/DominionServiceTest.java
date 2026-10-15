@@ -120,6 +120,8 @@ class DominionServiceTest {
         assertFalse(DominionService.tradeable("pine_log"), "pine logs are Timber in Dominion");
         assertFalse(DominionService.tradeable("crowns"));
         assertFalse(DominionService.tradeable("made_up"));
+        assertFalse(DominionService.tradeable("copper_sword"), "gear must be crafted, never bought");
+        assertFalse(DominionService.tradeable("copper_mail"), "gear must be crafted, never bought");
     }
 
     @Test

@@ -4,31 +4,128 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siegelings Dominion</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#0e1822">
+<meta name="theme-color" content="#070b14">
 <link rel="icon" href="/favicon.ico">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
-<link rel="stylesheet" href="/css/dominion.css?v=3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- Dominion wears the Chronicles shell (chronicles.css, unchanged); the Keep's scene and
+     interiors come from keep.css via dominion-keep.css. -->
+<link rel="stylesheet" href="/css/chronicles.css?v=9">
+<link rel="stylesheet" href="/css/dominion-keep.css?v=1">
+<link rel="stylesheet" href="/css/dominion.css?v=4">
+<script src="/js/viewport-unit.js?v=3"></script>
 </head>
-<body>
-<div class="dm-app" id="dmApp">
-    <header class="dm-top">
-        <div class="dm-top-row">
-            <a class="dm-brand" href="/home" aria-label="Back to the hub"><strong>Dominion</strong><span class="dm-tag">Test mode</span></a>
-            <div class="dm-clock" id="dmClock"><b>—</b>local save</div>
-            <button class="dm-pass" id="dmPass" type="button" title="Demo control: advances the shared clock by 4 hours">
-                <span>+4h</span><small>Pass time</small>
-            </button>
-            <button class="dm-icon-btn" id="dmMenu" type="button" aria-label="Prototype menu">⋯</button>
+<body data-screen="loading">
+<svg class="dm-svg-defs" style="position:absolute" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+        <!-- Resident art can be PNG, WebP, or SVG. Building the sticker edge from
+             SourceAlpha keeps the paper silhouette attached to any transparent art. -->
+        <filter id="paper-siegling-cutout" x="-35%" y="-30%" width="170%" height="175%" color-interpolation-filters="sRGB">
+            <feMorphology in="SourceAlpha" operator="dilate" radius="4.4" result="outerShape"/>
+            <feFlood flood-color="#251f19" result="outerInk"/>
+            <feComposite in="outerInk" in2="outerShape" operator="in" result="outerEdge"/>
+            <feMorphology in="SourceAlpha" operator="dilate" radius="3.45" result="paperShape"/>
+            <feFlood flood-color="#f2e2b8" result="paperColor"/>
+            <feComposite in="paperColor" in2="paperShape" operator="in" result="paperEdge"/>
+            <feMorphology in="SourceAlpha" operator="dilate" radius="1.55" result="innerShape"/>
+            <feFlood flood-color="#282019" result="innerInk"/>
+            <feComposite in="innerInk" in2="innerShape" operator="in" result="inkEdge"/>
+            <feTurbulence type="fractalNoise" baseFrequency="0.055" numOctaves="2" seed="17" result="paperNoise"/>
+            <feColorMatrix in="paperNoise" type="matrix" values="
+                0 0 0 0 0.55
+                0 0 0 0 0.39
+                0 0 0 0 0.20
+                0 0 0 .13 0" result="paperGrain"/>
+            <feComposite in="paperGrain" in2="SourceAlpha" operator="in" result="cutoutGrain"/>
+            <feBlend in="SourceGraphic" in2="cutoutGrain" mode="soft-light" result="printedArt"/>
+            <feGaussianBlur in="SourceAlpha" stdDeviation="2.6" result="shadowBlur"/>
+            <feOffset in="shadowBlur" dx="3.5" dy="6" result="shadowOffset"/>
+            <feFlood flood-color="#17130f" flood-opacity=".58" result="shadowColor"/>
+            <feComposite in="shadowColor" in2="shadowOffset" operator="in" result="groundShadow"/>
+            <feMerge>
+                <feMergeNode in="groundShadow"/>
+                <feMergeNode in="outerEdge"/>
+                <feMergeNode in="paperEdge"/>
+                <feMergeNode in="inkEdge"/>
+                <feMergeNode in="printedArt"/>
+            </feMerge>
+        </filter>
+        <!-- Akhar's raiders are the same paper cutout in shadow: real Siegeling art crushed to
+             a violet-black silhouette with a corrupted rim, so a raider reads as a recoloured
+             Siegeling rather than a generic ghost. Structure mirrors the filter above so both
+             treatments cut on alpha and share the same die-cut rim geometry. -->
+        <filter id="paper-siegling-shadow" x="-40%" y="-35%" width="180%" height="180%" color-interpolation-filters="sRGB">
+            <feMorphology in="SourceAlpha" operator="dilate" radius="4.4" result="shadeOuterShape"/>
+            <feFlood flood-color="#0d0715" result="shadeOuterInk"/>
+            <feComposite in="shadeOuterInk" in2="shadeOuterShape" operator="in" result="shadeOuterEdge"/>
+            <feMorphology in="SourceAlpha" operator="dilate" radius="3.45" result="shadeRimShape"/>
+            <feFlood flood-color="#5a3a8f" result="shadeRimColor"/>
+            <feComposite in="shadeRimColor" in2="shadeRimShape" operator="in" result="shadeRimEdge"/>
+            <feMorphology in="SourceAlpha" operator="dilate" radius="1.55" result="shadeInnerShape"/>
+            <feFlood flood-color="#120b1d" result="shadeInnerInk"/>
+            <feComposite in="shadeInnerInk" in2="shadeInnerShape" operator="in" result="shadeInkEdge"/>
+            <!-- True luminance (0.2126/0.7152/0.0722) ramped onto a violet-black gradient, so the
+                 Siegeling's own shading survives while its hue does not. The coefficients are
+                 scaled so even white art lands at rgb(.19,.09,.38) — dark, never mid-violet. -->
+            <feColorMatrix in="SourceGraphic" type="matrix" values="
+                0.034 0.114 0.012 0 0.030
+                0.017 0.057 0.006 0 0.012
+                0.064 0.215 0.022 0 0.075
+                0 0 0 1 0" result="shadeArt"/>
+            <feGaussianBlur in="SourceAlpha" stdDeviation="2.4" result="shadeGlowBlur"/>
+            <feFlood flood-color="#a86bff" flood-opacity=".5" result="shadeGlowColor"/>
+            <feComposite in="shadeGlowColor" in2="shadeGlowBlur" operator="in" result="shadeGlow"/>
+            <feMerge>
+                <feMergeNode in="shadeGlow"/>
+                <feMergeNode in="shadeOuterEdge"/>
+                <feMergeNode in="shadeRimEdge"/>
+                <feMergeNode in="shadeInkEdge"/>
+                <feMergeNode in="shadeArt"/>
+            </feMerge>
+        </filter>
+    </defs>
+</svg>
+<div class="ck-backdrop" id="ckBackdrop" aria-hidden="true"></div>
+<div class="ck-shell" id="ckShell">
+    <header class="ck-top">
+        <a class="ck-back" href="/home" aria-label="Back to the hub">&lsaquo;</a>
+        <span class="ck-avatar" id="ckAvatar" hidden></span>
+        <div class="ck-title">
+            <span class="ck-kicker">Dominion <span id="ckClock" class="dm-clock"></span></span>
+            <strong id="ckKnightName">Knight</strong>
         </div>
-        <div class="dm-res-strip" id="dmResStrip" aria-label="Storage"></div>
+        <span class="ck-coin" id="ckCrowns" hidden title="Crowns">&#128081; <b id="ckCrownsNum">0</b></span>
+        <div class="ck-rank" id="ckRank" hidden>
+            <span class="ck-rank-num" id="ckRankNum">1</span>
+            <span class="ck-rank-title" id="ckRankTitle">Ruined Camp</span>
+            <span class="ck-bar"><i id="ckRankBar"></i></span>
+        </div>
+        <button type="button" class="dm-menu-btn" data-act="menu" aria-label="Dominion menu">&#8943;</button>
     </header>
-
-    <main class="dm-main">
-        <section class="dm-view is-scene" id="view-keep" aria-label="The Keep">
-            <div class="dm-scene" id="dmScene" data-hall="1" data-woodlot="1" data-archive="0" data-heal="0">
+    <div class="ck-status" id="ckStatus" hidden></div>
+    <main class="ck-main" id="ckMain" tabindex="-1">
+        <div class="ck-loading">Opening the Keep…</div>
+    </main>
+    <nav class="ck-tabs" id="ckTabs" hidden aria-label="Dominion sections">
+        <button type="button" data-tab="knight"><span class="ck-tab-ico" aria-hidden="true">&#128737;&#65039;</span>Knight</button>
+        <button type="button" data-tab="company"><span class="ck-tab-ico" aria-hidden="true">&#128062;</span>Company</button>
+        <button type="button" data-tab="work"><span class="ck-tab-ico" aria-hidden="true">&#9935;&#65039;</span>Work</button>
+        <button type="button" data-tab="expedition"><span class="ck-tab-ico" aria-hidden="true">&#129517;</span>Expedition<span class="ck-badge" id="ckExpBadge" hidden></span></button>
+        <button type="button" data-tab="base"><span class="ck-tab-ico" aria-hidden="true">&#127984;</span>Base<span class="ck-badge" id="ckBaseBadge" hidden></span></button>
+        <button type="button" data-tab="realm"><span class="ck-tab-ico" aria-hidden="true">&#128081;</span>Realm</button>
+        <button type="button" data-tab="wilds"><span class="ck-tab-ico" aria-hidden="true">&#127807;</span>Wilds<span class="ck-badge" id="ckWildsBadge" hidden></span></button>
+    </nav>
+</div>
+<div class="ck-modal" id="ckModal" hidden role="dialog" aria-modal="true" aria-labelledby="ckModalTitle">
+    <div class="ck-modal-card"><div class="ck-modal-body" id="ckModalBody"></div></div>
+</div>
+<div class="ck-toasts" id="ckToasts" aria-live="polite"></div>
+<!-- The Keep scene is one persistent node that Base mounts; it waits here when off screen. -->
+<div id="dmKeepHost" hidden>
+            <div class="dm-scene" id="dmScene" data-hall="1" data-woodlot="1" data-archive="0" data-front="0" data-heal="0">
                 <div class="sky-glow"></div>
                 <div class="cloud cloud-one"></div>
                 <div class="cloud cloud-two"></div>
@@ -62,30 +159,116 @@
                     <span class="building-illustration" aria-hidden="true"><svg class="paper-building-shell" viewBox="0 0 220 205" preserveAspectRatio="xMidYMax meet"> <defs> <linearGradient id="arStoneF" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a59e8b"/><stop offset="1" stop-color="#7f7a69"/></linearGradient> <linearGradient id="arStoneS" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6e695a"/><stop offset="1" stop-color="#565244"/></linearGradient> <linearGradient id="arRoofF" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#48596b"/><stop offset="1" stop-color="#2b3b4a"/></linearGradient> <linearGradient id="arRoofS" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#243342"/><stop offset="1" stop-color="#16222e"/></linearGradient> <radialGradient id="arGlow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#e6d9ff"/><stop offset="1" stop-color="rgba(230,217,255,0)"/></radialGradient> </defs> <ellipse class="building-contact-shadow" cx="110" cy="192" rx="88" ry="10" fill="rgba(24,32,26,.32)"/> <g class="ar-ruined"> <polygon points="96,118 112,112 112,186 96,190" fill="url(#arStoneS)"/> <polygon points="46,190 46,120 58,102 74,116 86,96 96,118 96,190" fill="url(#arStoneF)"/> <polygon points="128,190 128,126 142,104 156,122 168,108 176,128 176,190" fill="url(#arStoneF)"/> <polygon points="176,128 190,122 190,184 176,190" fill="url(#arStoneS)"/> <g stroke="rgba(70,66,54,.4)" stroke-width="1.3"> <line x1="46" y1="146" x2="96" y2="146"/><line x1="46" y1="168" x2="96" y2="168"/> <line x1="128" y1="150" x2="176" y2="150"/><line x1="128" y1="172" x2="176" y2="172"/> </g> <path d="M92 176 a24 24 0 0 1 38 -8" stroke="#8b8574" stroke-width="10" fill="none"/> <circle cx="88" cy="186" r="6" fill="#8d8877"/><circle cx="104" cy="189" r="5" fill="#767162"/> <circle cx="130" cy="187" r="7" fill="#837e6d"/><circle cx="146" cy="190" r="4.5" fill="#6d6857"/> <ellipse class="ar-glimmer" cx="112" cy="178" rx="16" ry="7" fill="url(#arGlow)" opacity=".5"/> </g> <g class="ar-restored"> <polygon points="152,102 184,92 184,184 152,194" fill="url(#arStoneS)"/> <rect x="48" y="102" width="104" height="92" fill="url(#arStoneF)"/> <g stroke="rgba(70,66,54,.35)" stroke-width="1.3"> <line x1="48" y1="130" x2="152" y2="130"/><line x1="48" y1="156" x2="152" y2="156"/><line x1="48" y1="178" x2="152" y2="178"/> </g> <polygon points="154,98 190,88 132,44 100,52" fill="url(#arRoofS)"/> <polygon points="42,102 100,48 158,102" fill="url(#arRoofF)"/> <polygon points="42,102 158,102 155,107 45,107" fill="#1d2a36"/> <circle cx="100" cy="46" r="4" fill="#c8b7ff"/> <ellipse cx="103" cy="128" rx="18" ry="15" fill="url(#arGlow)" opacity=".65"/> <path d="M92 136 v-14 a11 11 0 0 1 22 0 v14 z" fill="#cbb6ff" stroke="#5d5470" stroke-width="2"/> <ellipse cx="120" cy="192" rx="20" ry="4" fill="rgba(0,0,0,.22)"/> <path d="M108 194 v-28 a12 12 0 0 1 24 0 v28 z" fill="#32281f"/> <ellipse class="ar-lamp-halo" cx="88" cy="172" rx="12" ry="10" fill="rgba(255,233,160,.4)"/> <circle class="ar-lamp" cx="88" cy="172" r="5" fill="#ffe9a0"/> </g> </svg><span class="scaffold"><b></b><b></b><b></b></span></span>
                     <span class="building-label"><strong data-label="archiveName">Ruined Archive</strong><small data-label="archive">Needs restoring</small></span>
                 </button>
+                <button class="building-hotspot wall-hotspot" type="button" data-building="front" aria-label="Akhar's Wall">
+                    <span class="wall-illustration" aria-hidden="true"><svg viewBox="0 0 360 150" preserveAspectRatio="none"><path class="wall-built" d="M0 64h28V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h52v86H0z"/><path class="wall-ruin" d="M0 128h60v-14h40v14h70v-8h50v8h140v22H0z"/></svg><span class="wall-defenders" id="dmWallDefenders"></span></span>
+                    <span class="building-label"><strong>Akhar&#39;s Wall</strong><small data-label="front">Unbuilt</small></span>
+                </button>
                 <div id="dmSceneOverlay"></div>
             </div>
-        </section>
-        <section class="dm-view hidden" id="view-knight" aria-label="Knight"></section>
-        <section class="dm-view hidden" id="view-activities" aria-label="Activities"></section>
-        <section class="dm-view hidden" id="view-companions" aria-label="Companions"></section>
-    </main>
-
-    <nav class="dm-tabs" role="tablist" aria-label="Dominion sections">
-        <button class="dm-tab" role="tab" type="button" data-tab="keep" aria-selected="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 20V10l3-2v-3h2v2l3-2 3 2V5h2v3l3 2v10z"/><path d="M10 20v-5h4v5"/></svg>Keep</button>
-        <button class="dm-tab" role="tab" type="button" data-tab="knight" aria-selected="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M12 8v8M9 11h6"/></svg>Knight</button>
-        <button class="dm-tab" role="tab" type="button" data-tab="activities" aria-selected="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 19l5-12 4 7 3-4 4 9z"/><circle cx="17" cy="6" r="2"/></svg>Activities<i class="dm-dot hidden" id="dmActDot"></i></button>
-        <button class="dm-tab" role="tab" type="button" data-tab="companions" aria-selected="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><circle cx="8" cy="9" r="3"/><circle cx="16.5" cy="10" r="2.5"/><path d="M3 19c1-3 3-5 5-5s4 2 5 5M13 18c.6-2 2-3.5 3.5-3.5S20 16 21 18"/></svg>Companions</button>
-    </nav>
 </div>
-<div class="dm-toast-wrap" id="dmToasts" aria-live="polite"></div>
+<!-- Building interiors, copied from keep.html so the rooms match the Keep. -->
+<template id="dmRooms">
+<div class="interior-room room-hall">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="hall-window-int win-one"></i><i class="hall-window-int win-two"></i>
+                    <i class="int-shaft shaft-one"></i><i class="int-shaft shaft-two"></i>
+                    <i class="hall-banner-int banner-one"></i><i class="hall-banner-int banner-two"></i>
+                    <i class="hall-hearth"><b></b></i>
+                    <i class="hall-charter"></i>
+                    <i class="hall-crafted-tapestry crafted-decoration" data-decoration-art="covenant_tapestry"></i>
+                    <i class="hall-table"></i>
+                    <i class="hall-candle candle-one"></i><i class="hall-candle candle-two"></i>
+                    <span class="hall-favorite-resident hidden" id="hallFavoriteResident"><span id="hallFavoriteArt"></span><small id="hallFavoriteName"></small></span>
+                </div>
+                <div class="interior-room room-woodlot">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="lodge-window"></i>
+                    <i class="lodge-shelf"></i>
+                    <i class="lodge-herb herb-one"></i><i class="lodge-herb herb-two"></i>
+                    <i class="lodge-bench"></i>
+                    <i class="lodge-logs"></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="carved_waypost" data-decor-slot="1"></i><i data-decoration-art="seedling_rack" data-decor-slot="2"></i><i data-decoration-art="sunwoven_blind" data-decor-slot="3"></i><i data-decoration-art="moss_lanterns" data-decor-slot="4"></i><i data-decoration-art="covenant_chimes" data-decor-slot="5"></i><i data-decoration-art="coppice_storewall" data-decor-slot="6"></i></span>
+                    <span class="lodge-resident hidden" id="interiorResident"><span id="interiorResidentArt"></span><small id="interiorResidentName"></small></span>
+                </div>
+                <div class="interior-room room-archive">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <span class="arch-restored-set" aria-hidden="true">
+                        <i class="arch-window-int"></i>
+                        <i class="arch-shelf shelf-one"></i><i class="arch-shelf shelf-two"></i>
+                        <i class="arch-desk"></i><i class="arch-lamp"></i>
+                        <span class="arch-plinth hidden" id="interiorPlinth"><i></i><b></b><small>Petrified Root</small></span>
+                    </span>
+                    <span class="arch-ruined-set" aria-hidden="true">
+                        <i class="arch-crack crack-one"></i><i class="arch-crack crack-two"></i>
+                        <i class="arch-fallen-beam"></i>
+                        <i class="arch-broken-shelf"></i>
+                        <i class="arch-rubble"></i>
+                        <i class="arch-buried-glow"></i>
+                    </span>
+                </div>
+                <div class="interior-room room-garden">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="garden-window"></i><i class="garden-bed bed-one"></i><i class="garden-bed bed-two"></i>
+                    <i class="garden-water"></i><i class="garden-worktable"></i>
+                    <i class="living-trellis crafted-decoration" data-decoration-art="living_trellis"><b></b></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="seed_banners" data-decor-slot="2"></i><i data-decoration-art="rain_basin" data-decor-slot="3"></i><i data-decoration-art="blossom_arch" data-decor-slot="4"></i><i data-decoration-art="covenant_topiary" data-decor-slot="5"></i><i data-decoration-art="seedkeeper_vault" data-decor-slot="6"></i></span>
+                    <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
+                </div>
+                <div class="interior-room room-forge">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="forge-hearth"><b></b></i><i class="forge-anvil"></i><i class="forge-rack"></i><i class="forge-bellows"></i>
+                    <i class="ember-lantern crafted-decoration" data-decoration-art="ember_lantern"></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="oathwork_shield" data-decor-slot="2"></i><i data-decoration-art="spark_banner" data-decor-slot="3"></i><i data-decoration-art="ingot_mosaic" data-decor-slot="4"></i><i data-decoration-art="forge_chimes" data-decor-slot="5"></i><i data-decoration-art="tempered_stock_rack" data-decor-slot="6"></i></span>
+                    <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
+                </div>
+                <div class="interior-room room-fridge">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="fridge-vault"></i><i class="fridge-shelf shelf-left"></i><i class="fridge-shelf shelf-right"></i><i class="fridge-crystal"></i>
+                    <i class="frostglass-mobile crafted-decoration" data-decoration-art="frostglass_mobile"><b></b></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="snowflake_screen" data-decor-slot="2"></i><i data-decoration-art="memory_crystals" data-decor-slot="3"></i><i data-decoration-art="aurora_lamp" data-decor-slot="4"></i><i data-decoration-art="ice_sculpture" data-decor-slot="5"></i><i data-decoration-art="frostbound_larder" data-decor-slot="6"></i></span>
+                    <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
+                </div>
+                <div class="interior-room room-generator">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="generator-coil coil-left"></i><i class="generator-coil coil-right"></i><i class="generator-console"></i><i class="generator-conduit"></i>
+                    <i class="harmonic-orb crafted-decoration" data-decoration-art="harmonic_orb"></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="prism_banners" data-decor-slot="2"></i><i data-decoration-art="conduit_globe" data-decor-slot="3"></i><i data-decoration-art="thunder_chimes" data-decor-slot="4"></i><i data-decoration-art="covenant_orrery" data-decor-slot="5"></i><i data-decoration-art="charged_cell_bank" data-decor-slot="6"></i></span>
+                    <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
+                </div>
+                <div class="interior-room room-quarry">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="quarry-face"></i><i class="quarry-blocks"></i><i class="quarry-cart"></i><i class="quarry-lantern"></i>
+                    <i class="stone-sentinel crafted-decoration" data-decoration-art="stone_sentinel"></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="rune_mosaic" data-decor-slot="2"></i><i data-decoration-art="crystal_sconce" data-decor-slot="3"></i><i data-decoration-art="mason_banner" data-decor-slot="4"></i><i data-decoration-art="echo_fountain" data-decor-slot="5"></i><i data-decoration-art="stonewise_pallets" data-decor-slot="6"></i></span>
+                    <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
+                </div>
+                <div class="interior-room room-kitchen">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="kitchen-hearth"><b></b></i><i class="kitchen-shelf"></i><i class="kitchen-table"></i><i class="kitchen-pot"></i>
+                    <i class="hearth-garland crafted-decoration" data-decoration-art="hearth_garland"></i>
+                    <span class="room-tool-set" aria-hidden="true"><i data-tool-tier="1"></i><i data-tool-tier="2"></i><i data-tool-tier="3"></i><i data-tool-tier="4"></i><i data-tool-tier="5"></i></span>
+                    <span class="room-decoration-set" aria-hidden="true"><i data-decoration-art="painted_crocks" data-decor-slot="2"></i><i data-decoration-art="recipe_tapestry" data-decor-slot="3"></i><i data-decoration-art="communal_bench" data-decor-slot="4"></i><i data-decoration-art="lantern_wreath" data-decor-slot="5"></i><i data-decoration-art="provision_pantry" data-decor-slot="6"></i></span>
+                    <span class="facility-room-resident hidden" data-facility-resident><span data-facility-resident-art></span><small data-facility-resident-name></small></span>
+                </div>
+                <div class="interior-room room-enclave">
+                    <i class="int-backwall"></i><i class="int-sidewall side-left"></i><i class="int-sidewall side-right"></i><i class="int-floor"></i>
+                    <i class="enclave-window"></i><i class="enclave-banner"></i><i class="enclave-fire"><b></b></i><i class="enclave-nest nest-one"></i><i class="enclave-nest nest-two"></i>
+                    <span class="enclave-interior-residents" aria-hidden="true">
+                        <b data-enclave-resident-slot="0"></b><b data-enclave-resident-slot="1"></b><b data-enclave-resident-slot="2"></b><b data-enclave-resident-slot="3"></b><b data-enclave-resident-slot="4"></b>
+                    </span>
+                </div>
+            
+</template>
 <script src="/js/config.js?v=1"></script>
 <script>window.DOMINION_ONLINE = true;</script>
-<script src="/js/dominion-data.js?v=2"></script>
-<script src="/js/dominion-keep-data.js?v=1"></script>
-<script src="/js/dominion.js?v=3"></script>
+<script src="/js/dominion-data.js?v=3"></script>
+<script src="/js/dominion-keep-data.js?v=2"></script>
+<script src="/js/dominion.js?v=4"></script>
 </body>
 </html>
