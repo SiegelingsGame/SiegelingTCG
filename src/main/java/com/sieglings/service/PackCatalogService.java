@@ -445,6 +445,18 @@ public class PackCatalogService {
             if (card.getHolographicCardArtScale() != null) {
                 target.put("holographicCardArtScale", card.getHolographicCardArtScale());
             }
+            if (card.getHolographicCardArtMode() != null) {
+                target.put("holographicCardArtMode", card.getHolographicCardArtMode());
+            }
+            if (card.getHolographicCardArtOffsetXPct() != null) {
+                target.put("holographicCardArtOffsetXPct", card.getHolographicCardArtOffsetXPct());
+            }
+            if (card.getHolographicCardArtOffsetYPct() != null) {
+                target.put("holographicCardArtOffsetYPct", card.getHolographicCardArtOffsetYPct());
+            }
+            if (card.getHolographicCardArtRotation() != null) {
+                target.put("holographicCardArtRotation", card.getHolographicCardArtRotation());
+            }
         }
         if (card.isHolographic()) {
             target.put("holographic", true);

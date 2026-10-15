@@ -1399,6 +1399,18 @@ public class GameController {
             if (card.getHolographicCardArtScale() != null && card.getHolographicCardArtScale() != 1.0) {
                 m.put("holographicCardArtScale", card.getHolographicCardArtScale());
             }
+            if (card.getHolographicCardArtMode() != null) {
+                m.put("holographicCardArtMode", card.getHolographicCardArtMode());
+            }
+            if (card.getHolographicCardArtOffsetXPct() != null) {
+                m.put("holographicCardArtOffsetXPct", card.getHolographicCardArtOffsetXPct());
+            }
+            if (card.getHolographicCardArtOffsetYPct() != null) {
+                m.put("holographicCardArtOffsetYPct", card.getHolographicCardArtOffsetYPct());
+            }
+            if (card.getHolographicCardArtRotation() != null) {
+                m.put("holographicCardArtRotation", card.getHolographicCardArtRotation());
+            }
         }
         if (card.isHolographic()) {
             m.put("holographic", true);
@@ -1514,6 +1526,18 @@ public class GameController {
             m.put("holographicCardArtUrl", card.getHolographicCardArtUrl());
             if (card.getHolographicCardArtScale() != null) {
                 m.put("holographicCardArtScale", card.getHolographicCardArtScale());
+            }
+            if (card.getHolographicCardArtMode() != null) {
+                m.put("holographicCardArtMode", card.getHolographicCardArtMode());
+            }
+            if (card.getHolographicCardArtOffsetXPct() != null) {
+                m.put("holographicCardArtOffsetXPct", card.getHolographicCardArtOffsetXPct());
+            }
+            if (card.getHolographicCardArtOffsetYPct() != null) {
+                m.put("holographicCardArtOffsetYPct", card.getHolographicCardArtOffsetYPct());
+            }
+            if (card.getHolographicCardArtRotation() != null) {
+                m.put("holographicCardArtRotation", card.getHolographicCardArtRotation());
             }
         }
         if (card.isHolographic()) {

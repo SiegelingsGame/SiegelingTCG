@@ -1239,9 +1239,17 @@ class GameJavaScriptRegressionTest {
                 "The full-card holographic asset must require an explicit binder-view option."
         );
         assertFalse(
-                binderScript.contains("holographicCardArtScale")
+                fullCardRenderer.contains("holographicCardArtScale")
                         || homeCss.contains("--holographic-card-art-scale"),
                 "Holographic source artwork must never scale the live name, stats, copy, foil, or notch layers."
+        );
+        String holoView = extractFunction(binderScript, "function withHolographicArt(");
+        assertTrue(
+                holoView.contains("cardArtScale: card.holographicCardArtScale ?? 1")
+                        && holoView.contains("delete view.holographicCardArtUrl")
+                        && binderScript.contains("normalizeArtMode(card?.holographicCardArtMode) || 'FULL_CARD'"),
+                "Replace/Overlay holo art must render through the standard template with its own placement, "
+                        + "and a holo URL without a mode must keep the legacy full-card face."
         );
         assertTrue(
                 homeScript.contains("data-card-art-stack")
@@ -1258,14 +1266,20 @@ class GameJavaScriptRegressionTest {
                         && dashboardScript.contains("HOLOGRAPHIC_CARD_TEMPLATE_WIDTH = 638")
                         && dashboardScript.contains("HOLOGRAPHIC_CARD_TEMPLATE_HEIGHT = 919")
                         && dashboardScript.contains("clearConnectedHolographicBackground")
-                        && dashboardScript.contains("delete selected.holographicCardArtScale")
+                        && dashboardScript.contains("if (mode === \"FULL_CARD\")")
                         && dashboardScript.contains("formData.append(\"artVariant\", artVariant)"),
                 "Dashboard holographic uploads must normalize only the source image to the shared template before saving its own catalog variant."
         );
         assertFalse(
                 dashboardScript.contains("holographicCardArtScaleInput")
                         || dashboardScript.contains("syncHolographicCardArtScaleControls"),
-                "The dashboard must not expose per-card holo scaling now that uploads normalize automatically."
+                "Holo art scales through the shared art builder, not a separate holo-only control."
+        );
+        assertTrue(
+                dashboardScript.contains("const HOLOGRAPHIC_ART_FIELDS = {")
+                        && dashboardScript.contains("cardArtMode: \"holographicCardArtMode\"")
+                        && dashboardScript.contains("cardArtOffsetXPct: \"holographicCardArtOffsetXPct\""),
+                "The Standard/Holographic toggle must retarget the one art builder onto the holo fields."
         );
         assertTrue(
                 fullCardRenderer.indexOf("renderHolographicOverlay()")
