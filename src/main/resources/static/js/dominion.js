@@ -2402,7 +2402,8 @@
             b.setAttribute('aria-current', b.dataset.tab === S.ui.tab ? 'page' : 'false');
         });
         const d = new Date(now()), off = Math.round(S.offset / HOUR);
-        $('ckClock').textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + (off ? ' +' + off + 'h' : '');
+        $('ckClock').textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        $('ckClock').title = off ? 'Test clock: ' + off + 'h ahead' : '';
     }
     function renderStatus() {
         const parts = [];
@@ -2428,6 +2429,7 @@
         main.innerHTML = view();
         main.querySelectorAll('.dm-journey').forEach((j) => { const old = keepJ[j.dataset.start + ':' + j.dataset.end]; if (old) j.replaceWith(old); });
         main.dataset.tab = S.ui.tab;
+        main.classList.toggle('dm-fill', S.ui.tab === 'base' && (S.ui.base || 'grounds') === 'grounds' && !S.ui.room);
         mountScene();
         decorateRoom();
         setBackdrop(tabScene());
@@ -2997,6 +2999,8 @@
     }
     function viewBase() {
         const sec = S.ui.base || 'grounds', n = baseCounts();
+        // The open Grounds is one screen: the scene fills the tab and everything floats on it.
+        if (sec === 'grounds' && !S.ui.room) return groundsHud(n);
         const strip = ['timber', 'stone', 'provisions', 'glass', 'silver'].map((k) => '<span class="ck-chip dm-res" title="' + esc(itemName(k)) + '">' + itemEmoji(k) + ' <b data-res="' + k + '">' + fl(S.inv[k]) + '</b>' + (k === 'timber' ? '<small>/' + timberCap(S) + '</small>' : '') + '</span>').join('');
         let h = '<div class="dm-base-head"><div class="ck-chips dm-res-strip">' + strip + '</div></div>' +
             '<div class="ck-worktype dm-base-nav" role="tablist" aria-label="Keep sections">' + BASE_SECS.map((x) =>
@@ -3013,6 +3017,20 @@
         if (!obj) return '';
         return '<button type="button" class="ck-card dm-objective-card" data-act="objective"><span class="ck-kicker">' + esc(obj.ch.chapter) + ' · ' + (obj.i + 1) + '/' + obj.ch.steps.length + '</span><b>' + esc(obj.step.title) + '</b>' +
             '<span class="ck-small ck-muted">' + esc(obj.step.hint) + '</span><span class="dm-steps">' + obj.ch.steps.map((st, i) => '<i class="' + (S.obj[st.id] ? 'done' : i === obj.i ? 'now' : '') + '"></i>').join('') + '</span></button>';
+    }
+    const DOCK = [['visitors', '🚪', 'Visitors'], ['chronicle', '📜', 'Chronicle'], ['build', '🔨', 'Build'], ['keep', '📦', 'Stores'], ['log', '📓', 'Log']];
+    function groundsHud(n) {
+        const stored = ['woodlot'].concat(Object.keys(WS)).reduce((a, id) => a + storedCount(S, id), 0), obj = currentObjective(S);
+        const res = ['timber', 'stone', 'provisions', 'glass', 'silver'].map((k) => '<span class="dm-hud-res" title="' + esc(itemName(k)) + '">' + itemEmoji(k) + '<b data-res="' + k + '">' + fl(S.inv[k]) + '</b></span>').join('');
+        return '<div class="dm-grounds"><div class="dm-scene-box" id="dmSceneSlot"></div>' +
+            '<div class="dm-hud-top"><div class="dm-hud-resrow">' + res + '</div>' +
+            (obj ? '<button type="button" class="dm-hud-obj" data-act="objective"><span>' + (obj.i + 1) + '/' + obj.ch.steps.length + '</span><b>' + esc(obj.step.title) + '</b><i aria-hidden="true">›</i></button>' : '') + '</div>' +
+            // One bar along the bottom: collect, the Quarter, then each Keep section with its count.
+            '<nav class="dm-dock" aria-label="Keep actions">' +
+            '<button type="button" class="' + (stored ? 'is-hot' : '') + '" data-act="collect-all"' + (stored ? '' : ' disabled') + ' aria-label="Collect everything"><span aria-hidden="true">🧺</span><small>' + (stored ? stored : 'Collect') + '</small></button>' +
+            '<button type="button" data-act="room" data-arg="quarter" aria-label="Elemental Quarter"><span aria-hidden="true">⚙️</span><small>Quarter</small></button>' +
+            DOCK.map((d) => '<button type="button" data-act="base-sec" data-arg="' + d[0] + '" aria-label="' + d[2] + '"><span aria-hidden="true">' + d[1] + '</span><small>' + d[2] + '</small>' +
+                (n[d[0]] ? '<i class="dm-dock-badge">' + n[d[0]] + '</i>' : '') + '</button>').join('') + '</nav></div>';
     }
     function groundsSection() {
         const room = S.ui.room;
@@ -3096,7 +3114,7 @@
         });
         const dmg = (S.events || []).filter((e) => !e.repaired);
         if (dmg.length) ov.push('<button class="dm-pip" type="button" data-act="base-sec" data-arg="keep" style="right:4%;top:31%;pointer-events:auto;border-color:rgba(255,138,115,.7);color:#ffb3a3">' + dmg.length + ' to repair</button>');
-        if (visitorsHere(S).length) ov.push('<button class="dm-pip green" type="button" data-act="base-sec" data-arg="visitors" style="left:50%;bottom:3%;transform:translateX(-50%);pointer-events:auto">🚪 ' + visitorsHere(S).length + ' at the gate</button>');
+        // Visitors at the gate are counted on the Grounds dock, not as a pip over the Archive.
         $('dmSceneOverlay').innerHTML = ov.join('');
     }
 
