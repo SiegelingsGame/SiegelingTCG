@@ -6,13 +6,15 @@ import com.google.cloud.firestore.CollectionReference;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.WriteResult;
+import com.google.cloud.firestore.Transaction;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -20,8 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ArtCardTagServiceTest {
@@ -68,22 +70,9 @@ class ArtCardTagServiceTest {
     @Test
     @SuppressWarnings("unchecked")
     void firestoreEditsReplaceTheBaselinePieceByPieceAndAClearStaysCleared() {
-        CardOverrideStorageService storage = mock(CardOverrideStorageService.class);
-        Firestore firestore = mock(Firestore.class);
-        CollectionReference collection = mock(CollectionReference.class);
-        DocumentReference doc = mock(DocumentReference.class);
-        DocumentSnapshot snapshot = mock(DocumentSnapshot.class);
-        when(storage.isFirestoreReady()).thenReturn(true);
-        when(storage.requireFirestore()).thenReturn(firestore);
-        when(firestore.collection("appConfig")).thenReturn(collection);
-        when(collection.document("artCardTags")).thenReturn(doc);
-        when(doc.get()).thenReturn(ApiFutures.immediateFuture(snapshot));
-        when(snapshot.exists()).thenReturn(true);
-        when(snapshot.get("pieces")).thenReturn(Map.of(
+        FirestoreHarness harness = firestoreHarness(Map.of(
                 "frostag-training", Map.of("cards", List.of("frostag", "glaciemperor"), "shop", List.of(), "focus", "")));
-        when(doc.set(any(Map.class))).thenReturn(ApiFutures.immediateFuture(mock(WriteResult.class)));
-
-        ArtCardTagService service = new ArtCardTagService(new ObjectMapper(), storage, "appConfig", "artCardTags");
+        ArtCardTagService service = harness.service;
         assertEquals(List.of("frostag", "glaciemperor"), service.tagFor("frostag-training").cards());
         // Untouched seeded pieces keep their baseline tag.
         assertEquals(List.of("draco"), service.tagFor("draco-brood").cards());
@@ -92,12 +81,10 @@ class ArtCardTagServiceTest {
         assertNull(service.tagFor("draco-brood"));
         assertFalse(service.tags().containsKey("draco-brood"));
 
-        ArgumentCaptor<Map<String, Object>> written = ArgumentCaptor.forClass(Map.class);
-        verify(doc).set(written.capture());
-        Map<String, Object> pieces = (Map<String, Object>) written.getValue().get("pieces");
+        Map<String, Object> pieces = (Map<String, Object>) harness.lastPayload.get().get("pieces");
         assertTrue(pieces.containsKey("draco-brood"), "the clear is stored so the seed does not come back");
         assertTrue(pieces.containsKey("frostag-training"), "other edits survive a save");
-        assertEquals("editor@example.com", written.getValue().get("updatedBy"));
+        assertEquals("editor@example.com", harness.lastPayload.get().get("updatedBy"));
     }
 
     @Test
@@ -126,19 +113,8 @@ class ArtCardTagServiceTest {
     @Test
     @SuppressWarnings("unchecked")
     void aRenameKeepsTheCardsAndARemovalKeepsTheName() {
-        CardOverrideStorageService storage = mock(CardOverrideStorageService.class);
-        Firestore firestore = mock(Firestore.class);
-        CollectionReference collection = mock(CollectionReference.class);
-        DocumentReference doc = mock(DocumentReference.class);
-        DocumentSnapshot snapshot = mock(DocumentSnapshot.class);
-        when(storage.isFirestoreReady()).thenReturn(true);
-        when(storage.requireFirestore()).thenReturn(firestore);
-        when(firestore.collection("appConfig")).thenReturn(collection);
-        when(collection.document("artCardTags")).thenReturn(doc);
-        when(doc.get()).thenReturn(ApiFutures.immediateFuture(snapshot));
-        when(snapshot.exists()).thenReturn(false);
-        when(doc.set(any(Map.class))).thenReturn(ApiFutures.immediateFuture(mock(WriteResult.class)));
-        ArtCardTagService service = new ArtCardTagService(new ObjectMapper(), storage, "appConfig", "artCardTags");
+        FirestoreHarness harness = firestoreHarness(null);
+        ArtCardTagService service = harness.service;
 
         service.save("draco-brood", Map.of("title", "Cinder Brood"), "editor@example.com");
         ArtCardTagService.ArtTag afterRename = service.tagFor("draco-brood");
@@ -156,10 +132,109 @@ class ArtCardTagServiceTest {
         assertFalse(restored.hidden());
         assertEquals("", restored.title(), "an empty name goes back to the file's");
 
-        ArgumentCaptor<Map<String, Object>> written = ArgumentCaptor.forClass(Map.class);
-        verify(doc, org.mockito.Mockito.atLeastOnce()).set(written.capture());
-        Map<String, Object> piece = (Map<String, Object>) ((Map<String, Object>) written.getValue().get("pieces")).get("draco-brood");
+        Map<String, Object> piece = (Map<String, Object>) ((Map<String, Object>) harness.lastPayload.get().get("pieces")).get("draco-brood");
         assertEquals(false, piece.get("hidden"));
         assertEquals(List.of("draco"), piece.get("cards"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aSaveKeepsPiecesTheCallerNeverLoaded() {
+        // The catalog read cached nothing, which used to make the next save
+        // publish a document containing only the piece being edited.
+        FirestoreHarness harness = firestoreHarness(Map.of());
+        harness.stored.set(new LinkedHashMap<>(Map.of(
+                "frostag-training", Map.of("cards", List.of("frostag"), "shop", List.of("element:ICE"), "focus", "45% 40%",
+                        "title", "Frostag Training", "place", "The White Reach", "hidden", true),
+                "skydon-skyreach", Map.of("cards", List.of("skydon"), "shop", List.of(), "focus", "",
+                        "title", "", "place", "", "hidden", false))));
+
+        harness.service.save("draco-brood", Map.of("title", "Cinder Brood"), "editor@example.com");
+
+        Map<String, Object> pieces = (Map<String, Object>) harness.lastPayload.get().get("pieces");
+        assertEquals(List.of("frostag"), ((Map<String, Object>) pieces.get("frostag-training")).get("cards"));
+        assertEquals(true, ((Map<String, Object>) pieces.get("frostag-training")).get("hidden"),
+                "a removal the save never saw stays removed");
+        assertTrue(pieces.containsKey("skydon-skyreach"));
+        assertEquals("Cinder Brood", ((Map<String, Object>) pieces.get("draco-brood")).get("title"));
+        assertEquals(1, harness.sets.get());
+    }
+
+    @Test
+    void aFailedReadDoesNotReplaceTheTagDocument() {
+        FirestoreHarness harness = firestoreHarness(Map.of(
+                "frostag-training", Map.of("cards", List.of("frostag"), "shop", List.of(), "focus", "")));
+        harness.failReads = true;
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> harness.service.save("draco-brood", Map.of("hidden", true), "editor@example.com"));
+        assertTrue(ex.getMessage().contains("Unable to save art tags"));
+        assertEquals(0, harness.sets.get(), "a read failure must not publish over the tags");
+    }
+
+    @Test
+    void aRejectedTagDoesNotPublish() {
+        FirestoreHarness harness = firestoreHarness(Map.of(
+                "frostag-training", Map.of("cards", List.of("frostag"), "shop", List.of(), "focus", "")));
+        assertThrows(IllegalArgumentException.class,
+                () -> harness.service.save("draco-brood", Map.of("focus", "50% 50%; background:url(x)"), "editor@example.com"));
+        assertEquals(0, harness.sets.get());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static FirestoreHarness firestoreHarness(Map<String, Object> initialPieces) {
+        CardOverrideStorageService storage = mock(CardOverrideStorageService.class);
+        Firestore firestore = mock(Firestore.class);
+        CollectionReference collection = mock(CollectionReference.class);
+        DocumentReference doc = mock(DocumentReference.class);
+        when(storage.isFirestoreReady()).thenReturn(true);
+        when(storage.requireFirestore()).thenReturn(firestore);
+        when(firestore.collection("appConfig")).thenReturn(collection);
+        when(collection.document("artCardTags")).thenReturn(doc);
+
+        FirestoreHarness harness = new FirestoreHarness();
+        harness.stored.set(initialPieces == null ? null : new LinkedHashMap<>(initialPieces));
+        DocumentSnapshot read = mock(DocumentSnapshot.class);
+        when(read.exists()).thenReturn(initialPieces != null);
+        when(read.get("pieces")).thenReturn(initialPieces);
+        when(doc.get()).thenReturn(ApiFutures.immediateFuture(read));
+
+        when(firestore.runTransaction(any())).thenAnswer(invocation -> {
+            Transaction.Function<Object> fn = invocation.getArgument(0);
+            Transaction tx = mock(Transaction.class);
+            when(tx.get(eq(doc))).thenAnswer(get -> {
+                if (harness.failReads) {
+                    return ApiFutures.immediateFailedFuture(new RuntimeException("firestore unavailable"));
+                }
+                DocumentSnapshot snap = mock(DocumentSnapshot.class);
+                Map<String, Object> current = harness.stored.get();
+                when(snap.exists()).thenReturn(current != null);
+                when(snap.get("pieces")).thenReturn(current);
+                return ApiFutures.immediateFuture(snap);
+            });
+            when(tx.set(eq(doc), any())).thenAnswer(set -> {
+                Map<String, Object> payload = set.getArgument(1);
+                harness.lastPayload.set(payload);
+                Object pieces = payload.get("pieces");
+                harness.stored.set(pieces instanceof Map<?, ?> map ? new LinkedHashMap<>((Map<String, Object>) map) : null);
+                harness.sets.incrementAndGet();
+                return tx;
+            });
+            try {
+                return ApiFutures.immediateFuture(fn.updateCallback(tx));
+            } catch (Exception ex) {
+                return ApiFutures.immediateFailedFuture(ex);
+            }
+        });
+        harness.service = new ArtCardTagService(new ObjectMapper(), storage, "appConfig", "artCardTags");
+        return harness;
+    }
+
+    private static final class FirestoreHarness {
+        ArtCardTagService service;
+        final AtomicReference<Map<String, Object>> stored = new AtomicReference<>();
+        final AtomicReference<Map<String, Object>> lastPayload = new AtomicReference<>();
+        final AtomicInteger sets = new AtomicInteger();
+        volatile boolean failReads;
     }
 }

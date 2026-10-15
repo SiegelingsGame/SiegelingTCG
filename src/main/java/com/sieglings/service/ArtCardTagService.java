@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.Firestore;
 import com.sieglings.diagnostics.FirestoreReadMetrics;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,7 +23,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 
 /**
@@ -129,26 +132,33 @@ public class ArtCardTagService {
         if (id.isEmpty()) {
             throw new IllegalArgumentException("Choose an art piece first.");
         }
+        if (storageService.isFirestoreReady()) {
+            // pieces is one Firestore field, so a set() built from a missed or
+            // failed read would replace every other piece's tags with this one.
+            return writeFirestore(id, body, updatedByEmail);
+        }
+        ArtTag tag = mergeTag(baseline().get(id), body);
+        writeProjectFile(id, tag);
+        return tag;
+    }
+
+    /** Baseline fields, then the stored override, then whatever this save sent. */
+    private ArtTag mergeTag(ArtTag base, ArtTag stored, Map<String, Object> body) {
         Map<String, Object> merged = new LinkedHashMap<>();
-        Map<String, ArtTag> current = new TreeMap<>(baseline());
-        current.putAll(overrides());
-        ArtTag existing = current.get(id);
-        if (existing != null) {
-            merged.putAll(existing.toMap());
+        if (base != null) {
+            merged.putAll(base.toMap());
+        }
+        if (stored != null) {
+            merged.putAll(stored.toMap());
         }
         if (body != null) {
             merged.putAll(body);
         }
-        ArtTag tag = parseTag(merged);
-        Map<String, ArtTag> next = new TreeMap<>(overrides());
-        next.put(id, tag);
-        if (storageService.isFirestoreReady()) {
-            writeFirestore(next, updatedByEmail);
-        } else {
-            writeProjectFile(id, tag);
-        }
-        cache = new CacheEntry(Collections.unmodifiableMap(next), System.currentTimeMillis());
-        return tag;
+        return parseTag(merged);
+    }
+
+    private ArtTag mergeTag(ArtTag stored, Map<String, Object> body) {
+        return mergeTag(null, stored, body);
     }
 
     static ArtTag parseTag(Map<String, Object> body) {
@@ -294,18 +304,40 @@ public class ArtCardTagService {
         }
     }
 
-    private void writeFirestore(Map<String, ArtTag> pieces, String updatedByEmail) {
-        Map<String, Object> serialized = new LinkedHashMap<>();
-        pieces.forEach((id, tag) -> serialized.put(id, tag.toMap()));
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("pieces", serialized);
-        payload.put("updatedBy", updatedByEmail == null || updatedByEmail.isBlank()
-                ? "unknown"
-                : updatedByEmail.trim().toLowerCase(Locale.ROOT));
-        payload.put("updatedAt", Timestamp.now());
+    private ArtTag writeFirestore(String id, Map<String, Object> body, String updatedByEmail) {
+        Firestore db = storageService.requireFirestore();
+        DocumentReference ref = docRef();
         try {
-            docRef().set(payload).get(10, TimeUnit.SECONDS);
-        } catch (Exception ex) {
+            Map<String, ArtTag> stored = db.runTransaction(tx -> {
+                DocumentSnapshot snapshot = tx.get(ref).get();
+                Map<String, ArtTag> pieces = snapshot.exists()
+                        ? new TreeMap<>(parsePieces(snapshot.get("pieces")))
+                        : new TreeMap<>();
+                ArtTag tag = mergeTag(baseline().get(id), pieces.get(id), body);
+                pieces.put(id, tag);
+                Map<String, Object> serialized = new LinkedHashMap<>();
+                pieces.forEach((pieceId, pieceTag) -> serialized.put(pieceId, pieceTag.toMap()));
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("pieces", serialized);
+                payload.put("updatedBy", updatedByEmail == null || updatedByEmail.isBlank()
+                        ? "unknown"
+                        : updatedByEmail.trim().toLowerCase(Locale.ROOT));
+                payload.put("updatedAt", Timestamp.now());
+                tx.set(ref, payload);
+                return pieces;
+            }).get(10, TimeUnit.SECONDS);
+            cache = new CacheEntry(Collections.unmodifiableMap(stored), System.currentTimeMillis());
+            return stored.get(id);
+        } catch (ExecutionException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof IllegalArgumentException illegal) {
+                throw illegal;
+            }
+            throw new IllegalStateException("Unable to save art tags to Firestore.", ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while saving art tags.", ex);
+        } catch (TimeoutException ex) {
             throw new IllegalStateException("Unable to save art tags to Firestore.", ex);
         }
     }
