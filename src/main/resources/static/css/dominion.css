@@ -421,3 +421,32 @@
 /* The Quarter tiles reuse the Keep's construction art fully raised (keep.css hides each
    stage until the build reaches it). */
 .dm-ws-art .build-art-svg > g { opacity: 1; transform: none; }
+
+/* —— Grounds as one screen: the scene fills the tab, the HUD floats on it —— */
+.ck-main.dm-fill { overflow: hidden; display: flex; flex-direction: column; padding-bottom: 10px; }
+.dm-grounds { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
+.dm-grounds .dm-scene-box { flex: 1 1 auto; height: auto; min-height: 0; margin: 0; }
+.dm-hud-top { position: absolute; z-index: 15; left: 8px; right: 8px; top: 8px; display: grid; gap: 6px; justify-items: start; pointer-events: none; }
+.dm-hud-top > * { pointer-events: auto; }
+.dm-hud-resrow { display: flex; gap: 4px; flex-wrap: wrap; }
+.dm-hud-res { display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px; border-radius: 999px; background: rgba(11,16,32,.72); border: 1px solid var(--glass-line); font: 700 12px/1.2 var(--sans); color: var(--ink); font-variant-numeric: tabular-nums; }
+.dm-hud-obj { display: flex; align-items: center; gap: 6px; max-width: calc(100% - 60px); padding: 5px 10px; border-radius: 12px; border: 1px solid rgba(200,165,79,.5); background: rgba(11,16,32,.8); color: var(--ink); font: 600 12px/1.25 var(--sans); text-align: left; }
+.dm-hud-obj span { flex: none; color: var(--gold-bright); font-weight: 800; }
+.dm-hud-obj b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dm-hud-obj i { font-style: normal; color: var(--gold-bright); }
+.dm-dock { position: absolute; z-index: 15; left: 6px; right: 6px; bottom: 6px; display: flex; justify-content: center; gap: 4px; padding: 4px; border-radius: 16px;
+    background: rgba(11,16,32,.72); border: 1px solid var(--glass-line); box-shadow: 0 6px 14px rgba(0,0,0,.35); }
+.dm-dock button { position: relative; flex: 1 1 0; max-width: 64px; min-width: 0; height: 44px; border-radius: 11px; border: 0; background: transparent; color: var(--ink);
+    display: grid; place-items: center; align-content: center; gap: 1px; padding: 0; }
+.dm-dock button:not(:disabled):active { background: rgba(255,255,255,.1); }
+.dm-dock button.is-hot { background: linear-gradient(180deg, rgba(230,205,140,.35), rgba(200,165,79,.25)); box-shadow: inset 0 0 0 1px rgba(230,205,140,.6); }
+.dm-dock button span { font-size: 18px; line-height: 1; }
+.dm-dock button small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 9px/1.2 var(--sans); opacity: .85; font-variant-numeric: tabular-nums; }
+.dm-dock-badge { position: absolute; top: -3px; right: 2px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--rare, #c896ff); color: #1a1030; font: 800 10px/17px var(--sans); font-style: normal; text-align: center; }
+/* Lift what the floating bars would cover: the front row of buildings and Akhar's Wall. */
+.dm-grounds .woodlot-hotspot, .dm-grounds .archive-hotspot { bottom: 64px; height: 24%; }
+.dm-grounds .wall-hotspot { top: calc(15% + 8px); }
+.dm-grounds .dm-hud-bottom { display: none; }
+.ck-kicker .dm-clock { white-space: nowrap; }
+.ck-title .ck-kicker { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 380px) { .ck-kicker .dm-clock { display: none; } }

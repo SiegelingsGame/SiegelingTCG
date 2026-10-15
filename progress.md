@@ -1,4 +1,70 @@
 Original prompt: Go with earth based art for endless
+- October 15, 2026 **Dominion expedition food: raw forage for a small buff, cooked meals for two or three.**
+  - **Change.**
+    - An expedition's portions can now be paid in food. A raw forage covers 1 portion and gives one small buff by type:
+      - Sunleaf: +5% bond
+      - Garden Produce: +5% haul
+      - Galeberry: 5% shorter road
+      - Frostbloom: losses −15%
+      - Minnow: +5% road XP
+    - A cooked meal covers 2 portions and gives 2–3 stronger buffs:
+      - Camp Stew
+      - Forager's Hash
+      - Smoked Fish Wraps
+      - Frostbloom Broth
+      - the new Galeberry Roast
+      - Hunter's Feast
+      - Covenant Banquet, which has 4
+    - Whatever the food doesn't cover comes from provisions, and then Hearth Rations if they are toggled.
+    - The supplies panel has a "Food for the road" picker. Raw forage and cooked meals are listed separately, with the buffs and portions spelled out. The summary chip, the plan modal and the report name the food.
+    - `prep.food` replaces the earlier single `prep.meal`.
+  - **Verification.** `node --check js/dominion.js`. Headless Chromium:
+    - 5 Sunleaf with 0 provisions departs on the Rootwild Trail, using 2 Sunleaf and no provisions;
+    - one Camp Stew covers both portions (0 provisions used), is consumed, and the report carries `camp_stew`;
+    - the picker renders both rows with the buff line;
+    - no page errors.
+- October 15, 2026 **Dominion: start with provisions, forage them from the first minute, and cook meals that buff a whole expedition.**
+  - **Change.**
+    - The bare-ground start left a new Keep unable to leave: it had 0 provisions, the Kitchen was unbuilt, and Cooking sat behind Fishing 3, which needs Carpentry 3. Now:
+      - A new Keep starts with 6 provisions.
+      - New level-1 Foraging work, **Trail Forage**, yields Provisions (plus Sunleaf every 4th action). It is offered from the supplies panel and from the "can't depart" message.
+      - Cooking opens at Foraging 3 in Dominion.
+    - Six repeatable Cooking **meals** (new MEAL kind). One can be packed per expedition, it is eaten on departure, and the report names it:
+      - Camp Stew, Cooking 1: +15% bond.
+      - Forager's Hash, Cooking 5: +10% haul.
+      - Smoked Fish Wraps, Cooking 10: 10% shorter road.
+      - Frostbloom Broth, Cooking 15: losses halved.
+      - Hunter's Feast, Cooking 22: +20% haul and XP.
+      - Covenant Banquet, Cooking 30: a mix of all four.
+    - Effects feed the existing loot, bond, XP, loss and trip-time math. Hearth Rations keep their provision-replacing role.
+  - **Verification.** `node --check js/dominion.js`. Headless Chromium on a fresh save:
+    - provisions 6, and the Rootwild trip departs and reports;
+    - with 0 provisions, an hour of Trail Forage gave 12;
+    - at Foraging 3 a Camp Stew cooks and packs; departure consumes it (0 left) and the expedition and report carry `camp_stew`;
+    - the supplies panel shows the meal picker with its effect line;
+    - no page errors.
+- October 15, 2026 **Dominion portraits no longer flash.**
+  - **Change.**
+    - The header avatar was rebuilt every second, and the whole tab re-rendered whenever any stock count changed (every few seconds while the Knight works). Each rebuild reloaded every portrait.
+    - The avatar is now built only when the lead companion or its art changes.
+    - The render signature is now `rev` + minute, since stock counts already update in place through `data-res`.
+    - `renderView` hands already-decoded `<img>` nodes back into the new markup by `src`.
+  - **Verification.** On the Company tab, with three forced state re-renders plus clock ticks, all 7 image nodes were the same elements afterwards, and a MutationObserver saw 0 avatar rebuilds. The earlier smoke, journey and one-screen HUD checks still pass with no page errors.
+- October 15, 2026 **Dominion Grounds fits on one screen: the Keep scene fills the Base tab and its HUD floats on it.**
+  - **Change.**
+    - On the open Grounds, `viewBase` returns `groundsHud()` instead of the stacked resource row, section tabs, objective card, buttons and hint. `.ck-main.dm-fill` stops the tab scrolling, and the scene box flexes to fill the space between the header and the tab bar.
+    - Floating over the scene:
+      - a slim resource row;
+      - a one-line objective chip that opens the objectives;
+      - one bottom bar with Collect (only lit when something is stored), Quarter, Visitors, Chronicle, Build, Stores and Log, with count badges.
+    - The section tab row now appears only inside a section.
+    - The Woodlot and Archive sit above the bar and Akhar's Wall below the chips. The "at the gate" pip that sat on the Archive label is gone (the Visitors badge carries it).
+    - The header clock no longer wraps; the test-clock offset moved to its tooltip, and the clock hides under 380px.
+  - **Verification.** `node --check js/dominion.js`. Headless Chromium on a fresh save after building the Woodlot:
+    - at 390x844 and 375x667, the tab has no scroll and the page has none either (`scrollHeight - clientHeight` = 0); the scene box is 670px and 493px tall;
+    - screenshots show no HUD element over a building label;
+    - opening Visitors brings back the section tab row with Grounds;
+    - no page errors.
 - October 15, 2026 **Dominion: workshop upgrades open more notches, and expeditions can be watched as a squad walking the road.**
   - **Change.**
     - **Notches.** Quarter workshops now carry notches like a card's perimeter dots:
