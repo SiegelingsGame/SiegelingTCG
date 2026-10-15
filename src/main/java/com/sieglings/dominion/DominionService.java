@@ -488,6 +488,16 @@ public class DominionService {
                     map.put(card.getId().toLowerCase(Locale.ROOT), card.getCardArtUrl());
                 }
             }
+            // SiegeKnights with overlay (cutout) art can be the Dominion Knight; full-card art can't
+            // be cut out, so those are left off. Keys are namespaced so they never meet a species id.
+            for (com.sieglings.model.TrainerCard k : cards.getTrainerOptions()) {
+                if (k.getId() == null || k.getCardArtUrl() == null || k.getCardArtUrl().isBlank()) continue;
+                if (!"OVERLAY".equalsIgnoreCase(String.valueOf(k.getCardArtMode()))) continue;
+                String id = k.getId().toLowerCase(Locale.ROOT);
+                map.put("knight:" + id, k.getCardArtUrl());
+                map.put("knight-name:" + id, k.getName() == null ? id : k.getName());
+                map.put("knight-el:" + id, k.getElement() == null ? "NEUTRAL" : k.getElement().name());
+            }
             artCache = map;
             artCachedAt = t;
         } catch (RuntimeException ignored) {

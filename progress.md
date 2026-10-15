@@ -1,4 +1,71 @@
 Original prompt: Go with earth based art for endless
+- October 15, 2026 **Dominion sinks round 3: rush builds, more crews, Wall drill, siege waves, decoration sets, masterwork tools, a growing grounds, and one-line tips.**
+  - **Change.**
+    - **Rush builds.** Any build under way can be finished at once for 30 Crowns per hour left (minimum 5).
+    - **Crews 3 and 4.** Builder's Yard projects, needing Hall 4 and Hall 6; they cost Silver and Crowns.
+    - **Wall drill.** A posted Siegeling can be drilled to Wall rank 10 for Crowns, Silver and stone (cost grows with the square of the rank). Each rank gives +10% post pay, +0.25 shot damage, 4% faster volleys and +1 siege defense. The rank shows as a gold ★ badge over the defender.
+    - **Siege waves.** Once the Wall stands, a wave comes every 12 hours. Its strength is `4 + 3 × Wall level + 0.5 × waves so far`. The Wall's defense comes from posted defenders (3 + rank + bond/10 each) plus 2 × Wall level. If the wave is held, it pays Crowns and Silver (with a 15% relic chance from Wall level 5). A breach damages the Great Hall, the Woodlot or a workshop through the existing repair events. The Wall room shows the next wave's strength against the current defense, and the last result.
+    - **Decoration sets.** Displaying every decoration in a room gives that room +5% output; for the Great Hall, +5% Keep production.
+    - **Masterwork tools.** Tier 6 for each tool room needs tier 5 and room level 4, and costs 2 Ancient Relics, a Keystone, an Aether Core, Silver and Crowns.
+    - **A growing grounds.** Buildings raise banners, gilt and a glow over three growth tiers, with ★ marks. Storehouse levels 3 and up stack crates by the Hall, Woodlot levels enlarge its grove, Wall levels recolour the far wall, and workshops at level 3 and up (gilt at 5 and up) change their roofs in the Quarter miniature.
+    - **Tips instead of the walkthrough.** The first visit to each tab shows a single dismissible tip above the tab bar, remembered in `S.ui.hints`.
+  - **Verification.**
+    - `node --check js/dominion.js`. No Java changes this round; the full `./mvnw -q test` passed on the previous commit.
+    - Headless Chromium at 390x844 and 1920x1080:
+      - **Tip:** shows, and is dismissed and remembered.
+      - **Rush:** rushing the Woodlot build charged 60 Crowns and finished it.
+      - **Crews:** a rushed third crew sets `crews` to 1.
+      - **Drill:** two ranks for Cacty cost 200 Crowns.
+      - **Sieges:** defense 12 against strength 10 is repelled for +54 Crowns. An empty level-6 Wall is breached (defense 12 against strength 23) and damages the Great Hall.
+      - **Set bonus:** a full Kitchen set lifts its rate ×1.113 (5% set × 6% decorations).
+      - **Masterwork:** it crafts after tier 5; Woodcutting speed reaches +60%.
+      - **Grounds:** growth tiers show ★★★ on the Hall, Quarter, Woodlot and Wall.
+    - The smoke, deep UI, journey, food, Vault, Wall, tool and Knight checks all still pass with no page errors.
+- October 15, 2026 **Dominion: the Keep's full Akhar's Wall, working tool tiers, deeper upgrade ladders, an overlay-art SiegeKnight, and the guide shelved.**
+  - **Change.**
+    - **Full Akhar's Wall.** The Wall room now runs the Keep's Front battle (`keep.js` `initializeFrontCombat`/`updateFrontCombatStep` and the `keep.css` front rules, rescoped to `.dm-front`). It has a tiered rampart SVG with palette swaps, patches, banners and a gilt crown; torches lighting the gaps between posts; defenders as paper cutouts on the inner walk; raiders as real catalog Siegelings recoloured with `#paper-siegling-shadow`, each with a health bar; elemental projectiles; and a coin burst on each kill. A single `requestAnimationFrame` loop steps the fight only while a manned Wall is on screen. The battle node survives the per-minute re-render, so raiders keep marching. Raiders felled while you watch pay a Crowns bounty (`1 + floor(level/2)` each, up to `20 × level` an hour). The steady posted pay is still the Wall's main income.
+    - **Wall ladder 1–8.** Levels 5–8 go past the Keep's four tiers: Gatehouse, Sky Towers (drum towers bracket the wall), Warded (a glowing rune line) and Akhar's Bane (pale stone). Posts run 1, 2, 3, 4, 4, 5, 5, 6 and pay 2 to 23 Crowns an hour each. Higher walls send more raiders (up to 6), with more health and rarer shades. Levels 5–8 cost Silver and Crowns on top of stone and refined goods, and need Hall 5–8.
+    - **Deeper sinks.**
+      - Woodlot levels 3–6: 170, 230, 300 and 380 Timber/h.
+      - Storehouse levels 3–6: +300 Timber store each, and rooms hold 25% longer.
+      - Workshop levels 5–8: +50% base output each; notches stay capped at four.
+      - All of these cost Silver, and the top levels also cost Crowns.
+      - A project whose Timber cost exceeds the store cap now says it needs a larger Storehouse. The old workshop third-notch upgrade (320 Timber against a 300 cap) used to be silently unaffordable.
+    - **Tool tiers do more.** Each installed tier still adds +20% to its room's output. It now also makes the room's stores hold 25% longer, and speeds the Knight's matching skills by 10% (`SKILL_ROOM`: Woodlot → Woodcutting/Carpentry, Quarry → Mining/Excavation, Forge → Smelting/Smithing, Garden → Foraging/Alchemy/Weaving, Kitchen → Cooking, Fridge → Fishing, Generator → Runecrafting). Each room's crafts card sums up what its tools are doing.
+    - **Decorations.** An audit confirmed that every Keep DECORATION recipe has a `[data-decoration-art]` slot in the room templates, and every slot has a recipe (45 and 45). Each displayed decoration now adds +1% Keep production.
+    - **Overlay SiegeKnight.** `DominionService.art()` now also returns the OVERLAY-art trainers (`knight:`, `knight-name:` and `knight-el:` keys). The Knight tab has a SiegeKnight picker (default Aero, since Ser Airek has only full-card art). The hero portrait, the scene standee and the road walker are all paper cutouts of that overlay art.
+    - **Walkthrough on hold.** The guide no longer opens on a fresh Keep, and its ⋯ menu entry is gone. The cards stay in the code for a later pass.
+  - **Verification.**
+    - `node --check js/dominion.js`. Full `./mvnw -q test` passes (exit 0).
+    - Headless Chromium at 390x844 and 1920x1080, with live `/api/dominion/art` served locally:
+      - **Wall levels 1/4/6/8:** posts are 1/4/5/6, raiders 4/4/5/6, and the towers appear from level 6. Real-art raider shades load and projectiles fly.
+      - **Bounty:** two posts at level 2, watched for 40 seconds, felled 5 raiders and paid 10 Crowns.
+      - **Ladders:** `front_8` is refused with a 900 store cap ("Needs a larger Storehouse") and allowed past it. Woodlot 5 → 6 makes 432 → 540 Timber/h.
+      - **Tools:** two Woodlot tool tiers raise the Knight's pine rate from 72 to 81 Timber/h and store hours from 8 to 12.
+      - **Decorations:** one displayed decoration lifts `prodMul` by 1%.
+      - **Fresh save:** no guide modal, and no "Open the guide" in ⋯.
+      - **Knight picker:** shows the overlay knights; choosing Morgana renames the Knight; the scene standee is an image.
+    - The smoke, deep UI, journey, food and Vault checks still pass with no page errors.
+- October 15, 2026 **Dominion fills its gaps (Sunken Vault, Keep tool tiers and decorations, phased construction art, Akhar's Wall battle, visitor follow-ups, first-visit guide), and fixes Chronicles' stuck Smithing.**
+  - **Change.**
+    - **Sunken Vault.** It is now a real Keep road. It opens with the Sealed Vault Map and Elemental Studies 10 (`destBlock` explains which is missing) and runs 10 hours through tide hazard, sealed door, rubble and elite to a boss. The warden is the registry's rarest Water Siegeling, at level 16. The first warden kill opens the hoard once (2 Covenant Keystones, an Aether Core, 2 Ancient Relics, 250 Crowns), records `disc.vaultCleared`, and completes "The Sealed Door" chapter.
+    - **Keep crafts.** `ExportDominionContent` now exports `KeepService.RECIPES` reflectively into `dominion-keep-data.js` (80 recipes). Every room now has tool tiers 1–5, each needing the previous tier and some needing room level 2, plus decorations 1–6, so every Keep decoration slot can be filled. Each installed tool tier adds 20% (`toolMul`), and the room shows the matching tier icons.
+    - **Construction art.** Building sites use the Keep's `BUILD_ART` drawings, copied from `keep.js`, raising one stage per quarter of the build ("stage n/4").
+    - **Akhar's Wall battle.** Posted defenders fire a volley each, raiders break and fall in a loop with impact bursts, a "+N Crowns an hour" pop appears, and a running tally of raiders turned back is kept. An unguarded wall says so.
+    - **Visitor follow-ups.** A choice whose flag opens a follow-up brings that conversation straight to the gate, skipping the roll and the speaker's cooldown, as `KeepService.activateConsequenceFollowup` does. The result screen offers "Face what follows".
+    - **First-visit guide.** Six cards on a fresh Keep, each highlighting its control on a lightly dimmed screen. It can be reopened from ⋯.
+    - **Chronicles fix.** `forge_copper_sword` is now level 1, because Smithing earns XP only from its own recipes and a first recipe at level 2 left it stuck at 1. New `ChroniclesServiceTest.everyCraftingSkillCanEarnItsFirstLevel` guards every non-gathering skill.
+  - **Verification.**
+    - `node --check js/dominion.js`. Full `./mvnw -q test` passes (0 failures).
+    - Live check before this change: on https://siegelingstcgtesting.web.app/dominion, all 7 real catalog paper cutouts load (`naturalWidth` 240), and Cacty walks the Rootwild journey as a standee.
+    - Headless Chromium at 390x844 on a fresh save:
+      - the guide opens and highlights the Base tab;
+      - six minutes into the Woodlot build, 3 drawing stages are raised and the caption reads "stage 3/4";
+      - crafting tool tier 2 before tier 1 is refused; all 5 Woodlot tiers then craft, the room shows 5 tier icons, and the Woodlot rate rises;
+      - a strong company clears the Vault: the warden falls, the report shows `vaultCleared`, 2 Keystones and an Aether Core are paid, and the objective latches;
+      - a posted Wall shows the battle stage and a volley per defender;
+      - choosing Cook Mira's flagging choice puts `interaction_mira_second_kettle` at the gate and shows "Face what follows".
+    - The earlier smoke, journey, HUD, food and flashing checks still pass with no page errors.
 - October 15, 2026 **Holographic art gets the same builder as the standard art.**
   - **Change.** Holo art was a single full-card upload. It now has its own `holographicCardArtMode` (Replace / Overlay / Full card, the same values as `cardArtMode`) plus `holographicCardArtOffsetXPct/YPct`, `holographicCardArtScale` and `holographicCardArtRotation`. These go through `Card`, every card `copy()`, `ManualSieglingDefinition` (merge, validation, export), and the GameController / pack / profile serializers. In the dashboard, the Standard/Holographic toggle now chooses which art the one builder edits: mode radios, Upload, URL, Clear, drag, scale, rotation and reset all write to the holo fields through `HOLOGRAPHIC_ART_FIELDS`. The separate "Holographic full-card art" block is removed. Only Full-card holo uploads still go through the 638 x 919 template normalizer. For rendering, `card-binder-visual.js` adds `holographicArtMode` and `withHolographicArt`: a holo card with Replace/Overlay art is rebuilt with the holo art in the standard fields, so it renders through the normal template. `game.js` `getDashboardCardArtMeta` does the same for hand, board and showcase. A holo URL with no mode means FULL_CARD, so the three live holo cards (bearby, bearnade, bearzooka) render exactly as before. Cache-busts: `game.js` v320 and `card-binder-visual.js` v31 on play/home/home-next/card-dashboard; `card-dashboard.js` v70.
   - **Verification.** Added two new `ManualSieglingCatalogTest` cases: one checks the holo mode and placement survive merge, `copy()` and export independently of the standard art, and one checks an invalid holo mode is rejected. Updated `GameJavaScriptRegressionTest`: the holo-scale guard is now limited to the full-card renderer, and a new assertion checks the builder field map. Full `./mvnw -q test` passes and `node --check` passes. Ran headless Chromium against the dashboard at 1920x1080 and 390x844 with the prod `/api/cards/editor` payload mocked in, using bearby. The legacy holo URL reads as Full card and shows the aligned face. Switching to Overlay renders the holo image in the template with foil. Scale 1.4 and rotation -20 apply live and export as `holographicCardArtScale`/`Rotation`, while the standard `cardArtScale` stays 1.72. Dragging writes only the holo offsets. Switching back to Standard shows the untouched standard URL and mode. `getCardArtMeta` returns the holo URL with its transform for holo Overlay, the legacy full-card meta for an unmoded holo URL, and the standard art for a non-holo card. No page errors.

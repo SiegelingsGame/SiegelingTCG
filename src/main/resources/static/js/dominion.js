@@ -339,7 +339,10 @@
         ruins: { name: 'Covenant Ruins', hours: 8, provisions: 4, element: 'METAL', blurb: 'Collapsed halls of the first Covenant. Ruins and materials.',
             loot: { stone: 30, ore: 20, timber: 20, relic: 1, fossil: 3, rune_stone: 1 }, xp: 240, prof: 80, bond: 40,
             encounters: ['rubble', 'hazard', 'seam', 'pack', 'sealed', 'ambush'] },
-        vault: { name: 'Sunken Vault', planned: true, blurb: 'Needs the Sealed Vault Map and Elemental Studies 10.' },
+        // The first Covenant's flooded vault under the Ruins: the payoff of "The Sealed Door".
+        vault: { name: 'Sunken Vault', hours: 10, provisions: 4, element: 'WATER', blurb: 'Beneath the Covenant Ruins the first Covenant sealed a vault and let the river in. The map shows the way; its wards need Elemental Studies 10.',
+            loot: { relic: 4, rune_stone: 3, tide_pearl: 2, glass: 2, fossil: 2 }, xp: 400, prof: 120, bond: 60, levelMin: 10, levelMax: 16, bossLevel: 16, sighting: 0.12,
+            encounters: ['hazard_tide', 'sealed', 'rubble', 'elite', 'boss'] },
         trial: { name: 'Legendary Bond Trial', special: true, hours: 8, provisions: 0, element: 'LIGHT', encounters: [], loot: {}, blurb: 'A solo journey with one Bond 100 companion.' },
         operation: { name: 'Siege Operation', special: true, hours: 8, provisions: 2, element: 'FIRE', encounters: [], loot: {}, blurb: 'Your guild\u2019s weekly threat.' }
     };
@@ -376,11 +379,16 @@
         };
     });
     DEST.rootwild.tier = 0; DEST.ruins.tier = 0; DEST.vault.tier = 0;
+    // The Vault's warden is the rarest Water Siegeling in the registry.
+    const RARITY_RANK = { COMMON: 0, UNCOMMON: 1, RARE: 2, EPIC: 3, LEGENDARY: 4 };
+    DEST.vault.bossId = (Object.keys(SPECIES).map((k) => SPECIES[k]).filter((c) => c.element === 'WATER').sort((a, b) => (RARITY_RANK[b.rarity] || 0) - (RARITY_RANK[a.rarity] || 0))[0] || {}).id || '';
     DEST.rootwild.sighting = 0.15; DEST.ruins.sighting = 0.1;
     function destBlock(s, id) {
         const d = DEST[id];
         if (!d) return 'Unknown destination.';
         if (d.planned) return d.blurb;
+        if (id === 'vault' && !s.disc.vaultMap) return 'Find the Sealed Vault Map behind the sealed door in the Covenant Ruins (bring a Hammer).';
+        if (id === 'vault' && skillLvl(s, 'elemental_studies') < 10) return 'Needs Elemental Studies 10 to read the map’s wards.';
         if (d.rankReq && rankLvl(s) < d.rankReq) return 'Needs Knight Rank ' + d.rankReq + '.';
         const miss = (d.reqs || []).filter((r) => !meets(s, r));
         if (miss.length) return 'Needs ' + miss.map(reqText).join(', ') + '.';
@@ -544,7 +552,8 @@
             schema: SCHEMA, t: t, offset: 0, rev: 0, runs: 0, seq: 0,
             inv: inv,
             reserve: { ember: 0, frost: 0, storm: 0, ore: 0, produce: 0, provisions: 2 },
-            b: { hall: 1, woodlot: 0, archive: 0, storehouse: 0, yard: 0, front: 0 },
+            b: { hall: 1, woodlot: 0, archive: 0, storehouse: 0, yard: 0, front: 0, crews: 0 },
+            siege: { nextAt: 0, n: 0, won: 0, last: null },
             // Workshop level 0 = not built yet; each one is a construction project.
             wsl: { forge: 0, fridge: 0, generator: 0, garden: 0, kitchen: 0, quarry: 0 }, annex: {},
             wings: { sanctuary: 0, forge: 0, garden: 0, war_room: 0, stable: 0, library: 0 },
@@ -671,11 +680,11 @@
     }
     function woodlotRate(s) {
         if (damaged(s, 'woodlot') || s.b.woodlot < 1) return 0;
-        const base = (s.b.woodlot >= 2 ? 120 : 60) + (skillLvl(s, 'woodcutting') >= 20 ? 20 : 0);
-        return base * helperMul(s, 'woodlot') * prodMul(s) * toolMul(s, 'woodlot');
+        const base = WOODLOT_RATE[Math.min(6, s.b.woodlot)] + (skillLvl(s, 'woodcutting') >= 20 ? 20 : 0);
+        return base * helperMul(s, 'woodlot') * prodMul(s) * toolMul(s, 'woodlot') * setMul(s, 'woodlot');
     }
     function workshopRates(s, id) {
-        const mul = damaged(s, id) || !wsBuilt(s, id) ? 0 : helperMul(s, id) * prodMul(s) * toolMul(s, id) * ((s.wsl[id] || 0) >= 2 ? 2 + 0.5 * Math.max(0, (s.wsl[id] || 0) - 2) : 1) * (s.annex[id] ? 1.25 : 1), out = {};
+        const mul = damaged(s, id) || !wsBuilt(s, id) ? 0 : helperMul(s, id) * prodMul(s) * toolMul(s, id) * setMul(s, id) * ((s.wsl[id] || 0) >= 2 ? 2 + 0.5 * Math.max(0, (s.wsl[id] || 0) - 2) : 1) * (s.annex[id] ? 1.25 : 1), out = {};
         Object.keys(WS[id].makes).forEach((k) => { out[k] = WS[id].makes[k] * mul; });
         return out;
     }
@@ -785,7 +794,7 @@
     }
     function knightSpeed(s, def) {
         const wing = wingFor(def.skillId);
-        return 1 + toolBonus(s, def) + helperBonus(s, def) + (wing ? wingSpeed(s, wing) : 0) + (skillLvl(s, def.skillId) >= 100 ? 0.2 : 0);
+        return 1 + toolBonus(s, def) + helperBonus(s, def) + toolSpeed(s, def.skillId) + (wing ? wingSpeed(s, wing) : 0) + (skillLvl(s, def.skillId) >= 100 ? 0.2 : 0);
     }
     const actionMs = (s, def) => def.actionSeconds * ACTION_SCALE * 1000 / knightSpeed(s, def);
     function usable(s, inputs) {
@@ -944,7 +953,7 @@
         // Chronicles' Alchemy Garden beds (gardenYield) grow in the Keep's Garden.
         if (gw) add(s, { sunleaf: 6 * gw * h, fiber: 4 * gw * h, frostbloom: gw >= 2 ? 2 * (gw - 1) * h : 0, galeberry: gw >= 3 ? 2 * (gw - 2) * h : 0 });
         const def = defenders(s).slice(0, frontCap(s));
-        if (def.length) add(s, { crowns: frontRatePer(s) * def.length * h });
+        if (def.length) add(s, { crowns: frontRatePer(s) * def.reduce((a, id) => a + rankPay(s, id), 0) * h });
         Object.keys(S.comps).forEach((id) => {
             const c = s.comps[id];
             if (!c.joined || onExpedition(s, id)) return;
@@ -990,6 +999,10 @@
             // Completions fire at their exact timestamp, so time after a return is spent on resumed jobs.
             if (s.exp && s.t >= s.exp.endAt) finishExpedition(s);
             (s.builds || []).filter((b) => s.t >= b.endAt).forEach((b) => finishBuild(s, b));
+            if ((s.b.front || 0) >= 1) {
+                if (!s.siege.nextAt) s.siege.nextAt = s.t + SIEGE_EVERY;
+                else if (s.t >= s.siege.nextAt) { siegeWave(s); s.siege.nextAt = Math.max(s.siege.nextAt + SIEGE_EVERY, s.t + 1); }
+            }
             if (s.t >= s.nextEventAt) { rollEvent(s); s.nextEventAt += EVENT_EVERY; if (s.nextEventAt < s.t) s.nextEventAt = s.t + EVENT_EVERY; }
             tickRepairs(s);
             if (s.t >= (s.visitors.nextAt || 0)) { rollVisitors(s); s.visitors.nextAt = Math.max((s.visitors.nextAt || s.t) + VISITOR_EVERY, s.t - VISITOR_EVERY + 1); }
@@ -1019,7 +1032,32 @@
     // [timber, materials, seconds, hall level] for a workshop's third and fourth notches.
     const WS_NOTCH_UP = { 3: [320, { stone: 24, living_mortar: 2 }, 28800, 4], 4: [420, { living_mortar: 3, tempered_glass: 3, charged_alloy: 2 }, 43200, 6] };
     const FRONT_PROJECTS = { 1: ['Raise Akhar’s Wall', 240, { stone: 20 }, 7200], 2: ['Reinforce the Rampart', 320, { stone: 24 }, 21600],
-        3: ['Raise the Battlements', 420, { stone: 32, ember_ingot: 14 }, 36000], 4: ['Crown the Bastion', 540, { stone: 44, ember_ingot: 18, frost_crystal: 14 }, 57600] };
+        3: ['Raise the Battlements', 420, { stone: 32, ember_ingot: 14 }, 36000], 4: ['Crown the Bastion', 540, { stone: 44, ember_ingot: 18, frost_crystal: 14 }, 57600],
+        // Past the Keep's four tiers the Wall is Dominion's long sink: Silver and Crowns on top of stone.
+        5: ['Gild the Gatehouse', 700, { stone: 60, ember_ingot: 24, frost_crystal: 18, silver: 400 }, 86400],
+        6: ['Raise the Sky Towers', 850, { stone: 80, living_mortar: 6, tempered_glass: 6, silver: 900, crowns: 600 }, 129600],
+        7: ['Ward the Rampart', 1000, { stone: 100, charged_alloy: 8, living_mortar: 10, silver: 1800, crowns: 1500 }, 172800],
+        8: ['Akhar’s Bane', 1200, { stone: 130, charged_alloy: 14, covenant_keystone: 2, aether_core: 1, silver: 3500, crowns: 3500 }, 259200] };
+    const FRONT_MAX = 8;
+    // Posts and pay per Wall level; the Keep's 1-4 posts, then one more every other tier.
+    const FRONT_POSTS = [0, 1, 2, 3, 4, 4, 5, 5, 6];
+    const FRONT_PAY = [0, 2, 4, 6, 8, 11, 14, 18, 23];
+    // [name, timber, materials, seconds, hall level] for Woodlot levels 3-6; rates are Timber/h by level.
+    const WOODLOT_DEEP = { 3: ['Plant the Old-Growth Rows', 360, { stone: 40, verdant_fiber: 20, silver: 150 }, 21600, 3],
+        4: ['Raise the Sawmill', 520, { stone: 60, ember_ingot: 24, charged_alloy: 4, silver: 500 }, 57600, 4],
+        5: ['Weave the Canopy Walks', 720, { verdant_fiber: 60, living_mortar: 8, silver: 1200, crowns: 500 }, 108000, 6],
+        6: ['Wake the Elder Grove', 1000, { verdant_fiber: 90, aether_core: 1, silver: 2500, crowns: 1500 }, 172800, 8] };
+    const WOODLOT_RATE = [0, 60, 120, 170, 230, 300, 380];
+    const STORE_DEEP = { 3: ['Raise the Grain Lofts', 600, { stone: 50, living_mortar: 4, silver: 300 }, 43200, 4],
+        4: ['Cut the Cold Cellars', 800, { stone: 70, frost_crystal: 30, tempered_glass: 6, silver: 700 }, 86400, 5],
+        5: ['Vault the Treasury', 1000, { stone: 90, charged_alloy: 8, silver: 1500, crowns: 800 }, 129600, 6],
+        6: ['Seal the Covenant Vaults', 1300, { stone: 120, living_mortar: 12, charged_alloy: 12, silver: 3000, crowns: 2000 }, 172800, 7] };
+    // [name, timber, materials, seconds, hall level] for workshop levels 5-8: no more notches (four is every side), more output.
+    const WS_DEEP = { 5: ['Master the', 520, { stone: 40, charged_alloy: 4, silver: 300 }, 57600, 6],
+        6: ['Attune the', 680, { living_mortar: 6, tempered_glass: 6, charged_alloy: 6, silver: 800 }, 86400, 7],
+        7: ['Exalt the', 860, { living_mortar: 10, charged_alloy: 10, silver: 1600, crowns: 800 }, 129600, 8],
+        8: ['Consecrate the', 1100, { covenant_keystone: 2, aether_core: 1, charged_alloy: 14, silver: 3000, crowns: 2000 }, 172800, 8] };
+    const WS_TOP = 8;
     const WING_HOME = { sanctuary: 'Enclave', forge: 'Forge', garden: 'Garden', war_room: 'Great Hall', stable: 'Stable yard', library: 'Archive' };
     const WING_EFFECT = {
         sanctuary: (l) => 'Roster +' + 3 * l + ', resting bond +' + 6 * l + '/h',
@@ -1064,6 +1102,20 @@
         stone_sentinel: ['Quarry Stone Sentinel', 'DECORATION', 'quarry', { stone: 8 }], hearth_garland: ['Harvest Hearth Garland', 'DECORATION', 'kitchen', { provisions: 7 }],
         carved_waypost: ['Carved Covenant Waypost', 'DECORATION', 'woodlot', { verdant_fiber: 6 }]
     };
+    // The Keep's own craft table (every tool tier and decoration) when the export carries it:
+    // [name, type, room, costs, tier, prerequisite, room level needed, description, bonus].
+    ((window.DOMINION_KEEP && window.DOMINION_KEEP.crafts) || []).forEach((r) => {
+        KEEP_CRAFTS[r.id] = [r.name, r.type, r.roomId, r.materialCosts || {}, r.tier || 1, r.prerequisiteId || '', r.requiredLevel || 1, r.description || '', r.bonusLabel || ''];
+    });
+    // Masterwork tools sit above the Keep's five tiers and cost what only the Sunken Vault pays out,
+    // so a cleared Vault keeps being worth running.
+    const MASTERWORK = { woodlot: 'Heartwood Felling Rig', garden: 'Evergrowth Loom', forge: 'Starfall Anvil', fridge: 'Everwinter Vault', generator: 'Tempest Heart', quarry: 'Worldroot Cutter', kitchen: 'Covenant Hearthstone' };
+    Object.keys(MASTERWORK).forEach((room) => {
+        const t5 = Object.keys(KEEP_CRAFTS).find((k) => KEEP_CRAFTS[k][1] === 'TOOL' && KEEP_CRAFTS[k][2] === room && KEEP_CRAFTS[k][4] === 5);
+        if (!t5) return;
+        KEEP_CRAFTS['masterwork_' + room] = [MASTERWORK[room], 'TOOL', room, { ancient_relic: 2, covenant_keystone: 1, aether_core: 1, silver: 1500, crowns: 1000 }, 6, t5, 4,
+            'A masterwork from Vault relics: the room’s last and finest tool.', 'Tier 6: output +20%, stores +25%, the Knight +10% faster'];
+    });
     const REBIRTH_LADDER = [
         [['enclave'], { timber: 200 }], [['builders_yard'], { timber: 300, stone: 20 }], [['enclave', 'builders_yard'], { timber: 400, stone: 30, living_mortar: 2 }],
         [['workshops_built:6', 'storehouse:2'], { timber: 600, living_mortar: 3, tempered_glass: 3, charged_alloy: 2 }],
@@ -1077,12 +1129,28 @@
     const timeMul = (s) => Math.max(0.4, 1 - rebirths(s) * 0.1);
     const scaleCost = (s, m) => { const o = {}; Object.keys(m).forEach((k) => { o[k] = Math.round(m[k] * costMul(s)); }); return o; };
     const timberCap = (s) => Math.round((300 + 300 * (s.b.storehouse || 0) + (s.crafted && s.crafted.covenant_crates ? 75 : 0)) * (1 + rebirths(s) * 0.2));
-    const crews = (s) => 1 + ((s.b.yard || 0) >= 1 ? 1 : 0);
+    const crews = (s) => 1 + ((s.b.yard || 0) >= 1 ? 1 : 0) + Math.min(2, s.b.crews || 0);
+    // [name, timber, materials, seconds, hall level] for the third and fourth construction crews.
+    const CREW_PROJECTS = { 3: ['Hire a Third Crew', 300, { stone: 40, silver: 1500, crowns: 1000 }, 43200, 4], 4: ['Hire a Fourth Crew', 600, { living_mortar: 8, silver: 4000, crowns: 3000 }, 86400, 6] };
+    // Rushing a build costs Crowns by the hour left, so it is cheap at the end and dear at the start.
+    const RUSH_PER_HOUR = 30;
+    const rushCost = (s, b) => Math.max(5, Math.ceil((b.endAt - s.t) / HOUR * RUSH_PER_HOUR));
+    function rushBuild(s, id) {
+        const b = (s.builds || []).find((x) => x.id === id);
+        if (!b) return 'Nothing to rush.';
+        const c = rushCost(s, b);
+        if (fl(s.inv.crowns) < c) return 'Rushing needs ' + c + ' Crowns.';
+        s.inv.crowns -= c;
+        b.endAt = s.t;
+        logEvent(s, 'Rushed ' + b.name + ' for ' + c + ' Crowns.');
+        s.rev++;
+        return '';
+    }
     const KEY_OF = (id) => id.indexOf('hall_') === 0 ? 'hall' : /^woodlot_/.test(id) ? 'woodlot' : /^ws_\w+_1$/.test(id) ? 'quarter' : id === 'archive' ? 'archive' : id.indexOf('front_') === 0 ? 'front' : '';
     const buildFor = (s, key) => (s.builds || []).find((b) => KEY_OF(b.id) === key) || null;
     const damaged = (s, target) => (s.events || []).some((e) => e.target === target && !e.repaired);
     function prodMul(s) {
-        return (1 + 0.05 * ((s.b.hall || 1) - 1) * (damaged(s, 'great_hall') ? 0 : 1)) * (1 + rebirths(s) * 0.25) * (s.crafted && s.crafted.insulated_channels ? 1.1 : 1);
+        return (1 + 0.05 * ((s.b.hall || 1) - 1) * (damaged(s, 'great_hall') ? 0 : 1)) * (1 + rebirths(s) * 0.25) * (s.crafted && s.crafted.insulated_channels ? 1.1 : 1) * (1 + 0.01 * decorCount(s)) * setMul(s, 'great_hall');
     }
     const wingSpeed = (s, wing) => Math.min(0.3, 0.06 * ((s.wings && s.wings[wing]) || 0));
     function wingFor(skill) {
@@ -1091,8 +1159,28 @@
         if (skill === 'elemental_studies') return 'library';
         return '';
     }
-    const frontRatePer = (s) => 2 * (s.b.front || 0);
-    const frontCap = (s) => s.b.front || 0;
+    const frontRatePer = (s) => FRONT_PAY[Math.min(FRONT_MAX, s.b.front || 0)];
+    const frontCap = (s) => FRONT_POSTS[Math.min(FRONT_MAX, s.b.front || 0)];
+    // Wall drill: each rank pays 10% more on the post, hits harder and fires faster in the live fight.
+    const WALL_RANK_MAX = 10;
+    const wallRank = (s, id) => Math.min(WALL_RANK_MAX, (s.comps[id] && s.comps[id].wallRank) || 0);
+    const rankPay = (s, id) => 1 + 0.1 * wallRank(s, id);
+    const trainCost = (s, id) => { const r = wallRank(s, id) + 1; return { crowns: 40 * r * r, silver: 60 * r, stone: 10 * r }; };
+    function trainBlock(s, id) {
+        if (!s.comps[id] || !s.comps[id].joined) return 'Unknown Siegeling.';
+        if (wallRank(s, id) >= WALL_RANK_MAX) return 'Already a Wall Champion.';
+        if ((s.b.front || 0) < 1) return 'Raise Akhar’s Wall first.';
+        if (!canAfford(s, trainCost(s, id))) return 'Not enough Crowns, Silver or stone.';
+        return '';
+    }
+    function trainDefender(s, id) {
+        if (trainBlock(s, id)) return false;
+        spend(s, trainCost(s, id));
+        s.comps[id].wallRank = wallRank(s, id) + 1;
+        logEvent(s, C(id).name + ' drilled to Wall rank ' + s.comps[id].wallRank + '.');
+        s.rev++;
+        return true;
+    }
     const defenders = (s) => Object.keys(s.comps).filter((id) => s.comps[id].joined && s.comps[id].job.kind === 'front' && !onExpedition(s, id));
 
     // Every buildable project, generated from current levels; finished ones drop out.
@@ -1110,12 +1198,25 @@
         }
         if (s.b.woodlot < 1) push('woodlot_1', 'Woodlot', 'Raise the Woodlot', WOODLOT_COST, {}, 600, 'Restorative forestry: 60 Timber/h for the rest of the Keep.');
         else if (s.b.woodlot < 2) push('woodlot_2', 'Woodlot', 'Cultivate the Woodlot', 140, { stone: 20 }, 2 * 3600, 'Woodlot produces 120 Timber/h instead of 60.');
+        else if (s.b.woodlot < 6) {
+            const n = s.b.woodlot + 1, d = WOODLOT_DEEP[n];
+            push('woodlot_' + n, 'Woodlot', d[0], d[1], d[2], d[3], 'Woodlot produces ' + WOODLOT_RATE[n] + ' Timber/h instead of ' + WOODLOT_RATE[n - 1] + '.', s.b.hall < d[4] ? 'Needs ' + HALL_RANKS[d[4] - 1] + ' (Hall ' + d[4] + ').' : '');
+        }
         if ((s.b.storehouse || 0) < 1) push('storehouse_1', 'Storehouse', 'Raise the Covenant Storehouse', 180, {}, 1800, 'Timber store +300; opens Keep refining, recycling and the market.', s.b.woodlot < 2 ? 'Cultivate the Woodlot first.' : '');
         else if (s.b.storehouse < 2) push('storehouse_2', 'Storehouse', 'Vault the Storehouse', 320, { verdant_fiber: 18, ember_ingot: 12, frost_crystal: 12, storm_cell: 8 }, 28800, 'Timber store +300 more; opens tier 2 refining.', !s.b.yard ? 'Raise the Builder’s Yard first.' : '');
+        else if (s.b.storehouse < 6) {
+            const n = s.b.storehouse + 1, d = STORE_DEEP[n];
+            push('storehouse_' + n, 'Storehouse', d[0], d[1], d[2], d[3], 'Timber store +300 more; every room’s stores hold 25% longer.', s.b.hall < d[4] ? 'Needs ' + HALL_RANKS[d[4] - 1] + ' (Hall ' + d[4] + ').' : '');
+        }
+        if (s.b.yard && (s.b.crews || 0) < 2) {
+            const n = 3 + (s.b.crews || 0), d = CREW_PROJECTS[n];
+            push('crew_' + n, 'Builder’s Yard', d[0], d[1], d[2], d[3], 'Construction crew ' + n + ': one more build at a time.', s.b.hall < d[4] ? 'Needs ' + HALL_RANKS[d[4] - 1] + ' (Hall ' + d[4] + ').' : '');
+        }
         if (!s.b.yard) push('yard', 'Builder’s Yard', 'Raise the Builder’s Yard', 260, { stone: 18 }, 10800, 'A second construction crew, workshop expansions and annexes.', s.b.hall < 2 ? 'Raise the Timber Outpost first.' : '');
-        if ((s.b.front || 0) < 4) {
-            const n = (s.b.front || 0) + 1, fp = FRONT_PROJECTS[n];
-            push('front_' + n, 'Akhar’s Wall', fp[0], fp[1], fp[2], fp[3], n + ' defender post' + (n > 1 ? 's' : '') + ' on the rampart, ' + 2 * n + ' Crowns/h each.', s.b.hall < 2 ? 'Needs the Timber Outpost (Hall 2).' : '');
+        if ((s.b.front || 0) < FRONT_MAX) {
+            const n = (s.b.front || 0) + 1, fp = FRONT_PROJECTS[n], needHall = n <= 4 ? 2 : n;
+            push('front_' + n, 'Akhar’s Wall', fp[0], fp[1], fp[2], fp[3], FRONT_POSTS[n] + ' defender post' + (FRONT_POSTS[n] > 1 ? 's' : '') + ' on the rampart, ' + FRONT_PAY[n] + ' Crowns/h each; raiders felled while you watch pay a bounty.',
+                s.b.hall < needHall ? 'Needs ' + HALL_RANKS[needHall - 1] + ' (Hall ' + needHall + ').' : '');
         }
         Object.keys(WS).forEach((w) => {
             const wb = WS_BUILD[w], makes = Object.keys(WS[w].makes).map((k) => RES[k].name).join(', ');
@@ -1127,6 +1228,10 @@
                     const up = WS_NOTCH_UP[lv + 1];
                     push('ws_' + w + '_' + (lv + 1), 'Workshops', (lv === 2 ? 'Notch the flanks of the ' : 'Open every side of the ') + WS[w].name, up[0], up[1], up[2],
                         WS[w].name + ' gains ' + (lv === 2 ? 'a third notch on its flanks' : 'its fourth notch: it can link on every side') + ', and +25% output.', s.b.hall < up[3] ? 'Needs ' + HALL_RANKS[up[3] - 1] + ' (Hall ' + up[3] + ').' : '');
+                }
+                else if (lv < WS_TOP) {
+                    const d = WS_DEEP[lv + 1];
+                    push('ws_' + w + '_' + (lv + 1), 'Workshops', d[0] + ' ' + WS[w].name, d[1], d[2], d[3], WS[w].name + ' level ' + (lv + 1) + ': +50% of its base output again.', s.b.hall < d[4] ? 'Needs ' + HALL_RANKS[d[4] - 1] + ' (Hall ' + d[4] + ').' : '');
                 }
                 if (lv >= 2 && !s.annex[w]) push('annex_' + w, 'Workshops', WS[w].name + ' storage annex', 220, { stone: 10 }, 14400, WS[w].name + ' output +25%.');
             }
@@ -1144,12 +1249,13 @@
         if (id === 'archive') s.b.archive = 1;
         else if ((m = id.match(/^hall_(\d)$/))) s.b.hall = Math.max(s.b.hall, +m[1]);
         else if (id === 'woodlot_1') s.b.woodlot = Math.max(1, s.b.woodlot);
-        else if (id === 'woodlot_2') s.b.woodlot = 2;
+        else if ((m = id.match(/^woodlot_(\d)$/))) s.b.woodlot = Math.max(s.b.woodlot, +m[1]);
         else if ((m = id.match(/^ws_(\w+)_1$/))) { s.wsl[m[1]] = Math.max(1, s.wsl[m[1]] || 0); placeWorkshop(s, m[1]); }
         else if ((m = id.match(/^storehouse_(\d)$/))) s.b.storehouse = Math.max(s.b.storehouse || 0, +m[1]);
         else if (id === 'yard') s.b.yard = 1;
+        else if ((m = id.match(/^crew_(\d)$/))) s.b.crews = Math.max(s.b.crews || 0, +m[1] - 2);
         else if ((m = id.match(/^front_(\d)$/))) s.b.front = Math.max(s.b.front || 0, +m[1]);
-        else if ((m = id.match(/^ws_(\w+)_([234])$/))) s.wsl[m[1]] = Math.max(s.wsl[m[1]] || 0, +m[2]);
+        else if ((m = id.match(/^ws_(\w+)_([2-8])$/))) s.wsl[m[1]] = Math.max(s.wsl[m[1]] || 0, +m[2]);
         else if ((m = id.match(/^annex_(\w+)$/))) s.annex[m[1]] = true;
         else if ((m = id.match(/^wing_(\w+)_(\d)$/))) s.wings[m[1]] = Math.max(s.wings[m[1]] || 0, +m[2]);
     }
@@ -1159,6 +1265,7 @@
         if (!p) return 'Already built or under way.';
         if (p.block) return p.block;
         if ((s.builds || []).length >= crews(s)) return 'Every crew is busy (' + crews(s) + ').';
+        if ((p.cost.timber || 0) > timberCap(s)) return 'Needs a larger Storehouse: it holds ' + timberCap(s) + ' Timber.';
         if (!canAfford(s, p.cost)) return 'Not enough materials yet.';
         return '';
     }
@@ -1184,6 +1291,35 @@
 
     // —— Keep events (keep-events.json): damage suspends a building until repaired ——
     const EVENT_EVERY = 12 * HOUR;
+    // Siege waves: Akhar tests the Wall twice a day. Strength grows with the Wall and every wave
+    // survived; posted, drilled defenders and the rampart itself hold it.
+    const SIEGE_EVERY = 12 * HOUR;
+    const siegeStrength = (s) => Math.round(4 + 3 * (s.b.front || 0) + 0.5 * Math.min(40, s.siege.n || 0));
+    const wallDefense = (s) => defenders(s).slice(0, frontCap(s)).reduce((a, id) => a + 3 + wallRank(s, id) + Math.floor(bondLvl(s.comps[id]) / 10), 0) + 2 * (s.b.front || 0);
+    function siegeWave(s) {
+        const str = siegeStrength(s), def = wallDefense(s), lvl = s.b.front || 0;
+        s.siege.n = (s.siege.n || 0) + 1;
+        if (def >= str) {
+            const spoils = { crowns: 25 * lvl + 2 * (def - str), silver: 10 * lvl };
+            if (lvl >= 5) spoils.ancient_relic = rng('siege:' + s.siege.n)() < 0.15 ? 1 : 0;
+            add(s, spoils);
+            s.siege.won = (s.siege.won || 0) + 1;
+            s.siege.last = { at: s.t, won: true, str: str, def: def, spoils: spoils };
+            logEvent(s, 'Siege wave ' + s.siege.n + ' repelled at Akhar’s Wall (' + def + ' against ' + str + ').');
+            FRESH.push('Siege repelled! +' + spoils.crowns + ' Crowns, +' + spoils.silver + ' Silver.');
+        } else {
+            // A breach damages a standing building: it stops producing until repaired.
+            const pool = ['great_hall'].concat(s.b.woodlot >= 1 ? ['woodlot'] : [], Object.keys(WS).filter((w) => wsBuilt(s, w))).filter((t) => !damaged(s, t));
+            const target = pool.length ? pool[Math.floor(rng('breach:' + s.siege.n)() * pool.length)] : '';
+            const name = target === 'great_hall' ? 'Great Hall' : target === 'woodlot' ? 'Woodlot' : WS[target] ? WS[target].name : '';
+            if (target) s.events.push({ id: 'siege_' + s.siege.n, title: 'Raiders breach the ' + name, kicker: 'Siege', text: 'Akhar’s raiders slipped past the Wall and wrecked part of the ' + name + '.', target: target, targetName: name,
+                cost: 40 + 15 * lvl, repairMs: (1 + lvl) * HOUR, at: s.t, repairEndAt: 0, repaired: false });
+            s.siege.last = { at: s.t, won: false, str: str, def: def, target: name };
+            logEvent(s, 'Siege wave ' + s.siege.n + ' broke through (' + def + ' against ' + str + ')' + (name ? ': the ' + name + ' is damaged.' : '.'));
+            FRESH.push('The Wall was breached!' + (name ? ' The ' + name + ' needs repairs.' : '') + ' Post or drill more defenders.');
+        }
+        s.rev++;
+    }
     function rollEvent(s) {
         const list = ((window.DOMINION_KEEP && window.DOMINION_KEEP.events) || []).filter((e) => (e.minHallLevel || 1) <= s.b.hall && !(s.events || []).some((x) => x.id === e.id && !x.repaired)
             && (e.targetType === 'DECORATION' ? s.crafted[e.targetId] : ['great_hall', 'archive', 'enclave'].includes(e.targetId) || (e.targetId === 'woodlot' && s.b.woodlot >= 1) || (WS[e.targetId] && wsBuilt(s, e.targetId)) || (e.targetId === 'storehouse' && s.b.storehouse) || (e.targetId === 'builders_yard' && s.b.yard)));
@@ -1283,11 +1419,27 @@
         const k = KEEP_CRAFTS[id];
         if (!k) return 'Unknown craft.';
         if (s.crafted[id]) return 'Already made.';
+        if (k[5] && !s.crafted[k[5]]) return 'Craft the ' + ((KEEP_CRAFTS[k[5]] || [k[5]])[0]) + ' first.';
+        if ((k[6] || 1) > roomLevel(s, k[2])) return 'Needs the ' + titleCase(k[2]) + ' at level ' + k[6] + '.';
         if (!canAfford(s, ka(k[3]))) return 'Missing materials.';
         return '';
     }
     function keepCraft(s, id) { if (keepCraftBlock(s, id)) return false; spend(s, ka(KEEP_CRAFTS[id][3])); s.crafted[id] = true; keepEvent(s, 'CRAFTING'); s.rev++; return true; }
-    const toolMul = (s, room) => Object.keys(KEEP_CRAFTS).some((k) => KEEP_CRAFTS[k][1] === 'TOOL' && KEEP_CRAFTS[k][2] === room && s.crafted[k]) ? 1.2 : 1;
+    // Each installed tool tier lifts its room by 20%, as the Keep's tool ladder does.
+    const toolTiers = (s, room) => Object.keys(KEEP_CRAFTS).filter((k) => KEEP_CRAFTS[k][1] === 'TOOL' && KEEP_CRAFTS[k][2] === room && s.crafted[k]).length;
+    const toolMul = (s, room) => 1 + 0.2 * toolTiers(s, room);
+    // Tools also fit the Knight's hand: each tier in the room that hosts a skill speeds that work 10%.
+    const SKILL_ROOM = { woodcutting: 'woodlot', carpentry: 'woodlot', mining: 'quarry', excavation: 'quarry', smelting: 'forge', smithing: 'forge',
+        foraging: 'garden', alchemy: 'garden', weaving: 'garden', cooking: 'kitchen', fishing: 'fridge', runecrafting: 'generator' };
+    const toolSpeed = (s, skill) => (SKILL_ROOM[skill] ? 0.1 * toolTiers(s, SKILL_ROOM[skill]) : 0);
+    const skillsOfRoom = (room) => Object.keys(SKILL_ROOM).filter((k) => SKILL_ROOM[k] === room);
+    // Displayed decorations make the Keep a place people want to work: +1% Keep production each.
+    const roomDecor = (room) => Object.keys(KEEP_CRAFTS).filter((k) => KEEP_CRAFTS[k][1] === 'DECORATION' && KEEP_CRAFTS[k][2] === room);
+    // A room with every one of its decorations on display gets +5%: a reason to finish each set.
+    const setDone = (s, room) => { const d = roomDecor(room); return d.length > 0 && d.every((k) => s.placed[k] && s.crafted[k]); };
+    const setMul = (s, room) => (setDone(s, room) ? 1.05 : 1);
+    const decorCount = (s) => Object.keys(s.placed || {}).filter((k) => s.placed[k] && s.crafted[k]).length;
+    const roomLevel = (s, room) => (room === 'woodlot' ? s.b.woodlot : room === 'great_hall' ? s.b.hall : WS[room] ? (s.wsl[room] || 0) : 1);
 
     // —— The Chronicle: Keep lore unlocks as in KeepService; reading only marks it read ——
     const LORE = () => (window.DOMINION_KEEP && window.DOMINION_KEEP.lore) || { entries: [], conversations: [] };
@@ -1391,20 +1543,29 @@
         const before = n.trust;
         n.trust = Math.max(0, Math.min(TRUST_MAX, n.trust + (o.relationshipDelta != null ? o.relationshipDelta : ch.relationshipDelta || 0)));
         n.met = true; n.name = c.npcName; n.role = c.npcRole || ''; n.cooldownUntil = s.t + (c.cooldownHours || 6) * HOUR;
-        if (o.flag || ch.flag) s.voices.flags[o.flag || ch.flag] = true;
+        const flag = o.flag || ch.flag;
+        if (flag) s.voices.flags[flag] = true;
         s.voices.done[c.id] = true;
         s.visitors.active = s.visitors.active.filter((a) => a.id !== c.id);
         const reply = o.response || ch.response || '';
         s.voices.log.unshift({ npc: c.npcName, npcId: c.npcId, prompt: c.prompt, said: ch.label, reply: reply, at: s.t, gains: gains, trust: n.trust - before });
         if (s.voices.log.length > 30) s.voices.log.length = 30;
         unlockLore(s, o.unlockLoreId || ch.unlockLoreId);
+        // A consequence comes straight to the gate (KeepService.activateConsequenceFollowup):
+        // it skips the roll and the speaker's cooldown, since it answers what just happened.
+        let follow = null;
+        if (flag) {
+            follow = LORE().conversations.find((f) => (f.requiresFlags || []).includes(flag) && !(f.oneTime !== false && s.voices.done[f.id]) &&
+                !(f.requiresLoreIds || []).some((l) => !loreOpen(s, l)) && !(f.requiresFlags || []).some((g) => !s.voices.flags[g]) && !s.visitors.active.some((a) => a.id === f.id)) || null;
+            if (follow) s.visitors.active.push({ id: follow.id, at: s.t, followup: true });
+        }
         add(s, { silver: 2 });
         grantRank(s, 25);
         keepEvent(s, 'CONVERSATION');
         maybeRequest(s, c.npcId);
         if (n.trust >= TRUST_MAX && !n.keepsake) { n.keepsake = true; add(s, { crowns: 100, relic: 1 }); FRESH.push(c.npcName + ' is Bonded to the Keep and leaves a keepsake: 100 Crowns and a relic.'); }
         s.rev++;
-        return { reply: reply, gains: gains, loss: loss, trust: n.trust, delta: n.trust - before, stage: trustStage(n.trust) };
+        return { reply: reply, gains: gains, loss: loss, trust: n.trust, delta: n.trust - before, stage: trustStage(n.trust), follow: follow ? follow.npcName : '' };
     }
 
     // —— Visitor requests: Dominion's quest layer on top of the Keep's visitors ——
@@ -1493,17 +1654,19 @@
         const st = (s.stored[id] = s.stored[id] || {});
         Object.keys(rates).forEach((k) => {
             if (!(rates[k] > 0)) return;
-            const cap = Math.max(st[k] || 0, rates[k] * STORE_HOURS * (1 + 0.25 * (s.b.storehouse || 0)) * (s.annex[id] ? 1.5 : 1));
+            const cap = Math.max(st[k] || 0, rates[k] * storeHours(s, id));
             st[k] = Math.min(cap, (st[k] || 0) + rates[k] * h);
         });
     }
+    // Hours a room holds before it stops filling: Storehouse levels, an annex and each tool tier deepen it.
+    const storeHours = (s, id) => STORE_HOURS * (1 + 0.25 * (s.b.storehouse || 0)) * (s.annex[id] ? 1.5 : 1) * (1 + 0.25 * toolTiers(s, id));
     const storedOf = (s, id) => s.stored[id] || {};
     const storedCount = (s, id) => Object.keys(storedOf(s, id)).reduce((a, k) => a + fl(storedOf(s, id)[k]), 0);
     function storeFill(s, id) {
         const rates = id === 'woodlot' ? { timber: woodlotRate(s) } : workshopRates(s, id), st = storedOf(s, id);
         const k = Object.keys(rates).find((x) => rates[x] > 0) || Object.keys(st)[0];
         if (!k) return 0;
-        const cap = (rates[k] || 0) * STORE_HOURS * (1 + 0.25 * (s.b.storehouse || 0)) * (s.annex[id] ? 1.5 : 1);
+        const cap = (rates[k] || 0) * storeHours(s, id);
         return cap > 0 ? Math.min(1, (st[k] || 0) / cap) : 0;
     }
     function collect(s, id) {
@@ -1590,7 +1753,7 @@
         spend(s, r.cost);
         s.rebirths = r.n;
         // Rapport, lore, voices, crafts and the Knight carry over; the Keep's buildings start again.
-        s.b.hall = 1; s.b.woodlot = 1; s.b.storehouse = 0; s.b.yard = 0; s.b.front = 0;
+        s.b.hall = 1; s.b.woodlot = 1; s.b.storehouse = 0; s.b.yard = 0; s.b.front = 0; s.b.crews = 0;
         Object.keys(WS).forEach((w) => { s.wsl[w] = s.wsl[w] ? 1 : 0; s.annex[w] = false; });
         s.inv.timber = Math.max(s.inv.timber, 80 + 120 * r.n);
         RAW.forEach((k) => { s.inv[k] = 0; });
@@ -1900,6 +2063,13 @@
         const lootMul = Math.max(0.4, 1 - loss) + 0.05 * x.rations + x.skills.cartography * 0.003 + x.crit + (meal.haul || 0);
         const total = rollLoot(d, x.id + ':loot', lootMul);
         Object.keys(gains).forEach((k) => { total[k] = (total[k] || 0) + gains[k]; });
+        // The first warden kill opens the Vault's hoard, once.
+        if (x.dest === 'vault' && !s.disc.vaultCleared && lines.some((l) => l.id === 'boss' && l.status === 'ok')) {
+            s.disc.vaultCleared = true;
+            [['covenant_keystone', 2], ['aether_core', 1], ['ancient_relic', 2], ['crowns', 250]].forEach((g) => { total[g[0]] = (total[g[0]] || 0) + g[1]; });
+            discs.push('vaultCleared');
+            FRESH.push('The Sunken Vault is open: its hoard is yours.');
+        }
         // Essences: the road's element, plus one for each companion's element.
         const ess = 'essence_' + d.element.toLowerCase();
         total[ess] = (total[ess] || 0) + 2;
@@ -2094,7 +2264,7 @@
         { chapter: 'The Sealed Door', steps: [
             { id: 'map', title: 'Open the sealed door in the Covenant Ruins', hint: 'Bring a Hammer. A Siegeling with Frost Sight can spot the door, but cannot open it.', done: (s) => s.disc.vaultMap },
             { id: 'cipher', title: 'Reach Elemental Studies 10', hint: 'Vault Cipher lets the Knight read the map.', done: (s) => skillLvl(s, 'elemental_studies') >= 10 },
-            { id: 'vault', title: 'Sunken Vault (planned, beyond this slice)', hint: 'The next destination and its rewards are not built yet.', done: () => false, planned: true }
+            { id: 'vault', title: 'Break the warden of the Sunken Vault', hint: 'Expedition › The Keep’s roads › Sunken Vault. A 10-hour flooded road: Water hazards, a sealed door (Hammer), an elite and the Vault’s warden. Bring a strong company.', done: (s) => !!s.disc.vaultCleared }
         ] }
     ];
     function latchObjectives(s) {
@@ -2384,6 +2554,22 @@
         return '<span class="ck-portrait dm-paper-frame' + (cls ? ' ' + cls : '') + '" style="--el:var(--' + elKey(el) + ')">' + speciesArt(speciesId, '', el) + '</span>';
     }
     const KNIGHT_ART = '/img/knights/ser-airek-full-card.webp';
+    // The Knight is a SiegeKnight with overlay (cutout) art, drawn as a paper standee like the
+    // Siegelings. Full-card art can't be cut out, so it is only the offline fallback.
+    const DEFAULT_KNIGHT = 'aero';
+    const knightCards = () => Object.keys(ART_URLS).filter((k) => k.indexOf('knight:') === 0).map((k) => k.slice(7))
+        .sort((a, b) => String(ART_URLS['knight-name:' + a]).localeCompare(String(ART_URLS['knight-name:' + b])));
+    const knightCardId = () => (ART_URLS['knight:' + (S.knight.card || DEFAULT_KNIGHT)] ? (S.knight.card || DEFAULT_KNIGHT) : knightCards()[0] || '');
+    function thumbOf(u, width) {
+        const token = (String(u || '').match(/[?&]token=([0-9A-Za-z-]{8,64})(?:&|$)/) || [])[1];
+        if (u && u.indexOf(STORAGE_ART_PREFIX) === 0 && token) return STORAGE_ART_PREFIX + encodeURIComponent('art-thumbs/' + token + '/w' + (width || 240) + '.webp') + '?alt=media&token=' + token;
+        return u || '';
+    }
+    function knightPaper(cls) {
+        const id = knightCardId(), raw = id ? ART_URLS['knight:' + id] : '';
+        if (!raw) return '<img class="' + (cls || '') + ' dm-knight-full" src="' + KNIGHT_ART + '" alt="">';
+        return '<img class="dm-paper ' + (cls || '') + '" src="' + esc(thumbOf(raw, 320)) + '" data-raw="' + esc(raw) + '" alt="" onerror="dmArtFallback(this)">';
+    }
     const leadComp = () => prepParty(S)[0] || joinedIds(S)[0] || '';
 
     function toast(text) {
@@ -2413,7 +2599,7 @@
     function renderModal() {
         if (!modal) return;
         const m = $('ckModal'), body = $('ckModalBody');
-        const html = ({ report: reportModal, away: awayModal, plan: planModal, item: itemModal, skill: skillModal, menu: menuModal, objective: objectiveModal, lore: loreModal, voice: voiceModal, comp: null }[modal.kind] || (() => ''))(modal.arg);
+        const html = ({ report: reportModal, away: awayModal, plan: planModal, item: itemModal, skill: skillModal, menu: menuModal, objective: objectiveModal, coach: coachModal, lore: loreModal, voice: voiceModal, comp: null }[modal.kind] || (() => ''))(modal.arg);
         const scroll = body.scrollTop;
         m.dataset.kind = modal.kind;
         body.innerHTML = html;
@@ -2462,6 +2648,16 @@
         $('ckStatus').innerHTML = parts.join('');
     }
 
+    // First-visit tips: a single dismissible line per tab instead of a walkthrough.
+    const HINTS = {
+        knight: 'Your SiegeKnight: pick their art, wear crafted gear, and watch their rank grow from everything the Keep does.',
+        company: 'Give each Siegeling a job: help a room, rest in the Enclave, explore, or stand on Akhar’s Wall.',
+        work: 'Choose what the Knight works on. Tools crafted in the matching room make that work faster.',
+        expedition: 'Pack provisions or food, pick a party and send them down a road. You can watch them walk.',
+        base: 'Tap a building to step inside. Build, collect stores and craft tools and decorations room by room.',
+        realm: 'Guilds, the market and operations are shared with other players on the server.',
+        wilds: 'Siegelings you meet on the road wait here to be tamed with lures.'
+    };
     function renderView() {
         const view = { knight: viewKnight, company: viewCompany, work: viewWork, expedition: viewExpedition, base: viewBase, realm: viewRealm, wilds: viewWilds }[S.ui.tab] || viewBase;
         const main = $('ckMain');
@@ -2470,17 +2666,28 @@
         // A journey already on screen keeps walking: the same trip's node survives the re-render.
         const keepJ = {};
         main.querySelectorAll('.dm-journey').forEach((j) => { keepJ[j.dataset.start + ':' + j.dataset.end] = j; });
+        const keepF = main.querySelector('.dm-front .front-battle');
         const oldImgs = {};
         main.querySelectorAll('img').forEach((im) => { const k = im.getAttribute('src'); if (k && im.complete && im.naturalWidth) (oldImgs[k] = oldImgs[k] || []).push(im); });
         main.innerHTML = view();
         main.querySelectorAll('.dm-journey').forEach((j) => { const old = keepJ[j.dataset.start + ':' + j.dataset.end]; if (old) j.replaceWith(old); });
+        const newF = main.querySelector('.dm-front .front-battle');
+        if (keepF && newF && keepF.dataset.key === newF.dataset.key) newF.replaceWith(keepF);
         // Reuse already-decoded images so portraits and art never blink on a re-render.
         main.querySelectorAll('img').forEach((im) => {
-            if (im.closest('.dm-journey') && !im.isConnected) return;
+            if ((im.closest('.dm-journey') && !im.isConnected) || im.closest('.front-battle')) return;
             const pool = oldImgs[im.getAttribute('src')], old = pool && pool.pop();
             if (old && old !== im) { old.className = im.className; old.alt = im.alt; im.replaceWith(old); }
         });
         main.dataset.tab = S.ui.tab;
+        const hint = HINTS[S.ui.tab];
+        if (hint && !(S.ui.hints && S.ui.hints[S.ui.tab])) {
+            const d = document.createElement('div');
+            d.className = 'dm-hint';
+            d.setAttribute('role', 'note');
+            d.innerHTML = '<span aria-hidden="true">💡</span><p>' + esc(hint) + '</p><button type="button" class="ck-pill" data-act="hint-ok" data-arg="' + S.ui.tab + '">Got it</button>';
+            main.prepend(d);
+        }
         main.classList.toggle('dm-fill', S.ui.tab === 'base' && (S.ui.base || 'grounds') === 'grounds' && !S.ui.room);
         mountScene();
         decorateRoom();
@@ -2551,7 +2758,7 @@
         const bag = Object.keys(RES).filter((x) => !GEAR_SLOT[RES[x].kind] && RES[x].kind !== 'CURRENCY' && fl(S.inv[x]) > 0);
         let h = hero({
             cls: 'is-knight', scene: namedScene('light-shelter'), kicker: 'Rank ' + rankLvl(S) + ' · ' + esc(HALL_RANKS[S.b.hall - 1]), title: esc(k.name),
-            art: '<span class="ck-portrait is-hero dm-knight-portrait"><img src="' + KNIGHT_ART + '" alt=""></span>',
+            art: '<span class="ck-portrait is-hero dm-paper-frame dm-knight-portrait" style="--el:var(--' + elKey(ART_URLS['knight-el:' + knightCardId()] || 'WIND') + ')">' + knightPaper() + '</span>',
             body: barP(rp.pct, 'is-fat') + '<p class="ck-banner-line">' + esc(rp.label) + ' rank XP</p>' +
                 '<div class="ck-bubbles"><span class="ck-bubble">🗺️ <b>' + (S.runs || 0) + '</b> trips</span><span class="ck-bubble">🐾 <b>' + tamed + '</b> companions</span>' +
                 '<span class="ck-bubble">👑 <b>' + fl(S.inv.crowns) + '</b></span><span class="ck-bubble">🪙 <b>' + fl(S.inv.silver) + '</b></span></div>'
@@ -2570,6 +2777,13 @@
             '<p class="ck-hint">Every weapon and garment is crafted: Carpentry carves wooden gear, Smithing forges metal, Weaving sews cloth. Weapon tier adds 20% to that weapon’s rewards on the road.</p>' +
             '<h4>Gathering tool</h4><div class="ck-tiles is-gear">' + ['woodaxe', 'pickaxe'].filter((t) => fl(S.inv[t]) > 0).map((t) =>
                 '<button type="button" class="ck-tile' + (k.tool === t ? ' is-on' : '') + '" data-act="tool" data-arg="' + t + '"' + (busy ? ' disabled' : '') + ' title="' + esc(RES[t].blurb) + '">' + itemIcon(t) + '<b>' + esc(RES[t].name) + '</b>' + (k.tool === t ? '<span class="ck-tile-tag">Carried</span>' : '') + '</button>').join('') + '</div></section>';
+        const ks = knightCards();
+        if (ks.length) {
+            h += '<section class="ck-card"><h3>🛡️ Your SiegeKnight</h3><p class="ck-small ck-muted">Who walks the roads and stands at the Hall door. Cosmetic: skills, gear and progress stay with you.</p><div class="dm-knight-picker">' +
+                ks.map((id) => '<button type="button" class="dm-knight-pick' + (id === knightCardId() ? ' is-on' : '') + '" data-act="knight-card" data-arg="' + esc(id) + '" style="--el:var(--' + elKey(ART_URLS['knight-el:' + id]) + ')">' +
+                    '<span class="dm-knight-pick-art"><img class="dm-paper" src="' + esc(thumbOf(ART_URLS['knight:' + id], 240)) + '" data-raw="' + esc(ART_URLS['knight:' + id]) + '" alt="" loading="lazy" onerror="dmArtFallback(this)"></span>' +
+                    '<small>' + esc(ART_URLS['knight-name:' + id]) + '</small></button>').join('') + '</div></section>';
+        }
         const GROUP_EMOJI = { Gathering: '🌿', Production: '⚒️', Siegeling: '🐾', Expedition: '🧭', Knowledge: '📚' };
         SKILL_GROUPS.forEach((gp) => {
             const ids = Object.keys(SKILLS).filter((id) => SKILLS[id].group === gp[0]);
@@ -2839,7 +3053,7 @@
             '<span class="dm-j-marker" data-live="walker" data-start="' + o.start + '" data-end="' + o.end + '"></span></div>' +
             '<script type="application/json" class="dm-j-labels">' + JSON.stringify(o.areas.map((a) => a.title + (a.status === 'ok' ? ' · handled' : a.status === 'part' ? ' · a struggle' : a.status === 'miss' ? ' · unanswered' : ''))).replace(/</g, '\\u003c') + '</script></section>';
     }
-    const knightWalker = () => ({ knight: true, html: '<span class="dm-j-knight"><img src="' + KNIGHT_ART + '" alt=""></span>' });
+    const knightWalker = () => (knightCardId() ? { html: knightPaper() } : { knight: true, html: '<span class="dm-j-knight"><img src="' + KNIGHT_ART + '" alt=""></span>' });
     const compWalker = (id) => ({ html: compArt(id, C(id).name) });
     function foeArt(seed, element) {
         const pool = Object.keys(SPECIES).filter((k) => (!element || SPECIES[k].element === element) && catalogArt(k, 240));
@@ -2967,7 +3181,7 @@
         if (!r) return '<p class="ck-muted">This report is no longer stored.</p><div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
         return '<h2 id="ckModalTitle">' + esc(reportTitle(r)) + '</h2><p class="ck-outcome is-complete">' + esc(r.summary) + '</p>' +
             '<h3>How preparation shaped the journey</h3><ol class="ck-timeline">' + r.lines.map((l) => '<li class="is-' + (l.status === 'ok' ? 'good' : l.status === 'miss' ? 'bad' : 'info') + '"><time>' + (l.status === 'ok' ? '✓' : l.status === 'part' ? '~' : '✕') + '</time><span><b>' + esc(l.title) + '.</b> ' + esc(l.text) + (l.status !== 'ok' && l.need ? ' <i>Next time: ' + esc(l.need) + '</i>' : '') + '</span></li>').join('') + '</ol>' +
-            (r.discs.length || r.sighting ? '<h3>Discoveries</h3><ul class="ck-milestones">' + r.discs.map((d) => '<li>' + (d === 'fawny' ? 'Fawny joined the Keep.' : 'The Sealed Vault Map.') + '</li>').join('') + (r.sighting ? '<li>A wild ' + esc((SPECIES[r.sighting.species] || {}).name || r.sighting.species) + ' was sighted. Visit the Wilds within 48 hours.</li>' : '') + '</ul>' : '') +
+            (r.discs.length || r.sighting ? '<h3>Discoveries</h3><ul class="ck-milestones">' + r.discs.map((d) => '<li>' + (d === 'fawny' ? 'Fawny joined the Keep.' : d === 'vaultCleared' ? 'The Sunken Vault’s warden fell: 2 Covenant Keystones, an Aether Core, 2 Ancient Relics and 250 Crowns.' : 'The Sealed Vault Map.') + '</li>').join('') + (r.sighting ? '<li>A wild ' + esc((SPECIES[r.sighting.species] || {}).name || r.sighting.species) + ' was sighted. Visit the Wilds within 48 hours.</li>' : '') + '</ul>' : '') +
             '<h3>Company</h3><ul class="ck-xp">' + Object.keys(r.bonds).map((k) => '<li><span>' + esc(S.comps[k] ? C(k).name : k) + '</span><b>+' + r.bonds[k] + ' bond' + (r.levels && r.levels[k] ? ' · Lv ' + r.levels[k] : '') + '</b></li>').join('') + '</ul>' +
             '<h3>Knowledge</h3><ul class="ck-xp">' + Object.keys(r.xp).map((k) => '<li><span>' + esc(SKILLS[k].name) + '</span><b>+' + r.xp[k] + ' xp</b></li>').join('') + (r.prof ? '<li><span>' + esc(WEAPONS[r.weapon].name) + '</span><b>+' + r.prof + ' xp</b></li>' : '') + '</ul>' +
             (r.food && FOODS[r.food] ? '<p class="ck-small is-ready">' + itemEmoji(r.food) + ' The company ate ' + esc(itemName(r.food)) + ': ' + esc(buffText(FOODS[r.food])) + '.</p>' : '') + '<h3>Loot</h3>' + lootRow(r.total) + '<p class="ck-small ck-muted">Haul kept: ' + r.lootPct + '% of the base find.' + (r.resumed.length ? ' Resumed: ' + esc(r.resumed.join(' · ')) + '.' : '') + '</p>' +
@@ -3131,6 +3345,18 @@
             b.classList.toggle('is-ready', key === 'woodlot' ? storedCount(S, 'woodlot') > 0 : key === 'quarter' ? Object.keys(WS).some((w) => storedCount(S, w) > 0) : false);
         });
         for (let n = 2; n <= 8; n++) sc.classList.toggle('hall-l' + n, S.b.hall >= n);
+        // Deeper levels show on the grounds: banners, gilt and glow by growth tier, crates for the Storehouse.
+        const maxWs = Math.max(0, ...Object.keys(WS).map((w) => S.wsl[w] || 0));
+        const tier = { hall: S.b.hall >= 7 ? 3 : S.b.hall >= 5 ? 2 : S.b.hall >= 3 ? 1 : 0, woodlot: S.b.woodlot >= 6 ? 3 : S.b.woodlot >= 4 ? 2 : S.b.woodlot >= 3 ? 1 : 0,
+            front: S.b.front >= 7 ? 3 : S.b.front >= 5 ? 2 : S.b.front >= 3 ? 1 : 0, quarter: maxWs >= 7 ? 3 : maxWs >= 5 ? 2 : maxWs >= 3 ? 1 : 0, archive: 0, enclave: 0 };
+        sc.dataset.store = String(S.b.storehouse || 0);
+        sc.querySelectorAll('.building-hotspot').forEach((b) => {
+            let g = b.querySelector('.dm-growth');
+            if (!g) { g = document.createElement('span'); g.className = 'dm-growth'; g.setAttribute('aria-hidden', 'true'); g.innerHTML = '<i class="g-flag"></i><i class="g-flag"></i><i class="g-flag"></i><i class="g-crates"></i><b class="g-stars"></b>'; b.appendChild(g); }
+            const t = tier[b.dataset.building] || 0;
+            b.dataset.growth = String(t);
+            g.querySelector('.g-stars').textContent = '★'.repeat(t);
+        });
         sc.dataset.theme = S.theme || 'covenant';
         const th = HALL_THEMES.find((t) => t[0] === S.theme);
         sc.style.setProperty('--hall-accent', th ? th[2] : '#f4cc62');
@@ -3144,7 +3370,7 @@
         const resting = joinedIds(S).filter((id) => S.comps[id].job.kind === 'rest' && !onExpedition(S, id));
         lbl('enclave', resting.length ? resting.map((id) => C(id).name).join(', ') + ' resting' : 'Residents rest here');
         lbl('front', S.b.front >= 1 ? 'Rank ' + S.b.front + ' · ' + Math.min(defenders(S).length, frontCap(S)) + '/' + frontCap(S) + ' posted' : 'Unbuilt · Hall 2');
-        $('dmQuarterMini').innerHTML = S.grid.map((c, i) => c ? '<i class="quarter-building quarter-' + c.id + '" style="left:' + (4 + (i % 3) * 33) + '%;bottom:' + (6 + (2 - Math.floor(i / 3)) * 31) + '%"><b></b></i>' : '').join('') +
+        $('dmQuarterMini').innerHTML = S.grid.map((c, i) => c ? '<i class="quarter-building quarter-' + c.id + ((S.wsl[c.id] || 0) >= 5 ? ' is-master' : (S.wsl[c.id] || 0) >= 3 ? ' is-up' : '') + '" style="left:' + (4 + (i % 3) * 33) + '%;bottom:' + (6 + (2 - Math.floor(i / 3)) * 31) + '%"><b></b></i>' : '').join('') +
             links(S.grid).filter((l) => l.recipe).map((l) => {
                 const ra = Math.floor(l.a / 3), ca = l.a % 3, rb = Math.floor(l.b / 3), cb = l.b % 3;
                 if (ra === rb) return '<i class="quarter-link" style="left:' + (24 + Math.min(ca, cb) * 33) + '%;bottom:' + (18 + (2 - ra) * 31) + '%;width:16%"></i>';
@@ -3153,10 +3379,10 @@
         // Posted defenders stand on the wall as paper standees; Akhar's raiders are shades.
         $('dmWallDefenders').innerHTML = defenders(S).slice(0, frontCap(S)).map((id) => '<b>' + compArt(id, '') + '</b>').join('');
         const ov = [];
-        if (S.exp) ov.push('<button class="dm-knight" type="button" data-act="tab" data-arg="expedition" style="top:auto;bottom:31%" aria-label="Knight on expedition"><span class="dm-art" style="opacity:.55">' + artImg('knight', '') + '</span><span class="dm-pip">' + esc(expTitle(S.exp)) + ' · <span data-live="eta" data-end="' + S.exp.endAt + '"></span></span></button>');
+        if (S.exp) ov.push('<button class="dm-knight" type="button" data-act="tab" data-arg="expedition" style="top:auto;bottom:31%" aria-label="Knight on expedition">' + sceneKnight(true) + '<span class="dm-pip">' + esc(expTitle(S.exp)) + ' · <span data-live="eta" data-end="' + S.exp.endAt + '"></span></span></button>');
         else {
             const td = taskDef(S.knight.task);
-            ov.push('<button class="dm-knight" type="button" data-act="tab" data-arg="work" aria-label="The Knight"><span class="dm-art">' + artImg('knight', '') + '</span><span class="dm-pip green">' + esc(td ? taskLabel(S) : 'Resting') + '</span></button>');
+            ov.push('<button class="dm-knight" type="button" data-act="tab" data-arg="work" aria-label="The Knight">' + sceneKnight(false) + '<span class="dm-pip green">' + esc(td ? taskLabel(S) : 'Resting') + '</span></button>');
         }
         const spot = { woodlot: 'left:30%;bottom:22%', forge: 'left:6%;top:41%', fridge: 'left:30%;top:52%', generator: 'left:30%;top:39%', garden: 'left:6%;top:52%', kitchen: 'left:18%;top:52%', quarry: 'left:18%;top:41%' };
         let restSlot = 0, exploreSlot = 0;
@@ -3181,6 +3407,223 @@
         $('dmSceneOverlay').innerHTML = ov.join('');
     }
 
+    // The Keep's construction drawings (keep.js BUILD_ART): each group rises at its phase.
+    const BUILD_ART_GROUND = `<ellipse class="b-shadow" cx="200" cy="215" rx="158" ry="14"/>`;
+    const BUILD_ART_DUST = `<g class="b-dust"><circle cx="104" cy="198" r="3.2"/><circle cx="196" cy="186" r="2.4"/>
+        <circle cx="292" cy="200" r="3.6"/><circle cx="244" cy="172" r="2"/></g>`;
+
+    const BUILD_ART_FALLBACK = `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M104 204h192M132 186h136"/>
+            <rect class="b-tim-d" x="96" y="188" width="96" height="9" rx="4"/>
+            <rect class="b-tim" x="104" y="176" width="80" height="9" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M148 66v138M256 66v138M144 70h116"/>
+            <path class="b-beam-d" d="M148 126h108"/></g>
+        <g data-phase-min="2">
+            <g class="b-hoist"><path class="b-rope" d="M202 74v42"/><rect class="b-stone" x="184" y="116" width="36" height="26" rx="4"/></g>
+            <rect class="b-stone-d" x="150" y="170" width="50" height="20" rx="3"/>
+            <rect class="b-stone-d" x="204" y="170" width="50" height="20" rx="3"/></g>
+        <g data-phase-min="3">
+            <rect class="b-stone" x="150" y="148" width="104" height="20" rx="3"/>
+            <circle class="b-glow b-lamp" cx="286" cy="96" r="9"/></g>`;
+
+    const BUILD_ART = {
+        // Covenant Hall ranks are cut stone: a timber gantry lifts ashlar onto rising courses.
+        great_hall: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M96 206h208M124 186h152M124 186v20M276 186v20"/>
+            <rect class="b-tim-d" x="80" y="186" width="94" height="9" rx="4"/>
+            <rect class="b-stone" x="86" y="168" width="40" height="18" rx="3"/>
+            <rect class="b-stone" x="130" y="168" width="40" height="18" rx="3"/>
+            <rect class="b-stone-d" x="108" y="150" width="40" height="18" rx="3"/>
+            <rect class="b-tim" x="292" y="180" width="70" height="8" rx="4"/>
+            <rect class="b-tim" x="300" y="169" width="54" height="8" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M152 58v148M254 58v148M146 62h114"/>
+            <path class="b-beam-d" d="M152 96l44-30M254 96l-44-30"/></g>
+        <g data-phase-min="2">
+            <rect class="b-stone" x="168" y="182" width="34" height="18" rx="3"/>
+            <rect class="b-stone" x="206" y="182" width="34" height="18" rx="3"/>
+            <rect class="b-stone-d" x="180" y="162" width="34" height="18" rx="3"/>
+            <rect class="b-stone-d" x="218" y="162" width="34" height="18" rx="3"/>
+            <g class="b-hoist"><path class="b-rope" d="M203 66v44"/><rect class="b-stone" x="184" y="110" width="38" height="26" rx="4"/></g></g>
+        <g data-phase-min="3">
+            <rect class="b-stone" x="160" y="140" width="100" height="20" rx="4"/>
+            <path class="b-banner" d="M120 62h34v52l-17-13-17 13z"/>
+            <circle class="b-glow b-lamp" cx="292" cy="120" r="9"/></g>`,
+        // The Woodlot is cultivated, not felled: saw pit first, drying racks, then staked saplings.
+        woodlot: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-soil" d="M84 206q26-16 52 0zM160 206q26-16 52 0zM236 206q26-16 52 0z"/>
+            <rect class="b-tim-d" x="300" y="176" width="58" height="30" rx="4"/>
+            <path class="b-beam-d" d="M118 190l-8-38"/>
+            <rect class="b-tim-l" x="102" y="140" width="18" height="14" rx="3"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M150 200l30-46M210 200l-30-46M162 200l30-46M222 200l-30-46"/>
+            <rect class="b-tim-l" x="140" y="142" width="106" height="12" rx="5"/>
+            <path class="b-saw" d="M252 148l38-16"/></g>
+        <g data-phase-min="2">
+            <path class="b-beam" d="M96 200V96M304 200V96"/>
+            <path class="b-rope" d="M96 106h208M96 128h208M96 150h208"/>
+            <path class="b-bundle" d="M132 106v22M180 128v20M236 106v20M276 128v22"/></g>
+        <g data-phase-min="3">
+            <path class="b-leaf" d="M110 200q6-52 24-64 12 20 4 64zM196 200q6-58 24-70 12 22 4 70zM282 200q6-48 22-58 12 18 4 58z"/>
+            <circle class="b-glow b-lamp" cx="330" cy="118" r="9"/></g>`,
+        // The Archive is shored before it is shelved — props, then ladder, shelves, and lamp.
+        archive: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <rect class="b-stone-d" x="96" y="46" width="208" height="18" rx="3"/>
+            <path class="b-crack" d="M186 64l12 26-9 22 14 24"/>
+            <path class="b-rubble" d="M152 204l26-30 26 30zM210 204l20-22 20 22z"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M116 202l12-136M284 202l-12-136M200 202V68"/>
+            <path class="b-beam-d" d="M312 200l-12-92M340 200l-12-92"/>
+            <path class="b-rope" d="M302 128h30M306 152h30M310 176h30"/></g>
+        <g data-phase-min="2">
+            <rect class="b-tim-d" x="44" y="116" width="8" height="88" rx="3"/>
+            <rect class="b-tim-d" x="98" y="116" width="8" height="88" rx="3"/>
+            <rect class="b-tim" x="38" y="126" width="74" height="9" rx="4"/>
+            <rect class="b-tim" x="38" y="156" width="74" height="9" rx="4"/>
+            <rect class="b-tim" x="38" y="186" width="74" height="9" rx="4"/></g>
+        <g data-phase-min="3">
+            <rect class="b-canvas" x="48" y="104" width="21" height="22" rx="2"/>
+            <rect class="b-canvas" x="76" y="108" width="18" height="18" rx="2"/>
+            <rect class="b-canvas" x="52" y="136" width="23" height="20" rx="2"/>
+            <circle class="b-glow b-lamp" cx="238" cy="144" r="10"/></g>`,
+        // The Garden raises a trellis over turned beds; blossom is the finishing coat.
+        garden: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-soil" d="M78 202h110v14H78zM212 202h110v14H212z"/>
+            <path class="b-chalk" d="M86 196h94M220 196h94"/>
+            <rect class="b-tim-d" x="176" y="178" width="48" height="26" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M104 200V92M172 200V80M228 200V80M296 200V92M100 84h200"/></g>
+        <g data-phase-min="2">
+            <path class="b-lattice" d="M104 120h192M104 152h192M136 200V88M200 200V84M264 200V88"/>
+            <path class="b-hoop" d="M92 200a34 34 0 0168 0M240 200a34 34 0 0168 0"/></g>
+        <g data-phase-min="3">
+            <path class="b-leaf" d="M116 118q26 6 26 34-26-4-26-34zM196 96q28 8 26 38-28-6-26-38zM266 132q26 8 24 36-26-6-24-36z"/>
+            <circle class="b-bloom" cx="150" cy="106" r="7"/><circle class="b-bloom" cx="238" cy="132" r="6"/>
+            <circle class="b-glow b-lamp" cx="322" cy="128" r="9"/></g>`,
+        // The Forge builds upward from the ash pit: scaffold, flue courses, then first fire.
+        forge: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-soil" d="M150 208a50 22 0 01100 0z"/>
+            <rect class="b-brick" x="72" y="180" width="76" height="12" rx="2"/>
+            <rect class="b-brick" x="80" y="166" width="60" height="12" rx="2"/>
+            <rect class="b-tim-d" x="66" y="192" width="90" height="10" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M156 202V52M252 202V52"/>
+            <path class="b-beam-d" d="M156 84h96M156 130h96M156 172h96"/></g>
+        <g data-phase-min="2">
+            <rect class="b-brick" x="172" y="150" width="64" height="16" rx="2"/>
+            <rect class="b-brick" x="172" y="130" width="64" height="16" rx="2"/>
+            <rect class="b-brick" x="176" y="110" width="56" height="16" rx="2"/>
+            <path class="b-anvil" d="M276 196h56l-10-14h-14l4-14h-18l4 14h-12z"/>
+            <path class="b-beam-d" d="M282 202h44"/></g>
+        <g data-phase-min="3">
+            <rect class="b-brick" x="180" y="88" width="48" height="16" rx="2"/>
+            <path class="b-fire" d="M204 190q-22-16-14-38 10 12 16 4 6 16 16 6 8 22-18 28z"/>
+            <g class="b-sparks"><circle cx="188" cy="140" r="3"/><circle cx="222" cy="126" r="2.4"/><circle cx="206" cy="108" r="2"/></g></g>`,
+        // The Fridge is a lattice cage packed with panels before the frost coil is charged.
+        fridge: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-straw" d="M70 202h110"/>
+            <rect class="b-ice" x="80" y="176" width="38" height="26" rx="3"/>
+            <rect class="b-ice" x="122" y="176" width="38" height="26" rx="3"/>
+            <rect class="b-canvas" x="286" y="164" width="66" height="38" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M150 202V64M256 202V64M144 68h118M146 132h114"/></g>
+        <g data-phase-min="2">
+            <rect class="b-panel" x="156" y="76" width="46" height="48" rx="3"/>
+            <rect class="b-panel" x="206" y="76" width="46" height="48" rx="3"/>
+            <rect class="b-panel" x="156" y="140" width="46" height="52" rx="3"/>
+            <rect class="b-panel" x="206" y="140" width="46" height="52" rx="3"/></g>
+        <g data-phase-min="3">
+            <path class="b-coil" d="M170 168h68M170 152h68M170 184h68"/>
+            <path class="b-ice b-crystal" d="M203 84l20 30-20 30-20-30z"/>
+            <circle class="b-glow b-lamp b-frost" cx="300" cy="120" r="10"/></g>`,
+        // The Generator winds an armature ring before the conduit carries the first arc.
+        generator: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <circle class="b-spool" cx="106" cy="180" r="26"/><circle class="b-spool-hub" cx="106" cy="180" r="9"/>
+            <rect class="b-canvas" x="272" y="170" width="76" height="34" rx="4"/>
+            <path class="b-beam-d" d="M272 186h76"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-ring" d="M138 148a64 64 0 01128 0"/>
+            <path class="b-beam" d="M138 148v54M266 148v54"/></g>
+        <g data-phase-min="2">
+            <path class="b-winding" d="M152 122l16 34M172 104l16 40M196 96l14 44M222 104l14 40M246 122l14 34"/>
+            <path class="b-beam" d="M202 96V60"/><rect class="b-tim-l" x="188" y="52" width="28" height="12" rx="4"/></g>
+        <g data-phase-min="3">
+            <path class="b-arc" d="M172 132q30 22 60 0M162 158q40 30 80 0"/>
+            <circle class="b-glow b-lamp" cx="202" cy="176" r="12"/></g>`,
+        // The Quarry cuts along a chalked face; a derrick lifts each block onto the sled.
+        quarry: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-face" d="M60 204V70h116l-14 134z"/>
+            <path class="b-chalk" d="M72 104h92M72 142h84M72 178h76"/>
+            <path class="b-rubble" d="M186 204l24-24 24 24z"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M300 202V56M300 60L212 92"/>
+            <path class="b-rope" d="M300 84l-64 26M300 202l-48-30"/></g>
+        <g data-phase-min="2">
+            <g class="b-hoist"><path class="b-rope" d="M214 94v34"/><rect class="b-stone" x="196" y="128" width="38" height="26" rx="3"/></g>
+            <rect class="b-tim-d" x="180" y="192" width="96" height="10" rx="4"/>
+            <circle class="b-tim" cx="196" cy="204" r="7"/><circle class="b-tim" cx="260" cy="204" r="7"/></g>
+        <g data-phase-min="3">
+            <rect class="b-stone" x="188" y="168" width="40" height="20" rx="3"/>
+            <rect class="b-stone-d" x="232" y="168" width="40" height="20" rx="3"/>
+            <rect class="b-stone" x="208" y="146" width="40" height="20" rx="3"/>
+            <circle class="b-glow b-lamp" cx="330" cy="104" r="9"/></g>`,
+        // The Kitchen turns a wooden former into a brick dome, then lights its first fire.
+        kitchen: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M132 204h136"/>
+            <rect class="b-brick" x="66" y="180" width="72" height="12" rx="2"/>
+            <rect class="b-brick" x="74" y="166" width="56" height="12" rx="2"/>
+            <rect class="b-tim-d" x="126" y="192" width="148" height="12" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-former" d="M140 192a60 60 0 01120 0"/>
+            <path class="b-beam-d" d="M200 192v-60M170 192l14-52M230 192l-14-52"/></g>
+        <g data-phase-min="2">
+            <path class="b-dome" d="M132 192a68 68 0 01136 0z"/>
+            <path class="b-line" d="M148 160h104M162 138h76M180 122h40"/>
+            <rect class="b-tim" x="286" y="150" width="64" height="9" rx="4"/></g>
+        <g data-phase-min="3">
+            <rect class="b-brick" x="238" y="88" width="30" height="52" rx="3"/>
+            <path class="b-fire" d="M200 190q-18-14-12-32 8 10 14 3 5 13 13 5 7 18-15 24z"/>
+            <path class="b-steam" d="M254 76q10-14 0-26M270 78q10-14 0-26"/>
+            <circle class="b-glow b-lamp" cx="322" cy="120" r="9"/></g>`,
+        // The Enclave is woven, not cut: rafters, then nests, then lanterns for the residents.
+        enclave: `
+        <g data-phase-min="0">${BUILD_ART_GROUND}
+            <path class="b-chalk" d="M100 202h200"/>
+            <path class="b-bundle" d="M74 202l18-46M88 202l16-46M102 202l14-46"/>
+            <rect class="b-tim-d" x="286" y="176" width="66" height="28" rx="4"/>
+            ${BUILD_ART_DUST}</g>
+        <g data-phase-min="1">
+            <path class="b-beam" d="M140 202l60-96 60 96M120 202l52-84M280 202l-52-84"/>
+            <path class="b-beam-d" d="M156 152h88"/></g>
+        <g data-phase-min="2">
+            <path class="b-nest" d="M118 170a24 16 0 0148 0zM234 170a24 16 0 0148 0zM178 196a22 15 0 0144 0z"/>
+            <path class="b-rope" d="M156 152l-14 18M244 152l14 18"/></g>
+        <g data-phase-min="3">
+            <path class="b-banner" d="M186 110h28v46l-14-11-14 11z"/>
+            <circle class="b-glow b-lamp" cx="140" cy="140" r="8"/>
+            <circle class="b-glow b-lamp" cx="262" cy="140" r="8"/></g>`
+    };
     // —— Interiors: the Keep's rooms, entered from the scene ——
     const ROOM_KEY = { hall: 'great_hall', woodlot: 'woodlot', archive: 'archive', enclave: 'enclave', garden: 'garden', forge: 'forge', fridge: 'fridge', generator: 'generator', quarry: 'quarry', kitchen: 'kitchen' };
     const ROOM_TITLE = { hall: 'Great Hall', woodlot: 'Woodlot Lodge', archive: 'Archive', enclave: 'Siegeling Enclave', quarter: 'Elemental Quarter', front: 'Akhar’s Wall' };
@@ -3200,11 +3643,16 @@
         const key = ROOM_KEY[id], tpl = ROOM_HTML[key] || '';
         let site = '';
         const b = (S.builds || []).find((x) => (id === 'woodlot' && x.id === 'woodlot_1') || x.id === 'ws_' + id + '_1' || (id === 'archive' && x.id === 'archive'));
-        if (!roomBuilt(id) || b) {
-            site = '<div class="dm-site' + (b ? ' is-working' : '') + '"><span class="dm-site-scaffold"><i></i><i></i><i></i></span><span class="dm-site-crates"><i></i><i></i></span>' +
-                '<span class="dm-site-label">' + (b ? '⚒ ' + esc(b.name) + ' · ' + eta(b.endAt) : 'Cleared ground, waiting for a crew') + '</span>' + (b ? liveBar(b.startAt, b.endAt, 'dm-site-bar') : '') + '</div>';
-        }
+        if (!roomBuilt(id) || b) site = siteArt(key, b);
         return tpl + site;
+    }
+    // A building site drawn as the Keep draws it: the crew raises one stage per quarter of the build.
+    function siteArt(key, b) {
+        const phase = b ? Math.max(0, Math.min(3, Math.floor((S.t - b.startAt) / Math.max(1, b.endAt - b.startAt) * 4))) : 0;
+        const svg = '<svg class="build-art-svg" viewBox="0 0 400 240" preserveAspectRatio="xMidYMax meet" aria-hidden="true">' +
+            (BUILD_ART[key] || BUILD_ART_FALLBACK).replace(/<g data-phase-min="(\d)"/g, (m, n) => '<g class="' + (+n <= phase ? 'is-raised' : '') + '" data-phase-min="' + n + '"') + '</svg>';
+        return '<div class="dm-site' + (b ? ' is-working' : '') + '"><div class="dm-site-art">' + svg + '</div>' +
+            '<span class="dm-site-label">' + (b ? '⚒ ' + esc(b.name) + ' · stage ' + (phase + 1) + '/4 · ' + eta(b.endAt) : 'Cleared ground, waiting for a crew') + '</span>' + (b ? liveBar(b.startAt, b.endAt, 'dm-site-bar') : '') + '</div>';
     }
     function roomView(id) {
         const rooms = tourRooms(), i = Math.max(0, rooms.indexOf(id)), prev = rooms[(i - 1 + rooms.length) % rooms.length], next = rooms[(i + 1) % rooms.length];
@@ -3238,20 +3686,191 @@
             b.className = show ? 'dm-room-cutout' : '';
         });
         st.querySelectorAll('[data-decoration-art]').forEach((d) => d.classList.toggle('is-placed', !!S.placed[d.dataset.decorationArt]));
-        const tool = Object.keys(KEEP_CRAFTS).find((k) => KEEP_CRAFTS[k][1] === 'TOOL' && KEEP_CRAFTS[k][2] === id && S.crafted[k]);
-        st.querySelectorAll('.room-tool-set').forEach((t) => { t.classList.toggle('has-installed-tools', !!tool); const one = t.querySelector('[data-tool-tier="1"]'); if (one) one.classList.toggle('is-crafted', !!tool); });
+        const tiers = Object.keys(KEEP_CRAFTS).filter((k) => KEEP_CRAFTS[k][1] === 'TOOL' && KEEP_CRAFTS[k][2] === id && S.crafted[k]).map((k) => KEEP_CRAFTS[k][4] || 1);
+        st.querySelectorAll('.room-tool-set').forEach((t) => {
+            t.classList.toggle('has-installed-tools', tiers.length > 0);
+            t.querySelectorAll('[data-tool-tier]').forEach((i) => i.classList.toggle('is-crafted', tiers.includes(Number(i.dataset.toolTier))));
+        });
         const plinth = st.querySelector('.arch-plinth');
         if (plinth) plinth.classList.toggle('hidden', !loreOpen(S, 'memorabilia_petrified_root'));
     }
-    function wallStage() {
+    // A running tally for the Wall: three raiders an hour per posted defender since the save began.
+    function raidersTurned() {
+        S.frontTally = S.frontTally || { n: 0, at: S.t };
+        const hrs = Math.max(0, (S.t - S.frontTally.at) / HOUR);
+        S.frontTally.n += Math.floor(hrs * 3 * Math.min(defenders(S).length, frontCap(S)));
+        if (hrs >= 1) S.frontTally.at = S.t;
+        return S.frontTally.n;
+    }
+    // The Knight stands at the Hall door as a paper standee (faded while away on the road).
+    function sceneKnight(away) {
+        if (!knightCardId()) return '<span class="dm-art"' + (away ? ' style="opacity:.55"' : '') + '>' + artImg('knight', '') + '</span>';
+        return '<span class="dm-knight-standee' + (away ? ' is-away' : '') + '">' + knightPaper() + '</span>';
+    }
+    // —— Akhar's Wall: the Keep's Front battle (keep.js initializeFrontCombat), fought live while the Wall is open ——
+    // Raider paths in stage percent, from keep.js; the last two only march once the Wall passes the Keep's four tiers.
+    const FRONT_PATHS = [
+        { sx: 89, sy: 18, ex: 68, ey: 49, size: 14, stagger: 0 }, { sx: 75, sy: 27, ex: 59, ey: 54, size: 12, stagger: .24 },
+        { sx: 58, sy: 18, ex: 48, ey: 48, size: 10, stagger: .48 }, { sx: 97, sy: 34, ex: 76, ey: 58, size: 9, stagger: .7 },
+        { sx: 84, sy: 10, ex: 72, ey: 46, size: 10, stagger: .36 }, { sx: 66, sy: 12, ex: 54, ey: 44, size: 9, stagger: .85 }
+    ];
+    const FRONT_ATTACK_MS = 1600, FRONT_SHOT_MS = 460, FRONT_MARCH_MS = 18000, FRONT_RESPAWN_MS = 900;
+    const RAIDER_SVG = '<svg viewBox="0 0 60 80"><path d="M18 15 10 2l16 9 4-9 5 9 16-9-9 14c8 6 12 16 10 28l7 23-13-8-4 19-11-19-12 18-3-20-13 9 7-23c-1-12 2-22 8-28Z"/><circle cx="23" cy="27" r="3"/><circle cx="38" cy="27" r="3"/></svg>';
+    const frontRaiders = (lvl) => Math.min(FRONT_PATHS.length, lvl <= 4 ? 4 : 4 + Math.floor((lvl - 3) / 2));
+    const raiderHp = (lvl) => 8 + 2 * Math.max(0, lvl - 1);
+    const frontBounty = (lvl) => 1 + Math.floor(lvl / 2);
+    // Watching pays, but only so much an hour: the posts' steady pay is the Wall's real income.
+    const bountyCap = (lvl) => 20 * lvl;
+    // Post lefts match keep.css per-capacity lefts for 1-4 posts; wider ramparts space six evenly.
+    function postLefts(n) {
+        const K = { 1: [40], 2: [24, 56], 3: [8, 32, 56], 4: [4, 27, 50, 73] };
+        if (K[n]) return K[n];
+        const w = postWidth(n), gap = (96 - w) / Math.max(1, n - 1);
+        return Array.from({ length: n }, (_, i) => 2 + i * gap);
+    }
+    const postWidth = (n) => (n > 4 ? 15 : 19);
+    let fight = null;
+    function bountyLeft() {
+        const h = Math.floor(S.t / HOUR), lvl = S.b.front || 0;
+        if (!S.frontWatch || S.frontWatch.h !== h) S.frontWatch = { h: h, n: 0 };
+        return Math.max(0, bountyCap(lvl) - S.frontWatch.n);
+    }
+    function raiderShade(taken) {
+        // Higher walls draw rarer shades from Akhar's host.
+        const lvl = S.b.front || 0, want = lvl >= 7 ? ['RARE', 'UNCOMMON'] : lvl >= 4 ? ['UNCOMMON', 'COMMON'] : ['COMMON'];
+        const pool = Object.keys(SPECIES).filter((k) => want.includes(SPECIES[k].rarity) && catalogArt(k, 240));
+        const fresh = pool.filter((k) => !taken.includes(k));
+        const pick = (fresh.length ? fresh : pool);
+        return pick.length ? pick[Math.floor(Math.random() * pick.length)] : '';
+    }
+    function newRaider(i, progress) {
+        const lvl = S.b.front || 0, taken = fight ? fight.enemies.filter((e) => e && e.id !== i && !e.dead).map((e) => e.shade) : [];
+        return { id: i, shade: raiderShade(taken), hp: raiderHp(lvl), max: raiderHp(lvl), progress: progress, dead: false, hitUntil: 0, deadAt: 0 };
+    }
+    function frontKey() { return (S.b.front || 0) + '|' + defenders(S).slice(0, frontCap(S)).map((d) => d + ':' + wallRank(S, d)).join(','); }
+    function ensureFight() {
+        const key = frontKey();
+        if (fight && fight.key === key) return fight;
         const lvl = S.b.front || 0, defs = defenders(S).slice(0, frontCap(S));
-        const pool = Object.keys(SPECIES).filter((k) => SPECIES[k].rarity === 'COMMON');
-        const raiders = lvl ? [0, 1, 2].map((i) => pool[(hashOf('raid' + Math.floor(S.t / HOUR) + i) % pool.length + pool.length) % pool.length]) : [];
-        return '<div class="dm-wall-stage" data-level="' + lvl + '"><i class="dm-wall-sky"></i><i class="dm-wall-hills"></i>' +
-            '<div class="dm-wall-raiders">' + raiders.map((sp) => '<b>' + (catalogArt(sp, 240) ? '<img class="dm-shade" src="' + esc(catalogArt(sp, 240)) + '" alt="">' : '') + '</b>').join('') + '</div>' +
-            (lvl ? '<svg class="dm-wall-svg" viewBox="0 0 360 150" preserveAspectRatio="none"><path d="M0 64h28V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h52v86H0z" fill="#b48b58" stroke="#3d2a1b" stroke-width="5"/><path d="M0 77h360" stroke="#e0bd83" stroke-width="4" opacity=".6"/></svg>'
-                : '<svg class="dm-wall-svg is-ruin" viewBox="0 0 360 150" preserveAspectRatio="none"><path d="M0 128h60v-14h40v14h70v-8h50v8h140v22H0z" fill="#7b6650" stroke="#3d2a1b" stroke-width="4"/><path d="M20 112l14-10 10 12M200 116l18-12 8 10M290 118l12-8 10 10" stroke="#5a4634" stroke-width="5" fill="none"/></svg>') +
-            '<div class="dm-wall-defenders">' + defs.map((id) => '<b class="dm-room-cutout">' + compArt(id, '') + '</b>').join('') + '</div>' +
+        fight = { key: key, t: 0, last: 0, shots: [], enemies: [], next: 1, defs: defs, cds: defs.map((d, i) => i * 360) };
+        fight.rate = defs.map((d) => FRONT_ATTACK_MS * (1 - 0.04 * wallRank(S, d)));
+        fight.dmg = defs.map((d) => 1 + 0.25 * wallRank(S, d));
+        for (let i = 0; i < frontRaiders(lvl); i++) fight.enemies.push(newRaider(i, -FRONT_PATHS[i].stagger));
+        return fight;
+    }
+    const raiderAt = (e) => {
+        const p = FRONT_PATHS[e.id], k = Math.max(0, Math.min(1, e.progress));
+        return { x: p.sx + (p.ex - p.sx) * k, y: p.sy + (p.ey - p.sy) * k, size: p.size };
+    };
+    function fightStep(ms) {
+        const f = fight;
+        f.t += ms;
+        f.enemies.forEach((e, i) => {
+            if (e.dead) { if (f.t - e.deadAt >= FRONT_RESPAWN_MS) f.enemies[i] = newRaider(i, -0.16); return; }
+            e.progress = Math.min(1, e.progress + ms / FRONT_MARCH_MS);
+        });
+        const posts = f.defs.length, lefts = postLefts(frontCap(S)), w = postWidth(frontCap(S));
+        f.defs.forEach((id, i) => {
+            f.cds[i] -= ms;
+            if (f.cds[i] > 0) return;
+            f.cds[i] += f.rate[i];
+            const target = f.enemies.filter((e) => !e.dead && e.progress >= 0).sort((a, b) => b.progress - a.progress || a.hp - b.hp || a.id - b.id)[0];
+            if (!target || posts === 0) return;
+            f.shots.push({ id: f.next++, target: target.id, el: C(id).el, dmg: f.dmg[i], x: lefts[i] + w / 2, y: 50 + (i % 2 ? -1.5 : 1), age: 0 });
+        });
+        f.shots = f.shots.filter((sh) => {
+            sh.age += ms;
+            const t = f.enemies[sh.target];
+            if (!t || t.dead) return false;
+            if (sh.age < FRONT_SHOT_MS) return true;
+            t.hp = Math.max(0, t.hp - (sh.dmg || 1));
+            t.hitUntil = f.t + 190;
+            t.hitEl = sh.el;
+            if (t.hp <= 0) felled(t);
+            return false;
+        });
+    }
+    function felled(e) {
+        const at = raiderAt(e), lvl = S.b.front || 0;
+        e.dead = true;
+        e.deadAt = fight.t;
+        S.frontTally = S.frontTally || { n: 0, at: S.t };
+        S.frontTally.n++;
+        const pay = Math.min(frontBounty(lvl), bountyLeft());
+        if (pay > 0) { add(S, { crowns: pay }); S.frontWatch.n += pay; }
+        const burst = document.querySelector('.dm-front .front-coin-burst');
+        if (burst) {
+            burst.style.setProperty('--coin-x', at.x + '%');
+            burst.style.setProperty('--coin-y', at.y + '%');
+            burst.querySelector('b').textContent = pay > 0 ? '+' + pay : '✓';
+            burst.querySelector('small').textContent = pay > 0 ? 'Crowns bounty' : 'raider turned back';
+            burst.classList.remove('is-visible');
+            void burst.offsetWidth; // restart the award animation on back-to-back kills
+            burst.classList.add('is-visible');
+        }
+    }
+    function paintFight() {
+        const root = document.querySelector('.dm-front');
+        if (!root || !fight) return;
+        root.querySelectorAll('[data-front-raider]').forEach((n) => {
+            const e = fight.enemies[Number(n.dataset.frontRaider)];
+            if (!e) return;
+            const art = n.querySelector('.raider-art');
+            if (art.dataset.shade !== e.shade) {
+                art.dataset.shade = e.shade;
+                const src = e.shade && catalogArt(e.shade, 240);
+                n.classList.toggle('has-shade-art', !!src);
+                art.innerHTML = '<span class="front-raider-health"><b></b></span>' + (src ? '<img src="' + esc(src) + '" alt="">' : RAIDER_SVG);
+                n.title = e.shade && SPECIES[e.shade] ? 'Shade of ' + SPECIES[e.shade].name : '';
+            }
+            const at = raiderAt(e);
+            n.style.setProperty('--raider-x', at.x + '%');
+            n.style.setProperty('--raider-y', at.y + '%');
+            n.style.setProperty('--raider-n', at.size);
+            n.style.setProperty('--raider-health', Math.round(e.hp / e.max * 100) + '%');
+            n.style.setProperty('--hit-color', 'var(--' + (e.hitEl || 'light') + ')');
+            n.classList.toggle('is-hit', e.hitUntil > fight.t);
+            n.classList.toggle('is-defeated', e.dead);
+        });
+        const layer = root.querySelector('.front-projectiles');
+        if (layer) layer.innerHTML = fight.shots.map((sh) => {
+            const t = fight.enemies[sh.target];
+            if (!t) return '';
+            const d = raiderAt(t), k = Math.min(1, sh.age / FRONT_SHOT_MS), e = 1 - Math.pow(1 - k, 2);
+            const x = sh.x + (d.x - sh.x) * e, y = sh.y + (d.y - sh.y) * e, ang = Math.atan2(d.y - sh.y, d.x - sh.x) * 180 / Math.PI;
+            return '<i class="front-projectile" style="--shot-x:' + x.toFixed(2) + '%;--shot-y:' + y.toFixed(2) + '%;--shot-angle:' + ang.toFixed(1) + 'deg;--shot-color:var(--' + sh.el + ')"></i>';
+        }).join('');
+        const tally = root.querySelector('.dm-front-bounty');
+        if (tally) tally.textContent = '🪙 Watch bounty ' + (bountyCap(S.b.front || 0) - bountyLeft()) + '/' + bountyCap(S.b.front || 0) + ' this hour · ⚔️ ' + raidersTurned() + ' turned back';
+    }
+    // One animation loop for the page; it only steps while the Wall is on screen and manned.
+    function frontLoop(ts) {
+        const root = document.querySelector('.dm-front.is-manned');
+        if (root && !document.hidden) {
+            ensureFight();
+            const dt = fight.last ? Math.min(64, Math.max(0, ts - fight.last)) : 0;
+            fight.last = ts;
+            for (let left = dt; left > 0; left -= 50) fightStep(Math.min(50, left));
+            paintFight();
+        } else if (fight) fight.last = 0;
+        window.requestAnimationFrame(frontLoop);
+    }
+    function wallStage() {
+        const lvl = S.b.front || 0, cap = frontCap(S), defs = defenders(S).slice(0, cap), lefts = postLefts(cap), w = postWidth(cap);
+        const merlons = [28, 90, 152, 214, 276].map((x) => 'M' + x + ' 35h32').join('');
+        return '<div class="dm-front' + (lvl && defs.length ? ' is-manned' : '') + '" data-level="' + lvl + '" data-posts="' + cap + '" data-defenders="' + defs.length + '">' +
+            '<span class="front-battle" data-key="' + esc(frontKey()) + '">' +
+            '<svg class="front-rampart" viewBox="0 0 360 150" preserveAspectRatio="none"><defs><linearGradient id="dmFrontStone" x1="0" y1="0" x2="0" y2="1"><stop class="wall-stop-top" offset="0"/><stop class="wall-stop-base" offset="1"/></linearGradient>' +
+            '<pattern id="dmFrontBlocks" width="48" height="32" patternUnits="userSpaceOnUse"><path d="M0 0h48v32H0z" fill="url(#dmFrontStone)"/><path class="wall-course" d="M0 31.5h48M24 0v16M0 16h48" stroke-width="2"/></pattern></defs>' +
+            (lvl ? '<path class="wall-body" d="M0 64h28V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h52v86H0z" fill="url(#dmFrontBlocks)" stroke-width="5"/><path class="wall-cap" d="M0 77h360" stroke-width="4" opacity=".58"/><path class="wall-shadow" d="M22 112h316" stroke="#5b4638" stroke-width="8" opacity=".28"/><path class="wall-ward" d="M8 96h344" stroke-width="3" fill="none"/><path class="wall-crown" d="' + merlons + '" fill="none" stroke-width="5"/>'
+                : '<path class="wall-body is-ruin" d="M0 128h60v-14h40v14h70v-8h50v8h140v22H0z" fill="url(#dmFrontBlocks)" stroke-width="4"/><path d="M20 112l14-10 10 12M200 116l18-12 8 10M290 118l12-8 10 10" stroke="#5a4634" stroke-width="5" fill="none"/>') + '</svg>' +
+            '<span class="front-wall-trim"><i class="wall-patch"></i><i class="wall-patch"></i><i class="wall-banner"></i><i class="wall-banner"></i><i class="wall-banner"></i><i class="wall-tower"></i><i class="wall-tower"></i></span>' +
+            '<span class="front-torches">' + '<i></i>'.repeat(lvl ? Math.min(6, cap + 1) : 0) + '</span>' +
+            '<span class="front-defenders">' + defs.map((id, i) => '<b class="has-resident dm-room-cutout" style="left:' + lefts[i].toFixed(1) + '%;width:' + w + '%">' + compArt(id, C(id).name) + (wallRank(S, id) ? '<em class="dm-rank">★' + wallRank(S, id) + '</em>' : '') + '</b>').join('') + '</span>' +
+            '<span class="front-raiders">' + (lvl ? Array.from({ length: frontRaiders(lvl) }, (_, i) => '<i data-front-raider="' + i + '"><span class="raider-art"><span class="front-raider-health"><b></b></span>' + RAIDER_SVG + '</span></i>').join('') : '') + '</span>' +
+            '<span class="front-projectiles"></span><span class="front-coin-burst"><b>+1</b><small>Crowns bounty</small></span></span>' +
+            (lvl && defs.length ? '<span class="dm-wall-burst"><b>+' + frontRatePer(S) * defs.length + '</b><small>Crowns an hour</small></span><span class="dm-wall-tally dm-front-bounty"></span>' : '') +
+            (lvl && !defs.length ? '<span class="dm-wall-tally">⚠️ Unguarded: post a Siegeling to hold the rampart</span>' : '') +
             (lvl ? '' : '<span class="dm-site-label">Foundations of Akhar’s Wall</span>') + '</div>';
     }
     function quarterGrid() {
@@ -3283,7 +3902,8 @@
             '<div class="ck-actions"><button type="button" class="ck-btn is-sm' + (b ? '' : ' is-primary') + '" data-act="build" data-arg="' + p.id + '"' + (b ? ' disabled' : '') + '>🔨 Build</button>' + (b ? '<span class="ck-small ck-muted">' + esc(b) + '</span>' : '') + '</div></section>';
     }
     function underway(filter) {
-        return (S.builds || []).filter((b) => filter(b.id)).map((b) => '<section class="ck-card"><div class="ck-row"><b>⚒ ' + esc(b.name) + '</b>' + eta(b.endAt) + '</div>' + liveBar(b.startAt, b.endAt) + '</section>').join('');
+        return (S.builds || []).filter((b) => filter(b.id)).map((b) => '<section class="ck-card"><div class="ck-row"><b>⚒ ' + esc(b.name) + '</b>' + eta(b.endAt) + '</div>' + liveBar(b.startAt, b.endAt) +
+            '<div class="ck-actions"><button type="button" class="ck-btn is-sm" data-act="rush" data-arg="' + b.id + '"' + (fl(S.inv.crowns) < rushCost(S, b) ? ' disabled' : '') + '>⚡ Rush · ' + rushCost(S, b) + ' 👑</button></div></section>').join('');
     }
     const projects = (re) => underway((id) => re.test(id)) + projectList(S).filter((p) => re.test(p.id)).map(projectCard).join('');
     function produceCard(id) {
@@ -3298,12 +3918,17 @@
             '<p class="ck-hint">♥ marks a favourite room: +30%. Rapport from the Enclave lifts every helper further.</p></section>';
     }
     function roomCrafts(room) {
-        const ids = Object.keys(KEEP_CRAFTS).filter((k) => KEEP_CRAFTS[k][2] === room);
+        // Tools in tier order, then decorations; locked tiers show what they need.
+        const ids = Object.keys(KEEP_CRAFTS).filter((k) => KEEP_CRAFTS[k][2] === room).sort((a, b) => (KEEP_CRAFTS[a][1] === 'TOOL' ? 0 : 1) - (KEEP_CRAFTS[b][1] === 'TOOL' ? 0 : 1) || (KEEP_CRAFTS[a][4] || 1) - (KEEP_CRAFTS[b][4] || 1));
         if (!ids.length) return '';
-        return '<section class="ck-card"><h3>🛠️ Tools &amp; decorations</h3>' + ids.map((k) => {
+        const tiers = toolTiers(S, room), sk = skillsOfRoom(room), tops = ids.filter((k) => KEEP_CRAFTS[k][1] === 'TOOL').length;
+        const sum = (tops ? 'Tools ' + tiers + '/' + tops + ': output +' + 20 * tiers + '%, stores hold +' + 25 * tiers + '%' + (sk.length ? ', the Knight’s ' + sk.map((x) => (SKILLS[x] ? SKILLS[x].name : titleCase(x))).join(' and ') + ' +' + 10 * tiers + '% faster' : '') + '. ' : '') +
+            (roomDecor(room).length ? 'Set: ' + roomDecor(room).filter((k) => S.placed[k] && S.crafted[k]).length + '/' + roomDecor(room).length + ' on display' + (setDone(S, room) ? ' — complete, ' + (room === 'great_hall' ? 'Keep production' : 'room output') + ' +5%. ' : ' (all of them: +5%). ') : '') +
+            'Decorations on display across the Keep: ' + decorCount(S) + ' (Keep production +' + decorCount(S) + '%).';
+        return '<section class="ck-card"><h3>🛠️ Tools &amp; decorations</h3><p class="ck-small">' + esc(sum) + '</p>' + ids.map((k) => {
             const c = KEEP_CRAFTS[k], b = keepCraftBlock(S, k), made = !!S.crafted[k];
-            return '<div class="ck-recipe">' + emojiIcon(c[1] === 'TOOL' ? '🔧' : c[1] === 'BONUS' ? '📦' : '🎨', 'earth', 'is-lg') + '<div class="ck-recipe-main"><div class="ck-row"><b>' + esc(c[0]) + '</b><span class="ck-small">' + titleCase(c[1]) + '</span></div>' +
-                '<span class="ck-small ck-muted">' + (c[1] === 'TOOL' ? 'Lifts this room’s output 20%.' : c[1] === 'BONUS' ? 'A lasting bonus for the Keep.' : 'Displayed in the room. Residents notice new pieces.') + '</span>' + (made ? '' : costRow(ka(c[3]))) +
+            return '<div class="ck-recipe">' + emojiIcon(c[1] === 'TOOL' ? '🔧' : c[1] === 'BONUS' ? '📦' : '🎨', 'earth', 'is-lg') + '<div class="ck-recipe-main"><div class="ck-row"><b>' + esc(c[0]) + '</b><span class="ck-small">' + titleCase(c[1]) + (c[1] === 'TOOL' && c[4] ? ' · tier ' + c[4] : '') + '</span></div>' +
+                '<span class="ck-small ck-muted">' + esc(c[7] || (c[1] === 'TOOL' ? 'Output +20%, stores +25%, and the Knight works here 10% faster.' : c[1] === 'BONUS' ? 'A lasting bonus for the Keep.' : 'Displayed in the room. Residents notice new pieces.')) + (c[8] ? ' <b>' + esc(c[8]) + '.</b>' : '') + '</span>' + (made ? '' : costRow(ka(c[3])) + (b && b !== 'Missing materials.' ? '<span class="ck-small ck-warn">' + esc(b) + '</span>' : '')) +
                 '<div class="ck-pills">' + (made ? (c[1] === 'DECORATION' ? '<button type="button" class="ck-pill' + (S.placed[k] ? ' is-on' : '') + '" data-act="decor" data-arg="' + k + '">' + (S.placed[k] ? 'Displayed · store it' : 'Display it') + '</button>' : '<span class="ck-small is-ready">Installed</span>')
                     : '<button type="button" class="ck-pill is-forge" data-act="kcraft" data-arg="' + k + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '>Craft</button>') + '</div></div></div>';
         }).join('') + '</section>';
@@ -3311,8 +3936,18 @@
     function roomActions(id) {
         if (id === 'quarter') return quarterActions();
         if (id === 'front') {
-            let h = '<section class="ck-card"><h3>🏰 Akhar’s Wall</h3><p class="ck-small ck-muted">Akhar’s raiders test the Keep from the east. Siegelings posted on the rampart hold them back and earn ' + frontRatePer(S) + ' Crowns an hour each.</p>';
+            let h = '<section class="ck-card"><h3>🏰 Akhar’s Wall</h3><p class="ck-small ck-muted">Akhar’s raiders test the Keep from the east. Siegelings posted on the rampart hold them back and earn ' + frontRatePer(S) + ' Crowns an hour each.' + (S.b.front >= 1 ? ' Every raider felled while you watch pays ' + frontBounty(S.b.front) + ' Crown' + (frontBounty(S.b.front) > 1 ? 's' : '') + ' (up to ' + bountyCap(S.b.front) + ' an hour).' : '') + ' Wall level ' + (S.b.front || 0) + '/' + FRONT_MAX + '.</p>';
             if (S.b.front >= 1) {
+                const sg = S.siege || {}, str = siegeStrength(S), dfn = wallDefense(S), last = sg.last;
+                h += '<div class="dm-siege' + (dfn >= str ? ' is-safe' : ' is-risk') + '"><div class="ck-row"><b>⚔️ Next siege wave</b>' + (sg.nextAt ? eta(sg.nextAt) : '') + '</div>' +
+                    '<p class="ck-small">Akhar sends <b>' + str + '</b> strength; the Wall holds <b>' + dfn + '</b>. ' + (dfn >= str ? 'Held, the spoils will be yours.' : 'Too weak: a breach will damage a building. Post or drill more defenders.') + '</p>' +
+                    (last ? '<p class="ck-small ck-muted">Last wave: ' + (last.won ? 'repelled (+' + last.spoils.crowns + ' Crowns)' : 'breached' + (last.target ? ', the ' + esc(last.target) + ' was damaged' : '')) + ' · ' + (sg.won || 0) + '/' + (sg.n || 0) + ' held.</p>' : '') + '</div>';
+                const posted = defenders(S).slice(0, frontCap(S));
+                if (posted.length) h += '<h4>Wall drill</h4><p class="ck-small ck-muted">Each rank: +10% post pay, harder and faster shots, +1 siege defense.</p>' + posted.map((u) => {
+                    const r = wallRank(S, u), b = trainBlock(S, u);
+                    return '<div class="ck-row dm-drill"><span><b>' + esc(C(u).name) + '</b> <span class="ck-small">rank ' + r + '/' + WALL_RANK_MAX + '</span></span>' + (r >= WALL_RANK_MAX ? '<span class="ck-small is-ready">Champion</span>' :
+                        '<span class="dm-drill-buy">' + costRow(trainCost(S, u)) + '<button type="button" class="ck-pill is-forge" data-act="train" data-arg="' + u + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '>Drill</button></span>') + '</div>';
+                }).join('');
                 h += '<h4>Rampart posts · ' + Math.min(defenders(S).length, frontCap(S)) + '/' + frontCap(S) + '</h4><div class="ck-pills">' + joinedIds(S).filter((u) => !onExpedition(S, u)).map((u) => {
                     const on = S.comps[u].job.kind === 'front';
                     return '<button type="button" class="ck-pill' + (on ? ' is-on' : '') + '" data-act="cjob" data-arg="' + u + ':' + (on ? 'rest' : 'front') + '">' + esc(C(u).name) + (on ? ' · posted' : '') + '</button>';
@@ -3327,7 +3962,7 @@
         if (id === 'woodlot') {
             return produceCard('woodlot') + '<section class="ck-card"><h3>🪓 The Knight</h3><p class="ck-small">' + (S.exp ? 'Away on the road.' : S.knight.task.kind === 'gather' && S.knight.task.id === 'chop_pine' ? 'Cutting pine here: ' + fmtRate(knightRates(S).gain.timber || 0) + ' Timber/h straight to storage.' : 'Working elsewhere.') + '</p>' +
                 (!S.exp && !(S.knight.task.kind === 'gather' && S.knight.task.id === 'chop_pine') ? '<div class="ck-actions"><button type="button" class="ck-btn is-sm" data-act="task" data-arg="gather:chop_pine">Cut pine here</button></div>' : '') + '</section>' +
-                roomCrafts('woodlot') + projects(/^(woodlot_2|wing_stable)/);
+                roomCrafts('woodlot') + projects(/^(woodlot_[2-6]|wing_stable)/);
         }
         if (WS[id]) {
             const rs = Object.keys(RECIPES).filter((r) => RECIPES[r].pair.includes(id));
@@ -3336,7 +3971,7 @@
                 const on = activeRecipes(S).includes(r);
                 return '<li class="' + (on ? 'is-on' : '') + '"><b>' + esc(RECIPES[r].name) + '</b> <span class="ck-small">' + esc(WS[RECIPES[r].pair[0]].name + ' + ' + WS[RECIPES[r].pair[1]].name) + '</span><span class="ck-small ck-muted">' + (on ? 'Linked and refining.' : 'Face the two sockets at each other in the Quarter.') + '</span></li>';
             }).join('') + '</ul><div class="ck-actions"><button type="button" class="ck-btn is-sm" data-act="room" data-arg="quarter">Arrange the Quarter</button></div></section>' +
-                roomCrafts(id) + projects(new RegExp('^(ws_' + id + '_[234]|annex_' + id + ')$'));
+                roomCrafts(id) + projects(new RegExp('^(ws_' + id + '_[2-8]|annex_' + id + ')$'));
         }
         if (id === 'archive') {
             if (S.b.archive < 1) return '<section class="ck-card"><p class="ck-small">' + esc(BUILDINGS.archive.blurb) + '</p></section>' + projects(/^archive$/);
@@ -3421,7 +4056,9 @@
     function voiceModal(r) {
         return '<h2 id="ckModalTitle">' + esc(r.npc) + '</h2><p class="dm-prompt">' + esc(r.reply) + '</p>' + (Object.keys(r.gains).length ? '<h3>Received</h3>' + lootRow(r.gains) : '') +
             (Object.keys(r.loss).length ? '<p class="ck-small ck-warn">Lost: ' + esc(Object.keys(r.loss).map((k) => r.loss[k] + ' ' + itemName(k)).join(', ')) + '</p>' : '') +
-            '<p class="ck-small">Trust ' + (r.delta > 0 ? '+' + r.delta : r.delta) + ' · ' + esc(r.stage) + ' (' + r.trust + '/' + TRUST_MAX + ') · +2 Silver</p><div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="close-modal">Continue</button></div>';
+            '<p class="ck-small">Trust ' + (r.delta > 0 ? '+' + r.delta : r.delta) + ' · ' + esc(r.stage) + ' (' + r.trust + '/' + TRUST_MAX + ') · +2 Silver</p>' +
+            (r.follow ? '<p class="ck-small ck-warn">Something follows from this: ' + esc(r.follow) + ' is at the gate.</p>' : '') +
+            '<div class="ck-actions">' + (r.follow ? '<button type="button" class="ck-btn is-primary" data-act="voice-follow">Face what follows</button><button type="button" class="ck-btn" data-act="close-modal">Later</button>' : '<button type="button" class="ck-btn is-primary" data-act="close-modal">Continue</button>') + '</div>';
     }
 
     // —— The Chronicle: letters, relics and chronicles recovered across the Keep ——
@@ -3500,6 +4137,25 @@
         if (S.reports.length) h += '<section class="ck-card"><h3>🗺️ Expedition reports</h3><div class="ck-pills">' + S.reports.map((r) => '<button type="button" class="ck-pill" data-act="report" data-arg="' + esc(r.id) + '">' + esc(reportTitle(r)) + ' · ' + new Date(r.at).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) + '</button>').join('') + '</div></section>';
         h += '<section class="ck-card"><h3>📜 Keep log</h3>' + (S.log.length ? '<ol class="ck-timeline">' + S.log.map((l) => '<li class="is-info"><time>' + new Date(l.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</time><span>' + esc(l.text) + '</span></li>').join('') + '</ol>' : '<p class="ck-muted">Nothing has happened yet.</p>') + '</section>';
         return h;
+    }
+    // First-visit walkthrough, like the Keep's coach: a few cards, each pointing at a real control.
+    const COACH = [
+        ['🏰', 'Your Keep, from bare ground', 'This is Base. You start with 30 Timber, exactly enough to raise the Woodlot. Tap the cleared ground by the river, then build the Elemental Quarter piece by piece.', '#ckTabs [data-tab="base"]'],
+        ['⛏️', 'The Knight works while you are away', 'Work runs one task at a time: cutting pine, foraging provisions, mining, crafting. Every weapon and garment you wear is crafted here, starting from a Wooden Sword.', '#ckTabs [data-tab="work"]'],
+        ['🐾', 'Siegelings hold jobs', 'In Company, post Siegelings to rooms for bonus output, let them rest, explore or stand on Akhar’s Wall, and choose who joins your expedition.', '#ckTabs [data-tab="company"]'],
+        ['🧭', 'Expeditions are about preparation', 'Weapon, tool, company and food decide each encounter. Pack raw forage for a small buff, or cooked meals for stronger ones, then watch the squad walk the road.', '#ckTabs [data-tab="expedition"]'],
+        ['🚪', 'Visitors, the Chronicle and more', 'The bar at the bottom of the Keep opens visitors (choices, requests and trust), the Chronicle of recovered records, construction, stores and the log.', '.dm-dock'],
+        ['⏩', 'A test mode', 'Dominion is a test mode on the live server. +4h fast-forwards the shared clock; ⋯ resets your save or reopens this guide.', '.dm-pass']
+    ];
+    function coachModal(i) {
+        const c = COACH[i] || COACH[0];
+        document.querySelectorAll('.dm-coach-target').forEach((e) => e.classList.remove('dm-coach-target'));
+        const t = document.querySelector(c[3]);
+        if (t) t.classList.add('dm-coach-target');
+        return '<div class="dm-coach"><span class="dm-coach-ico" aria-hidden="true">' + c[0] + '</span><span class="ck-kicker">Guide · ' + (i + 1) + '/' + COACH.length + '</span><h2 id="ckModalTitle">' + esc(c[1]) + '</h2><p>' + esc(c[2]) + '</p>' +
+            '<div class="dm-steps">' + COACH.map((_, j) => '<i class="' + (j < i ? 'done' : j === i ? 'now' : '') + '"></i>').join('') + '</div>' +
+            '<div class="ck-actions">' + (i < COACH.length - 1 ? '<button type="button" class="ck-btn is-primary" data-act="coach" data-arg="' + (i + 1) + '">Next</button><button type="button" class="ck-btn" data-act="coach-done">Skip</button>'
+                : '<button type="button" class="ck-btn is-primary" data-act="coach-done">Start playing</button>') + '</div></div>';
     }
     function objectiveModal() {
         return '<h2 id="ckModalTitle">Objectives</h2>' + OBJECTIVES.map((ch) => '<h3>' + esc(ch.chapter) + '</h3><ol class="ck-ladder">' + ch.steps.map((st) => '<li class="' + (S.obj[st.id] ? 'is-on' : '') + '"><b>' + esc(st.title) + '</b><span>' + esc(st.hint) + '</span></li>').join('') + '</ol>').join('') +
@@ -3598,6 +4254,7 @@
             toast('Made ' + recipeName(CRAFTS[arg]) + '.');
             break;
         case 'equip': { const parts = String(arg).split(':'); const msg = equip(s, parts[0], parts[1]); if (msg) { toast(msg); return; } break; }
+        case 'knight-card': if (ART_URLS['knight:' + arg]) { s.knight.card = arg; s.knight.name = ART_URLS['knight-name:' + arg] || s.knight.name; s.rev++; } break;
         case 'tool': if (knightBusy(s) || fl(s.inv[arg]) < 1) return; s.knight.tool = arg; s.rev++; break;
         case 'comp-toggle': openComp = openComp === arg ? '' : arg; if (s.ui.tab !== 'company') setTab('company'); break;
         case 'feed': { const parts = String(arg).split(':'); const b = feedBlock(s, parts[0], parts[1]); if (b) { toast(b); return; } feed(s, parts[0], parts[1]); toast(C(parts[0]).name + ' enjoyed the ' + RES[parts[1]].name + '.'); break; }
@@ -3644,6 +4301,9 @@
             c.nick = name.trim().slice(0, 18); s.rev++;
             break;
         }
+        case 'rush': { const e = rushBuild(s, arg); if (e) { toast(e); return; } advance(s, now()); toast('Rushed: the crew finishes at once.'); break; }
+        case 'train': if (!trainDefender(s, arg)) { toast(trainBlock(s, arg)); return; } toast(C(arg).name + ' reached Wall rank ' + wallRank(s, arg) + '.'); break;
+        case 'hint-ok': s.ui.hints = s.ui.hints || {}; s.ui.hints[arg] = true; break;
         case 'build': if (!startBuild(s, arg)) { toast(buildBlock(s, arg)); return; } toast('Construction started.'); break;
         case 'repair': if (!startRepair(s, arg)) { toast(repairBlock(s, arg)); return; } break;
         case 'steward': if (!steward(s)) return; toast('+4 Silver from stewardship.'); break;
@@ -3666,6 +4326,9 @@
             if (r) { latchObjectives(s); save(); renderAll(); openModal('voice', Object.assign({ npc: c.npcName }, r)); }
             return;
         }
+        case 'coach': openModal('coach', Number(arg) || 0); return;
+        case 'coach-done': s.ui.coachDone = true; document.querySelectorAll('.dm-coach-target').forEach((e) => e.classList.remove('dm-coach-target')); closeModal(); return;
+        case 'voice-follow': modal = null; $('ckModal').hidden = true; s.ui.base = 'visitors'; setTab('base'); $('ckMain').scrollTop = 0; break;
         case 'deliver': { const q = deliver(s, arg); if (!q) { toast(requestBlock(s, arg)); return; } toast(q.name + ' thanks you: +' + q.reward.silver + ' Silver, +' + q.reward.crowns + ' Crowns.'); break; }
         case 'bank': { const parts = String(arg).split(':'), t = bankTask(s, parts[0], parts[1]); if (!t) return; toast(C(parts[0]).name + ': “' + t.name + '” banked. +' + t.rapport + ' rapport.'); break; }
         case 'lore-filter': s.ui.loreFilter = arg; break;
@@ -3762,6 +4425,7 @@
         if (S.away) openModal('away'); else maybeShowReport();
         setInterval(step, 1000);
         setInterval(save, 10000);
+        if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(frontLoop);
         setInterval(() => syncNow(false), 30000);
         bootOnline();
     }
@@ -3774,7 +4438,8 @@
         evolveBlock: (id) => evolveBlock(S, id), buildBlock: (id) => buildBlock(S, id), startBuild: (id) => { const r = startBuild(S, id); save(); renderAll(); return r; },
         timberCap: () => timberCap(S), workshopRates: (id) => workshopRates(S, id), woodlotRate: () => woodlotRate(S), marketOffers: () => marketOffers(S),
         sync: () => syncNow(true), visitors: () => visitorsHere(S), residentTasks: (u) => residentTasks(u),
-        voicesReady: () => voicesReady(S), rebirthBlock: () => rebirthBlock(S), rebirth: () => { const r = rebirth(S); save(); renderAll(); return r; }, prodMul: () => prodMul(S)
+        voicesReady: () => voicesReady(S), rebirthBlock: () => rebirthBlock(S), rebirth: () => { const r = rebirth(S); save(); renderAll(); return r; }, prodMul: () => prodMul(S),
+        toolSpeed: (k) => toolSpeed(S, k), storeHours: (id) => storeHours(S, id), knightRates: () => knightRates(S), fight: () => fight
     };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
