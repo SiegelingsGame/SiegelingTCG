@@ -1,4 +1,29 @@
 Original prompt: Go with earth based art for endless
+- October 15, 2026 **Dominion: the Keep's full Akhar's Wall, working tool tiers, deeper upgrade ladders, an overlay-art SiegeKnight, and the guide shelved.**
+  - **Change.**
+    - **Full Akhar's Wall.** The Wall room now runs the Keep's Front battle (`keep.js` `initializeFrontCombat`/`updateFrontCombatStep` and the `keep.css` front rules, rescoped to `.dm-front`). It has a tiered rampart SVG with palette swaps, patches, banners and a gilt crown; torches lighting the gaps between posts; defenders as paper cutouts on the inner walk; raiders as real catalog Siegelings recoloured with `#paper-siegling-shadow`, each with a health bar; elemental projectiles; and a coin burst on each kill. A single `requestAnimationFrame` loop steps the fight only while a manned Wall is on screen. The battle node survives the per-minute re-render, so raiders keep marching. Raiders felled while you watch pay a Crowns bounty (`1 + floor(level/2)` each, up to `20 × level` an hour). The steady posted pay is still the Wall's main income.
+    - **Wall ladder 1–8.** Levels 5–8 go past the Keep's four tiers: Gatehouse, Sky Towers (drum towers bracket the wall), Warded (a glowing rune line) and Akhar's Bane (pale stone). Posts run 1, 2, 3, 4, 4, 5, 5, 6 and pay 2 to 23 Crowns an hour each. Higher walls send more raiders (up to 6), with more health and rarer shades. Levels 5–8 cost Silver and Crowns on top of stone and refined goods, and need Hall 5–8.
+    - **Deeper sinks.**
+      - Woodlot levels 3–6: 170, 230, 300 and 380 Timber/h.
+      - Storehouse levels 3–6: +300 Timber store each, and rooms hold 25% longer.
+      - Workshop levels 5–8: +50% base output each; notches stay capped at four.
+      - All of these cost Silver, and the top levels also cost Crowns.
+      - A project whose Timber cost exceeds the store cap now says it needs a larger Storehouse. The old workshop third-notch upgrade (320 Timber against a 300 cap) used to be silently unaffordable.
+    - **Tool tiers do more.** Each installed tier still adds +20% to its room's output. It now also makes the room's stores hold 25% longer, and speeds the Knight's matching skills by 10% (`SKILL_ROOM`: Woodlot → Woodcutting/Carpentry, Quarry → Mining/Excavation, Forge → Smelting/Smithing, Garden → Foraging/Alchemy/Weaving, Kitchen → Cooking, Fridge → Fishing, Generator → Runecrafting). Each room's crafts card sums up what its tools are doing.
+    - **Decorations.** An audit confirmed that every Keep DECORATION recipe has a `[data-decoration-art]` slot in the room templates, and every slot has a recipe (45 and 45). Each displayed decoration now adds +1% Keep production.
+    - **Overlay SiegeKnight.** `DominionService.art()` now also returns the OVERLAY-art trainers (`knight:`, `knight-name:` and `knight-el:` keys). The Knight tab has a SiegeKnight picker (default Aero, since Ser Airek has only full-card art). The hero portrait, the scene standee and the road walker are all paper cutouts of that overlay art.
+    - **Walkthrough on hold.** The guide no longer opens on a fresh Keep, and its ⋯ menu entry is gone. The cards stay in the code for a later pass.
+  - **Verification.**
+    - `node --check js/dominion.js`. Full `./mvnw -q test` passes (exit 0).
+    - Headless Chromium at 390x844 and 1920x1080, with live `/api/dominion/art` served locally:
+      - **Wall levels 1/4/6/8:** posts are 1/4/5/6, raiders 4/4/5/6, and the towers appear from level 6. Real-art raider shades load and projectiles fly.
+      - **Bounty:** two posts at level 2, watched for 40 seconds, felled 5 raiders and paid 10 Crowns.
+      - **Ladders:** `front_8` is refused with a 900 store cap ("Needs a larger Storehouse") and allowed past it. Woodlot 5 → 6 makes 432 → 540 Timber/h.
+      - **Tools:** two Woodlot tool tiers raise the Knight's pine rate from 72 to 81 Timber/h and store hours from 8 to 12.
+      - **Decorations:** one displayed decoration lifts `prodMul` by 1%.
+      - **Fresh save:** no guide modal, and no "Open the guide" in ⋯.
+      - **Knight picker:** shows the overlay knights; choosing Morgana renames the Knight; the scene standee is an image.
+    - The smoke, deep UI, journey, food and Vault checks still pass with no page errors.
 - October 15, 2026 **Dominion fills its gaps (Sunken Vault, Keep tool tiers and decorations, phased construction art, Akhar's Wall battle, visitor follow-ups, first-visit guide), and fixes Chronicles' stuck Smithing.**
   - **Change.**
     - **Sunken Vault.** It is now a real Keep road. It opens with the Sealed Vault Map and Elemental Studies 10 (`destBlock` explains which is missing) and runs 10 hours through tide hazard, sealed door, rubble and elite to a boss. The warden is the registry's rarest Water Siegeling, at level 16. The first warden kill opens the hoard once (2 Covenant Keystones, an Aether Core, 2 Ancient Relics, 250 Crowns), records `disc.vaultCleared`, and completes "The Sealed Door" chapter.
