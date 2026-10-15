@@ -500,6 +500,7 @@
             // Workshop level 0 = not built yet; each one is a construction project.
             wsl: { forge: 0, fridge: 0, generator: 0, garden: 0, kitchen: 0, quarry: 0 }, annex: {},
             wings: { sanctuary: 0, forge: 0, garden: 0, war_room: 0, stable: 0, library: 0 },
+            stored: {}, loreOpen: { charter_three_promises: true }, visitors: { active: [], npc: {}, nextAt: t + 10 * MIN }, requests: [], tasks: {}, rapport: {}, placed: {}, placedEver: {},
             builds: [], rebirths: 0, events: [], nextEventAt: t + 12 * HOUR, market: null, crafted: {}, theme: 'covenant',
             sync: { version: 0 }, applied: [], opReports: [],
             lore: {}, voices: { done: {}, flags: {}, rapport: {}, nextAt: 0, log: [] }, claims: {}, steward: '', loadouts: [],
@@ -544,6 +545,7 @@
             saved.b = Object.assign({ woodlot: 1 }, saved.b);
             saved.wsl = saved.wsl || {};
             Object.keys(WS).forEach((w) => { saved.wsl[w] = Math.max(1, saved.wsl[w] || 0); });
+            saved.loreOpen = Object.assign({ charter_three_promises: true }, saved.lore || {});
             saved.schema = 3;
             return saved;
         }
@@ -605,19 +607,19 @@
     const onExpedition = (s, compId) => !!(s.exp && s.exp.party.includes(compId));
     const knightBusy = (s) => !!s.exp;
     function helperOf(s, target) {
-        return Object.keys(S.comps).find((id) => {
+        return Object.keys(s.comps).find((id) => {
             const c = s.comps[id];
             return c.joined && c.job.kind === 'help' && c.job.target === target;
         }) || null;
     }
     function knightHelper(s) {
-        return Object.keys(S.comps).find((id) => s.comps[id].joined && s.comps[id].job.kind === 'knight' && !onExpedition(s, id)) || null;
+        return Object.keys(s.comps).find((id) => s.comps[id].joined && s.comps[id].job.kind === 'knight' && !onExpedition(s, id)) || null;
     }
     function helperMul(s, target) {
         const id = helperOf(s, target);
         if (!id || onExpedition(s, id)) return 1;
         const c = s.comps[id];
-        return 1 + 0.3 + Math.min(0.5, bondLvl(c) * 0.02) + (C(id).likes.includes(target) ? 0.3 : 0);
+        return 1 + (0.3 + Math.min(0.5, bondLvl(c) * 0.02) + (C(id).likes.includes(target) ? 0.3 : 0)) * (1 + 0.1 * rapportLvl(s, id));
     }
     function woodlotRate(s) {
         if (damaged(s, 'woodlot') || s.b.woodlot < 1) return 0;
@@ -803,6 +805,7 @@
         spend(s, alMap(def.inputs));
         add(s, { [al(def.output)]: def.outputQty || 1 });
         grantSkill(s, def.skillId, def.xp);
+        keepEvent(s, 'CRAFTING');
         logEvent(s, 'The Knight made ' + itemName(al(def.output)) + '.');
         s.rev++;
         return true;
@@ -882,8 +885,8 @@
     function tick(s, ms) {
         const h = ms / HOUR;
         // Basic production never needs connections.
-        add(s, { timber: woodlotRate(s) * h });
-        Object.keys(WS).forEach((id) => add(s, workshopRates(s, id), h));
+        produce(s, 'woodlot', { timber: woodlotRate(s) }, h);
+        Object.keys(WS).forEach((id) => produce(s, id, workshopRates(s, id), h));
         tickKnight(s, ms);
         const restBoost = 1 + Math.min(0.2, bonusLvl(s, 'husbandry') * 0.003);
         const sanct = (s.wings && s.wings.sanctuary) || 0, gw = (s.wings && s.wings.garden) || 0;
@@ -938,6 +941,8 @@
             (s.builds || []).filter((b) => s.t >= b.endAt).forEach((b) => finishBuild(s, b));
             if (s.t >= s.nextEventAt) { rollEvent(s); s.nextEventAt += EVENT_EVERY; if (s.nextEventAt < s.t) s.nextEventAt = s.t + EVENT_EVERY; }
             tickRepairs(s);
+            if (s.t >= (s.visitors.nextAt || 0)) { rollVisitors(s); s.visitors.nextAt = Math.max((s.visitors.nextAt || s.t) + VISITOR_EVERY, s.t - VISITOR_EVERY + 1); }
+            if (s.requests.some((q) => q.until <= s.t)) s.requests = s.requests.filter((q) => q.until > s.t);
             if (step === 0 && !(s.exp && s.t >= s.exp.endAt) && !(s.builds || []).some((b) => s.t >= b.endAt)) break;
         }
         latchObjectives(s);
@@ -1108,6 +1113,8 @@
     function finishBuild(s, bd) {
         s.builds = s.builds.filter((b) => b !== bd);
         applyProject(s, bd.id);
+        (LORE_ON_BUILD[bd.id] || []).forEach((id) => unlockLore(s, id));
+        keepEvent(s, 'CONSTRUCTION');
         logEvent(s, bd.name + ' is complete.');
         FRESH.push(bd.name + ' is complete.');
         grantRank(s, Math.round((bd.endAt - bd.startAt) / HOUR * 30));
@@ -1166,7 +1173,7 @@
         if (!canAfford(s, ka(r.inputs))) return 'Missing materials.';
         return '';
     }
-    function refine(s, id) { if (refineBlock(s, id)) return false; spend(s, ka(REFINED[id].inputs)); add(s, { [id]: 1 }); s.rev++; return true; }
+    function refine(s, id) { if (refineBlock(s, id)) return false; spend(s, ka(REFINED[id].inputs)); add(s, { [id]: 1 }); keepEvent(s, 'CRAFTING'); s.rev++; return true; }
     function recycleBlock(s, from, to) {
         if (!(s.b.storehouse >= 1)) return 'Raise the Storehouse first.';
         if (REFINED[from]) return fl(s.inv[from]) >= 1 ? '' : 'None to salvage.';
@@ -1218,55 +1225,262 @@
         if (!canAfford(s, ka(k[3]))) return 'Missing materials.';
         return '';
     }
-    function keepCraft(s, id) { if (keepCraftBlock(s, id)) return false; spend(s, ka(KEEP_CRAFTS[id][3])); s.crafted[id] = true; s.rev++; return true; }
+    function keepCraft(s, id) { if (keepCraftBlock(s, id)) return false; spend(s, ka(KEEP_CRAFTS[id][3])); s.crafted[id] = true; keepEvent(s, 'CRAFTING'); s.rev++; return true; }
     const toolMul = (s, room) => Object.keys(KEEP_CRAFTS).some((k) => KEEP_CRAFTS[k][1] === 'TOOL' && KEEP_CRAFTS[k][2] === room && s.crafted[k]) ? 1.2 : 1;
 
-    // —— Voices: the Keep's conversations, and Archive lore read with Insight ——
+    // —— The Chronicle: Keep lore unlocks as in KeepService; reading only marks it read ——
     const LORE = () => (window.DOMINION_KEEP && window.DOMINION_KEEP.lore) || { entries: [], conversations: [] };
-    const loreCost = (i) => (i === 0 ? 0 : 5);
+    // KeepService.applyConstructionEffects and the Woodlot collect counts, by Dominion project id.
+    const LORE_ON_BUILD = { woodlot_2: ['letter_green_covenant'], archive: ['chronicle_living_elements', 'letter_pre_covenant_watch'], storehouse_1: ['ledger_quartermaster_sera'],
+        ws_garden_1: ['fieldnote_covenant_garden'], ws_forge_1: ['letter_ember_forge'], ws_fridge_1: ['inventory_frost_fridge'], ws_generator_1: ['schematic_elemental_generator'] };
+    const DECIPHER_COST = 10;
+    const loreOpen = (s, id) => !!(s.loreOpen && s.loreOpen[id]) || !!s.lore[id];
+    function unlockLore(s, id) {
+        if (!id || loreOpen(s, id) || !LORE().entries.some((e) => e.id === id)) return false;
+        s.loreOpen[id] = true;
+        const e = LORE().entries.find((x) => x.id === id);
+        FRESH.push('New in the Chronicle: ' + e.title + '.');
+        logEvent(s, 'A record surfaced: ' + e.title + '.');
+        s.rev++;
+        return true;
+    }
     function readLoreBlock(s, id) {
-        const i = LORE().entries.findIndex((e) => e.id === id);
-        if (i < 0) return 'Unknown record.';
-        if (s.lore[id]) return '';
-        if (i > 0 && s.b.archive < 1) return 'Restore the Archive to read further records.';
-        if (fl(s.inv.insight) < loreCost(i)) return 'Needs ' + loreCost(i) + ' Insight (read the Covenant Records at the Archive).';
+        if (!LORE().entries.some((e) => e.id === id)) return 'Unknown record.';
+        if (loreOpen(s, id)) return '';
+        if (s.b.archive < 1) return 'Still buried. Restore the Archive to decipher records early.';
+        if (fl(s.inv.insight) < DECIPHER_COST) return 'Decipher with ' + DECIPHER_COST + ' Insight (read the Covenant Records), or uncover it in play.';
         return '';
     }
+    // Opening an unlocked record marks it read; a buried one can be deciphered with Insight.
     function readLore(s, id) {
         if (s.lore[id]) return true;
         if (readLoreBlock(s, id)) return false;
-        const i = LORE().entries.findIndex((e) => e.id === id);
-        s.inv.insight -= loreCost(i);
+        if (!loreOpen(s, id)) { s.inv.insight -= DECIPHER_COST; s.loreOpen[id] = true; }
         s.lore[id] = true;
         grantRank(s, 25);
         s.rev++;
         return true;
     }
-    function voicesReady(s) {
-        if (s.voices.nextAt && s.t < s.voices.nextAt) return [];
-        return LORE().conversations.filter((c) => {
-            if (c.oneTime !== false && s.voices.done[c.id]) return false;
-            if ((c.requiresLoreIds || []).some((id) => !s.lore[id])) return false;
-            if ((c.requiresFlags || []).some((f) => !s.voices.flags[f])) return false;
-            if (c.minStorehouseLevel && (s.b.storehouse || 0) < c.minStorehouseLevel) return false;
-            return true;
-        }).slice(0, 3);
+
+    // —— Visitors (KeepService.refreshVisitors): up to 3 at the gate, a roll every 2 hours ——
+    const VISITOR_EVERY = 2 * HOUR, MAX_VISITORS = 3, TRUST_MAX = 7;
+    const trustStage = (t) => (t >= TRUST_MAX ? 'Bonded' : t >= 3 ? 'Trusted' : t >= 1 ? 'Acquainted' : 'Distant');
+    const npcOf = (s, id) => (s.visitors.npc[id] = s.visitors.npc[id] || { trust: 0, met: false, cooldownUntil: 0, name: '', role: '', keepsake: false });
+    function visitorEligible(s, c) {
+        if (c.oneTime !== false && s.voices.done[c.id]) return false;
+        if ((c.requiresLoreIds || []).some((id) => !loreOpen(s, id))) return false;
+        if ((c.requiresFlags || []).some((f) => !s.voices.flags[f])) return false;
+        if (c.minStorehouseLevel && (s.b.storehouse || 0) < c.minStorehouseLevel) return false;
+        const n = s.visitors.npc[c.npcId];
+        if (n && n.cooldownUntil > s.t) return false;
+        return !s.visitors.active.some((a) => a.id === c.id || LORE().conversations.find((x) => x.id === a.id).npcId === c.npcId);
+    }
+    function rollVisitors(s) {
+        if (s.visitors.active.length >= MAX_VISITORS) return;
+        const r = rng('visit:' + Math.floor(s.t / VISITOR_EVERY));
+        // Story beats come first, like the Keep's charter scenes; then weighted visitors.
+        const pool = LORE().conversations.filter((c) => visitorEligible(s, c));
+        if (!pool.length) return;
+        const story = pool.find((c) => c.kind === 'STORY');
+        let pick = story;
+        if (!pick) {
+            const w = pool.map((c) => (c.weight || 10) * (s.visitors.npc[c.npcId] && s.visitors.npc[c.npcId].met ? 3 : 1));
+            let x = r() * w.reduce((a, b) => a + b, 0);
+            pick = pool[pool.length - 1];
+            for (let i = 0; i < pool.length; i++) { x -= w[i]; if (x <= 0) { pick = pool[i]; break; } }
+        }
+        s.visitors.active.push({ id: pick.id, at: s.t });
+        FRESH.push(pick.npcName + ' is at the gate.');
+        s.rev++;
+    }
+    const visitorsHere = (s) => s.visitors.active.map((a) => LORE().conversations.find((c) => c.id === a.id)).filter(Boolean);
+    const voicesReady = visitorsHere;
+    function choiceCost(ch) {
+        const c = ka(ch.materialCosts || {});
+        if (ch.timberCost) c.timber = (c.timber || 0) + ch.timberCost;
+        return c;
+    }
+    function voiceBlock(s, convId, choiceId) {
+        const c = visitorsHere(s).find((x) => x.id === convId);
+        if (!c) return 'They have moved on.';
+        const ch = (c.choices || []).find((x) => x.id === choiceId);
+        if (!ch) return 'Unknown answer.';
+        if (!canAfford(s, choiceCost(ch))) return 'Needs ' + Object.keys(choiceCost(ch)).map((k) => choiceCost(ch)[k] + ' ' + itemName(k)).join(', ') + '.';
+        return '';
     }
     function chooseVoice(s, convId, choiceId) {
-        const c = voicesReady(s).find((x) => x.id === convId);
-        if (!c) return null;
-        const ch = (c.choices || []).find((x) => x.id === choiceId) || (c.choices || [])[0];
-        if (!ch) return null;
+        if (voiceBlock(s, convId, choiceId)) return null;
+        const c = visitorsHere(s).find((x) => x.id === convId), ch = c.choices.find((x) => x.id === choiceId);
+        spend(s, choiceCost(ch));
+        // A weighted outcome replaces the choice's own effects, as KeepService resolves it.
+        let o = ch;
+        if ((ch.outcomes || []).length) {
+            const r = rng('voice:' + c.id + ':' + ch.id + ':' + s.seq++), tot = ch.outcomes.reduce((a, x) => a + (x.weight || 1), 0);
+            let x = r() * tot;
+            o = ch.outcomes[ch.outcomes.length - 1];
+            for (const oc of ch.outcomes) { x -= oc.weight || 1; if (x <= 0) { o = oc; break; } }
+        }
+        const gains = ka(o.materialDeltas || {}), loss = {};
+        if (o.timberDelta > 0) gains.timber = (gains.timber || 0) + o.timberDelta;
+        if (o.timberDelta < 0) loss.timber = -o.timberDelta;
+        Object.keys(gains).forEach((k) => { if (gains[k] < 0) { loss[k] = -gains[k]; delete gains[k]; } });
+        add(s, gains);
+        Object.keys(loss).forEach((k) => { s.inv[k] = Math.max(0, (s.inv[k] || 0) - loss[k]); });
+        const n = npcOf(s, c.npcId);
+        const before = n.trust;
+        n.trust = Math.max(0, Math.min(TRUST_MAX, n.trust + (o.relationshipDelta != null ? o.relationshipDelta : ch.relationshipDelta || 0)));
+        n.met = true; n.name = c.npcName; n.role = c.npcRole || ''; n.cooldownUntil = s.t + (c.cooldownHours || 6) * HOUR;
+        if (o.flag || ch.flag) s.voices.flags[o.flag || ch.flag] = true;
         s.voices.done[c.id] = true;
-        if (ch.flag) s.voices.flags[ch.flag] = true;
-        s.voices.rapport[c.npcId] = (s.voices.rapport[c.npcId] || 0) + (ch.relationshipDelta || 0);
-        s.voices.nextAt = s.t + 4 * HOUR;
-        s.voices.log.unshift({ npc: c.npcName, prompt: c.prompt, said: ch.label, reply: ch.response || (ch.outcomes && ch.outcomes[0] && ch.outcomes[0].response) || '' });
-        if (s.voices.log.length > 20) s.voices.log.length = 20;
+        s.visitors.active = s.visitors.active.filter((a) => a.id !== c.id);
+        const reply = o.response || ch.response || '';
+        s.voices.log.unshift({ npc: c.npcName, npcId: c.npcId, prompt: c.prompt, said: ch.label, reply: reply, at: s.t, gains: gains, trust: n.trust - before });
+        if (s.voices.log.length > 30) s.voices.log.length = 30;
+        unlockLore(s, o.unlockLoreId || ch.unlockLoreId);
         add(s, { silver: 2 });
         grantRank(s, 25);
+        keepEvent(s, 'CONVERSATION');
+        maybeRequest(s, c.npcId);
+        if (n.trust >= TRUST_MAX && !n.keepsake) { n.keepsake = true; add(s, { crowns: 100, relic: 1 }); FRESH.push(c.npcName + ' is Bonded to the Keep and leaves a keepsake: 100 Crowns and a relic.'); }
         s.rev++;
-        return ch;
+        return { reply: reply, gains: gains, loss: loss, trust: n.trust, delta: n.trust - before, stage: trustStage(n.trust) };
+    }
+
+    // —— Visitor requests: Dominion's quest layer on top of the Keep's visitors ——
+    // A visitor you have met comes back with an errand. Trusted visitors pay half again, and
+    // every delivery deepens trust, so the people at the gate become a reason to plan work.
+    const REQUEST_POOL = [
+        [0, 'timber', 40], [0, 'stone', 18], [0, 'provisions', 6], [0, 'fiber', 12], [0, 'produce', 8], [0, 'sunleaf', 10],
+        [1, 'ember', 8], [1, 'frost', 8], [1, 'copper_bar', 3], [1, 'pine_plank', 5], [1, 'glass', 2], [1, 'linen', 3],
+        [3, 'alloy', 2], [3, 'rations', 3], [3, 'herb_tonic', 2], [3, 'living_mortar', 1], [3, 'iron_bar', 3], [3, 'oak_plank', 4]
+    ];
+    const MAX_REQUESTS = 3, REQUEST_HOURS = 24;
+    function maybeRequest(s, npcId) {
+        const n = s.visitors.npc[npcId];
+        if (!n || n.trust < 1 || s.requests.length >= MAX_REQUESTS || s.requests.some((q) => q.npc === npcId)) return;
+        const r = rng('req:' + npcId + ':' + s.t);
+        if (r() > 0.7) return;
+        const pool = REQUEST_POOL.filter((p) => p[0] <= n.trust && RES[p[1]]);
+        const p = pool[Math.floor(r() * pool.length)];
+        const qty = Math.max(1, Math.round(p[2] * (1 + Math.min(1, n.trust / TRUST_MAX))));
+        const mul = n.trust >= 3 ? 1.5 : 1;
+        s.requests.push({ id: 'q' + s.t + npcId, npc: npcId, name: n.name, role: n.role, item: p[1], qty: qty,
+            reward: { silver: Math.round((4 + qty / 2) * mul), crowns: Math.round((8 + 6 * p[0]) * mul) }, until: s.t + REQUEST_HOURS * HOUR });
+        FRESH.push(n.name + ' asks for ' + qty + ' ' + itemName(p[1]) + '.');
+    }
+    function requestBlock(s, id) {
+        const q = s.requests.find((x) => x.id === id);
+        if (!q) return 'That request has lapsed.';
+        if (fl(s.inv[q.item]) < q.qty) return 'Needs ' + q.qty + ' ' + itemName(q.item) + ' (you have ' + fl(s.inv[q.item]) + ').';
+        return '';
+    }
+    function deliver(s, id) {
+        if (requestBlock(s, id)) return null;
+        const q = s.requests.find((x) => x.id === id);
+        s.inv[q.item] -= q.qty;
+        add(s, q.reward);
+        const n = npcOf(s, q.npc);
+        n.trust = Math.min(TRUST_MAX, n.trust + 1);
+        s.requests = s.requests.filter((x) => x.id !== id);
+        grantRank(s, 40);
+        keepEvent(s, 'CONVERSATION');
+        if (n.trust >= TRUST_MAX && !n.keepsake) { n.keepsake = true; add(s, { crowns: 100, relic: 1 }); FRESH.push(q.name + ' is Bonded to the Keep and leaves a keepsake: 100 Crowns and a relic.'); }
+        logEvent(s, 'Delivered ' + q.qty + ' ' + itemName(q.item) + ' to ' + q.name + '.');
+        s.rev++;
+        return q;
+    }
+
+    // —— Enclave rapport (KeepEnclaveTaskCatalog): each resident's three-task ladder ——
+    const RAPPORT_AT = [0, 5, 12, 22, 36, 55];
+    const RAPPORT_NAMES = ['Newly arrived', 'Familiar', 'Trusted', 'Kindred', 'Sworn', 'Bonded'];
+    const rapportLvl = (s, uid) => { const p = (s.rapport[uid] || 0); let l = 0; RAPPORT_AT.forEach((t, i) => { if (p >= t) l = i; }); return l; };
+    function hashOf(t) { let h = 0; for (let i = 0; i < t.length; i++) h = (Math.imul(31, h) + t.charCodeAt(i)) | 0; return h; }
+    function residentTasks(uid) {
+        const T = (window.DOMINION_KEEP && window.DOMINION_KEEP.enclaveTasks) || { elements: {}, bond: [] };
+        const el = C(uid).EL, name = C(uid).name;
+        const ladder = (T.elements[el] || T.elements.NEUTRAL || []).slice();
+        if (T.bond.length) ladder.push(T.bond[((hashOf(C(uid).speciesId) % T.bond.length) + T.bond.length) % T.bond.length]);
+        return ladder.map((t) => Object.assign({}, t, { name: t.name.replace(/\{name\}/g, name), description: t.description.replace(/\{name\}/g, name) }));
+    }
+    // Every resident at home watches what the Keep does; a task fills when its kind of work happens.
+    function keepEvent(s, type, n) {
+        joinedIds(s).forEach((uid) => {
+            if (onExpedition(s, uid)) return;
+            residentTasks(uid).forEach((t) => {
+                if (t.event !== type) return;
+                const p = (s.tasks[uid] = s.tasks[uid] || {});
+                p[t.id] = Math.min(t.goal, (p[t.id] || 0) + (n || 1));
+            });
+        });
+    }
+    function bankTask(s, uid, taskId) {
+        const t = residentTasks(uid).find((x) => x.id === taskId), p = s.tasks[uid] || {};
+        if (!t || (p[taskId] || 0) < t.goal) return null;
+        const before = rapportLvl(s, uid);
+        p[taskId] = 0;
+        s.rapport[uid] = (s.rapport[uid] || 0) + t.rapport;
+        add(s, { silver: Math.round(t.gold / 10), crowns: Math.round(t.remnants / 4) });
+        grantBond(s, uid, t.rapport * 2);
+        if (rapportLvl(s, uid) > before) FRESH.push(C(uid).name + ' is now ' + RAPPORT_NAMES[rapportLvl(s, uid)] + ': +' + 10 * rapportLvl(s, uid) + '% to everything they help with.');
+        s.rev++;
+        return t;
+    }
+
+    // —— Collecting (KeepService): rooms fill their own stores; the Knight carries it in ——
+    const STORE_HOURS = 8;
+    function produce(s, id, rates, h) {
+        const st = (s.stored[id] = s.stored[id] || {});
+        Object.keys(rates).forEach((k) => {
+            if (!(rates[k] > 0)) return;
+            const cap = Math.max(st[k] || 0, rates[k] * STORE_HOURS * (1 + 0.25 * (s.b.storehouse || 0)) * (s.annex[id] ? 1.5 : 1));
+            st[k] = Math.min(cap, (st[k] || 0) + rates[k] * h);
+        });
+    }
+    const storedOf = (s, id) => s.stored[id] || {};
+    const storedCount = (s, id) => Object.keys(storedOf(s, id)).reduce((a, k) => a + fl(storedOf(s, id)[k]), 0);
+    function storeFill(s, id) {
+        const rates = id === 'woodlot' ? { timber: woodlotRate(s) } : workshopRates(s, id), st = storedOf(s, id);
+        const k = Object.keys(rates).find((x) => rates[x] > 0) || Object.keys(st)[0];
+        if (!k) return 0;
+        const cap = (rates[k] || 0) * STORE_HOURS * (1 + 0.25 * (s.b.storehouse || 0)) * (s.annex[id] ? 1.5 : 1);
+        return cap > 0 ? Math.min(1, (st[k] || 0) / cap) : 0;
+    }
+    function collect(s, id) {
+        const st = storedOf(s, id), got = {};
+        Object.keys(st).forEach((k) => {
+            let n = Math.floor(st[k]);
+            if (k === 'timber') n = Math.min(n, Math.max(0, Math.floor(timberCap(s) - s.inv.timber)));
+            if (n <= 0) return;
+            st[k] -= n;
+            got[k] = n;
+        });
+        if (!Object.keys(got).length) return null;
+        add(s, got);
+        grantRank(s, 5);
+        if (id === 'woodlot') {
+            s.knight.counts.woodlotCollect = (s.knight.counts.woodlotCollect || 0) + 1;
+            if (s.knight.counts.woodlotCollect === 1) unlockLore(s, 'letter_forester_maren');
+            if (s.knight.counts.woodlotCollect >= 3) unlockLore(s, 'memorabilia_petrified_root');
+            keepEvent(s, 'TIMBER_COLLECTION');
+        } else keepEvent(s, 'MATERIAL_COLLECTION');
+        s.rev++;
+        return got;
+    }
+    function collectAll(s) {
+        const got = {};
+        ['woodlot'].concat(Object.keys(WS)).forEach((id) => { const g = collect(s, id); if (g) Object.keys(g).forEach((k) => { got[k] = (got[k] || 0) + g[k]; }); });
+        return got;
+    }
+
+    // —— Decorations: crafted pieces can be displayed in their room or stored ——
+    function placeDecoration(s, id, on) {
+        const k = KEEP_CRAFTS[id];
+        if (!k || k[1] !== 'DECORATION' || !s.crafted[id]) return false;
+        const first = on && !s.placedEver[id];
+        s.placed[id] = !!on;
+        if (first) { s.placedEver[id] = true; keepEvent(s, 'DECORATION'); }
+        s.rev++;
+        return true;
     }
 
     // —— The Keeper's Journey: each Knight Rank pays a one-time reward ——
@@ -1996,792 +2210,229 @@
         if (ONLINE) setTimeout(flushReports, 0);
     }
 
-    function realmHtml() {
-        if (!ONLINE) return '<div class="dm-card is-quiet"><h3>The realm</h3><p class="dm-muted">Guilds, the weekly Siege Operation and the Crowns market are shared between players, so they run on the live server at /dominion. This preview is offline.</p></div>';
-        if (!NET.checked) return '<div class="dm-card"><p class="dm-muted">Checking your account…</p></div>';
-        if (!NET.signedIn) return '<div class="dm-card"><h3>Sign in to join the realm</h3><p class="dm-muted">Dominion is playing on this device only. Sign in at the hub to sync your progress across devices and to use guilds, operations and the market.</p><a class="dm-btn" href="/home">Sign in at the hub</a></div>';
-        if (!NET.realmAt && !NET.loading) setTimeout(loadRealm, 0);
-        const sync = '<div class="dm-row"><small class="dm-muted dm-grow">' + (NET.error ? esc(NET.error) : 'Synced ' + (NET.lastSync ? new Date(NET.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—') + ' · save v' + (S.sync.version || 0)) + '</small><button class="dm-btn small secondary" type="button" data-act="realm-refresh">Refresh</button></div>';
-        let h = '<div class="dm-card">' + sync + '</div>';
-        const G = NET.guild;
-        if (!G) return h + '<div class="dm-card"><p class="dm-muted">' + (NET.loading ? 'Loading the realm…' : 'The realm could not be loaded. Try Refresh.') + '</p></div>';
-        if (!G.guild) {
-            h += '<div class="dm-card"><h3>Guilds</h3><p class="dm-muted">Found or join a guild to fight its weekly Siege Operation and build its defenses. Needs Knight Rank ' + G.guildRank + ' (you are ' + G.rank + ').</p>' +
-                '<form class="dm-row" data-form="guild-create"><input class="dm-input dm-grow" name="name" id="dmGuildName" maxlength="24" placeholder="Guild name" aria-label="Guild name"><button class="dm-btn small" type="submit">Found</button></form>' +
-                '<form class="dm-row" data-form="guild-join"><input class="dm-input dm-grow" name="code" id="dmGuildCode" maxlength="8" placeholder="Invite code" aria-label="Invite code" style="text-transform:uppercase"><button class="dm-btn small secondary" type="submit">Join</button></form></div>';
-        } else {
-            const g = G.guild, op = g.operation, nextT = (g.defenseThresholds || []).find((t) => t > g.defensePoints);
-            h += '<div class="dm-card"><div class="dm-row"><h3 class="dm-grow">' + esc(g.name) + '</h3><span class="dm-chip">Code ' + esc(g.code) + '</span></div>' +
-                '<p class="dm-muted">Defense level ' + g.defenseLevel + ' (' + g.defensePoints + (nextT ? ' / ' + nextT : '') + ' points): operation damage +' + 10 * g.defenseLevel + '%.</p>' +
-                '<div class="dm-chips">' + g.members.map((m) => '<span class="dm-chip ' + (m.you ? 'good' : '') + '">' + esc(m.name) + ' · ' + m.contribution + '</span>').join('') + '</div>' +
-                '<div class="dm-label">Donate to the defenses</div><div class="dm-chips">' + Object.keys(CH.donationPoints || {}).filter((k) => fl(S.inv[k]) > 0).map((k) =>
-                    '<button class="dm-btn small secondary" type="button" data-act="donate" data-arg="' + k + '">' + icon(k) + esc(itemName(k)) + ' ×' + Math.min(10, fl(S.inv[k])) + ' (+' + CH.donationPoints[k] * Math.min(10, fl(S.inv[k])) + ')</button>').join('') +
-                (Object.keys(CH.donationPoints || {}).some((k) => fl(S.inv[k]) > 0) ? '' : '<span class="dm-muted">Planks, bars, rope, linen, rune stones, tonics and relics count.</span>') + '</div>' +
-                '<button class="dm-btn small secondary" type="button" data-act="guild-leave">Leave guild</button></div>';
-            const pct = Math.min(100, Math.round(op.damage / Math.max(1, op.maxHp) * 100));
-            h += '<div class="dm-card"><span class="dm-eyebrow">Siege Operation · ' + esc(op.week) + '</span><div class="dm-row"><h3 class="dm-grow">' + esc(op.threat) + '</h3><span class="dm-chip el" style="--el:' + EL_HEX[op.element] + '">' + titleCase(op.element) + '</span></div>' +
-                '<p class="dm-muted">' + esc(op.blurb) + '</p><div class="dm-bar"><b style="width:' + pct + '%"></b></div><small class="dm-muted">' + op.damage + ' / ' + op.maxHp + (op.won ? ' · defeated' : '') + ' · your share ' + op.yours + '</small>' +
-                ((S.opReports || []).length ? '<small class="dm-muted">' + S.opReports.length + ' report waiting to send.</small>' : '');
-            if (op.won) h += '<button class="dm-btn" type="button" data-act="op-claim"' + (op.claimed || !op.yours ? ' disabled' : '') + '>' + (op.claimed ? 'Spoils claimed' : op.yours ? 'Claim the spoils' : 'Fight next week to share spoils') + '</button>';
-            else {
-                const ob = operationBlock(S);
-                h += '<div class="dm-list">' + Object.keys(CH.fronts || {}).map((fid) => { const f = CH.fronts[fid]; return '<div class="dm-enc"><span class="dm-mark">⚔</span><span><strong>' + esc(f.name) + '</strong><small>' + esc(f.text) + '</small></span><button class="dm-btn small" type="button" data-act="op-go" data-arg="' + fid + '"' + (ob ? ' disabled title="' + esc(ob) + '"' : '') + '>Send · 8h</button></div>'; }).join('') + '</div>' +
-                    '<small class="dm-muted">Uses your Travel party and gear. Damage comes from party power and companions suited to the front.' + (ob ? ' ' + esc(ob) : '') + '</small>';
-            }
-            h += '</div>';
-        }
-        const M = NET.market;
-        if (M) {
-            const owned = Object.keys(S.inv).filter((k) => tradeable(k) && fl(S.inv[k]) > 0).sort();
-            h += '<div class="dm-card"><h3>Crowns market</h3><p class="dm-muted">Trade with other players. Listed goods leave your storage until sold or cancelled; sellers pay a ' + Math.round(M.fee * 100) + '% fee. You hold ' + fl(S.inv.crowns) + ' Crowns.</p><div class="dm-list">' +
-                (M.open.filter((l) => !l.mine).map((l) => '<div class="dm-enc"><span class="dm-mark">' + icon(l.itemId) + '</span><span><strong>' + l.qty + ' ' + esc(itemName(l.itemId)) + '</strong><small>from ' + esc(l.seller) + '</small></span><button class="dm-btn small" type="button" data-act="mk-buy" data-arg="' + esc(l.id) + '"' + (fl(S.inv.crowns) < l.price ? ' disabled' : '') + '>' + icon('crowns') + l.price + '</button></div>').join('') || '<p class="dm-muted">No listings from other players yet.</p>') + '</div>' +
-                (M.mine.length ? '<div class="dm-label">Your listings</div><div class="dm-list">' + M.mine.map((l) => '<div class="dm-enc ' + (l.status === 'sold' ? 'ok' : '') + '"><span class="dm-mark">' + icon(l.itemId) + '</span><span><strong>' + l.qty + ' ' + esc(itemName(l.itemId)) + '</strong><small>' + l.price + ' Crowns · ' + l.status + '</small></span>' + (l.status === 'open' ? '<button class="dm-btn small secondary" type="button" data-act="mk-cancel" data-arg="' + esc(l.id) + '">Cancel</button>' : '<span></span>') + '</div>').join('') + '</div>' : '') +
-                (owned.length ? '<form class="dm-market-form" data-form="market-list"><select class="dm-input" name="item" id="dmListItem" aria-label="Item to sell">' + owned.map((k) => '<option value="' + k + '">' + esc(itemName(k)) + ' (' + fl(S.inv[k]) + ')</option>').join('') + '</select>' +
-                    '<input class="dm-input" name="qty" id="dmListQty" type="number" min="1" max="999" value="1" aria-label="Quantity"><input class="dm-input" name="price" id="dmListPrice" type="number" min="1" value="10" aria-label="Price in Crowns"><button class="dm-btn small" type="submit">List</button></form>' : '') + '</div>';
-        }
-        return h;
-    }
-
-    // —— UI state ——
+    // ═══════════════ UI: the Chronicles shell, with the Keep inside Base ═══════════════
+    // Markup follows chronicles.js class for class so chronicles.css styles it unchanged;
+    // the Keep scene and interiors come from keep.html/keep.css (dominion-keep.css).
     let S = null;
     let quarterSel = -1;
     let arranging = false;
-    let sheet = null; // { kind, arg }
     let confirmReset = false;
     let lastSig = '';
     let lastRev = -1;
+    let modal = null; // { kind, arg }
+    let recipePick = '';
+    let openComp = '';
+    let scrollToRoom = false;
+    const TABS = ['knight', 'company', 'work', 'expedition', 'base', 'realm', 'wilds'];
+    const OLD_TAB = { keep: 'base', activities: 'expedition', companions: 'company' };
 
-    function setTab(tab) {
-        S.ui.tab = tab;
-        document.querySelectorAll('.dm-tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
-        ['keep', 'knight', 'activities', 'companions'].forEach((t) => $('view-' + t).classList.toggle('hidden', t !== tab));
-        renderView();
+    const elKey = (el) => String(el || 'NEUTRAL').toLowerCase();
+    const RASTER_ELEMENTS = { FIRE: 1, EARTH: 1, ICE: 1, WIND: 1 };
+    function elementIcon(el, size) {
+        const key = elKey(el);
+        const src = RASTER_ELEMENTS[String(el || '').toUpperCase()] ? '/img/elements/element-' + key + '-96.webp' : '/img/elements/element-' + key + '.svg';
+        return '<img class="ck-el-ico" src="' + src + '" alt="" width="' + (size || 16) + '" height="' + (size || 16) + '">';
     }
-
-    function renderStrip() {
-        $('dmResStrip').innerHTML = STRIP.map((k) => '<div class="dm-res' + (k === 'timber' && S.inv.timber >= timberCap(S) - 1e-6 ? ' is-full' : '') + '" title="' + esc(RES[k].name) + (k === 'timber' ? ' (store holds ' + timberCap(S) + ')' : '') + '">' + icon(k) + '<span data-res="' + k + '">' + fl(S.inv[k]) + '</span></div>').join('') +
-            '<button class="dm-res is-bag" type="button" data-act="bag" aria-label="Open storage">All ›</button>';
-    }
-    function renderClock() {
-        const d = new Date(now());
-        const t = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-        const off = Math.round(S.offset / HOUR);
-        $('dmClock').innerHTML = '<b>' + t + '</b>' + (off ? '+' + off + 'h demo' : 'local save');
-    }
-
-    // —— Keep scene ——
-    function renderScene() {
-        const sc = $('dmScene');
-        sc.dataset.hall = String(S.b.hall);
-        sc.dataset.woodlot = String(S.b.woodlot);
-        sc.dataset.archive = S.b.archive >= 1 ? '1' : '0';
-        sc.dataset.heal = String(Math.min(2, (S.b.archive >= 1 ? 1 : 0) + (S.b.woodlot >= 2 ? 1 : 0) + (S.b.hall >= 2 ? 1 : 0)));
-        sc.querySelectorAll('.building-hotspot').forEach((b) => {
-            b.classList.toggle('is-building', !!buildFor(S, b.dataset.building));
-            b.classList.toggle('is-damaged', damaged(S, b.dataset.building === 'hall' ? 'great_hall' : b.dataset.building));
-        });
-        for (let n = 2; n <= 8; n++) sc.classList.toggle('hall-l' + n, S.b.hall >= n);
-        sc.dataset.theme = S.theme || 'covenant';
-        const th = HALL_THEMES.find((t) => t[0] === S.theme);
-        sc.style.setProperty('--hall-accent', th ? th[2] : '#f4cc62');
-        const lbl = (k, v) => { const e = sc.querySelector('[data-label="' + k + '"]'); if (e) e.textContent = v; };
-        lbl('hall', HALL_RANKS[S.b.hall - 1] + (rebirths(S) ? ' \u00b7 ' + REBIRTH_TITLES[rebirths(S)] : ''));
-        lbl('woodlot', 'Lv ' + S.b.woodlot + ' · ' + fmtRate(woodlotRate(S)) + ' Timber/h');
-        lbl('archiveName', S.b.archive >= 1 ? 'Archive' : 'Ruined Archive');
-        lbl('archive', S.b.archive >= 1 ? 'Studies \u00b7 Runecrafting' : '60 Timber + 3 Glass');
-        const act = activeRecipes(S);
-        lbl('quarter', act.length ? act.length + ' recipe' + (act.length > 1 ? 's' : '') + ' running' : 'No links yet');
-        const resting = Object.keys(S.comps).filter((id) => S.comps[id].joined && S.comps[id].job.kind === 'rest' && !onExpedition(S, id));
-        lbl('enclave', resting.length ? resting.map((id) => C(id).name).join(', ') + ' resting' : 'Residents rest here');
-
-        // Mini Quarter mirrors the real grid, so rearranging is visible from the Keep.
-        $('dmQuarterMini').innerHTML = S.grid.map((c, i) => c ? '<i class="quarter-building quarter-' + c.id + '" style="left:' + (4 + (i % 3) * 33) + '%;bottom:' + (6 + (2 - Math.floor(i / 3)) * 31) + '%"><b></b></i>' : '').join('') +
-            links(S.grid).filter((l) => l.recipe).map((l) => {
-                const ra = Math.floor(l.a / 3), ca = l.a % 3, rb = Math.floor(l.b / 3), cb = l.b % 3;
-                if (ra === rb) return '<i class="quarter-link" style="left:' + (24 + Math.min(ca, cb) * 33) + '%;bottom:' + (18 + (2 - ra) * 31) + '%;width:16%"></i>';
-                return '<i class="quarter-link" style="left:' + (15 + ca * 33) + '%;bottom:' + (6 + (2 - Math.max(ra, rb)) * 31 + 22) + '%;width:4px;height:12%"></i>';
-            }).join('');
-
-        const ov = [];
-        const obj = currentObjective(S);
-        if (obj) {
-            ov.push('<button class="dm-objective" type="button" data-act="objective"><span class="dm-eyebrow">' + esc(obj.ch.chapter) + ' · ' + (obj.i + 1) + '/' + obj.ch.steps.length + '</span><strong>' + esc(obj.step.title) + '</strong>' +
-                '<span class="dm-steps">' + obj.ch.steps.map((st, i) => '<i class="' + (S.obj[st.id] ? 'done' : i === obj.i ? 'now' : '') + '"></i>').join('') + '</span></button>');
-        }
-        // Knight at the Hall door, or a signpost on the road while away.
-        if (S.exp) {
-            const d = DEST[S.exp.dest];
-            ov.push('<button class="dm-knight" type="button" data-act="tab" data-arg="activities" style="top:auto;bottom:31%" aria-label="Knight on expedition">' +
-                '<span class="dm-art" style="opacity:.55">' + artImg('knight', '') + '</span><span class="dm-pip">' + esc(d.name) + ' · <span data-live="eta" data-end="' + S.exp.endAt + '"></span></span></button>');
-        } else {
-            const td = taskDef(S.knight.task);
-            const job = !td ? 'Idle at the Hall' : taskLabel(S) + ' · ' + SKILLS[td.skillId].name + ' ' + skillLvl(S, td.skillId);
-            ov.push('<button class="dm-knight" type="button" data-act="tab" data-arg="knight" aria-label="Open the Knight: ' + esc(job) + '">' +
-                '<span class="dm-art">' + artImg('knight', '') + '</span><span class="dm-pip green">' + esc(job) + '</span></button>');
-        }
-        // Residents appear where they work.
-        const spot = { woodlot: 'left:30%;bottom:22%', forge: 'left:6%;top:41%', fridge: 'left:30%;top:52%', generator: 'left:30%;top:39%', garden: 'left:6%;top:52%', kitchen: 'left:18%;top:52%', quarry: 'left:18%;top:41%' };
-        let restSlot = 0, exploreSlot = 0;
-        Object.keys(S.comps).slice(0, 12).forEach((id) => {
-            const c = S.comps[id];
-            if (!c.joined || onExpedition(S, id) || c.job.kind === 'front' || c.job.kind === 'knight') return;
-            if (c.job.kind === 'rest' && restSlot >= 4) return;
-            let pos;
-            if (c.job.kind === 'help') pos = spot[c.job.target];
-            else if (c.job.kind === 'rest') pos = 'right:' + (8 + restSlot++ * 12) + '%;top:44%';
-            else pos = 'left:' + (44 + exploreSlot++ * 9) + '%;bottom:2%;opacity:.7';
-            ov.push('<span class="dm-resident" style="' + pos + ';--el:var(--' + C(id).el + ')" title="' + esc(C(id).name) + '">' + compArt(id, C(id).name) + '</span>');
-        });
-        const pipPos = { hall: 'left:50%;top:12%;transform:translateX(-50%)', woodlot: 'left:8%;bottom:30%', archive: 'right:8%;bottom:31%' };
-        (S.builds || []).forEach((b, i) => {
-            const pos = pipPos[KEY_OF(b.id)] || ('left:50%;bottom:' + (14 + i * 6) + '%;transform:translateX(-50%)');
-            ov.push('<span class="dm-pip" style="' + pos + '">' + esc(KEY_OF(b.id) ? 'Building' : b.name) + ' \u00b7 <span data-live="eta" data-end="' + b.endAt + '"></span></span>');
-        });
-        const dmg = (S.events || []).filter((e) => !e.repaired);
-        if (dmg.length) ov.push('<button class="dm-pip" type="button" data-act="goto-keep" style="right:4%;top:31%;pointer-events:auto;border-color:rgba(255,138,115,.7);color:#ffb3a3">' + dmg.length + ' to repair</button>');
-        if (S.b.front >= 1) ov.push('<span class="dm-pip" style="left:50%;top:27%;transform:translateX(-50%)">Akhar\u2019s Wall \u00b7 ' + Math.min(defenders(S).length, frontCap(S)) + '/' + frontCap(S) + ' posted</span>');
-        if (act.length) ov.push('<span class="dm-pip green" style="left:4%;top:37.5%">' + act.map((r) => esc(RECIPES[r].name)).join(' + ') + '</span>');
-        $('dmSceneOverlay').innerHTML = ov.join('');
+    const chip = (text, cls) => '<span class="ck-chip' + (cls ? ' ' + cls : '') + '">' + esc(text) + '</span>';
+    const elChip = (el, label) => '<span class="ck-chip ck-el" style="--el:var(--' + elKey(el) + ')">' + elementIcon(el, 14) + esc(label || titleCase(el)) + '</span>';
+    const pctOf = (into, span) => (!span ? 0 : Math.max(0, Math.min(100, Math.round(into / span * 100))));
+    const barP = (p, cls, live) => '<span class="ck-bar' + (cls ? ' ' + cls : '') + '"><i' + (live || '') + ' style="width:' + Math.round(p) + '%"></i></span>';
+    const liveBar = (start, end, cls) => barP(Math.max(0, Math.min(100, (S.t - start) / Math.max(1, end - start) * 100)), cls, ' data-live="bar" data-start="' + start + '" data-end="' + end + '"');
+    const eta = (end) => '<b data-live="eta" data-end="' + end + '">' + fmtDur(end - S.t) + '</b>';
+    const namedScene = (name) => SCENE_DIR + name + '.webp';
+    function hero(o) {
+        return '<section class="ck-banner' + (o.cls ? ' ' + o.cls : '') + '"' + (o.el ? ' style="--el:var(--' + elKey(o.el) + ')"' : '') + '>' +
+            '<img class="ck-banner-img" src="' + esc(o.scene) + '" alt="" decoding="async">' +
+            '<span class="ck-banner-shade" aria-hidden="true"></span>' +
+            (o.art ? '<div class="ck-banner-art">' + o.art + '</div>' : '') +
+            '<div class="ck-banner-body">' + (o.kicker ? '<p class="ck-banner-kicker">' + o.kicker + '</p>' : '') +
+            '<h2 class="ck-banner-title">' + o.title + '</h2>' + (o.body || '') + '</div>' +
+            (o.foot ? '<div class="ck-banner-foot">' + o.foot + '</div>' : '') + '</section>';
     }
 
-    // —— Knight view ——
-    function renderKnight() {
-        const k = S.knight, busy = knightBusy(S);
-        const sec = S.ui.knight;
-        const w = weaponItem(S);
-        let h = '<div class="dm-pad">';
-        h += '<div class="dm-card"><div class="dm-hero"><span class="dm-art">' + artImg('knight', k.name) + '</span><div class="dm-grow" style="display:grid;gap:4px;min-width:0">' +
-            '<span class="dm-eyebrow">SiegeKnight · Rank ' + rankLvl(S) + '</span><h2>' + esc(k.name) + '</h2>' +
-            '<div class="dm-chips"><span class="dm-chip">' + glyph((WEAPONS[w.weaponType] || WEAPONS.sword).glyph) + esc(w.name) + '</span>' + (k.tool ? '<span class="dm-chip">' + icon(k.tool) + esc(itemName(k.tool)) + '</span>' : '') + '</div></div></div>';
-        h += currentTaskHtml();
-        h += '</div>';
-        h += '<div class="dm-seg" role="group" aria-label="Knight sections">' + [['work', 'Work'], ['gear', 'Gear'], ['skills', 'Skills']].map((x) =>
-            '<button type="button" data-act="knight-sec" data-arg="' + x[0] + '" aria-pressed="' + (sec === x[0]) + '">' + x[1] + '</button>').join('') + '</div>';
-        if (sec === 'gear') h += gearHtml();
-        else if (sec === 'skills') h += skillsHtml();
-        else h += workHtml();
-        h += '</div>';
-        $('view-knight').innerHTML = h;
+    // Colour emoji for items (iOS renders them in full colour), as Chronicles does.
+    const SKILL_EMOJI = { mining: '⛏️', woodcutting: '🪓', foraging: '🌿', fishing: '🎣', excavation: '🦴', smelting: '🔥', smithing: '⚒️', carpentry: '🪚',
+        weaving: '🧵', cooking: '🍳', alchemy: '⚗️', runecrafting: '🔮', taming: '🪢', bonding: '💞', husbandry: '🧺', pathfinding: '🧭', survival: '⛺',
+        cartography: '🗺️', command: '🚩', elemental_studies: '📚', class_tactics: '♟️' };
+    const SKILL_LOOK = { mining: 'earth', woodcutting: 'wind', foraging: 'poison', fishing: 'water', excavation: 'metal', smelting: 'fire', smithing: 'metal',
+        carpentry: 'earth', weaving: 'psychic', cooking: 'fire', alchemy: 'poison', runecrafting: 'shadow', elemental_studies: 'light' };
+    const PROFESSION_SCENES = { mining: 'metal-journey', woodcutting: 'earth-journey', foraging: 'wind-journey', fishing: 'water-shelter', excavation: 'relic-journey',
+        smelting: 'fire-journey', smithing: 'fire-shelter', carpentry: 'earth-shelter', weaving: 'wind-shelter', cooking: 'ice-shelter', alchemy: 'poison-shelter',
+        runecrafting: 'psychic-shelter', elemental_studies: 'aurora-journey' };
+    const BUILDING_SCENES = { sanctuary: 'wind-shelter', forge: 'fire-shelter', garden: 'poison-shelter', war_room: 'metal-shelter', stable: 'earth-shelter', library: 'psychic-shelter' };
+    const CLASS_EMOJI = { Guardian: '🛡️', Bruiser: '👊', Assassin: '🗡️', Mage: '🔮', Support: '💚' };
+    const CLASS_HUE = { Guardian: 'metal', Bruiser: 'fire', Assassin: 'shadow', Mage: 'psychic', Support: 'poison' };
+    const WEAPON_EMOJI = { sword: '🗡️', spear: '🔱', bow: '🏹', staff: '🪄', hammer: '🔨', daggers: '🔪' };
+    const KIND_EMOJI = { MATERIAL: '🪨', ESSENCE: '✨', POTION: '🧪', LURE: '🪝', FOOD: '🍲', WEAPON: '🗡️', ARMOR: '🛡️', RELIC: '🏺', RUNE: '📜',
+        HELMET: '⛑️', BOOTS: '👢', ACCESSORY: '💍', TOOL: '🪓', CURRENCY: '🪙' };
+    const ITEM_EMOJI = { timber: '🪵', stone: '🪨', ore: '🟤', ember: '🔥', frost: '❄️', storm: '⚡', fiber: '🌾', produce: '🥕', provisions: '🥖', glass: '🔷',
+        alloy: '⚙️', rations: '🍱', relic: '💠', insight: '📜', fittings: '🔩', silver: '🪙', crowns: '👑', living_mortar: '🧱', covenant_keystone: '🗝️',
+        aether_core: '💠', heartwood_relic: '🌳', woodaxe: '🪓', pickaxe: '⛏️', sunleaf: '🌿', frostbloom: '🌸', galeberry: '🫐', gale_feather: '🪶',
+        minnow: '🐟', silverfin: '🐠', copper_bar: '🧱', iron_bar: '🧱', ancient_relic: '🏺', fossil: '🦴', rune_stone: '🔷', linen: '🧶', rope: '🪢',
+        pine_plank: '🪵', oak_plank: '🪵', oak_log: '🪵', heartwood: '🌳', ember_shard: '🔥', tide_pearl: '🦪', storm_glass: '⚡', umbral_crystal: '🔮',
+        mind_prism: '💎', living_alloy: '⚙️', grave_dust: '💀', wild_bait: '🪱', snare_crate: '📦', breezewoven_net: '🕸️', grilled_minnow: '🍢',
+        sunleaf_salad: '🥗', silverfin_stew: '🍲', berry_tart: '🥧', travelers_coat: '🧥', frostweave_cloak: '🧥', tidewarden_cloak: '🧥', stormward_cloak: '🧥',
+        linen_robe: '🥻', ember_robe: '🥻', grandmasters_mantle: '🧥', runeheart: '❤️‍🔥', dawn_lantern: '🏮', clarity_charm: '🧿', alloy_breaker: '⚙️',
+        grave_ward: '🪦', emberward_charm: '🔥', rally_banner: '🚩', bastion_crest: '🛡️', mending_amulet: '📿', prism_pendant: '🔷' };
+    const HUE_WORDS = [['copper', 'earth'], ['iron', 'metal'], ['ember', 'fire'], ['frost', 'ice'], ['gale', 'wind'], ['storm', 'electric'], ['tide', 'water'],
+        ['pearl', 'water'], ['silverfin', 'water'], ['minnow', 'water'], ['pine', 'earth'], ['oak', 'earth'], ['heart', 'earth'], ['sunleaf', 'poison'],
+        ['berry', 'psychic'], ['flax', 'light'], ['linen', 'light'], ['rope', 'earth'], ['relic', 'light'], ['fossil', 'light'], ['rune', 'psychic'],
+        ['umbral', 'shadow'], ['grave', 'undead'], ['alloy', 'metal'], ['herb', 'poison'], ['timber', 'earth'], ['stone', 'metal'], ['fiber', 'light'],
+        ['produce', 'poison'], ['provisions', 'fire'], ['glass', 'ice'], ['crowns', 'light'], ['silver', 'metal'], ['insight', 'psychic']];
+    function itemHue(id) {
+        const k = String(id || ''), m = k.match(/^essence_([a-z]+)/);
+        if (m) return m[1];
+        for (const h of HUE_WORDS) if (k.indexOf(h[0]) >= 0) return h[1];
+        return 'neutral';
     }
-    function currentTaskHtml() {
-        const k = S.knight;
-        if (knightBusy(S)) {
-            return '<div class="dm-bar"><b data-live="bar" data-start="' + S.exp.startAt + '" data-end="' + S.exp.endAt + '"></b></div><p class="dm-muted">On expedition to ' + esc(DEST[S.exp.dest].name) + ', back in <span data-live="eta" data-end="' + S.exp.endAt + '"></span>. ' +
-                esc(taskLabel(S)) + ' is paused and resumes on return. Gear is locked for the journey.</p><button class="dm-btn secondary" type="button" data-act="tab" data-arg="activities">View expedition</button>';
-        }
-        if (k.task.kind === 'idle') return '<p class="dm-muted">Idle at the Hall. Pick work below, or plan an expedition.</p><button class="dm-btn secondary" type="button" data-act="tab" data-arg="activities">Plan an expedition</button>';
-        const def = taskDef(k.task), r = knightRates(S), pr = xpProgress(k.skills[def.skillId]);
-        const help = knightHelper(S);
-        return '<div class="dm-row"><span class="dm-grow"><span class="dm-eyebrow">Working · ' + esc(SKILLS[def.skillId].name) + ' Lv ' + pr.l + '</span><br><strong style="font:700 15px/1.3 var(--display);color:#fff1b7">' + esc(taskLabel(S)) + '</strong> <small class="dm-muted">' + esc(def.place || SKILL_PLACE[def.skillId] || '') + '</small></span>' +
-            '<button class="dm-btn small secondary" type="button" data-act="task" data-arg="idle:">Stop</button></div>' +
-            '<div class="dm-bar green"><b data-live="action" style="width:' + Math.round(Math.min(1, k.prog) * 100) + '%"></b></div>' +
-            (k.stall ? '<p class="dm-muted" style="color:var(--gold)">' + esc(k.stall) + '</p>' : '<p class="dm-muted">' + esc(rateLine(r)) + (help ? ' · ' + esc(C(help).name) + ' assisting' : '') + '</p>');
+    function itemEmoji(id) {
+        const k = String(id || ''), r = RES[k] || {};
+        if (ITEM_EMOJI[k]) return ITEM_EMOJI[k];
+        if (r.kind === 'WEAPON') return WEAPON_EMOJI[r.weaponType] || '🗡️';
+        return KIND_EMOJI[r.kind] || '📦';
     }
-    function rateLine(r) {
-        const g = Object.keys(r.gain).map((x) => '+' + fmtRate(r.gain[x]) + ' ' + itemName(x));
-        const u = Object.keys(r.use).map((x) => '−' + fmtRate(r.use[x]) + ' ' + itemName(x));
-        return (g.concat(u).join(', ') || 'Nothing') + ' per hour · ' + Math.round(r.xp) + ' XP/h';
+    function itemIcon(id, cls) {
+        const k = String(id || ''), m = k.match(/^essence_([a-z]+)/);
+        return '<span class="ck-ico' + (cls ? ' ' + cls : '') + '" style="--ih:var(--' + itemHue(k) + ')" aria-hidden="true">' + (m ? elementIcon(m[1].toUpperCase(), 26) : itemEmoji(k)) + '</span>';
     }
-    function rateText(r) {
-        const keys = Object.keys(r).filter((k) => r[k] > 0);
-        return keys.length ? keys.map((k) => fmtRate(r[k]) + ' ' + itemName(k) + '/h').join(', ') : 'nothing';
+    const emojiIcon = (e, hue, cls) => '<span class="ck-ico' + (cls ? ' ' + cls : '') + '" style="--ih:var(--' + (hue || 'neutral') + ')" aria-hidden="true">' + e + '</span>';
+    function costRow(cost) {
+        return '<div class="ck-costs">' + Object.keys(cost).map((k) => '<span class="ck-cost' + (fl(S.inv[k]) >= cost[k] ? '' : ' is-short') + '" title="' + esc(itemName(k)) + '">' +
+            itemIcon(k, 'is-xs') + fl(S.inv[k]) + '/' + cost[k] + '</span>').join('') + '</div>';
     }
+    function lootRow(g) {
+        const keys = Object.keys(g || {}).filter((k) => g[k] > 0);
+        if (!keys.length) return '<p class="ck-muted ck-small">Nothing.</p>';
+        return '<ul class="ck-loot">' + keys.map((k) => '<li>' + itemIcon(k, 'is-sm') + '<span><b>' + fl(g[k]) + '×</b> ' + esc(itemName(k)) + '</span></li>').join('') + '</ul>';
+    }
+    // A paper standee portrait: the Keep's die-cut cutout inside Chronicles' portrait frame.
+    function portrait(uid, cls) {
+        const cc = C(uid);
+        return '<span class="ck-portrait dm-paper-frame' + (cls ? ' ' + cls : '') + '" style="--el:var(--' + cc.el + ')">' + compArt(uid, '') + '</span>';
+    }
+    function speciesPortrait(speciesId, el, cls) {
+        return '<span class="ck-portrait dm-paper-frame' + (cls ? ' ' + cls : '') + '" style="--el:var(--' + elKey(el) + ')">' + speciesArt(speciesId, '', el) + '</span>';
+    }
+    const KNIGHT_ART = '/img/knights/ser-airek-full-card.webp';
+    const leadComp = () => prepParty(S)[0] || joinedIds(S)[0] || '';
 
-    function workHtml() {
-        const grp = S.ui.group || 'Gathering';
-        let h = '<div class="dm-seg" role="group" aria-label="Profession groups">' + SKILL_GROUPS.map((g) =>
-            '<button type="button" data-act="group" data-arg="' + g[0] + '" aria-pressed="' + (grp === g[0]) + '">' + g[1] + '</button>').join('') + '</div>';
-        Object.keys(SKILLS).filter((id) => SKILLS[id].group === grp).forEach((id) => { h += professionCard(id); });
-        return h;
+    function toast(text) {
+        const host = $('ckToasts');
+        if (!host) return;
+        const el = document.createElement('div');
+        el.className = 'ck-toast is-info';
+        el.textContent = text;
+        host.appendChild(el);
+        // Three at most: a +4h jump can raise several at once and they must not bury the screen.
+        while (host.children.length > 3) host.removeChild(host.firstChild);
+        setTimeout(() => el.classList.add('is-out'), 3200);
+        setTimeout(() => el.remove(), 3700);
     }
-    function professionCard(id) {
-        const sk = SKILLS[id], open = S.ui.prof === id, unlocked = skillUnlocked(S, id), pr = xpProgress(S.knight.skills[id]);
-        let h = '<div class="dm-card' + (unlocked ? '' : ' is-quiet') + '"><button class="dm-row" type="button" data-act="prof" data-arg="' + id + '" aria-expanded="' + open + '" style="text-align:left;width:100%">' +
-            '<span class="dm-grow"><strong style="font:700 14px/1.2 var(--display);color:#fff1b7">' + esc(sk.name) + '</strong><br><small class="dm-muted">' + esc(unlocked ? sk.blurb : lockText(S, id)) + '</small></span>' +
-            '<span class="dm-chip ' + (unlocked ? '' : 'warn') + '">' + (unlocked ? 'Lv ' + pr.l : 'Locked') + '</span><span aria-hidden="true" style="color:var(--faint)">' + (open ? '▾' : '▸') + '</span></button>' +
-            (unlocked ? '<div class="dm-bar green"><b style="width:' + pr.pct + '%"></b></div>' : '');
-        if (open) h += professionBody(id, unlocked);
-        return h + '</div>';
-    }
-    function professionBody(id, unlocked) {
-        let h = '';
-        if (TRAINED_BY[id]) h += '<p class="dm-muted"><b>Trained by:</b> ' + esc(TRAINED_BY[id]) + '</p>';
-        const acts = Object.keys(ACTIVITIES).map((a) => ACTIVITIES[a]).filter((a) => a.skillId === id).sort((a, b) => a.level - b.level);
-        const crafts = Object.keys(CRAFTS).map((r) => CRAFTS[r]).filter((r) => r.skillId === id).sort((a, b) => a.level - b.level);
-        if (acts.length || crafts.length) h += '<div class="dm-list">' + acts.map(activityRow).join('') + crafts.map(craftRow).join('') + '</div>';
-        const ms = (MILESTONES[id] || []);
-        if (ms.length) h += '<ul class="dm-milestones">' + ms.map((m) => '<li class="' + (skillLvl(S, id) >= m[0] ? 'done' : '') + '"><b>Lv ' + m[0] + '</b><span>' + esc(m[1]) + '</span></li>').join('') + '</ul>';
-        const opens = Object.keys(SKILLS).filter((o) => SKILLS[o].unlock.some((r) => r.kind === 'SKILL' && r.key === id));
-        if (opens.length) h += '<p class="dm-muted">Opens: ' + opens.map((o) => esc(SKILLS[o].name + ' at ' + SKILLS[o].unlock.find((r) => r.key === id).level)).join(', ') + '.</p>';
-        if (SKILL_PLACE[id]) h += '<p class="dm-muted">Practised at the ' + esc(SKILL_PLACE[id]) + (unlocked ? '' : '') + '.</p>';
-        return h;
-    }
-    function activityRow(a) {
-        const cur = S.knight.task.kind === 'gather' && S.knight.task.id === a.id;
-        const block = taskBlock(S, a);
-        const per = fmtDur(actionMs(S, a));
-        return '<div class="dm-enc ' + (block ? 'miss' : cur ? 'ok' : '') + '"><span class="dm-mark">' + icon(al(a.output)) + '</span><span><strong>' + esc(a.name) + (a.dominion ? ' <span class="dm-planned">Keep</span>' : '') + '</strong><small>' +
-            esc(a.place + ' · 1 ' + itemName(al(a.output)) + ' every ' + per + (a.bonusOutput ? ' (+' + itemName(al(a.bonusOutput)) + ' every ' + a.bonusEvery + ')' : '') + ' · ' + a.xp + ' XP') + (block ? '<br>' + esc(block) : '') + '</small></span>' +
-            '<button class="dm-btn small ' + (cur ? '' : 'secondary') + '" type="button" data-act="task" data-arg="gather:' + a.id + '"' + (block || knightBusy(S) ? ' disabled' : '') + ' aria-pressed="' + cur + '">' + (cur ? 'Working' : 'Work') + '</button></div>';
-    }
-    function craftRow(r) {
-        const out = r.studyElement ? null : al(r.output);
-        const name = r.studyElement ? titleCase(r.studyElement) + ' studies' : itemName(out);
-        const inp = alMap(r.inputs);
-        const inText = Object.keys(inp).map((x) => inp[x] + ' ' + itemName(x)).join(' + ');
-        const block = r.repeatable ? taskBlock(S, r) : craftBlock(S, r.id);
-        const lockOnly = taskBlock(S, r);
-        const cur = S.knight.task.kind === 'craft' && S.knight.task.id === r.id;
-        const owned = out && RES[out] && ['WEAPON', 'ARMOR', 'HELMET', 'BOOTS', 'ACCESSORY', 'RELIC'].includes(RES[out].kind) ? fl(S.inv[out]) : 0;
-        const detail = r.repeatable
-            ? inText + ' → ' + (r.studyElement ? STUDY_AFFINITY_XP + ' ' + titleCase(r.studyElement) + ' Affinity' : (r.outputQty || 1) + ' ' + name) + ' every ' + fmtDur(actionMs(S, r)) + ' · ' + r.xp + ' XP'
-            : inText + ' · made at once · ' + r.xp + ' XP' + (owned ? ' · owned ' + owned : '');
-        const btn = r.repeatable
-            ? '<button class="dm-btn small ' + (cur ? '' : 'secondary') + '" type="button" data-act="task" data-arg="craft:' + r.id + '"' + (lockOnly || knightBusy(S) ? ' disabled' : '') + ' aria-pressed="' + cur + '">' + (cur ? 'Working' : 'Work') + '</button>'
-            : '<button class="dm-btn small" type="button" data-act="craft" data-arg="' + r.id + '"' + (block ? ' disabled' : '') + '>Make</button>';
-        return '<div class="dm-enc ' + (lockOnly ? 'miss' : cur ? 'ok' : '') + '"><span class="dm-mark">' + (out ? icon(out) : '<svg viewBox="0 0 24 24">' + SHAPE.orb(EL_HEX[r.studyElement] || '#ccc') + '</svg>') + '</span><span><strong>' + esc(name) + (r.dominion ? ' <span class="dm-planned">Keep</span>' : '') + '</strong><small>' +
-            esc(detail) + (lockOnly ? '<br>' + esc(lockOnly) : (!r.repeatable && block ? '<br>' + esc(block) : '')) + '</small></span>' + btn + '</div>';
-    }
+    function flushToasts() { FRESH.splice(0).forEach(toast); }
 
-    function gearHtml() {
-        const busy = knightBusy(S), g = gearStats(S);
-        let h = '<div class="dm-card"><div class="dm-row"><h3 class="dm-grow">Equipment</h3><span class="dm-chip">Armor ' + g.armor + '</span></div>' +
-            '<p class="dm-muted">Smithing, Weaving, Carpentry and Runecrafting make better gear. Weapon tier adds 20% to that weapon’s encounter rewards; armor trims expedition losses; boots shorten journeys.' + (busy ? ' Locked until the Knight returns.' : '') + '</p><div class="dm-list">';
-        SLOTS.forEach((sl) => {
-            const id = S.knight.equip[sl[0]], it = RES[id];
-            const open = S.ui.slot === sl[0];
-            h += '<button class="dm-enc" type="button" data-act="slot" data-arg="' + sl[0] + '" aria-expanded="' + open + '" style="text-align:left;width:100%"' + (busy ? ' disabled' : '') + '><span class="dm-mark">' + (id ? icon(id) : '–') + '</span><span><strong>' + sl[2] + '</strong><small>' + esc(it ? it.name + gearNote(id) : 'Empty') + '</small></span><span class="dm-chip">' + (open ? 'Close' : 'Change') + '</span></button>';
-            if (open) {
-                const owned = Object.keys(RES).filter((x) => RES[x].kind === sl[1] && fl(S.inv[x]) > 0);
-                h += '<div class="dm-chips" style="padding:0 0 6px 34px">' + (owned.length ? owned.map((x) => '<button class="dm-btn small ' + (x === id ? '' : 'secondary') + '" type="button" data-act="equip" data-arg="' + sl[0] + ':' + x + '" aria-pressed="' + (x === id) + '">' + esc(RES[x].name) + '</button>').join('') : '<span class="dm-muted">Nothing owned for this slot yet.</span>') +
-                    (id && sl[0] !== 'weapon' ? '<button class="dm-btn small secondary" type="button" data-act="equip" data-arg="' + sl[0] + ':">Remove</button>' : '') + '</div>';
-            }
-        });
-        h += '</div></div><div class="dm-card"><h3>Gathering tool</h3><div class="dm-options">';
-        ['woodaxe', 'pickaxe'].filter((t) => fl(S.inv[t]) > 0).forEach((t) => {
-            h += '<button class="dm-option" type="button" data-act="tool" data-arg="' + t + '" aria-pressed="' + (S.knight.tool === t) + '"' + (busy ? ' disabled' : '') + '>' + glyph(TOOL_GLYPH[t]) + '<strong>' + esc(RES[t].name) + '</strong><small>' + esc(RES[t].blurb) + '</small></button>';
-        });
-        h += '</div></div>';
-        const slots = loadoutSlots(S);
-        h += '<div class="dm-card' + (slots ? '' : ' is-quiet') + '"><h3>War Room loadouts</h3>' + (slots ? '<p class="dm-muted">Save gear, tool, party and rune together, and switch in one tap.</p><div class="dm-list">' + Array.from({ length: slots }, (_, i) => {
-            const l = S.loadouts[i];
-            return '<div class="dm-enc"><span class="dm-mark">' + (i + 1) + '</span><span><strong>' + (l ? esc(itemName(l.equip.weapon)) + (l.party.length ? ' \u00b7 ' + l.party.map((p) => S.comps[p] ? C(p).name : p).join(', ') : '') : 'Empty') + '</strong></span><span class="dm-chips"><button class="dm-btn small secondary" type="button" data-act="loadout-save" data-arg="' + i + '">Save</button>' +
-                (l ? '<button class="dm-btn small" type="button" data-act="loadout-apply" data-arg="' + i + '"' + (busy ? ' disabled' : '') + '>Use</button>' : '') + '</span></div>';
-        }).join('') + '</div>' : '<p class="dm-muted">Build the War Room (Chronicles wing in the Great Hall) to save loadouts.</p>') + '</div>';
-        return h;
-    }
-    function gearNote(id) {
-        const it = RES[id], b = CH.gearBonuses[id], bits = [];
-        if (it.weaponType) bits.push(WEAPONS[it.weaponType].name + ', tier ' + (it.tier || 0));
-        if (it.armor) bits.push('armor ' + it.armor);
-        if (b) { if (b.armor) bits.push('armor ' + b.armor); if (b.roadCut) bits.push(Math.round(b.roadCut * 100) + '% shorter journeys'); if (b.crit) bits.push('+' + Math.round(b.crit * 100) + '% haul'); if (b.rest) bits.push('+' + Math.round(b.rest * 100) + '% road bond'); }
-        if (it.heatWard) bits.push('wards heat');
-        if (it.relicEffect && it.relicEffect.indexOf('ward:') === 0) bits.push('wards ' + it.relicEffect.slice(5));
-        return bits.length ? ' · ' + bits.join(', ') : '';
-    }
-    function skillsHtml() {
-        let h = '';
-        SKILL_GROUPS.forEach((g) => {
-            const ids = Object.keys(SKILLS).filter((id) => SKILLS[id].group === g[0]);
-            h += '<div class="dm-card"><h3>' + esc(g[0]) + '</h3><div class="dm-list">' + ids.map((id) => {
-                const pr = xpProgress(S.knight.skills[id]), un = skillUnlocked(S, id);
-                return '<div class="dm-skill"><div class="dm-skill-head"><strong>' + esc(SKILLS[id].name) + '</strong><span>' + (un ? 'Lv ' + pr.l : 'Locked') + '</span></div>' + (un ? '<div class="dm-bar green"><b style="width:' + pr.pct + '%"></b></div>' : '<small class="dm-muted">' + esc(lockText(S, id)) + '</small>') + '</div>';
-            }).join('') + '</div></div>';
-        });
-        h += '<div class="dm-card"><h3>Weapon proficiency</h3><p class="dm-muted">Grows with every expedition. Each level adds 15% to that weapon’s encounter rewards.</p>' + Object.keys(WEAPONS).map((w) => {
-            const pr = xpProgress(S.knight.prof[w]);
-            return '<div class="dm-skill"><div class="dm-skill-head"><strong>' + WEAPONS[w].name + '</strong><span>Lv ' + pr.l + '</span></div><div class="dm-bar"><b style="width:' + pr.pct + '%"></b></div></div>';
-        }).join('') + '</div>';
-        h += '<div class="dm-card"><h3>Elemental affinity</h3><p class="dm-muted">From studies and from expeditions with Siegelings of that element. Some recipes need it.</p><div class="dm-chips">' + ELEMENTS.map((e) =>
-            '<span class="dm-chip el" style="--el:' + EL_HEX[e] + '">' + titleCase(e) + ' ' + affLvl(S, e) + '</span>').join('') + '</div></div>';
-        h += '<div class="dm-card"><h3>Class mastery</h3><p class="dm-muted">Grows when companions of a class succeed on the road.</p><div class="dm-chips">' + CLASSES.map((c) => '<span class="dm-chip">' + c + ' ' + masteryLvl(S, c) + '</span>').join('') + '</div></div>';
-        return h;
-    }
-
-    // —— Activities view ——
-    function renderActivities() {
-        const sec = S.ui.act;
-        const voices = voicesReady(S).length;
-        let h = '<div class="dm-pad">';
-        h += '<div class="dm-seg dm-seg-5" role="group" aria-label="Activity sections">' + [['expedition', 'Travel'], ['build', 'Build'], ['keep', 'Keep'], ['voices', 'Voices' + (voices ? ' •' : '')], ['realm', 'Realm'], ['log', 'Log']].map((x) =>
-            '<button type="button" data-act="act-sec" data-arg="' + x[0] + '" aria-pressed="' + (sec === x[0]) + '">' + x[1] + '</button>').join('') + '</div>';
-        if (sec === 'expedition') h += expeditionHtml();
-        else if (sec === 'build') h += buildListHtml();
-        else if (sec === 'keep') h += keepHtml();
-        else if (sec === 'voices') h += voicesHtml();
-        else if (sec === 'realm') h += realmHtml();
-        else h += logHtml();
-        h += '</div>';
-        $('view-activities').innerHTML = h;
-    }
-    function buildRow(p) {
-        const block = buildBlock(S, p.id);
-        return '<div class="dm-card"><div class="dm-row"><h3 class="dm-grow">' + esc(p.name) + '</h3><span class="dm-chip">' + fmtDur(p.ms) + '</span></div><p class="dm-muted">' + esc(p.effect) + '</p>' +
-            '<div class="dm-cost">' + costChips(p.cost, S) + '</div><button class="dm-btn" type="button" data-act="build" data-arg="' + p.id + '"' + (block ? ' disabled' : '') + '>Start construction</button>' + (block ? '<small class="dm-muted">' + esc(block) + '</small>' : '') + '</div>';
-    }
-    function buildListHtml() {
-        let h = '<div class="dm-card"><div class="dm-row"><h3 class="dm-grow">Crews</h3><span class="dm-chip">' + S.builds.length + '/' + crews(S) + ' busy</span></div>' +
-            (S.builds.length ? S.builds.map((b) => '<div class="dm-skill"><div class="dm-skill-head"><strong>' + esc(b.name) + '</strong><span><span data-live="eta" data-end="' + b.endAt + '"></span></span></div><div class="dm-bar"><b data-live="bar" data-start="' + b.startAt + '" data-end="' + b.endAt + '"></b></div></div>').join('') : '<p class="dm-muted">No construction under way. Building continues while the Knight is away.</p>') +
-            '<p class="dm-muted">Keep rank: ' + esc(HALL_RANKS[S.b.hall - 1]) + (rebirths(S) ? ' · ' + esc(REBIRTH_TITLES[rebirths(S)]) : '') + ' · Timber store ' + timberCap(S) + '</p></div>';
-        const groups = {};
-        projectList(S).forEach((p) => { (groups[p.group] = groups[p.group] || []).push(p); });
-        const open = S.ui.bgroup || 'Great Hall';
-        Object.keys(groups).forEach((g) => {
-            const ps = groups[g], ready = ps.filter((p) => !buildBlock(S, p.id)).length;
-            h += '<button class="dm-route" type="button" data-act="bgroup" data-arg="' + esc(g) + '" aria-expanded="' + (open === g) + '" style="grid-template-columns:minmax(0,1fr) auto"><span><strong>' + esc(g) + '</strong><small>' + ps.length + ' project' + (ps.length > 1 ? 's' : '') + (ready ? ' · ' + ready + ' ready to start' : '') + '</small></span><span class="dm-chip">' + (open === g ? '▾' : '▸') + '</span></button>';
-            if (open === g) h += ps.map(buildRow).join('');
-        });
-        return h;
-    }
-    function keepHtml() {
-        let h = '';
-        const ev = (S.events || []).filter((e) => !e.repaired);
-        if (ev.length) {
-            h += '<div class="dm-card" style="border-color:rgba(255,138,115,.5)"><h3>Damage around the Keep</h3>' + ev.map((e) => {
-                const b = repairBlock(S, e.id);
-                return '<div class="dm-skill"><div class="dm-skill-head"><strong>' + esc(e.title) + '</strong><span>' + esc(e.targetName) + '</span></div><small class="dm-muted">' + esc(e.text) + '</small>' +
-                    (e.repairEndAt ? '<div class="dm-bar"><b data-live="bar" data-start="' + (e.repairEndAt - e.repairMs) + '" data-end="' + e.repairEndAt + '"></b></div><small class="dm-muted">Repaired in <span data-live="eta" data-end="' + e.repairEndAt + '"></span></small>'
-                        : '<button class="dm-btn small" type="button" data-act="repair" data-arg="' + esc(e.id) + '"' + (b ? ' disabled' : '') + '>Repair · ' + e.cost + ' Timber · ' + fmtDur(e.repairMs) + '</button>' + (b ? '<small class="dm-muted">' + esc(b) + '</small>' : '')) + '</div>';
-            }).join('') + '<p class="dm-muted">Each repair pays 6 Silver.</p></div>';
-        }
-        h += '<div class="dm-card"><div class="dm-row"><h3 class="dm-grow">Stewardship</h3><span class="dm-chip">' + icon('silver') + fl(S.inv.silver) + '</span><span class="dm-chip">' + icon('crowns') + fl(S.inv.crowns) + '</span></div><p class="dm-muted">Walk the Keep once a day: +4 Silver.</p>' +
-            '<button class="dm-btn small" type="button" data-act="steward"' + (stewardReady(S) ? '' : ' disabled') + '>' + (stewardReady(S) ? 'Walk the Keep' : 'Walked today') + '</button></div>';
-        if (!(S.b.storehouse >= 1)) return h + '<div class="dm-card is-quiet"><h3>Storehouse</h3><p class="dm-muted">Raise the Covenant Storehouse (Build › Storehouse) to open refining, recycling and the market.</p></div>' + keepCraftsHtml() + themesHtml() + rebirthHtml();
-        h += '<div class="dm-card"><h3>Refine</h3><div class="dm-list">' + Object.keys(REFINED).map((id) => {
-            const r = REFINED[id], b = refineBlock(S, id), inp = ka(r.inputs);
-            return '<div class="dm-enc ' + (b && b !== 'Missing materials.' ? 'miss' : '') + '"><span class="dm-mark">' + icon(id) + '</span><span><strong>' + esc(r.name) + ' <small class="dm-muted">(' + fl(S.inv[id]) + ')</small></strong><small>' + esc(Object.keys(inp).map((k) => inp[k] + ' ' + itemName(k)).join(' + ')) + (b ? '<br>' + esc(b) : '') + '</small></span><button class="dm-btn small" type="button" data-act="refine" data-arg="' + id + '"' + (b ? ' disabled' : '') + '>Make</button></div>';
-        }).join('') + '</div></div>';
-        const rf = S.ui.recFrom || 'stone', rt = S.ui.recTo || 'ember';
-        h += '<div class="dm-card"><h3>Recycle</h3><p class="dm-muted">3 of one raw material for 1 of another, 15 Timber for 1 raw, or salvage half of a refined good.</p><div class="dm-label">Give</div><div class="dm-chips">' +
-            ['timber'].concat(RAW, Object.keys(REFINED).filter((k) => fl(S.inv[k]) > 0)).map((k) => '<button class="dm-btn small ' + (rf === k ? '' : 'secondary') + '" type="button" data-act="rec-from" data-arg="' + k + '">' + esc(itemName(k)) + ' (' + fl(S.inv[k]) + ')</button>').join('') + '</div>' +
-            (REFINED[rf] ? '' : '<div class="dm-label">Get</div><div class="dm-chips">' + RAW.filter((k) => k !== rf).map((k) => '<button class="dm-btn small ' + (rt === k ? '' : 'secondary') + '" type="button" data-act="rec-to" data-arg="' + k + '">' + esc(itemName(k)) + '</button>').join('') + '</div>') +
-            '<button class="dm-btn small" type="button" data-act="recycle"' + (recycleBlock(S, rf, rt) ? ' disabled' : '') + '>' + (REFINED[rf] ? 'Salvage 1 ' + esc(itemName(rf)) : 'Recycle into ' + esc(itemName(rt))) + '</button><small class="dm-muted">' + esc(recycleBlock(S, rf, rt)) + '</small></div>';
-        h += '<div class="dm-card"><h3>Keep market</h3><p class="dm-muted">New offers each day. Silver lots, plus one rare lot in Crowns (Dominion never charges real Siegecoins).</p><div class="dm-list">' + marketOffers(S).map((m) => {
-            const b = buyBlock(S, m.id);
-            return '<div class="dm-enc"><span class="dm-mark">' + icon(m.res) + '</span><span><strong>' + m.amount + ' ' + esc(itemName(m.res)) + '</strong><small>' + titleCase(m.rarity) + ' · ' + marketLeft(S, m) + ' left today</small></span><button class="dm-btn small" type="button" data-act="buy" data-arg="' + m.id + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '>' + icon(m.currency) + m.price + '</button></div>';
-        }).join('') + '</div></div>';
-        return h + keepCraftsHtml() + themesHtml() + rebirthHtml();
-    }
-    function keepCraftsHtml() {
-        return '<div class="dm-card"><h3>Keep crafts</h3><p class="dm-muted">Tools lift a room’s output 20%. Crates add timber storage; channels lift every workshop 10%. Decorations are for the look of the Keep.</p><div class="dm-list">' + Object.keys(KEEP_CRAFTS).map((id) => {
-            const k = KEEP_CRAFTS[id], b = keepCraftBlock(S, id), inp = ka(k[3]);
-            return '<div class="dm-enc ' + (S.crafted[id] ? 'ok' : '') + '"><span class="dm-mark">' + (S.crafted[id] ? '✓' : '•') + '</span><span><strong>' + esc(k[0]) + '</strong><small>' + titleCase(k[1]) + ' · ' + esc(titleCase(k[2])) + ' · ' + esc(Object.keys(inp).map((x) => inp[x] + ' ' + itemName(x)).join(' + ')) + '</small></span>' +
-                (S.crafted[id] ? '<span></span>' : '<button class="dm-btn small" type="button" data-act="kcraft" data-arg="' + id + '"' + (b ? ' disabled' : '') + '>Make</button>') + '</div>';
-        }).join('') + '</div></div>';
-    }
-    function themesHtml() {
-        return '<div class="dm-card"><h3>Hall banners</h3><div class="dm-chips">' + HALL_THEMES.map((t) => {
-            const lock = S.b.hall < t[3];
-            return '<button class="dm-btn small ' + (S.theme === t[0] ? '' : 'secondary') + '" type="button" data-act="theme" data-arg="' + t[0] + '"' + (lock ? ' disabled title="Hall ' + t[3] + '"' : '') + ' style="box-shadow:inset 3px 0 ' + t[2] + '">' + esc(t[1]) + (lock ? ' · Hall ' + t[3] : '') + '</button>';
-        }).join('') + '</div></div>';
-    }
-    function rebirthHtml() {
-        const r = rebirthReq(S);
-        if (!r) return '<div class="dm-card is-quiet"><h3>Rebirth</h3><p class="dm-muted">Covenant Eternal: all ten rebirths done.</p></div>';
-        const b = rebirthBlock(S);
-        return '<div class="dm-card is-quiet"><div class="dm-row"><h3 class="dm-grow">Rebirth ' + r.n + ': ' + esc(REBIRTH_TITLES[r.n]) + '</h3>' + (rebirths(S) ? '<span class="dm-chip warn">' + esc(REBIRTH_TITLES[rebirths(S)]) + '</span>' : '') + '</div>' +
-            '<p class="dm-muted">Resets the Keep’s buildings and raw stock. The Knight, companions, Chronicles wings, lore, voices and crafts carry over. Each rebirth: Keep production +25%, storage +20%, builds 10% faster, costs +15%.</p>' +
-            '<div class="dm-chips">' + ['hall:' + r.hall].concat(r.checks).map((c) => { const ok = c.indexOf('hall:') === 0 ? S.b.hall >= r.hall : checkMet(S, c); return '<span class="dm-chip ' + (ok ? 'good' : 'bad') + '">' + esc(c.indexOf('hall:') === 0 ? HALL_RANKS[r.hall - 1] : checkText(c)) + '</span>'; }).join('') + '</div>' +
-            '<div class="dm-cost">' + costChips(r.cost, S) + '</div>' + (S.ui.confirmRebirth ? '<div class="dm-chips"><button class="dm-btn small" type="button" data-act="rebirth-yes"' + (b ? ' disabled' : '') + '>Rebirth the Keep</button><button class="dm-btn small secondary" type="button" data-act="rebirth-no">Not yet</button></div>' :
-            '<button class="dm-btn small secondary" type="button" data-act="rebirth"' + (b ? ' disabled' : '') + '>Prepare rebirth</button>') + (b ? '<small class="dm-muted">' + esc(b) + '</small>' : '') + '</div>';
-    }
-    function voicesHtml() {
-        const L = LORE(), ready = voicesReady(S);
-        let h = '';
-        if (ready.length) {
-            ready.slice(0, 1).forEach((c) => {
-                h += '<div class="dm-card"><span class="dm-eyebrow">' + esc(c.npcRole || '') + (c.kicker ? ' · ' + esc(c.kicker) : '') + '</span><h3>' + esc(c.npcName) + '</h3><p class="dm-muted" style="color:var(--cream);font-size:13px">' + esc(c.prompt) + '</p><div class="dm-list">' +
-                    (c.choices || []).map((ch) => '<button class="dm-option" type="button" data-act="voice" data-arg="' + esc(c.id) + ':' + esc(ch.id) + '"><strong>' + esc(ch.label) + '</strong></button>').join('') + '</div><small class="dm-muted">Each conversation pays 2 Silver and rank XP. Another voice arrives every 4 hours.</small></div>';
-            });
-        } else {
-            h += '<div class="dm-card is-quiet"><h3>Voices</h3><p class="dm-muted">' + (S.voices.nextAt > S.t ? 'The next visitor arrives in <span data-live="eta" data-end="' + S.voices.nextAt + '"></span>.' : 'Read more records in the Archive to open new conversations.') + '</p></div>';
-        }
-        if (S.voices.log.length) h += '<div class="dm-card"><h3>Recent conversations</h3><div class="dm-list">' + S.voices.log.slice(0, 4).map((v) => '<div><small class="dm-muted">' + esc(v.npc) + '</small><p class="dm-muted" style="margin:2px 0;color:var(--cream)">“' + esc(v.said) + '”</p><p class="dm-muted">' + esc(v.reply) + '</p></div>').join('') + '</div></div>';
-        h += '<div class="dm-card"><h3>Archive records</h3><p class="dm-muted">The first is free; the rest cost 5 Insight each, earned by reading the Covenant Records.</p><div class="dm-list">' + L.entries.map((e, i) => {
-            const read = !!S.lore[e.id], b = readLoreBlock(S, e.id), open = S.ui.lore === e.id;
-            return '<div class="dm-enc ' + (read ? 'ok' : '') + '"><span class="dm-mark">' + (read ? '✓' : '•') + '</span><span><strong>' + esc(e.title) + '</strong><small>' + esc(titleCase(e.type) + ' · ' + (e.source || '')) + (read && open ? '</small><p class="dm-muted" style="white-space:pre-line;color:var(--cream)">' + esc(e.body || e.summary || '') + '</p><small>' : '') + (!read && b ? '<br>' + esc(b) : '') + '</small></span>' +
-                '<button class="dm-btn small ' + (read ? 'secondary' : '') + '" type="button" data-act="lore" data-arg="' + esc(e.id) + '"' + (!read && b ? ' disabled' : '') + '>' + (read ? (open ? 'Close' : 'Open') : 'Read' + (loreCost(i) ? ' · ' + loreCost(i) : '')) + '</button></div>';
-        }).join('') + '</div></div>';
-        const rap = Object.keys(S.voices.rapport);
-        if (rap.length) h += '<div class="dm-card is-quiet"><h3>Rapport</h3><div class="dm-chips">' + rap.map((n) => '<span class="dm-chip">' + esc(titleCase(n.replace(/_/g, ' '))) + ' ' + S.voices.rapport[n] + '</span>').join('') + '</div></div>';
-        return h;
-    }
-    function destName(id) { return DEST[id] ? DEST[id].name : titleCase(id); }
-    function reportTitle(r) { return r.trial ? 'Bond Trial with ' + C(r.trial).name : r.operation ? 'Siege Operation' : destName(r.dest); }
-    const TIER_TABS = [[0, 'Keep roads'], [1, 'Tier 1'], [2, 'Tier 2'], [3, 'Tier 3'], [4, 'Tier 4']];
-    function expeditionHtml() {
-        let h = '';
-        S.reports.filter((r) => !r.seen).forEach((r) => {
-            h += '<button class="dm-card" type="button" data-act="report" data-arg="' + esc(r.id) + '" style="text-align:left;border-color:rgba(111,207,139,.5)"><span class="dm-eyebrow" style="color:var(--green)">New report</span><h3>' + esc(reportTitle(r)) + '</h3><p class="dm-muted">' + esc(r.summary) + '</p><span class="dm-chips">' + gainChips(r.total) + '</span></button>';
-        });
-        if (S.exp) {
-            const x = S.exp;
-            const title = x.trial ? 'Bond Trial with ' + C(x.trial).name : x.operation ? 'Siege Operation · ' + titleCase(x.front || '') : destName(x.dest);
-            const pct = Math.min(100, (S.t - x.startAt) / (x.endAt - x.startAt) * 100);
-            h += '<div class="dm-travel"><img src="' + esc(x.trial || x.operation ? (ART.ruins.src) : sceneUrl(x.dest)) + '" alt=""><span class="dm-eyebrow">On expedition</span><h2 style="margin:0;font:700 20px/1.2 var(--display);color:#fff1b7">' + esc(title) + '</h2>' +
-                '<p class="dm-muted">Returns in <b data-live="eta" data-end="' + x.endAt + '"></b> · ' + esc(RES[x.weaponId] ? RES[x.weaponId].name : WEAPONS[x.weapon].name) + (x.tool ? ' and ' + esc(itemName(x.tool)) : '') + ' · ' + fmtDur(x.endAt - x.startAt) + ' trip</p>' +
-                '<div class="dm-trail"><span class="dm-walker" data-live="walker" data-start="' + x.startAt + '" data-end="' + x.endAt + '" style="left:' + pct + '%">' + artImg('knight', '') + '</span></div></div>';
-            h += '<div class="dm-card"><h3>While the Knight travels</h3><ul class="dm-list">' +
-                '<li class="dm-status paused">Paused: Knight’s ' + esc(S.knight.task.kind === 'idle' ? 'idle time' : taskLabel(S)) + '</li>' +
-                x.party.map((id) => S.comps[id] ? '<li class="dm-status paused">Paused: ' + esc(C(id).name) + ' (' + esc(jobLabel(S, id)) + ') travels with the Knight</li>' : '').join('') +
-                '<li class="dm-status">Still running: the Woodlot, all six workshops, refining, construction, and residents who stayed home.</li></ul></div>';
-            return h;
-        }
-        const prep = S.prep, d = DEST[prep.dest] || DEST.rootwild;
-        const tier = S.ui.tier == null ? (d.tier || 0) : S.ui.tier;
-        h += '<div class="dm-card"><h3>Destination</h3><div class="dm-seg" role="group" aria-label="Road tiers">' + TIER_TABS.map((t) =>
-            '<button type="button" data-act="tier" data-arg="' + t[0] + '" aria-pressed="' + (tier === t[0]) + '">' + t[1] + '</button>').join('') + '</div><div class="dm-list">';
-        Object.keys(DEST).filter((id) => !DEST[id].special && (DEST[id].tier || 0) === tier && destVisible(S, id)).forEach((id) => {
-            const dd = DEST[id], b = dd.planned ? dd.blurb : destBlock(S, id);
-            h += '<button class="dm-route" type="button" data-act="dest" data-arg="' + id + '" aria-pressed="' + (prep.dest === id) + '"' + (dd.planned ? ' disabled' : '') + '>' +
-                '<img src="' + esc(sceneUrl(id)) + '" alt="" loading="lazy"><span><strong>' + esc(dd.name) + (dd.planned ? ' <span class="dm-planned">Planned</span>' : '') + '</strong><small>' +
-                esc((dd.region ? dd.region + ' · ' : '') + (dd.type ? titleCase(dd.type) + ' · ' : '') + dd.hours + 'h · ' + needProvisions(S, id) + ' provisions' + (dd.levelMin ? ' · level ' + dd.levelMin + '–' + dd.levelMax : '')) + '</small>' +
-                (b && !dd.planned ? '<small class="dm-lock">' + esc(b) + '</small>' : '') + '</span>' + (dd.element ? '<span class="dm-chip el" style="--el:' + EL_HEX[dd.element] + '">' + titleCase(dd.element) + '</span>' : '<span></span>') + '</button>';
-        });
-        h += '</div><p class="dm-muted">' + esc(d.blurb || '') + (d.hidden ? ' Hidden road, found by your maps.' : '') + '</p></div>';
-
-        const x = previewContext(S);
-        const enc = d.encounters.map((id) => encounter(id, x, S)).filter((r) => r.status !== 'skip');
-        const okN = enc.filter((r) => r.status === 'ok').length;
-        h += '<div class="dm-card"><div class="dm-row"><h3 class="dm-grow">Expected encounters</h3><span class="dm-chip">Power ' + partyPower(S, x) + '</span><span class="dm-chip ' + (okN === enc.length ? 'good' : 'warn') + '">' + okN + '/' + enc.length + '</span></div>' +
-            '<p class="dm-muted">Fully automatic. Weapon, tool, gear, runes and party decide each one.' + (d.sighting ? ' Wild Siegeling sighting chance about ' + Math.round(d.sighting * (x.weapon === 'bow' ? 150 : 100)) + '%.' : '') + '</p><div class="dm-list">' +
-            enc.map((r) => '<div class="dm-enc ' + (r.status === 'ok' ? 'ok' : r.status === 'part' ? 'part' : 'miss') + '"><span class="dm-mark">' + (r.status === 'ok' ? '✓' : r.status === 'part' ? '~' : '✕') + '</span><span><strong>' + esc(r.title) + '</strong><small>' +
-                esc(r.status === 'ok' ? 'Handled by ' + r.by : r.status === 'part' ? (r.by ? r.by + ' helps a little. ' : '') + 'Best answer: ' + r.need : 'Answer: ' + r.need) + '</small></span>' +
-                (Object.keys(r.gain).length && r.status === 'ok' ? '<span class="dm-chips">' + Object.keys(r.gain).slice(0, 2).map((k) => '<span class="dm-chip">' + icon(k) + '+' + r.gain[k] + '</span>').join('') + '</span>' : r.loss ? '<span class="dm-chip bad">−' + Math.round(r.loss * 100) + '%</span>' : r.bondMul < 1 ? '<span class="dm-chip bad">Bond</span>' : '<span></span>') + '</div>').join('') + '</div></div>';
-
-        const weaponsOwned = Object.keys(RES).filter((w) => RES[w].kind === 'WEAPON' && fl(S.inv[w]) > 0);
-        const wi = weaponItem(S);
-        h += '<div class="dm-card"><h3>Loadout</h3><div class="dm-label">Weapon</div><div class="dm-chips">' + weaponsOwned.map((w) =>
-            '<button class="dm-btn small ' + (S.knight.equip.weapon === w ? '' : 'secondary') + '" type="button" data-act="equip" data-arg="weapon:' + w + '" aria-pressed="' + (S.knight.equip.weapon === w) + '">' + esc(RES[w].name) + '</button>').join('') + '</div>' +
-            '<div class="dm-label">Tool</div><div class="dm-chips">' + ['woodaxe', 'pickaxe'].filter((t) => fl(S.inv[t]) > 0).map((t) =>
-            '<button class="dm-btn small ' + (S.knight.tool === t ? '' : 'secondary') + '" type="button" data-act="tool" data-arg="' + t + '" aria-pressed="' + (S.knight.tool === t) + '">' + esc(RES[t].name) + '</button>').join('') + '</div>' +
-            '<p class="dm-muted">' + esc(WEAPONS[wi.weaponType || 'sword'].detail) + ' Tier ' + (wi.tier || 0) + '. ' + (S.knight.tool ? 'Trains ' + esc(SKILLS[RES[S.knight.tool].tool].name) + '. ' : '') + 'Trip time ' + fmtDur(tripMs(S, prep.dest)) + '.</p></div>';
-
-        const party = prepParty(S);
-        h += '<div class="dm-card"><div class="dm-row"><h3 class="dm-grow">Party</h3><span class="dm-chip">' + party.length + '/' + partySlots(S) + '</span></div><div class="dm-party">' + joinedIds(S).map((id) => {
-            const cc = C(id), on = party.includes(id), away = S.comps[id].job.kind === 'front';
-            return '<button class="dm-party-slot" type="button" data-act="party" data-arg="' + id + '" aria-pressed="' + on + '" style="--el:var(--' + cc.el + ')"><span class="dm-art">' + compArt(id, '') + '</span><strong>' + esc(cc.name) + '</strong><small>Lv ' + compLevel(S.comps[id]) + ' · ' + esc(on ? cc.trait : away ? 'On the rampart' : cc.cls) + '</small></button>';
-        }).join('') + '</div><p class="dm-muted">Command ' + skillLvl(S, 'command') + ' fields ' + partySlots(S) + ' Siegeling' + (partySlots(S) > 1 ? 's' : '') + ' (2 at Command 3, 3 at Command 10). Their Keep jobs pause and resume on return.</p></div>';
-
-        const p = packPlan(S), runes = Object.keys(RES).filter((k) => RES[k].kind === 'RUNE' && fl(S.inv[k]) > 0), pots = POTIONS().filter((k) => fl(S.inv[k]) > 0);
-        h += '<div class="dm-card"><div class="dm-row"><h3 class="dm-grow">Supplies</h3><span class="dm-chip ' + (fl(S.inv.provisions) >= p.provisions ? 'good' : 'bad') + '">' + icon('provisions') + p.provisions + '/' + fl(S.inv.provisions) + '</span></div>' +
-            '<p class="dm-muted">Packs ' + p.provisions + ' Provisions' + (p.rations ? ' and ' + p.rations + ' Hearth Rations' : '') + '. The Stable carries up to ' + supplyCap(S) + ' potions.</p>' +
-            '<button class="dm-option" type="button" data-act="rations" aria-pressed="' + !!S.prep.useRations + '"' + (fl(S.inv.rations) < 1 ? ' disabled' : '') + '><strong>Pack Hearth Rations first (' + fl(S.inv.rations) + ')</strong><small>Each replaces a provision, adds 5% to the haul and 2 bond per companion.</small></button>' +
-            '<div class="dm-label">Rune (one, used up)</div><div class="dm-chips">' + (runes.length ? runes.map((k) => '<button class="dm-btn small ' + (S.prep.rune === k ? '' : 'secondary') + '" type="button" data-act="rune" data-arg="' + k + '" aria-pressed="' + (S.prep.rune === k) + '">' + icon(k) + esc(RES[k].name) + ' (' + fl(S.inv[k]) + ')</button>').join('') : '<span class="dm-muted">Inscribe runes at the Archive (Runecrafting).</span>') + '</div>' +
-            '<div class="dm-label">Potions (trim losses after bad encounters)</div>' + (pots.length ? pots.map((k) => '<div class="dm-row"><span class="dm-grow" style="display:flex;gap:6px;align-items:center">' + icon(k) + esc(RES[k].name) + ' <small class="dm-muted">(' + fl(S.inv[k]) + ')</small></span><span class="dm-stepper"><button type="button" data-act="potion" data-arg="' + k + ':-1" aria-label="Fewer ' + esc(RES[k].name) + '">−</button><b>' + ((S.prep.potions || {})[k] || 0) + '</b><button type="button" data-act="potion" data-arg="' + k + ':1" aria-label="More ' + esc(RES[k].name) + '">+</button></span></div>').join('') : '<span class="dm-muted">Brew Herb Tonic (Alchemy) to carry potions.</span>') + '</div>';
-
-        const block = departBlock(S);
-        h += '<div class="dm-sticky-cta"><button class="dm-btn block" type="button" data-act="depart"' + (block ? ' disabled' : '') + '>Depart for ' + esc(d.name) + ' · ' + fmtDur(tripMs(S, prep.dest)) + '</button>' + (block ? '<p class="dm-muted" style="text-align:center">' + esc(block) + '</p>' : '') + '</div>';
-        return h;
-    }
-    function logHtml() {
-        let h = '<div class="dm-card"><h3>Refining totals</h3><div class="dm-chips">' + Object.keys(RECIPES).map((r) => '<span class="dm-chip">' + icon(RECIPES[r].output && Object.keys(RECIPES[r].output)[0]) + S.made[r] + ' ' + esc(RECIPES[r].name) + '</span>').join('') + '</div></div>';
-        if (S.reports.length) {
-            h += '<div class="dm-card"><h3>Expedition reports</h3><div class="dm-list">' + S.reports.map((r) =>
-                '<button class="dm-btn secondary" type="button" data-act="report" data-arg="' + esc(r.id) + '" style="justify-content:space-between">' + esc(DEST[r.dest].name) + '<span class="dm-muted">' + new Date(r.at).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) + '</span></button>').join('') + '</div></div>';
-        }
-        h += '<div class="dm-card"><h3>Keep log</h3>' + (S.log.length ? '<ul class="dm-log">' + S.log.map((l) => '<li><time>' + new Date(l.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</time><span>' + esc(l.text) + '</span></li>').join('') + '</ul>' : '<p class="dm-muted">Nothing has happened yet.</p>') + '</div>';
-        return h;
-    }
-
-    // —— Companions view ——
-    function renderCompanions() {
-        const ids = joinedIds(S);
-        let h = '<div class="dm-pad"><div class="dm-row"><p class="dm-muted dm-grow">Each Siegeling holds one job at a time. Bond is never lost when you move them.</p><span class="dm-chip">' + ids.length + '/' + rosterCap(S) + '</span></div>';
-        const sightings = (S.sightings || []).filter((v) => v.expiresAt > S.t);
-        if (sightings.length) {
-            h += '<div class="dm-card"><h3>Wild Siegelings spotted</h3><p class="dm-muted">Seen on your expeditions. Each can be tried once before its trail goes cold. Lures of the right element help.</p>';
-            sightings.forEach((sg) => {
-                const sp = SPECIES[sg.species] || { name: sg.species, element: 'EARTH', rarity: 'COMMON' };
-                const lures = Object.keys(RES).filter((k) => RES[k].kind === 'LURE' && fl(S.inv[k]) > 0 && (!RES[k].lureElement || RES[k].lureElement === sp.element));
-                const block = tameBlock(S, sg.id, '');
-                h += '<div class="dm-comp" style="--el:' + EL_HEX[sp.element] + '"><span class="dm-art">' + speciesArt(sg.species, '', sp.element) + '</span><div style="display:grid;gap:5px;min-width:0">' +
-                    '<div class="dm-row"><h3 class="dm-grow">' + esc(sp.name) + '</h3><span class="dm-chip el" style="--el:' + EL_HEX[sp.element] + '">' + titleCase(sp.rarity) + ' ' + titleCase(sp.element) + '</span></div>' +
-                    '<small class="dm-muted">Near ' + esc(destName(sg.route)) + ' · trail fades in <span data-live="eta" data-end="' + sg.expiresAt + '"></span></small>' +
-                    '<div class="dm-chips"><button class="dm-btn small" type="button" data-act="tame" data-arg="' + esc(sg.id) + ':"' + (block ? ' disabled' : '') + '>Approach (' + Math.round(tameChance(S, sg, '') * 100) + '%)</button>' +
-                    lures.map((k) => '<button class="dm-btn small secondary" type="button" data-act="tame" data-arg="' + esc(sg.id) + ':' + k + '"' + (block ? ' disabled' : '') + '>' + esc(RES[k].name) + ' (' + Math.round(tameChance(S, sg, k) * 100) + '%)</button>').join('') + '</div>' +
-                    (block ? '<small class="dm-muted">' + esc(block) + '</small>' : '') + '</div></div>';
-            });
-            h += '</div>';
-        }
-        ids.forEach((id) => { h += companionCard(id); });
-        if (S.comps.fawny && !S.comps.fawny.joined) {
-            h += '<div class="dm-card"><div class="dm-comp is-locked" style="--el:var(--line)"><span class="dm-art">' + speciesArt('fawny', '') + '</span><div style="display:grid;gap:4px;min-width:0"><span class="dm-eyebrow">Undiscovered</span><h3>A Siegeling in the frost</h3><p class="dm-muted">' + esc(STARTER_TRAITS.fawny.findText) + '</p></div></div></div>';
-        }
-        h += '</div>';
-        $('view-companions').innerHTML = h;
-    }
-    function companionCard(id) {
-        const cc = C(id), c = S.comps[id];
-        const bp = bondProgress(c.bond), away = onExpedition(S, id);
-        const lvl = compLevel(c), lo = companionXpFor(lvl), hi = companionXpFor(Math.min(cc.cap, lvl + 1));
-        let status = jobLabel(S, id);
-        if (c.job.kind === 'help') status += ' (+' + Math.round((helperMul(S, c.job.target) - 1) * 100) + '% output)';
-        if (c.job.kind === 'knight') { const td = taskDef(S.knight.task); status += td ? ' (+' + Math.round(helperBonus(S, td) * 100) + '% speed on ' + taskLabel(S) + ')' : ' (the Knight is idle)'; }
-        let h = '<div class="dm-card"><div class="dm-comp" style="--el:var(--' + cc.el + ')"><span class="dm-art">' + compArt(id, cc.name) + '</span><div style="display:grid;gap:5px;min-width:0">' +
-            '<div class="dm-row"><h3 class="dm-grow">' + esc(cc.name) + (c.legend ? ' <span class="dm-chip warn">Legendary</span>' : '') + '</h3><span class="dm-chip el" style="--el:var(--' + cc.el + ')">' + esc(cc.role) + '</span></div>' +
-            (c.nick ? '<small class="dm-muted">' + esc(cc.species) + '</small>' : '') +
-            '<div class="dm-skill-head"><small class="dm-muted" style="flex:1">Level ' + lvl + '/' + cc.cap + '</small><small class="dm-muted">' + (lvl >= cc.cap ? 'Max' : fl(c.xp - lo) + ' / ' + (hi - lo)) + '</small></div><div class="dm-bar blue"><b style="width:' + (lvl >= cc.cap ? 100 : Math.round((c.xp - lo) / Math.max(1, hi - lo) * 100)) + '%"></b></div>' +
-            '<div class="dm-skill-head"><small class="dm-muted" style="flex:1">Bond ' + bp.l + ' · ' + esc(bondName(c)) + '</small><small class="dm-muted">' + bp.label + '</small></div><div class="dm-bar"><b style="width:' + bp.pct + '%"></b></div>' +
-            '<p class="dm-muted"><b>' + esc(cc.trait) + ':</b> ' + esc(cc.traitText) + '</p></div></div>' +
-            '<p class="dm-status ' + (away ? 'paused' : '') + '">' + (away ? 'Travelling with the Knight. ' + esc(status) + ' resumes on return.' : esc(status)) + '</p>';
-        if (c.job.kind === 'explore' && !away) h += '<div class="dm-bar blue"><b style="width:' + Math.round(c.explore / EXPLORE_HOURS * 100) + '%"></b></div><small class="dm-muted">Next cache in ' + fmtDur((EXPLORE_HOURS - c.explore) * HOUR) + ' (progress is kept if you reassign)</small>';
-        const jobs = [['help', 'Building'], ['knight', 'Knight'], ['explore', 'Explore'], ['rest', 'Rest']];
-        if (S.b.front >= 1) jobs.push(['front', 'Rampart']);
-        h += '<div class="dm-seg" role="group" aria-label="' + esc(cc.name) + ' assignment">' + jobs.map((j) =>
-            '<button type="button" data-act="cjob" data-arg="' + id + ':' + j[0] + '" aria-pressed="' + (c.job.kind === j[0]) + '"' + (away ? ' disabled' : '') + '>' + j[1] + '</button>').join('') + '</div>';
-        if (c.job.kind === 'help') {
-            h += '<div class="dm-chips">' + HELP_TARGETS.map((t) => {
-                const other = helperOf(S, t);
-                const taken = other && other !== id;
-                const like = cc.likes.includes(t);
-                return '<button class="dm-btn small ' + (c.job.target === t ? '' : 'secondary') + '" type="button" data-act="cjob" data-arg="' + id + ':help:' + t + '"' + (taken || away ? ' disabled' : '') + ' aria-pressed="' + (c.job.target === t) + '">' + (t === 'woodlot' ? 'Woodlot' : WS[t].name) + (like ? ' ★' : '') + (taken ? ' · ' + esc(C(other).name) : '') + '</button>';
-            }).join('') + '</div><small class="dm-muted">★ favourite spot: +30% more.</small>';
-        }
-        if (c.job.kind === 'knight') h += '<small class="dm-muted">Assisting speeds the Knight’s work, most when ' + esc(cc.name) + '’s element suits it (as in Chronicles).</small>';
-        if (c.job.kind === 'front') h += '<small class="dm-muted">Defenders earn ' + frontRatePer(S) + ' Crowns an hour each and grow bond.</small>';
-        const foods = Object.keys(RES).filter((x) => RES[x].kind === 'FOOD' && RES[x].bondXp && fl(S.inv[x]) > 0);
-        const day = new Date(S.t).toDateString(), used = c.treats.day === day ? c.treats.n : 0;
-        h += '<small class="dm-muted">Treats today ' + used + '/' + DAILY_TREATS + (foods.length ? '' : ' · Cook Grilled Minnow, salads or stews to feed') + '</small>';
-        if (foods.length) h += '<div class="dm-chips">' + foods.map((f) => { const b = feedBlock(S, id, f); return '<button class="dm-btn small secondary" type="button" data-act="feed" data-arg="' + id + ':' + f + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '>' + icon(f) + ' ' + esc(RES[f].name) + ' (' + fl(S.inv[f]) + ')</button>'; }).join('') + '</div>';
-        const ev = evolveBlock(S, id), tr = trialBlock(S, id);
-        h += '<div class="dm-chips">' +
-            (cc.to && SPECIES[cc.to] ? '<button class="dm-btn small' + (ev ? ' secondary' : '') + '" type="button" data-act="evolve" data-arg="' + id + '"' + (ev ? ' disabled' : '') + ' title="' + esc(ev) + '">Evolve into ' + esc(SPECIES[cc.to].name) + '</button>' : '') +
-            (!c.legend ? '<button class="dm-btn small' + (tr ? ' secondary' : '') + '" type="button" data-act="trial" data-arg="' + id + '"' + (tr ? ' disabled' : '') + ' title="' + esc(tr) + '">Bond Trial' + (tr ? ' · ' + esc(tr.replace(/\.$/, '')) : '') + '</button>' : '') +
-            '<button class="dm-btn small secondary" type="button" data-act="rename-open" data-arg="' + id + '">Rename</button></div>';
-        if (S.ui.rename === id) {
-            h += '<form class="dm-row" data-form="rename" data-arg="' + id + '"><input class="dm-input dm-grow" id="dmRename-' + esc(id) + '" maxlength="18" value="' + esc(c.nick || '') + '" placeholder="' + esc(cc.species) + '" aria-label="Nickname"><button class="dm-btn small" type="submit">Save</button></form>';
-        }
-        return h + '</div>';
-    }
-
-    // —— Sheets ——
-    function openSheet(kind, arg) {
-        sheet = { kind: kind, arg: arg };
-        if (kind !== 'quarter') { arranging = false; }
-        renderSheet(true);
-    }
-    function closeSheet() {
-        if (sheet && sheet.kind === 'report') markSeen(sheet.arg);
-        if (sheet && sheet.kind === 'away') S.away = null;
-        sheet = null; arranging = false; quarterSel = -1; confirmReset = false;
-        const el = document.querySelector('.dm-sheet'), sc = document.querySelector('.dm-scrim');
-        if (el) el.remove();
-        if (sc) sc.remove();
+    function openModal(kind, arg) { modal = { kind: kind, arg: arg }; renderModal(); }
+    function closeModal() {
+        if (modal && modal.kind === 'report') markSeen(modal.arg);
+        if (modal && modal.kind === 'away') S.away = null;
+        modal = null; confirmReset = false;
+        const m = $('ckModal');
+        m.hidden = true; m.dataset.kind = ''; $('ckModalBody').innerHTML = '';
         save();
         renderAll();
+    }
+    function renderModal() {
+        if (!modal) return;
+        const m = $('ckModal'), body = $('ckModalBody');
+        const html = ({ report: reportModal, away: awayModal, plan: planModal, item: itemModal, skill: skillModal, menu: menuModal, objective: objectiveModal, lore: loreModal, voice: voiceModal, comp: null }[modal.kind] || (() => ''))(modal.arg);
+        const scroll = body.scrollTop;
+        m.dataset.kind = modal.kind;
+        body.innerHTML = html;
+        body.scrollTop = scroll;
+        m.hidden = false;
     }
     function markSeen(id) {
         const r = S.reports.find((x) => x.id === id);
         if (r && !r.seen) { r.seen = true; S.rev++; }
     }
-    function renderSheet(first) {
-        if (!sheet) return;
-        let title = '', body = '';
-        if (sheet.kind === 'building') ({ title, body } = buildingSheet(sheet.arg));
-        else if (sheet.kind === 'quarter') ({ title, body } = quarterSheet());
-        else if (sheet.kind === 'bag') ({ title, body } = bagSheet());
-        else if (sheet.kind === 'report') ({ title, body } = reportSheet(sheet.arg));
-        else if (sheet.kind === 'menu') ({ title, body } = menuSheet());
-        else if (sheet.kind === 'objective') ({ title, body } = objectiveSheet());
-        else if (sheet.kind === 'away') ({ title, body } = awaySheet());
-        let el = document.querySelector('.dm-sheet');
-        if (!el) {
-            const sc = document.createElement('div');
-            sc.className = 'dm-scrim'; sc.dataset.act = 'close';
-            document.body.appendChild(sc);
-            el = document.createElement('section');
-            el.className = 'dm-sheet'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
-            document.body.appendChild(el);
-        }
-        const bodyEl = el.querySelector('.dm-sheet-body');
-        const scroll = bodyEl ? bodyEl.scrollTop : 0;
-        el.setAttribute('aria-label', title);
-        el.innerHTML = '<div class="dm-sheet-head"><h2>' + esc(title) + '</h2><button class="dm-icon-btn" type="button" data-act="close" aria-label="Close">×</button></div><div class="dm-sheet-body">' + body + '</div>';
-        el.querySelector('.dm-sheet-body').scrollTop = scroll;
-        if (first) { const b = el.querySelector('[data-act="close"]'); if (b) b.focus({ preventScroll: true }); }
+
+    function renderHeader() {
+        $('ckKnightName').textContent = S.knight.name;
+        const lead = leadComp();
+        $('ckAvatar').innerHTML = lead ? portrait(lead) : '';
+        $('ckCrownsNum').textContent = fl(S.inv.crowns);
+        $('ckRankNum').textContent = rankLvl(S);
+        $('ckRankTitle').textContent = HALL_RANKS[S.b.hall - 1] + (rebirths(S) ? ' · ' + REBIRTH_TITLES[rebirths(S)] : '');
+        $('ckRankBar').style.width = xpProgress(S.knight.rankXp).pct + '%';
+        const wilds = (S.sightings || []).filter((v) => v.expiresAt > S.t).length;
+        const badge = $('ckWildsBadge');
+        badge.hidden = !wilds; badge.textContent = wilds || '';
+        const baseBadge = $('ckBaseBadge'), baseN = visitorsHere(S).length + S.requests.filter((q) => !requestBlock(S, q.id)).length + LORE().entries.filter((e) => loreOpen(S, e.id) && !S.lore[e.id]).length;
+        baseBadge.hidden = !baseN; baseBadge.textContent = baseN || '';
+        const expBadge = $('ckExpBadge'), unseen = S.reports.filter((r) => !r.seen).length;
+        expBadge.hidden = !unseen; expBadge.textContent = unseen || '';
+        document.querySelectorAll('#ckTabs button').forEach((b) => {
+            b.classList.toggle('is-on', b.dataset.tab === S.ui.tab);
+            b.setAttribute('aria-current', b.dataset.tab === S.ui.tab ? 'page' : 'false');
+        });
+        const d = new Date(now()), off = Math.round(S.offset / HOUR);
+        $('ckClock').textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + (off ? ' +' + off + 'h' : '');
+    }
+    function renderStatus() {
+        const parts = [];
+        const td = taskDef(S.knight.task);
+        if (S.exp) parts.push('<button type="button" class="ck-stat" data-act="tab" data-arg="expedition"><span class="ck-dot is-on"></span><span>' + esc(expTitle(S.exp)) + '</span>' + eta(S.exp.endAt) + '</button>');
+        else if (td) parts.push('<button type="button" class="ck-stat" data-act="work-skill" data-arg="' + esc(td.skillId) + '"><span class="ck-dot is-on"></span><span>' + esc(taskLabel(S)) + '</span><span class="ck-bar is-thin"><i data-live="action"></i></span></button>');
+        else parts.push('<button type="button" class="ck-stat" data-act="tab" data-arg="work"><span class="ck-dot"></span><span>Knight resting</span></button>');
+        const st = ['woodlot'].concat(Object.keys(WS)).reduce((a, id) => a + storedCount(S, id), 0);
+        if (st > 0) parts.push('<button type="button" class="ck-stat" data-act="collect-all"><span class="ck-dot is-ready"></span><span>Collect ' + st + '</span></button>');
+        if ((S.builds || []).length) parts.push('<button type="button" class="ck-stat" data-act="base-sec" data-arg="build"><span class="ck-dot is-on"></span><span>' + esc(S.builds[0].name) + '</span>' + eta(S.builds[0].endAt) + '</button>');
+        parts.push('<button type="button" class="ck-stat dm-pass" data-act="pass" data-arg="4" title="Test control: advances the shared clock by 4 hours"><span>⏩ +4h</span></button>');
+        $('ckStatus').innerHTML = parts.join('');
     }
 
-    function buildingSheet(id) {
-        if (id === 'enclave') {
-            const here = Object.keys(S.comps).filter((c) => S.comps[c].joined);
-            const sanct = S.wings.sanctuary || 0;
-            let body = '<p class="dm-muted">Home of the Keep\u2019s Siegelings. Resting here grows bond fastest (' + (8 + 6 * sanct) + ' per hour). Roster ' + here.length + '/' + rosterCap(S) + '.</p><div class="dm-card"><h3>Residents</h3><div class="dm-list">' +
-                here.map((c) => '<div class="dm-row"><span class="dm-art round" style="width:40px;height:40px;border:2px solid var(--' + C(c).el + ')">' + compArt(c, '') + '</span><span class="dm-grow"><strong>' + esc(C(c).name) + '</strong><br><small class="dm-muted">' + (onExpedition(S, c) ? 'Away with the Knight' : esc(jobLabel(S, c))) + '</small></span>' +
-                    (S.comps[c].job.kind !== 'rest' && !onExpedition(S, c) ? '<button class="dm-btn small secondary" type="button" data-act="cjob" data-arg="' + c + ':rest">Rest here</button>' : '') + '</div>').join('') + '</div></div>';
-            body += projectCards((p) => p.id.indexOf('wing_sanctuary') === 0);
-            body += '<button class="dm-btn secondary" type="button" data-act="tab" data-arg="companions">Manage companions</button>';
-            return { title: 'Siegeling Enclave', body: body };
-        }
-        const B = BUILDINGS[id];
-        let body = '<p class="dm-muted">' + esc(B.blurb) + '</p>';
-        if (damaged(S, id === 'hall' ? 'great_hall' : id)) body += '<div class="dm-card" style="border-color:rgba(255,138,115,.5)"><h3>Damaged</h3><p class="dm-muted">Its output is suspended until repaired.</p><button class="dm-btn small" type="button" data-act="goto-keep">Repair in Activities \u203a Keep</button></div>';
-        if (id === 'woodlot') {
-            const helper = helperOf(S, 'woodlot');
-            body += '<div class="dm-card"><h3>Produces</h3><dl class="dm-kv"><dt>Woodlot</dt><dd>' + fmtRate(woodlotRate(S)) + ' Timber/h</dd>' +
-                '<dt>Knight</dt><dd>' + (S.exp ? 'Away' : knightRates(S).gain.timber ? fmtRate(knightRates(S).gain.timber) + ' Timber/h (' + taskLabel(S) + ')' : 'Not cutting pine') + '</dd>' +
-                '<dt>Helper</dt><dd>' + (helper ? C(helper).name + (onExpedition(S, helper) ? ' (away, paused)' : ' +' + Math.round((helperMul(S, 'woodlot') - 1) * 100) + '%') : 'None') + '</dd></dl>' +
-                '<div class="dm-chips">' + (!(S.knight.task.kind === 'gather' && S.knight.task.id === 'chop_pine') && !S.exp ? '<button class="dm-btn small secondary" type="button" data-act="task" data-arg="gather:chop_pine">Knight: cut pine here</button>' : '') +
-                '<button class="dm-btn small secondary" type="button" data-act="tab" data-arg="companions">Assign a helper</button></div></div>';
-        } else if (id === 'archive') {
-            if (S.b.archive >= 1) {
-                body += '<div class="dm-card"><h3>Elemental Studies</h3><p class="dm-muted">The Knight studies the Covenant’s records here, earning Insight and unlocking refining and expedition bonuses.</p>' +
-                    '<dl class="dm-kv"><dt>Elemental Studies</dt><dd>Lv ' + skillLvl(S, 'elemental_studies') + '</dd><dt>Runecrafting</dt><dd>' + (skillUnlocked(S, 'runecrafting') ? 'Lv ' + skillLvl(S, 'runecrafting') : esc(lockText(S, 'runecrafting'))) + '</dd><dt>Insight</dt><dd>' + fl(S.inv.insight) + '</dd></dl>' +
-                    '<div class="dm-chips">' + (!(S.knight.task.kind === 'gather' && S.knight.task.id === 'read_records') && !S.exp ? '<button class="dm-btn small" type="button" data-act="task" data-arg="gather:read_records">Knight: read the records</button>' : '') +
-                    '<button class="dm-btn small secondary" type="button" data-act="open-prof" data-arg="elemental_studies">Essence studies</button></div></div>';
-                if (S.disc.vaultMap) body += '<div class="dm-card is-quiet"><div class="dm-row"><h3 class="dm-grow">Sealed Vault Map</h3><span class="dm-planned">Planned</span></div><p class="dm-muted">' + (skillLvl(S, 'elemental_studies') >= 10 ? 'Vault Cipher reads the map: it points to the Sunken Vault. That destination is not built in this slice.' : 'The map’s script needs Elemental Studies 10 to read.') + '</p></div>';
-            }
-        } else if (id === 'hall') {
-            body += '<div class="dm-card"><h3>The Knight</h3><p class="dm-muted">' + esc(S.exp ? 'Away on ' + DEST[S.exp.dest].name + '.' : S.knight.task.kind === 'idle' ? 'Waiting at the Hall.' : 'Working: ' + taskLabel(S) + '.') + ' Every weapon and garment is crafted: Carpentry carves wooden gear, Smithing forges metal, Weaving sews cloth.' + '</p>' +
-                '<div class="dm-chips"><button class="dm-btn small secondary" type="button" data-act="tab" data-arg="knight">Equipment and skills</button><button class="dm-btn small secondary" type="button" data-act="tab" data-arg="activities">Expeditions</button></div></div>';
-        }
-        const keyFilter = { hall: (p) => /^(hall_|wing_war_room|yard|front_|storehouse)/.test(p.id), woodlot: (p) => /^(woodlot_2|wing_stable)/.test(p.id), archive: (p) => /^(archive|wing_library)/.test(p.id) }[id];
-        const cur = (S.builds || []).filter((b) => keyFilter && keyFilter({ id: b.id }));
-        if (cur.length) body += cur.map((b) => '<div class="dm-card"><h3>' + esc(b.name) + '</h3><p class="dm-muted">Under construction, done in <b data-live="eta" data-end="' + b.endAt + '"></b>.</p><div class="dm-bar"><b data-live="bar" data-start="' + b.startAt + '" data-end="' + b.endAt + '"></b></div></div>').join('');
-        if (keyFilter) body += projectCards(keyFilter);
-        return { title: id === 'archive' && S.b.archive < 1 ? 'Ruined Archive' : id === 'hall' ? HALL_RANKS[S.b.hall - 1] : B.name, body: body };
-    }
-    function projectCards(filter) {
-        const ps = projectList(S).filter(filter);
-        return ps.length ? ps.map(buildRow).join('') : '';
-    }
-
-    function plotHtml(i) {
-        const c = S.grid[i];
-        const sel = i === quarterSel;
-        const r = Math.floor(i / 3), col = i % 3;
-        const lab = 'Plot ' + (r + 1) + '-' + (col + 1);
-        if (!c) return '<button class="dm-plot is-empty' + (sel ? ' is-selected' : '') + '" type="button" data-act="plot" data-arg="' + i + '" aria-label="' + lab + ', empty"></button>';
-        const W = WS[c.id];
-        let extra = '';
-        links(S.grid).forEach((l) => {
-            if (l.a !== i) return;
-            const waiting = l.recipe && !canRefine(S, l.recipe) && S.refine[l.recipe] >= 1 - 1e-9;
-            const cls = l.recipe ? (waiting ? 'wait' : '') : 'dead';
-            const name = l.recipe ? RECIPES[l.recipe].name + (waiting ? ' (waiting)' : '') : 'No recipe';
-            if (l.dir === 1) extra += '<i class="dm-link ' + cls + '" style="right:-12px;top:calc(50% - 3px);width:14px;height:6px"></i><span class="dm-link-label" style="left:100%;top:50%">' + esc(name) + '</span>';
-            else extra += '<i class="dm-link ' + cls + '" style="bottom:-12px;left:calc(50% - 3px);height:14px;width:6px"></i><span class="dm-link-label" style="left:50%;top:100%">' + esc(name) + '</span>';
-        });
-        return '<button class="dm-plot' + (sel ? ' is-selected' : '') + '" type="button" data-act="plot" data-arg="' + i + '" style="--el:var(--' + W.el + ')" aria-label="' + esc(W.name) + ', ' + lab + ', socket faces ' + ['north', 'east', 'south', 'west'][c.rot] + '" aria-pressed="' + sel + '">' +
-            '<span class="dm-ws-art">' + (WORKSHOP_ART[c.id] || '') + '</span><span class="dm-ws-name">' + esc(W.name) + '</span><i class="dm-socket" data-dir="' + c.rot + '"></i>' + extra + '</button>';
-    }
-    function quarterSheet() {
-        const ls = links(S.grid);
-        let body = '<p class="dm-muted">' + (arranging ? 'Tap a workshop, then tap an empty plot to move it. Rotate turns its socket. Two sockets facing each other make a link.' :
-            'Every workshop produces on its own. Linked pairs also refine automatically, using real stock from storage.') + '</p>';
-        body += '<div class="dm-quarter' + (arranging ? ' is-arranging' : '') + (quarterSel >= 0 && arranging ? ' has-selection' : '') + '" id="dmQuarterGrid" role="grid" aria-label="Elemental Quarter plots">' + S.grid.map((c, i) => plotHtml(i)).join('') + '</div>';
-        body += '<div class="dm-arrange-bar">' + (arranging ?
-            '<button class="dm-btn" type="button" data-act="rotate"' + (quarterSel >= 0 && S.grid[quarterSel] ? '' : ' disabled') + '>Rotate socket ↻</button><button class="dm-btn secondary" type="button" data-act="arrange">Done</button><small class="dm-muted">Keys: arrows move, Enter picks, R rotates</small>' :
-            '<button class="dm-btn" type="button" data-act="arrange">Arrange</button>') + '</div>';
-        const sel = quarterSel >= 0 ? S.grid[quarterSel] : null;
-        if (sel) {
-            const W = WS[sel.id], rates = workshopRates(S, sel.id), helper = helperOf(S, sel.id);
-            body += '<div class="dm-card"><div class="dm-row"><h3 class="dm-grow">' + esc(W.name) + '</h3><span class="dm-chip el" style="--el:var(--' + W.el + ')">' + W.el + ' socket</span></div><p class="dm-muted">' + esc(W.blurb) + '</p>' +
-                '<dl class="dm-kv"><dt>Produces</dt><dd>' + rateText(rates) + '</dd><dt>Helper</dt><dd>' + (helper ? C(helper).name + (onExpedition(S, helper) ? ' (away)' : '') : 'None') + '</dd><dt>Next level</dt><dd><span class="dm-planned">Planned</span></dd></dl></div>';
-        }
-        body += '<div class="dm-card"><h3>Recipes</h3><div class="dm-list">' + Object.keys(RECIPES).map((rid) => {
-            const R = RECIPES[rid], on = ls.some((l) => l.recipe === rid);
-            const waiting = on && !canRefine(S, rid) && S.refine[rid] >= 1 - 1e-9;
-            const pct = Math.round(Math.min(1, S.refine[rid] || 0) * 100);
-            return '<div class="dm-enc ' + (on ? (waiting ? 'part' : 'ok') : 'miss') + '"><span class="dm-mark">' + (on ? (waiting ? '…' : '✓') : '✕') + '</span><span><strong>' + WS[R.pair[0]].name + ' + ' + WS[R.pair[1]].name + ' → ' + esc(R.name) + '</strong><small>' +
-                Object.keys(R.input).map((k) => R.input[k] + ' ' + RES[k].name).join(' + ') + ' every ' + Math.round(R.mins / refineSpeed(S)) + ' min · ' + (on ? (waiting ? 'Waiting: not enough stock above your reserve' : 'Running, batch ' + pct + '%') : 'Not connected') + '</small></span><span class="dm-chip">' + icon(Object.keys(R.output)[0]) + fl(S.inv[Object.keys(R.output)[0]]) + '</span></div>';
-        }).join('') + '</div></div>';
-        body += '<div class="dm-card"><h3>Reserves</h3><p class="dm-muted">Refining never takes stock below these amounts, so expeditions and construction keep what they need.</p><div class="dm-list">' + RESERVABLE.map((k) =>
-            '<div class="dm-row"><span class="dm-grow" style="display:flex;align-items:center;gap:6px">' + icon(k) + esc(RES[k].name) + ' <small class="dm-muted">(' + fl(S.inv[k]) + ' in store)</small></span><span class="dm-stepper"><button type="button" data-act="reserve" data-arg="' + k + ':-1" aria-label="Lower ' + esc(RES[k].name) + ' reserve">−</button><b>' + (S.reserve[k] || 0) + '</b><button type="button" data-act="reserve" data-arg="' + k + ':1" aria-label="Raise ' + esc(RES[k].name) + ' reserve">+</button></span></div>').join('') + '</div></div>';
-        return { title: 'Elemental Quarter', body: body };
-    }
-    function bagSheet() {
-        let body = '<p class="dm-muted">One storage for the Keep, the Quarter and the Knight.</p>';
-        KIND_ORDER.forEach((kind) => {
-            const ids = Object.keys(RES).filter((k) => RES[k].kind === kind && (fl(S.inv[k]) > 0 || STRIP.includes(k)));
-            if (!ids.length) return;
-            body += '<div class="dm-label">' + KIND_LABEL[kind] + '</div><div class="dm-inv">' + ids.map((k) => '<div title="' + esc(RES[k].blurb || '') + '">' + icon(k) + '<span>' + esc(RES[k].name) + '</span><b data-res="' + k + '">' + fl(S.inv[k]) + '</b></div>').join('') + '</div>';
-        });
-        body += '<div class="dm-card is-quiet"><h3>Net hourly flow right now</h3><p class="dm-muted">' + esc(incomeText()) + '</p></div>';
-        return { title: 'Shared storage', body: body };
-    }
-    function incomeText() {
-        const r = { timber: woodlotRate(S) };
-        Object.keys(WS).forEach((id) => { const w = workshopRates(S, id); Object.keys(w).forEach((k) => { r[k] = (r[k] || 0) + w[k]; }); });
-        if (!S.exp) { const k = knightRates(S); Object.keys(k.gain).forEach((x) => { r[x] = (r[x] || 0) + k.gain[x]; }); Object.keys(k.use).forEach((x) => { r[x] = (r[x] || 0) - k.use[x]; }); }
-        const keys = Object.keys(r).filter((k) => Math.abs(r[k]) > 0.05);
-        return (keys.map((k) => (r[k] > 0 ? '+' : '') + fmtRate(r[k]) + ' ' + itemName(k) + '/h').join(', ') || 'Nothing') + '. Quarter refining consumes ingredients on top of this.';
-    }
-    function reportSheet(id) {
-        const r = S.reports.find((x) => x.id === id);
-        if (!r) return { title: 'Report', body: '<p class="dm-muted">This report is no longer stored.</p>' };
-        const hero = r.trial || r.operation ? ART.ruins.src : sceneUrl(r.dest);
-        let body = '<div class="dm-travel" style="min-height:120px"><img src="' + esc(hero) + '" alt=""><span class="dm-eyebrow">' + esc(RES[r.weaponId] ? RES[r.weaponId].name : WEAPONS[r.weapon].name) + (r.tool ? ' · ' + esc(itemName(r.tool)) : '') + ' · ' + (r.party.length ? r.party.map((p) => S.comps[p] ? C(p).name : p).join(', ') : 'no companions') + (r.rune ? ' \u00b7 ' + esc(itemName(r.rune)) : '') + '</span><p style="margin:4px 0 0;font:700 15px/1.35 var(--display);color:#fff1b7">' + esc(r.summary) + '</p></div>';
-        body += '<div class="dm-card"><h3>How preparation shaped the journey</h3><div class="dm-list">' + r.lines.map((l) =>
-            '<div class="dm-report-line ' + (l.status === 'ok' ? 'ok' : l.status === 'miss' ? 'miss' : '') + '"><span class="dm-mark">' + (l.status === 'ok' ? '✓' : l.status === 'part' ? '~' : '✕') + '</span><span><b>' + esc(l.title) + '.</b> ' + esc(l.text) + (l.status !== 'ok' && l.need ? '<em>Best answer next time: ' + esc(l.need) + '</em>' : '') + '</span></div>').join('') +
-            r.discs.map((d) => '<div class="dm-report-line disc"><span class="dm-mark">✦</span><span><b>Discovery: ' + (d === 'fawny' ? 'Fawny joined the Keep' : 'the Sealed Vault Map') + '.</b><em>' + (d === 'fawny' ? 'Assign Fawny from Companions. Fawny favours the Fridge.' : 'Elemental Studies 10 will read it.') + '</em></span></div>').join('') +
-            (r.sighting ? '<div class="dm-report-line disc"><span class="dm-mark">\u2726</span><span><b>Sighting: a wild ' + esc((SPECIES[r.sighting.species] || {}).name || r.sighting.species) + '.</b><em>Try to tame it from Companions within 48 hours.</em></span></div>' : '') + '</div></div>';
-        body += '<div class="dm-card"><h3>Rewards (applied once, on return)</h3><div class="dm-chips">' + gainChips(r.total) + '</div><p class="dm-muted">Haul kept: ' + r.lootPct + '% of the base find' + (r.rations ? ', including ' + r.rations + ' Hearth Rations bonus' : '') + '.</p><div class="dm-chips">' +
-            Object.keys(r.xp).map((k) => '<span class="dm-chip good">+' + r.xp[k] + ' ' + esc(SKILLS[k].name) + ' XP</span>').join('') + (r.prof ? '<span class="dm-chip good">+' + r.prof + ' ' + esc(WEAPONS[r.weapon].name) + ' proficiency</span>' : '') +
-            Object.keys(r.bonds).map((k) => '<span class="dm-chip good">+' + r.bonds[k] + ' bond with ' + esc(S.comps[k] ? C(k).name : k) + '</span>').join('') +
-            Object.keys(r.levels || {}).map((k) => '<span class="dm-chip good">' + esc(S.comps[k] ? C(k).name : k) + ' reached level ' + r.levels[k] + '</span>').join('') + '</div></div>';
-        body += '<div class="dm-card is-quiet"><h3>Assignments resumed</h3><p class="dm-muted">' + esc(r.resumed.join(' · ') || 'Nothing to resume.') + '</p></div>';
-        body += '<button class="dm-btn block" type="button" data-act="close">Done</button>';
-        return { title: r.trial ? 'Bond Trial' : r.operation ? 'Siege Operation report' : 'Back from ' + destName(r.dest), body: body };
-    }
-    function objectiveSheet() {
-        let body = '';
-        OBJECTIVES.forEach((ch) => {
-            body += '<div class="dm-card"><h3>' + esc(ch.chapter) + '</h3><div class="dm-list">' + ch.steps.map((st) => {
-                const done = !!S.obj[st.id];
-                return '<div class="dm-enc ' + (done ? 'ok' : st.planned ? 'miss' : 'part') + '"><span class="dm-mark">' + (done ? '✓' : st.planned ? '…' : '•') + '</span><span><strong>' + esc(st.title) + '</strong><small>' + esc(st.hint) + '</small></span><span></span></div>';
-            }).join('') + '</div></div>';
-        });
-        const top = Math.max(10, rankLvl(S) + 2);
-        body += '<div class="dm-card"><h3>The Keeper\u2019s Journey</h3><p class="dm-muted">Knight Rank ' + rankLvl(S) + '. Every rank pays once: Silver and Crowns.</p><div class="dm-list">';
-        for (let l = 2; l <= top; l++) {
-            const rw = journeyReward(l), got = !!S.claims['rank_' + l], ready = rankLvl(S) >= l;
-            body += '<div class="dm-enc ' + (got ? 'ok' : ready ? 'part' : '') + '"><span class="dm-mark">' + (got ? '\u2713' : l) + '</span><span><strong>Rank ' + l + '</strong><small>' + rw.silver + ' Silver \u00b7 ' + rw.crowns + ' Crowns</small></span>' +
-                (got ? '<span></span>' : '<button class="dm-btn small" type="button" data-act="claim" data-arg="' + l + '"' + (ready ? '' : ' disabled') + '>Claim</button>') + '</div>';
-        }
-        body += '</div></div>';
-        return { title: 'Objectives and journey', body: body };
-    }
-    function awaySheet() {
-        const a = S.away || { ms: 0, gains: {}, notes: [] };
-        return { title: 'While you were away', body: '<p class="dm-muted">' + fmtDur(a.ms) + ' passed. Everything was resolved with the same clock the +4h control uses.</p><div class="dm-card"><h3>Storage gained</h3><div class="dm-chips">' + gainChips(a.gains) + '</div></div>' +
-            (a.notes.length ? '<div class="dm-card"><h3>Events</h3><ul class="dm-log">' + a.notes.map((n) => '<li><time>•</time><span>' + esc(n) + '</span></li>').join('') + '</ul></div>' : '') +
-            '<button class="dm-btn block" type="button" data-act="close">Continue</button>' };
-    }
-    function menuSheet() {
-        return { title: 'About this prototype', body:
-            '<div class="dm-card"><h3>Demo time</h3><p class="dm-muted">Both buttons use the same resolver as real elapsed time.' + (ONLINE ? ' Progress syncs to your account when you are signed in.' : ' This preview saves in this browser only.') + '</p><div class="dm-chips"><button class="dm-btn small secondary" type="button" data-act="pass" data-arg="1">Pass 1 hour</button><button class="dm-btn small" type="button" data-act="pass" data-arg="4">Pass 4 hours</button></div></div>' +
-            '<div class="dm-card"><h3>From Chronicles</h3><p class="dm-muted">All 21 professions with their real gathering spots, 80 recipes and 105 items (exported from ChroniclesContent), level and bond curves, gear slots and bonuses, weapon proficiency, elemental affinity and class mastery, essences and studies, feeding treats, and Command party slots. Ser Airek, Cacty, Sundile and Fawny, and the region scene art.</p></div>' +
-            '<div class="dm-card"><h3>From the Keep</h3><p class="dm-muted">The illustrated Great Hall, Woodlot, Archive (ruined and restored), Enclave and the six Quarter workshops with their art; Keep production and cost scale (Woodlot 1 Timber per minute, Archive 60 Timber); one construction crew.</p></div>' +
-            '<div class="dm-card"><h3>New in Dominion</h3><p class="dm-muted">One shared clock, storage and roster. Quarter sockets, links, refining and reserves. Knight work versus expeditions. Preparation-driven encounters. Companion jobs. Practice weapons and Copper Fittings. The objective chapters.</p></div>' +
-            '<div class="dm-card"><h3>Also merged</h3><p class="dm-muted">Chronicles: all 35 routes with hazards, twists, elites and bosses, wild sightings and taming with lures, companion levels and evolution, renaming, runes and potions on the road, Legendary Bond Trials, the six base buildings as Keep wings, War Room loadouts, guilds, weekly Siege Operations and the Crowns market. Keep: Hall ranks 1 to 8 with banners, Storehouse and Builder\u2019s Yard (second crew), workshop expansions and annexes, Akhar\u2019s Wall, Voices and Archive lore, Keep events and repairs, refining, recycling, the daily market, stewardship, Keep crafts, the Keeper\u2019s Journey and ten rebirths.</p></div>' +
-            '<div class="dm-card is-quiet"><h3>Test-mode limits</h3><p class="dm-muted">The rules run in this browser and sync to your account, so a determined player could edit their save. Siegecoin prices are paid in Crowns and nothing touches real currencies. The pass-time button is for testing. ' + (ONLINE ? 'Guilds, operations and the market are shared with other testers.' : 'This offline preview has no guilds, operations or market.') + '</p></div>' +
-            '<div class="dm-card is-quiet"><h3>Start over</h3><p class="dm-muted">Erase this prototype save.</p>' + (confirmReset ?
-                '<div class="dm-chips"><button class="dm-btn small" type="button" data-act="reset-yes">Erase and restart</button><button class="dm-btn small secondary" type="button" data-act="reset-no">Keep my save</button></div>' :
-                '<button class="dm-btn small secondary" type="button" data-act="reset">Reset prototype</button>') + '</div>' };
-    }
-
-    // —— Render orchestration ——
     function renderView() {
-        const t = S.ui.tab;
-        if (t === 'keep') renderScene();
-        else if (t === 'knight') renderKnight();
-        else if (t === 'activities') renderActivities();
-        else renderCompanions();
-        $('dmActDot').classList.toggle('hidden', !(S.reports.some((r) => !r.seen)));
+        const view = { knight: viewKnight, company: viewCompany, work: viewWork, expedition: viewExpedition, base: viewBase, realm: viewRealm, wilds: viewWilds }[S.ui.tab] || viewBase;
+        const main = $('ckMain');
+        const scroll = main.scrollTop;
+        parkScene();
+        main.innerHTML = view();
+        main.dataset.tab = S.ui.tab;
+        mountScene();
+        decorateRoom();
+        setBackdrop(tabScene());
+        main.scrollTop = scroll;
+        // Stepping into a room brings its stage to the top of the tab.
+        if (scrollToRoom) { scrollToRoom = false; const r = main.querySelector('.dm-interior'); if (r) main.scrollTop = r.offsetTop - 8; }
         updateLive();
+    }
+    function setBackdrop(url) {
+        const el = $('ckBackdrop');
+        if (el.dataset.src === url) return;
+        el.dataset.src = url;
+        el.style.setProperty('--scene', 'url("' + url + '")');
+    }
+    function tabScene() {
+        switch (S.ui.tab) {
+        case 'knight': return namedScene('light-shelter');
+        case 'company': { const l = leadComp(); return namedScene((l ? C(l).el : 'earth') + '-journey'); }
+        case 'work': return namedScene(PROFESSION_SCENES[S.ui.workSkill] || 'earth-journey');
+        case 'expedition': return S.exp && !S.exp.trial && !S.exp.operation ? sceneUrl(S.exp.dest) : namedScene('wind-journey');
+        case 'realm': return namedScene('metal-boss');
+        case 'wilds': return namedScene('wind-elite');
+        default: return namedScene('relic-shelter');
+        }
     }
     // Re-rendering restores focus by data-act/arg so keyboard users keep their place.
     function renderAll() {
         const a = document.activeElement;
         const key = a && a.dataset && a.dataset.act ? [a.dataset.act, a.dataset.arg] : null;
-        renderStrip();
-        renderClock();
+        renderHeader();
+        renderStatus();
         renderView();
-        if (sheet) renderSheet(false);
+        if (modal) renderModal();
         if (key) {
             const sel = '[data-act="' + key[0] + '"]' + (key[1] != null ? '[data-arg="' + CSS.escape(key[1]) + '"]' : '');
-            const el = document.querySelector('.dm-sheet ' + sel) || document.querySelector(sel);
+            const el = document.querySelector('#ckModal:not([hidden]) ' + sel) || document.querySelector(sel);
             if (el && el !== document.activeElement) el.focus({ preventScroll: true });
         }
         lastSig = signature();
@@ -2804,48 +2455,880 @@
             e.style.left = Math.max(0, Math.min(100, (t - a) / (b - a) * 100)) + '%';
         });
     }
-    function flushToasts() {
-        FRESH.splice(0).forEach(toast);
+    // —— Knight ——
+    const GEAR_SLOT = { WEAPON: 'weapon', ARMOR: 'armor', HELMET: 'helmet', BOOTS: 'boots', ACCESSORY: 'accessory', RELIC: 'relic' };
+    function viewKnight() {
+        const k = S.knight, g = gearStats(S), busy = knightBusy(S), rp = xpProgress(k.rankXp);
+        const tamed = joinedIds(S).length;
+        const gear = Object.keys(RES).filter((x) => GEAR_SLOT[RES[x].kind] && fl(S.inv[x]) > 0);
+        const worn = SLOTS.map((sl) => k.equip[sl[0]]);
+        const bag = Object.keys(RES).filter((x) => !GEAR_SLOT[RES[x].kind] && RES[x].kind !== 'CURRENCY' && fl(S.inv[x]) > 0);
+        let h = hero({
+            cls: 'is-knight', scene: namedScene('light-shelter'), kicker: 'Rank ' + rankLvl(S) + ' · ' + esc(HALL_RANKS[S.b.hall - 1]), title: esc(k.name),
+            art: '<span class="ck-portrait is-hero dm-knight-portrait"><img src="' + KNIGHT_ART + '" alt=""></span>',
+            body: barP(rp.pct, 'is-fat') + '<p class="ck-banner-line">' + esc(rp.label) + ' rank XP</p>' +
+                '<div class="ck-bubbles"><span class="ck-bubble">🗺️ <b>' + (S.runs || 0) + '</b> trips</span><span class="ck-bubble">🐾 <b>' + tamed + '</b> companions</span>' +
+                '<span class="ck-bubble">👑 <b>' + fl(S.inv.crowns) + '</b></span><span class="ck-bubble">🪙 <b>' + fl(S.inv.silver) + '</b></span></div>'
+        });
+        h += '<section class="ck-card"><div class="ck-row"><h3>🛡️ Equipment</h3>' + chip('Armor ' + g.armor) + '</div><div class="ck-gear">' + SLOTS.map((sl) => {
+            const id = k.equip[sl[0]], it = RES[id];
+            return '<div class="ck-gear-slot' + (it ? ' is-on' : '') + '">' + (it ? itemIcon(id) : emojiIcon('➕', 'neutral', 'is-empty')) +
+                '<span class="ck-gear-text"><span class="ck-kicker">' + sl[2] + '</span><b>' + esc(it ? it.name : 'Empty') + '</b><span class="ck-small">' + esc(it ? (it.blurb || '') + gearNote(id) : 'Craft one in Work.') + '</span></span>' +
+                (it && sl[0] !== 'weapon' && !busy ? '<button type="button" class="ck-pill" data-act="equip" data-arg="' + sl[0] + ':">Remove</button>' : '') + '</div>';
+        }).join('') + '</div>' +
+            (gear.length ? '<h4>Gear bag · tap to wear' + (busy ? ' (locked while away)' : '') + '</h4><div class="ck-tiles is-gear">' + gear.map((x) => {
+                const on = worn.includes(x);
+                return '<button type="button" class="ck-tile' + (on ? ' is-on' : '') + '" data-act="equip" data-arg="' + GEAR_SLOT[RES[x].kind] + ':' + x + '"' + (busy ? ' disabled' : '') + ' title="' + esc(RES[x].blurb || '') + '">' +
+                    itemIcon(x) + '<b>' + esc(RES[x].name) + '</b>' + (on ? '<span class="ck-tile-tag">Worn</span>' : '') + '</button>';
+            }).join('') + '</div>' : '') +
+            '<p class="ck-hint">Every weapon and garment is crafted: Carpentry carves wooden gear, Smithing forges metal, Weaving sews cloth. Weapon tier adds 20% to that weapon’s rewards on the road.</p>' +
+            '<h4>Gathering tool</h4><div class="ck-tiles is-gear">' + ['woodaxe', 'pickaxe'].filter((t) => fl(S.inv[t]) > 0).map((t) =>
+                '<button type="button" class="ck-tile' + (k.tool === t ? ' is-on' : '') + '" data-act="tool" data-arg="' + t + '"' + (busy ? ' disabled' : '') + ' title="' + esc(RES[t].blurb) + '">' + itemIcon(t) + '<b>' + esc(RES[t].name) + '</b>' + (k.tool === t ? '<span class="ck-tile-tag">Carried</span>' : '') + '</button>').join('') + '</div></section>';
+        const GROUP_EMOJI = { Gathering: '🌿', Production: '⚒️', Siegeling: '🐾', Expedition: '🧭', Knowledge: '📚' };
+        SKILL_GROUPS.forEach((gp) => {
+            const ids = Object.keys(SKILLS).filter((id) => SKILLS[id].group === gp[0]);
+            if (!ids.length) return;
+            h += '<section class="ck-card"><h3>' + (GROUP_EMOJI[gp[0]] || '⭐') + ' ' + esc(gp[0] === 'Production' ? 'Crafting' : gp[0]) + '</h3><div class="ck-tiles is-skills">' + ids.map((id) => {
+                const un = skillUnlocked(S, id), pr = xpProgress(k.skills[id]), hue = SKILL_LOOK[id] || 'neutral';
+                return '<button type="button" class="ck-tile is-skill' + (un ? '' : ' is-locked') + '" data-act="skill" data-arg="' + id + '" style="--el:var(--' + hue + ')">' + emojiIcon(SKILL_EMOJI[id] || '⭐', hue) +
+                    '<b>' + esc(SKILLS[id].name.replace(/^Elemental Studies$/, 'Studies')) + '</b><span class="ck-tile-lv">' + (un ? 'Lv ' + pr.l : 'Locked') + '</span>' + (un ? barP(pr.pct, 'is-el') : '') + '</button>';
+            }).join('') + '</div></section>';
+        });
+        h += '<section class="ck-card"><h3>✨ Elemental Affinity</h3><div class="ck-tiles is-elements">' + ELEMENTS.map((e) => {
+            const pr = xpProgress(k.affinity[e]);
+            return '<div class="ck-tile is-element' + (pr.l > 1 || k.affinity[e] ? '' : ' is-dim') + '" style="--el:var(--' + elKey(e) + ')"><span class="ck-ico is-art">' + elementIcon(e, 30) + '</span><b>' + titleCase(e) + '</b><span class="ck-tile-lv">Lv ' + pr.l + '</span>' + barP(pr.pct, 'is-el') + '</div>';
+        }).join('') + '</div><p class="ck-hint">Studies and journeys with Siegelings of an element raise its affinity. Some recipes need it.</p></section>';
+        h += '<section class="ck-card"><h3>⚔️ Class Mastery</h3><div class="ck-tiles is-classes">' + CLASSES.map((c) => {
+            const pr = xpProgress(k.mastery[c]), hue = CLASS_HUE[c] || 'neutral';
+            return '<div class="ck-tile is-stat" style="--el:var(--' + hue + ')">' + emojiIcon(CLASS_EMOJI[c] || '⭐', hue) + '<b>' + esc(c) + '</b><span class="ck-tile-lv">Lv ' + pr.l + '</span>' + barP(pr.pct, 'is-el') + '</div>';
+        }).join('') + '</div></section>';
+        h += '<section class="ck-card"><h3>🏹 Weapon Disciplines</h3><div class="ck-tiles is-classes">' + Object.keys(WEAPONS).map((w) => {
+            const pr = xpProgress(k.prof[w]), on = weaponItem(S).weaponType === w;
+            return '<div class="ck-tile is-stat' + (on ? ' is-on' : '') + '" style="--el:var(--metal)" title="' + esc(WEAPONS[w].approach + ': ' + WEAPONS[w].detail) + '">' + emojiIcon(WEAPON_EMOJI[w] || '⚔️', 'metal') +
+                '<b>' + esc(WEAPONS[w].name) + '</b><span class="ck-tile-lv">Lv ' + pr.l + '</span>' + barP(pr.pct) + '<span class="ck-tile-sub">' + esc(WEAPONS[w].approach) + '</span></div>';
+        }).join('') + '</div></section>';
+        const slots = loadoutSlots(S);
+        if (slots) {
+            h += '<section class="ck-card"><h3>🗂️ War Room loadouts</h3><div class="ck-loadouts">' + Array.from({ length: slots }, (_, i) => {
+                const l = S.loadouts[i];
+                return '<div class="ck-loadout"><div><b>' + (l ? esc(itemName(l.equip.weapon)) : 'Empty slot ' + (i + 1)) + '</b>' + (l && l.party.length ? '<span class="ck-small ck-muted">' + esc(l.party.map((p) => S.comps[p] ? C(p).name : p).join(', ')) + '</span>' : '') + '</div>' +
+                    '<span class="ck-pills">' + (l ? '<button type="button" class="ck-pill" data-act="loadout-apply" data-arg="' + i + '"' + (busy ? ' disabled' : '') + '>Use</button>' : '') +
+                    '<button type="button" class="ck-pill" data-act="loadout-save" data-arg="' + i + '">' + (l ? 'Overwrite' : 'Save current') + '</button></span></div>';
+            }).join('') + '</div></section>';
+        }
+        const top = Math.max(10, rankLvl(S) + 2), ready = [];
+        for (let l = 2; l <= top; l++) if (rankLvl(S) >= l && !S.claims['rank_' + l]) ready.push(l);
+        h += '<section class="ck-card"><div class="ck-row"><h3>🎖️ Keeper’s Journey</h3>' + (ready.length ? chip(ready.length + ' to claim', 'is-help') : '') + '</div><p class="ck-small ck-muted">Every Knight Rank pays once in Silver and Crowns.</p>' +
+            (ready.length ? '<div class="ck-pills">' + ready.map((l) => '<button type="button" class="ck-pill is-on" data-act="claim" data-arg="' + l + '">Rank ' + l + ' · 🪙' + journeyReward(l).silver + ' 👑' + journeyReward(l).crowns + '</button>').join('') + '</div>' : '<p class="ck-hint">Next reward at Rank ' + (rankLvl(S) + 1) + '.</p>') + '</section>';
+        h += '<section class="ck-card"><h3>🎒 Storage</h3>' + (bag.length ? '<div class="ck-bank">' + bag.sort((a, b) => KIND_ORDER.indexOf(RES[a].kind) - KIND_ORDER.indexOf(RES[b].kind)).map((x) =>
+            '<button type="button" class="ck-bank-slot" data-act="item" data-arg="' + x + '" title="' + esc(RES[x].name) + '">' + itemIcon(x) + '<span class="ck-bank-qty" data-res="' + x + '">' + fl(S.inv[x]) + '</span><span class="ck-bank-name">' + esc(RES[x].name) + '</span></button>').join('') + '</div>' : '<p class="ck-muted">Empty. Set your knight to work.</p>') +
+            '<p class="ck-hint">One storage for the Keep, the Quarter and the Knight. ' + esc(incomeText()) + '</p></section>';
+        return h;
     }
-    function toast(msg) {
-        const el = document.createElement('div');
-        el.className = 'dm-toast'; el.textContent = msg;
-        const wrap = $('dmToasts');
-        wrap.appendChild(el);
-        // Two at most: a +4h jump can raise several at once and they must not bury the screen.
-        while (wrap.children.length > 2) wrap.firstChild.remove();
-        setTimeout(() => el.remove(), 2800);
+    function gearNote(id) {
+        const it = RES[id], b = CH.gearBonuses[id], bits = [];
+        if (it.weaponType) bits.push(WEAPONS[it.weaponType].name + ', tier ' + (it.tier || 0));
+        if (it.armor) bits.push('armor ' + it.armor);
+        if (b) { if (b.armor) bits.push('armor ' + b.armor); if (b.roadCut) bits.push(Math.round(b.roadCut * 100) + '% shorter journeys'); if (b.crit) bits.push('+' + Math.round(b.crit * 100) + '% haul'); if (b.rest) bits.push('+' + Math.round(b.rest * 100) + '% road bond'); }
+        if (it.heatWard) bits.push('wards heat');
+        if (it.relicEffect && it.relicEffect.indexOf('ward:') === 0) bits.push('wards ' + it.relicEffect.slice(5));
+        return bits.length ? ' · ' + bits.join(', ') : '';
+    }
+    function incomeText() {
+        const r = { timber: woodlotRate(S) };
+        Object.keys(WS).forEach((id) => { const w = workshopRates(S, id); Object.keys(w).forEach((k) => { r[k] = (r[k] || 0) + w[k]; }); });
+        if (!S.exp) { const k = knightRates(S); Object.keys(k.gain).forEach((x) => { r[x] = (r[x] || 0) + k.gain[x]; }); Object.keys(k.use).forEach((x) => { r[x] = (r[x] || 0) - k.use[x]; }); }
+        const keys = Object.keys(r).filter((k) => Math.abs(r[k]) > 0.05);
+        return 'Hourly flow: ' + (keys.map((k) => (r[k] > 0 ? '+' : '') + fmtRate(r[k]) + ' ' + itemName(k)).join(', ') || 'nothing yet') + '.';
+    }
+    function itemModal(id) {
+        const r = RES[id] || {};
+        return '<div class="ck-item-card">' + itemIcon(id, 'is-xl') + '<div><h2 id="ckModalTitle">' + esc(r.name || id) + '</h2><p class="ck-muted">' + esc(titleCase(r.kind || '')) + ' · ' + fl(S.inv[id]) + ' in storage</p><p>' + esc(r.blurb || '') + '</p></div></div>' +
+            '<div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
+    }
+    function skillModal(id) {
+        const sk = SKILLS[id], un = skillUnlocked(S, id), pr = xpProgress(S.knight.skills[id]);
+        const ms = MILESTONES[id] || [];
+        const opens = Object.keys(SKILLS).filter((o) => SKILLS[o].unlock.some((r) => r.kind === 'SKILL' && r.key === id));
+        return '<h2 id="ckModalTitle">' + emojiIcon(SKILL_EMOJI[id] || '⭐', SKILL_LOOK[id], 'is-sm') + ' ' + esc(sk.name) + '</h2>' +
+            '<div class="ck-skill' + (un ? '' : ' is-locked') + '"><div class="ck-row"><b>' + (un ? 'Level ' + pr.l : 'Locked') + '</b><span>' + (un ? esc(pr.label) : '') + '</span></div>' + (un ? barP(pr.pct) : '<span class="ck-small">' + esc(lockText(S, id)) + '</span>') +
+            '<span class="ck-small ck-muted">' + esc(sk.blurb || '') + '</span>' + (TRAINED_BY[id] ? '<span class="ck-small">Trained by: ' + esc(TRAINED_BY[id]) + '</span>' : '') +
+            (opens.length ? '<span class="ck-small">Unlocks ' + esc(opens.map((o) => SKILLS[o].name + ' at ' + SKILLS[o].unlock.find((r) => r.key === id).level).join(', ')) + '</span>' : '') + '</div>' +
+            (ms.length ? '<ol class="ck-ladder" style="--el:var(--' + (SKILL_LOOK[id] || 'gold') + ')">' + ms.map((m) => '<li class="' + (skillLvl(S, id) >= m[0] ? 'is-on' : '') + '"><b>' + m[0] + '</b><span>' + esc(m[1]) + '</span></li>').join('') + '</ol>' : '') +
+            '<div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
     }
 
+    // —— Company ——
+    function viewCompany() {
+        const away = !!S.exp, party = prepParty(S), slots = partySlots(S);
+        const POS = ['Vanguard', 'Flank', 'Rear'];
+        const stage = [0, 1, 2].map((i) => {
+            const id = party[i], locked = i >= slots;
+            return '<div class="ck-stage-slot' + (locked ? ' is-locked' : id ? '' : ' is-empty') + '"' + (id ? ' style="--el:var(--' + C(id).el + ')"' : '') + '><span class="ck-stage-pos">' + POS[i] + '</span>' +
+                (locked ? '<span class="ck-stage-ring">🔒</span><span class="ck-stage-name">Command ' + (i === 1 ? 3 : 10) + '</span>'
+                    : id ? '<button type="button" class="ck-stage-ring" data-act="comp-toggle" data-arg="' + id + '" aria-label="' + esc(C(id).name) + '">' + portrait(id) + '</button><span class="ck-stage-name">' + esc(C(id).name) + '</span><span class="ck-stage-sub">' + (CLASS_EMOJI[C(id).cls] || '') + ' Lv ' + compLevel(S.comps[id]) + '</span>' +
+                        (away ? '' : '<button type="button" class="ck-stage-x" data-act="party" data-arg="' + id + '" aria-label="Remove ' + esc(C(id).name) + '">&times;</button>')
+                    : '<span class="ck-stage-ring">➕</span><span class="ck-stage-name">Empty</span>') + '</div>';
+        }).join('');
+        const lead = leadComp();
+        let h = hero({ cls: 'is-stage', scene: namedScene((lead ? C(lead).el : 'earth') + '-journey'), kicker: away ? 'On the road · changes wait until they return' : 'Your expedition company', title: 'The Company', foot: '<div class="ck-stage">' + stage + '</div>' });
+        h += '<section class="ck-card is-tight"><p class="ck-hint">Command ' + skillLvl(S, 'command') + ' fields ' + slots + ' Siegeling' + (slots > 1 ? 's' : '') + ' (2 at Command 3, 3 at Command 10). Each Siegeling also holds one Keep job; it pauses on the road and resumes on return.</p></section>';
+        h += '<div class="ck-section-head"><h3>🐾 Sanctuary</h3><span class="ck-count">' + joinedIds(S).length + '/' + rosterCap(S) + '</span></div><div class="ck-roster">' + joinedIds(S).map(companionCard).join('') + '</div>';
+        if (S.comps.fawny && !S.comps.fawny.joined) {
+            h += '<section class="ck-card"><div class="ck-row">' + speciesPortrait('fawny', 'ICE', 'is-sm dm-locked') + '<div><span class="ck-kicker">Undiscovered</span><b>A Siegeling in the frost</b><p class="ck-small ck-muted">' + esc(STARTER_TRAITS.fawny.findText) + '</p></div></div></section>';
+        }
+        return h;
+    }
+    function companionCard(id) {
+        const cc = C(id), c = S.comps[id], open = openComp === id, away = onExpedition(S, id), inParty = prepParty(S).includes(id);
+        const lvl = compLevel(c), lo = companionXpFor(lvl), hi = companionXpFor(Math.min(cc.cap, lvl + 1)), bp = bondProgress(c.bond);
+        const hearts = Array.from({ length: 5 }, (_, i) => (i < Math.min(5, Math.floor(bp.l / 20)) ? '❤️' : '🤍')).join('');
+        const rl = rapportLvl(S, id);
+        let body = '';
+        if (open) {
+            let status = jobLabel(S, id);
+            if (c.job.kind === 'help') status += ' (+' + Math.round((helperMul(S, c.job.target) - 1) * 100) + '% output)';
+            if (c.job.kind === 'knight') { const td = taskDef(S.knight.task); status += td ? ' (+' + Math.round(helperBonus(S, td) * 100) + '% speed on ' + taskLabel(S) + ')' : ' (the Knight is idle)'; }
+            const jobs = [['help', 'Building'], ['knight', 'Assist Knight'], ['explore', 'Explore'], ['rest', 'Rest']];
+            if (S.b.front >= 1) jobs.push(['front', 'Akhar’s Wall']);
+            const foods = Object.keys(RES).filter((x) => RES[x].kind === 'FOOD' && RES[x].bondXp && fl(S.inv[x]) > 0);
+            const day = new Date(S.t).toDateString(), used = c.treats.day === day ? c.treats.n : 0;
+            const ev = evolveBlock(S, id), tr = trialBlock(S, id);
+            body = '<div class="ck-comp-body">' +
+                '<p class="ck-small"><b>' + esc(cc.trait) + ':</b> ' + esc(cc.traitText) + '</p>' +
+                '<p class="ck-small">Level ' + lvl + '/' + cc.cap + ' · ' + (lvl >= cc.cap ? 'max' : fl(c.xp - lo) + ' / ' + (hi - lo) + ' xp') + ' · Bond ' + bp.l + ' (' + esc(bondName(c)) + ') · Rapport: ' + esc(RAPPORT_NAMES[rl]) + (rl ? ' (+' + 10 * rl + '%)' : '') + '</p>' +
+                '<p class="ck-small' + (away ? ' ck-warn' : ' is-ready') + '">' + (away ? 'Travelling with the Knight. ' : '') + esc(status) + '</p>' +
+                (c.job.kind === 'explore' && !away ? barP(c.explore / EXPLORE_HOURS * 100) + '<span class="ck-small ck-muted">Next cache in ' + fmtDur((EXPLORE_HOURS - c.explore) * HOUR) + '</span>' : '') +
+                '<div class="ck-pills"><span class="ck-small">Keep job:</span>' + jobs.map((j) => '<button type="button" class="ck-pill' + (c.job.kind === j[0] ? ' is-on' : '') + '" data-act="cjob" data-arg="' + id + ':' + j[0] + '"' + (away ? ' disabled' : '') + '>' + j[1] + '</button>').join('') + '</div>' +
+                (c.job.kind === 'help' ? '<div class="ck-pills"><span class="ck-small">Post at:</span>' + helpTargets().map((t) => {
+                    const other = helperOf(S, t), taken = other && other !== id;
+                    return '<button type="button" class="ck-pill' + (c.job.target === t ? ' is-on' : '') + (cc.likes.includes(t) ? ' is-love' : '') + '" data-act="cjob" data-arg="' + id + ':help:' + t + '"' + (taken || away ? ' disabled' : '') + '>' + esc(roomName(t)) + (cc.likes.includes(t) ? ' ♥' : '') + (taken ? ' · ' + esc(C(other).name) : '') + '</button>';
+                }).join('') + '</div>' : '') +
+                (!away && !inParty ? '<div class="ck-pills"><span class="ck-small">Company:</span><button type="button" class="ck-pill" data-act="party" data-arg="' + id + '">Add to company</button></div>' : '') +
+                (!away ? '<div class="ck-pills"><span class="ck-small">Treats (' + used + '/' + DAILY_TREATS + ' today):</span>' + (foods.length ? foods.map((f) => { const b = feedBlock(S, id, f); return '<button type="button" class="ck-pill" data-act="feed" data-arg="' + id + ':' + f + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '>' + esc(RES[f].name) + ' ×' + fl(S.inv[f]) + '</button>'; }).join('') : '<span class="ck-small ck-muted">Cook food at the Kitchen to feed.</span>') + '</div>' : '') +
+                (cc.to && SPECIES[cc.to] ? '<div class="ck-evo"><b>Evolves into ' + esc(SPECIES[cc.to].name) + '</b><span class="ck-small">' + esc(ev || 'Ready!') + '</span><button type="button" class="ck-btn is-sm' + (ev ? '' : ' is-primary') + '" data-act="evolve" data-arg="' + id + '"' + (ev ? ' disabled' : '') + '>Evolve</button></div>' : '') +
+                (!c.legend ? '<div class="ck-trial"><b>Legendary Bond Trial</b> <span class="ck-small">' + esc(tr || 'A solo journey with this companion. Passing makes it a Legend.') + '</span><button type="button" class="ck-btn is-sm' + (tr ? '' : ' is-primary') + '" data-act="trial" data-arg="' + id + '"' + (tr ? ' disabled' : '') + '>Begin the trial</button></div>' : '') +
+                '<div class="ck-pills"><button type="button" class="ck-link" data-act="rename" data-arg="' + id + '">Rename</button></div></div>';
+        }
+        return '<article class="ck-comp' + (open ? ' is-open' : '') + (c.legend ? ' is-legend' : '') + '" style="--el:var(--' + cc.el + ')">' +
+            '<button type="button" class="ck-comp-head" data-act="comp-toggle" data-arg="' + id + '" aria-expanded="' + open + '"><span class="ck-comp-art">' + portrait(id, 'is-card') +
+            '<span class="ck-comp-lv">Lv ' + lvl + '</span><span class="ck-comp-el">' + elementIcon(cc.EL, 22) + '</span>' +
+            (away ? '<span class="ck-comp-flag">🧭 Away</span>' : inParty ? '<span class="ck-comp-flag is-on">⚔️ Company</span>' : c.job.kind === 'help' ? '<span class="ck-comp-flag">⚒️ ' + esc(roomName(c.job.target)) + '</span>' : '') + '</span>' +
+            '<span class="ck-comp-main"><span class="ck-comp-name">' + esc(cc.name) + (c.legend ? ' <span class="ck-legend-star">★</span>' : '') + '</span>' +
+            '<span class="ck-comp-sub">' + (CLASS_EMOJI[cc.cls] || '') + ' ' + esc(cc.cls) + (c.nick ? ' · ' + esc(cc.species) : '') + '</span>' +
+            (lvl >= cc.cap ? barP(100, 'is-max') : barP((c.xp - lo) / Math.max(1, hi - lo) * 100)) +
+            '<span class="ck-hearts" title="Bond ' + bp.l + '">' + hearts + '<small>' + bp.l + '</small></span>' +
+            (lvl >= cc.cap && cc.to && !evolveBlock(S, id) ? '<span class="ck-comp-ready">✨ Ready to evolve</span>' : '') + '</span></button>' + body + '</article>';
+    }
+    const helpTargets = () => HELP_TARGETS.filter((t) => (t === 'woodlot' ? S.b.woodlot >= 1 : wsBuilt(S, t)));
+    const roomName = (t) => (t === 'woodlot' ? 'Woodlot' : WS[t] ? WS[t].name : titleCase(t));
+
+    // —— Work: one page per profession, gathering or crafting, as in Chronicles ——
+    const gatherSkills = () => Object.keys(SKILLS).filter((id) => Object.keys(ACTIVITIES).some((a) => ACTIVITIES[a].skillId === id));
+    const craftSkills = () => Object.keys(SKILLS).filter((id) => !gatherSkills().includes(id) && Object.keys(CRAFTS).some((r) => CRAFTS[r].skillId === id));
+    function activeSkill() { const d = taskDef(S.knight.task); return d ? d.skillId : ''; }
+    function workSkill() {
+        const all = gatherSkills().concat(craftSkills());
+        if (all.includes(S.ui.workSkill)) return S.ui.workSkill;
+        return activeSkill() || all[0];
+    }
+    function viewWork() {
+        const sk = workSkill(), isCraft = craftSkills().includes(sk), group = isCraft ? craftSkills() : gatherSkills(), working = activeSkill();
+        S.ui.workSkill = sk;
+        return nowStrip(working) +
+            '<div class="ck-worktype" role="tablist" aria-label="Task type">' +
+            '<button type="button" role="tab" aria-selected="' + !isCraft + '" class="ck-type' + (!isCraft ? ' is-on' : '') + '" data-act="work-type" data-arg="gather">Gathering' + (gatherSkills().includes(working) ? '<span class="ck-dot is-on"></span>' : '') + '</button>' +
+            '<button type="button" role="tab" aria-selected="' + isCraft + '" class="ck-type' + (isCraft ? ' is-on' : '') + '" data-act="work-type" data-arg="craft">Crafting' + (craftSkills().includes(working) ? '<span class="ck-dot is-on"></span>' : '') + '</button></div>' +
+            '<div class="ck-skillbar" aria-label="Professions">' + group.map((id) => {
+                const un = skillUnlocked(S, id), hue = SKILL_LOOK[id] || 'neutral';
+                return '<button type="button" class="ck-skilltab' + (id === sk ? ' is-on' : '') + (un ? '' : ' is-locked') + '" data-act="work-skill" data-arg="' + id + '" style="--el:var(--' + hue + ')"' + (id === sk ? ' aria-current="page"' : '') + '>' +
+                    emojiIcon(SKILL_EMOJI[id] || '⭐', hue, 'is-sm') + '<b>' + esc(SKILLS[id].name.replace(/^Elemental Studies$/, 'Studies')) + '</b><span class="ck-skilltab-lv">' + (un ? 'Lv ' + skillLvl(S, id) : 'Locked') + '</span>' + (id === working ? '<span class="ck-dot is-on"></span>' : '') + '</button>';
+            }).join('') + '</div>' + skillHead(sk) + (isCraft ? craftPage(sk) : gatherPage(sk));
+    }
+    function nowStrip(working) {
+        if (S.exp) return '<div class="ck-nowbar is-idle"><span class="ck-dot is-on"></span><span class="ck-nowbar-text"><b>On the road: ' + esc(expTitle(S.exp)) + '.</b><span class="ck-small ck-muted">' + esc(taskLabel(S)) + ' resumes when the Knight returns in ' + fmtDur(S.exp.endAt - S.t) + '.</span></span></div>';
+        const def = taskDef(S.knight.task);
+        if (!def) return '<div class="ck-nowbar is-idle"><span class="ck-dot"></span><span class="ck-nowbar-text"><b>Your knight is resting.</b><span class="ck-small ck-muted">Tap a task to start. Work runs while you are away.</span></span></div>';
+        const r = knightRates(S), help = knightHelper(S);
+        const g = Object.keys(r.gain).map((x) => '+' + fmtRate(r.gain[x]) + ' ' + itemName(x)), u = Object.keys(r.use).map((x) => '−' + fmtRate(r.use[x]) + ' ' + itemName(x));
+        return '<div class="ck-nowbar"><button type="button" class="ck-nowbar-main" data-act="work-skill" data-arg="' + esc(working) + '">' + emojiIcon(SKILL_EMOJI[working] || '✨', SKILL_LOOK[working], 'is-sm is-spin') +
+            '<span class="ck-nowbar-text"><b>' + esc(taskLabel(S)) + '</b><span class="ck-small ' + (S.knight.stall ? 'ck-warn' : 'ck-muted') + '">' + esc(S.knight.stall || (g.concat(u).join(', ') + ' per hour' + (help ? ' · ' + C(help).name + ' assisting' : ''))) + '</span></span>' +
+            '<span class="ck-bar is-live"><i data-live="action"></i></span></button><button type="button" class="ck-btn is-sm" data-act="task" data-arg="idle:">Rest</button></div>';
+    }
+    function skillHead(id) {
+        const sk = SKILLS[id], un = skillUnlocked(S, id), pr = xpProgress(S.knight.skills[id]), hue = SKILL_LOOK[id] || 'neutral';
+        return hero({
+            cls: 'is-skill', el: hue.toUpperCase(), scene: namedScene(PROFESSION_SCENES[id] || 'earth-journey'), kicker: (sk.group === 'Gathering' ? 'Gathering' : 'Crafting') + (un ? '' : ' · Locked') + (SKILL_PLACE[id] ? ' · ' + esc(SKILL_PLACE[id]) : ''),
+            title: '<span class="ck-banner-emoji" aria-hidden="true">' + (SKILL_EMOJI[id] || '⭐') + '</span>' + esc(sk.name),
+            art: '<span class="ck-level-orb' + (un ? '' : ' is-locked') + '"><small>Level</small><b>' + (un ? pr.l : '&#128274;') + '</b></span>',
+            body: (un ? barP(pr.pct, 'is-fat') + '<p class="ck-banner-line">' + esc(pr.label) + ' XP</p>' : '<p class="ck-banner-line is-warn">' + esc(lockText(S, id)) + '</p>') + '<p class="ck-banner-line">' + esc(sk.blurb || '') + '</p>'
+        });
+    }
+    const cellTop = (lv, xp) => '<span class="ck-cell-top"><span class="ck-cell-lv">Lv ' + lv + '</span><span class="ck-cell-xp">' + xp + ' xp</span></span>';
+    const cellLive = () => '<span class="ck-bar is-live"><i data-live="action"></i></span><span class="ck-cell-state is-on">Working</span>';
+    function gatherPage(id) {
+        const rows = Object.keys(ACTIVITIES).map((a) => ACTIVITIES[a]).filter((a) => a.skillId === id).sort((a, b) => a.level - b.level);
+        return '<div class="ck-cells" style="--el:var(--' + (SKILL_LOOK[id] || 'neutral') + ')">' + rows.map((a) => {
+            const on = S.knight.task.kind === 'gather' && S.knight.task.id === a.id, b = taskBlock(S, a);
+            const act = on || b || S.exp ? '' : ' data-act="task" data-arg="gather:' + a.id + '"';
+            return '<button type="button" class="ck-cell' + (on ? ' is-on' : '') + (b ? ' is-locked' : '') + '"' + act + (b ? ' disabled' : '') + ' title="' + esc(a.place || '') + '">' + cellTop(a.level, a.xp) +
+                itemIcon(al(a.output), 'is-cell') + '<b class="ck-cell-name">' + esc(a.name) + (a.dominion ? ' ·Keep' : '') + '</b><span class="ck-cell-sub">' + esc(itemName(al(a.output))) + ' · ' + fmtDur(actionMs(S, a)) + '</span>' +
+                (on ? cellLive() : b ? '<span class="ck-cell-state is-lock">' + esc(b) + '</span>' : '') + '</button>';
+        }).join('') + '</div>';
+    }
+    function recipeName(r) { return r.studyElement ? titleCase(r.studyElement) + ' studies' : itemName(al(r.output)); }
+    function craftPage(id) {
+        const rows = Object.keys(CRAFTS).map((r) => CRAFTS[r]).filter((r) => r.skillId === id).sort((a, b) => a.level - b.level);
+        const running = S.knight.task.kind === 'craft' ? rows.find((r) => r.id === S.knight.task.id) : null;
+        const pick = rows.find((r) => r.id === recipePick) || running || rows.find((r) => !craftBlock(S, r.id)) || rows.find((r) => !taskBlock(S, r)) || rows[0];
+        return (pick ? '<section class="ck-card ck-pick" style="--el:var(--' + (SKILL_LOOK[id] || 'neutral') + ')">' + recipeRow(pick) + '</section>' : '') +
+            '<div class="ck-cells" style="--el:var(--' + (SKILL_LOOK[id] || 'neutral') + ')">' + rows.map((r) => {
+                const on = running && running.id === r.id, lock = taskBlock(S, r), out = r.studyElement ? null : al(r.output);
+                const owned = out && GEAR_SLOT[(RES[out] || {}).kind] ? fl(S.inv[out]) : 0;
+                const status = lock ? '<span class="ck-cell-state is-lock">' + esc(lock) + '</span>' : !r.repeatable && owned ? '<span class="ck-cell-state is-ready">Owned ' + owned + '</span>'
+                    : !craftBlock(S, r.id) ? '<span class="ck-cell-state is-ready">' + (r.repeatable ? 'Can make' : 'Ready to make') + '</span>' : '<span class="ck-cell-state">Needs materials</span>';
+                return '<button type="button" class="ck-cell' + (on ? ' is-on' : '') + (lock ? ' is-locked' : '') + (pick && pick.id === r.id ? ' is-picked' : '') + '" data-act="recipe-pick" data-arg="' + r.id + '" aria-pressed="' + !!(pick && pick.id === r.id) + '">' +
+                    cellTop(r.level, r.xp) + (r.studyElement ? '<span class="ck-ico is-cell is-art">' + elementIcon(r.studyElement, 30) + '</span>' : itemIcon(out, 'is-cell')) + '<b class="ck-cell-name">' + esc(recipeName(r)) + '</b>' +
+                    '<span class="ck-cell-sub">' + (r.repeatable ? fmtDur(actionMs(S, r)) + ' each' : 'Made once') + (r.dominion ? ' · Keep' : '') + '</span>' + (on ? cellLive() : status) + '</button>';
+            }).join('') + '</div>';
+    }
+    function recipeRow(r) {
+        const on = S.knight.task.kind === 'craft' && S.knight.task.id === r.id, lock = taskBlock(S, r), cb = craftBlock(S, r.id), inp = alMap(r.inputs), out = r.studyElement ? null : al(r.output);
+        const inputs = Object.keys(inp).map((x) => '<span class="' + (fl(S.inv[x]) >= inp[x] ? '' : 'is-short') + '">' + inp[x] + ' ' + esc(itemName(x)) + ' (' + fl(S.inv[x]) + ')</span>').join(', ');
+        let buttons;
+        if (lock) buttons = '<span class="ck-small ck-warn">' + esc(lock) + '</span>';
+        else if (r.repeatable) buttons = '<button type="button" class="ck-pill' + (on ? ' is-on' : '') + '" data-act="task" data-arg="craft:' + r.id + '"' + (on || S.exp ? ' disabled' : '') + '>' + (on ? 'Working' : 'Work idly') + '</button>' +
+            '<button type="button" class="ck-pill" data-act="craft" data-arg="' + r.id + '"' + (cb ? ' disabled' : '') + '>' + (r.studyElement ? 'Study 1' : 'Make 1') + '</button>';
+        else buttons = '<button type="button" class="ck-pill is-forge" data-act="craft" data-arg="' + r.id + '"' + (cb ? ' disabled' : '') + '>' + (out && fl(S.inv[out]) ? 'Make another' : 'Make') + '</button>' + (cb && !lock ? '<span class="ck-small ck-muted">' + esc(cb) + '</span>' : '');
+        const blurb = r.studyElement ? 'Grows ' + titleCase(r.studyElement) + ' Affinity.' : (RES[out] && RES[out].blurb) || '';
+        return '<div class="ck-recipe' + (lock ? ' is-locked' : '') + '">' + (r.studyElement ? '<span class="ck-ico is-lg is-art">' + elementIcon(r.studyElement, 40) + '</span>' : itemIcon(out, 'is-lg')) +
+            '<div class="ck-recipe-main"><div class="ck-row"><b>' + esc(recipeName(r)) + (r.outputQty > 1 ? ' ×' + r.outputQty : '') + '</b><span class="ck-small">Lv ' + r.level + ' · +' + r.xp + 'xp</span></div>' +
+            '<span class="ck-small ck-muted">' + esc(blurb) + (out && RES[out] && GEAR_SLOT[RES[out].kind] ? esc(gearNote(out)) : '') + '</span><span class="ck-small">' + inputs + '</span>' +
+            '<div class="ck-pills">' + buttons + '</div></div></div>';
+    }
+    // —— Expedition ——
+    function destName(id) { return DEST[id] ? DEST[id].name : titleCase(id); }
+    function expTitle(x) { return x.trial ? 'Bond Trial with ' + C(x.trial).name : x.operation ? 'Siege Operation · ' + titleCase(x.front || '') : destName(x.dest); }
+    function reportTitle(r) { return r.trial ? 'Bond Trial with ' + C(r.trial).name : r.operation ? 'Siege Operation' : destName(r.dest); }
+    const ROUTE_EMOJI = { PATROL: '🥾', RESOURCE: '⛏️', HUNT: '🎯', DUNGEON: '💀', GRAND: '🌟' };
+    const TIER_NAMES = { 0: 'The Keep’s roads', 1: 'Tier I · The Inner Wilds', 2: 'Tier II · The Outer Frontiers', 3: 'Tier III · The Forgotten Regions', 4: 'Tier IV · Legendary Expeditions' };
+    function partyFaces(ids) {
+        if (!ids.length) return '<span class="ck-faces is-empty">No one in the company yet</span>';
+        return '<span class="ck-faces">' + ids.filter((id) => S.comps[id]).map((id) => '<span class="ck-face" style="--el:var(--' + C(id).el + ')" title="' + esc(C(id).name) + '">' + portrait(id) + '</span>').join('') + '</span>';
+    }
+    function viewExpedition() {
+        let h = '';
+        S.reports.filter((r) => !r.seen).forEach((r) => {
+            h += '<button type="button" class="ck-card dm-report-card" data-act="report" data-arg="' + esc(r.id) + '"><span class="ck-kicker is-ready">New report</span><b>' + esc(reportTitle(r)) + '</b><span class="ck-small ck-muted">' + esc(r.summary) + '</span></button>';
+        });
+        if (S.exp) {
+            const x = S.exp, d = DEST[x.dest] || {};
+            h += hero({ cls: 'is-road', el: d.element, scene: x.trial || x.operation ? namedScene('relic-journey') : sceneUrl(x.dest), kicker: esc(d.region || 'On the road'), title: esc(expTitle(x)),
+                body: liveBar(x.startAt, x.endAt, 'is-fat is-live-road') + '<p class="ck-banner-line">Back in ' + eta(x.endAt) + ' · ' + esc(RES[x.weaponId] ? RES[x.weaponId].name : WEAPONS[x.weapon].name) + (x.tool ? ' and ' + esc(itemName(x.tool)) : '') + '</p>',
+                foot: partyFaces(x.party) });
+            if (!x.trial && !x.operation && d.encounters) {
+                const enc = d.encounters.map((id) => encounter(id, x, S)).filter((r) => r.status !== 'skip');
+                h += '<section class="ck-card"><h3>📜 What the road holds</h3><ol class="ck-timeline">' + enc.map((r) => '<li class="is-' + (r.status === 'ok' ? 'good' : r.status === 'part' ? 'info' : 'bad') + '"><time>' + (r.status === 'ok' ? '✓' : r.status === 'part' ? '~' : '✕') + '</time><span><b>' + esc(r.title) + '.</b> ' +
+                    esc(r.status === 'ok' ? 'Handled by ' + r.by + '.' : 'Best answer: ' + r.need + '.') + '</span></li>').join('') + '</ol><p class="ck-hint">The full report arrives with the company.</p></section>';
+            }
+            h += '<section class="ck-card"><h3>While the Knight travels</h3><p class="ck-small">Paused: ' + esc(S.knight.task.kind === 'idle' ? 'rest' : taskLabel(S)) + (x.party.length ? ', and the Keep jobs of ' + esc(x.party.filter((id) => S.comps[id]).map((id) => C(id).name).join(', ')) : '') + '.</p>' +
+                '<p class="ck-small is-ready">Still running: the Woodlot, every built workshop, refining, construction, visitors and residents who stayed home.</p></section>';
+            return h;
+        }
+        const party = prepParty(S), p = packPlan(S), wi = weaponItem(S);
+        const runes = Object.keys(RES).filter((k) => RES[k].kind === 'RUNE' && fl(S.inv[k]) > 0), pots = POTIONS().filter((k) => fl(S.inv[k]) > 0);
+        const weapons = Object.keys(RES).filter((w) => RES[w].kind === 'WEAPON' && fl(S.inv[w]) > 0);
+        const packed = Object.keys(S.prep.potions || {}).reduce((a, k) => a + Math.min(S.prep.potions[k] || 0, fl(S.inv[k])), 0);
+        h += hero({ cls: 'is-road', scene: namedScene('wind-journey'), kicker: 'Expeditions', title: 'Choose your road',
+            body: '<p class="ck-banner-line">Preparation decides every encounter: weapon, tool, gear, runes and the company you bring.</p>',
+            foot: partyFaces(party) + '<button type="button" class="ck-btn is-glass is-sm" data-act="tab" data-arg="company">Change company</button>' });
+        h += '<details class="ck-card ck-prep"' + (S.ui.prepOpen ? ' open' : '') + '><summary data-act="prep-toggle"><span class="ck-prep-title">⚙️ Loadout &amp; supplies</span><span class="ck-prep-sum">' +
+            '<span class="ck-chip">' + (WEAPON_EMOJI[wi.weaponType] || '🗡️') + ' ' + esc(wi.name) + '</span><span class="ck-chip">🥖 ' + fl(S.inv.provisions) + '</span><span class="ck-chip">🧪 ' + packed + '</span>' + (S.prep.rune ? '<span class="ck-chip is-rare">📜 Rune</span>' : '') + '</span></summary>' +
+            '<h4>Weapon</h4><div class="ck-pills">' + weapons.map((w) => '<button type="button" class="ck-pill' + (S.knight.equip.weapon === w ? ' is-on' : '') + '" data-act="equip" data-arg="weapon:' + w + '">' + (WEAPON_EMOJI[RES[w].weaponType] || '') + ' ' + esc(RES[w].name) + '</button>').join('') + '</div>' +
+            '<p class="ck-small ck-muted">' + esc(WEAPONS[wi.weaponType || 'sword'].approach + ': ' + WEAPONS[wi.weaponType || 'sword'].detail) + '</p>' +
+            '<h4>Tool</h4><div class="ck-pills">' + ['woodaxe', 'pickaxe'].filter((t) => fl(S.inv[t]) > 0).map((t) => '<button type="button" class="ck-pill' + (S.knight.tool === t ? ' is-on' : '') + '" data-act="tool" data-arg="' + t + '">' + itemEmoji(t) + ' ' + esc(RES[t].name) + '</button>').join('') + '</div>' +
+            '<h4>Provisions</h4><p class="ck-small">' + fl(S.inv.provisions) + ' in store. The Kitchen packs more.</p>' +
+            '<div class="ck-pills"><button type="button" class="ck-pill' + (S.prep.useRations ? ' is-on' : '') + '" data-act="rations"' + (fl(S.inv.rations) < 1 ? ' disabled' : '') + '>🍱 Pack Hearth Rations first (' + fl(S.inv.rations) + ')</button></div>' +
+            '<h4>Rune (one, spent on the road)</h4>' + (runes.length ? '<div class="ck-pills"><button type="button" class="ck-pill' + (S.prep.rune ? '' : ' is-on') + '" data-act="rune" data-arg="">None</button>' + runes.map((k) => '<button type="button" class="ck-pill' + (S.prep.rune === k ? ' is-on' : '') + '" data-act="rune" data-arg="' + k + '">📜 ' + esc(RES[k].name) + ' ×' + fl(S.inv[k]) + '</button>').join('') + '</div>' : '<p class="ck-hint">Inscribe runes with Runecrafting at the Archive.</p>') +
+            '<h4>Potions (up to ' + supplyCap(S) + ')</h4>' + (pots.length ? '<div class="ck-supplies">' + pots.map((k) => '<div class="ck-supply">' + itemIcon(k, 'is-sm') + '<span class="ck-supply-name">' + esc(RES[k].name) + ' <span class="ck-small">(' + fl(S.inv[k]) + ')</span></span><span class="ck-stepper"><button type="button" data-act="potion" data-arg="' + k + ':-1" aria-label="Fewer">−</button><b>' + ((S.prep.potions || {})[k] || 0) + '</b><button type="button" data-act="potion" data-arg="' + k + ':1" aria-label="More">+</button></span></div>').join('') + '</div>' : '<p class="ck-hint">Brew Herb Tonics with Alchemy.</p>') + '</details>';
+        [0, 1, 2, 3, 4].forEach((tier) => {
+            const ids = Object.keys(DEST).filter((id) => !DEST[id].special && (DEST[id].tier || 0) === tier && destVisible(S, id));
+            if (!ids.length) return;
+            h += '<div class="ck-section-head"><h3>🗺️ ' + esc(TIER_NAMES[tier]) + '</h3></div><div class="ck-routes">' + ids.map(routeCard).join('') + '</div>';
+        });
+        return h;
+    }
+    function routeCard(id) {
+        const d = DEST[id], b = d.planned ? d.blurb : destBlock(S, id);
+        return '<article class="ck-route' + (b ? ' is-locked' : '') + '" style="--el:var(--' + elKey(d.element) + ')"><div class="ck-route-art"><img src="' + esc(sceneUrl(id)) + '" alt="" loading="lazy" decoding="async">' +
+            '<span class="ck-route-tags">' + (d.type ? '<span class="ck-tag">' + (ROUTE_EMOJI[d.type] || '🧭') + ' ' + esc(titleCase(d.type)) + '</span>' : '') + (d.hours ? '<span class="ck-tag">⏱️ ' + fmtDur(tripMs(S, id)) + '</span>' : '') + '</span>' +
+            '<span class="ck-route-name">' + (d.element ? elementIcon(d.element, 20) : '') + '<b>' + esc(d.name) + '</b></span>' + (b ? '<span class="ck-route-lock">🔒</span>' : '') + '</div>' +
+            '<div class="ck-route-body"><span class="ck-chips">' + (d.levelMin ? chip('Lv ' + d.levelMin + '–' + d.levelMax) : '') + (d.hours ? chip('🥖 ' + needProvisions(S, id)) : '') + (d.sighting ? chip('🪢 Sightings', 'is-help') : '') + (d.bossId ? chip('👹 Boss', 'is-boss') : '') + (d.hidden ? chip('🔍 Discovered', 'is-rare') : '') + '</span>' +
+            '<span class="ck-small">' + esc(d.blurb || '') + '</span>' + (b ? '<span class="ck-small ck-warn">' + esc(b) + '</span>' : '') +
+            (d.loot && Object.keys(d.loot).length ? '<span class="ck-small ck-muted">🎁 ' + esc(Object.keys(d.loot).slice(0, 5).map(itemName).join(', ')) + '</span>' : '') +
+            '<div class="ck-actions">' + (d.planned ? '' : '<button type="button" class="ck-btn is-primary is-sm" data-act="plan" data-arg="' + id + '"' + (b ? ' disabled' : '') + '>🚀 Plan the road</button>') + '</div></div></article>';
+    }
+    function planModal(id) {
+        const d = DEST[id];
+        if (!d) return '';
+        const prevDest = S.prep.dest;
+        S.prep.dest = id;
+        const x = previewContext(S), enc = d.encounters.map((e) => encounter(e, x, S)).filter((r) => r.status !== 'skip'), okN = enc.filter((r) => r.status === 'ok').length;
+        const block = departBlock(S);
+        S.prep.dest = prevDest;
+        return '<h2 id="ckModalTitle">' + (d.element ? elementIcon(d.element, 22) + ' ' : '') + esc(d.name) + '</h2>' +
+            '<p class="ck-muted">' + esc((d.region ? d.region + ' · ' : '') + fmtDur(tripMs(S, id)) + ' · ' + needProvisions(S, id) + ' provisions · party power ' + partyPower(S, x)) + '</p>' +
+            '<p class="ck-small">' + esc(d.blurb || '') + (d.sighting ? ' Wild Siegeling sighting chance about ' + Math.round(d.sighting * (x.weapon === 'bow' ? 150 : 100)) + '%.' : '') + '</p>' +
+            '<h3>Expected encounters · ' + okN + '/' + enc.length + '</h3><ol class="ck-timeline">' + enc.map((r) => '<li class="is-' + (r.status === 'ok' ? 'good' : r.status === 'part' ? 'info' : 'bad') + '"><time>' + (r.status === 'ok' ? '✓' : r.status === 'part' ? '~' : '✕') + '</time><span><b>' + esc(r.title) + '.</b> ' +
+                esc(r.status === 'ok' ? 'Handled by ' + r.by + '.' : r.status === 'part' ? (r.by ? r.by + ' helps a little. ' : '') + 'Best answer: ' + r.need + '.' : 'Answer: ' + r.need + '.') + '</span></li>').join('') + '</ol>' +
+            '<div class="ck-row">' + partyFaces(prepParty(S)) + '<span class="ck-small">' + esc(weaponItem(S).name) + (S.knight.tool ? ' · ' + esc(itemName(S.knight.tool)) : '') + '</span></div>' +
+            '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="depart" data-arg="' + id + '"' + (block && !/destination/i.test(block) ? ' disabled' : '') + '>🚀 Set out</button><button type="button" class="ck-btn" data-act="close-modal">Not yet</button></div>' +
+            (block ? '<p class="ck-small ck-warn">' + esc(block) + '</p>' : '');
+    }
+    function reportModal(id) {
+        const r = S.reports.find((x) => x.id === id);
+        if (!r) return '<p class="ck-muted">This report is no longer stored.</p><div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
+        return '<h2 id="ckModalTitle">' + esc(reportTitle(r)) + '</h2><p class="ck-outcome is-complete">' + esc(r.summary) + '</p>' +
+            '<h3>How preparation shaped the journey</h3><ol class="ck-timeline">' + r.lines.map((l) => '<li class="is-' + (l.status === 'ok' ? 'good' : l.status === 'miss' ? 'bad' : 'info') + '"><time>' + (l.status === 'ok' ? '✓' : l.status === 'part' ? '~' : '✕') + '</time><span><b>' + esc(l.title) + '.</b> ' + esc(l.text) + (l.status !== 'ok' && l.need ? ' <i>Next time: ' + esc(l.need) + '</i>' : '') + '</span></li>').join('') + '</ol>' +
+            (r.discs.length || r.sighting ? '<h3>Discoveries</h3><ul class="ck-milestones">' + r.discs.map((d) => '<li>' + (d === 'fawny' ? 'Fawny joined the Keep.' : 'The Sealed Vault Map.') + '</li>').join('') + (r.sighting ? '<li>A wild ' + esc((SPECIES[r.sighting.species] || {}).name || r.sighting.species) + ' was sighted. Visit the Wilds within 48 hours.</li>' : '') + '</ul>' : '') +
+            '<h3>Company</h3><ul class="ck-xp">' + Object.keys(r.bonds).map((k) => '<li><span>' + esc(S.comps[k] ? C(k).name : k) + '</span><b>+' + r.bonds[k] + ' bond' + (r.levels && r.levels[k] ? ' · Lv ' + r.levels[k] : '') + '</b></li>').join('') + '</ul>' +
+            '<h3>Knowledge</h3><ul class="ck-xp">' + Object.keys(r.xp).map((k) => '<li><span>' + esc(SKILLS[k].name) + '</span><b>+' + r.xp[k] + ' xp</b></li>').join('') + (r.prof ? '<li><span>' + esc(WEAPONS[r.weapon].name) + '</span><b>+' + r.prof + ' xp</b></li>' : '') + '</ul>' +
+            '<h3>Loot</h3>' + lootRow(r.total) + '<p class="ck-small ck-muted">Haul kept: ' + r.lootPct + '% of the base find.' + (r.resumed.length ? ' Resumed: ' + esc(r.resumed.join(' · ')) + '.' : '') + '</p>' +
+            '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="close-modal">Home again</button></div>';
+    }
+    function awayModal() {
+        const a = S.away || { ms: 0, gains: {}, notes: [] };
+        return '<h2 id="ckModalTitle">While you were away</h2><p class="ck-muted">' + fmtDur(a.ms) + ' passed. Rooms filled their stores; collect them in Base.</p><h3>Gained</h3>' + lootRow(a.gains) +
+            (a.notes.length ? '<h3>Around the Keep</h3><ul class="ck-milestones">' + a.notes.map((n) => '<li>' + esc(n) + '</li>').join('') + '</ul>' : '') +
+            '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="close-modal">Continue</button></div>';
+    }
+
+    // —— Wilds ——
+    function viewWilds() {
+        const list = (S.sightings || []).filter((v) => v.expiresAt > S.t);
+        if (!list.length) {
+            return hero({ cls: 'is-road', scene: namedScene('wind-elite'), kicker: 'The Wilds', title: 'No fresh trails',
+                body: '<p class="ck-banner-line">Expeditions spot wild Siegelings. Each trail waits 48 hours for you to try taming it. A Bow scouts more of them.</p>',
+                foot: '<button type="button" class="ck-btn is-primary" data-act="tab" data-arg="expedition">🎯 Plan a road</button>' });
+        }
+        return list.map((sg) => {
+            const sp = SPECIES[sg.species] || { name: sg.species, element: 'EARTH', rarity: 'COMMON', cls: 'Bruiser' };
+            const lures = Object.keys(RES).filter((k) => RES[k].kind === 'LURE' && fl(S.inv[k]) > 0 && (!RES[k].lureElement || RES[k].lureElement === sp.element));
+            const block = tameBlock(S, sg.id, '');
+            return '<section class="ck-encounter" style="--el:var(--' + elKey(sp.element) + ')"><div class="ck-encounter-stage"><img class="ck-banner-img" src="' + esc(namedScene(elKey(sp.element) + '-journey')) + '" alt="" decoding="async"><span class="ck-banner-shade" aria-hidden="true"></span>' +
+                '<p class="ck-encounter-kicker">A wild Siegeling appears!</p>' + speciesPortrait(sg.species, sp.element, 'is-encounter') +
+                '<div class="ck-encounter-name"><h2>' + esc(sp.name) + '</h2><span class="ck-chips">' + elChip(sp.element) + chip((CLASS_EMOJI[sp.cls] || '') + ' ' + sp.cls) + chip(titleCase(sp.rarity)) + '</span></div></div>' +
+                '<div class="ck-encounter-body"><p class="ck-hint">Spotted near ' + esc(destName(sg.route)) + ' · trail goes cold in ' + eta(sg.expiresAt) + '</p>' + (block ? '<p class="ck-small ck-warn">' + esc(block) + '</p>' : '') +
+                '<div class="ck-approaches">' + approach('🧘', 'Patient approach', 'Uses your Taming skill. Costs nothing.', block ? null : Math.round(tameChance(S, sg, '') * 100), 'data-act="tame" data-arg="' + esc(sg.id) + ':"') +
+                (lures.length ? lures.map((k) => approach(itemEmoji(k), RES[k].name, 'Spends one lure (' + fl(S.inv[k]) + ' left).', block ? null : Math.round(tameChance(S, sg, k) * 100), 'data-act="tame" data-arg="' + esc(sg.id) + ':' + k + '"')).join('')
+                    : approach('🪝', 'Lure', 'Brew lures with Alchemy. Element lures work best.', null, '')) + '</div></div></section>';
+        }).join('');
+    }
+    function approach(emoji, name, text, chance, attrs) {
+        const ok = chance != null && attrs;
+        return '<button type="button" class="ck-approach"' + (ok ? ' ' + attrs : ' disabled') + '><span class="ck-approach-ico" aria-hidden="true">' + emoji + '</span>' +
+            '<span class="ck-approach-text"><b>' + esc(name) + '</b><span class="ck-small">' + esc(text) + '</span></span>' + (chance != null ? '<span class="ck-odds" style="--p:' + chance + '"><b>' + chance + '%</b></span>' : '') + '</button>';
+    }
+
+    // —— Realm: guilds, the weekly Siege Operation and the Crowns market (server) ——
+    function viewRealm() {
+        let h = hero({ cls: 'is-road', scene: namedScene('metal-boss'), kicker: 'Guilds &amp; the marketplace', title: 'The Realm',
+            art: '<span class="ck-crowns" title="Crowns"><span aria-hidden="true">👑</span><b>' + fl(S.inv.crowns) + '</b></span>',
+            body: '<p class="ck-banner-line">Shared with every Dominion tester. Your save syncs to your account.</p>' });
+        if (!ONLINE) return h + '<section class="ck-card"><p class="ck-muted">This preview is offline. Guilds, operations and the market run on the live server at /dominion.</p></section>';
+        if (!NET.checked) return h + '<section class="ck-card"><p class="ck-muted">Checking your account…</p></section>';
+        if (!NET.signedIn) return h + '<section class="ck-card"><h3>Sign in to join the realm</h3><p class="ck-muted">Dominion plays on this device until you sign in. Signing in syncs your progress and opens guilds, operations and the market.</p><div class="ck-actions"><a class="ck-btn is-primary" href="/login">Sign in at the hub</a></div></section>';
+        if (!NET.realmAt && !NET.loading) setTimeout(loadRealm, 0);
+        h += '<section class="ck-card is-tight"><div class="ck-row"><span class="ck-small ck-muted">' + (NET.error ? esc(NET.error) : 'Synced ' + (NET.lastSync ? new Date(NET.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—') + ' · save v' + (S.sync.version || 0)) + '</span><button type="button" class="ck-pill" data-act="realm-refresh">Refresh</button></div></section>';
+        const G = NET.guild;
+        if (!G) return h + '<section class="ck-card"><p class="ck-muted">' + (NET.loading ? 'Gathering news from the realm…' : 'The realm could not be reached. Try Refresh.') + '</p></section>';
+        if (!G.guild) {
+            h += '<section class="ck-card"><h3>Guild</h3><p class="ck-muted">Knights join forces in guilds to break a great threat each week. Needs Knight Rank ' + G.guildRank + ' (you are ' + G.rank + ').</p>' +
+                '<form data-form="guild-join"><label class="ck-field"><span>Join with a code</span><input name="code" id="dmGuildCode" maxlength="8" autocomplete="off" placeholder="ABC123"></label><div class="ck-actions"><button type="submit" class="ck-btn">Join guild</button></div></form>' +
+                '<form data-form="guild-create"><label class="ck-field"><span>Or found your own</span><input name="name" id="dmGuildName" maxlength="24" autocomplete="off" placeholder="Guild name"></label><div class="ck-actions"><button type="submit" class="ck-btn is-primary">Found a guild</button></div></form></section>';
+        } else {
+            const g = G.guild, op = g.operation, nextT = (g.defenseThresholds || []).find((t) => t > g.defensePoints), ob = operationBlock(S);
+            h += '<section class="ck-card"><div class="ck-row"><h3>🚩 ' + esc(g.name) + '</h3><span class="ck-chip">Code ' + esc(g.code) + '</span></div>' +
+                '<ul class="ck-members">' + g.members.map((m) => '<li class="' + (m.you ? 'is-you' : '') + '"><span>' + esc(m.name) + '</span><b>' + m.contribution + '</b></li>').join('') + '</ul></section>' +
+                '<section class="ck-card ck-operation" style="--el:var(--' + elKey(op.element) + ')"><div class="ck-operation-art"><img src="' + esc(namedScene(elKey(op.element) + '-boss')) + '" alt="" loading="lazy" decoding="async"><span class="ck-banner-shade" aria-hidden="true"></span>' +
+                '<p class="ck-banner-kicker">⚔️ Siege Operation · ' + esc(op.week) + '</p><h2 class="ck-banner-title">' + elementIcon(op.element, 26) + ' ' + esc(op.threat) + '</h2></div>' +
+                '<p class="ck-small">' + esc(op.blurb) + '</p><span class="ck-bar is-fat is-el is-threat"><i style="width:' + pctOf(op.damage, op.maxHp) + '%"></i></span>' +
+                '<p class="ck-small">' + op.damage + ' / ' + op.maxHp + ' broken · your share ' + op.yours + ((S.opReports || []).length ? ' · ' + S.opReports.length + ' report waiting to send' : '') + '</p>' +
+                (op.won ? '<p class="ck-good">The threat is broken!</p><div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="op-claim"' + (op.claimed || !op.yours ? ' disabled' : '') + '>' + (op.claimed ? 'Spoils claimed' : op.yours ? 'Claim your share' : 'Fight next week to share') + '</button></div>'
+                    : '<div class="ck-fronts">' + Object.keys(CH.fronts || {}).map((fid) => '<div class="ck-front"><b>' + ({ assault: '⚔️', supply: '📦', scouting: '🔭' }[fid] || '🚩') + ' ' + esc(CH.fronts[fid].name) + '</b><span class="ck-small">' + esc(CH.fronts[fid].text) + '</span>' +
+                        '<button type="button" class="ck-btn is-sm is-primary" data-act="op-go" data-arg="' + fid + '"' + (ob ? ' disabled' : '') + '>Send · 8h</button></div>').join('') + '</div>' + (ob ? '<p class="ck-small ck-muted">' + esc(ob) + '</p>' : '')) +
+                '<h4>Siege defenses · level ' + g.defenseLevel + '</h4><p class="ck-small">' + g.defensePoints + (nextT ? ' / ' + nextT : '') + ' points. Each level adds 10% to every sortie.</p>' +
+                '<div class="ck-pills">' + Object.keys(CH.donationPoints || {}).filter((k) => fl(S.inv[k]) > 0).map((k) => '<button type="button" class="ck-pill" data-act="donate" data-arg="' + k + '">' + esc(itemName(k)) + ' ×' + Math.min(10, fl(S.inv[k])) + ' · +' + CH.donationPoints[k] * Math.min(10, fl(S.inv[k])) + '</button>').join('') +
+                (Object.keys(CH.donationPoints || {}).some((k) => fl(S.inv[k]) > 0) ? '' : '<span class="ck-small ck-muted">Planks, bars, rope, linen, rune stones, tonics and relics count.</span>') + '</div>' +
+                '<div class="ck-actions"><button type="button" class="ck-link" data-act="guild-leave">Leave guild</button></div></section>';
+        }
+        const M = NET.market;
+        if (M) {
+            const owned = Object.keys(S.inv).filter((k) => tradeable(k) && fl(S.inv[k]) > 0).sort(), others = M.open.filter((l) => !l.mine);
+            h += '<section class="ck-card"><h3>🛒 Marketplace</h3><p class="ck-small ck-muted">Trade materials and consumables for Crowns. Gear is never sold: a Knight wears what they craft. Sellers pay a ' + Math.round(M.fee * 100) + '% fee.</p>' +
+                (others.length ? '<div class="ck-listings">' + others.map((l) => '<div class="ck-listing">' + itemIcon(l.itemId, 'is-sm') + '<div><b>' + l.qty + '× ' + esc(itemName(l.itemId)) + '</b><span class="ck-small ck-muted">' + esc(l.seller) + '</span></div><button type="button" class="ck-btn is-sm' + (fl(S.inv.crowns) >= l.price ? ' is-primary' : '') + '" data-act="mk-buy" data-arg="' + esc(l.id) + '"' + (fl(S.inv.crowns) < l.price ? ' disabled' : '') + '>👑 ' + l.price + '</button></div>').join('') + '</div>' : '<p class="ck-small ck-muted">Nothing for sale right now.</p>') +
+                '<h4>Sell</h4>' + (owned.length ? '<form class="ck-sell" data-form="market-list"><select name="item" id="dmListItem" aria-label="Item">' + owned.map((k) => '<option value="' + k + '">' + esc(itemName(k)) + ' (' + fl(S.inv[k]) + ')</option>').join('') + '</select>' +
+                    '<input name="qty" id="dmListQty" type="number" min="1" value="1" inputmode="numeric" aria-label="Quantity"><input name="price" id="dmListPrice" type="number" min="1" value="10" inputmode="numeric" aria-label="Price in crowns"><button type="submit" class="ck-btn is-sm">List</button></form>' : '<p class="ck-small ck-muted">Nothing to sell yet.</p>') +
+                (M.mine.length ? '<h4>Your listings</h4><div class="ck-listings">' + M.mine.map((l) => '<div class="ck-listing">' + itemIcon(l.itemId, 'is-sm') + '<div><b>' + l.qty + '× ' + esc(itemName(l.itemId)) + '</b><span class="ck-small ck-muted">👑 ' + l.price + ' · ' + l.status + '</span></div>' + (l.status === 'open' ? '<button type="button" class="ck-btn is-sm" data-act="mk-cancel" data-arg="' + esc(l.id) + '">Cancel</button>' : '') + '</div>').join('') + '</div>' : '') + '</section>';
+        }
+        return h;
+    }
+    // —— Base: the Keep ——
+    const BASE_SECS = [['grounds', 'Grounds'], ['visitors', 'Visitors'], ['chronicle', 'Chronicle'], ['build', 'Build'], ['keep', 'Stores'], ['log', 'Log']];
+    function baseCounts() {
+        return {
+            visitors: visitorsHere(S).length + S.requests.filter((q) => !requestBlock(S, q.id)).length,
+            chronicle: LORE().entries.filter((e) => loreOpen(S, e.id) && !S.lore[e.id]).length,
+            build: projectList(S).filter((p) => !buildBlock(S, p.id)).length,
+            keep: (S.events || []).filter((e) => !e.repaired && !e.repairEndAt).length
+        };
+    }
+    function viewBase() {
+        const sec = S.ui.base || 'grounds', n = baseCounts();
+        const strip = ['timber', 'stone', 'provisions', 'glass', 'silver'].map((k) => '<span class="ck-chip dm-res" title="' + esc(itemName(k)) + '">' + itemEmoji(k) + ' <b data-res="' + k + '">' + fl(S.inv[k]) + '</b>' + (k === 'timber' ? '<small>/' + timberCap(S) + '</small>' : '') + '</span>').join('');
+        let h = '<div class="dm-base-head"><div class="ck-chips dm-res-strip">' + strip + '</div></div>' +
+            '<div class="ck-worktype dm-base-nav" role="tablist" aria-label="Keep sections">' + BASE_SECS.map((x) =>
+                '<button type="button" role="tab" aria-selected="' + (sec === x[0]) + '" class="ck-type' + (sec === x[0] ? ' is-on' : '') + '" data-act="base-sec" data-arg="' + x[0] + '">' + x[1] + (n[x[0]] ? '<span class="ck-badge dm-inline-badge">' + n[x[0]] + '</span>' : '') + '</button>').join('') + '</div>';
+        if (sec === 'visitors') return h + visitorsSection();
+        if (sec === 'chronicle') return h + chronicleSection();
+        if (sec === 'build') return h + buildSection();
+        if (sec === 'keep') return h + storesSection();
+        if (sec === 'log') return h + logSection();
+        return h + groundsSection();
+    }
+    function objectiveCard() {
+        const obj = currentObjective(S);
+        if (!obj) return '';
+        return '<button type="button" class="ck-card dm-objective-card" data-act="objective"><span class="ck-kicker">' + esc(obj.ch.chapter) + ' · ' + (obj.i + 1) + '/' + obj.ch.steps.length + '</span><b>' + esc(obj.step.title) + '</b>' +
+            '<span class="ck-small ck-muted">' + esc(obj.step.hint) + '</span><span class="dm-steps">' + obj.ch.steps.map((st, i) => '<i class="' + (S.obj[st.id] ? 'done' : i === obj.i ? 'now' : '') + '"></i>').join('') + '</span></button>';
+    }
+    function groundsSection() {
+        const room = S.ui.room;
+        let h = objectiveCard();
+        if (room) h += roomView(room);
+        else {
+            const stored = ['woodlot'].concat(Object.keys(WS)).reduce((a, id) => a + storedCount(S, id), 0);
+            h += '<div class="dm-scene-box" id="dmSceneSlot"></div>' +
+                '<div class="ck-actions dm-grounds-actions"><button type="button" class="ck-btn' + (stored ? ' is-primary' : '') + '" data-act="collect-all"' + (stored ? '' : ' disabled') + '>🧺 Collect everything' + (stored ? ' (' + stored + ')' : '') + '</button>' +
+                '<button type="button" class="ck-btn" data-act="room" data-arg="quarter">⚙️ Elemental Quarter</button></div>' +
+                '<p class="ck-hint">Tap a building to step inside. Rooms fill their own stores for up to ' + STORE_HOURS + ' hours; collect them to bring the goods into storage.</p>';
+        }
+        return h;
+    }
+
+    // The scene is one persistent DOM node (heavy SVG), moved between a hidden host and the tab.
+    function parkScene() { const sc = $('dmScene'); if (sc && sc.parentNode !== $('dmKeepHost')) $('dmKeepHost').appendChild(sc); }
+    function mountScene() {
+        const slot = $('dmSceneSlot');
+        if (!slot) return;
+        renderScene();
+        slot.appendChild($('dmScene'));
+    }
+    function renderScene() {
+        const sc = $('dmScene');
+        sc.dataset.hall = String(S.b.hall);
+        sc.dataset.woodlot = String(S.b.woodlot);
+        sc.dataset.archive = S.b.archive >= 1 ? '1' : '0';
+        sc.dataset.front = String(S.b.front || 0);
+        sc.dataset.heal = String(Math.min(2, (S.b.archive >= 1 ? 1 : 0) + (S.b.woodlot >= 2 ? 1 : 0) + (S.b.hall >= 2 ? 1 : 0)));
+        sc.querySelectorAll('.building-hotspot').forEach((b) => {
+            const key = b.dataset.building;
+            b.classList.toggle('is-building', !!buildFor(S, key) || (key === 'quarter' && (S.builds || []).some((x) => KEY_OF(x.id) === 'quarter')));
+            b.classList.toggle('is-damaged', damaged(S, key === 'hall' ? 'great_hall' : key));
+            b.classList.toggle('is-ready', key === 'woodlot' ? storedCount(S, 'woodlot') > 0 : key === 'quarter' ? Object.keys(WS).some((w) => storedCount(S, w) > 0) : false);
+        });
+        for (let n = 2; n <= 8; n++) sc.classList.toggle('hall-l' + n, S.b.hall >= n);
+        sc.dataset.theme = S.theme || 'covenant';
+        const th = HALL_THEMES.find((t) => t[0] === S.theme);
+        sc.style.setProperty('--hall-accent', th ? th[2] : '#f4cc62');
+        const lbl = (k, v) => { const e = sc.querySelector('[data-label="' + k + '"]'); if (e) e.textContent = v; };
+        lbl('hall', HALL_RANKS[S.b.hall - 1] + (rebirths(S) ? ' · ' + REBIRTH_TITLES[rebirths(S)] : ''));
+        lbl('woodlot', S.b.woodlot >= 1 ? 'Lv ' + S.b.woodlot + ' · ' + storedCount(S, 'woodlot') + ' to collect' : 'Cleared ground · ' + WOODLOT_COST + ' Timber');
+        lbl('archiveName', S.b.archive >= 1 ? 'Archive' : 'Ruined Archive');
+        lbl('archive', S.b.archive >= 1 ? 'Studies · Chronicle' : '60 Timber + 3 Glass');
+        const built = Object.keys(WS).filter((w) => wsBuilt(S, w)).length, act = activeRecipes(S);
+        lbl('quarter', !built ? 'Empty plots · build workshops' : built + '/6 workshops' + (act.length ? ' · ' + act.length + ' linked' : ''));
+        const resting = joinedIds(S).filter((id) => S.comps[id].job.kind === 'rest' && !onExpedition(S, id));
+        lbl('enclave', resting.length ? resting.map((id) => C(id).name).join(', ') + ' resting' : 'Residents rest here');
+        lbl('front', S.b.front >= 1 ? 'Rank ' + S.b.front + ' · ' + Math.min(defenders(S).length, frontCap(S)) + '/' + frontCap(S) + ' posted' : 'Unbuilt · Hall 2');
+        $('dmQuarterMini').innerHTML = S.grid.map((c, i) => c ? '<i class="quarter-building quarter-' + c.id + '" style="left:' + (4 + (i % 3) * 33) + '%;bottom:' + (6 + (2 - Math.floor(i / 3)) * 31) + '%"><b></b></i>' : '').join('') +
+            links(S.grid).filter((l) => l.recipe).map((l) => {
+                const ra = Math.floor(l.a / 3), ca = l.a % 3, rb = Math.floor(l.b / 3), cb = l.b % 3;
+                if (ra === rb) return '<i class="quarter-link" style="left:' + (24 + Math.min(ca, cb) * 33) + '%;bottom:' + (18 + (2 - ra) * 31) + '%;width:16%"></i>';
+                return '<i class="quarter-link" style="left:' + (15 + ca * 33) + '%;bottom:' + (6 + (2 - Math.max(ra, rb)) * 31 + 22) + '%;width:4px;height:12%"></i>';
+            }).join('');
+        // Posted defenders stand on the wall as paper standees; Akhar's raiders are shades.
+        $('dmWallDefenders').innerHTML = defenders(S).slice(0, frontCap(S)).map((id) => '<b>' + compArt(id, '') + '</b>').join('');
+        const ov = [];
+        if (S.exp) ov.push('<button class="dm-knight" type="button" data-act="tab" data-arg="expedition" style="top:auto;bottom:31%" aria-label="Knight on expedition"><span class="dm-art" style="opacity:.55">' + artImg('knight', '') + '</span><span class="dm-pip">' + esc(expTitle(S.exp)) + ' · <span data-live="eta" data-end="' + S.exp.endAt + '"></span></span></button>');
+        else {
+            const td = taskDef(S.knight.task);
+            ov.push('<button class="dm-knight" type="button" data-act="tab" data-arg="work" aria-label="The Knight"><span class="dm-art">' + artImg('knight', '') + '</span><span class="dm-pip green">' + esc(td ? taskLabel(S) : 'Resting') + '</span></button>');
+        }
+        const spot = { woodlot: 'left:30%;bottom:22%', forge: 'left:6%;top:41%', fridge: 'left:30%;top:52%', generator: 'left:30%;top:39%', garden: 'left:6%;top:52%', kitchen: 'left:18%;top:52%', quarry: 'left:18%;top:41%' };
+        let restSlot = 0, exploreSlot = 0;
+        joinedIds(S).slice(0, 12).forEach((id) => {
+            const c = S.comps[id];
+            if (onExpedition(S, id) || c.job.kind === 'front' || c.job.kind === 'knight') return;
+            if (c.job.kind === 'rest' && restSlot >= 4) return;
+            let pos;
+            if (c.job.kind === 'help') pos = spot[c.job.target];
+            else if (c.job.kind === 'rest') pos = 'right:' + (8 + restSlot++ * 11) + '%;top:42%';
+            else pos = 'left:' + (44 + exploreSlot++ * 9) + '%;bottom:2%;opacity:.7';
+            if (pos) ov.push('<span class="dm-resident" style="' + pos + '" title="' + esc(C(id).name) + '">' + compArt(id, C(id).name) + '</span>');
+        });
+        const pipPos = { hall: 'left:50%;top:12%;transform:translateX(-50%)', woodlot: 'left:8%;bottom:30%', archive: 'right:8%;bottom:31%', front: 'left:4%;top:20%', quarter: 'left:4%;top:37%' };
+        (S.builds || []).forEach((b, i) => {
+            const pos = pipPos[KEY_OF(b.id)] || ('left:50%;bottom:' + (14 + i * 6) + '%;transform:translateX(-50%)');
+            ov.push('<span class="dm-pip" style="' + pos + '">⚒ <span data-live="eta" data-end="' + b.endAt + '"></span></span>');
+        });
+        const dmg = (S.events || []).filter((e) => !e.repaired);
+        if (dmg.length) ov.push('<button class="dm-pip" type="button" data-act="base-sec" data-arg="keep" style="right:4%;top:31%;pointer-events:auto;border-color:rgba(255,138,115,.7);color:#ffb3a3">' + dmg.length + ' to repair</button>');
+        if (visitorsHere(S).length) ov.push('<button class="dm-pip green" type="button" data-act="base-sec" data-arg="visitors" style="left:50%;bottom:3%;transform:translateX(-50%);pointer-events:auto">🚪 ' + visitorsHere(S).length + ' at the gate</button>');
+        $('dmSceneOverlay').innerHTML = ov.join('');
+    }
+
+    // —— Interiors: the Keep's rooms, entered from the scene ——
+    const ROOM_KEY = { hall: 'great_hall', woodlot: 'woodlot', archive: 'archive', enclave: 'enclave', garden: 'garden', forge: 'forge', fridge: 'fridge', generator: 'generator', quarry: 'quarry', kitchen: 'kitchen' };
+    const ROOM_TITLE = { hall: 'Great Hall', woodlot: 'Woodlot Lodge', archive: 'Archive', enclave: 'Siegeling Enclave', quarter: 'Elemental Quarter', front: 'Akhar’s Wall' };
+    function tourRooms() { return ['hall', 'woodlot', 'archive', 'quarter'].concat(Object.keys(WS).filter((w) => wsBuilt(S, w)), ['enclave', 'front']); }
+    const roomTitle = (id) => (WS[id] ? WS[id].name : id === 'archive' && S.b.archive < 1 ? 'Ruined Archive' : ROOM_TITLE[id] || titleCase(id));
+    function roomBuilt(id) {
+        if (id === 'woodlot') return S.b.woodlot >= 1;
+        if (id === 'archive') return true;
+        if (id === 'front') return S.b.front >= 1;
+        if (WS[id]) return wsBuilt(S, id);
+        return true;
+    }
+    let ROOM_HTML = {};
+    function roomStage(id) {
+        if (id === 'front') return wallStage();
+        if (id === 'quarter') return '<div class="dm-quarter-stage">' + quarterGrid() + '</div>';
+        const key = ROOM_KEY[id], tpl = ROOM_HTML[key] || '';
+        let site = '';
+        const b = (S.builds || []).find((x) => (id === 'woodlot' && x.id === 'woodlot_1') || x.id === 'ws_' + id + '_1' || (id === 'archive' && x.id === 'archive'));
+        if (!roomBuilt(id) || b) {
+            site = '<div class="dm-site' + (b ? ' is-working' : '') + '"><span class="dm-site-scaffold"><i></i><i></i><i></i></span><span class="dm-site-crates"><i></i><i></i></span>' +
+                '<span class="dm-site-label">' + (b ? '⚒ ' + esc(b.name) + ' · ' + eta(b.endAt) : 'Cleared ground, waiting for a crew') + '</span>' + (b ? liveBar(b.startAt, b.endAt, 'dm-site-bar') : '') + '</div>';
+        }
+        return tpl + site;
+    }
+    function roomView(id) {
+        const rooms = tourRooms(), i = Math.max(0, rooms.indexOf(id)), prev = rooms[(i - 1 + rooms.length) % rooms.length], next = rooms[(i + 1) % rooms.length];
+        const fill = Math.round((id === 'woodlot' || WS[id] ? storeFill(S, id) : 0) * 4);
+        return '<section class="dm-interior"><div class="keep-interior" aria-hidden="false" data-room="' + (ROOM_KEY[id] || id) + '" data-hall-theme="' + esc(S.theme || 'covenant') + '" data-fill="' + fill + '" data-archive-restored="' + (S.b.archive >= 1) + '">' +
+            '<header class="interior-bar"><button class="interior-exit" type="button" data-act="room" data-arg=""><span aria-hidden="true">⟵</span> Grounds</button><div class="interior-heading"><span class="eyebrow">' + (roomBuilt(id) ? 'Inside' : 'Building site') + '</span><h2>' + esc(roomTitle(id)) + '</h2></div></header>' +
+            '<div class="interior-viewport"><div class="interior-stage" id="dmRoomStage">' + roomStage(id) + '</div>' +
+            '<nav class="interior-nav" aria-label="Move between buildings"><button class="interior-arrow arrow-prev" type="button" data-act="room" data-arg="' + prev + '"><span aria-hidden="true">‹</span><small>' + esc(roomTitle(prev)) + '</small></button>' +
+            '<button class="interior-arrow arrow-next" type="button" data-act="room" data-arg="' + next + '"><small>' + esc(roomTitle(next)) + '</small><span aria-hidden="true">›</span></button>' +
+            '<div class="interior-rail" role="tablist">' + rooms.map((r) => '<button type="button" class="rail-dot' + (r === id ? ' is-current' : '') + '" data-act="room" data-arg="' + r + '" aria-label="' + esc(roomTitle(r)) + '"></button>').join('') + '</div></nav></div></div>' +
+            '<div class="dm-room-actions">' + roomActions(id) + '</div></section>';
+    }
+    // After the interior is in the DOM: residents, installed tools and displayed decorations.
+    function decorateRoom() {
+        const st = $('dmRoomStage');
+        if (!st) return;
+        const id = S.ui.room;
+        const helper = id === 'hall' ? (joinedIds(S)[0] || '') : helperOf(S, id);
+        const res = st.querySelector('.lodge-resident, .facility-room-resident, .hall-favorite-resident');
+        // Only a standing room has a resident, and only real card art makes a standee.
+        if (res && helper && !onExpedition(S, helper) && roomBuilt(id) && catalogArt(speciesOf(helper).id, 240)) {
+            res.classList.remove('hidden');
+            const art = res.querySelector('span'), name = res.querySelector('small');
+            if (art) { art.className = 'dm-room-cutout'; art.innerHTML = compArt(helper, ''); }
+            if (name) name.textContent = C(helper).name;
+        }
+        st.querySelectorAll('[data-enclave-resident-slot]').forEach((b, i) => {
+            const here = joinedIds(S).filter((u) => S.comps[u].job.kind === 'rest' && !onExpedition(S, u));
+            const show = here[i] && catalogArt(speciesOf(here[i]).id, 240);
+            b.innerHTML = show ? compArt(here[i], '') : '';
+            b.className = show ? 'dm-room-cutout' : '';
+        });
+        st.querySelectorAll('[data-decoration-art]').forEach((d) => d.classList.toggle('is-placed', !!S.placed[d.dataset.decorationArt]));
+        const tool = Object.keys(KEEP_CRAFTS).find((k) => KEEP_CRAFTS[k][1] === 'TOOL' && KEEP_CRAFTS[k][2] === id && S.crafted[k]);
+        st.querySelectorAll('.room-tool-set').forEach((t) => { t.classList.toggle('has-installed-tools', !!tool); const one = t.querySelector('[data-tool-tier="1"]'); if (one) one.classList.toggle('is-crafted', !!tool); });
+        const plinth = st.querySelector('.arch-plinth');
+        if (plinth) plinth.classList.toggle('hidden', !loreOpen(S, 'memorabilia_petrified_root'));
+    }
+    function wallStage() {
+        const lvl = S.b.front || 0, defs = defenders(S).slice(0, frontCap(S));
+        const pool = Object.keys(SPECIES).filter((k) => SPECIES[k].rarity === 'COMMON');
+        const raiders = lvl ? [0, 1, 2].map((i) => pool[(hashOf('raid' + Math.floor(S.t / HOUR) + i) % pool.length + pool.length) % pool.length]) : [];
+        return '<div class="dm-wall-stage" data-level="' + lvl + '"><i class="dm-wall-sky"></i><i class="dm-wall-hills"></i>' +
+            '<div class="dm-wall-raiders">' + raiders.map((sp) => '<b>' + (catalogArt(sp, 240) ? '<img class="dm-shade" src="' + esc(catalogArt(sp, 240)) + '" alt="">' : '') + '</b>').join('') + '</div>' +
+            (lvl ? '<svg class="dm-wall-svg" viewBox="0 0 360 150" preserveAspectRatio="none"><path d="M0 64h28V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h30V37h32v27h52v86H0z" fill="#b48b58" stroke="#3d2a1b" stroke-width="5"/><path d="M0 77h360" stroke="#e0bd83" stroke-width="4" opacity=".6"/></svg>'
+                : '<svg class="dm-wall-svg is-ruin" viewBox="0 0 360 150" preserveAspectRatio="none"><path d="M0 128h60v-14h40v14h70v-8h50v8h140v22H0z" fill="#7b6650" stroke="#3d2a1b" stroke-width="4"/><path d="M20 112l14-10 10 12M200 116l18-12 8 10M290 118l12-8 10 10" stroke="#5a4634" stroke-width="5" fill="none"/></svg>') +
+            '<div class="dm-wall-defenders">' + defs.map((id) => '<b class="dm-room-cutout">' + compArt(id, '') + '</b>').join('') + '</div>' +
+            (lvl ? '' : '<span class="dm-site-label">Foundations of Akhar’s Wall</span>') + '</div>';
+    }
+    function quarterGrid() {
+        return '<div class="dm-quarter' + (arranging ? ' is-arranging' : '') + (quarterSel >= 0 && arranging ? ' has-selection' : '') + '" role="grid" aria-label="Elemental Quarter plots">' + S.grid.map((c, i) => plotHtml(i)).join('') + '</div>';
+    }
+    function plotHtml(i) {
+        const c = S.grid[i], sel = i === quarterSel, lab = 'Plot ' + (Math.floor(i / 3) + 1) + '-' + (i % 3 + 1);
+        if (!c) return '<button class="dm-plot is-empty' + (sel ? ' is-selected' : '') + '" type="button" data-act="plot" data-arg="' + i + '" aria-label="' + lab + ', empty"></button>';
+        const W = WS[c.id];
+        let extra = '';
+        links(S.grid).forEach((l) => {
+            if (l.a !== i) return;
+            const waiting = l.recipe && !canRefine(S, l.recipe) && S.refine[l.recipe] >= 1 - 1e-9, cls = l.recipe ? (waiting ? 'wait' : '') : 'dead';
+            const name = l.recipe ? RECIPES[l.recipe].name + (waiting ? ' (waiting)' : '') : 'No recipe';
+            if (l.dir === 1) extra += '<i class="dm-link ' + cls + '" style="right:-12px;top:calc(50% - 3px);width:14px;height:6px"></i><span class="dm-link-label" style="left:100%;top:50%">' + esc(name) + '</span>';
+            else extra += '<i class="dm-link ' + cls + '" style="bottom:-12px;left:calc(50% - 3px);height:14px;width:6px"></i><span class="dm-link-label" style="left:50%;top:100%">' + esc(name) + '</span>';
+        });
+        return '<button class="dm-plot' + (sel ? ' is-selected' : '') + '" type="button" data-act="plot" data-arg="' + i + '" style="--el:var(--' + W.el + ')" aria-label="' + esc(W.name) + ', ' + lab + ', socket faces ' + ['north', 'east', 'south', 'west'][c.rot] + '" aria-pressed="' + sel + '">' +
+            '<span class="dm-ws-art">' + (WORKSHOP_ART[c.id] || '') + '</span><span class="dm-ws-name">' + esc(W.name) + (storedCount(S, c.id) ? ' · ' + storedCount(S, c.id) : '') + '</span><i class="dm-socket" data-dir="' + c.rot + '"></i>' + extra + '</button>';
+    }
+    function projectCard(p) {
+        const b = buildBlock(S, p.id);
+        return '<section class="ck-card dm-project"><div class="ck-row"><b>' + esc(p.name) + '</b>' + chip('⏱️ ' + fmtDur(p.ms)) + '</div><p class="ck-small ck-muted">' + esc(p.effect) + '</p>' + costRow(p.cost) +
+            '<div class="ck-actions"><button type="button" class="ck-btn is-sm' + (b ? '' : ' is-primary') + '" data-act="build" data-arg="' + p.id + '"' + (b ? ' disabled' : '') + '>🔨 Build</button>' + (b ? '<span class="ck-small ck-muted">' + esc(b) + '</span>' : '') + '</div></section>';
+    }
+    function underway(filter) {
+        return (S.builds || []).filter((b) => filter(b.id)).map((b) => '<section class="ck-card"><div class="ck-row"><b>⚒ ' + esc(b.name) + '</b>' + eta(b.endAt) + '</div>' + liveBar(b.startAt, b.endAt) + '</section>').join('');
+    }
+    const projects = (re) => underway((id) => re.test(id)) + projectList(S).filter((p) => re.test(p.id)).map(projectCard).join('');
+    function produceCard(id) {
+        const rates = id === 'woodlot' ? { timber: woodlotRate(S) } : workshopRates(S, id), st = storedOf(S, id), helper = helperOf(S, id), n = storedCount(S, id);
+        const keys = Object.keys(rates).filter((k) => rates[k] > 0);
+        return '<section class="ck-card"><div class="ck-row"><h3>🧺 Stores</h3>' + chip(Math.round(storeFill(S, id) * 100) + '% full') + '</div>' +
+            barP(storeFill(S, id) * 100, 'is-fat') + '<p class="ck-small">' + (keys.length ? keys.map((k) => fmtRate(rates[k]) + ' ' + esc(itemName(k)) + '/h').join(' · ') : 'Not producing.') + (damaged(S, id === 'hall' ? 'great_hall' : id) ? ' <span class="ck-warn">Damaged: repair it in Stores.</span>' : '') + '</p>' +
+            (Object.keys(st).length ? lootRow(Object.fromEntries(Object.keys(st).map((k) => [k, fl(st[k])]))) : '') +
+            '<div class="ck-actions"><button type="button" class="ck-btn' + (n ? ' is-primary' : '') + '" data-act="collect" data-arg="' + id + '"' + (n ? '' : ' disabled') + '>Collect' + (n ? ' ' + n : '') + '</button></div>' +
+            '<h4>Resident</h4><div class="ck-pills">' + (helper ? '<span class="ck-chip is-help">' + esc(C(helper).name) + ' +' + Math.round((helperMul(S, id) - 1) * 100) + '%' + (onExpedition(S, helper) ? ' (away)' : '') + '</span><button type="button" class="ck-pill" data-act="cjob" data-arg="' + helper + ':rest">Send to rest</button>' : '') +
+            joinedIds(S).filter((u) => u !== helper && !onExpedition(S, u) && !(S.comps[u].job.kind === 'help' && S.comps[u].job.target !== id && false)).slice(0, 8).map((u) => '<button type="button" class="ck-pill' + (C(u).likes.includes(id) ? ' is-love' : '') + '" data-act="cjob" data-arg="' + u + ':help:' + id + '"' + (helper ? ' disabled' : '') + '>' + esc(C(u).name) + (C(u).likes.includes(id) ? ' ♥' : '') + '</button>').join('') + '</div>' +
+            '<p class="ck-hint">♥ marks a favourite room: +30%. Rapport from the Enclave lifts every helper further.</p></section>';
+    }
+    function roomCrafts(room) {
+        const ids = Object.keys(KEEP_CRAFTS).filter((k) => KEEP_CRAFTS[k][2] === room);
+        if (!ids.length) return '';
+        return '<section class="ck-card"><h3>🛠️ Tools &amp; decorations</h3>' + ids.map((k) => {
+            const c = KEEP_CRAFTS[k], b = keepCraftBlock(S, k), made = !!S.crafted[k];
+            return '<div class="ck-recipe">' + emojiIcon(c[1] === 'TOOL' ? '🔧' : c[1] === 'BONUS' ? '📦' : '🎨', 'earth', 'is-lg') + '<div class="ck-recipe-main"><div class="ck-row"><b>' + esc(c[0]) + '</b><span class="ck-small">' + titleCase(c[1]) + '</span></div>' +
+                '<span class="ck-small ck-muted">' + (c[1] === 'TOOL' ? 'Lifts this room’s output 20%.' : c[1] === 'BONUS' ? 'A lasting bonus for the Keep.' : 'Displayed in the room. Residents notice new pieces.') + '</span>' + (made ? '' : costRow(ka(c[3]))) +
+                '<div class="ck-pills">' + (made ? (c[1] === 'DECORATION' ? '<button type="button" class="ck-pill' + (S.placed[k] ? ' is-on' : '') + '" data-act="decor" data-arg="' + k + '">' + (S.placed[k] ? 'Displayed · store it' : 'Display it') + '</button>' : '<span class="ck-small is-ready">Installed</span>')
+                    : '<button type="button" class="ck-pill is-forge" data-act="kcraft" data-arg="' + k + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '>Craft</button>') + '</div></div></div>';
+        }).join('') + '</section>';
+    }
+    function roomActions(id) {
+        if (id === 'quarter') return quarterActions();
+        if (id === 'front') {
+            let h = '<section class="ck-card"><h3>🏰 Akhar’s Wall</h3><p class="ck-small ck-muted">Akhar’s raiders test the Keep from the east. Siegelings posted on the rampart hold them back and earn ' + frontRatePer(S) + ' Crowns an hour each.</p>';
+            if (S.b.front >= 1) {
+                h += '<h4>Rampart posts · ' + Math.min(defenders(S).length, frontCap(S)) + '/' + frontCap(S) + '</h4><div class="ck-pills">' + joinedIds(S).filter((u) => !onExpedition(S, u)).map((u) => {
+                    const on = S.comps[u].job.kind === 'front';
+                    return '<button type="button" class="ck-pill' + (on ? ' is-on' : '') + '" data-act="cjob" data-arg="' + u + ':' + (on ? 'rest' : 'front') + '">' + esc(C(u).name) + (on ? ' · posted' : '') + '</button>';
+                }).join('') + '</div>';
+            }
+            return h + '</section>' + projects(/^front_/);
+        }
+        if (!roomBuilt(id)) {
+            const re = id === 'woodlot' ? /^woodlot_1$/ : new RegExp('^ws_' + id + '_1$');
+            return '<section class="ck-card"><p class="ck-small">' + esc(id === 'woodlot' ? BUILDINGS.woodlot.blurb : WS[id].blurb) + '</p></section>' + projects(re);
+        }
+        if (id === 'woodlot') {
+            return produceCard('woodlot') + '<section class="ck-card"><h3>🪓 The Knight</h3><p class="ck-small">' + (S.exp ? 'Away on the road.' : S.knight.task.kind === 'gather' && S.knight.task.id === 'chop_pine' ? 'Cutting pine here: ' + fmtRate(knightRates(S).gain.timber || 0) + ' Timber/h straight to storage.' : 'Working elsewhere.') + '</p>' +
+                (!S.exp && !(S.knight.task.kind === 'gather' && S.knight.task.id === 'chop_pine') ? '<div class="ck-actions"><button type="button" class="ck-btn is-sm" data-act="task" data-arg="gather:chop_pine">Cut pine here</button></div>' : '') + '</section>' +
+                roomCrafts('woodlot') + projects(/^(woodlot_2|wing_stable)/);
+        }
+        if (WS[id]) {
+            const rs = Object.keys(RECIPES).filter((r) => RECIPES[r].pair.includes(id));
+            return produceCard(id) + '<section class="ck-card"><h3>🔗 Socket links</h3><p class="ck-small ck-muted">' + esc(WS[id].blurb) + '</p><ul class="ck-cross">' + rs.map((r) => {
+                const on = activeRecipes(S).includes(r);
+                return '<li class="' + (on ? 'is-on' : '') + '"><b>' + esc(RECIPES[r].name) + '</b> <span class="ck-small">' + esc(WS[RECIPES[r].pair[0]].name + ' + ' + WS[RECIPES[r].pair[1]].name) + '</span><span class="ck-small ck-muted">' + (on ? 'Linked and refining.' : 'Face the two sockets at each other in the Quarter.') + '</span></li>';
+            }).join('') + '</ul><div class="ck-actions"><button type="button" class="ck-btn is-sm" data-act="room" data-arg="quarter">Arrange the Quarter</button></div></section>' +
+                roomCrafts(id) + projects(new RegExp('^(ws_' + id + '_2|annex_' + id + ')$'));
+        }
+        if (id === 'archive') {
+            if (S.b.archive < 1) return '<section class="ck-card"><p class="ck-small">' + esc(BUILDINGS.archive.blurb) + '</p></section>' + projects(/^archive$/);
+            const unread = LORE().entries.filter((e) => loreOpen(S, e.id) && !S.lore[e.id]).length;
+            return '<section class="ck-card"><h3>📚 Elemental Studies</h3><p class="ck-small">Elemental Studies Lv ' + skillLvl(S, 'elemental_studies') + ' · Runecrafting ' + (skillUnlocked(S, 'runecrafting') ? 'Lv ' + skillLvl(S, 'runecrafting') : esc(lockText(S, 'runecrafting'))) + ' · Insight ' + fl(S.inv.insight) + '</p>' +
+                '<div class="ck-actions">' + (!S.exp && !(S.knight.task.kind === 'gather' && S.knight.task.id === 'read_records') ? '<button type="button" class="ck-btn is-sm is-primary" data-act="task" data-arg="gather:read_records">Read the Covenant Records</button>' : '') +
+                '<button type="button" class="ck-btn is-sm" data-act="work-skill" data-arg="elemental_studies">Essence studies</button></div></section>' +
+                '<section class="ck-card"><h3>📜 The Chronicle</h3><p class="ck-small">' + LORE().entries.filter((e) => loreOpen(S, e.id)).length + ' of ' + LORE().entries.length + ' records recovered' + (unread ? ', ' + unread + ' unread' : '') + '.</p><div class="ck-actions"><button type="button" class="ck-btn is-sm" data-act="base-sec" data-arg="chronicle">Open the Chronicle</button><button type="button" class="ck-btn is-sm" data-act="base-sec" data-arg="visitors">Speak with visitors</button></div></section>' +
+                (S.disc.vaultMap ? '<section class="ck-card"><h3>🗺️ Sealed Vault Map</h3><p class="ck-small ck-muted">' + (skillLvl(S, 'elemental_studies') >= 10 ? 'Vault Cipher reads the map: it points to the Sunken Vault, not built in this slice.' : 'Its script needs Elemental Studies 10 to read.') + '</p></section>' : '') +
+                projects(/^wing_library/);
+        }
+        if (id === 'enclave') {
+            const here = joinedIds(S);
+            return '<section class="ck-card"><h3>🐾 Residents · ' + here.length + '/' + rosterCap(S) + '</h3><p class="ck-small ck-muted">Each resident asks three things of the Keep. Finish a task, then bank it here for rapport, Silver and Crowns. Rapport lifts everything they help with by 10% a level.</p></section>' +
+                here.map((u) => {
+                    const lvl = rapportLvl(S, u), pts = S.rapport[u] || 0, nextAt = RAPPORT_AT[lvl + 1], p = S.tasks[u] || {};
+                    return '<section class="ck-card dm-resident-card" style="--el:var(--' + C(u).el + ')"><div class="ck-row">' + portrait(u, 'is-sm') + '<div class="dm-grow"><b>' + esc(C(u).name) + '</b><span class="ck-small ck-muted"> · ' + esc(RAPPORT_NAMES[lvl]) + (lvl ? ' (+' + 10 * lvl + '%)' : '') + '</span>' +
+                        barP(nextAt ? (pts - RAPPORT_AT[lvl]) / (nextAt - RAPPORT_AT[lvl]) * 100 : 100, 'is-el') + '<span class="ck-small ck-muted">' + (nextAt ? pts + ' / ' + nextAt + ' rapport' : 'Bonded') + ' · ' + esc(onExpedition(S, u) ? 'Away with the Knight' : jobLabel(S, u)) + '</span></div></div>' +
+                        '<ul class="ck-cross">' + residentTasks(u).map((t) => {
+                            const v = p[t.id] || 0, done = v >= t.goal;
+                            return '<li class="' + (done ? 'is-on' : '') + '"><b>' + esc(t.name) + '</b> <span class="ck-small">' + v + '/' + t.goal + ' · +' + t.rapport + ' rapport</span><span class="ck-small ck-muted">' + esc(t.description) + '</span>' +
+                                (done ? '<button type="button" class="ck-pill is-on" data-act="bank" data-arg="' + u + ':' + t.id + '">Bank it</button>' : '') + '</li>';
+                        }).join('') + '</ul>' + (S.comps[u].job.kind !== 'rest' && !onExpedition(S, u) ? '<div class="ck-pills"><button type="button" class="ck-pill" data-act="cjob" data-arg="' + u + ':rest">Rest here</button></div>' : '') + '</section>';
+                }).join('') + projects(/^wing_sanctuary/);
+        }
+        // Great Hall
+        return '<section class="ck-card"><h3>🏛️ ' + esc(HALL_RANKS[S.b.hall - 1]) + '</h3><p class="ck-small">Keep rank ' + S.b.hall + ' of 8. Each rank adds 5% to Keep production and opens new projects.</p>' +
+            '<p class="ck-small ck-muted">' + esc(S.exp ? 'The Knight is away on ' + expTitle(S.exp) + '.' : S.knight.task.kind === 'idle' ? 'The Knight rests by the hearth.' : 'The Knight is working: ' + taskLabel(S) + '.') + '</p>' +
+            '<h4>Hall banners</h4><div class="ck-pills">' + HALL_THEMES.map((t) => { const lock = S.b.hall < t[3]; return '<button type="button" class="ck-pill' + (S.theme === t[0] ? ' is-on' : '') + '" data-act="theme" data-arg="' + t[0] + '"' + (lock ? ' disabled' : '') + ' style="box-shadow:inset 3px 0 ' + t[2] + '">' + esc(t[1]) + (lock ? ' · Hall ' + t[3] : '') + '</button>'; }).join('') + '</div></section>' +
+            roomCrafts('great_hall') + projects(/^(hall_|yard|storehouse|wing_war_room)/) + rebirthCard();
+    }
+    function quarterActions() {
+        let h = '<section class="ck-card"><p class="ck-small">' + (arranging ? 'Tap a workshop, then an empty plot to move it. Rotate turns its socket; two sockets facing each other make a link.' : 'Every workshop produces on its own. Linked pairs also refine automatically, using stock from storage. Tap a workshop to step inside.') + '</p>' +
+            '<div class="ck-actions">' + (arranging ? '<button type="button" class="ck-btn is-primary" data-act="rotate"' + (quarterSel >= 0 && S.grid[quarterSel] ? '' : ' disabled') + '>Rotate socket ↻</button><button type="button" class="ck-btn" data-act="arrange">Done</button>'
+                : '<button type="button" class="ck-btn" data-act="arrange"' + (S.grid.some(Boolean) ? '' : ' disabled') + '>Arrange</button>') + '</div></section>';
+        h += projects(/^ws_\w+_1$/);
+        const ls = links(S.grid);
+        h += '<section class="ck-card"><h3>🔗 Recipes</h3><ul class="ck-cross">' + Object.keys(RECIPES).map((rid) => {
+            const R = RECIPES[rid], on = ls.some((l) => l.recipe === rid), waiting = on && !canRefine(S, rid) && S.refine[rid] >= 1 - 1e-9;
+            return '<li class="' + (on ? 'is-on' : '') + '"><b>' + esc(R.name) + '</b> <span class="ck-small">' + esc(WS[R.pair[0]].name + ' + ' + WS[R.pair[1]].name) + ' · ' + fl(S.inv[Object.keys(R.output)[0]]) + ' in store</span><span class="ck-small ck-muted">' +
+                esc(Object.keys(R.input).map((k) => R.input[k] + ' ' + RES[k].name).join(' + ') + ' every ' + Math.round(R.mins / refineSpeed(S)) + ' min · ' + (on ? (waiting ? 'waiting for stock above your reserve' : 'running, batch ' + Math.round(Math.min(1, S.refine[rid] || 0) * 100) + '%') : 'not linked')) + '</span></li>';
+        }).join('') + '</ul></section>';
+        h += '<section class="ck-card"><h3>🛡️ Reserves</h3><p class="ck-small ck-muted">Refining never takes stock below these, so expeditions and construction keep what they need.</p><div class="ck-supplies">' + RESERVABLE.map((k) =>
+            '<div class="ck-supply">' + itemIcon(k, 'is-sm') + '<span class="ck-supply-name">' + esc(RES[k].name) + ' <span class="ck-small">(' + fl(S.inv[k]) + ')</span></span><span class="ck-stepper"><button type="button" data-act="reserve" data-arg="' + k + ':-1" aria-label="Lower">−</button><b>' + (S.reserve[k] || 0) + '</b><button type="button" data-act="reserve" data-arg="' + k + ':1" aria-label="Raise">+</button></span></div>').join('') + '</div></section>';
+        return h;
+    }
+
+    // —— Visitors: conversations, requests and trust ——
+    function visitorsSection() {
+        const here = visitorsHere(S);
+        let h = '';
+        if (here.length) {
+            h += here.map((c) => {
+                const n = S.visitors.npc[c.npcId] || { trust: 0 };
+                return '<section class="ck-card dm-visitor"><div class="ck-row"><span class="ck-kicker">' + esc(c.kicker || 'At the gate') + '</span>' + chip(trustStage(n.trust) + ' ' + n.trust + '/' + TRUST_MAX) + '</div><h3>' + esc(c.npcName) + '</h3><p class="ck-small ck-muted">' + esc(c.npcRole || '') + '</p>' +
+                    '<p class="dm-prompt">“' + esc(c.prompt) + '”</p><div class="dm-choices">' + (c.choices || []).map((ch) => {
+                        const b = voiceBlock(S, c.id, ch.id), cost = choiceCost(ch);
+                        return '<button type="button" class="ck-approach" data-act="voice" data-arg="' + esc(c.id) + ':' + esc(ch.id) + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '><span class="ck-approach-ico">💬</span><span class="ck-approach-text"><b>' + esc(ch.label) + '</b>' +
+                            (Object.keys(cost).length ? '<span class="ck-small">Costs ' + esc(Object.keys(cost).map((k) => cost[k] + ' ' + itemName(k)).join(', ')) + '</span>' : '') + (b ? '<span class="ck-small ck-warn">' + esc(b) + '</span>' : '') + '</span></button>';
+                    }).join('') + '</div></section>';
+            }).join('');
+        } else {
+            h += '<section class="ck-card"><h3>🚪 The gate is quiet</h3><p class="ck-small ck-muted">Someone may arrive every two hours, up to three at once. New records and choices open new conversations.</p><p class="ck-small">Next look at the road in ' + eta(S.visitors.nextAt || S.t) + '.</p></section>';
+        }
+        if (S.requests.length) {
+            h += '<div class="ck-section-head"><h3>📦 Requests</h3><span class="ck-count">' + S.requests.length + '/' + MAX_REQUESTS + '</span></div>' + S.requests.map((q) => {
+                const b = requestBlock(S, q.id);
+                return '<section class="ck-card dm-request"><div class="ck-row">' + itemIcon(q.item) + '<div class="dm-grow"><b>' + esc(q.name) + ' needs ' + q.qty + ' ' + esc(itemName(q.item)) + '</b><span class="ck-small ck-muted">' + esc(q.role) + ' · lapses in ' + fmtDur(q.until - S.t) + '</span></div></div>' +
+                    '<p class="ck-small">Reward: 🪙 ' + q.reward.silver + ' · 👑 ' + q.reward.crowns + ' · +1 trust</p><div class="ck-actions"><button type="button" class="ck-btn is-sm' + (b ? '' : ' is-primary') + '" data-act="deliver" data-arg="' + esc(q.id) + '"' + (b ? ' disabled' : '') + '>Deliver</button>' + (b ? '<span class="ck-small ck-muted">' + esc(b) + '</span>' : '') + '</div></section>';
+            }).join('');
+        }
+        const people = Object.keys(S.visitors.npc).filter((id) => S.visitors.npc[id].met);
+        if (people.length) {
+            h += '<div class="ck-section-head"><h3>🤝 People of the road</h3></div><section class="ck-card"><ul class="ck-members dm-people">' + people.sort((a, b) => S.visitors.npc[b].trust - S.visitors.npc[a].trust).map((id) => {
+                const n = S.visitors.npc[id];
+                return '<li><span><b>' + esc(n.name) + '</b> <span class="ck-small ck-muted">' + esc(n.role) + '</span>' + barP(n.trust / TRUST_MAX * 100, 'is-thin') + '</span><b>' + esc(trustStage(n.trust)) + (n.keepsake ? ' ★' : '') + '</b></li>';
+            }).join('') + '</ul><p class="ck-hint">Trust runs from Distant to Bonded (7). Acquainted visitors bring requests; Trusted ones pay half again; a Bonded visitor leaves a keepsake.</p></section>';
+        }
+        if (S.voices.log.length) h += '<details class="ck-card ck-more"><summary>Recent conversations</summary><ol class="ck-timeline">' + S.voices.log.slice(0, 8).map((v) => '<li class="is-info"><time>' + esc((v.npc || '').split(' ')[0]) + '</time><span><i>“' + esc(v.said) + '”</i> ' + esc(v.reply) + '</span></li>').join('') + '</ol></details>';
+        return h;
+    }
+    function voiceModal(r) {
+        return '<h2 id="ckModalTitle">' + esc(r.npc) + '</h2><p class="dm-prompt">' + esc(r.reply) + '</p>' + (Object.keys(r.gains).length ? '<h3>Received</h3>' + lootRow(r.gains) : '') +
+            (Object.keys(r.loss).length ? '<p class="ck-small ck-warn">Lost: ' + esc(Object.keys(r.loss).map((k) => r.loss[k] + ' ' + itemName(k)).join(', ')) + '</p>' : '') +
+            '<p class="ck-small">Trust ' + (r.delta > 0 ? '+' + r.delta : r.delta) + ' · ' + esc(r.stage) + ' (' + r.trust + '/' + TRUST_MAX + ') · +2 Silver</p><div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="close-modal">Continue</button></div>';
+    }
+
+    // —— The Chronicle: letters, relics and chronicles recovered across the Keep ——
+    const LORE_FILTERS = [['all', 'All'], ['LETTER', 'Letters'], ['MEMORABILIA', 'Relics'], ['CHRONICLE', 'Chronicle']];
+    function chronicleSection() {
+        const f = S.ui.loreFilter || 'all', E = LORE().entries.filter((e) => f === 'all' || e.type === f);
+        const open = E.filter((e) => loreOpen(S, e.id)), unread = open.filter((e) => !S.lore[e.id]), read = open.filter((e) => S.lore[e.id]), buried = E.filter((e) => !loreOpen(S, e.id));
+        const card = (e, cls) => '<button type="button" class="ck-card dm-lore ' + cls + '" data-act="lore" data-arg="' + esc(e.id) + '"><span class="ck-kicker">' + esc(titleCase(e.type)) + (e.era ? ' · ' + esc(e.era) : '') + '</span><b>' + esc(e.title) + '</b><span class="ck-small ck-muted">' + esc(e.source || '') + '</span>' +
+            (cls !== 'is-buried' ? '<span class="ck-small">' + esc(e.summary || '') + '</span>' : '<span class="ck-small ck-muted">' + esc(readLoreBlock(S, e.id) || 'Decipher with ' + DECIPHER_COST + ' Insight.') + '</span>') + '</button>';
+        return '<section class="ck-card is-tight"><p class="ck-small">' + LORE().entries.filter((e) => loreOpen(S, e.id)).length + ' of ' + LORE().entries.length + ' records recovered. Records surface as you build, collect and speak with visitors.</p>' +
+            '<div class="ck-pills">' + LORE_FILTERS.map((x) => '<button type="button" class="ck-pill' + (f === x[0] ? ' is-on' : '') + '" data-act="lore-filter" data-arg="' + x[0] + '">' + x[1] + '</button>').join('') + '</div></section>' +
+            (unread.length ? '<div class="ck-section-head"><h3>✨ Unread</h3></div>' + unread.map((e) => card(e, 'is-new')).join('') : '') +
+            (read.length ? '<div class="ck-section-head"><h3>📖 Read</h3></div>' + read.map((e) => card(e, '')).join('') : '') +
+            (buried.length ? '<div class="ck-section-head"><h3>🪨 Still buried</h3></div>' + buried.map((e) => card(e, 'is-buried')).join('') : '');
+    }
+    function loreModal(id) {
+        const e = LORE().entries.find((x) => x.id === id);
+        if (!e) return '';
+        return '<span class="ck-kicker">' + esc(titleCase(e.type)) + (e.perspective ? ' · ' + esc(e.perspective) : '') + '</span><h2 id="ckModalTitle">' + esc(e.title) + '</h2><p class="ck-small ck-muted">' + esc(e.source || '') + (e.era ? ' · ' + esc(e.era) : '') + '</p>' +
+            '<div class="dm-lore-body">' + esc(e.body || e.summary || '').replace(/\n/g, '<br>') + '</div><div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="close-modal">Close</button></div>';
+    }
+
+    // —— Build, Stores, Log ——
+    function buildSection() {
+        let h = '<section class="ck-card"><div class="ck-row"><h3>⚒️ Crews</h3>' + chip((S.builds || []).length + '/' + crews(S) + ' busy') + '</div>' +
+            ((S.builds || []).length ? S.builds.map((b) => '<div class="ck-row"><b class="ck-small">' + esc(b.name) + '</b>' + eta(b.endAt) + '</div>' + liveBar(b.startAt, b.endAt)).join('') : '<p class="ck-small ck-muted">No construction under way. Crews keep working while the Knight is away.</p>') + '</section>';
+        const groups = {};
+        projectList(S).filter((p) => p.group !== 'Chronicles wings').forEach((p) => { (groups[p.group] = groups[p.group] || []).push(p); });
+        Object.keys(groups).forEach((g) => { h += '<div class="ck-section-head"><h3>' + esc(g) + '</h3></div>' + groups[g].map(projectCard).join(''); });
+        h += '<div class="ck-section-head"><h3>🏯 Chronicles wings</h3></div><div class="ck-buildings">' + Object.keys(CH.buildings || {}).map((id) => {
+            const B = CH.buildings[id], lvl = S.wings[id] || 0, p = projectList(S).find((x) => x.id === 'wing_' + id + '_' + (lvl + 1));
+            const stars = Array.from({ length: 5 }, (_, i) => '<i class="' + (i < lvl ? 'is-on' : '') + '">★</i>').join('');
+            const busy = (S.builds || []).find((b) => b.id.indexOf('wing_' + id + '_') === 0);
+            return '<section class="ck-building' + (lvl ? '' : ' is-unbuilt') + '"><div class="ck-building-art"><img src="' + esc(namedScene(BUILDING_SCENES[id] || 'earth-shelter')) + '" alt="" loading="lazy" decoding="async"><span class="ck-building-name"><b>' + esc(B.name) + '</b><span class="ck-stars">' + stars + '</span></span></div>' +
+                '<div class="ck-building-body"><p class="ck-small ck-muted">' + esc(B.blurb || '') + ' In the ' + esc(WING_HOME[id]) + '.</p>' + (lvl ? '<p class="ck-small is-ready">' + esc(WING_EFFECT[id](lvl)) + '</p>' : '') +
+                (busy ? '<p class="ck-small">⚒ Building · ' + eta(busy.endAt) + '</p>' : p ? '<p class="ck-small"><b>Level ' + (lvl + 1) + ':</b> ' + esc(WING_EFFECT[id](lvl + 1)) + '</p>' + costRow(p.cost) + '<div class="ck-actions"><button type="button" class="ck-btn is-sm' + (buildBlock(S, p.id) ? '' : ' is-primary') + '" data-act="build" data-arg="' + p.id + '"' + (buildBlock(S, p.id) ? ' disabled' : '') + '>' + (lvl ? '⬆️ Upgrade' : '🔨 Build') + '</button>' + (buildBlock(S, p.id) ? '<span class="ck-small ck-muted">' + esc(buildBlock(S, p.id)) + '</span>' : '') + '</div>' : '<p class="ck-small is-ready">🏆 Complete.</p>') + '</div></section>';
+        }).join('') + '</div>';
+        return h;
+    }
+    function rebirthCard() {
+        const r = rebirthReq(S);
+        if (!r) return '<section class="ck-card"><h3>🌳 Rebirth</h3><p class="ck-small ck-muted">Covenant Eternal: all ten rebirths done.</p></section>';
+        const b = rebirthBlock(S);
+        return '<section class="ck-card"><div class="ck-row"><h3>🌳 Rebirth ' + r.n + ': ' + esc(REBIRTH_TITLES[r.n]) + '</h3></div><p class="ck-small ck-muted">Resets the Keep’s buildings and raw stock. The Knight, companions, wings, lore, visitors and crafts carry over. Each rebirth: production +25%, storage +20%, builds 10% faster, costs +15%.</p>' +
+            '<div class="ck-chips">' + ['hall:' + r.hall].concat(r.checks).map((c) => { const ok = c.indexOf('hall:') === 0 ? S.b.hall >= r.hall : checkMet(S, c); return chip(c.indexOf('hall:') === 0 ? HALL_RANKS[r.hall - 1] : checkText(c), ok ? 'is-help' : 'is-boss'); }).join('') + '</div>' + costRow(r.cost) +
+            '<div class="ck-actions">' + (S.ui.confirmRebirth ? '<button type="button" class="ck-btn is-primary" data-act="rebirth-yes"' + (b ? ' disabled' : '') + '>Rebirth the Keep</button><button type="button" class="ck-btn" data-act="rebirth-no">Not yet</button>' : '<button type="button" class="ck-btn is-sm" data-act="rebirth"' + (b ? ' disabled' : '') + '>Prepare rebirth</button>') + (b ? '<span class="ck-small ck-muted">' + esc(b) + '</span>' : '') + '</div></section>';
+    }
+    function storesSection() {
+        let h = '';
+        const ev = (S.events || []).filter((e) => !e.repaired);
+        if (ev.length) h += '<section class="ck-card"><h3>🧱 Damage around the Keep</h3>' + ev.map((e) => {
+            const b = repairBlock(S, e.id);
+            return '<div class="dm-event"><b>' + esc(e.title) + '</b> <span class="ck-small ck-muted">' + esc(e.targetName) + '</span><p class="ck-small">' + esc(e.text) + '</p>' +
+                (e.repairEndAt ? liveBar(e.repairEndAt - e.repairMs, e.repairEndAt) + '<span class="ck-small">Repaired in ' + eta(e.repairEndAt) + '</span>' : '<div class="ck-actions"><button type="button" class="ck-btn is-sm is-primary" data-act="repair" data-arg="' + esc(e.id) + '"' + (b ? ' disabled' : '') + '>Repair · ' + e.cost + ' Timber · ' + fmtDur(e.repairMs) + '</button>' + (b ? '<span class="ck-small ck-muted">' + esc(b) + '</span>' : '') + '</div>') + '</div>';
+        }).join('') + '<p class="ck-hint">Each repair pays 6 Silver.</p></section>';
+        h += '<section class="ck-card"><div class="ck-row"><h3>🧭 Stewardship</h3>' + chip('🪙 ' + fl(S.inv.silver)) + chip('👑 ' + fl(S.inv.crowns)) + '</div><p class="ck-small ck-muted">Walk the Keep once a day for 4 Silver.</p><div class="ck-actions"><button type="button" class="ck-btn is-sm' + (stewardReady(S) ? ' is-primary' : '') + '" data-act="steward"' + (stewardReady(S) ? '' : ' disabled') + '>' + (stewardReady(S) ? 'Walk the Keep' : 'Walked today') + '</button></div></section>';
+        if (!(S.b.storehouse >= 1)) return h + '<section class="ck-card"><h3>📦 Storehouse</h3><p class="ck-small ck-muted">Raise the Covenant Storehouse (Build) to open refining, recycling and the Keep market.</p></section>';
+        h += '<section class="ck-card"><h3>⚗️ Refine</h3>' + Object.keys(REFINED).map((id) => {
+            const r = REFINED[id], b = refineBlock(S, id);
+            return '<div class="ck-recipe">' + itemIcon(id, 'is-lg') + '<div class="ck-recipe-main"><div class="ck-row"><b>' + esc(r.name) + '</b><span class="ck-small">' + fl(S.inv[id]) + ' in store</span></div><span class="ck-small ck-muted">' + esc(r.blurb) + '</span>' + costRow(ka(r.inputs)) +
+                '<div class="ck-pills"><button type="button" class="ck-pill is-forge" data-act="refine" data-arg="' + id + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '>Make</button></div></div></div>';
+        }).join('') + '</section>';
+        const rf = S.ui.recFrom || 'stone', rt = S.ui.recTo || 'ember';
+        h += '<section class="ck-card"><h3>♻️ Recycle</h3><p class="ck-small ck-muted">3 of one raw material for 1 of another, 15 Timber for 1 raw, or salvage half a refined good.</p><h4>Give</h4><div class="ck-pills">' +
+            ['timber'].concat(RAW, Object.keys(REFINED).filter((k) => fl(S.inv[k]) > 0)).map((k) => '<button type="button" class="ck-pill' + (rf === k ? ' is-on' : '') + '" data-act="rec-from" data-arg="' + k + '">' + esc(itemName(k)) + ' (' + fl(S.inv[k]) + ')</button>').join('') + '</div>' +
+            (REFINED[rf] ? '' : '<h4>Get</h4><div class="ck-pills">' + RAW.filter((k) => k !== rf).map((k) => '<button type="button" class="ck-pill' + (rt === k ? ' is-on' : '') + '" data-act="rec-to" data-arg="' + k + '">' + esc(itemName(k)) + '</button>').join('') + '</div>') +
+            '<div class="ck-actions"><button type="button" class="ck-btn is-sm" data-act="recycle"' + (recycleBlock(S, rf, rt) ? ' disabled' : '') + '>' + (REFINED[rf] ? 'Salvage 1 ' + esc(itemName(rf)) : 'Recycle into ' + esc(itemName(rt))) + '</button><span class="ck-small ck-muted">' + esc(recycleBlock(S, rf, rt)) + '</span></div></section>';
+        h += '<section class="ck-card"><h3>🛍️ Keep market</h3><p class="ck-small ck-muted">New lots each day, in Silver, plus a rare lot in Crowns. Materials only: gear is always crafted.</p><div class="ck-listings">' + marketOffers(S).map((m) => {
+            const b = buyBlock(S, m.id);
+            return '<div class="ck-listing">' + itemIcon(m.res, 'is-sm') + '<div><b>' + m.amount + '× ' + esc(itemName(m.res)) + '</b><span class="ck-small ck-muted">' + titleCase(m.rarity) + ' · ' + marketLeft(S, m) + ' left today</span></div><button type="button" class="ck-btn is-sm" data-act="buy" data-arg="' + m.id + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '>' + (m.currency === 'crowns' ? '👑' : '🪙') + ' ' + m.price + '</button></div>';
+        }).join('') + '</div></section>';
+        return h;
+    }
+    function logSection() {
+        let h = '<section class="ck-card"><h3>🔗 Refining totals</h3><div class="ck-chips">' + Object.keys(RECIPES).map((r) => chip(S.made[r] + ' ' + RECIPES[r].name)).join('') + '</div></section>';
+        if (S.reports.length) h += '<section class="ck-card"><h3>🗺️ Expedition reports</h3><div class="ck-pills">' + S.reports.map((r) => '<button type="button" class="ck-pill" data-act="report" data-arg="' + esc(r.id) + '">' + esc(reportTitle(r)) + ' · ' + new Date(r.at).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) + '</button>').join('') + '</div></section>';
+        h += '<section class="ck-card"><h3>📜 Keep log</h3>' + (S.log.length ? '<ol class="ck-timeline">' + S.log.map((l) => '<li class="is-info"><time>' + new Date(l.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</time><span>' + esc(l.text) + '</span></li>').join('') + '</ol>' : '<p class="ck-muted">Nothing has happened yet.</p>') + '</section>';
+        return h;
+    }
+    function objectiveModal() {
+        return '<h2 id="ckModalTitle">Objectives</h2>' + OBJECTIVES.map((ch) => '<h3>' + esc(ch.chapter) + '</h3><ol class="ck-ladder">' + ch.steps.map((st) => '<li class="' + (S.obj[st.id] ? 'is-on' : '') + '"><b>' + esc(st.title) + '</b><span>' + esc(st.hint) + '</span></li>').join('') + '</ol>').join('') +
+            '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="close-modal">Close</button></div>';
+    }
+    function menuModal() {
+        return '<h2 id="ckModalTitle">Dominion · test mode</h2><p class="ck-small">The Keep and Chronicles as one game. Rules run in this browser' + (ONLINE ? ' and sync to your account when signed in.' : '; this preview saves only here.') + '</p>' +
+            '<h3>Test time</h3><div class="ck-pills"><button type="button" class="ck-pill" data-act="pass" data-arg="1">Pass 1 hour</button><button type="button" class="ck-pill" data-act="pass" data-arg="4">Pass 4 hours</button><button type="button" class="ck-pill" data-act="pass" data-arg="12">Pass 12 hours</button></div>' +
+            '<h3>Start over</h3><p class="ck-small ck-muted">Erase this save and begin again on bare ground' + (ONLINE && NET.signedIn ? ' (your synced save is replaced too)' : '') + '.</p>' +
+            '<div class="ck-actions">' + (confirmReset ? '<button type="button" class="ck-btn is-primary" data-act="reset-yes">Erase and restart</button><button type="button" class="ck-btn" data-act="reset-no">Keep my save</button>' : '<button type="button" class="ck-btn" data-act="reset">Reset Dominion</button>') + '</div>' +
+            '<div class="ck-actions"><a class="ck-btn is-glass" href="/home">Back to the hub</a><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
+    }
+
+    // —— Clock ——
     function step() {
         advance(S, now());
         flushToasts();
         // Never rebuild a screen under someone typing a guild name, invite code or price.
         const a = document.activeElement;
-        if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) { renderStrip(); renderClock(); updateLive(); return; }
+        if (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) { renderHeader(); updateLive(); return; }
         if (S.rev !== lastRev) { save(); renderAll(); maybeShowReport(); }
-        else if (signature() !== lastSig) {
-            // Stock ticks over often; avoid rebuilding a sheet the player is mid-way through.
-            renderStrip(); renderClock();
-            if (S.ui.tab !== 'keep' || !sheet) renderView();
-            if (sheet && sheet.kind !== 'quarter') renderSheet(false);
-            lastSig = signature();
-        } else { renderClock(); updateLive(); }
+        else if (signature() !== lastSig) { renderAll(); }
+        else { renderHeader(); updateLive(); }
     }
     function maybeShowReport() {
-        if (sheet) return;
+        if (modal) return;
         const r = S.reports.find((x) => !x.seen);
-        if (r) openSheet('report', r.id);
-    }
-    function passTime(hours) {
-        const before = snapshot();
-        S.offset += hours * HOUR;
-        advance(S, now());
-        save();
-        flushToasts();
-        toast('Passed ' + hours + ' hour' + (hours > 1 ? 's' : '') + ': ' + diffText(before));
-        renderAll();
-        if (!sheet || sheet.kind === 'menu') { if (sheet) closeSheet(); maybeShowReport(); }
+        if (r) openModal('report', r.id);
     }
     const snapshot = () => Object.assign({}, S.inv);
     function diffGains(before) {
@@ -2853,97 +3336,116 @@
         Object.keys(RES).forEach((k) => { const d = fl(S.inv[k]) - fl(before[k]); if (d > 0) g[k] = d; });
         return g;
     }
-    function diffText(before) {
-        const g = diffGains(before);
-        const keys = Object.keys(g).sort((a, b) => g[b] - g[a]).slice(0, 4);
-        return keys.length ? keys.map((k) => '+' + g[k] + ' ' + RES[k].name).join(', ') : 'nothing new in storage';
+    function passTime(hours) {
+        S.offset += hours * HOUR;
+        advance(S, now());
+        save();
+        flushToasts();
+        const stored = ['woodlot'].concat(Object.keys(WS)).reduce((a, id) => a + storedCount(S, id), 0);
+        toast('Passed ' + hours + ' hour' + (hours > 1 ? 's' : '') + (stored ? ': ' + stored + ' goods waiting to be collected.' : '.'));
+        if (modal && modal.kind === 'menu') { modal = null; $('ckModal').hidden = true; }
+        renderAll();
+        maybeShowReport();
     }
 
     // —— Actions ——
+    function setTab(tab) {
+        S.ui.tab = TABS.includes(tab) ? tab : 'base';
+        $('ckMain').scrollTop = 0;
+        if (S.ui.tab === 'realm' && ONLINE && NET.signedIn && !NET.realmAt) loadRealm();
+    }
     function act(name, arg) {
         const s = S;
         switch (name) {
-        case 'tab': if (sheet) closeSheet(); setTab(arg); return;
-        case 'close': closeSheet(); return;
-        case 'bag': openSheet('bag'); return;
-        case 'menu': openSheet('menu'); return;
-        case 'objective': openSheet('objective'); return;
-        case 'report': openSheet('report', arg); return;
+        case 'tab': if (modal) { modal = null; $('ckModal').hidden = true; } setTab(arg); break;
+        case 'close-modal': closeModal(); return;
+        case 'menu': openModal('menu'); return;
+        case 'objective': openModal('objective'); return;
+        case 'report': openModal('report', arg); return;
+        case 'item': openModal('item', arg); return;
+        case 'plan': openModal('plan', arg); return;
+        case 'skill':
+            if (gatherSkills().concat(craftSkills()).includes(arg)) { s.ui.workSkill = arg; recipePick = ''; setTab('work'); break; }
+            openModal('skill', arg); return;
         case 'pass': passTime(Number(arg) || 4); return;
-        case 'reset': confirmReset = true; break;
-        case 'reset-no': confirmReset = false; break;
-        case 'reset-yes':
+        case 'reset': confirmReset = true; renderModal(); return;
+        case 'reset-no': confirmReset = false; renderModal(); return;
+        case 'reset-yes': {
             try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
             // Keep the sync ledger: a fresh version 0 would lose the 409 race and re-adopt the old save.
-            { const keep = { sync: S.sync, applied: S.applied }; S = defaults(Date.now()); Object.assign(S, keep); S.rev++; } sheet = null;
-            document.querySelectorAll('.dm-sheet,.dm-scrim').forEach((e) => e.remove());
-            save(); syncNow(true); setTab('keep'); renderAll(); toast('Prototype reset.'); return;
-        case 'building': if (arg === 'quarter') openSheet('quarter'); else openSheet('building', arg); return;
-        case 'knight-sec': s.ui.knight = arg; break;
-        case 'act-sec': s.ui.act = arg; break;
+            const keep = { sync: S.sync, applied: S.applied };
+            S = defaults(Date.now()); Object.assign(S, keep); S.rev++;
+            modal = null; $('ckModal').hidden = true;
+            save(); syncNow(true); renderAll(); toast('Dominion reset: bare ground and 30 Timber.');
+            return;
+        }
+        case 'base-sec': s.ui.base = arg; if (s.ui.tab !== 'base') setTab('base'); if (arg !== 'grounds') s.ui.room = s.ui.room; $('ckMain').scrollTop = 0; break;
+        case 'room': s.ui.room = arg || ''; s.ui.base = 'grounds'; scrollToRoom = !!arg; if (arg !== 'quarter') { arranging = false; quarterSel = -1; } if (s.ui.tab !== 'base') setTab('base'); $('ckMain').scrollTop = 0; break;
+        case 'building': act('room', arg); return;
+        case 'collect': { const g = collect(s, arg); if (!g) { toast(arg === 'woodlot' && fl(s.inv.timber) >= timberCap(s) ? 'The timber store is full.' : 'Nothing to collect yet.'); return; } toast('Collected ' + Object.keys(g).map((k) => g[k] + ' ' + itemName(k)).join(', ') + '.'); break; }
+        case 'collect-all': { const g = collectAll(s); const keys = Object.keys(g); toast(keys.length ? 'Collected ' + keys.map((k) => g[k] + ' ' + itemName(k)).join(', ') + '.' : 'Nothing to collect yet.'); if (!keys.length) return; break; }
+        case 'work-skill': s.ui.workSkill = arg; recipePick = ''; setTab('work'); break;
+        case 'work-type': { const list = arg === 'craft' ? craftSkills() : gatherSkills(); s.ui.workSkill = list.includes(activeSkill()) ? activeSkill() : list[0]; recipePick = ''; break; }
+        case 'recipe-pick': recipePick = arg; break;
         case 'task': {
             const parts = String(arg).split(':');
             const msg = setTask(s, parts[0], parts[1]);
             if (msg) { toast(msg); return; }
-            toast(parts[0] === 'idle' ? 'The Knight stops working.' : 'The Knight starts: ' + taskLabel(s) + '.');
+            toast(parts[0] === 'idle' ? 'The Knight rests.' : 'The Knight starts: ' + taskLabel(s) + '.');
             break;
         }
         case 'craft':
             if (!craftOnce(s, arg)) { toast(craftBlock(s, arg) || 'Cannot make that yet.'); return; }
-            toast('Made ' + itemName(al(CRAFTS[arg].output)) + '.');
+            toast('Made ' + recipeName(CRAFTS[arg]) + '.');
             break;
-        case 'group': s.ui.group = arg; break;
-        case 'prof': s.ui.prof = s.ui.prof === arg ? '' : arg; break;
-        case 'open-prof': if (sheet) closeSheet(); s.ui.knight = 'work'; s.ui.group = SKILLS[arg].group; s.ui.prof = arg; setTab('knight'); return;
-        case 'slot': s.ui.slot = s.ui.slot === arg ? '' : arg; break;
-        case 'equip': {
-            const parts = String(arg).split(':');
-            const msg = equip(s, parts[0], parts[1]);
-            if (msg) { toast(msg); return; }
-            break;
-        }
+        case 'equip': { const parts = String(arg).split(':'); const msg = equip(s, parts[0], parts[1]); if (msg) { toast(msg); return; } break; }
         case 'tool': if (knightBusy(s) || fl(s.inv[arg]) < 1) return; s.knight.tool = arg; s.rev++; break;
-        case 'feed': {
-            const parts = String(arg).split(':');
-            const b = feedBlock(s, parts[0], parts[1]);
-            if (b) { toast(b); return; }
-            feed(s, parts[0], parts[1]);
-            toast(C(parts[0]).name + ' enjoyed the ' + RES[parts[1]].name + '.');
-            break;
-        }
-        case 'dest': if (DEST[arg] && !DEST[arg].planned) s.prep.dest = arg; break;
+        case 'comp-toggle': openComp = openComp === arg ? '' : arg; if (s.ui.tab !== 'company') setTab('company'); break;
+        case 'feed': { const parts = String(arg).split(':'); const b = feedBlock(s, parts[0], parts[1]); if (b) { toast(b); return; } feed(s, parts[0], parts[1]); toast(C(parts[0]).name + ' enjoyed the ' + RES[parts[1]].name + '.'); break; }
         case 'party': {
             const p = s.prep.party, i = p.indexOf(arg);
+            if (s.exp) return;
             if (i >= 0) p.splice(i, 1);
             else if (s.comps[arg] && s.comps[arg].joined) { if (p.length >= partySlots(s)) p.shift(); p.push(arg); }
+            s.rev++;
             break;
         }
+        case 'prep-toggle': s.ui.prepOpen = !s.ui.prepOpen; return;
         case 'rations': s.prep.useRations = !s.prep.useRations; break;
-        case 'tier': s.ui.tier = Number(arg); break;
-        case 'rune': s.prep.rune = s.prep.rune === arg ? '' : arg; break;
+        case 'rune': s.prep.rune = arg || ''; break;
         case 'potion': {
             const parts = String(arg).split(':');
             s.prep.potions = s.prep.potions || {};
             const total = Object.keys(s.prep.potions).reduce((a, k) => a + (s.prep.potions[k] || 0), 0);
-            const v = Math.max(0, Math.min(fl(s.inv[parts[0]]), (s.prep.potions[parts[0]] || 0) + Number(parts[1])));
-            if (Number(parts[1]) > 0 && total >= supplyCap(s)) { toast('The Stable carries ' + supplyCap(s) + ' potions.'); return; }
-            s.prep.potions[parts[0]] = v;
+            if (Number(parts[1]) > 0 && total >= supplyCap(s)) { toast('The company can carry ' + supplyCap(s) + ' potions.'); return; }
+            s.prep.potions[parts[0]] = Math.max(0, Math.min(fl(s.inv[parts[0]]), (s.prep.potions[parts[0]] || 0) + Number(parts[1])));
             break;
         }
+        case 'depart':
+            if (DEST[arg]) s.prep.dest = arg;
+            if (!depart(s)) { toast(departBlock(s) || 'The company cannot set out yet.'); return; }
+            modal = null; $('ckModal').hidden = true;
+            toast('The Knight sets out for ' + DEST[s.exp.dest].name + '.');
+            setTab('expedition');
+            break;
         case 'tame': {
-            const parts = String(arg).split(':');
-            const b = tameBlock(s, parts[0], parts[1] || '');
+            const parts = String(arg).split(':'), b = tameBlock(s, parts[0], parts[1] || '');
             if (b) { toast(b); return; }
             const res = tame(s, parts[0], parts[1] || '');
             toast(res.won ? 'Tamed! ' + C(res.uid).name + ' joined the Keep.' : 'It slipped away (' + Math.round(res.chance * 100) + '% chance).');
+            if (res.won) openComp = res.uid;
             break;
         }
         case 'evolve': if (!evolve(s, arg)) { toast(evolveBlock(s, arg)); return; } break;
-        case 'trial': if (!startTrial(s, arg)) { toast(trialBlock(s, arg)); return; } toast('The Bond Trial begins.'); break;
-        case 'rename-open': s.ui.rename = s.ui.rename === arg ? '' : arg; break;
-        case 'bgroup': s.ui.bgroup = s.ui.bgroup === arg ? '' : arg; break;
+        case 'trial': if (!startTrial(s, arg)) { toast(trialBlock(s, arg)); return; } toast('The Bond Trial begins.'); setTab('expedition'); break;
+        case 'rename': {
+            const c = s.comps[arg], name = window.prompt('A new name for ' + C(arg).name + ':', c.nick || C(arg).species);
+            if (name == null) return;
+            c.nick = name.trim().slice(0, 18); s.rev++;
+            break;
+        }
+        case 'build': if (!startBuild(s, arg)) { toast(buildBlock(s, arg)); return; } toast('Construction started.'); break;
         case 'repair': if (!startRepair(s, arg)) { toast(repairBlock(s, arg)); return; } break;
-        case 'goto-keep': if (sheet) closeSheet(); s.ui.act = 'keep'; setTab('activities'); return;
         case 'steward': if (!steward(s)) return; toast('+4 Silver from stewardship.'); break;
         case 'refine': if (!refine(s, arg)) { toast(refineBlock(s, arg)); return; } toast('Made ' + itemName(arg) + '.'); break;
         case 'rec-from': s.ui.recFrom = arg; break;
@@ -2951,40 +3453,48 @@
         case 'recycle': if (!recycle(s, s.ui.recFrom || 'stone', s.ui.recTo || 'ember')) { toast(recycleBlock(s, s.ui.recFrom || 'stone', s.ui.recTo || 'ember')); return; } break;
         case 'buy': if (!buy(s, arg)) { toast(buyBlock(s, arg)); return; } break;
         case 'kcraft': if (!keepCraft(s, arg)) { toast(keepCraftBlock(s, arg)); return; } toast('Made ' + KEEP_CRAFTS[arg][0] + '.'); break;
+        case 'decor': placeDecoration(s, arg, !s.placed[arg]); break;
         case 'theme': if (HALL_THEMES.some((t) => t[0] === arg && s.b.hall >= t[3])) { s.theme = arg; s.rev++; } break;
         case 'rebirth': s.ui.confirmRebirth = true; break;
         case 'rebirth-no': s.ui.confirmRebirth = false; break;
         case 'rebirth-yes': s.ui.confirmRebirth = false; if (!rebirth(s)) { toast(rebirthBlock(s)); return; } break;
-        case 'voice': { const parts = String(arg).split(':'); const ch = chooseVoice(s, parts[0], parts[1]); if (ch) toast('+2 Silver. ' + (ch.response || '').slice(0, 80)); break; }
-        case 'lore': if (s.lore[arg]) { s.ui.lore = s.ui.lore === arg ? '' : arg; break; } if (!readLore(s, arg)) { toast(readLoreBlock(s, arg)); return; } s.ui.lore = arg; break;
+        case 'voice': {
+            const parts = String(arg).split(':'), c = visitorsHere(s).find((x) => x.id === parts[0]);
+            const b = voiceBlock(s, parts[0], parts[1]);
+            if (b) { toast(b); return; }
+            const r = chooseVoice(s, parts[0], parts[1]);
+            if (r) { latchObjectives(s); save(); renderAll(); openModal('voice', Object.assign({ npc: c.npcName }, r)); }
+            return;
+        }
+        case 'deliver': { const q = deliver(s, arg); if (!q) { toast(requestBlock(s, arg)); return; } toast(q.name + ' thanks you: +' + q.reward.silver + ' Silver, +' + q.reward.crowns + ' Crowns.'); break; }
+        case 'bank': { const parts = String(arg).split(':'), t = bankTask(s, parts[0], parts[1]); if (!t) return; toast(C(parts[0]).name + ': “' + t.name + '” banked. +' + t.rapport + ' rapport.'); break; }
+        case 'lore-filter': s.ui.loreFilter = arg; break;
+        case 'lore':
+            if (!s.lore[arg] && !readLore(s, arg)) { toast(readLoreBlock(s, arg)); return; }
+            save(); renderAll(); openModal('lore', arg);
+            return;
         case 'claim': if (!claimJourney(s, Number(arg))) return; toast('Journey reward claimed.'); break;
-        case 'realm-refresh': NET.realmAt = 0; syncNow(true).then(loadRealm); return;
-        case 'donate': realmCall('/api/dominion/guild/donate', { itemId: arg, qty: Math.min(10, fl(s.inv[arg])) }); return;
-        case 'guild-leave': realmCall('/api/dominion/guild/leave', {}); return;
-        case 'op-claim': realmCall('/api/dominion/operation/claim', {}); return;
-        case 'op-go': if (!startOperation(s, arg)) { toast(operationBlock(s)); return; } toast('The Knight marches to the operation.'); break;
-        case 'mk-buy': realmCall('/api/dominion/market/buy', { listingId: arg }); return;
-        case 'mk-cancel': realmCall('/api/dominion/market/cancel', { listingId: arg }); return;
         case 'loadout-save': if (!saveLoadout(s, Number(arg))) return; toast('Loadout saved.'); break;
         case 'loadout-apply': if (!applyLoadout(s, Number(arg))) return; toast('Loadout applied.'); break;
-        case 'depart':
-            if (depart(s)) { toast('The Knight departs for ' + DEST[s.exp.dest].name + '.'); }
-            break;
-        case 'build':
-            if (startBuild(s, arg)) toast('Construction started.');
-            break;
+        case 'realm-refresh': NET.realmAt = 0; syncNow(true).then(loadRealm); return;
+        case 'donate': realmCall('/api/dominion/guild/donate', { itemId: arg, qty: Math.min(10, fl(s.inv[arg])) }); return;
+        case 'guild-leave': if (window.confirm('Leave your guild?')) realmCall('/api/dominion/guild/leave', {}); return;
+        case 'op-claim': realmCall('/api/dominion/operation/claim', {}); return;
+        case 'op-go': if (!startOperation(s, arg)) { toast(operationBlock(s)); return; } toast('The Knight marches to the operation.'); setTab('expedition'); break;
+        case 'mk-buy': realmCall('/api/dominion/market/buy', { listingId: arg }); return;
+        case 'mk-cancel': realmCall('/api/dominion/market/cancel', { listingId: arg }); return;
         case 'cjob': {
             const parts = String(arg).split(':'), id = parts[0], kind = parts[1], target = parts[2];
             const c = s.comps[id];
             if (!c || !c.joined || onExpedition(s, id)) return;
             if (kind === 'help') {
-                const t = target || (c.job.kind === 'help' ? c.job.target : HELP_TARGETS.find((x) => !helperOf(s, x)));
-                if (!t) { toast('Every building already has a helper.'); return; }
+                const t = target || (c.job.kind === 'help' ? c.job.target : helpTargets().find((x) => !helperOf(s, x)));
+                if (!t) { toast(helpTargets().length ? 'Every building already has a helper.' : 'Build the Woodlot or a workshop first.'); return; }
                 const other = helperOf(s, t);
                 if (other && other !== id) { toast(C(other).name + ' already helps there.'); return; }
                 c.job = { kind: 'help', target: t };
             } else {
-                const other = kind === 'knight' && Object.keys(S.comps).find((x) => x !== id && s.comps[x].joined && s.comps[x].job.kind === 'knight');
+                const other = kind === 'knight' && joinedIds(s).find((x) => x !== id && s.comps[x].job.kind === 'knight');
                 if (other) { toast(C(other).name + ' is already assisting the Knight.'); return; }
                 if (kind === 'front' && c.job.kind !== 'front' && defenders(s).length >= frontCap(s)) { toast('Every rampart post is taken (' + frontCap(s) + ').'); return; }
                 c.job = { kind: kind };
@@ -2994,14 +3504,8 @@
         }
         case 'arrange': arranging = !arranging; if (!arranging) quarterSel = -1; break;
         case 'plot': plotTap(Number(arg)); break;
-        case 'rotate':
-            if (quarterSel >= 0 && s.grid[quarterSel]) { s.grid[quarterSel].rot = (s.grid[quarterSel].rot + 1) % 4; s.rev++; }
-            break;
-        case 'reserve': {
-            const parts = String(arg).split(':');
-            s.reserve[parts[0]] = Math.max(0, Math.min(99, (s.reserve[parts[0]] || 0) + Number(parts[1])));
-            break;
-        }
+        case 'rotate': if (quarterSel >= 0 && s.grid[quarterSel]) { s.grid[quarterSel].rot = (s.grid[quarterSel].rot + 1) % 4; s.rev++; } break;
+        case 'reserve': { const parts = String(arg).split(':'); s.reserve[parts[0]] = Math.max(0, Math.min(99, (s.reserve[parts[0]] || 0) + Number(parts[1]))); break; }
         default: return;
         }
         latchObjectives(s);
@@ -3009,8 +3513,8 @@
         renderAll();
     }
     function plotTap(i) {
-        if (!arranging) { quarterSel = S.grid[i] ? (quarterSel === i ? -1 : i) : -1; return; }
-        // Tapping a workshop always selects it; only an empty plot receives a move.
+        // Outside Arrange a workshop plot is a door into that room.
+        if (!arranging) { if (S.grid[i]) { S.ui.room = S.grid[i].id; scrollToRoom = true; } return; }
         if (S.grid[i]) { quarterSel = quarterSel === i ? -1 : i; return; }
         if (quarterSel < 0) return;
         S.grid[i] = S.grid[quarterSel];
@@ -3019,26 +3523,14 @@
         S.rev++;
     }
 
-    function onKey(e) {
-        if (e.key === 'Escape' && sheet) { e.preventDefault(); closeSheet(); return; }
-        if (!sheet || sheet.kind !== 'quarter') return;
-        const a = document.activeElement;
-        if (!a || a.dataset.act !== 'plot') return;
-        const i = Number(a.dataset.arg);
-        let j = -1;
-        if (e.key === 'ArrowRight' && i % 3 < 2) j = i + 1;
-        else if (e.key === 'ArrowLeft' && i % 3 > 0) j = i - 1;
-        else if (e.key === 'ArrowDown' && i < 6) j = i + 3;
-        else if (e.key === 'ArrowUp' && i > 2) j = i - 3;
-        else if ((e.key === 'r' || e.key === 'R') && arranging) { e.preventDefault(); act('rotate'); return; }
-        if (j >= 0) { e.preventDefault(); const t = document.querySelector('[data-act="plot"][data-arg="' + j + '"]'); if (t) t.focus(); }
-    }
-
     // —— Boot ——
     function boot() {
+        // The interiors' markup lives in a <template> copied from keep.html; index it by room.
+        const tpl = $('dmRooms');
+        if (tpl) tpl.content.querySelectorAll('.interior-room').forEach((r) => { const m = r.className.match(/room-(\w+)/); if (m) ROOM_HTML[m[1] === 'hall' ? 'great_hall' : m[1]] = r.outerHTML; });
         S = load();
-        const before = snapshot(), logLen = S.log.length;
-        const gap = now() - S.t;
+        S.ui.tab = OLD_TAB[S.ui.tab] || (TABS.includes(S.ui.tab) ? S.ui.tab : 'base');
+        const before = snapshot(), logLen = S.log.length, gap = now() - S.t;
         advance(S, now());
         if (gap > 2 * MIN) {
             const notes = S.log.slice(0, Math.max(0, S.log.length - logLen)).map((l) => l.text).slice(0, 8);
@@ -3047,46 +3539,41 @@
         }
         save();
         document.addEventListener('click', (e) => {
+            const tabBtn = e.target.closest('#ckTabs button[data-tab]');
+            if (tabBtn) { act('tab', tabBtn.dataset.tab); return; }
             const el = e.target.closest('[data-act]');
-            if (!el || el.disabled) return;
-            const b = el.closest('[data-building]');
-            if (el.dataset.act) act(el.dataset.act, el.dataset.arg);
-            else if (b) act('building', b.dataset.building);
+            if (el && !el.disabled) { if (el.tagName === 'SUMMARY') e.preventDefault(); act(el.dataset.act, el.dataset.arg); return; }
+            const b = e.target.closest('[data-building]');
+            if (b) act('room', b.dataset.building);
         });
-        document.querySelectorAll('[data-building]').forEach((b) => b.addEventListener('click', () => act('building', b.dataset.building)));
-        document.querySelectorAll('.dm-tab').forEach((b) => b.addEventListener('click', () => act('tab', b.dataset.tab)));
-        $('dmPass').addEventListener('click', () => passTime(4));
-        $('dmMenu').addEventListener('click', () => act('menu'));
-        document.addEventListener('keydown', onKey);
+        $('ckModal').addEventListener('click', (e) => { if (e.target === $('ckModal')) closeModal(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal) closeModal(); });
         document.addEventListener('submit', (e) => {
             const f = e.target.closest('[data-form]');
             if (!f) return;
             e.preventDefault();
-            if (f.dataset.form === 'rename') {
-                const c = S.comps[f.dataset.arg], inp = f.querySelector('input');
-                if (c && inp) { c.nick = inp.value.trim().slice(0, 18); S.ui.rename = ''; S.rev++; save(); renderAll(); }
-            }
-            if (f.dataset.form && window.dmRealmSubmit) window.dmRealmSubmit(f);
+            if (window.dmRealmSubmit) window.dmRealmSubmit(f);
         });
         document.addEventListener('visibilitychange', () => { if (document.hidden) { save(); syncNow(true); } else step(); });
         window.addEventListener('pagehide', save);
-        setTab(S.ui.tab || 'keep');
+        document.body.dataset.screen = 'main';
+        ['ckTabs', 'ckRank', 'ckStatus', 'ckAvatar', 'ckCrowns'].forEach((id) => { $(id).hidden = false; });
         renderAll();
-        if (S.away) openSheet('away'); else maybeShowReport();
+        if (S.away) openModal('away'); else maybeShowReport();
         setInterval(step, 1000);
         setInterval(save, 10000);
         setInterval(() => syncNow(false), 30000);
         bootOnline();
     }
 
-    // Test hook for headless checks; harmless in the prototype.
+    // Test hook for headless checks; harmless in a test mode.
     window.dominionDebug = {
-        state: () => S, advance: (ms) => { S.offset += ms; advance(S, now()); save(); flushToasts(); renderAll(); maybeShowReport(); }, pass: passTime,
-        links: () => links(S.grid), encounter: encounter, save: save, now: now,
+        state: () => S, advance: (ms) => { S.offset += ms; advance(S, now()); save(); flushToasts(); renderAll(); }, pass: passTime, act: act,
+        links: () => links(S.grid), encounter: encounter, save: save, now: now, collectAll: () => { const g = collectAll(S); save(); renderAll(); return g; },
         encounters: (id) => DEST[id].encounters, tame: (id, lure) => { const r = tame(S, id, lure); save(); renderAll(); return r; }, tameBlock: (id, lure) => tameBlock(S, id, lure),
         evolveBlock: (id) => evolveBlock(S, id), buildBlock: (id) => buildBlock(S, id), startBuild: (id) => { const r = startBuild(S, id); save(); renderAll(); return r; },
         timberCap: () => timberCap(S), workshopRates: (id) => workshopRates(S, id), woodlotRate: () => woodlotRate(S), marketOffers: () => marketOffers(S),
-        sync: () => syncNow(true),
+        sync: () => syncNow(true), visitors: () => visitorsHere(S), residentTasks: (u) => residentTasks(u),
         voicesReady: () => voicesReady(S), rebirthBlock: () => rebirthBlock(S), rebirth: () => { const r = rebirth(S); save(); renderAll(); return r; }, prodMul: () => prodMul(S)
     };
 
