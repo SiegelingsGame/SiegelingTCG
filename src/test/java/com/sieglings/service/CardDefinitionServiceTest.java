@@ -1,6 +1,9 @@
 package com.sieglings.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sieglings.model.Card;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.SpellCard;
@@ -436,6 +439,53 @@ class CardDefinitionServiceTest {
                                 .map(Card::getId)
                                 .collect(Collectors.toCollection(java.util.LinkedHashSet::new))
                 ));
+    }
+
+    @Test
+    void poisonAndLightSieglingsReachTheCatalogWhenTheirElementIsLive() throws Exception {
+        // The per-element roster loader once stopped at Psychic, so dashboard-authored
+        // Poison and Light Siegelings never reached the binder or deck builder even
+        // with both elements switched on.
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode file;
+        try (var in = getClass().getClassLoader().getResourceAsStream(ManualSieglingCatalog.RESOURCE_PATH)) {
+            file = (ObjectNode) mapper.readTree(in);
+        }
+        ArrayNode cards = (ArrayNode) file.get("cards");
+        ObjectNode draco = null;
+        for (JsonNode card : cards) {
+            if ("draco".equals(card.path("id").asText())) draco = (ObjectNode) card;
+        }
+        assertTrue(draco != null, "fixture expects the classpath Draco override");
+        for (Element element : List.of(Element.POISON, Element.LIGHT)) {
+            ObjectNode extra = draco.deepCopy();
+            String id = "test-" + element.name().toLowerCase();
+            extra.put("id", id);
+            extra.put("name", "Test " + element.name());
+            extra.put("element", element.name());
+            for (JsonNode notch : extra.withArray("notches")) ((ObjectNode) notch).put("element", element.name());
+            for (JsonNode ability : extra.withArray("abilities")) ((ObjectNode) ability).putNull("requiredElement");
+            cards.add(extra);
+        }
+
+        CardOverrideStorageService storage = new CardOverrideStorageService(
+                mapper, false, "", "", "(default)", "appConfig", "cardOverrides") {
+            @Override
+            public LoadSnapshot loadSnapshot() {
+                return new LoadSnapshot(file, StorageBackend.values()[0], null, false, null, null);
+            }
+        };
+        storage.registerInstance();
+        try {
+            Set<Element> live = new LinkedHashSet<>(LiveElementCatalogService.DEFAULT_GAMEPLAY_ELEMENT_ORDER);
+            Set<String> ids = serviceWithLiveElements(live).getDeckBuilderCatalog().stream()
+                    .map(Card::getId)
+                    .collect(Collectors.toSet());
+            assertTrue(ids.contains("test-poison"), "Poison Siegeling missing from catalog");
+            assertTrue(ids.contains("test-light"), "Light Siegeling missing from catalog");
+        } finally {
+            storage.cleanup();
+        }
     }
 
     private String resolveLineRoot(SieglingCard card, Map<String, SieglingCard> sieglingsById) {

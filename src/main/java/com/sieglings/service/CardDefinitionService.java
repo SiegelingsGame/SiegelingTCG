@@ -1006,19 +1006,10 @@ public class CardDefinitionService {
     }
 
     private List<SieglingCard> loadSieglingsUnchecked(Element element) {
-        return switch (element) {
-            case FIRE -> createFireSieglings();
-            case EARTH -> createEarthSieglings();
-            case WIND -> createWindSieglings();
-            case WATER -> createWaterSieglings();
-            case ICE -> createIceSieglings();
-            case SHADOW -> createShadowSieglings();
-            case ELECTRIC -> createElectricSieglings();
-            case METAL -> createMetalSieglings();
-            case UNDEAD -> createUndeadSieglings();
-            case PSYCHIC -> createPsychicSieglings();
-            default -> List.of();
-        };
+        // Every element's roster is built the same way, so no per-element switch:
+        // one used to stop at Psychic and silently dropped every Poison and Light
+        // Siegeling from the catalog, binder, and deck builder.
+        return GeneratedCreatureCatalog.createForElement(element, movesPool());
     }
 
     private boolean spellFitsDeck(SpellCard spell, Set<Element> deckElements) {
