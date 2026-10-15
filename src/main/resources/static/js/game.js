@@ -1923,11 +1923,19 @@ function getDashboardCardArtMeta(card) {
         ? String(card.holographicCardArtUrl || '').trim()
         : '';
     if (holographicUrl) {
-        return {
-            url: holographicUrl,
-            mode: 'HOLOGRAPHIC_FULL_CARD',
-            transformStyle: ''
-        };
+        const bv = window.SieglingsCardBinderVisual;
+        const holoMode = bv?.holographicArtMode ? bv.holographicArtMode(card) : 'FULL_CARD';
+        if (holoMode === 'REPLACE' || holoMode === 'OVERLAY') {
+            // Built like the standard art (same template, own placement), so the
+            // standard path below renders it from the re-dressed card.
+            card = bv.withHolographicArt(card);
+        } else {
+            return {
+                url: holographicUrl,
+                mode: 'HOLOGRAPHIC_FULL_CARD',
+                transformStyle: ''
+            };
+        }
     }
     const url = String(card.cardArtUrl || '').trim();
     const mode = String(card.cardArtMode || '').trim().toUpperCase();

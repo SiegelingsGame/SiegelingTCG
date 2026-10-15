@@ -142,8 +142,51 @@
         return `<img class="${className}" ${artImgAttrs(artUrl, 640)} alt=""${style ? ` style="${style}"` : ''}>`;
     }
 
+    // Holographic art carries its own mode, with the same meanings as the
+    // standard art. A holo URL without a mode is FULL_CARD: every holo upload
+    // before the holo art had its own builder was an aligned full-card face.
+    function holographicArtMode(card) {
+        if (!String(card?.holographicCardArtUrl || '').trim()) {
+            return '';
+        }
+        return normalizeArtMode(card?.holographicCardArtMode) || 'FULL_CARD';
+    }
+
+    function showsHolographicArt(card, options = {}) {
+        return Boolean(options.useHolographicFullCardArt && isHolographic(card, options) && holographicArtMode(card));
+    }
+
+    // REPLACE/OVERLAY holo art renders through the standard template, so the
+    // card is re-dressed with the holo art in the standard art fields. The holo
+    // fields are dropped from the copy so a downstream renderer (game.js's
+    // showcase) cannot swap a second time or fall back to the full-card path.
+    function withHolographicArt(card) {
+        const mode = holographicArtMode(card);
+        if (mode !== 'REPLACE' && mode !== 'OVERLAY') {
+            return card;
+        }
+        const view = {
+            ...card,
+            cardArtUrl: String(card.holographicCardArtUrl).trim(),
+            cardArtMode: mode,
+            cardArtOffsetX: 0,
+            cardArtOffsetY: 0,
+            cardArtOffsetXPct: card.holographicCardArtOffsetXPct ?? 0,
+            cardArtOffsetYPct: card.holographicCardArtOffsetYPct ?? 0,
+            cardArtScale: card.holographicCardArtScale ?? 1,
+            cardArtRotation: card.holographicCardArtRotation ?? 0
+        };
+        delete view.holographicCardArtUrl;
+        delete view.holographicCardArtMode;
+        return view;
+    }
+
+    function cardForArtVariant(card, options = {}) {
+        return showsHolographicArt(card, options) ? withHolographicArt(card) : card;
+    }
+
     function holographicFullCardArtUrl(card, options = {}) {
-        if (!options.useHolographicFullCardArt || !isHolographic(card, options)) {
+        if (!showsHolographicArt(card, options) || holographicArtMode(card) !== 'FULL_CARD') {
             return '';
         }
         return String(card?.holographicCardArtUrl || '').trim();
@@ -511,6 +554,7 @@
     }
 
     function renderBinderCardTile(card, options = {}) {
+        card = cardForArtVariant(card, options);
         if (usesFullCardArt(card, options)) {
             return renderFullCardArt(card, options);
         }
@@ -532,6 +576,7 @@
     }
 
     function renderBinderCardPreview(card, options = {}) {
+        card = cardForArtVariant(card, options);
         if (usesFullCardArt(card, options)) {
             return renderFullCardArt(card, options);
         }
@@ -735,6 +780,9 @@
         usesFramedCardTemplate,
         usesFullCardArt,
         holographicFullCardArtUrl,
+        holographicArtMode,
+        withHolographicArt,
+        cardForArtVariant,
         usesKnightOverlayArt,
         knightOverlayArtUrl,
         renderKnightOverlayArtWindow,

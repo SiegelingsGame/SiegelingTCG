@@ -293,6 +293,18 @@ final class ManualSieglingCatalog {
         if (definition.holographicCardArtScale() != null) {
             card.setHolographicCardArtScale(definition.holographicCardArtScale());
         }
+        if (definition.holographicCardArtMode() != null) {
+            card.setHolographicCardArtMode(normalizeBlank(definition.holographicCardArtMode()));
+        }
+        if (definition.holographicCardArtOffsetXPct() != null) {
+            card.setHolographicCardArtOffsetXPct(definition.holographicCardArtOffsetXPct());
+        }
+        if (definition.holographicCardArtOffsetYPct() != null) {
+            card.setHolographicCardArtOffsetYPct(definition.holographicCardArtOffsetYPct());
+        }
+        if (definition.holographicCardArtRotation() != null) {
+            card.setHolographicCardArtRotation(definition.holographicCardArtRotation());
+        }
         if (definition.cardArtMode() != null) {
             card.setCardArtMode(normalizeBlank(definition.cardArtMode()));
         }
@@ -646,6 +658,18 @@ final class ManualSieglingCatalog {
             throw new IllegalArgumentException("Card '" + normalizeId(definition.id())
                     + "' holographicCardArtScale must be between 0.25 and 3.");
         }
+        String holographicMode = definition.holographicCardArtMode();
+        if (holographicMode != null && !holographicMode.isBlank()
+                && !List.of("REPLACE", "OVERLAY", "FULL_CARD").contains(holographicMode.trim().toUpperCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("Card '" + normalizeId(definition.id())
+                    + "' holographicCardArtMode must be REPLACE, OVERLAY or FULL_CARD.");
+        }
+        Double holographicRotation = definition.holographicCardArtRotation();
+        if (holographicRotation != null && (!Double.isFinite(holographicRotation)
+                || holographicRotation < -180 || holographicRotation > 180)) {
+            throw new IllegalArgumentException("Card '" + normalizeId(definition.id())
+                    + "' holographicCardArtRotation must be between -180 and 180.");
+        }
     }
 
     private static void validateCardArtUrlForStorage(String definitionId, String fieldName, String cardArtUrl) {
@@ -749,7 +773,11 @@ final class ManualSieglingCatalog {
                     card.getDescription(),
                     card.getHolographicCardArtUrl(),
                     card.getHolographicCardArtScale(),
-                    siegling.getSize() == null ? null : siegling.getSize().name()
+                    siegling.getSize() == null ? null : siegling.getSize().name(),
+                    card.getHolographicCardArtMode(),
+                    card.getHolographicCardArtOffsetXPct(),
+                    card.getHolographicCardArtOffsetYPct(),
+                    card.getHolographicCardArtRotation()
             );
         }
         if (card instanceof SpellCard spell) {
@@ -788,7 +816,11 @@ final class ManualSieglingCatalog {
                     spell.getDescription(),
                     spell.getHolographicCardArtUrl(),
                     spell.getHolographicCardArtScale(),
-                    null
+                    null,
+                    spell.getHolographicCardArtMode(),
+                    spell.getHolographicCardArtOffsetXPct(),
+                    spell.getHolographicCardArtOffsetYPct(),
+                    spell.getHolographicCardArtRotation()
             );
         }
         if (card instanceof TrapCard trap) {
@@ -827,7 +859,11 @@ final class ManualSieglingCatalog {
                     trap.getDescription(),
                     trap.getHolographicCardArtUrl(),
                     trap.getHolographicCardArtScale(),
-                    null
+                    null,
+                    trap.getHolographicCardArtMode(),
+                    trap.getHolographicCardArtOffsetXPct(),
+                    trap.getHolographicCardArtOffsetYPct(),
+                    trap.getHolographicCardArtRotation()
             );
         }
         throw new IllegalStateException("Unsupported card type for override export: " + card.getClass().getSimpleName());
@@ -920,7 +956,11 @@ final class ManualSieglingCatalog {
             String holographicCardArtUrl,
             Double holographicCardArtScale,
             /** SMALL/MEDIUM/LARGE/GIGANTIC; blank or absent means "derive from rarity". */
-            String size
+            String size,
+            String holographicCardArtMode,
+            Double holographicCardArtOffsetXPct,
+            Double holographicCardArtOffsetYPct,
+            Double holographicCardArtRotation
     ) {
         ManualSieglingDefinition(
                 CardType type, String id, String name, Element element, Rarity rarity,
@@ -938,6 +978,26 @@ final class ManualSieglingCatalog {
                     requiredComboSignature, moveIds, abilities, cardArtUrl, cardArtMode,
                     cardArtOffsetX, cardArtOffsetY, cardArtOffsetXPct, cardArtOffsetYPct,
                     cardArtScale, cardArtRotation, holographic, expeditionStarter, description, null, null, null);
+        }
+
+        ManualSieglingDefinition(
+                CardType type, String id, String name, Element element, Rarity rarity,
+                Integer health, Integer speed, List<ManualNotchDefinition> notches, Row preferredRow,
+                String evolvesFromId, String evolvesFromName, Element costElement, Integer costAmount,
+                ManualAbilityDefinition ability, Element trapBucketElement, Integer trapBucketAmount,
+                Reaction requiredReaction, Integer requiredComboSize, String requiredComboSignature,
+                List<String> moveIds, List<ManualAbilityDefinition> abilities, String cardArtUrl,
+                String cardArtMode, Double cardArtOffsetX, Double cardArtOffsetY,
+                Double cardArtOffsetXPct, Double cardArtOffsetYPct, Double cardArtScale,
+                Double cardArtRotation, Boolean holographic, Boolean expeditionStarter, String description,
+                String holographicCardArtUrl, Double holographicCardArtScale, String size) {
+            this(type, id, name, element, rarity, health, speed, notches, preferredRow,
+                    evolvesFromId, evolvesFromName, costElement, costAmount, ability,
+                    trapBucketElement, trapBucketAmount, requiredReaction, requiredComboSize,
+                    requiredComboSignature, moveIds, abilities, cardArtUrl, cardArtMode,
+                    cardArtOffsetX, cardArtOffsetY, cardArtOffsetXPct, cardArtOffsetYPct,
+                    cardArtScale, cardArtRotation, holographic, expeditionStarter, description,
+                    holographicCardArtUrl, holographicCardArtScale, size, null, null, null, null);
         }
     }
 

@@ -40,10 +40,16 @@ export interface SieglingCardModel {
     moveIds: string[];
     /** Custom art URL or data URI for the cards menu binder. */
     cardArtUrl?: string;
-    /** Complete-card artwork used only when the card's holographic finish is active in binder views. */
+    /** Artwork shown instead of the standard art once the card's holographic finish is active. */
     holographicCardArtUrl?: string;
-    /** Independent crop scale for holographic full-card artwork (0.25–3). */
+    /** How the holographic art sits in the template (same values as cardArtMode); blank with a holo URL means FULL_CARD. */
+    holographicCardArtMode?: "REPLACE" | "OVERLAY" | "FULL_CARD" | "";
+    /** Holographic REPLACE/OVERLAY art placement, independent of the standard art. */
+    holographicCardArtOffsetXPct?: number;
+    holographicCardArtOffsetYPct?: number;
+    /** Scale (0.25–3) of holographic REPLACE/OVERLAY art; never applied to full-card faces. */
     holographicCardArtScale?: number;
+    holographicCardArtRotation?: number;
     /** REPLACE swaps the element icon; OVERLAY draws art above the default frame; FULL_CARD skips templating and renders the image as the whole card. */
     cardArtMode?: "REPLACE" | "OVERLAY" | "FULL_CARD" | "";
     /** Offset in pixels within the binder art frame. */

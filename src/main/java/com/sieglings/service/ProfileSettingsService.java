@@ -273,6 +273,10 @@ public class ProfileSettingsService {
         out.put("cardTemplate", card instanceof TrainerCard knight ? knight.getCardTemplate() : null);
         out.put("holographicCardArtUrl", card.getHolographicCardArtUrl());
         out.put("holographicCardArtScale", card.getHolographicCardArtScale());
+        out.put("holographicCardArtMode", card.getHolographicCardArtMode());
+        out.put("holographicCardArtOffsetXPct", card.getHolographicCardArtOffsetXPct());
+        out.put("holographicCardArtOffsetYPct", card.getHolographicCardArtOffsetYPct());
+        out.put("holographicCardArtRotation", card.getHolographicCardArtRotation());
         out.put("holographic", "HOLOGRAPHIC".equals(normalizeCardVariant(variant)));
         out.put("description", card.getDescription());
         return out;

@@ -82,6 +82,59 @@ class ManualSieglingCatalogTest {
     }
 
     @Test
+    void holographicOverlayArtKeepsItsOwnModeAndPlacement() throws Exception {
+        SieglingCard generated = GeneratedCreatureCatalog.createGeneratedForElement(Element.FIRE).get(0);
+        String json = """
+                {
+                  "type":"SIEGLING",
+                  "id":"%s",
+                  "element":"FIRE",
+                  "cardArtUrl":"/assets/cards/%s-overlay.png",
+                  "cardArtMode":"OVERLAY",
+                  "cardArtScale":1.7,
+                  "holographicCardArtUrl":"/assets/cards/%s-holographic.png",
+                  "holographicCardArtMode":"REPLACE",
+                  "holographicCardArtOffsetXPct":-12.5,
+                  "holographicCardArtOffsetYPct":8,
+                  "holographicCardArtScale":1.3,
+                  "holographicCardArtRotation":-15
+                }
+                """.formatted(generated.getId(), generated.getId(), generated.getId());
+        ManualSieglingCatalog.ManualSieglingDefinition definition = new ObjectMapper().readValue(
+                json, ManualSieglingCatalog.ManualSieglingDefinition.class);
+        ManualSieglingCatalog.validateCardArtForStorage(definition);
+
+        SieglingCard merged = ManualSieglingCatalog.applyOverrides(
+                Element.FIRE, List.of(generated), List.of(definition)).get(0);
+
+        assertEquals("OVERLAY", merged.getCardArtMode());
+        assertEquals(1.7, merged.getCardArtScale());
+        assertEquals("REPLACE", merged.getHolographicCardArtMode());
+        assertEquals(-12.5, merged.getHolographicCardArtOffsetXPct());
+        assertEquals(8.0, merged.getHolographicCardArtOffsetYPct());
+        assertEquals(-15.0, merged.getHolographicCardArtRotation());
+        SieglingCard copy = merged.copy();
+        assertEquals("REPLACE", copy.getHolographicCardArtMode());
+        assertEquals(-15.0, copy.getHolographicCardArtRotation());
+        ManualSieglingCatalog.ManualSieglingDefinition exported =
+                ManualSieglingCatalog.buildOverrideFile(List.of(merged)).cards().get(0);
+        assertEquals("REPLACE", exported.holographicCardArtMode());
+        assertEquals(-12.5, exported.holographicCardArtOffsetXPct());
+        assertEquals(8.0, exported.holographicCardArtOffsetYPct());
+        assertEquals(1.3, exported.holographicCardArtScale());
+        assertEquals(-15.0, exported.holographicCardArtRotation());
+    }
+
+    @Test
+    void holographicArtModeRejectsUnknownValues() throws Exception {
+        ManualSieglingCatalog.ManualSieglingDefinition definition = new ObjectMapper().readValue("""
+                {"type":"SIEGLING","id":"draco","element":"FIRE",
+                 "holographicCardArtUrl":"/assets/cards/draco-holographic.png","holographicCardArtMode":"STRETCH"}
+                """, ManualSieglingCatalog.ManualSieglingDefinition.class);
+        assertThrows(IllegalArgumentException.class, () -> ManualSieglingCatalog.validateCardArtForStorage(definition));
+    }
+
+    @Test
     void deletingASieglingFromOverridesKeepsItOutOfTheRoster() {
         List<SieglingCard> generated = GeneratedCreatureCatalog.createGeneratedForElement(Element.FIRE);
         MovesPoolService pool = new MovesPoolService(new ObjectMapper(), null);
