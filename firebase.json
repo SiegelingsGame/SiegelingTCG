@@ -42,7 +42,7 @@
         ]
       },
       {
-        "source": "/@(landing|home|login|social|cards|decks|lobbies|profile|achievements|deck-builder|shop|play|battle|siege|keep|help|legacy|settings|next|gallery|room)",
+        "source": "/@(landing|home|login|social|cards|decks|lobbies|profile|achievements|deck-builder|shop|play|battle|siege|keep|chronicles|dominion|help|legacy|settings|next|gallery|room)",
         "headers": [
           {
             "key": "Cache-Control",
@@ -255,6 +255,10 @@
       {
         "source": "/chronicles",
         "destination": "/chronicles.html"
+      },
+      {
+        "source": "/dominion",
+        "destination": "/dominion.html"
       },
       {
         "source": "/api/cards/art-mirror",
