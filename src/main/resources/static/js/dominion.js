@@ -3670,21 +3670,24 @@
         const st = $('dmRoomStage');
         if (!st) return;
         const id = S.ui.room;
-        const helper = id === 'hall' ? (joinedIds(S)[0] || '') : helperOf(S, id);
+        // Whoever is assigned here stands in the room: a workshop's or the Woodlot's helper, the Knight's aide in the Hall.
+        const helper = id === 'hall' ? knightHelper(S) : HELP_TARGETS.includes(id) ? helperOf(S, id) : null;
         const res = st.querySelector('.lodge-resident, .facility-room-resident, .hall-favorite-resident');
-        // Only a standing room has a resident, and only real card art makes a standee.
-        if (res && helper && !onExpedition(S, helper) && roomBuilt(id) && catalogArt(speciesOf(helper).id, 240)) {
+        if (res && helper && !onExpedition(S, helper) && roomBuilt(id)) {
             res.classList.remove('hidden');
             const art = res.querySelector('span'), name = res.querySelector('small');
-            if (art) { art.className = 'dm-room-cutout'; art.innerHTML = compArt(helper, ''); }
+            if (art) { art.className = 'dm-room-cutout'; art.innerHTML = compArt(helper, C(helper).name); }
             if (name) name.textContent = C(helper).name;
         }
-        st.querySelectorAll('[data-enclave-resident-slot]').forEach((b, i) => {
+        // Resting Siegelings gather in the Enclave as one group, however many there are. The Keep's
+        // five fixed slots only show with .has-resident, so the group is drawn fresh instead.
+        const group = st.querySelector('.enclave-interior-residents');
+        if (group) {
             const here = joinedIds(S).filter((u) => S.comps[u].job.kind === 'rest' && !onExpedition(S, u));
-            const show = here[i] && catalogArt(speciesOf(here[i]).id, 240);
-            b.innerHTML = show ? compArt(here[i], '') : '';
-            b.className = show ? 'dm-room-cutout' : '';
-        });
+            group.dataset.count = String(here.length);
+            group.classList.toggle('is-crowd', here.length > 5);
+            group.innerHTML = here.map((u, i) => '<b class="has-resident dm-room-cutout" style="--i:' + i + '" title="' + esc(C(u).name) + ' is resting">' + compArt(u, C(u).name) + '<small>' + esc(C(u).name) + '</small></b>').join('');
+        }
         st.querySelectorAll('[data-decoration-art]').forEach((d) => d.classList.toggle('is-placed', !!S.placed[d.dataset.decorationArt]));
         const tiers = Object.keys(KEEP_CRAFTS).filter((k) => KEEP_CRAFTS[k][1] === 'TOOL' && KEEP_CRAFTS[k][2] === id && S.crafted[k]).map((k) => KEEP_CRAFTS[k][4] || 1);
         st.querySelectorAll('.room-tool-set').forEach((t) => {
