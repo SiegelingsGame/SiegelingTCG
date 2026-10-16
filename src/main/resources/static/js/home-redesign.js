@@ -4822,8 +4822,12 @@
   function versionFace(card, key) {
     var visual = window.SieglingsCardBinderVisual;
     if (!visual || !visual.renderBinderCardTile) return galleryCard(card);
+    // The `finish` stamp is what the shared showcase renderer (game.js) treats
+    // as the whole truth; without it, a false flag falls back to this account's
+    // finish lists, so the Standard face would wear the player's holo or SP art.
     var base = copyCard(card, {
-      holographic: key === 'HSP', goldFinish: key === 'GOLD', holoGoldFinish: key === 'GSP', holoPlainFinish: key === 'HOLO'
+      holographic: key === 'HSP', goldFinish: key === 'GOLD', holoGoldFinish: key === 'GSP', holoPlainFinish: key === 'HOLO',
+      finish: key === 'STANDARD' ? '' : key
     });
     var inner;
     if (isKnight(card)) {

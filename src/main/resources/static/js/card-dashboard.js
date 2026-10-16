@@ -3618,6 +3618,9 @@
                 preview.holographicCardArtMode = artView(card).cardArtMode;
             }
         }
+        // Stamp the finish so the showcase renderer draws exactly what the
+        // designer picked, not whatever finish the signed-in account owns.
+        preview.finish = preview.holographic === true ? "HSP" : "";
         if (card.cardType !== "SIEGLING" && preview.abilities[0]) {
             preview.ability = preview.abilities[0];
         }
