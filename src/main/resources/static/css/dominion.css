@@ -271,6 +271,8 @@
     filter: drop-shadow(1px 0 0 #282019) drop-shadow(-1px 0 0 #282019) drop-shadow(0 1px 0 #282019) drop-shadow(2px 5px 3px rgba(23,19,15,.5)); }
 @supports (filter: url("#paper-siegling-cutout")) { .dm-room-cutout img, .lodge-resident img, .facility-room-resident img, .hall-favorite-resident img { filter: url("#paper-siegling-cutout"); } }
 .lodge-resident > span, .facility-room-resident > span, .hall-favorite-resident > span { width: clamp(70px, 20vw, 120px); height: clamp(86px, 24vw, 146px); }
+/* keep.css sets --cutout-scale per Siegeling size; Dominion has no size data, so standees use the base scale. */
+.lodge-resident > span, .facility-room-resident > span, .hall-favorite-resident > span { --cutout-scale: 1; }
 .enclave-interior-residents b { width: clamp(52px, 14vw, 90px); height: clamp(64px, 17vw, 110px); }
 .enclave-interior-residents b img { width: 100%; height: 100%; object-fit: contain; }
 
@@ -554,6 +556,16 @@
 .dm-interior .enclave-interior-residents b img, .dm-interior .enclave-interior-residents b .dm-paper-token { width: 100%; height: calc(100% - 16px); min-height: 0; }
 .dm-interior .enclave-interior-residents b .dm-paper-token { width: auto; aspect-ratio: 1; height: auto; max-height: 60%; border-radius: 50%; }
 .dm-interior .enclave-interior-residents small { margin-top: 2px; padding: 1px 6px; border-radius: 999px; background: rgba(14,24,34,.78); color: #ffe9a8; font: 700 9px/1.3 var(--sans); white-space: nowrap; }
+
+/* The Keeper's Favor chooser in the Great Hall */
+.dm-favor-now { justify-content: flex-start; gap: 10px; align-items: center; margin: 6px 0; }
+.dm-favor-art { flex: 0 0 auto; width: 64px; height: 78px; }
+.dm-favor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; margin-top: 8px; }
+.dm-favor-pick { display: grid; justify-items: center; gap: 2px; padding: 6px 4px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(11,16,32,.45); color: inherit; cursor: pointer; }
+.dm-favor-pick .dm-room-cutout { width: 52px; height: 62px; }
+.dm-favor-pick small { font: 700 10px/1.2 var(--sans); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dm-favor-pick em { font: 800 10px/1 var(--sans); font-style: normal; color: #ffe08a; }
+.dm-favor-pick.is-on { border-color: #f4cc62; box-shadow: 0 0 0 2px rgba(244,204,98,.35), 0 0 14px rgba(244,204,98,.35); background: rgba(70,52,16,.45); }
 
 /* Siege, drill and rush */
 .dm-siege { margin: 8px 0; padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(244,204,98,.35); background: rgba(11,16,32,.45); }
