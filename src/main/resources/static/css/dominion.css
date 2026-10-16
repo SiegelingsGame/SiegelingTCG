@@ -541,6 +541,20 @@
 @keyframes dm-ward-pulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .dm-front .front-raiders i, .dm-front .front-defenders b, .dm-front .wall-ward, .dm-front .front-torches i::before { animation: none; } }
 
+/* The Enclave's resting group: everyone resting stands together, wrapping to a second row for a crowd. */
+.dm-interior .enclave-interior-residents { position: absolute; left: 3%; right: 3%; bottom: 7%; height: 50%; z-index: 5; display: flex; flex-wrap: wrap-reverse; justify-content: center; align-items: flex-end; gap: 0 1%; pointer-events: none; }
+.dm-interior .enclave-interior-residents b { position: relative; left: auto; right: auto; bottom: auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+    width: clamp(56px, 17%, 120px); height: 100%; animation: enclave-wander 3.4s ease-in-out infinite; animation-delay: calc(var(--i, 0) * -.7s); }
+/* A crowd stands in two ranks: the back rank a little smaller and higher, names left to the tooltip. */
+.dm-interior .enclave-interior-residents.is-crowd { height: 64%; flex-wrap: wrap; align-content: flex-end; gap: 0 .5%; }
+.dm-interior .enclave-interior-residents.is-crowd b { width: clamp(44px, 15%, 104px); height: 50%; }
+.dm-interior .enclave-interior-residents.is-crowd b:nth-child(-n+6) { transform: scale(.86); transform-origin: bottom; z-index: -1; }
+.dm-interior .enclave-interior-residents.is-crowd small { display: none; }
+.dm-interior .enclave-interior-residents.is-crowd b img { height: 100%; }
+.dm-interior .enclave-interior-residents b img, .dm-interior .enclave-interior-residents b .dm-paper-token { width: 100%; height: calc(100% - 16px); min-height: 0; }
+.dm-interior .enclave-interior-residents b .dm-paper-token { width: auto; aspect-ratio: 1; height: auto; max-height: 60%; border-radius: 50%; }
+.dm-interior .enclave-interior-residents small { margin-top: 2px; padding: 1px 6px; border-radius: 999px; background: rgba(14,24,34,.78); color: #ffe9a8; font: 700 9px/1.3 var(--sans); white-space: nowrap; }
+
 /* Siege, drill and rush */
 .dm-siege { margin: 8px 0; padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(244,204,98,.35); background: rgba(11,16,32,.45); }
 .dm-siege.is-safe { border-color: rgba(111,207,139,.55); }
