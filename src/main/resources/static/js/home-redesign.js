@@ -1218,6 +1218,7 @@
     featured: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg>',
     gallery: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>',
     lobbies: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 20c0-2 .8-3.8 2-5 2.2 0 4 2.2 4 5"/></svg>',
+    shop: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16l-1.2 11H5.2z"/><path d="M7 9V7a5 5 0 0 1 10 0v2"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/></svg>',
     prev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M19 5l-10 7 10 7z"/></svg>',
     next: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M5 5l10 7-10 7z"/></svg>',
     pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>',
@@ -1257,7 +1258,8 @@
           tile('expedition', 'Expedition', 'data-stage-panel="Continue Playing"', runs.length ? '!' : '') +
           link('featured', 'Featured', pathForScreen('collection'), ' data-screen="collection"') +
           link('gallery', 'Gallery', pathForScreen('art'), ' data-screen="art"') +
-          link('lobbies', 'Lobbies', HREF.lobbies, lobbiesAttrs().replace(' href="' + HREF.lobbies + '"', '')) +
+          link('lobbies', 'Tournaments', HREF.lobbies, lobbiesAttrs().replace(' href="' + HREF.lobbies + '"', '')) +
+          link('shop', 'Shop', pathForScreen('shop'), ' data-screen="shop"') +
         '</nav>' +
         '<div class="sg-stage-right">' +
           '<a class="sg-stage-mode" href="' + HREF.siege + '">' +
@@ -1496,12 +1498,227 @@
 
   /* ---------- screens ---------- */
 
+  /* ---------- home destinations / tournament / shop spotlight ----------
+     Home used to bury the day's cup and the shop behind the Play tray and the
+     Shop tab. The feed now opens with art-backed doors into every activity, then
+     today's tournament and one cool shop item, so a returning player can tap
+     straight into what they came for. */
+
+  var HOME_GO = [
+    { id: 'battle', label: 'Battle', line: 'Solo & live PvP',
+      art: '/img/gallery/frostag-training.webp', el: 'ICE', href: '/battle' },
+    { id: 'siege', label: 'Siege', line: 'Roguelike expedition',
+      art: '/img/gallery/bearzooka-rampage.webp', el: 'FIRE', href: '/siege' },
+    { id: 'keep', label: 'Keep', line: 'Your stronghold',
+      art: '/img/gallery/cactyjackedty-ruins.webp', el: 'EARTH', href: '/keep' },
+    { id: 'tour', label: 'Tournaments', line: 'Today\u2019s rotating cup',
+      art: '/img/gallery/skydon-skyreach.webp', el: 'WIND', href: '/lobbies', screen: 'lobbies' },
+    { id: 'shop', label: 'Shop', line: 'Packs & daily deals',
+      art: '/img/shop/scene-market.webp', el: 'LIGHT', href: '/shop', screen: 'shop' },
+    { id: 'dominion', label: 'Dominion', line: 'Test \u00b7 Keep + Chronicles',
+      art: '/img/gallery/earth-warband.webp', el: 'EARTH', href: '/dominion', test: true }
+  ];
+
+  function goTile(d, opts) {
+    var runs = (opts && opts.siegeRuns) || [];
+    var tag = d.line;
+    var badge = '';
+    if (d.id === 'siege' && runs.length) { tag = 'Run saved'; badge = '!'; }
+    if (d.id === 'tour' && opts && opts.lobbies != null) tag = opts.lobbies + ' open';
+    else if (d.id === 'tour' && opts && opts.live && opts.live.lobbies != null) tag = opts.live.lobbies + ' open';
+    var attrs = d.screen
+      ? ' href="' + d.href + '" data-screen="' + esc(d.screen) + '"'
+      : ' href="' + d.href + '"';
+    return '<a class="sg-go' + (d.test ? ' is-test' : '') + '"' + attrs + ' style="--el:' + color(d.el) + '">' +
+      '<img class="sg-go-bg" src="' + esc(d.art) + '" alt="" loading="lazy">' +
+      '<div class="sg-go-veil"></div>' +
+      '<div class="sg-go-body">' +
+        '<span class="sg-go-tag">' + esc(tag) + '</span>' +
+        '<strong>' + esc(d.label) + '</strong>' +
+      '</div>' +
+      (badge ? '<i class="sg-go-badge">' + esc(badge) + '</i>' : '') +
+      '<span class="sg-go-chev" aria-hidden="true">\u203a</span>' +
+    '</a>';
+  }
+
+  function destinationsSection(opts) {
+    return '<section class="sg-section sg-go-section" data-home-section="Jump In">' +
+      '<div class="sg-section-head"><h3>Jump In</h3></div>' +
+      '<div class="sg-go-grid">' + HOME_GO.map(function (d) { return goTile(d, opts); }).join('') + '</div>' +
+    '</section>';
+  }
+
+  function homeTourSection() {
+    return '<section class="sg-section sg-home-tour-section" data-home-section="Today\u2019s Tournament">' +
+      '<div class="sg-section-head"><h3>Today\u2019s Tournament</h3>' +
+        '<a href="/lobbies" data-screen="lobbies">Lobbies</a></div>' +
+      '<div class="sg-home-tour" data-home-tour>' +
+        '<div class="sg-tour-loading">Loading today\u2019s tournament\u2026</div>' +
+      '</div>' +
+    '</section>';
+  }
+
+  // Compact home face of the day's cup: land art, rule, countdown, one CTA.
+  // The full standings board stays on Lobbies; this is the door into it.
+  function homeTourCard(t, data, opts) {
+    var guest = !data || !data.signedIn;
+    var me = t.me;
+    var prizes = (t.prizes || []).slice(0, 3).map(function (p, i) {
+      return '<span class="sg-tour-prize"><i>' + MEDAL[i] + '</i>' + esc(p) + '</span>';
+    }).join('');
+    return '<div class="sg-home-tour-card" style="--el:' + color(t.element) + '">' +
+      '<div class="sg-tour-bg" style="background-image:url(\'' + land(t.element) + '\')"></div>' +
+      '<div class="sg-tour-veil"></div>' +
+      '<div class="sg-home-tour-body">' +
+        '<span class="sg-tour-kicker">Live now \u00b7 <b data-home-tour-clock>' + esc(countdown(t.endsAt)) + '</b></span>' +
+        '<h2>' + esc(t.name) + '</h2>' +
+        '<p>' + esc(t.tagline) + '</p>' +
+        '<div class="sg-tour-rule">' + esc(t.rule) + '</div>' +
+        (prizes ? '<div class="sg-tour-prizes">' + prizes + '</div>' : '') +
+        '<div class="sg-tour-cta">' +
+          (guest
+            ? '<a class="sg-tour-host" href="/login" data-screen="auth">Sign in to compete</a>'
+            : '<a class="sg-tour-host" href="/room?tournament=' + encodeURIComponent(t.id) + '">Host a table</a>') +
+          '<a class="sg-home-tour-more" href="/lobbies" data-screen="lobbies">Standings \u203a</a>' +
+          (me ? '<span class="sg-tour-me">You\u2019re #' + esc(me.place) + ' \u00b7 ' + esc(me.points) + ' pts</span>' : '') +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  var homeTourTick = null;
+  function stopHomeTourTick() {
+    if (homeTourTick) { clearInterval(homeTourTick); homeTourTick = null; }
+  }
+
+  function mountHomeTour(app, opts) {
+    var host = app.querySelector('[data-home-tour]');
+    if (!host) { stopHomeTourTick(); return; }
+    var api = liveApi();
+    var tour = null;
+
+    function paint(data) {
+      var t = data && data.current;
+      if (!t) {
+        host.innerHTML = '<div class="sg-tour-loading">Tournaments are unavailable right now. ' +
+          '<a href="/lobbies" data-screen="lobbies">Open lobbies</a></div>';
+        return;
+      }
+      tour = t;
+      host.innerHTML = homeTourCard(t, data, opts);
+    }
+
+    function tick() {
+      if (!host.isConnected || !tour) { stopHomeTourTick(); return; }
+      var clock = host.querySelector('[data-home-tour-clock]');
+      if (clock) clock.textContent = countdown(tour.endsAt);
+    }
+
+    stopHomeTourTick();
+    if (!api) {
+      paint(null);
+      return;
+    }
+    api.get('/api/tournaments').then(function (data) {
+      if (!host.isConnected) return;
+      paint(data);
+      homeTourTick = setInterval(tick, 30000);
+    }).catch(function () { if (host.isConnected) paint(null); });
+  }
+
+  // One cool thing from the shop on Home: prefer today's unbought daily card
+  // (SiegeKnight first), then any daily, then a featured pack. Never invents a
+  // price - when the shop payload is empty the tile just opens the shop.
+  function shopSpotlightPick(opts) {
+    var live = (opts && opts.live) || {};
+    var offers = live.dailyOffers || [];
+    var bought = live.purchasedDailyOfferIds || [];
+    var open = offers.filter(function (o) { return bought.indexOf(o.id) < 0; });
+    open.sort(function (a, b) {
+      return (KNIGHT_ART[b.cardId] ? 1 : 0) - (KNIGHT_ART[a.cardId] ? 1 : 0);
+    });
+    var offer = open[0] || offers[0] || null;
+    if (offer) return { kind: 'offer', offer: offer };
+    var packs = featuredPacks((live.packs || []).filter(function (pk) { return pk && !isSummonPack(pk); }));
+    if (packs[0]) return { kind: 'pack', pack: packs[0] };
+    return null;
+  }
+
+  function shopSpotlightMarkup(opts) {
+    var pick = shopSpotlightPick(opts);
+    var body;
+    if (!pick) {
+      body = '<a class="sg-home-shop is-empty" href="/shop" data-screen="shop">' +
+        '<img class="sg-home-shop-bg" src="' + sceneArt('market') + '" alt="" loading="lazy">' +
+        '<div class="sg-home-shop-veil"></div>' +
+        '<div class="sg-home-shop-body">' +
+          '<span class="sg-home-shop-kicker">Shop</span>' +
+          '<strong>Browse packs &amp; daily deals</strong>' +
+          '<em>Open the shop to see what\u2019s in today.</em>' +
+        '</div><span class="sg-home-shop-go">Shop \u203a</span></a>';
+    } else if (pick.kind === 'offer') {
+      var offer = pick.offer;
+      var card = offerCard(offer);
+      var ownArt = !KNIGHT_ART[offer.cardId] && typeof artForCard === 'function' && artForCard(offer.cardId);
+      var bg = KNIGHT_ART[offer.cardId]
+        ? { art: knightArt(offer.cardId), pos: KNIGHT_ART[offer.cardId].pos }
+        : ownArt ? pieceStage(ownArt) : elementStage(card.element);
+      var owned = ((opts.live && opts.live.purchasedDailyOfferIds) || []).indexOf(offer.id) >= 0;
+      body = '<a class="sg-home-shop" href="/shop" data-screen="shop" style="--el:' + color(card.element) +
+          ';--rar:' + rarityColor(card.rarity) + '">' +
+        '<img class="sg-home-shop-bg" src="' + esc(bg.art) + '" alt="" loading="lazy"' +
+          (bg.pos ? ' style="object-position:' + esc(bg.pos) + '"' : '') + '>' +
+        '<div class="sg-home-shop-veil"></div>' +
+        (card.cardArtUrl
+          ? '<div class="sg-home-shop-face"><img src="' + esc(card.cardArtUrl) + '" alt="" loading="lazy"></div>'
+          : '') +
+        '<div class="sg-home-shop-body">' +
+          '<span class="sg-home-shop-kicker">Daily deal' + (owned ? ' \u00b7 Owned' : '') + '</span>' +
+          '<strong>' + esc(card.name || offer.cardId) + '</strong>' +
+          '<em>' + esc(title(card.rarity)) + ' \u00b7 ' + esc(title(card.element)) +
+            (card.type === 'SIEGEKNIGHT' ? ' \u00b7 SiegeKnight' : '') + '</em>' +
+          (owned ? '' : '<span class="sg-home-shop-price"><img src="/img/ui/home-stats/siegecoin.png" alt="">' +
+            esc(offer.price) + '</span>') +
+        '</div><span class="sg-home-shop-go">' + (owned ? 'Shop \u203a' : 'Get it \u203a') + '</span></a>';
+    } else {
+      var pk = pick.pack;
+      var el = packElement(pk);
+      var mixed = (pk.elements || []).length > 2;
+      var own = PACK_STAGE[pk.id] && !artRemoved(PACK_STAGE[pk.id].img) ? PACK_STAGE[pk.id] : null;
+      var tagged = typeof artForSlot === 'function' && artForSlot('pack:' + pk.id);
+      var pbg = tagged ? pieceStage(tagged)
+        : own ? { art: heroPlate(scene(own.img)), pos: own.pos } : mixed ? { art: sceneArt('market') } : elementStage(el);
+      body = '<a class="sg-home-shop is-pack" href="/shop" data-screen="shop" style="--el:' + color(el) + '">' +
+        '<img class="sg-home-shop-bg" src="' + esc(pbg.art) + '" alt="" loading="lazy"' +
+          (pbg.pos ? ' style="object-position:' + esc(pbg.pos) + '"' : '') + '>' +
+        '<div class="sg-home-shop-veil"></div>' +
+        '<div class="sg-home-shop-face is-pack"><img src="' + esc(packBack(pk)) + '" alt="" loading="lazy"></div>' +
+        '<div class="sg-home-shop-body">' +
+          '<span class="sg-home-shop-kicker">' + (pk.starterEligible ? 'Starter pack' : 'Featured pack') + '</span>' +
+          '<strong>' + esc(pk.name || pk.id) + '</strong>' +
+          '<em>' + esc(pk.description || (mixed ? 'All elements' : (pk.elements || []).map(title).join(' \u00b7 '))) + '</em>' +
+          '<span class="sg-home-shop-price"><img src="/img/ui/home-stats/siegecoin.png" alt="">' +
+            esc(pk.price) + '</span>' +
+        '</div><span class="sg-home-shop-go">Open shop \u203a</span></a>';
+    }
+    return '<section class="sg-section sg-home-shop-section" data-home-section="From the Shop">' +
+      '<div class="sg-section-head"><h3>From the Shop</h3>' +
+        '<a href="/shop" data-screen="shop">Shop</a></div>' +
+      body +
+    '</section>';
+  }
+
   function homeScreen(opts) {
     opts = opts || {};
     // The stage precedes the scroller so the landscape rule can retire the
     // scroller with a sibling selector rather than :has().
     return topMarkup(opts) + stageMarkup(opts) +
-      '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + expeditionsSection(opts) +
+      '<div class="sg-scroll">' + heroMarkup() +
+        destinationsSection(opts) +
+        homeTourSection() +
+        shopSpotlightMarkup(opts) +
+        featuredMarkup() + leaderboardSection(opts) + gallerySection() +
+        questsMarkup(opts) + expeditionsSection(opts) +
       '<div style="height:96px"></div></div>' +
       sheetHost() +
       bottomMarkup('home', opts);
@@ -9243,14 +9460,18 @@
     if (screen !== 'social') { openThread = null; stopThreadPoll(); }
     if (screen === 'collection') {
       mountGallery(app, opts);
+      stopHomeTourTick();
     } else if (!builders[screen]) {
       mountHero(app, opts);
       mountLeaderboard(app, opts);
       mountStage(app, opts);
+      mountHomeTour(app, opts);
       mountStrip(app);
       mountSheet(app, opts);
       var strip = opts.questsOpen && app.querySelector('[data-strip]');
       if (strip) strip.classList.add('open');
+    } else {
+      stopHomeTourTick();
     }
     if (screen === 'settings') mountSettings(app);
     if (screen === 'help') mountHelp(app);
