@@ -1262,7 +1262,11 @@ body[data-battle-node="BOSS"] .battle-stage::before{
    ship any frame count. The pose is chosen from the reaction classes playback
    already sets, and later rules win, so a KO beats a hit beats a cheer.
    One-shot poses rest on their last frame (the base transform) once the
-   animation ends, so nothing is needed to hold them. */
+   animation ends, so nothing is needed to hold them. Every pose has its own
+   keyframes name even though the frames are the same slide: a browser only
+   restarts an animation when its name changes, so a pose that merely changed
+   duration and count kept idle's clock and, already past its end, jumped
+   straight to its last frame — the attack never visibly played. */
 .sprite.has-anim .sp-anim-wrap{overflow:visible;}
 .sprite.has-anim:not(.hurt) .sp-anim-wrap{animation:none;}
 .sprite.has-anim .sp-anim{position:absolute; left:50%; bottom:0; transform:translateX(-50%); overflow:hidden; pointer-events:none;}
@@ -1281,29 +1285,34 @@ body[data-battle-node="BOSS"] .battle-stage::before{
   .sprite.enemy.has-anim .sp-anim-strip{ filter:url("#paper-siegling-shadow"); }
 }
 @keyframes sa-loop{from{transform:translateX(0);} to{transform:translateX(-100%);}}
+@keyframes sa-walk{from{transform:translateX(0);} to{transform:translateX(-100%);}}
+@keyframes sa-cheer{from{transform:translateX(0);} to{transform:translateX(-100%);}}
+@keyframes sa-attack{from{transform:translateX(0);} to{transform:translateX(-100%);}}
+@keyframes sa-hurt{from{transform:translateX(0);} to{transform:translateX(-100%);}}
+@keyframes sa-faint{from{transform:translateX(0);} to{transform:translateX(-100%);}}
 .sprite.has-anim.walk-in .sp-anim-wrap,
 .sprite.has-anim.swapping .sp-anim-wrap{animation:sa-walkin 1.2s ease-out;}
 @keyframes sa-walkin{from{transform:translateX(-46px);} to{transform:translateX(0);}}
 .sprite.has-anim.walk-in .sp-anim-strip,
 .sprite.has-anim.swapping .sp-anim-strip,
-.sprite.has-anim.swap-spin .sp-anim-strip{--n:var(--sa-walk-n); background-image:var(--sa-walk); animation-duration:.7s;}
+.sprite.has-anim.swap-spin .sp-anim-strip{--n:var(--sa-walk-n); background-image:var(--sa-walk); animation-name:sa-walk; animation-duration:.7s;}
 .sprite.has-anim.swap-spin .sp-anim-wrap{animation:none;}
 .sprite.has-anim.cheering .sp-anim-strip,
 .sprite.has-anim.healed .sp-anim-strip,
-.sprite.has-anim.evolving .sp-anim-strip{--n:var(--sa-cheer-n); background-image:var(--sa-cheer); animation-duration:.8s;}
+.sprite.has-anim.evolving .sp-anim-strip{--n:var(--sa-cheer-n); background-image:var(--sa-cheer); animation-name:sa-cheer; animation-duration:.8s;}
 .sprite.has-anim.acting .sp-anim-strip,
 .sprite.has-anim.firing .sp-anim-strip,
 .sprite.has-anim.hurt .sp-anim-strip,
 .sprite.has-anim.dead .sp-anim-strip{transform:translateX(calc(-100% + 100% / var(--n))); animation-iteration-count:1;}
 .sprite.has-anim.acting .sp-anim-strip,
-.sprite.has-anim.firing .sp-anim-strip{--n:var(--sa-attack-n); background-image:var(--sa-attack); animation-duration:.6s;}
+.sprite.has-anim.firing .sp-anim-strip{--n:var(--sa-attack-n); background-image:var(--sa-attack); animation-name:sa-attack; animation-duration:.6s;}
 .sprite.has-anim.acting .sp-anim-wrap,
 .sprite.has-anim.firing .sp-anim-wrap{animation:none;}
-.sprite.has-anim.hurt .sp-anim-strip{--n:var(--sa-hurt-n); background-image:var(--sa-hurt); animation-duration:.45s;}
+.sprite.has-anim.hurt .sp-anim-strip{--n:var(--sa-hurt-n); background-image:var(--sa-hurt); animation-name:sa-hurt; animation-duration:.45s;}
 /* The faint is the animation, so the static-art tilt and heavy fade are dropped. */
 .sprite.has-anim.dead{opacity:.7;}
 .sprite.has-anim.dead .sp-anim-wrap{transform:none; filter:grayscale(.55) brightness(.8);}
-.sprite.has-anim.dead .sp-anim-strip{--n:var(--sa-fainted-n); background-image:var(--sa-fainted); animation-duration:.7s;}
+.sprite.has-anim.dead .sp-anim-strip{--n:var(--sa-fainted-n); background-image:var(--sa-fainted); animation-name:sa-faint; animation-duration:.7s;}
 .sprite.has-anim.dead.faint-held .sp-anim-strip{animation:none;}
 @media (prefers-reduced-motion: reduce){
   .sprite.has-anim .sp-anim-strip,

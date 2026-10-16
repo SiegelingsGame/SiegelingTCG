@@ -1,7 +1,8 @@
 // Verifies the animated frame-strip battle sprites in Siege (adventure.js
-// ANIM_SPRITES). Pass 1 (?spriteTest=acorn, 4-frame strips) dresses every ally;
-// passes 2-3 have no switch and rely on the card mapping (Flora Knight and
-// Generoot, strips of 2-9 frames) on an ally and on a foe shade. In both: a fresh
+// ANIM_SPRITES). Pass 1 (?spriteTest=squirebud) dresses every ally through the
+// test switch; the other passes have no switch and rely on the card mapping
+// (Squire Bud, Flora Knight, Generoot: strips of 2-9 frames) on an ally and on
+// a foe shade. In both: a fresh
 // battle walks in, the attacker plays its attack pose when its hit leaves, the
 // struck unit plays hurt, a KO plays fainted once and then holds the last frame
 // across the post-playback re-render, and a won battle cheers.
@@ -84,8 +85,10 @@ function asCard(state, id, name) {
   return s;
 }
 const PASSES = [
-  { name: 'acorn', query: '?spriteTest=acorn', sheet: 'acorn', frames: { idle: 4, fainted: 4 },
+  { name: 'switch', query: '?spriteTest=squirebud', sheet: 'squirebud', frames: { idle: 4, fainted: 4 },
     states: [BEFORE, AFTER, WON] },
+  { name: 'squirebud', query: '', sheet: 'squirebud', frames: { idle: 4, fainted: 4 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'squirebud', 'Squire Bud')) },
   { name: 'floraknight', query: '', sheet: 'floraknight', frames: { idle: 7, fainted: 2 },
     states: [BEFORE, AFTER, WON].map(st => asCard(st, 'floraknight', 'Flora Knight')) },
   { name: 'generoot', query: '', sheet: 'generoot', frames: { idle: 8, fainted: 2 },
@@ -147,7 +150,7 @@ function pose(id) {
     check(p.h > 40 && p.w > p.h, `cell renders ${Math.round(p.w)}x${Math.round(p.h)}`);
     const e1 = await page.evaluate(pose, 'e1');
     check(e1.img === null, 'foe without a sheet keeps static art');
-    if (pass.name !== 'acorn') {
+    if (pass.name !== 'switch') {
       const e2 = await page.evaluate(pose, 'e2');
       check(e2.sheet === pass.sheet && /paper-siegling-shadow|brightness/.test(e2.filter),
         `foe shade of a mapped card animates in silhouette (${e2.filter.slice(0, 40)})`);
@@ -164,19 +167,39 @@ function pose(id) {
 
     const seen = await page.evaluate(() => new Promise(resolve => {
       const log = { a1: new Set(), a2: new Set() };
+      // Frame indices shown per pose: a pose that only swaps its image but
+      // never steps (it inherited idle's finished clock) shows one frame.
+      const frames = {};
       const t0 = performance.now();
       const step = () => {
         for (const id of ['a1', 'a2']) {
           const a = document.querySelector('.sprite[data-id="' + id + '"] .sp-anim-strip');
-          if (a) { const m = /-(\w+)\.webp/.exec(getComputedStyle(a).backgroundImage); if (m) log[id].add(m[1]); }
+          if (!a) continue;
+          const cs = getComputedStyle(a);
+          const m = /-(\w+)\.webp/.exec(cs.backgroundImage);
+          if (!m) continue;
+          log[id].add(m[1]);
+          const cell = a.parentNode.getBoundingClientRect().width;
+          const mt = new DOMMatrix(cs.transform === 'none' ? undefined : cs.transform);
+          const key = id + ':' + m[1];
+          (frames[key] = frames[key] || new Set()).add(Math.round(-mt.m41 / cell));
         }
         if (performance.now() - t0 < 6000) requestAnimationFrame(step);
-        else resolve({ a1: [...log.a1], a2: [...log.a2] });
+        else {
+          const out = {};
+          for (const k in frames) out[k] = [...frames[k]].sort((x, y) => x - y);
+          resolve({ a1: [...log.a1], a2: [...log.a2], frames: out });
+        }
       };
       requestAnimationFrame(step);
       document.getElementById('endTurnBtn').click();
     }));
     check(seen.a1.includes('attack'), `attacker plays attack (${seen.a1})`);
+    const atk = seen.frames['a1:attack'] || [], hurt = seen.frames['a2:hurt'] || [];
+    const faint = seen.frames['a2:fainted'] || [];
+    check(atk.length >= 3 && atk[0] === 0, `attack steps through its frames from the first (${atk})`);
+    check(hurt.length >= 2 && hurt[0] === 0, `hurt steps through its frames from the first (${hurt})`);
+    check(faint[0] === 0 && faint.length === pass.frames.fainted, `faint plays every frame (${faint})`);
     check(seen.a2.includes('hurt') && seen.a2.includes('fainted'), `KO'd ally plays hurt then fainted (${seen.a2})`);
     p = await page.evaluate(pose, 'a2');
     check(p.img === 'fainted' && p.frame === pass.frames.fainted - 1,
@@ -187,7 +210,7 @@ function pose(id) {
     await page.waitForTimeout(800);
     p = await page.evaluate(pose, 'a1');
     check(p && p.img === 'cheer' && /cheering/.test(p.cls), `won battle cheers (${p && p.img})`);
-    if (pass.name !== 'acorn') {
+    if (pass.name !== 'switch') {
       const foe = await page.evaluate(pose, 'e2');
       check(foe.img === 'idle' && !/cheering/.test(foe.cls), `a surviving foe does not cheer your win (${foe.img})`);
     }
