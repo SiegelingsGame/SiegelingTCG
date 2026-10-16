@@ -9,6 +9,7 @@ LAYOUT.json:
   {"src": "atlas.png", "name": "floraknight", "scale": 1.0,
    "erase": [[x0,y0,x1,y1], ...],            # labels, panel rules
    "anchor": "face",                         # or "mass" for faceless art
+   "pockets": true,                          # clear enclosed backdrop patches
    "poses": [{"pose": "idle", "box": [x0,y0,x1,y1], "frames": 7,
               "dropLoose": true,              # discard floating petals
               "dropDark": true,               # discard dim loose specks (cold embers)
@@ -18,7 +19,13 @@ LAYOUT.json:
                                               # k = -1 discards the pixels;
                                               # [..., k, "divide"]: like split,
                                               # and pieces reaching x1 go to k+1
-              "mirror": [k]}, ...]}           # flip frame k to face like the rest
+              "mirror": [k],                  # flip frame k to face like the rest
+              "seeded": true,                 # grow frames from their bodies
+              "seeds": [[x,y], ...],          #   optional explicit body points
+              "ax": {"k": x}}, ...]}          # pin frame k's anchor column
+  seeded is for limbs that touch the next pose: each frame floods outward from
+  a point inside its own body through non-outline pixels, so touching limbs
+  part along their own outlines; leftover outline and specks join the nearest.
   assign is for an effect drawn touching the next frame (a fire breath reaching
   the next pose): no automatic rule can tell whose it is, the layout can.
 
@@ -61,6 +68,29 @@ for q in cfg['poses']:
 fg = np.array(m) != 128
 for x0, y0, x1, y1 in cfg.get('erase', []):
     fg[y0:y1, x0:x1] = False
+if cfg.get('pockets'):
+    # Backdrop seen through a gap the art closes on every side (between a big
+    # creature's arms and legs) is unreachable from the edge. It is smooth and
+    # coloured like the backdrop in the same rows; a flat fill of the art (a
+    # pot) is smooth too but a different colour, so colour decides.
+    smooth_in = (np.array(m) == 255) & fg
+    sm_img = Image.fromarray(smooth_in.astype(np.uint8)).copy()
+    seen = np.zeros_like(fg)
+    ys_, xs_ = np.nonzero(smooth_in)
+    for y, x in zip(ys_[::5], xs_[::5]):
+        if seen[y, x]: continue
+        ImageDraw.floodfill(sm_img, (int(x), int(y)), 2)
+        reg = np.array(sm_img) == 2
+        sm_img.paste(0, mask=Image.fromarray((reg * 255).astype(np.uint8)))
+        seen |= reg
+        if reg.sum() < 80: continue
+        ry, rx = np.nonzero(reg)
+        y0_, y1_ = max(0, ry.min() - 30), ry.max() + 30
+        x0_, x1_ = max(0, rx.min() - 80), rx.max() + 80
+        near = ~fg[y0_:y1_, x0_:x1_]
+        if near.sum() < 50: continue
+        local = np.median(rgb[y0_:y1_, x0_:x1_][near], axis=0)
+        if np.abs(rgb[reg].mean(0) - local).max() < 40: fg[reg] = False
 
 
 def components(mask):
@@ -102,6 +132,56 @@ def mass_x(mask):
     return float(np.median(np.nonzero(mask)[1]))
 
 
+def grow(lab, passable, steps):
+    # Multi-source flood: every labelled pixel claims its unlabelled passable
+    # 4-neighbours each step; the first label to arrive keeps a pixel.
+    for _ in range(steps):
+        moved = False
+        for dy, dx in ((0, 1), (1, 0), (0, -1), (-1, 0)):
+            src = np.roll(np.roll(lab, dy, 0), dx, 1)
+            take = (lab == 0) & passable & (src > 0)
+            if take.any():
+                lab[take] = src[take]; moved = True
+        if not moved: break
+    return lab
+
+
+def seed_split(band, frames, p):
+    # A race through the art: each frame grows from a point inside its body,
+    # one pixel per step through any foreground pixel, and a pixel belongs to
+    # whichever frame reaches it first. Limbs that touch the next pose part
+    # where the two fronts meet, near the contact, not along a straight cut.
+    bx0, by0, bx1, by1 = p['box']
+    sl = (slice(by0, by1), slice(bx0, bx1))
+    B = band[sl]
+    lab = np.zeros(B.shape, np.int32)
+    seeds = p.get('seeds')
+    yy, xx = np.nonzero(B)
+    for i, f in enumerate(frames):
+        if seeds:
+            sx, sy = seeds[i][0] - bx0, seeds[i][1] - by0
+        else:
+            ys, xs = np.nonzero(f['body']['mask'][sl])
+            sx, sy = np.median(xs), np.median(ys)
+        j = np.argmin((xx - sx) ** 2 + (yy - sy) ** 2)
+        lab[yy[j], xx[j]] = i + 1
+    lab = grow(lab, B, 3000)
+    out = []
+    for i, f in enumerate(frames):
+        mask = np.zeros_like(band); mask[sl] = lab == i + 1
+        ys, xs = np.nonzero(mask)
+        out.append(dict(mask=mask, body=dict(mask=mask.copy(), x0=int(xs.min()), x1=int(xs.max()),
+                                             y0=int(ys.min()), y1=int(ys.max()))))
+    if not p.get('dropLoose'):
+        # Pieces no front reached (sparks, stars) join the nearest frame.
+        for c in components(B & (lab == 0)):
+            if c['area'] < 12: continue
+            cx = (c['x0'] + c['x1']) / 2 + bx0
+            k = int(np.argmin([abs(cx - (o['body']['x0'] + o['body']['x1']) / 2) for o in out]))
+            m2 = np.zeros_like(band); m2[sl] = c['mask']; out[k]['mask'] |= m2
+    return out
+
+
 poses = {}
 for p in cfg['poses']:
     x0, y0, x1, y1 = p['box']
@@ -125,7 +205,7 @@ for p in cfg['poses']:
         cut = c['x0'] + lo + int(np.argmin(cols[lo:hi]))
         left = c['mask'].copy(); left[:, cut:] = False
         right = c['mask'].copy(); right[:, :cut] = False
-        bodies.remove(c)
+        bodies = [b for b in bodies if b is not c]
         c['used'] = True
         for part in (left, right):
             yy, xx = np.nonzero(part)
@@ -140,6 +220,8 @@ for p in cfg['poses']:
         cx = (c['x0'] + c['x1']) / 2
         dist = [0 if b['x0'] <= cx <= b['x1'] else min(abs(cx - b['x0']), abs(cx - b['x1'])) for b in bodies]
         frames[int(np.argmin(dist))]['mask'] |= c['mask']
+    if p.get('seeded'):
+        frames = seed_split(band, frames, p)
     for a in p.get('assign', []):
         x0a, y0a, x1a, y1a, k = a[:5]
         box = np.zeros_like(fg); box[y0a:y1a, x0a:x1a] = band[y0a:y1a, x0a:x1a]
@@ -173,6 +255,8 @@ for p in cfg['poses']:
         fx = mass_x(f['body']['mask']) if MASS else face_x(f['body']['mask'])
         f['ax'] = fx if fx is not None else (f['body']['x0'] + f['body']['x1']) / 2
         f['ay'] = ground
+    for k, x in p.get('ax', {}).items():
+        frames[int(k)]['ax'] = float(x)
     poses[p['pose']] = frames
     print(p['pose'], len(frames), 'frames, ground', ground, 'anchors', [round(f['ax']) for f in frames])
 
