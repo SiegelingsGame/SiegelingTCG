@@ -1252,6 +1252,63 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .sprite.swapping .sp-art{animation:swapflip .5s ease-in-out;}
 @keyframes swapflip{50%{transform:translateY(-14px) scaleX(-1);}}
 .sprite.evolving .sp-art{animation:evolveburst .9s ease-in-out; filter:drop-shadow(0 0 22px rgba(255,208,102,1)) brightness(1.6);}
+
+/* Animated frame-strip sprites (adventure.js ANIM_SPRITES). Each pose is one
+   strip of N frames on a cell shared by every pose, feet on its bottom edge.
+   .sp-anim is that cell, sized from the art box by the sheet's fit and centred
+   absolutely (the cell is wider than the plate: attack effects reach past the
+   blade). Inside it the strip is N cells wide and slides one cell per step;
+   N and the image come in as inline --sa-<pose> / --sa-<pose>-n, so sheets can
+   ship any frame count. The pose is chosen from the reaction classes playback
+   already sets, and later rules win, so a KO beats a hit beats a cheer.
+   One-shot poses rest on their last frame (the base transform) once the
+   animation ends, so nothing is needed to hold them. */
+.sprite.has-anim .sp-anim-wrap{overflow:visible;}
+.sprite.has-anim:not(.hurt) .sp-anim-wrap{animation:none;}
+.sprite.has-anim .sp-anim{position:absolute; left:50%; bottom:0; transform:translateX(-50%); overflow:hidden; pointer-events:none;}
+.sprite.enemy.has-anim .sp-anim{transform:translateX(-50%) scaleX(-1);}
+.sprite.has-anim .sp-anim-strip{
+  --n:var(--sa-idle-n); display:block; height:100%; width:calc(var(--n) * 100%);
+  background:var(--sa-idle) 0 0/100% 100% no-repeat;
+  animation:sa-loop 1s steps(var(--n)) infinite;
+}
+/* Shades wear the same die-cut silhouette as static foe art (.sp-art img). */
+.sprite.enemy.has-anim .sp-anim-strip{
+  filter:brightness(.26) saturate(.5) contrast(1.2) drop-shadow(0 0 4px rgba(168, 107, 255, .55))
+    drop-shadow(1px 0 0 #120b1d) drop-shadow(-1px 0 0 #120b1d);
+}
+@supports (filter: url("#paper-siegling-shadow")) {
+  .sprite.enemy.has-anim .sp-anim-strip{ filter:url("#paper-siegling-shadow"); }
+}
+@keyframes sa-loop{from{transform:translateX(0);} to{transform:translateX(-100%);}}
+.sprite.has-anim.walk-in .sp-anim-wrap,
+.sprite.has-anim.swapping .sp-anim-wrap{animation:sa-walkin 1.2s ease-out;}
+@keyframes sa-walkin{from{transform:translateX(-46px);} to{transform:translateX(0);}}
+.sprite.has-anim.walk-in .sp-anim-strip,
+.sprite.has-anim.swapping .sp-anim-strip,
+.sprite.has-anim.swap-spin .sp-anim-strip{--n:var(--sa-walk-n); background-image:var(--sa-walk); animation-duration:.7s;}
+.sprite.has-anim.swap-spin .sp-anim-wrap{animation:none;}
+.sprite.has-anim.cheering .sp-anim-strip,
+.sprite.has-anim.healed .sp-anim-strip,
+.sprite.has-anim.evolving .sp-anim-strip{--n:var(--sa-cheer-n); background-image:var(--sa-cheer); animation-duration:.8s;}
+.sprite.has-anim.acting .sp-anim-strip,
+.sprite.has-anim.firing .sp-anim-strip,
+.sprite.has-anim.hurt .sp-anim-strip,
+.sprite.has-anim.dead .sp-anim-strip{transform:translateX(calc(-100% + 100% / var(--n))); animation-iteration-count:1;}
+.sprite.has-anim.acting .sp-anim-strip,
+.sprite.has-anim.firing .sp-anim-strip{--n:var(--sa-attack-n); background-image:var(--sa-attack); animation-duration:.6s;}
+.sprite.has-anim.acting .sp-anim-wrap,
+.sprite.has-anim.firing .sp-anim-wrap{animation:none;}
+.sprite.has-anim.hurt .sp-anim-strip{--n:var(--sa-hurt-n); background-image:var(--sa-hurt); animation-duration:.45s;}
+/* The faint is the animation, so the static-art tilt and heavy fade are dropped. */
+.sprite.has-anim.dead{opacity:.7;}
+.sprite.has-anim.dead .sp-anim-wrap{transform:none; filter:grayscale(.55) brightness(.8);}
+.sprite.has-anim.dead .sp-anim-strip{--n:var(--sa-fainted-n); background-image:var(--sa-fainted); animation-duration:.7s;}
+.sprite.has-anim.dead.faint-held .sp-anim-strip{animation:none;}
+@media (prefers-reduced-motion: reduce){
+  .sprite.has-anim .sp-anim-strip,
+  .sprite.has-anim .sp-anim-wrap{animation:none !important;}
+}
 @keyframes evolveburst{0%{transform:scale(1);}40%{transform:scale(.85); filter:brightness(3);}70%{transform:scale(1.18);}100%{transform:scale(1);}}
 .sp-float{
   position:absolute; left:50%; top:6px; transform:translateX(-50%);

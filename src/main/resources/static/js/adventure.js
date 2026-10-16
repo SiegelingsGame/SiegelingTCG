@@ -4488,9 +4488,77 @@
     return { positions: positions, sweep: sweep };
   }
 
+  // ---- animated battle sprites (test) ------------------------------------
+  /*
+   * Frame-strip sprites: each pose is one 4-frame horizontal .webp strip, every
+   * strip sharing one cell size with the feet on the same baseline, so poses can
+   * swap mid-animation without the unit jumping. adventure.css steps through the
+   * strip and picks the pose from the classes the event playback already puts
+   * on .sprite (hurt, dead, ...), so a static-art Siegeling is unaffected.
+   */
+  // w/h: the shared cell; fit: how much of the cell's height the idle body
+  // fills (the cell also holds raised swords and attack effects), so every
+  // sheet renders its body at the same size; base: share of the cell below the
+  // feet (petals lying on the ground), sunk below the floor so the feet meet
+  // the shadow; frames: strip length per pose. slice-*.py prints all of these.
+  var ANIM_SPRITES = {
+    acorn: { dir: '/img/sprites/acorn/acorn-', w: 642, h: 337, fit: 0.82, base: 0.018,
+      frames: { idle: 4, walk: 4, attack: 4, cheer: 4, hurt: 4, fainted: 4 } },
+    floraknight: { dir: '/img/sprites/floraknight/floraknight-', w: 526, h: 264, fit: 0.667, base: 0.091,
+      frames: { idle: 7, walk: 9, attack: 7, cheer: 4, hurt: 3, fainted: 2 } },
+    generoot: { dir: '/img/sprites/generoot/generoot-', w: 518, h: 258, fit: 0.678, base: 0.027,
+      frames: { idle: 8, walk: 9, attack: 6, cheer: 4, hurt: 3, fainted: 2 } }
+  };
+  var ANIM_BODY = 0.9;
+  var ANIM_POSES = ['idle', 'walk', 'attack', 'cheer', 'hurt', 'fainted'];
+  // displayCardId -> ANIM_SPRITES key, for Siegelings whose sheets have shipped.
+  var ANIM_SPRITE_CARDS = { floraknight: 'floraknight', generoot: 'generoot' };
+  /*
+   * ?spriteTest=<sheet> (e.g. acorn) dresses every ally in that sheet so it can be tried in a
+   * real run before it is assigned to a card; ?spriteTest=off clears it. It is
+   * remembered per tab because the page keeps no query string across a run.
+   */
+  var animSpriteTest = (function () {
+    var key = 'siegeSpriteTest', v = null;
+    try {
+      var q = new URLSearchParams(location.search).get('spriteTest');
+      if (q === 'off') sessionStorage.removeItem(key);
+      else if (q && ANIM_SPRITES[q]) sessionStorage.setItem(key, q);
+      v = sessionStorage.getItem(key);
+    } catch (e) { /* storage blocked: the test switch just does not stick */ }
+    return v && ANIM_SPRITES[v] ? v : null;
+  })();
+  // Units whose faint already played, so a re-render holds the last frame
+  // instead of falling over again.
+  var animFainted = {};
+  // A fresh battle walks the allies in; re-renders inside the window keep walking.
+  var animWalkNode = null, animWalkUntil = 0;
+
+  function animSpriteFor(u, side) {
+    var key = (side === 'ally' && animSpriteTest) ||
+      (u.displayCardId && ANIM_SPRITE_CARDS[u.displayCardId]);
+    return key ? ANIM_SPRITES[key] : null;
+  }
+
+  function animSpriteHtml(sheet) {
+    var vars = ANIM_POSES.map(function (pose) {
+      return '--sa-' + pose + ':url(' + sheet.dir + pose + '.webp);--sa-' + pose + '-n:' + sheet.frames[pose];
+    }).join(';');
+    // The body stands at ANIM_BODY of the art box, leaving headroom under the plate.
+    var cellPct = 100 * ANIM_BODY / sheet.fit;
+    return '<div class="sp-art sp-anim-wrap"><div class="sp-anim" style="' + vars +
+      ';aspect-ratio:' + sheet.w + '/' + sheet.h + ';height:' + cellPct.toFixed(1) + '%' +
+      ';bottom:' + (-cellPct * (sheet.base || 0)).toFixed(1) + '%"' +
+      ' aria-hidden="true"><i class="sp-anim-strip"></i></div></div>';
+  }
+
   function renderSpriteLine(host, units, side, b) {
     host.innerHTML = '';
     var threat = threatenedNotches(b);
+    if (side === 'ally' && state.run.currentNodeId !== animWalkNode) {
+      animWalkNode = state.run.currentNodeId;
+      animWalkUntil = Date.now() + 1300;
+    }
     var targeted = threat.positions;
     units.forEach(function (raw, idx) {
       // While events are playing, HP/shield read from the pre-turn snapshot;
@@ -4535,7 +4603,23 @@
       }).join('');
       var finish = side === 'ally' && u.artUrl ? spriteFinishFor(u.displayCardId) : 'NONE';
       var body;
-      if (finish !== 'NONE') {
+      var animSheet = animSpriteFor(u, side);
+      if (animSheet) {
+        body = animSpriteHtml(animSheet);
+        sp.classList.add('has-anim');
+        if (!u.alive) {
+          if (animFainted[u.id]) sp.classList.add('faint-held');
+          animFainted[u.id] = true;
+        } else {
+          delete animFainted[u.id];
+          // The winning side cheers; a foe left standing on your victory does not.
+          if (b.phase === (side === 'ally' ? 'WON' : 'LOST')) sp.classList.add('cheering');
+          else if (side === 'ally' && Date.now() < animWalkUntil) {
+            sp.classList.add('walk-in');
+            setTimeout(function () { sp.classList.remove('walk-in'); }, animWalkUntil - Date.now());
+          }
+        }
+      } else if (finish !== 'NONE') {
         // Finishes work on the image's own pixels (filters) plus a twinkle or
         // aura layer: a CSS mask cut from the art would need CORS on an image
         // the page already cached without it, and then silently draws nothing.
@@ -4834,6 +4918,7 @@
         // attacker rather than dropping the projectile entirely.
         var hitOrigin = (ev.originId && spriteOf(ev.originId)) ? ev.originId : ev.sourceId;
         if (hitOrigin !== ev.sourceId) elementBorder(hitOrigin, ev.element);
+        else flashSprite(ev.sourceId, 'firing');
         fireProjectile(stage, hitOrigin, ev.targetId, ev.element, function () {
           impact(ev.targetId, ev.amount, ev.ko);
           commitVitals(ev);
@@ -5138,7 +5223,7 @@
     var node = spriteOf(targetId);
     if (node) {
       node.classList.add('hurt');
-      setTimeout(function () { node.classList.remove('hurt'); if (ko) node.classList.add('dead'); }, 480);
+      setTimeout(function () { node.classList.remove('hurt'); if (ko) { node.classList.add('dead'); animFainted[targetId] = true; } }, 480);
       floatText(targetId, '-' + amount, 'dmg');
     } else if (state.run && state.run.battle && state.run.battle.knight && state.run.battle.knight.id === targetId) {
       floatKnight('-' + amount);
