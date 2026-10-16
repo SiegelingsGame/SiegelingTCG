@@ -175,7 +175,9 @@ public class PlayerProgressionController {
                     ? PlayerProgressionService.HoloTier.ART
                     : "GOLD".equalsIgnoreCase(requested)
                             ? PlayerProgressionService.HoloTier.GOLD
-                            : PlayerProgressionService.HoloTier.FLAIR;
+                            : "HOLO_GOLD".equalsIgnoreCase(requested)
+                                    ? PlayerProgressionService.HoloTier.HOLO_GOLD
+                                    : PlayerProgressionService.HoloTier.FLAIR;
             PlayerProgressionEntity progression = progressionService.purchaseHolographicFinish(user, string(req, "cardId"), tier);
             return buildResponse(user, progression);
         } catch (IllegalArgumentException ex) {

@@ -4258,7 +4258,28 @@ function playerGoldCardIds() {
     return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
 }
 
-// GOLD, the top finish: a gold frame and shine instead of the rainbow foil.
+function playerHoloGoldCardIds() {
+    const raw = authState.profile?.progression?.holoGoldCards;
+    if (!Array.isArray(raw)) {
+        return new Set();
+    }
+    return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
+}
+
+// HOLO GOLD, the final finish: the whole card cast in gold, notches in colour.
+function cardShowsPlayerHoloGold(card) {
+    const stamp = stampedFinish(card);
+    if (stamp !== null) {
+        return stamp === 'HOLOGOLD';
+    }
+    if (card?.holoGoldFinish === true) {
+        return true;
+    }
+    const cardId = String(card?.id || card?.cardId || card?.definitionId || '').trim().toLowerCase();
+    return Boolean(cardId && playerHoloGoldCardIds().has(cardId));
+}
+
+// GOLD: a gold frame and shine instead of the rainbow foil.
 function cardShowsPlayerGold(card) {
     const stamp = stampedFinish(card);
     if (stamp !== null) {
@@ -4277,7 +4298,7 @@ function cardShowsPlayerGold(card) {
 function cardShowsPlayerHoloArt(card) {
     const stamp = stampedFinish(card);
     if (stamp !== null) {
-        return stamp === 'SP' || stamp === 'HOLO' || stamp === 'GOLD';
+        return stamp === 'SP' || stamp === 'HOLO' || stamp === 'GOLD' || stamp === 'HOLOGOLD';
     }
     if (cardShowsPlayerHolographic(card)) {
         return true;
@@ -4292,7 +4313,7 @@ function cardShowsPlayerHolographic(card) {
     }
     const stamp = stampedFinish(card);
     if (stamp !== null) {
-        return stamp === 'HOLO' || stamp === 'GOLD';
+        return stamp === 'HOLO' || stamp === 'GOLD' || stamp === 'HOLOGOLD';
     }
     if (card.holographic === true) {
         return true;
@@ -4302,11 +4323,17 @@ function cardShowsPlayerHolographic(card) {
 }
 
 function holographicCardClass(card) {
+    if (cardShowsPlayerHoloGold(card)) {
+        return ' is-holographic is-holo-gold-finish';
+    }
     const gold = cardShowsPlayerGold(card);
     return (cardShowsPlayerHolographic(card) || gold ? ' is-holographic' : '') + (gold ? ' is-gold-finish' : '');
 }
 
 function holographicCardOverlay(card) {
+    if (cardShowsPlayerHoloGold(card)) {
+        return '<div class="card-holo-gold-finish" aria-hidden="true"><i class="card-holo-gold-tint"></i><i class="card-holo-gold-warm"></i><i class="card-gold-sheen"></i><i class="card-holo-gold-rim"></i></div>';
+    }
     if (cardShowsPlayerGold(card)) {
         return '<div class="card-gold-finish" aria-hidden="true"><i class="card-gold-frame"></i><i class="card-gold-sheen"></i></div>';
     }
@@ -4318,7 +4345,8 @@ function holographicFullArtOptions() {
         useHolographicFullCardArt: true,
         playerHolographicIds: playerHolographicCardIds(),
         playerHoloArtIds: playerHoloArtCardIds(),
-        playerGoldIds: playerGoldCardIds()
+        playerGoldIds: playerGoldCardIds(),
+        playerHoloGoldIds: playerHoloGoldCardIds()
     };
 }
 
@@ -4342,9 +4370,10 @@ function renderHolographicFullArtFace(card, extraOptions = {}) {
         card = card.id ? card : { ...card, id: card.cardId };
         extraOptions = {
             useHolographicFullCardArt: true,
-            playerHolographicIds: new Set(stamp === 'HOLO' || stamp === 'GOLD' ? [id] : []),
+            playerHolographicIds: new Set(stamp === 'HOLO' || stamp === 'GOLD' || stamp === 'HOLOGOLD' ? [id] : []),
             playerHoloArtIds: new Set(stamp === 'SP' ? [id] : []),
             playerGoldIds: new Set(stamp === 'GOLD' ? [id] : []),
+            playerHoloGoldIds: new Set(stamp === 'HOLOGOLD' ? [id] : []),
             ...extraOptions
         };
     }

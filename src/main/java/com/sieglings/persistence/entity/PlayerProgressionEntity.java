@@ -47,6 +47,11 @@ public class PlayerProgressionEntity {
      * frame and gold shine. A gold card is still in {@link #holographicCardIds}.
      */
     private List<String> goldCardIds = new ArrayList<>();
+    /**
+     * Card ids upgraded to HOLO GOLD, the final tier: the whole card cast in gold
+     * with its notches left in colour. A HOLO GOLD card is still in {@link #goldCardIds}.
+     */
+    private List<String> holoGoldCardIds = new ArrayList<>();
     /** SiegeKnight ids unlocked for expedition warband selection (gold purchase). */
     private List<String> siegeUnlockedKnights = new ArrayList<>();
     /** Siegeling card ids unlocked as expedition starters by finding them on a run. */
@@ -150,6 +155,10 @@ public class PlayerProgressionEntity {
     public List<String> getGoldCardIds() { return goldCardIds; }
     public void setGoldCardIds(List<String> goldCardIds) {
         this.goldCardIds = goldCardIds == null ? new ArrayList<>() : new ArrayList<>(goldCardIds);
+    }
+    public List<String> getHoloGoldCardIds() { return holoGoldCardIds; }
+    public void setHoloGoldCardIds(List<String> holoGoldCardIds) {
+        this.holoGoldCardIds = holoGoldCardIds == null ? new ArrayList<>() : new ArrayList<>(holoGoldCardIds);
     }
     public List<String> getSiegeUnlockedKnights() { return siegeUnlockedKnights; }
     public void setSiegeUnlockedKnights(List<String> siegeUnlockedKnights) {

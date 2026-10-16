@@ -6178,7 +6178,7 @@
     { key: 'GOLD', label: 'Gold', needs: 'GOLD' },
     { key: 'AURA', label: 'Gold Aura', needs: 'GOLD' }
   ];
-  var ownedFinishTiers = {}; // lower-cased card id -> 'SP' | 'HOLO' | 'GOLD'
+  var ownedFinishTiers = {}; // lower-cased card id -> 'SP' | 'HOLO' | 'GOLD' | 'HOLOGOLD'
 
   function loadOwnedFinishes() {
     fetch('/api/player/progression', { credentials: 'same-origin', headers: authHeaders() })
@@ -6193,6 +6193,7 @@
         mark(p.holoArtCards, 'SP');
         mark(p.holographicCards, 'HOLO');
         mark(p.goldCards, 'GOLD');
+        mark(p.holoGoldCards, 'HOLOGOLD');
         ownedFinishTiers = tiers;
         if (state.run && state.run.battle && document.body.dataset.screen === 'battleScreen') renderBattle();
       })
@@ -6202,7 +6203,9 @@
   function finishUnlocked(cardId, finish) {
     if (!finish.needs) return true;
     var tier = ownedFinishTiers[String(cardId || '').toLowerCase()];
-    return finish.needs === 'HOLO' ? (tier === 'HOLO' || tier === 'GOLD') : tier === 'GOLD';
+    // Each tier includes the ones below it: HOLO GOLD > GOLD > HOLO SP.
+    return finish.needs === 'HOLO' ? (tier === 'HOLO' || tier === 'GOLD' || tier === 'HOLOGOLD')
+      : (tier === 'GOLD' || tier === 'HOLOGOLD');
   }
 
   function readFinishPrefs() {

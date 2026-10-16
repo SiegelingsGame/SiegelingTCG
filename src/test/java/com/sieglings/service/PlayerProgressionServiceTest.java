@@ -286,6 +286,27 @@ class PlayerProgressionServiceTest {
     }
 
     @Test
+    void holoGoldIsTheFinalTierAfterGold() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        store.saved = ownerOf("glimmer", 20000);
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new HoloArtCardDefinitionService());
+
+        service.purchaseHolographicFinish(user(), "glimmer", PlayerProgressionService.HoloTier.FLAIR);
+        assertThrows(IllegalArgumentException.class,
+                () -> service.purchaseHolographicFinish(user(), "glimmer", PlayerProgressionService.HoloTier.HOLO_GOLD),
+                "HOLO GOLD before GOLD is refused.");
+        service.purchaseHolographicFinish(user(), "glimmer", PlayerProgressionService.HoloTier.GOLD);
+        assertEquals(14000, store.saved.getRemnants());
+        service.purchaseHolographicFinish(user(), "glimmer", PlayerProgressionService.HoloTier.HOLO_GOLD);
+        assertEquals(6000, store.saved.getRemnants());
+        assertTrue(store.saved.getHoloGoldCardIds().contains("glimmer"));
+        assertTrue(store.saved.getGoldCardIds().contains("glimmer"), "HOLO GOLD keeps GOLD underneath.");
+        assertEquals("HOLOGOLD", service.cardFinishesForUser("player@example.com").get("glimmer"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.purchaseHolographicFinish(user(), "glimmer", PlayerProgressionService.HoloTier.HOLO_GOLD));
+    }
+
+    @Test
     void holoArtTierNeedsDedicatedHoloArt() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         store.saved = ownerOf("draco", 5000);

@@ -2952,7 +2952,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-zoom-version[data-version="HOLO"] b {
   background:linear-gradient(90deg, #ff9cf0, #9ff3ff, #a6ffcf, #fff59a); -webkit-background-clip:text; background-clip:text; color:transparent;
 }
-.sg-zoom-version[data-version="GOLD"] b { color:#ffd66b; text-shadow:0 0 10px rgba(255,200,60,.5); }
+.sg-zoom-version[data-version="GOLD"] b, .sg-zoom-version[data-version="HOLOGOLD"] b { color:#ffd66b; text-shadow:0 0 10px rgba(255,200,60,.5); }
 .sg-zoom-hint { margin:6px 0 0; font-size:11px; color:rgba(255,255,255,.55); }
 .sg-zoom-close {
   position:absolute; z-index:2; top:calc(10px + env(safe-area-inset-top)); right:12px;
@@ -3209,10 +3209,11 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-sheet-holo-btn:disabled { cursor:default; opacity:.5; }
 /* Card versions: every look of the card, owned or not. Tapping one shows it
    on the face; a lock marks a version this account does not have. */
-.sg-sheet-versions { display:flex; gap:5px; }
+/* Five versions don't fit one row beside a padlock at phone widths, so the row wraps. */
+.sg-sheet-versions { display:flex; flex-wrap:wrap; gap:5px; }
 .sg-sheet-version {
-  flex:1 1 0; min-width:0; display:inline-flex; align-items:center; justify-content:center; gap:4px;
-  padding:6px 4px; border-radius:999px; cursor:pointer; font:inherit;
+  flex:1 0 auto; min-width:0; display:inline-flex; align-items:center; justify-content:center; gap:4px;
+  padding:6px 8px; border-radius:999px; cursor:pointer; font:inherit;
   font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap;
   color:var(--muted); border:1px solid rgba(160,220,255,.2); background:rgba(36,26,96,.35);
 }

@@ -484,8 +484,10 @@ public class PlayerProgressionService {
      * Finish tiers above the standard card. ART (shown as SP): holographic art, no
      * shimmer. FLAIR (HOLO SP): holo art plus the foil shimmer. GOLD: the top tier,
      * a gold frame and gold shine over the holo art; it needs HOLO SP first.
+     * HOLO_GOLD: the final tier, the whole card cast in gold with its notches
+     * left in colour; it needs GOLD first.
      */
-    public enum HoloTier { ART, FLAIR, GOLD }
+    public enum HoloTier { ART, FLAIR, GOLD, HOLO_GOLD }
 
     public PlayerProgressionEntity purchaseHolographicFinish(AccountUser user, String cardId, HoloTier tier) {
         synchronized (progressionWriteLock(user)) {
@@ -500,6 +502,9 @@ public class PlayerProgressionService {
             }
             if (target == HoloTier.GOLD) {
                 return applyGoldFinish(progression, normalizedId);
+            }
+            if (target == HoloTier.HOLO_GOLD) {
+                return applyHoloGoldFinish(progression, normalizedId);
             }
             if (hasHolographicFinish(progression, normalizedId)) {
                 throw new IllegalArgumentException("This card already has a holographic finish.");
@@ -560,6 +565,27 @@ public class PlayerProgressionService {
         List<String> goldIds = new ArrayList<>(progression.getGoldCardIds());
         goldIds.add(normalizedId);
         progression.setGoldCardIds(goldIds);
+        progression.setUpdatedAt(Instant.now());
+        return store.save(progression);
+    }
+
+    /** Caller holds the progression write lock. */
+    private PlayerProgressionEntity applyHoloGoldFinish(PlayerProgressionEntity progression, String normalizedId) {
+        Card card = findHolographicTarget(normalizedId);
+        if (hasHoloGoldFinish(progression, normalizedId)) {
+            throw new IllegalArgumentException("This card is already HOLO GOLD.");
+        }
+        if (!hasGoldFinish(progression, normalizedId)) {
+            throw new IllegalArgumentException("Upgrade " + card.getName() + " to GOLD before HOLO GOLD.");
+        }
+        int cost = holoGoldCost(card);
+        if (progression.getRemnants() < cost) {
+            throw new IllegalArgumentException("Not enough Remnants for HOLO GOLD on " + card.getName() + ".");
+        }
+        progression.setRemnants(progression.getRemnants() - cost);
+        List<String> ids = new ArrayList<>(progression.getHoloGoldCardIds());
+        ids.add(normalizedId);
+        progression.setHoloGoldCardIds(ids);
         progression.setUpdatedAt(Instant.now());
         return store.save(progression);
     }
@@ -804,6 +830,11 @@ public class PlayerProgressionService {
                 .distinct()
                 .toList());
         out.put("goldCards", progression.getGoldCardIds().stream()
+                .map(this::normalizeCardId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList());
+        out.put("holoGoldCards", progression.getHoloGoldCardIds().stream()
                 .map(this::normalizeCardId)
                 .filter(id -> id != null && !id.isBlank())
                 .distinct()
@@ -1188,7 +1219,7 @@ public class PlayerProgressionService {
 
     /**
      * Every finish an account owns, keyed by lower-cased card id: SP (holo art),
-     * HOLO (HOLO SP) or GOLD - the highest tier wins. The battle table stamps
+     * HOLO (HOLO SP), GOLD or HOLOGOLD - the highest tier wins. The battle table stamps
      * these onto each player's own cards so finishes follow the owner into play.
      * Empty for guests, unknown users, or when progression cannot be read.
      */
@@ -1214,12 +1245,28 @@ public class PlayerProgressionService {
         mark.accept(progression.getHoloArtCardIds(), "SP");
         mark.accept(progression.getHolographicCardIds(), "HOLO");
         mark.accept(progression.getGoldCardIds(), "GOLD");
+        mark.accept(progression.getHoloGoldCardIds(), "HOLOGOLD");
         return finishes;
     }
 
     /** GOLD is the premium step: twice what HOLO SP costs outright (craft cost x 8). */
     public int goldCost(Card card) {
         return craftCost(card) * 8;
+    }
+
+    /** HOLO GOLD, the final tier, costs twice GOLD (craft cost x 16). */
+    public int holoGoldCost(Card card) {
+        return craftCost(card) * 16;
+    }
+
+    public boolean hasHoloGoldFinish(PlayerProgressionEntity progression, String cardId) {
+        String normalizedId = normalizeCardId(cardId);
+        if (progression == null || normalizedId == null || progression.getHoloGoldCardIds() == null) {
+            return false;
+        }
+        return progression.getHoloGoldCardIds().stream()
+                .map(this::normalizeCardId)
+                .anyMatch(normalizedId::equals);
     }
 
     public boolean hasGoldFinish(PlayerProgressionEntity progression, String cardId) {

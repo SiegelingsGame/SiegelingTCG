@@ -421,3 +421,53 @@
 @media (prefers-reduced-motion: reduce) {
     .card-gold-sheen { animation: none; background-position: 40% 0, 0 0; }
 }
+
+/* ---------- HOLO GOLD finish ----------
+   The final tier: the whole card cast in gold. A `color` blend keeps every
+   pixel's lightness and takes gold's hue and saturation, so the art still
+   reads, just in gold leaf. The layer sits under the notch layers, which are
+   lifted above it, so element colours on the notches stay true - they are
+   gameplay information, not decoration. */
+/* No z-index on the wrapper: one would make it its own stacking context, and
+   the blend layers inside would then mix with nothing and paint flat gold.
+   Each layer carries its own z-index instead, below the lifted notches. */
+.card-holo-gold-finish {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+}
+.card-holo-gold-finish > i {
+    position: absolute;
+    inset: 0;
+    z-index: 11;
+    border-radius: inherit;
+}
+.card-holo-gold-finish > .card-gold-sheen,
+.card-holo-gold-finish > .card-holo-gold-rim {
+    z-index: 12;
+}
+.card-holo-gold-tint {
+    background: linear-gradient(135deg, #c8901f 0%, #f2c75a 40%, #ffdf8a 55%, #c48a1c 100%);
+    mix-blend-mode: color;
+}
+.card-holo-gold-warm {
+    background: radial-gradient(120% 90% at 50% 20%, rgba(255, 226, 150, .35), rgba(150, 96, 10, .2) 70%);
+    mix-blend-mode: soft-light;
+}
+.card-holo-gold-rim {
+    box-shadow:
+        inset 0 0 0 2px rgba(255, 226, 140, .92),
+        inset 0 0 14px rgba(255, 190, 60, .55);
+}
+.is-holo-gold-finish {
+    box-shadow: 0 0 0 1px rgba(122, 84, 16, .8), 0 0 18px rgba(255, 190, 60, .45);
+}
+/* Notches ride above the gold. The board's own notch rule is more specific,
+   so it is matched here class for class. */
+.board-card.arena-board-card.is-holo-gold-finish .arena-board-notches,
+.is-holo-gold-finish .hand-notches,
+.is-holo-gold-finish .holographic-card-notches,
+.is-holo-gold-finish .notch-dot {
+    z-index: 13;
+}
