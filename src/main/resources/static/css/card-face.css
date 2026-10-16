@@ -130,7 +130,7 @@
 .mulligan-showcase.element-frame .hand-card-header { position: absolute; left: 13%; right: 13%; top: 10.6%; width: auto; z-index: 2; padding: 0px; gap: 0px; }
 .hand-card.mulligan-showcase.element-frame .card-title { color: rgb(255, 255, 255); display: block; font-size: 1em; font-weight: 900; letter-spacing: 0.03em; line-height: 0.95; max-height: 2.05em; overflow: hidden; overflow-wrap: anywhere; text-overflow: clip; text-wrap: balance; white-space-collapse: collapse; width: 100%; text-shadow: rgba(8, 5, 2, 0.9) -1px -1px 0px, rgba(8, 5, 2, 0.9) 1px -1px 0px, rgba(8, 5, 2, 0.9) -1px 1px 0px, rgba(8, 5, 2, 0.9) 1px 1px 0px, rgba(0, 0, 0, 0.85) 0px 2px 6px, rgba(0, 0, 0, 0.6) 0px 0px 10px; }
 .mulligan-showcase.element-frame .card-label { display: none; }
-.mulligan-showcase.element-frame .card-art-preview { position: absolute; left: 9.8%; top: 10%; width: 80.4%; height: 58.7%; min-height: 0px; margin: 0px; padding: 0px; border: none; border-radius: 2px; background: none; box-shadow: none; }
+.mulligan-showcase.element-frame .card-art-preview { position: absolute; left: 8.5%; top: 5.6%; width: 82.8%; height: 62.8%; min-height: 0px; margin: 0px; padding: 0px; border: none; border-radius: 2px; background: none; box-shadow: none; }
 .mulligan-showcase.element-frame .card-art-preview img { width: auto; max-width: 100%; max-height: 100%; }
 .mulligan-showcase.element-frame .hand-card-body { position: absolute; inset: 69.8% 11.5% 7.6%; width: auto; min-height: 0px; z-index: 2; display: flex; flex-direction: column; gap: 1px; padding: 0px; overflow: hidden; }
 .mulligan-showcase.element-frame .card-stat-pills { width: 100%; margin: 0px; gap: 0.22em; }
@@ -188,14 +188,18 @@
 .mulligan-card-slot .hand-card.mulligan-showcase .hand-card-shell { gap: 4px; min-height: 0px; overflow: hidden; }
 .mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview { min-height: 0px; flex: 0 0 auto; aspect-ratio: 3 / 2; padding: 4px; }
 .mulligan-card-slot .hand-card.mulligan-showcase .card-art-preview img { max-height: 100%; max-width: 100%; height: auto; width: auto; }
-.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-preview { position: absolute; left: 9.8%; top: 10%; width: 80.4%; height: 58.7%; aspect-ratio: auto; flex: 0 0 auto; min-height: 0px; padding: 0px; }
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-preview { position: absolute; left: 8.5%; top: 5.6%; width: 82.8%; height: 62.8%; aspect-ratio: auto; flex: 0 0 auto; min-height: 0px; padding: 0px; }
 .mulligan-card-slot .hand-card.mulligan-showcase .hand-card-body { flex: 1 1 auto; min-height: 0px; overflow: hidden; padding: 2px 2px 4px; gap: 2px; font-size: 0.72em; line-height: 1.2; overflow-wrap: anywhere; word-break: break-word; }
 .mulligan-card-slot .hand-card.mulligan-showcase .card-stat-pill { font-size: 11px; }
 .mulligan-card-slot .hand-card.mulligan-showcase .card-label { font-size: 0.78em; }
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame .hand-card-shell { position: absolute; inset: 0px; display: block; gap: 0px; min-height: 0px; width: 100%; padding: 0px; overflow: hidden; }
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame .hand-card-header { position: absolute; left: 13%; right: 13%; top: 10.6%; width: auto; z-index: 2; padding: 0px; gap: 0px; }
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-label { display: none; }
-.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-preview { position: absolute; left: 9.8%; top: 10%; width: 80.4%; height: 58.7%; min-height: 0px; margin: 0px; flex: 0 0 auto; aspect-ratio: auto; padding: 0px; border: none; border-radius: 2px; background: none; box-shadow: none; }
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-preview { position: absolute; left: 8.5%; top: 5.6%; width: 82.8%; height: 62.8%; min-height: 0px; margin: 0px; flex: 0 0 auto; aspect-ratio: auto; padding: 0px; border: none; border-radius: 2px; background: none; box-shadow: none; }
+/* Mirrors style.css: the painted notch sockets are redrawn above the art (see the
+   comment there). */
+.mulligan-showcase.element-frame .hand-card-shell, .mulligan-showcase.element-frame .hand-notches { background-image: inherit; background-size: 0 0; }
+.mulligan-showcase.element-frame .hand-notches::before { content: ''; position: absolute; inset: 0; pointer-events: none; background-image: inherit; background-size: 100% 100%; background-position: center; background-repeat: no-repeat; -webkit-mask-image: radial-gradient(7.75% 5.39% at 7.36% 4.68%, #000 98%, transparent 100%), radial-gradient(7.75% 5.39% at 50.08% 4.68%, #000 98%, transparent 100%), radial-gradient(7.75% 5.39% at 92.64% 4.68%, #000 98%, transparent 100%), radial-gradient(7.75% 5.39% at 7.36% 49.95%, #000 98%, transparent 100%), radial-gradient(7.75% 5.39% at 92.64% 49.95%, #000 98%, transparent 100%); mask-image: radial-gradient(7.75% 5.39% at 7.36% 4.68%, #000 98%, transparent 100%), radial-gradient(7.75% 5.39% at 50.08% 4.68%, #000 98%, transparent 100%), radial-gradient(7.75% 5.39% at 92.64% 4.68%, #000 98%, transparent 100%), radial-gradient(7.75% 5.39% at 7.36% 49.95%, #000 98%, transparent 100%), radial-gradient(7.75% 5.39% at 92.64% 49.95%, #000 98%, transparent 100%); }
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame .hand-card-body { position: absolute; inset: 69.8% 11.5% 7.6%; width: auto; min-height: 0px; flex: 0 0 auto; padding: 0px; gap: 1px; font-size: 1em; line-height: 1; overflow: hidden; overflow-wrap: normal; word-break: normal; }
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-stat-pill { font-size: 9px; }
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-summary-list { font-size: 9px; }
