@@ -1,5 +1,7 @@
 // Verifies the animated frame-strip battle sprites in Siege (adventure.js
-// ANIM_SPRITES): with ?spriteTest=acorn every ally renders as a strip, a fresh
+// ANIM_SPRITES). Pass 1 (?spriteTest=acorn, 4-frame strips) dresses every ally;
+// pass 2 has no switch and relies on the card mapping (Flora Knight, strips of
+// 7/9/7/4/3/2 frames) on an ally and on a foe shade. In both: a fresh
 // battle walks in, the attacker plays its attack pose when its hit leaves, the
 // struck unit plays hurt, a KO plays fainted once and then holds the last frame
 // across the post-playback re-render, and a won battle cheers.
@@ -73,15 +75,36 @@ AFTER.battle.events = [
 const WON = JSON.parse(JSON.stringify(AFTER));
 WON.battle.phase = 'WON'; WON.battle.events = [];
 
+// Pass 2 states: no test switch, so only the card mapping can dress a unit.
+function asFlora(state) {
+  const s = JSON.parse(JSON.stringify(state));
+  s.battle.allies.forEach(u => { u.displayCardId = 'floraknight'; u.name = 'Flora Knight'; });
+  s.battle.enemies.push(unit('e2', 'Shade of Flora Knight', 'EARTH', 30, 30,
+    { side: 'ENEMY', position: 1, displayCardId: 'floraknight', shadeOf: 'Flora Knight' }));
+  return s;
+}
+const PASSES = [
+  { name: 'acorn', query: '?spriteTest=acorn', sheet: 'acorn', frames: { idle: 4, fainted: 4 },
+    states: [BEFORE, AFTER, WON] },
+  { name: 'floraknight', query: '', sheet: 'floraknight', frames: { idle: 7, fainted: 2 },
+    states: [asFlora(BEFORE), asFlora(AFTER), asFlora(WON)] }
+];
+
 function pose(id) {
   const n = document.querySelector('.sprite[data-id="' + id + '"]');
   if (!n) return null;
   const a = n.querySelector('.sp-anim');
   if (!a) return { cls: n.className, img: null };
-  const cs = getComputedStyle(a);
-  const m = /acorn-(\w+)\.webp/.exec(cs.backgroundImage);
-  return { cls: n.className, img: m ? m[1] : cs.backgroundImage, posX: cs.backgroundPositionX,
-           anim: cs.animationName, w: a.getBoundingClientRect().width, h: a.getBoundingClientRect().height };
+  const st = a.querySelector('.sp-anim-strip');
+  const cs = getComputedStyle(st);
+  const m = /\/(\w+)-(\w+)\.webp/.exec(cs.backgroundImage);
+  const cell = a.getBoundingClientRect(), strip = st.getBoundingClientRect();
+  const frames = Math.round(strip.width / cell.width);
+  // Which frame is in the cell: the strip's offset in cell widths.
+  const mt = new DOMMatrix(cs.transform === 'none' ? undefined : cs.transform);
+  return { cls: n.className, sheet: m ? m[1] : null, img: m ? m[2] : cs.backgroundImage,
+           frame: Math.round(-mt.m41 / (strip.width / frames)), frames,
+           anim: cs.animationName, w: cell.width, h: cell.height, filter: cs.filter };
 }
 
 (async () => {
@@ -89,14 +112,17 @@ function pose(id) {
   const server = await serve();
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   const failures = [];
-  for (const vp of VIEWPORTS) {
+  for (const pass of PASSES) for (const vp of VIEWPORTS) {
+    const tag = pass.name + '-' + vp.name;
     const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', m => { if (m.type() === 'error' && !/404|Failed to load/.test(m.text())) errors.push(m.text()); });
-    const check = (c, msg) => { if (!c) failures.push(`[${vp.name}] ${msg}`); else console.log(`  ok  ${msg}`); };
+    const check = (c, msg) => { if (!c) failures.push(`[${tag}] ${msg}`); else console.log(`  ok  ${msg}`); };
     await page.addInitScript(([before, after, won]) => {
       localStorage.setItem('siegeToken', 't');
+      // A fresh tab per pass, but say so: the switch is remembered per tab.
+      sessionStorage.removeItem('siegeSpriteTest');
       const orig = window.fetch;
       const json = v => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(JSON.parse(JSON.stringify(v))) });
       let turns = 0;
@@ -107,35 +133,40 @@ function pose(id) {
         if (u.indexOf('end-turn') >= 0) return json(turns++ ? won : after);
         return json(Object.assign({ status: 'ACTIVE' }, before));
       };
-    }, [BEFORE, AFTER, WON]);
-    console.log(`\n== ${vp.name}`);
-    await page.goto(`http://127.0.0.1:${PORT}/adventure.html?spriteTest=acorn`, { waitUntil: 'load' });
+    }, pass.states);
+    console.log(`\n== ${tag}`);
+    await page.goto(`http://127.0.0.1:${PORT}/adventure.html${pass.query}`, { waitUntil: 'load' });
     await page.waitForSelector('#resumeSaves .siege-btn.primary', { timeout: 15000 });
     await page.click('#resumeSaves .siege-btn.primary');
     await page.waitForSelector('.sprite[data-id="a1"] .sp-anim', { timeout: 15000 });
 
     let p = await page.evaluate(pose, 'a1');
-    check(p.img === 'walk' && /walk-in/.test(p.cls), `fresh battle walks in (${p.img})`);
-    check(p.h > 40 && p.w > p.h, `strip cell renders ${Math.round(p.w)}x${Math.round(p.h)}`);
-    const e = await page.evaluate(pose, 'e1');
-    check(e.img === null, 'foe without a sheet keeps static art');
-    await page.screenshot({ path: path.join(OUT, vp.name + '-walk.png') });
+    check(p.sheet === pass.sheet && p.img === 'walk' && /walk-in/.test(p.cls), `fresh battle walks in (${p.sheet}/${p.img})`);
+    check(p.h > 40 && p.w > p.h, `cell renders ${Math.round(p.w)}x${Math.round(p.h)}`);
+    const e1 = await page.evaluate(pose, 'e1');
+    check(e1.img === null, 'foe without a sheet keeps static art');
+    if (pass.name === 'floraknight') {
+      const e2 = await page.evaluate(pose, 'e2');
+      check(e2.sheet === 'floraknight' && /paper-siegling-shadow|brightness/.test(e2.filter),
+        `foe shade of a mapped card animates in silhouette (${e2.filter.slice(0, 40)})`);
+    }
+    await page.screenshot({ path: path.join(OUT, tag + '-walk.png') });
     await page.waitForTimeout(1500);
     p = await page.evaluate(pose, 'a1');
-    check(p.img === 'idle' && p.anim === 'sa-loop', `settles into idle loop (${p.img}/${p.anim})`);
-    const xs = new Set();
-    for (let i = 0; i < 12; i++) { xs.add((await page.evaluate(pose, 'a1')).posX); await page.waitForTimeout(90); }
-    check(xs.size >= 3, `idle steps through frames (${[...xs].join(', ')})`);
-    await page.screenshot({ path: path.join(OUT, vp.name + '-idle.png') });
+    check(p.img === 'idle' && p.anim === 'sa-loop' && p.frames === pass.frames.idle,
+      `settles into idle loop of ${p.frames} frames (${p.img}/${p.anim})`);
+    const fs_ = new Set();
+    for (let i = 0; i < 14; i++) { fs_.add((await page.evaluate(pose, 'a1')).frame); await page.waitForTimeout(70); }
+    check(fs_.size >= 3 && Math.max(...fs_) < pass.frames.idle, `idle steps through frames (${[...fs_].sort().join(', ')})`);
+    await page.screenshot({ path: path.join(OUT, tag + '-idle.png') });
 
-    // Sample poses every frame while the turn plays back.
     const seen = await page.evaluate(() => new Promise(resolve => {
       const log = { a1: new Set(), a2: new Set() };
       const t0 = performance.now();
       const step = () => {
         for (const id of ['a1', 'a2']) {
-          const a = document.querySelector('.sprite[data-id="' + id + '"] .sp-anim');
-          if (a) { const m = /acorn-(\w+)\.webp/.exec(getComputedStyle(a).backgroundImage); if (m) log[id].add(m[1]); }
+          const a = document.querySelector('.sprite[data-id="' + id + '"] .sp-anim-strip');
+          if (a) { const m = /-(\w+)\.webp/.exec(getComputedStyle(a).backgroundImage); if (m) log[id].add(m[1]); }
         }
         if (performance.now() - t0 < 6000) requestAnimationFrame(step);
         else resolve({ a1: [...log.a1], a2: [...log.a2] });
@@ -146,17 +177,18 @@ function pose(id) {
     check(seen.a1.includes('attack'), `attacker plays attack (${seen.a1})`);
     check(seen.a2.includes('hurt') && seen.a2.includes('fainted'), `KO'd ally plays hurt then fainted (${seen.a2})`);
     p = await page.evaluate(pose, 'a2');
-    check(p.img === 'fainted' && p.posX === '100%', `faint stops on its last frame (${p.posX}, ${p.anim})`);
-    await page.screenshot({ path: path.join(OUT, vp.name + '-fainted.png') });
+    check(p.img === 'fainted' && p.frame === pass.frames.fainted - 1,
+      `faint rests on its last frame (${p.frame + 1}/${p.frames})`);
+    await page.screenshot({ path: path.join(OUT, tag + '-fainted.png') });
 
     await page.click('#endTurnBtn').catch(() => {});
     await page.waitForTimeout(800);
     p = await page.evaluate(pose, 'a1');
     check(p && p.img === 'cheer' && /cheering/.test(p.cls), `won battle cheers (${p && p.img})`);
     p = await page.evaluate(pose, 'a2');
-    check(p.img === 'fainted' && /faint-held/.test(p.cls) && p.anim === 'none' && p.posX === '100%',
+    check(p.img === 'fainted' && /faint-held/.test(p.cls) && p.anim === 'none' && p.frame === pass.frames.fainted - 1,
       `re-render holds the faint instead of replaying it (${p.anim})`);
-    await page.screenshot({ path: path.join(OUT, vp.name + '-cheer.png') });
+    await page.screenshot({ path: path.join(OUT, tag + '-cheer.png') });
     const sw = await page.evaluate(() => document.documentElement.scrollWidth);
     check(sw <= vp.width, `no horizontal overflow (${sw})`);
     check(errors.length === 0, `no page errors ${errors.slice(0, 3).join(' | ')}`);

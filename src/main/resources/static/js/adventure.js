@@ -4496,14 +4496,23 @@
    * strip and picks the pose from the classes the event playback already puts
    * on .sprite (hurt, dead, ...), so a static-art Siegeling is unaffected.
    */
+  // w/h: the shared cell; fit: how much of the cell's height the idle body
+  // fills (the cell also holds raised swords and attack effects), so every
+  // sheet renders its body at the same size; base: share of the cell below the
+  // feet (petals lying on the ground), sunk below the floor so the feet meet
+  // the shadow; frames: strip length per pose. slice-*.py prints all of these.
   var ANIM_SPRITES = {
-    acorn: { dir: '/img/sprites/acorn/acorn-', w: 642, h: 337 }
+    acorn: { dir: '/img/sprites/acorn/acorn-', w: 642, h: 337, fit: 0.82, base: 0.018,
+      frames: { idle: 4, walk: 4, attack: 4, cheer: 4, hurt: 4, fainted: 4 } },
+    floraknight: { dir: '/img/sprites/floraknight/floraknight-', w: 526, h: 264, fit: 0.667, base: 0.091,
+      frames: { idle: 7, walk: 9, attack: 7, cheer: 4, hurt: 3, fainted: 2 } }
   };
+  var ANIM_BODY = 0.9;
   var ANIM_POSES = ['idle', 'walk', 'attack', 'cheer', 'hurt', 'fainted'];
   // displayCardId -> ANIM_SPRITES key, for Siegelings whose sheets have shipped.
-  var ANIM_SPRITE_CARDS = {};
+  var ANIM_SPRITE_CARDS = { floraknight: 'floraknight' };
   /*
-   * ?spriteTest=acorn dresses every ally in that sheet so it can be tried in a
+   * ?spriteTest=<sheet> (e.g. acorn) dresses every ally in that sheet so it can be tried in a
    * real run before it is assigned to a card; ?spriteTest=off clears it. It is
    * remembered per tab because the page keeps no query string across a run.
    */
@@ -4524,17 +4533,21 @@
   var animWalkNode = null, animWalkUntil = 0;
 
   function animSpriteFor(u, side) {
-    var key = (u.displayCardId && ANIM_SPRITE_CARDS[u.displayCardId]) ||
-      (side === 'ally' ? animSpriteTest : null);
+    var key = (side === 'ally' && animSpriteTest) ||
+      (u.displayCardId && ANIM_SPRITE_CARDS[u.displayCardId]);
     return key ? ANIM_SPRITES[key] : null;
   }
 
   function animSpriteHtml(sheet) {
     var vars = ANIM_POSES.map(function (pose) {
-      return '--sa-' + pose + ':url(' + sheet.dir + pose + '.webp)';
+      return '--sa-' + pose + ':url(' + sheet.dir + pose + '.webp);--sa-' + pose + '-n:' + sheet.frames[pose];
     }).join(';');
+    // The body stands at ANIM_BODY of the art box, leaving headroom under the plate.
+    var cellPct = 100 * ANIM_BODY / sheet.fit;
     return '<div class="sp-art sp-anim-wrap"><div class="sp-anim" style="' + vars +
-      ';aspect-ratio:' + sheet.w + '/' + sheet.h + '" aria-hidden="true"></div></div>';
+      ';aspect-ratio:' + sheet.w + '/' + sheet.h + ';height:' + cellPct.toFixed(1) + '%' +
+      ';bottom:' + (-cellPct * (sheet.base || 0)).toFixed(1) + '%"' +
+      ' aria-hidden="true"><i class="sp-anim-strip"></i></div></div>';
   }
 
   function renderSpriteLine(host, units, side, b) {
