@@ -1,0 +1,168 @@
+// Verifies the animated frame-strip battle sprites in Siege (adventure.js
+// ANIM_SPRITES): with ?spriteTest=acorn every ally renders as a strip, a fresh
+// battle walks in, the attacker plays its attack pose when its hit leaves, the
+// struck unit plays hurt, a KO plays fainted once and then holds the last frame
+// across the post-playback re-render, and a won battle cheers.
+//
+//   node tests/siege-anim-sprite-check.cjs
+//
+// Same harness shape as siege-effect-timing-check.cjs: static server, fetch
+// stubbed with canned run states, End Turn clicked through the real UI.
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+
+const ROOT = path.dirname(__dirname);
+const STATIC = path.join(ROOT, 'src', 'main', 'resources', 'static');
+const OUT = path.join(ROOT, 'output', 'web-game', 'siege-anim-sprite');
+const PORT = 8953;
+const TYPES = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
+                '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png',
+                '.webp': 'image/webp' };
+const VIEWPORTS = [
+  { name: 'phone-portrait-390x844', width: 390, height: 844 },
+  { name: 'desktop-1920x1080', width: 1920, height: 1080 }
+];
+
+function serve() {
+  const server = http.createServer((req, res) => {
+    const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'adventure.html';
+    const file = path.join(STATIC, rel);
+    if (!file.startsWith(STATIC) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+      res.writeHead(404); res.end('nope'); return;
+    }
+    res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
+    res.end(fs.readFileSync(file));
+  });
+  return new Promise(resolve => server.listen(PORT, '127.0.0.1', () => resolve(server)));
+}
+
+function unit(id, name, el, hp, maxHp, extra) {
+  return Object.assign({
+    id, name, element: el, hp, maxHp, alive: hp > 0, shield: 0, speed: 8,
+    position: 0, side: 'PLAYER', statuses: [], attackBuff: 0, level: 3,
+    xpInLevel: 10, xpSpan: 40, size: 'SMALL', artUrl: null, cards: []
+  }, extra || {});
+}
+const BEFORE = {
+  token: 't', gold: 40, party: [], knight: null, map: [], currentNodeId: 'n1',
+  battle: {
+    phase: 'PLAYER_INPUT', roundNumber: 2, actionPoints: 5, maxActionPoints: 5,
+    playerActsFirst: true, playerSpeed: 20, enemySpeed: 14, leadId: 'a1',
+    deckCount: 12, discardCount: 4, hand: [], log: ['Battle joined.'], turnLog: [],
+    events: [], targetedPositions: [],
+    knight: { id: 'k1', name: 'Ser Airek', element: 'EARTH', hp: 44, maxHp: 44, charge: 4, ultCost: 20 },
+    allies: [
+      unit('a1', 'Acorn A', 'EARTH', 40, 40, { position: 0 }),
+      unit('a2', 'Acorn B', 'EARTH', 8, 40, { position: 1 })
+    ],
+    enemies: [unit('e1', 'Raydile', 'ELECTRIC', 70, 70, { side: 'ENEMY', position: 0 })]
+  }
+};
+const vit = (id, hp, maxHp, alive) => [{ id, hp, maxHp, shield: 0, alive: alive !== false }];
+const AFTER = JSON.parse(JSON.stringify(BEFORE));
+AFTER.battle.enemies[0].hp = 42;
+AFTER.battle.allies[1].hp = 0; AFTER.battle.allies[1].alive = false;
+AFTER.battle.events = [
+  { type: 'card', sourceId: 'a1', name: 'Seed Cannon', element: 'EARTH' },
+  { type: 'hit', sourceId: 'a1', targetId: 'e1', amount: 28, element: 'EARTH', ko: false, vitals: vit('e1', 42, 70) },
+  { type: 'enemyAct', sourceId: 'e1', name: 'Sparkbite', element: 'ELECTRIC' },
+  { type: 'hit', sourceId: 'e1', targetId: 'a2', amount: 9, element: 'ELECTRIC', ko: true, vitals: vit('a2', 0, 40, false) }
+];
+const WON = JSON.parse(JSON.stringify(AFTER));
+WON.battle.phase = 'WON'; WON.battle.events = [];
+
+function pose(id) {
+  const n = document.querySelector('.sprite[data-id="' + id + '"]');
+  if (!n) return null;
+  const a = n.querySelector('.sp-anim');
+  if (!a) return { cls: n.className, img: null };
+  const cs = getComputedStyle(a);
+  const m = /acorn-(\w+)\.webp/.exec(cs.backgroundImage);
+  return { cls: n.className, img: m ? m[1] : cs.backgroundImage, posX: cs.backgroundPositionX,
+           anim: cs.animationName, w: a.getBoundingClientRect().width, h: a.getBoundingClientRect().height };
+}
+
+(async () => {
+  fs.mkdirSync(OUT, { recursive: true });
+  const server = await serve();
+  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  const failures = [];
+  for (const vp of VIEWPORTS) {
+    const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
+    const errors = [];
+    page.on('pageerror', e => errors.push(String(e)));
+    page.on('console', m => { if (m.type() === 'error' && !/404|Failed to load/.test(m.text())) errors.push(m.text()); });
+    const check = (c, msg) => { if (!c) failures.push(`[${vp.name}] ${msg}`); else console.log(`  ok  ${msg}`); };
+    await page.addInitScript(([before, after, won]) => {
+      localStorage.setItem('siegeToken', 't');
+      const orig = window.fetch;
+      const json = v => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(JSON.parse(JSON.stringify(v))) });
+      let turns = 0;
+      window.fetch = (url, opts) => {
+        const u = String(url);
+        if (u.indexOf('/api/siege/') < 0) return orig(url, opts);
+        if (u.indexOf('/run/active') >= 0) return json({ runs: [Object.assign({ status: 'ACTIVE' }, before)] });
+        if (u.indexOf('end-turn') >= 0) return json(turns++ ? won : after);
+        return json(Object.assign({ status: 'ACTIVE' }, before));
+      };
+    }, [BEFORE, AFTER, WON]);
+    console.log(`\n== ${vp.name}`);
+    await page.goto(`http://127.0.0.1:${PORT}/adventure.html?spriteTest=acorn`, { waitUntil: 'load' });
+    await page.waitForSelector('#resumeSaves .siege-btn.primary', { timeout: 15000 });
+    await page.click('#resumeSaves .siege-btn.primary');
+    await page.waitForSelector('.sprite[data-id="a1"] .sp-anim', { timeout: 15000 });
+
+    let p = await page.evaluate(pose, 'a1');
+    check(p.img === 'walk' && /walk-in/.test(p.cls), `fresh battle walks in (${p.img})`);
+    check(p.h > 40 && p.w > p.h, `strip cell renders ${Math.round(p.w)}x${Math.round(p.h)}`);
+    const e = await page.evaluate(pose, 'e1');
+    check(e.img === null, 'foe without a sheet keeps static art');
+    await page.screenshot({ path: path.join(OUT, vp.name + '-walk.png') });
+    await page.waitForTimeout(1500);
+    p = await page.evaluate(pose, 'a1');
+    check(p.img === 'idle' && p.anim === 'sa-loop', `settles into idle loop (${p.img}/${p.anim})`);
+    const xs = new Set();
+    for (let i = 0; i < 12; i++) { xs.add((await page.evaluate(pose, 'a1')).posX); await page.waitForTimeout(90); }
+    check(xs.size >= 3, `idle steps through frames (${[...xs].join(', ')})`);
+    await page.screenshot({ path: path.join(OUT, vp.name + '-idle.png') });
+
+    // Sample poses every frame while the turn plays back.
+    const seen = await page.evaluate(() => new Promise(resolve => {
+      const log = { a1: new Set(), a2: new Set() };
+      const t0 = performance.now();
+      const step = () => {
+        for (const id of ['a1', 'a2']) {
+          const a = document.querySelector('.sprite[data-id="' + id + '"] .sp-anim');
+          if (a) { const m = /acorn-(\w+)\.webp/.exec(getComputedStyle(a).backgroundImage); if (m) log[id].add(m[1]); }
+        }
+        if (performance.now() - t0 < 6000) requestAnimationFrame(step);
+        else resolve({ a1: [...log.a1], a2: [...log.a2] });
+      };
+      requestAnimationFrame(step);
+      document.getElementById('endTurnBtn').click();
+    }));
+    check(seen.a1.includes('attack'), `attacker plays attack (${seen.a1})`);
+    check(seen.a2.includes('hurt') && seen.a2.includes('fainted'), `KO'd ally plays hurt then fainted (${seen.a2})`);
+    p = await page.evaluate(pose, 'a2');
+    check(p.img === 'fainted' && p.posX === '100%', `faint stops on its last frame (${p.posX}, ${p.anim})`);
+    await page.screenshot({ path: path.join(OUT, vp.name + '-fainted.png') });
+
+    await page.click('#endTurnBtn').catch(() => {});
+    await page.waitForTimeout(800);
+    p = await page.evaluate(pose, 'a1');
+    check(p && p.img === 'cheer' && /cheering/.test(p.cls), `won battle cheers (${p && p.img})`);
+    p = await page.evaluate(pose, 'a2');
+    check(p.img === 'fainted' && /faint-held/.test(p.cls) && p.anim === 'none' && p.posX === '100%',
+      `re-render holds the faint instead of replaying it (${p.anim})`);
+    await page.screenshot({ path: path.join(OUT, vp.name + '-cheer.png') });
+    const sw = await page.evaluate(() => document.documentElement.scrollWidth);
+    check(sw <= vp.width, `no horizontal overflow (${sw})`);
+    check(errors.length === 0, `no page errors ${errors.slice(0, 3).join(' | ')}`);
+    await page.close();
+  }
+  await browser.close(); server.close();
+  if (failures.length) { console.log('\nFAIL\n' + failures.join('\n')); process.exit(1); }
+  console.log('\nall checks passed');
+})();

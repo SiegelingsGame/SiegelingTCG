@@ -1252,6 +1252,49 @@ body[data-battle-node="BOSS"] .battle-stage::before{
 .sprite.swapping .sp-art{animation:swapflip .5s ease-in-out;}
 @keyframes swapflip{50%{transform:translateY(-14px) scaleX(-1);}}
 .sprite.evolving .sp-art{animation:evolveburst .9s ease-in-out; filter:drop-shadow(0 0 22px rgba(255,208,102,1)) brightness(1.6);}
+
+/* Animated frame-strip sprites (adventure.js ANIM_SPRITES). Every pose is a
+   4-frame strip on one shared cell with the feet on its bottom edge, so the cell
+   is wider than the plate (the attack blast reaches past the cannon) and is
+   centred absolutely instead of being squeezed into the 120px sprite column.
+   The pose is chosen from the reaction classes playback already sets; rules
+   further down win, so a KO beats a hit beats a cheer. */
+.sprite.has-anim .sp-anim-wrap{overflow:visible;}
+.sprite.has-anim:not(.hurt) .sp-anim-wrap{animation:none;}
+.sprite.has-anim .sp-anim{
+  position:absolute; left:50%; bottom:0; height:122%; transform:translateX(-50%);
+  background:var(--sa-idle) 0 0/400% 100% no-repeat;
+  animation:sa-loop 1s steps(4) infinite; pointer-events:none;
+}
+.sprite.enemy.has-anim .sp-anim{transform:translateX(-50%) scaleX(-1);}
+@keyframes sa-loop{from{background-position-x:0%;} to{background-position-x:133.333%;}}
+/* jump-none lands on all four frames and stops on the last one (forwards). */
+@keyframes sa-once{from{background-position-x:0%;} to{background-position-x:100%;}}
+.sprite.has-anim.walk-in .sp-anim-wrap,
+.sprite.has-anim.swapping .sp-anim-wrap{animation:sa-walkin 1.2s ease-out;}
+@keyframes sa-walkin{from{transform:translateX(-46px);} to{transform:translateX(0);}}
+.sprite.has-anim.walk-in .sp-anim,
+.sprite.has-anim.swapping .sp-anim,
+.sprite.has-anim.swap-spin .sp-anim{background-image:var(--sa-walk); animation:sa-loop .6s steps(4) infinite;}
+.sprite.has-anim.swap-spin .sp-anim-wrap{animation:none;}
+.sprite.has-anim.cheering .sp-anim,
+.sprite.has-anim.healed .sp-anim,
+.sprite.has-anim.evolving .sp-anim{background-image:var(--sa-cheer); animation:sa-loop .8s steps(4) infinite;}
+.sprite.has-anim.acting .sp-anim,
+.sprite.has-anim.firing .sp-anim{background-image:var(--sa-attack); animation:sa-once .55s steps(4, jump-none) forwards;}
+.sprite.has-anim.acting .sp-anim-wrap,
+.sprite.has-anim.firing .sp-anim-wrap{animation:none;}
+.sprite.has-anim.hurt .sp-anim{background-image:var(--sa-hurt); animation:sa-once .45s steps(4, jump-none) forwards;}
+/* The faint is the animation, so the static-art tilt and heavy fade are dropped. */
+.sprite.has-anim.dead{opacity:.7;}
+.sprite.has-anim.dead .sp-anim-wrap{transform:none; filter:grayscale(.55) brightness(.8);}
+.sprite.has-anim.dead .sp-anim{background-image:var(--sa-fainted); animation:sa-once .7s steps(4, jump-none) forwards;}
+.sprite.has-anim.dead.faint-held .sp-anim{animation:none; background-position-x:100%;}
+@media (prefers-reduced-motion: reduce){
+  .sprite.has-anim .sp-anim{animation:none !important;}
+  .sprite.has-anim.dead .sp-anim{background-position-x:100%;}
+  .sprite.has-anim .sp-anim-wrap{animation:none !important;}
+}
 @keyframes evolveburst{0%{transform:scale(1);}40%{transform:scale(.85); filter:brightness(3);}70%{transform:scale(1.18);}100%{transform:scale(1);}}
 .sp-float{
   position:absolute; left:50%; top:6px; transform:translateX(-50%);
