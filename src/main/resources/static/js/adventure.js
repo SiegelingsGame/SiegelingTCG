@@ -4502,7 +4502,7 @@
   // feet (petals lying on the ground), sunk below the floor so the feet meet
   // the shadow; frames: strip length per pose. slice-*.py prints all of these.
   var ANIM_SPRITES = {
-    acorn: { dir: '/img/sprites/acorn/acorn-', w: 642, h: 337, fit: 0.82, base: 0.018,
+    squirebud: { dir: '/img/sprites/squirebud/squirebud-', w: 642, h: 337, fit: 0.82, base: 0.018,
       frames: { idle: 4, walk: 4, attack: 4, cheer: 4, hurt: 4, fainted: 4 } },
     floraknight: { dir: '/img/sprites/floraknight/floraknight-', w: 526, h: 264, fit: 0.667, base: 0.091,
       frames: { idle: 7, walk: 9, attack: 7, cheer: 4, hurt: 3, fainted: 2 } },
@@ -4512,9 +4512,9 @@
   var ANIM_BODY = 0.9;
   var ANIM_POSES = ['idle', 'walk', 'attack', 'cheer', 'hurt', 'fainted'];
   // displayCardId -> ANIM_SPRITES key, for Siegelings whose sheets have shipped.
-  var ANIM_SPRITE_CARDS = { floraknight: 'floraknight', generoot: 'generoot' };
+  var ANIM_SPRITE_CARDS = { squirebud: 'squirebud', floraknight: 'floraknight', generoot: 'generoot' };
   /*
-   * ?spriteTest=<sheet> (e.g. acorn) dresses every ally in that sheet so it can be tried in a
+   * ?spriteTest=<sheet> (e.g. squirebud) dresses every ally in that sheet so it can be tried in a
    * real run before it is assigned to a card; ?spriteTest=off clears it. It is
    * remembered per tab because the page keeps no query string across a run.
    */

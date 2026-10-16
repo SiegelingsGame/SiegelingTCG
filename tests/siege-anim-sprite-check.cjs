@@ -1,7 +1,8 @@
 // Verifies the animated frame-strip battle sprites in Siege (adventure.js
-// ANIM_SPRITES). Pass 1 (?spriteTest=acorn, 4-frame strips) dresses every ally;
-// passes 2-3 have no switch and rely on the card mapping (Flora Knight and
-// Generoot, strips of 2-9 frames) on an ally and on a foe shade. In both: a fresh
+// ANIM_SPRITES). Pass 1 (?spriteTest=squirebud) dresses every ally through the
+// test switch; the other passes have no switch and rely on the card mapping
+// (Squire Bud, Flora Knight, Generoot: strips of 2-9 frames) on an ally and on
+// a foe shade. In both: a fresh
 // battle walks in, the attacker plays its attack pose when its hit leaves, the
 // struck unit plays hurt, a KO plays fainted once and then holds the last frame
 // across the post-playback re-render, and a won battle cheers.
@@ -84,8 +85,10 @@ function asCard(state, id, name) {
   return s;
 }
 const PASSES = [
-  { name: 'acorn', query: '?spriteTest=acorn', sheet: 'acorn', frames: { idle: 4, fainted: 4 },
+  { name: 'switch', query: '?spriteTest=squirebud', sheet: 'squirebud', frames: { idle: 4, fainted: 4 },
     states: [BEFORE, AFTER, WON] },
+  { name: 'squirebud', query: '', sheet: 'squirebud', frames: { idle: 4, fainted: 4 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'squirebud', 'Squire Bud')) },
   { name: 'floraknight', query: '', sheet: 'floraknight', frames: { idle: 7, fainted: 2 },
     states: [BEFORE, AFTER, WON].map(st => asCard(st, 'floraknight', 'Flora Knight')) },
   { name: 'generoot', query: '', sheet: 'generoot', frames: { idle: 8, fainted: 2 },
@@ -147,7 +150,7 @@ function pose(id) {
     check(p.h > 40 && p.w > p.h, `cell renders ${Math.round(p.w)}x${Math.round(p.h)}`);
     const e1 = await page.evaluate(pose, 'e1');
     check(e1.img === null, 'foe without a sheet keeps static art');
-    if (pass.name !== 'acorn') {
+    if (pass.name !== 'switch') {
       const e2 = await page.evaluate(pose, 'e2');
       check(e2.sheet === pass.sheet && /paper-siegling-shadow|brightness/.test(e2.filter),
         `foe shade of a mapped card animates in silhouette (${e2.filter.slice(0, 40)})`);
@@ -207,7 +210,7 @@ function pose(id) {
     await page.waitForTimeout(800);
     p = await page.evaluate(pose, 'a1');
     check(p && p.img === 'cheer' && /cheering/.test(p.cls), `won battle cheers (${p && p.img})`);
-    if (pass.name !== 'acorn') {
+    if (pass.name !== 'switch') {
       const foe = await page.evaluate(pose, 'e2');
       check(foe.img === 'idle' && !/cheering/.test(foe.cls), `a surviving foe does not cheer your win (${foe.img})`);
     }
