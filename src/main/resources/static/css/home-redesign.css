@@ -5861,3 +5861,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-dominion { margin-top:10px; border-color:rgba(244,204,98,.45); }
 .sg-dominion .sg-lobbies-dot { background:#f4cc62; box-shadow:0 0 8px rgba(244,204,98,.8); }
 .sg-dominion em, .sg-dominion .go { color:#f4cc62; }
+.sg-gauntlet { margin-top:10px; border-color:rgba(200,150,255,.45); }
+.sg-gauntlet .sg-lobbies-dot { background:#c896ff; box-shadow:0 0 8px rgba(200,150,255,.8); }
+.sg-gauntlet em, .sg-gauntlet .go { color:#c896ff; }
