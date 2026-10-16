@@ -3250,7 +3250,7 @@
                     isPlayer: false,
                     prevHealth: prevEnemyHp,
                     nextHealth: nextEnemyHp,
-                    maxHealth: 50
+                    maxHealth: Number(nextState.enemy?.maxHealth) || 50
                 });
                 const srcRef = (() => {
                     const pending = prevState.pendingBattle;
@@ -3288,7 +3288,7 @@
                     isPlayer: true,
                     prevHealth: prevPlayerHp,
                     nextHealth: nextPlayerHp,
-                    maxHealth: 50
+                    maxHealth: Number(nextState.player?.maxHealth) || 50
                 });
                 const srcRef = findCellOnBoard(prevEnemy, () => true);
                 const srcElement = normalizeElement(srcRef?.cell?.element) || enemyKnight;

@@ -61,6 +61,23 @@ public class EffectService {
                                 int destRow, int destCol) {
         if (ability == null) return;
         if (ability.isPassive()) return; // Passives are applied differently
+        resolvePrimaryAbility(state, ability, source, isPlayerSource, targetRow, targetCol, destRow, destCol);
+        if (ability.hasRiders()) {
+            for (Ability rider : ability.getRiders()) {
+                if (rider == null || rider.isPassive() || state.isGameOver()) {
+                    continue;
+                }
+                // A rider needs a source that is still standing when it names SELF, but an
+                // offensive rider still lands if the primary hit killed the attacker's target:
+                // resolveTargets drops the dead cell and auto-picks the next enemy.
+                resolvePrimaryAbility(state, rider, source, isPlayerSource, targetRow, targetCol, destRow, destCol);
+            }
+        }
+    }
+
+    private void resolvePrimaryAbility(GameState state, Ability ability, CardInstance source,
+                                       boolean isPlayerSource, int targetRow, int targetCol,
+                                       int destRow, int destCol) {
 
         // Check reaction requirement
         if (ability.getRequiredReaction() == Reaction.MIST) {

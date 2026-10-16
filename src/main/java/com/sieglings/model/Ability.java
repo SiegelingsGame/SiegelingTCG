@@ -5,6 +5,9 @@ import com.sieglings.model.enums.Reaction;
 import com.sieglings.model.enums.Row;
 import com.sieglings.model.enums.TargetType;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Universal ability/effect definition used by Sieglings, Spells, and Trainers.
  */
@@ -24,6 +27,13 @@ public class Ability {
     private Element requiredElement;
     private int requiredEnergy;
     private Reaction requiredReaction;
+
+    /**
+     * Extra effects that resolve right after this one, against the same picked cell. Gauntlet
+     * forging adds them to a move ("also heals itself 2"); each rider resolves through the
+     * normal effect keys, so nothing about it is Gauntlet-specific once it is on the card.
+     */
+    private List<Ability> riders;
 
     /** True when this battle-queue option was converted from a printed passive Siegling ability (UI only). */
     private boolean battleOptionFromPrintedPassive;
@@ -118,6 +128,13 @@ public class Ability {
         copy.setRequiredEnergy(requiredEnergy);
         copy.setRequiredReaction(requiredReaction);
         copy.setBattleOptionFromPrintedPassive(battleOptionFromPrintedPassive);
+        if (riders != null) {
+            List<Ability> riderCopies = new ArrayList<>();
+            for (Ability rider : riders) {
+                riderCopies.add(rider.copy());
+            }
+            copy.setRiders(riderCopies);
+        }
         return copy;
     }
 
@@ -146,6 +163,9 @@ public class Ability {
     public void setRequiredEnergy(int requiredEnergy) { this.requiredEnergy = requiredEnergy; }
     public Reaction getRequiredReaction() { return requiredReaction; }
     public void setRequiredReaction(Reaction requiredReaction) { this.requiredReaction = requiredReaction; }
+    public List<Ability> getRiders() { return riders; }
+    public void setRiders(List<Ability> riders) { this.riders = riders; }
+    public boolean hasRiders() { return riders != null && !riders.isEmpty(); }
     public boolean isBattleOptionFromPrintedPassive() { return battleOptionFromPrintedPassive; }
     public void setBattleOptionFromPrintedPassive(boolean battleOptionFromPrintedPassive) {
         this.battleOptionFromPrintedPassive = battleOptionFromPrintedPassive;

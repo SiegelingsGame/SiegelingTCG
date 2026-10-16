@@ -236,6 +236,16 @@ public class MovesPoolService {
         if (card == null) {
             return List.of();
         }
+        if (card.hasCustomMoves()) {
+            // Copies, because callers (battle option building) mutate what they get back.
+            List<Ability> out = new ArrayList<>();
+            for (Ability move : card.getCustomMoves()) {
+                if (move != null) {
+                    out.add(move.copy());
+                }
+            }
+            return out;
+        }
         return resolveAbilities(card.getMoveIds());
     }
 

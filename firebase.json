@@ -42,7 +42,7 @@
         ]
       },
       {
-        "source": "/@(landing|home|login|social|cards|decks|lobbies|profile|achievements|deck-builder|shop|play|battle|siege|keep|chronicles|dominion|help|legacy|settings|next|gallery|room)",
+        "source": "/@(landing|home|login|social|cards|decks|lobbies|profile|achievements|deck-builder|shop|play|battle|siege|gauntlet|keep|chronicles|dominion|help|legacy|settings|next|gallery|room)",
         "headers": [
           {
             "key": "Cache-Control",
@@ -247,6 +247,10 @@
       {
         "source": "/siege",
         "destination": "/adventure.html"
+      },
+      {
+        "source": "/gauntlet",
+        "destination": "/gauntlet.html"
       },
       {
         "source": "/keep",

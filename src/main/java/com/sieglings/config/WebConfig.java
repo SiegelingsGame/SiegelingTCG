@@ -123,6 +123,7 @@ public class WebConfig implements WebMvcConfigurer {
         // reads the path; /play keeps its existing welcome behaviour.
         registry.addViewController("/battle").setViewName("forward:/play.html");
         registry.addViewController("/siege").setViewName("forward:/adventure.html");
+        registry.addViewController("/gauntlet").setViewName("forward:/gauntlet.html");
         registry.addViewController("/keep").setViewName("forward:/keep.html");
         registry.addViewController("/chronicles").setViewName("forward:/chronicles.html");
         registry.addViewController("/dominion").setViewName("forward:/dominion.html");
