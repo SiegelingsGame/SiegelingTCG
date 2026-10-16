@@ -78,6 +78,27 @@
   var CARDS = DATA.sieglings.slice();
   // Binder pool: every card type. Falls back to the Siegeling snapshot offline.
   var ALL_CARDS = DATA.sieglings.slice();
+  // Holographic finishes this account bought with remnants (or pulled foil),
+  // keyed by lowercased id. The catalog's own `holographic` flag only covers
+  // cards that ship foil, so every face rendered here consults this as well.
+  var PLAYER_HOLO = {};
+  function setPlayerHolo(ids) {
+    PLAYER_HOLO = {};
+    (ids || []).forEach(function (id) {
+      var key = String(id || '').trim().toLowerCase();
+      if (key) PLAYER_HOLO[key] = true;
+    });
+  }
+  function hasPlayerHolo(card) {
+    return Boolean(card && PLAYER_HOLO[String(card.id || '').trim().toLowerCase()]);
+  }
+  function withPlayerHolo(card) {
+    if (!card || card.holographic === true || !hasPlayerHolo(card)) return card;
+    var copy = {};
+    for (var key in card) if (Object.prototype.hasOwnProperty.call(card, key)) copy[key] = card[key];
+    copy.holographic = true;
+    return copy;
+  }
   function byIdIn(pool, id) {
     for (var i = 0; i < pool.length; i++) if (pool[i].id === id) return pool[i];
     return null;
@@ -2084,6 +2105,9 @@
     if (!visual) return '';
     var rarity = String(card.rarity || 'common').toLowerCase();
     var el = String(card.element || 'NEUTRAL').toLowerCase();
+    var holo = card.holographic === true;
+    var holoClass = holo ? ' is-holographic' : '';
+    var holoOverlay = holo ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
     var body = '<div class="knight-card-body">' +
       '<span class="knight-card-name">' + esc(card.name) + '</span>' +
       '<span class="knight-card-meta"><span class="knight-element">' + esc(title(card.element)) + '</span> ' +
@@ -2095,18 +2119,18 @@
     if (visual.usesFullCardArt && visual.usesFullCardArt(card)) {
       var crop = visual.buildArtTransformStyle ? visual.buildArtTransformStyle(card) : '';
       return '<div class="knight-card knight-full-card-art knight-binder-card rarity-frame-' + esc(rarity) +
-        ' el-' + esc(el) + '" role="img" aria-label="' + esc(card.name) + '">' +
+        ' el-' + esc(el) + holoClass + '" role="img" aria-label="' + esc(card.name) + '">' +
         '<img ' + artAttrs(card.cardArtUrl, 640) +
         ' alt="' + esc(card.name) + '" loading="lazy"' + (crop ? ' style="' + esc(crop) + '"' : '') + '>' +
-        body + '</div>';
+        holoOverlay + body + '</div>';
     }
     if (visual.usesKnightOverlayArt && visual.usesKnightOverlayArt(card)) {
       var tplClass = visual.knightTemplateClass ? visual.knightTemplateClass(card) : '';
       return '<div class="knight-card knight-full-card-art knight-overlay-art' + tplClass + ' knight-binder-card rarity-frame-' +
-        esc(rarity) + ' el-' + esc(el) + '" style="--knight-color:' + visual.elementColor(card.element) +
+        esc(rarity) + ' el-' + esc(el) + holoClass + '" style="--knight-color:' + visual.elementColor(card.element) +
         ";--knight-card-back:url('/img/knights/card-back-siegeknight.png');--knight-card-template:url('/img/knights/siegeknight-card-template.png')\">" +
         visual.renderKnightOverlayArtWindow(card) +
-        '<div class="knight-card-template" aria-hidden="true"></div>' + body + '</div>';
+        '<div class="knight-card-template" aria-hidden="true"></div>' + holoOverlay + body + '</div>';
     }
     return '';
   }
@@ -2130,13 +2154,14 @@
   // dashboard the moment a designer changed a frame.
   function galleryCard(c) {
     var visual = window.SieglingsCardBinderVisual;
+    c = withPlayerHolo(c);
     if (String(c.type || '').toUpperCase() === 'SIEGEKNIGHT') {
       var knight = knightCard(c);
       if (knight) return '<button class="sg-card-tile" type="button" data-card="' + esc(c.id) + '">' + knight + '</button>';
     }
     if (visual && visual.renderBinderCardTile) {
       return '<button class="sg-card-tile" type="button" data-card="' + esc(c.id) + '">' +
-        visual.renderBinderCardTile(c, { descriptionText: cardFaceText(c) }) +
+        visual.renderBinderCardTile(c, { descriptionText: cardFaceText(c), useHolographicFullCardArt: true }) +
       '</button>';
     }
     // Offline preview board: no renderer loaded, so fall back to the plate.
@@ -4619,7 +4644,107 @@
             '</div>'
           : '') +
       '</div>' +
+      holoBlock(card, opts) +
       '<a class="sg-sheet-cta" href="/deck-builder" data-screen="builder">Use in a deck \u203a</a>';
+  }
+
+  /* ---------- holographic finish ----------
+     Remnants buy a holographic finish on a card the account owns
+     (POST /api/cards/holographic). Mirrors PlayerProgressionService:
+     holographicCost = craftCost x 4. The server re-checks ownership, balance
+     and the starter pack, so this only decides what to offer. */
+  var HOLO_COST = { COMMON: 2000, UNCOMMON: 4000, RARE: 8000, EPIC: 16000, LEGENDARY: 32000 };
+
+  function holoCost(card) {
+    return HOLO_COST[String(card && card.rarity || 'COMMON').toUpperCase()] || HOLO_COST.COMMON;
+  }
+
+  function holoBlock(card, opts) {
+    var live = opts && opts.live;
+    // Cards that ship foil have nothing to buy; guests and the offline board
+    // cannot spend remnants.
+    if (!live || opts.guest || card.holographic === true) return '';
+    if (hasPlayerHolo(card)) {
+      return '<div class="sg-sheet-holo is-done"><span class="sg-sheet-holo-chip">\u2726 Holographic finish</span></div>';
+    }
+    var isOwned = binderOwnership(live);
+    if (!isOwned || !isOwned(card)) return '';
+    var cost = holoCost(card);
+    var balance = Number(live.remnants);
+    var known = isFinite(balance);
+    var short = known && balance < cost;
+    return '<div class="sg-sheet-holo">' +
+      '<button class="sg-sheet-holo-btn" type="button" data-holo-buy="' + esc(card.id) + '"' +
+        ' data-holo-cost="' + cost + '"' + (short ? ' disabled' : '') + '>' +
+        '\u2726 Make holographic \u00b7 ' + cost.toLocaleString() + ' remnants</button>' +
+      '<p class="sg-sheet-holo-note" data-holo-note>' + (known
+        ? (short ? 'You have ' + balance.toLocaleString() + ' remnants. Duplicates and wins earn more.'
+                 : 'You have ' + balance.toLocaleString() + ' remnants.')
+        : '') + '</p>' +
+    '</div>';
+  }
+
+  // Repaints every face of this card already on the page (binder tile, sheet
+  // face) so the foil appears where the player is looking, without rebuilding
+  // the binder and losing their scroll position.
+  function repaintCardFaces(app, card) {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = galleryCard(card);
+    var fresh = tmp.querySelector('.sg-card-tile');
+    if (!fresh) return;
+    [].slice.call(app.querySelectorAll('.sg-card-tile[data-card]')).forEach(function (tile) {
+      if (tile.getAttribute('data-card') === String(card.id)) tile.innerHTML = fresh.innerHTML;
+    });
+    scheduleFit(app);
+  }
+
+  function buyHoloFinish(app, opts, sheetCard, btn) {
+    var api = window.SiegelingsHomeLive;
+    var id = btn.getAttribute('data-holo-buy');
+    var cost = Number(btn.getAttribute('data-holo-cost')) || 0;
+    var note = sheetCard.querySelector('[data-holo-note]');
+    // Up to 32,000 remnants in one tap is too easy to spend by accident, so
+    // the first tap arms and the second one spends.
+    if (!btn.classList.contains('is-armed')) {
+      btn.classList.add('is-armed');
+      btn.textContent = 'Tap again to spend ' + cost.toLocaleString() + ' remnants';
+      return;
+    }
+    if (!api || !api.post) return;
+    btn.disabled = true;
+    btn.textContent = 'Applying finish\u2026';
+    api.post('/api/cards/holographic', { cardId: id }).then(function (data) {
+      if (!data || data.error || !data.progression) {
+        btn.disabled = false;
+        btn.classList.remove('is-armed');
+        btn.textContent = '\u2726 Make holographic \u00b7 ' + cost.toLocaleString() + ' remnants';
+        if (note) note.textContent = (data && data.error) || 'The finish could not be applied. Try again.';
+        return;
+      }
+      var p = data.progression;
+      var live = opts.live;
+      if (p.remnants != null) live.remnants = p.remnants;
+      if (Array.isArray(p.holographicCards)) live.holographicCards = p.holographicCards;
+      setPlayerHolo(live.holographicCards || []);
+      if (!hasPlayerHolo({ id: id })) PLAYER_HOLO[String(id).toLowerCase()] = true;
+      if (typeof loadCachedAuthProfile === 'function' && typeof saveCachedAuthProfile === 'function') {
+        var profile = loadCachedAuthProfile();
+        if (live.accountId && profile && profile.user && profile.user.id === live.accountId) {
+          profile.progression = Object.assign({}, profile.progression, p);
+          saveCachedAuthProfile(profile);
+        }
+      }
+      var card = byIdIn(ALL_CARDS, id) || byId(id);
+      repaintCardFaces(app, card);
+      var block = sheetCard.querySelector('.sg-sheet-holo');
+      if (block) block.outerHTML = holoBlock(card, opts);
+      var face = sheetCard.querySelector('.sg-sheet-face');
+      if (face) {
+        face.classList.remove('is-holo-unlock');
+        void face.offsetWidth;
+        face.classList.add('is-holo-unlock');
+      }
+    });
   }
 
   function wireTabs(sheetCard) {
@@ -4792,6 +4917,11 @@
     // The face inside the sheet opens the card full screen. It sits inside the
     // sheet, so the gallery's own [data-card] delegation deliberately skips it.
     sheetCard.addEventListener('click', function (e) {
+      var holoBtn = e.target.closest ? e.target.closest('[data-holo-buy]') : null;
+      if (holoBtn) {
+        if (!holoBtn.disabled) buyHoloFinish(app, opts || {}, sheetCard, holoBtn);
+        return;
+      }
       // Walking the line re-opens the sheet in place rather than stacking a
       // second one, so a player can step base -> final and back without
       // building a pile of sheets they have to dismiss one at a time.
@@ -8837,6 +8967,7 @@
       GALLERY_UNLOCKED = model.galleryUnlockedIds.map(function (id) { return String(id).toLowerCase(); });
     }
     noteNewGalleryUnlocks(model);
+    if (Array.isArray(model.holographicCards)) setPlayerHolo(model.holographicCards);
     if (model.cards && model.cards.length) {
       ALL_CARDS = model.cards.slice();
     }

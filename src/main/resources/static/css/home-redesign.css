@@ -3165,6 +3165,33 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-sheet-panel { display:flex; flex-direction:column; gap:8px; padding-bottom:4px; }
 .sg-sheet-panel[hidden] { display:none; }
 .sg-sheet-card .sg-sheet-cta { flex:0 0 auto; margin-top:12px; }
+
+/* Holographic finish: bought with remnants, sits above the deck CTA so it is
+   reachable on every tab without scrolling a panel. */
+.sg-sheet-card .sg-sheet-holo { flex:0 0 auto; margin-top:10px; display:flex; flex-direction:column; gap:5px; }
+.sg-sheet-holo-btn {
+  width:100%; padding:11px 12px; border-radius:999px; cursor:pointer;
+  font:inherit; font-size:11.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#f4fbff;
+  border:1px solid rgba(160,220,255,.55);
+  background:linear-gradient(115deg, rgba(255,64,160,.32), rgba(64,196,255,.34) 35%, rgba(96,255,176,.28) 65%, rgba(176,96,255,.36));
+  box-shadow:0 0 18px rgba(120,220,255,.22);
+}
+.sg-sheet-holo-btn.is-armed { border-color:#fff; box-shadow:0 0 22px rgba(255,255,255,.45); }
+.sg-sheet-holo-btn:disabled { cursor:default; opacity:.5; }
+.sg-sheet-holo-note { margin:0; min-height:0; font-size:11px; line-height:1.4; color:var(--muted); text-align:center; }
+.sg-sheet-holo-note:empty { display:none; }
+.sg-sheet-holo.is-done { align-items:center; }
+.sg-sheet-holo-chip {
+  padding:5px 12px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  color:#dff6ff; border:1px solid rgba(160,220,255,.45); background:rgba(64,196,255,.14);
+}
+.sg-sheet-face.is-holo-unlock { animation:sg-holo-unlock 1.15s cubic-bezier(.2,.85,.25,1) both; }
+@keyframes sg-holo-unlock {
+  0% { transform:scale(.9) rotate(-3deg); filter:brightness(1.8) saturate(1.6); }
+  55% { transform:scale(1.06) rotate(1deg); filter:brightness(1.25) saturate(1.3); }
+  100% { transform:none; filter:none; }
+}
+@media (prefers-reduced-motion: reduce) { .sg-sheet-face.is-holo-unlock { animation:none; } }
 @media (max-height:500px) and (orientation:landscape) {
   .sg-sheet[data-sheet] .sg-sheet-card { max-height:calc(100dvh - 20px - var(--sg-sat)); }
   .sg-sheet[data-sheet] .sg-sheet-face { flex-basis:64px; }

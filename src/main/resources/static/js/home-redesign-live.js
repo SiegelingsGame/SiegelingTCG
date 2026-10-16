@@ -182,6 +182,7 @@
           siegeBestScore: progression && progression.siegeBestScore,
           titles: (progression && progression.playerTitles) || null,
           remnants: progression && progression.remnants,
+          holographicCards: (progression && progression.holographicCards) || null,
           ownedCards: (progression && progression.ownedCards) || null,
           // Match history lives on the profile, never on the progression record.
           matchHistory: (me && me.matchHistory) || null,
