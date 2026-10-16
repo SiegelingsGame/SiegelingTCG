@@ -640,6 +640,8 @@
         s.prep.party = (s.prep.party || []).filter((id) => s.comps[id] && s.comps[id].joined);
         if (s.exp && (!DEST[s.exp.dest] || !(s.exp.endAt > 0))) s.exp = null;
         s.builds = (s.builds || []).filter((b) => b && b.id && b.endAt > 0);
+        // Saves from before the Favor honored the first companion in the Hall; keep that one honored.
+        if (s.favorite === undefined) s.favorite = Object.keys(s.comps).find((id) => s.comps[id].joined) || '';
         Object.keys(s.comps).forEach((id) => { const c = s.comps[id]; if (!c.species) c.species = id; if (c.xp == null) c.xp = 0; if (!c.treats) c.treats = { day: '', n: 0 }; });
         return s;
     }
@@ -1150,7 +1152,7 @@
     const buildFor = (s, key) => (s.builds || []).find((b) => KEY_OF(b.id) === key) || null;
     const damaged = (s, target) => (s.events || []).some((e) => e.target === target && !e.repaired);
     function prodMul(s) {
-        return (1 + 0.05 * ((s.b.hall || 1) - 1) * (damaged(s, 'great_hall') ? 0 : 1)) * (1 + rebirths(s) * 0.25) * (s.crafted && s.crafted.insulated_channels ? 1.1 : 1) * (1 + 0.01 * decorCount(s)) * setMul(s, 'great_hall');
+        return (1 + 0.05 * ((s.b.hall || 1) - 1) * (damaged(s, 'great_hall') ? 0 : 1)) * (1 + rebirths(s) * 0.25) * (s.crafted && s.crafted.insulated_channels ? 1.1 : 1) * (1 + 0.01 * decorCount(s)) * setMul(s, 'great_hall') * favorMul(s);
     }
     const wingSpeed = (s, wing) => Math.min(0.3, 0.06 * ((s.wings && s.wings[wing]) || 0));
     function wingFor(skill) {
@@ -1615,6 +1617,12 @@
     // —— Enclave rapport (KeepEnclaveTaskCatalog): each resident's three-task ladder ——
     const RAPPORT_AT = [0, 5, 12, 22, 36, 55];
     const RAPPORT_NAMES = ['Newly arrived', 'Familiar', 'Trusted', 'Kindred', 'Sworn', 'Bonded'];
+    // The Keeper's Favor: one honored Siegeling inspires the whole Keep by its rarity, lifted by rapport
+    // (KeepService.favoriteBoost). Like the Keep, a damaged Hall suspends it.
+    const FAVOR_PCT = { COMMON: 5, UNCOMMON: 8, RARE: 12, EPIC: 16, LEGENDARY: 20 };
+    const favoriteOf = (s) => (s.favorite && s.comps[s.favorite] && s.comps[s.favorite].joined ? s.favorite : '');
+    const favorPct = (s, uid) => (uid ? Math.round((FAVOR_PCT[String(speciesOf(uid).rarity || 'COMMON').toUpperCase()] || 5) * (1 + 0.1 * rapportLvl(s, uid))) : 0);
+    const favorMul = (s) => (damaged(s, 'great_hall') ? 1 : 1 + favorPct(s, favoriteOf(s)) / 100);
     const rapportLvl = (s, uid) => { const p = (s.rapport[uid] || 0); let l = 0; RAPPORT_AT.forEach((t, i) => { if (p >= t) l = i; }); return l; };
     function hashOf(t) { let h = 0; for (let i = 0; i < t.length; i++) h = (Math.imul(31, h) + t.charCodeAt(i)) | 0; return h; }
     function residentTasks(uid) {
@@ -3671,13 +3679,14 @@
         if (!st) return;
         const id = S.ui.room;
         // Whoever is assigned here stands in the room: a workshop's or the Woodlot's helper, the Knight's aide in the Hall.
-        const helper = id === 'hall' ? knightHelper(S) : HELP_TARGETS.includes(id) ? helperOf(S, id) : null;
+        const helper = id === 'hall' ? (favoriteOf(S) || knightHelper(S)) : HELP_TARGETS.includes(id) ? helperOf(S, id) : null;
         const res = st.querySelector('.lodge-resident, .facility-room-resident, .hall-favorite-resident');
         if (res && helper && !onExpedition(S, helper) && roomBuilt(id)) {
             res.classList.remove('hidden');
             const art = res.querySelector('span'), name = res.querySelector('small');
-            if (art) { art.className = 'dm-room-cutout'; art.innerHTML = compArt(helper, C(helper).name); }
-            if (name) name.textContent = C(helper).name;
+            // Real card art stands as the Keep's die-cut standee; a lettered token keeps the round frame.
+            if (art) { art.className = 'dm-room-cutout' + (catalogArt(speciesOf(helper).id, 240) ? ' has-overlay-art' : ''); art.innerHTML = compArt(helper, C(helper).name); }
+            if (name) name.textContent = C(helper).name + (id === 'hall' && helper === favoriteOf(S) ? ' ★ +' + favorPct(S, helper) + '%' : '');
         }
         // Resting Siegelings gather in the Enclave as one group, however many there are. The Keep's
         // five fixed slots only show with .has-resident, so the group is drawn fresh instead.
@@ -3936,6 +3945,15 @@
                     : '<button type="button" class="ck-pill is-forge" data-act="kcraft" data-arg="' + k + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '>Craft</button>') + '</div></div></div>';
         }).join('') + '</section>';
     }
+    function favorCard() {
+        const fav = favoriteOf(S), ids = joinedIds(S);
+        return '<section class="ck-card dm-favor"><span class="ck-kicker">Favorite Siegeling</span><h3>The Keeper’s Favor</h3>' +
+            (fav ? '<div class="ck-row dm-favor-now"><span class="dm-favor-art dm-room-cutout">' + compArt(fav, C(fav).name) + '</span><span><b>' + esc(C(fav).name) + '</b><span class="ck-small"> · ' + esc(titleCase(speciesOf(fav).rarity || 'COMMON')) + '</span>' +
+                '<p class="ck-small">+' + favorPct(S, fav) + '% to all Keep production' + (damaged(S, 'great_hall') ? ' <span class="ck-warn">(suspended: repair the Hall)</span>' : '') + '. Stands in the Great Hall.</p></span></div>'
+                : '<p class="ck-small ck-muted">The pedestal stands empty. Honor a Siegeling to inspire the whole Keep: Common +5%, Uncommon +8%, Rare +12%, Epic +16%, Legendary +20%, and +10% more per rapport level.</p>') +
+            '<div class="dm-favor-grid">' + ids.map((u) => '<button type="button" class="dm-favor-pick' + (u === fav ? ' is-on' : '') + '" data-act="favorite" data-arg="' + (u === fav ? '' : u) + '" aria-pressed="' + (u === fav) + '" title="' + esc(u === fav ? 'Stop honoring ' + C(u).name : 'Honor ' + C(u).name + ': +' + favorPct(S, u) + '%') + '">' +
+                '<span class="dm-room-cutout">' + compArt(u, '') + '</span><small>' + esc(C(u).name) + '</small><em>+' + favorPct(S, u) + '%</em></button>').join('') + '</div></section>';
+    }
     function roomActions(id) {
         if (id === 'quarter') return quarterActions();
         if (id === 'front') {
@@ -4004,7 +4022,7 @@
         return '<section class="ck-card"><h3>🏛️ ' + esc(HALL_RANKS[S.b.hall - 1]) + '</h3><p class="ck-small">Keep rank ' + S.b.hall + ' of 8. Each rank adds 5% to Keep production and opens new projects.</p>' +
             '<p class="ck-small ck-muted">' + esc(S.exp ? 'The Knight is away on ' + expTitle(S.exp) + '.' : S.knight.task.kind === 'idle' ? 'The Knight rests by the hearth.' : 'The Knight is working: ' + taskLabel(S) + '.') + '</p>' +
             '<h4>Hall banners</h4><div class="ck-pills">' + HALL_THEMES.map((t) => { const lock = S.b.hall < t[3]; return '<button type="button" class="ck-pill' + (S.theme === t[0] ? ' is-on' : '') + '" data-act="theme" data-arg="' + t[0] + '"' + (lock ? ' disabled' : '') + ' style="box-shadow:inset 3px 0 ' + t[2] + '">' + esc(t[1]) + (lock ? ' · Hall ' + t[3] : '') + '</button>'; }).join('') + '</div></section>' +
-            roomCrafts('great_hall') + projects(/^(hall_|yard|storehouse|wing_war_room)/) + rebirthCard();
+            favorCard() + roomCrafts('great_hall') + projects(/^(hall_|yard|storehouse|wing_war_room)/) + rebirthCard();
     }
     function quarterActions() {
         let h = '<section class="ck-card"><p class="ck-small">' + (arranging ? 'Tap a workshop, then an empty plot to move it. Rotate turns all of its notches; two notches facing each other make a link.' : 'Every workshop produces on its own. Two notches facing each other on neighbouring plots make a link, and linked pairs refine automatically from storage. Upgrade a workshop to open more notches. Tap a workshop to step inside.') + '</p>' +
@@ -4304,6 +4322,7 @@
             c.nick = name.trim().slice(0, 18); s.rev++;
             break;
         }
+        case 'favorite': s.favorite = arg || ''; toast(arg ? C(arg).name + ' inspires the whole Keep · +' + favorPct(s, arg) + '% output.' : 'The pedestal stands ready for a new favorite.'); s.rev++; break;
         case 'rush': { const e = rushBuild(s, arg); if (e) { toast(e); return; } advance(s, now()); toast('Rushed: the crew finishes at once.'); break; }
         case 'train': if (!trainDefender(s, arg)) { toast(trainBlock(s, arg)); return; } toast(C(arg).name + ' reached Wall rank ' + wallRank(s, arg) + '.'); break;
         case 'hint-ok': s.ui.hints = s.ui.hints || {}; s.ui.hints[arg] = true; break;
