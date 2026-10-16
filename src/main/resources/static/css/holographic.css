@@ -499,3 +499,66 @@
 @media (prefers-reduced-motion: reduce) {
     .card-holo-plain-overlay::after { animation: none; }
 }
+
+/* ---------- finish name colours ----------
+   A card's name, and the move names in its detail views, take on its finish:
+   Holo a pastel iridescence, HSP the full rainbow, GOLD polished gold, GSP
+   bright gold leaf. Standard and SP keep their printed colours. The names are
+   outlined with a text-shadow elsewhere for legibility; gradient text painted
+   through a text-shadow comes out dark, so here the outline moves to a
+   drop-shadow filter. !important beats the per-frame title rules (one keyed by
+   an id), which would otherwise win on specificity. Card faces read the finish
+   classes the renderers already set; detail panels carry finish-text-* (game.js
+   finishTextClass) or the hub sheet's data-version. */
+:is(.is-holo-plain :is(.card-title, .holographic-card-name, .card-summary-name),
+    .finish-text-holo :is(.battle-queue-card-title, .battle-ability-move-name),
+    .sg-sheet-card[data-version="HOLO"] :is(.sg-sheet-id h3, .sg-sheet-move-name)) {
+    background: linear-gradient(100deg, #ffb0ea, #a6e4ff 35%, #b5ffcc 65%, #ffb0ea) 0 0 / 220% 100% !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    text-shadow: none !important;
+    filter: drop-shadow(0 0 1px rgba(8, 5, 2, .95)) drop-shadow(0 1px 1px rgba(8, 5, 2, .8));
+    animation: finish-name-shift 7s linear infinite;
+}
+:is(.is-holographic:not(.is-gold-finish):not(.is-holo-gold-finish) :is(.card-title, .holographic-card-name, .card-summary-name),
+    .finish-text-hsp :is(.battle-queue-card-title, .battle-ability-move-name),
+    .sg-sheet-card[data-version="HSP"] :is(.sg-sheet-id h3, .sg-sheet-move-name)) {
+    background: linear-gradient(100deg, #ff7ad9, #7ae8ff 25%, #fff38a 50%, #8affc1 75%, #ff7ad9) 0 0 / 240% 100% !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    text-shadow: none !important;
+    filter: drop-shadow(0 0 1px rgba(8, 5, 2, .95)) drop-shadow(0 1px 1px rgba(8, 5, 2, .8));
+    animation: finish-name-shift 4s linear infinite;
+}
+:is(.is-gold-finish :is(.card-title, .holographic-card-name, .card-summary-name),
+    .finish-text-gold :is(.battle-queue-card-title, .battle-ability-move-name),
+    .sg-sheet-card[data-version="GOLD"] :is(.sg-sheet-id h3, .sg-sheet-move-name)) {
+    background: linear-gradient(100deg, #b98222, #ffe9a3 30%, #f2c75a 50%, #fff4c8 65%, #b98222) 0 0 / 220% 100% !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    text-shadow: none !important;
+    filter: drop-shadow(0 0 1px rgba(40, 24, 2, .95)) drop-shadow(0 1px 1px rgba(40, 24, 2, .8));
+    animation: finish-name-shift 6s linear infinite;
+}
+:is(.is-holo-gold-finish :is(.card-title, .holographic-card-name, .card-summary-name),
+    .finish-text-gsp :is(.battle-queue-card-title, .battle-ability-move-name),
+    .sg-sheet-card[data-version="GSP"] :is(.sg-sheet-id h3, .sg-sheet-move-name)) {
+    background: linear-gradient(100deg, #ffd66b, #fffbe6 30%, #ffe08a 50%, #fffbe6 70%, #ffd66b) 0 0 / 220% 100% !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    text-shadow: none !important;
+    filter: drop-shadow(0 0 1px rgba(60, 36, 4, .95)) drop-shadow(0 0 4px rgba(255, 200, 70, .7));
+    animation: finish-name-shift 3.5s linear infinite;
+}
+@keyframes finish-name-shift {
+    from { background-position: 0 0; }
+    to { background-position: -220% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    :is(.card-title, .holographic-card-name, .card-summary-name, .battle-queue-card-title,
+        .battle-ability-move-name, .sg-sheet-move-name, .sg-sheet-id h3) { animation: none !important; }
+}

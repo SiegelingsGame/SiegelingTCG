@@ -4333,7 +4333,7 @@
     return abilities.map(function (a) {
       var cost = a.requiredEnergy;
       return '<div class="sg-sheet-ability">' +
-        '<strong>' + esc(a.name || 'Ability') +
+        '<strong><span class="sg-sheet-move-name">' + esc(a.name || 'Ability') + '</span>' +
           (a.passive ? '<em class="sg-sheet-pill">Passive</em>' : '') +
           (cost ? '<em class="sg-sheet-cost">' + esc(cost) + ' energy</em>' : '') +
         '</strong>' +
@@ -4423,7 +4423,7 @@
 
   function knightAbility(name, pill, cost, text) {
     return '<div class="sg-sheet-ability">' +
-      '<strong>' + esc(name) +
+      '<strong><span class="sg-sheet-move-name">' + esc(name) + '</span>' +
         (pill ? '<em class="sg-sheet-pill">' + esc(pill) + '</em>' : '') +
         (cost ? '<em class="sg-sheet-cost">' + esc(cost) + '</em>' : '') +
       '</strong>' +
@@ -4512,7 +4512,7 @@
         var text = rider ? (friendly === true ? rider.friendly
                           : friendly === false ? rider.enemy : null) : null;
         return '<div class="sg-sheet-ability">' +
-          '<strong>' + esc(a.name || 'Card') +
+          '<strong><span class="sg-sheet-move-name">' + esc(a.name || 'Card') + '</span>' +
             (a.requiredEnergy ? '<em class="sg-sheet-cost">' + esc(a.requiredEnergy) + ' energy</em>' : '') +
           '</strong>' +
           (a.description ? '<span>' + esc(a.description) + '</span>' : '') +

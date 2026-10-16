@@ -4354,6 +4354,18 @@ function cardShowsPlayerHolographic(card) {
     return cardId && playerHolographicCardIds().has(cardId);
 }
 
+// Text treatment for a card's name and move names in detail views, keyed to
+// its finish (owner's stamp in play): Holo, HSP, GOLD and GSP each recolour
+// them; Standard and SP keep the printed colours.
+function finishTextClass(card) {
+    if (!card) return '';
+    if (cardShowsPlayerHoloGold(card)) return 'finish-text-gsp';
+    if (cardShowsPlayerGold(card)) return 'finish-text-gold';
+    if (cardShowsPlayerHolographic(card)) return 'finish-text-hsp';
+    if (cardShowsPlayerHoloPlain(card)) return 'finish-text-holo';
+    return '';
+}
+
 function holographicCardClass(card) {
     if (cardShowsPlayerHoloGold(card)) {
         return ' is-holographic is-holo-gold-finish';
@@ -17004,7 +17016,8 @@ function renderBattlePanel() {
             'battle-queue-shell',
             'battle-queue-flat',
             compact ? 'battle-queue-compact' : '',
-            expanded ? 'battle-queue-expanded' : ''
+            expanded ? 'battle-queue-expanded' : '',
+            options.statsCell ? finishTextClass(options.statsCell) : ''
         ].filter(Boolean).join(' ');
         const statStripHtml = options.statsCell ? renderActingCardStatStrip(options.statsCell) : '';
         const headerHtml = cardTitle
