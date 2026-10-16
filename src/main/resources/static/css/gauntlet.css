@@ -16,7 +16,7 @@
   --light: #ffe59a;
   --neutral: #95a5a6;
 
-  --bg: #0b1020;
+  --gt-bg: #0b1020;
   --bg-2: #121a30;
   --panel: #161f38;
   --panel-2: #1d2846;
@@ -42,7 +42,7 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: var(--bg);
+  background: var(--gt-bg);
   color: var(--ink);
   font-family: var(--sans);
   /* Same zoom guard as the battle pages: a stray pinch zoom clips fixed layouts on iOS. */
@@ -54,12 +54,15 @@ body {
   background:
     radial-gradient(1200px 600px at 50% -10%, rgba(230, 205, 140, 0.10), transparent 60%),
     radial-gradient(900px 500px at 100% 100%, rgba(120, 50, 180, 0.12), transparent 60%),
-    var(--bg);
+    var(--gt-bg);
 }
 
 button { font-family: inherit; touch-action: manipulation; }
 
 .gt-shell {
+  /* style.css makes body a flex column; with auto side margins the shell would
+     otherwise shrink to its content instead of filling up to max-width. */
+  width: 100%;
   height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -634,3 +637,92 @@ body[data-screen="over"] #screenOver { display: block; }
   .gt-card, .gt-pick, .gt-perk, .gt-forge-option { transition: transform 0.12s ease, border-color 0.12s ease; }
   .gt-card:active, .gt-pick:active, .gt-perk:active, .gt-forge-option:active { transform: scale(0.98); }
 }
+
+/* ==========================================================================
+   Real card faces. card-binder-visual.js (over game.js and style.css) draws the
+   same frame, notches, art placement and printed moves as the binder and the
+   battle hand; these rules only give that face a home in the Gauntlet's grids,
+   the same way home-redesign.css hosts it in the hub (.sg-card-tile).
+   ========================================================================== */
+.gt-card.gt-card-real {
+  border: 0;
+  background: none;
+  overflow: visible;
+  padding: 0;
+  gap: 6px;
+}
+.gt-face { position: relative; width: 100%; }
+.gt-face > :not(.gt-card-level) { width: 100%; }
+.gt-face .mulligan-card-slot,
+.gt-face .binder-framed-slot,
+.gt-face .binder-card { width: 100%; max-width: none; height: auto; max-height: none; margin: 0; }
+.gt-card-real .gt-card-level { top: 4%; left: auto; right: 6%; z-index: 6; }
+.gt-card-foot { display: flex; flex-direction: column; gap: 4px; padding: 0 2px; }
+.gt-card-foot .gt-card-price { margin: 0; padding: 0; text-align: center; }
+.gt-card-real.is-sold { opacity: 0.4; }
+
+.gt-mini.gt-mini-real { width: 92px; border: 0; background: none; overflow: visible; }
+
+.gt-knight-real { border: 0; background: none; display: block; aspect-ratio: auto; }
+.gt-knight-real .knight-card { width: 100%; height: auto; margin: 0; }
+.gt-knight-pick.gt-knight-pick { flex-direction: column; align-items: stretch; }
+.gt-knight-pick .gt-knight-art { width: 100%; height: auto; }
+.gt-knight-pick .gt-knight-art:not(.gt-knight-real) { aspect-ratio: 5 / 7; }
+.gt-pick-caption { display: flex; flex-direction: column; gap: 2px; }
+
+.gt-sheet-head.has-real-face { grid-template-columns: minmax(130px, 42%) 1fr; }
+.gt-sheet-face { width: 100%; }
+
+/* style.css zeroes every margin; the page's own copy needs its breathing room back. */
+.gt-main p.gt-muted { margin: 0 0 10px; }
+
+/* The card tray: every move in full and the upgrades applied so far. */
+.gt-tray-section { margin-top: 16px; }
+.gt-tray-section h3 {
+  margin: 0 0 8px;
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gt-count { font-family: var(--sans); font-size: 12px; font-weight: 700; color: var(--muted); }
+.gt-move-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.gt-move {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--el, var(--neutral));
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 9px 11px;
+}
+.gt-move.is-forged { border-color: rgba(230, 205, 140, 0.45); border-left-color: var(--gold); background: linear-gradient(90deg, rgba(230, 205, 140, 0.10), var(--panel) 60%); }
+.gt-move-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 14px; }
+.gt-move p { margin: 4px 0 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.gt-cost.is-free { opacity: 0.7; }
+.gt-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+}
+.gt-tag.is-forged { color: var(--gold); border-color: rgba(230, 205, 140, 0.55); }
+.gt-applied { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; line-height: 1.4; color: var(--ink); }
+.gt-tray-actions { margin-top: 16px; }
+.gt-tray-actions .gt-btn { width: 100%; }
+button.gt-mini { padding: 0; cursor: pointer; color: inherit; font: inherit; }
+
+/* Forged changes in the tray: what the upgrade replaced, struck through, beside what
+   it is now. */
+.gt-was { color: #ff9d9d; font-weight: 600; text-decoration: line-through; text-decoration-color: rgba(255, 107, 107, 0.95); text-decoration-thickness: 2px; }
+.gt-now, ins.gt-now { color: var(--gold); font-weight: 700; text-decoration: none; }
+ins.gt-now { background: rgba(230, 205, 140, 0.12); border-radius: 4px; padding: 0 2px; }
+.gt-cost.is-changed { background: rgba(230, 205, 140, 0.22); }
+.gt-cost.is-changed .gt-was { color: inherit; opacity: 0.6; }
+.gt-was-chip { opacity: 0.55; text-decoration: line-through; text-decoration-color: rgba(255, 107, 107, 0.85); text-decoration-thickness: 2px; }
+.gt-was-chip .gt-chip { text-decoration: inherit; }

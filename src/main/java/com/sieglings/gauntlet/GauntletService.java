@@ -38,6 +38,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 /**
  * The Gauntlet: a roguelike climb on the Battle Table. Pick a preset deck and a
@@ -73,6 +74,16 @@ public class GauntletService {
     private GauntletRunStore store;
 
     private final Map<String, GauntletRun> runs = new ConcurrentHashMap<>();
+    /**
+     * The Battle Table's own card JSON (set by {@link GauntletController}). Card faces on the
+     * Gauntlet page are drawn by the binder renderer, which reads exactly that shape: art
+     * mode and placement, notches, printed moves. Null in plain unit tests.
+     */
+    private volatile Function<Card, Map<String, Object>> clientCardJson;
+
+    void useClientCardJson(Function<Card, Map<String, Object>> serializer) {
+        this.clientCardJson = serializer;
+    }
     private final SecureRandom tokenRandom = new SecureRandom();
 
     // ---------------------------------------------------------------- start
@@ -888,8 +899,13 @@ public class GauntletService {
         return out;
     }
 
-    private static Map<String, Object> miniCard(Card card) {
+    private Map<String, Object> miniCard(Card card) {
         Map<String, Object> out = new LinkedHashMap<>();
+        Function<Card, Map<String, Object>> serializer = clientCardJson;
+        if (serializer != null) {
+            out.putAll(serializer.apply(card));
+            return out;
+        }
         out.put("id", card.getId());
         out.put("name", card.getName());
         out.put("element", card.getElement().name());
@@ -908,7 +924,29 @@ public class GauntletService {
             out.put("maxLevel", GauntletRules.MAX_CARD_LEVEL);
             out.put("upgrades", entry.upgrades.stream().map(Upgrade::label).toList());
             out.put("forgeCost", GauntletRules.forgeCost(entry.level()));
+            if (!entry.upgrades.isEmpty()) {
+                // The unforged printing, so the tray can strike through what each upgrade
+                // replaced ("Deal 3 -> 5 damage", "HP 14 -> 17").
+                cardDefs.findCardCopy(entry.cardId).ifPresent(base -> {
+                    Map<String, Object> printed = miniCard(base);
+                    if (clientCardJson == null) {
+                        appendPlainFields(printed, base);
+                    }
+                    out.put("base", printed);
+                });
+            }
         }
+        if (clientCardJson != null) {
+            // The serialized card already carries cost, stats, notches and its (forged) moves.
+            return out;
+        }
+        appendPlainFields(out, card);
+        out.put("description", card.getDescription());
+        return out;
+    }
+
+    /** The card fields this page reads, for when the Battle Table serializer is not wired (unit tests). */
+    private void appendPlainFields(Map<String, Object> out, Card card) {
         if (card.getCostElement() != null) {
             out.put("costElement", card.getCostElement().name());
             out.put("costAmount", card.getCostAmount());
@@ -934,8 +972,6 @@ public class GauntletService {
         } else if (card.getAbility() != null) {
             out.put("ability", abilityView(card.getAbility()));
         }
-        out.put("description", card.getDescription());
-        return out;
     }
 
     private static Map<String, Object> abilityView(Ability ability) {
@@ -953,12 +989,18 @@ public class GauntletService {
     private Map<String, Object> knightView(TrainerCard knight, int powerLevel) {
         TrainerCard leveled = gameService.leveledTrainer(knight.copy(), powerLevel);
         Map<String, Object> out = new LinkedHashMap<>();
+        Function<Card, Map<String, Object>> serializer = clientCardJson;
+        if (serializer != null) {
+            // Art placement and card template for the SiegeKnight card face.
+            out.putAll(serializer.apply(knight));
+        }
+        out.put("tier", knight.getTier());
         out.put("id", knight.getId());
         out.put("name", knight.getName());
         out.put("element", knight.getElement().name());
         out.put("rarity", knight.getRarity().name());
-        out.put("cardArtUrl", knight.getCardArtUrl());
-        out.put("cardArtMode", knight.getCardArtMode());
+        out.putIfAbsent("cardArtUrl", knight.getCardArtUrl());
+        out.putIfAbsent("cardArtMode", knight.getCardArtMode());
         out.put("passive", leveled.getAbility() == null ? null : abilityView(leveled.getAbility()));
         out.put("active", leveled.getActiveAbility() == null ? null : abilityView(leveled.getActiveAbility()));
         return out;

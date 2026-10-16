@@ -1400,6 +1400,14 @@ public class GameController {
         return com.sieglings.model.enums.SieglingSize.defaultFor(s.getRarity(), depth);
     }
 
+    /**
+     * The Battle Table's card JSON for other modes that draw cards with the same renderer
+     * (card-binder-visual.js), so their faces match the binder and the hand exactly.
+     */
+    public Map<String, Object> clientCardJson(Card card) {
+        return serializeCard(card);
+    }
+
     private Map<String, Object> serializeCard(Card card) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", card.getId());

@@ -133,6 +133,20 @@ class GauntletServiceTest {
 
         Map<String, Object> view = gauntlet.runView(after);
         assertNotNull(view.get("nextEncounter"));
+        // Cards travel in the Battle Table's own JSON so the binder renderer can draw them,
+        // with the forged copy's stats and the Gauntlet's fields on top.
+        @SuppressWarnings("unchecked")
+        Map<String, Object> forged = ((List<Map<String, Object>>) view.get("deck")).stream()
+                .filter(card -> target.uid.equals(card.get("uid"))).findFirst().orElseThrow();
+        assertEquals(2, forged.get("level"));
+        // ...and the unforged printing beside it, which the tray strikes through.
+        @SuppressWarnings("unchecked")
+        Map<String, Object> printed = (Map<String, Object>) forged.get("base");
+        assertNotNull(printed, "A forged card carries its unforged printing.");
+        assertEquals(forged.get("id"), printed.get("id"));
+        assertNotNull(forged.get("type"));
+        assertTrue(forged.containsKey("moveIds") || !"SIEGLING".equals(forged.get("type")),
+                "Siegelings carry the battle serializer's move ids.");
         assertEquals("CAMP", view.get("phase"));
     }
 

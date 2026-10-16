@@ -12,6 +12,7 @@
 
   var ICON_WEBP = { FIRE: 1, EARTH: 1, ICE: 1, WIND: 1 };
   var TYPE_LABEL = { SIEGLING: 'Siegeling', SPELL: 'Strategy', TRAP: 'Deception' };
+  var SELECT_TO_VIEW = 'Select to view moves';
   var KIND_LABEL = { WILD: 'Wild fight', PACK: 'Pack fight', ELITE: 'Elite', KNIGHT: 'SiegeKnight boss' };
 
   var state = {
@@ -20,7 +21,9 @@
     deckId: null,
     knightId: null,
     tab: 'deck',
-    busy: false
+    busy: false,
+    // Cards drawn in the encounter preview, indexed by data-enemy-view.
+    enemyCards: []
   };
 
   // ---- plumbing -----------------------------------------------------
@@ -122,12 +125,17 @@
       : '/img/elements/element-' + el + '.svg';
   }
 
+  // Last-resort art when the shared renderer is missing: the creature image, and the
+  // element sigil in its place if that image fails to load (never a broken-image box).
   function artHtml(item) {
     var url = item && item.cardArtUrl ? String(item.cardArtUrl) : '';
+    var icon = elementIcon(item && item.element);
     if (url) {
-      return '<img src="' + esc(url) + '" alt="" loading="lazy" decoding="async">';
+      var v = window.SieglingsCardBinderVisual;
+      var attrs = v && v.artImgAttrs ? v.artImgAttrs(url, 480) : 'src="' + esc(url) + '"';
+      return '<img ' + attrs + ' alt="" loading="lazy" decoding="async" data-fallback="' + esc(icon) + '">';
     }
-    return '<img class="is-icon" src="' + esc(elementIcon(item && item.element)) + '" alt="" loading="lazy">';
+    return '<img class="is-icon" src="' + esc(icon) + '" alt="" loading="lazy">';
   }
 
   function chip(element) {
@@ -135,15 +143,61 @@
     return '<span class="gt-chip" data-el="' + esc(name) + '">' + esc(name.charAt(0) + name.slice(1).toLowerCase()) + '</span>';
   }
 
+  // Moves arrive in the Battle Table's shape (energyCost/isPassive); knight abilities
+  // in the Gauntlet's (energy/passive).
   function abilityLine(ability) {
     if (!ability) return '';
-    var cost = ability.energy > 0 ? '<span class="gt-cost">' + esc(ability.energy) + '</span>' : '';
-    var passive = ability.passive ? ' <em>(passive)</em>' : '';
+    var energy = ability.energy != null ? ability.energy : ability.energyCost;
+    var cost = energy > 0 ? '<span class="gt-cost">' + esc(energy) + '</span>' : '';
+    var passive = (ability.passive || ability.isPassive) ? ' <em>(passive)</em>' : '';
     return '<li><b>' + esc(ability.name) + '</b>' + cost + passive + ' &mdash; ' + esc(ability.description || '') + '</li>';
+  }
+
+  /**
+   * The real card face, drawn by the same renderer as the binder and the battle hand
+   * (card-binder-visual.js over game.js): frame, notches, art placement, printed moves.
+   * The server sends each card in the Battle Table's own JSON, forged upgrades included.
+   */
+  function realFace(card, inTray) {
+    var v = window.SieglingsCardBinderVisual;
+    if (!v || !v.renderBinderCardTile || !card) return '';
+    var options;
+    if (String(card.type || '').toUpperCase() === 'SIEGLING' && !inTray) {
+      // A Siegeling's moves are what the Gauntlet forges, and they do not fit the face's
+      // panel legibly; the panel points at the tray that lists them in full.
+      options = { summaryMode: 'description', descriptionText: SELECT_TO_VIEW };
+    } else {
+      var showcase = window.SieglingsCardShowcase;
+      var text = showcase && showcase.resolveCardDescriptionText
+        ? showcase.resolveCardDescriptionText(card, card.description)
+        : (card.description || '');
+      options = { descriptionText: text || '' };
+    }
+    try {
+      return v.renderBinderCardTile(card, options) || '';
+    } catch (e) {
+      return '';
+    }
   }
 
   function cardHtml(card, opts) {
     opts = opts || {};
+    var face = realFace(card);
+    if (!face) return plainCardHtml(card, opts);
+    var attrs = opts.attrs || '';
+    var tag = opts.tag || 'button';
+    var level = card.level && card.level > 1 ? '<span class="gt-card-level">Lv ' + esc(card.level) + '</span>' : '';
+    var upgrades = (card.upgrades && card.upgrades.length && opts.showUpgrades !== false)
+      ? '<div class="gt-upgrades">' + card.upgrades.map(function (u) { return '<span>' + esc(u) + '</span>'; }).join('') + '</div>'
+      : '';
+    var price = opts.price != null ? '<div class="gt-card-price">' + esc(opts.price) + (typeof opts.price === 'number' ? ' gold' : '') + '</div>' : '';
+    var foot = upgrades || price ? '<div class="gt-card-foot">' + upgrades + price + '</div>' : '';
+    return '<' + tag + (tag === 'button' ? ' type="button"' : '') + ' class="gt-card gt-card-real' + (opts.cls ? ' ' + opts.cls : '') + '" data-el="' + esc(card.element) + '" aria-label="' + esc(card.name) + '" ' + attrs + '>'
+      + '<div class="gt-face">' + face + level + '</div>' + foot
+      + '</' + tag + '>';
+  }
+
+  function plainCardHtml(card, opts) {
     var type = TYPE_LABEL[card.type] || card.type || '';
     var level = card.level && card.level > 1 ? '<span class="gt-card-level">Lv ' + esc(card.level) + '</span>' : '';
     var meta = '<span class="gt-rarity gt-rarity-' + esc(card.rarity) + '">' + esc(String(card.rarity || '').toLowerCase()) + '</span>';
@@ -154,14 +208,14 @@
     }
     var lines = '';
     if (card.moves && card.moves.length) {
-      lines = card.moves.filter(function (m) { return !m.passive || opts.full; }).map(abilityLine).join('');
+      lines = card.moves.filter(function (m) { return !(m.passive || m.isPassive); }).map(abilityLine).join('');
     } else if (card.ability) {
       lines = abilityLine({ name: 'Effect', description: card.ability.description, energy: 0 });
     }
     var upgrades = (card.upgrades && card.upgrades.length && opts.showUpgrades !== false)
       ? '<div class="gt-upgrades">' + card.upgrades.map(function (u) { return '<span>' + esc(u) + '</span>'; }).join('') + '</div>'
       : '';
-    var price = opts.price != null ? '<div class="gt-card-price">' + esc(opts.price) + ' gold</div>' : '';
+    var price = opts.price != null ? '<div class="gt-card-price">' + esc(opts.price) + (typeof opts.price === 'number' ? ' gold' : '') + '</div>' : '';
     var attrs = opts.attrs || '';
     var tag = opts.tag || 'button';
     return '<' + tag + (tag === 'button' ? ' type="button"' : '') + ' class="gt-card' + (opts.cls ? ' ' + opts.cls : '') + '" data-el="' + esc(card.element) + '" ' + attrs + '>'
@@ -174,12 +228,72 @@
       + '</div></' + tag + '>';
   }
 
+  /** A small enemy card; selecting it opens the same tray, view only. */
   function miniHtml(card) {
-    return '<div class="gt-mini" data-el="' + esc(card.element) + '"><div class="gt-card-art">' + artHtml(card) + '</div><span>' + esc(card.name) + '</span></div>';
+    state.enemyCards.push(card);
+    var key = ' data-enemy-view="' + (state.enemyCards.length - 1) + '" aria-label="' + esc(card.name) + '"';
+    var face = realFace(card);
+    if (face) {
+      return '<button type="button" class="gt-mini gt-mini-real" data-el="' + esc(card.element) + '" title="' + esc(card.name) + '"' + key + '><div class="gt-face">' + face + '</div></button>';
+    }
+    return '<button type="button" class="gt-mini" data-el="' + esc(card.element) + '"' + key + '><div class="gt-card-art">' + artHtml(card) + '</div><span>' + esc(card.name) + '</span></button>';
+  }
+
+  /**
+   * A SiegeKnight's printed card. Mirrors the hub's knightCard (home-redesign.js), which
+   * in turn mirrors home.js, using the same classes so style.css dresses it identically.
+   */
+  function knightFace(knight) {
+    var v = window.SieglingsCardBinderVisual;
+    if (!v || !knight) return '';
+    var rarity = String(knight.rarity || 'common').toLowerCase();
+    var el = String(knight.element || 'NEUTRAL').toLowerCase();
+    var elTitle = el.charAt(0).toUpperCase() + el.slice(1);
+    var passive = knight.passive && knight.passive.description ? knight.passive.description : '';
+    var body = '<div class="knight-card-body">'
+      + '<span class="knight-card-name">' + esc(knight.name) + '</span>'
+      + '<span class="knight-card-meta"><span class="knight-element">' + esc(elTitle) + '</span> '
+      + '<span class="knight-tier tier-' + esc(String(knight.tier || 'siegeknight').toLowerCase()) + '">' + esc(knight.tier || 'SiegeKnight') + '</span> '
+      + '<span class="knight-rarity rarity-' + esc(rarity) + '">' + esc(rarity.charAt(0).toUpperCase() + rarity.slice(1)) + '</span></span>'
+      + (passive ? '<span class="knight-card-ability"><span>Passive</span>' + esc(passive) + '</span>' : '')
+      + '</div>';
+    try {
+      if (v.usesFullCardArt && v.usesFullCardArt(knight) && knight.cardArtUrl) {
+        var crop = v.buildArtTransformStyle ? v.buildArtTransformStyle(knight) : '';
+        var attrs = v.artImgAttrs ? v.artImgAttrs(knight.cardArtUrl, 640) : 'src="' + esc(knight.cardArtUrl) + '"';
+        return '<div class="knight-card knight-full-card-art knight-binder-card rarity-frame-' + esc(rarity) + ' el-' + esc(el) + '" role="img" aria-label="' + esc(knight.name) + '">'
+          + '<img ' + attrs + ' alt="' + esc(knight.name) + '" loading="lazy"' + (crop ? ' style="' + esc(crop) + '"' : '') + '>'
+          + body + '</div>';
+      }
+      if (v.usesKnightOverlayArt && v.usesKnightOverlayArt(knight)) {
+        var tplClass = v.knightTemplateClass ? v.knightTemplateClass(knight) : '';
+        return '<div class="knight-card knight-full-card-art knight-overlay-art' + tplClass + ' knight-binder-card rarity-frame-' + esc(rarity) + ' el-' + esc(el)
+          + '" style="--knight-color:' + v.elementColor(knight.element)
+          + ";--knight-card-back:url('/img/knights/card-back-siegeknight.png');--knight-card-template:url('/img/knights/siegeknight-card-template.png')\">"
+          + v.renderKnightOverlayArtWindow(knight)
+          + '<div class="knight-card-template" aria-hidden="true"></div>' + body + '</div>';
+      }
+    } catch (e) { /* fall through to the plain portrait */ }
+    return '';
   }
 
   function knightArt(knight) {
+    var face = knightFace(knight);
+    if (face) {
+      return '<div class="gt-knight-art gt-knight-real" data-el="' + esc(knight && knight.element) + '">' + face + '</div>';
+    }
     return '<div class="gt-knight-art" data-el="' + esc(knight && knight.element) + '">' + artHtml(knight) + '</div>';
+  }
+
+  /** Text fitting the shared renderer expects after its markup lands. */
+  function fitFaces() {
+    var showcase = window.SieglingsCardShowcase;
+    var v = window.SieglingsCardBinderVisual;
+    try {
+      if (showcase && showcase.scheduleFramedSummaryFit) showcase.scheduleFramedSummaryFit();
+      if (showcase && showcase.scheduleSiegeKnightCardFit) showcase.scheduleSiegeKnightCardFit();
+      if (v && v.scheduleDescriptionFit) v.scheduleDescriptionFit();
+    } catch (e) { /* fitting is cosmetic */ }
   }
 
   function abilityText(label, ability) {
@@ -206,6 +320,7 @@
       case 'OVER': renderOver(run); setScreen('over'); break;
       default: setScreen('start');
     }
+    fitFaces();
     var main = $('gtMain');
     if (main && render.lastPhase !== run.phase) main.scrollTop = 0;
     render.lastPhase = run.phase;
@@ -254,11 +369,12 @@
       return '<button type="button" class="gt-pick gt-knight-pick' + selected + locked + '" data-knight="' + esc(knight.id) + '"' + (knight.locked ? ' aria-disabled="true"' : '') + '>'
         + (knight.locked ? '<span class="gt-pick-lock">Locked</span>' : '')
         + knightArt(knight)
-        + '<span><span class="gt-pick-name">' + esc(knight.name) + '</span><br>'
+        + '<span class="gt-pick-caption"><span class="gt-pick-name">' + esc(knight.name) + '</span>'
         + '<span class="gt-pick-sub">' + esc(knight.passive ? knight.passive.name : '') + '</span></span>'
         + '</button>';
     }).join('');
     $('gtStartBtn').disabled = !(state.deckId && state.knightId);
+    fitFaces();
   }
 
   function renderDraft(run) {
@@ -292,6 +408,7 @@
     }).join('');
 
     var enc = run.nextEncounter || {};
+    state.enemyCards = [];
     var box = $('gtEncounter');
     box.setAttribute('data-el', enc.element || 'NEUTRAL');
     var knight = enc.knight
@@ -310,8 +427,8 @@
     $('gtFightBtn').textContent = (enc.kind === 'KNIGHT' ? 'Challenge ' : 'Fight ') + (enc.name || ('floor ' + run.floor));
 
     renderTabs();
-    $('gtDeckNote').textContent = run.deck.length + ' cards. Tap a card to forge it'
-      + (run.freeForges ? ' (' + run.freeForges + ' free).' : ' (gold cost shown on the card).');
+    $('gtDeckNote').textContent = run.deck.length + ' cards. Select a card to view its moves and upgrades, and to forge it'
+      + (run.freeForges ? ' (' + run.freeForges + ' free forge' + (run.freeForges === 1 ? '' : 's') + ').' : '.');
     $('gtDeck').innerHTML = run.deck.map(function (card) {
       return cardHtml(card, { attrs: 'data-uid="' + esc(card.uid) + '"' });
     }).join('');
@@ -339,7 +456,7 @@
         return cardHtml(item.card, {
           price: item.sold ? 'Sold' : item.price,
           cls: item.sold ? 'is-sold' : '',
-          attrs: 'data-buy="' + esc(item.id) + '"' + (afford ? '' : ' data-cant="1"')
+          attrs: 'data-shop-view="' + esc(item.id) + '"'
         });
       }
       var title = item.kind === 'LIFE' ? 'Mend a life' : 'Remove a card';
@@ -381,7 +498,7 @@
       + '<span class="gt-stat">+' + esc(last.xp) + ' XP</span>'
       + (last.note ? '<span class="gt-stat gt-forge">' + esc(last.note) + '</span>' : '') + '</div>';
     $('gtRewardCards').innerHTML = (run.rewardOptions || []).map(function (card) {
-      return cardHtml(card, { attrs: 'data-reward="' + esc(card.id) + '"' });
+      return cardHtml(card, { attrs: 'data-reward-view="' + esc(card.id) + '"' });
     }).join('');
     $('gtSkipBtn').textContent = 'Skip (+' + (run.rewardSkipGold || 0) + ' gold)';
   }
@@ -413,6 +530,7 @@
   function openSheet(html) {
     $('gtSheetContent').innerHTML = html;
     $('gtSheet').hidden = false;
+    fitFaces();
   }
 
   function closeSheet() {
@@ -420,21 +538,143 @@
     $('gtSheetContent').innerHTML = '';
   }
 
+  /**
+   * The card tray: the real card, every move in full (forged numbers and added effects
+   * included, since the server sends the forged copy), and the upgrades applied so far.
+   */
   function sheetHead(card) {
     var type = TYPE_LABEL[card.type] || card.type;
+    var base = card.base || null;
     var stats = card.type === 'SIEGLING'
-      ? '<span>HP <b>' + esc(card.health) + '</b></span><span>SPD <b>' + esc(card.speed) + '</b></span>'
-      : (card.costAmount != null ? '<span>Cost <b>' + esc(card.costAmount) + '</b></span>' : '');
-    var lines = card.moves && card.moves.length
-      ? card.moves.map(abilityLine).join('')
-      : (card.ability ? abilityLine({ name: 'Effect', description: card.ability.description, energy: 0 }) : '');
-    return '<div class="gt-sheet-head" data-el="' + esc(card.element) + '"><div class="gt-card-art">' + artHtml(card) + '</div>'
-      + '<div><h2>' + esc(card.name) + '</h2><div class="gt-card-meta">' + chip(card.element)
+      ? '<span>HP ' + changedValue(base && base.health, card.health) + '</span><span>SPD ' + changedValue(base && base.speed, card.speed) + '</span>'
+      : (card.costAmount != null ? '<span>Cost ' + changedValue(base && base.costAmount, card.costAmount) + '</span>' : '');
+    var element = base && base.element && base.element !== card.element
+      ? '<span class="gt-was-chip">' + chip(base.element) + '</span>' + chip(card.element)
+      : chip(card.element);
+    // Inside the tray the face prints its own moves summary; the full list follows below.
+    var face = realFace(card, true);
+    var picture = face ? '<div class="gt-sheet-face"><div class="gt-face">' + face + '</div></div>' : '<div class="gt-card-art">' + artHtml(card) + '</div>';
+    var head = '<div class="gt-sheet-head' + (face ? ' has-real-face' : '') + '" data-el="' + esc(card.element) + '">' + picture
+      + '<div><h2 id="gtSheetTitle">' + esc(card.name) + '</h2><div class="gt-card-meta">' + element
       + '<span>' + esc(type) + '</span>' + (card.level ? '<span>Level <b>' + esc(card.level) + '</b> / ' + esc(card.maxLevel) + '</span>' : '') + stats + '</div>'
       + (card.evolvesFromName ? '<p class="gt-muted" style="margin:6px 0 0">Evolves from ' + esc(card.evolvesFromName) + '.</p>' : '')
-      + '</div></div>'
-      + (lines ? '<ul class="gt-moves" style="margin-top:12px" data-el="' + esc(card.element) + '">' + lines + '</ul>' : '')
-      + (card.upgrades && card.upgrades.length ? '<div class="gt-upgrades" style="margin-top:10px">' + card.upgrades.map(function (u) { return '<span>' + esc(u) + '</span>'; }).join('') + '</div>' : '');
+      + '</div></div>';
+    return head + movesSection(card) + upgradesSection(card);
+  }
+
+  /** "14" as is, or "~~14~~ 17" when an upgrade changed it. */
+  function changedValue(before, after) {
+    if (before == null || String(before) === String(after)) return '<b>' + esc(after) + '</b>';
+    return '<s class="gt-was">' + esc(before) + '</s> <b class="gt-now">' + esc(after) + '</b>';
+  }
+
+  // Words, whitespace and punctuation as separate tokens, so "enemy" -> "enemy. Also
+  // heals itself 2." diffs as an addition rather than a replaced word.
+  function tokens(text) {
+    return String(text || '').match(/\s+|[A-Za-z0-9'+-]+|[^\sA-Za-z0-9'+-]+/g) || [];
+  }
+
+  /**
+   * The forged text with what it replaced struck through and what it added marked:
+   * "Deal ~~3~~ 5 damage to 1 enemy. [Also heals itself 2.]" A token-level longest
+   * common subsequence, so two upgrades on one move show as two separate edits.
+   */
+  function diffText(before, after) {
+    if (before == null || before === after) return esc(after || '');
+    var a = tokens(before);
+    var b = tokens(after);
+    var n = a.length;
+    var m = b.length;
+    var lcs = [];
+    for (var i = 0; i <= n; i++) { lcs.push(new Array(m + 1).fill(0)); }
+    for (var x = n - 1; x >= 0; x--) {
+      for (var y = m - 1; y >= 0; y--) {
+        lcs[x][y] = a[x] === b[y] ? lcs[x + 1][y + 1] + 1 : Math.max(lcs[x + 1][y], lcs[x][y + 1]);
+      }
+    }
+    var parts = [];
+    function push(kind, text) {
+      var last = parts[parts.length - 1];
+      if (last && last.kind === kind) { last.text += text; } else { parts.push({ kind: kind, text: text }); }
+    }
+    var p = 0;
+    var q = 0;
+    while (p < n && q < m) {
+      if (a[p] === b[q]) { push('same', a[p]); p++; q++; }
+      else if (lcs[p + 1][q] >= lcs[p][q + 1]) { push('was', a[p]); p++; }
+      else { push('now', b[q]); q++; }
+    }
+    while (p < n) { push('was', a[p++]); }
+    while (q < m) { push('now', b[q++]); }
+    return parts.map(function (part, index) {
+      if (part.kind === 'same' || !part.text.trim()) return esc(part.text);
+      if (part.kind === 'was') {
+        var next = parts[index + 1];
+        return '<s class="gt-was">' + esc(part.text) + '</s>' + (next && next.kind === 'now' ? ' ' : '');
+      }
+      // A sentence added after the old text starts with the period that closes the old
+      // one; that period is punctuation, not part of the upgrade.
+      var lead = (part.text.match(/^[.,;:]+\s*/) || [''])[0];
+      return esc(lead) + '<ins class="gt-now">' + esc(part.text.slice(lead.length)) + '</ins>';
+    }).join('');
+  }
+
+  function movesSection(card) {
+    var upgrades = card.upgrades || [];
+    var base = card.base || null;
+    var rows;
+    if (card.moves && card.moves.length) {
+      rows = card.moves.map(function (move, index) {
+        // The unforged printing lists the same moves in the same order.
+        var was = base && base.moves && base.moves[index] && base.moves[index].name === move.name ? base.moves[index] : null;
+        // Upgrade labels name the move they changed ("Sundile Strike: +2 damage").
+        var forged = upgrades.some(function (label) { return String(label).indexOf(move.name + ':') === 0; });
+        return moveRow(move, forged, was);
+      }).join('');
+    } else if (card.ability) {
+      var forgedEffect = card.type !== 'SIEGLING' && upgrades.length > 0;
+      var wasEffect = base && base.ability ? { description: base.ability.description, energyCost: 0 } : null;
+      rows = moveRow({ name: TYPE_LABEL[card.type] === 'Deception' ? 'When sprung' : 'Effect', description: card.ability.description, energyCost: 0 }, forgedEffect, wasEffect);
+    } else {
+      rows = '<li class="gt-muted">No moves printed.</li>';
+    }
+    var title = card.type === 'SIEGLING' ? 'Moves' : 'Effect';
+    return '<section class="gt-tray-section"><h3>' + title + '</h3><ul class="gt-move-list" data-el="' + esc(card.element) + '">' + rows + '</ul></section>';
+  }
+
+  function moveEnergy(move) {
+    return move ? (move.energy != null ? move.energy : move.energyCost) : null;
+  }
+
+  function moveRow(move, forged, was) {
+    var energy = moveEnergy(move);
+    var wasEnergy = was ? moveEnergy(was) : null;
+    var passive = move.passive || move.isPassive;
+    var cost;
+    if (wasEnergy != null && wasEnergy !== energy) {
+      cost = '<span class="gt-cost is-changed" title="Energy cost"><s class="gt-was">' + esc(wasEnergy) + '</s> ' + esc(energy) + '</span>';
+    } else if (energy > 0) {
+      cost = '<span class="gt-cost" title="Energy cost">' + esc(energy) + '</span>';
+    } else {
+      cost = passive ? '' : '<span class="gt-cost is-free" title="Energy cost">0</span>';
+    }
+    var changed = forged || (was && (was.description !== move.description || wasEnergy !== energy));
+    return '<li class="gt-move' + (changed ? ' is-forged' : '') + '">'
+      + '<div class="gt-move-head"><b>' + esc(move.name) + '</b>' + cost
+      + (passive ? '<span class="gt-tag">Passive</span>' : '')
+      + (changed ? '<span class="gt-tag is-forged">Forged</span>' : '')
+      + '</div>'
+      + '<p>' + diffText(was ? was.description : null, move.description || '') + '</p></li>';
+  }
+
+  /** Only the run's own cards have upgrades; offered and enemy cards print as they are. */
+  function upgradesSection(card) {
+    if (!card.uid) return '';
+    var upgrades = card.upgrades || [];
+    var body = upgrades.length
+      ? '<ol class="gt-applied">' + upgrades.map(function (u) { return '<li>' + esc(u) + '</li>'; }).join('') + '</ol>'
+      : '<p class="gt-muted">No upgrades yet.</p>';
+    return '<section class="gt-tray-section"><h3>Upgrades applied <span class="gt-count">' + upgrades.length + ' / ' + esc((card.maxLevel || 6) - 1) + '</span></h3>' + body + '</section>';
   }
 
   function showForge(uid) {
@@ -475,8 +715,24 @@
     }
   }
 
-  function showCard(card) {
-    openSheet(sheetHead(card));
+  function showCard(card, action) {
+    openSheet(sheetHead(card) + (action ? '<div class="gt-tray-actions">' + action + '</div>' : ''));
+  }
+
+  function showReward(cardId) {
+    var card = ((state.run && state.run.rewardOptions) || []).filter(function (c) { return c.id === cardId; })[0];
+    if (!card) return;
+    showCard(card, '<button type="button" class="gt-btn gt-btn-primary" data-reward="' + esc(card.id) + '">Take ' + esc(card.name) + '</button>');
+  }
+
+  function showShopItem(itemId) {
+    var run = state.run;
+    var item = ((run && run.shop) || []).filter(function (i) { return i.id === itemId; })[0];
+    if (!item || !item.card) return;
+    var afford = run.gold >= item.price;
+    var label = item.sold ? 'Already bought' : (afford ? 'Buy for ' + item.price + ' gold' : 'Need ' + item.price + ' gold (you have ' + run.gold + ')');
+    showCard(item.card, '<button type="button" class="gt-btn' + (item.sold || !afford ? '' : ' gt-btn-primary') + '" data-buy="' + esc(item.id) + '"'
+      + (item.sold || !afford ? ' disabled' : '') + '>' + esc(label) + '</button>');
   }
 
   function showRemovePicker(itemId) {
@@ -496,8 +752,16 @@
   }
 
   function bind() {
+    document.addEventListener('error', function (event) {
+      var img = event.target;
+      if (!img || img.tagName !== 'IMG' || !img.getAttribute('data-fallback')) return;
+      var fallback = img.getAttribute('data-fallback');
+      img.removeAttribute('data-fallback');
+      img.className = 'is-icon';
+      img.src = fallback;
+    }, true);
     document.addEventListener('click', function (event) {
-      var t = event.target.closest ? event.target.closest('[data-deck],[data-knight],[data-uid],[data-buy],[data-reward],[data-perk],[data-offer],[data-apply],[data-remove],[data-close],[data-tab]') : null;
+      var t = event.target.closest ? event.target.closest('[data-deck],[data-knight],[data-uid],[data-buy],[data-reward],[data-reward-view],[data-shop-view],[data-enemy-view],[data-perk],[data-offer],[data-apply],[data-remove],[data-close],[data-tab]') : null;
       if (!t) return;
       if (t.hasAttribute('data-close')) { closeSheet(); return; }
       if (t.hasAttribute('data-tab')) {
@@ -541,14 +805,22 @@
         });
         return;
       }
+      if (t.hasAttribute('data-reward-view')) { showReward(t.getAttribute('data-reward-view')); return; }
+      if (t.hasAttribute('data-shop-view')) { showShopItem(t.getAttribute('data-shop-view')); return; }
+      if (t.hasAttribute('data-enemy-view')) {
+        var foe = state.enemyCards[Number(t.getAttribute('data-enemy-view'))];
+        if (foe) showCard(foe);
+        return;
+      }
       if (t.hasAttribute('data-buy')) {
         if (t.getAttribute('data-kind') === 'REMOVE') { showRemovePicker(t.getAttribute('data-buy')); return; }
-        if (t.hasAttribute('data-cant')) { toast('Not enough gold.'); return; }
-        act('shop/buy', { itemId: t.getAttribute('data-buy') }).then(function (run) { if (run) toast('Bought.', true); });
+        act('shop/buy', { itemId: t.getAttribute('data-buy') }).then(function (run) {
+          if (run) { closeSheet(); toast('Bought.', true); }
+        });
         return;
       }
       if (t.hasAttribute('data-reward')) {
-        act('reward', { cardId: t.getAttribute('data-reward') });
+        act('reward', { cardId: t.getAttribute('data-reward') }).then(function (run) { if (run) closeSheet(); });
         return;
       }
       if (t.hasAttribute('data-perk')) {
