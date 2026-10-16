@@ -23,7 +23,10 @@ LAYOUT.json:
               "mirror": [k],                  # flip frame k to face like the rest
               "seeded": true,                 # grow frames from their bodies
               "seeds": [[x,y], ...],          #   optional explicit body points
-              "ax": {"k": x}}, ...]}          # pin frame k's anchor column
+              "ax": {"k": x},                 # pin frame k's anchor column
+              "dropSlivers": true,            # drop loose <=3px-tall slivers
+              "keep": [k, ...]}, ...]}        # ship only these frames (drop
+                                              # poses drawn overlapping)
   seeded is for limbs that touch the next pose: each frame floods outward from
   a point inside its own body through non-outline pixels, so touching limbs
   part along their own outlines; leftover outline and specks join the nearest.
@@ -193,6 +196,9 @@ def seed_split(band, frames, p):
         # Pieces no front reached (sparks, stars) join the nearest frame.
         for c in components(B & (lab == 0)):
             if c['area'] < 12: continue
+            # A loose sliver at most 3px tall is what is left of a panel or
+            # label edge, never art: sparks and stars are taller than wide.
+            if p.get('dropSlivers') and c['y1'] - c['y0'] <= 3 and c['x1'] - c['x0'] >= 6: continue
             cx = (c['x0'] + c['x1']) / 2 + bx0
             k = int(np.argmin([abs(cx - (o['body']['x0'] + o['body']['x1']) / 2) for o in out]))
             m2 = np.zeros_like(band); m2[sl] = c['mask']; out[k]['mask'] |= m2
@@ -274,6 +280,8 @@ for p in cfg['poses']:
         f['ay'] = ground
     for k, x in p.get('ax', {}).items():
         frames[int(k)]['ax'] = float(x)
+    if p.get('keep'):
+        frames = [frames[k] for k in p['keep']]
     poses[p['pose']] = frames
     print(p['pose'], len(frames), 'frames, ground', ground, 'anchors', [round(f['ax']) for f in frames])
 

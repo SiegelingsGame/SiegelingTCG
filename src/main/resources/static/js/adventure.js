@@ -4525,7 +4525,13 @@
     gagglestand: { dir: '/img/sprites/gagglestand/gagglestand-', w: 340, h: 270, fit: 0.663, base: 0.115,
       frames: { idle: 9, walk: 9, attack: 7, cheer: 4, hurt: 3, fainted: 2 } },
     hurricrane: { dir: '/img/sprites/hurricrane/hurricrane-', w: 496, h: 276, fit: 0.623, base: 0.029,
-      frames: { idle: 9, walk: 9, attack: 4, cheer: 4, hurt: 3, fainted: 2 } }
+      frames: { idle: 9, walk: 9, attack: 4, cheer: 4, hurt: 3, fainted: 2 } },
+    fawny: { dir: '/img/sprites/fawny/fawny-', w: 266, h: 207, fit: 0.831, base: 0.024,
+      frames: { idle: 8, walk: 8, attack: 4, cheer: 4, hurt: 3, fainted: 2 } },
+    chilldoe: { dir: '/img/sprites/chilldoe/chilldoe-', w: 302, h: 221, fit: 0.869, base: 0.032,
+      frames: { idle: 8, walk: 8, attack: 7, cheer: 3, hurt: 3, fainted: 2 } },
+    frostag: { dir: '/img/sprites/frostag/frostag-', w: 366, h: 240, fit: 0.817, base: 0.025,
+      frames: { idle: 8, walk: 8, attack: 7, cheer: 4, hurt: 3, fainted: 2 } }
   };
   var ANIM_BODY = 0.9;
   var ANIM_POSES = ['idle', 'walk', 'attack', 'cheer', 'hurt', 'fainted'];
@@ -4533,7 +4539,8 @@
   var ANIM_SPRITE_CARDS = { squirebud: 'squirebud', floraknight: 'floraknight', generoot: 'generoot',
     sundile: 'sundile', raydile: 'raydile', solgator: 'solgator',
     cacty: 'cacty', jackedty: 'jackedty', cactyjackedty: 'cactyjackedty',
-    breezee: 'breezee', gagglestand: 'gagglestand', hurricrane: 'hurricrane' };
+    breezee: 'breezee', gagglestand: 'gagglestand', hurricrane: 'hurricrane',
+    fawny: 'fawny', chilldoe: 'chilldoe', frostag: 'frostag' };
   /*
    * ?spriteTest=<sheet> (e.g. squirebud) dresses every ally in that sheet so it can be tried in a
    * real run before it is assigned to a card; ?spriteTest=off clears it. It is

@@ -1,4 +1,12 @@
 Original prompt: Go with earth based art for endless
+- October 16, 2026 **The Fawny line (Fawny, Chilldoe, Frostag) animates in Siege battles; the atlas cutter gains `keep` and `dropSlivers`.**
+  - **Change.** Three atlases are cut into `img/sprites/{fawny,chilldoe,frostag}/` and mapped in `ANIM_SPRITE_CARDS`. Frame counts: Fawny 8/8/4/4/3/2, Chilldoe 8/8/7/3/3/2, Frostag 8/8/7/4/3/2.
+    - **Fawny.** Its sheet is a framed showcase: a title, rounded panels, label tabs and numbered frames. Its attack labels six frames, but frames 5 and 6 are the flying snowball and its burst with no Fawny in them; the battle projectile carries the snowball, so attack ships the four throw frames. The label-tab bottom edges (a light line, a mid-blue anti-alias row and a dark row) are keyed out by colour in thin strips, which keeps the cream antler tips that cross the tabs. A new opt-in `dropSlivers` drops loose pieces at most 3px tall and at least 6px wide (the last tab-edge dashes).
+    - **Chilldoe.** Its cheer row draws two poses overlapping, so the new `keep` option ships three of the five (0, 1, 4) rather than splitting the pair badly.
+    - **Frostag.** Cut cleanly on the first pass.
+
+    Layouts are committed under `tools/sprites/layouts/`. `adventure.js?v=144`.
+  - **Verification.** Re-cutting all eleven earlier sheets reproduces their shipped strips byte for byte. `dropSlivers` was first written as always-on, and that changed eleven earlier strips (one changed pose resizes the shared cell), so it was made opt-in and the regression re-run clean. Contact sheets for all rows were checked by eye. `tests/siege-anim-sprite-check.cjs` gains three passes (sixteen in all).
 - October 16, 2026 **The Breezee line (Breezee, Gagglestand, Hurricrane) animates in Siege battles; the atlas cutter can key out textured ground.**
   - **Change.** Three atlases are cut into `img/sprites/{breezee,gagglestand,hurricrane}/` and mapped in `ANIM_SPRITE_CARDS`. Frame counts: Breezee 9/8/6/4/3/2, Gagglestand 9/9/7/4/3/2, Hurricrane 9/9/4/4/3/2; Hurricrane's sheet has four attack bodies, and the closing gust is effect only. All three use the seeded race and `pockets`. Fixes per sheet:
     - **Attack seeds.** Hurricrane's and Breezee's attack seeds are placed by hand, because the gusts outweigh the bodies.
