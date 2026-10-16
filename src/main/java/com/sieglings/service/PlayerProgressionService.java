@@ -1186,6 +1186,37 @@ public class PlayerProgressionService {
         return holographicCost(card);
     }
 
+    /**
+     * Every finish an account owns, keyed by lower-cased card id: SP (holo art),
+     * HOLO (HOLO SP) or GOLD - the highest tier wins. The battle table stamps
+     * these onto each player's own cards so finishes follow the owner into play.
+     * Empty for guests, unknown users, or when progression cannot be read.
+     */
+    public Map<String, String> cardFinishesForUser(String userId) {
+        Map<String, String> finishes = new java.util.HashMap<>();
+        if (userId == null || userId.isBlank()) {
+            return finishes;
+        }
+        PlayerProgressionEntity progression;
+        try {
+            progression = store.findByUserId(userId).orElse(null);
+        } catch (RuntimeException ex) {
+            return finishes;
+        }
+        if (progression == null) {
+            return finishes;
+        }
+        java.util.function.BiConsumer<List<String>, String> mark = (ids, tier) -> {
+            if (ids == null) return;
+            ids.stream().map(this::normalizeCardId).filter(java.util.Objects::nonNull)
+                    .forEach(id -> finishes.put(id, tier));
+        };
+        mark.accept(progression.getHoloArtCardIds(), "SP");
+        mark.accept(progression.getHolographicCardIds(), "HOLO");
+        mark.accept(progression.getGoldCardIds(), "GOLD");
+        return finishes;
+    }
+
     /** GOLD is the premium step: twice what HOLO SP costs outright (craft cost x 8). */
     public int goldCost(Card card) {
         return craftCost(card) * 8;

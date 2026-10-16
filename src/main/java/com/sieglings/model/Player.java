@@ -268,6 +268,15 @@ public class Player {
     public int getHealth() { return health; }
     public void setHealth(int health) { this.health = Math.max(0, Math.min(STARTING_HEALTH, health)); }
     public String getAccountUserId() { return accountUserId; }
+
+    /**
+     * The owner's card finishes (lower-cased card id -> SP / HOLO / GOLD), read once
+     * per match so a state poll never goes back to Firestore. Null = not loaded yet.
+     * A finish bought mid-match shows from the next match.
+     */
+    private transient java.util.Map<String, String> cardFinishes;
+    public java.util.Map<String, String> getCardFinishes() { return cardFinishes; }
+    public void setCardFinishes(java.util.Map<String, String> cardFinishes) { this.cardFinishes = cardFinishes; }
     public void setAccountUserId(String accountUserId) { this.accountUserId = accountUserId; }
     public String getLoadoutLabel() { return loadoutLabel; }
     public void setLoadoutLabel(String loadoutLabel) { this.loadoutLabel = loadoutLabel; }

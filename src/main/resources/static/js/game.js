@@ -4234,6 +4234,14 @@ function playerHolographicCardIds() {
     return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
 }
 
+// Cards from the battle table arrive stamped with their OWNER's finish
+// (GameController#finishFor: "", SP, HOLO or GOLD). A stamp is the whole truth,
+// so an opponent's card shows the opponent's finish and never this account's.
+// Cards without one (binder, deck lists) fall back to this account's lists.
+function stampedFinish(card) {
+    return card && typeof card.finish === 'string' ? card.finish.toUpperCase() : null;
+}
+
 function playerHoloArtCardIds() {
     const raw = authState.profile?.progression?.holoArtCards;
     if (!Array.isArray(raw)) {
@@ -4252,6 +4260,10 @@ function playerGoldCardIds() {
 
 // GOLD, the top finish: a gold frame and shine instead of the rainbow foil.
 function cardShowsPlayerGold(card) {
+    const stamp = stampedFinish(card);
+    if (stamp !== null) {
+        return stamp === 'GOLD';
+    }
     // The binder hands a copy flagged goldFinish to the shared showcase renderer.
     if (card?.goldFinish === true) {
         return true;
@@ -4263,6 +4275,10 @@ function cardShowsPlayerGold(card) {
 // True for both holo tiers (Holo Art and Holo Flair): decides the artwork.
 // The foil class and overlay stay on cardShowsPlayerHolographic (Flair only).
 function cardShowsPlayerHoloArt(card) {
+    const stamp = stampedFinish(card);
+    if (stamp !== null) {
+        return stamp === 'SP' || stamp === 'HOLO' || stamp === 'GOLD';
+    }
     if (cardShowsPlayerHolographic(card)) {
         return true;
     }
@@ -4273,6 +4289,10 @@ function cardShowsPlayerHoloArt(card) {
 function cardShowsPlayerHolographic(card) {
     if (!card) {
         return false;
+    }
+    const stamp = stampedFinish(card);
+    if (stamp !== null) {
+        return stamp === 'HOLO' || stamp === 'GOLD';
     }
     if (card.holographic === true) {
         return true;
@@ -4314,7 +4334,21 @@ function renderHolographicFullArtFace(card, extraOptions = {}) {
         || typeof bv.holographicFullCardArtUrl !== 'function') {
         return '';
     }
-    const options = { ...holographicFullArtOptions(), imageLoading: 'eager', ...extraOptions };
+    const stamp = stampedFinish(card);
+    if (stamp !== null) {
+        // The shared renderer reads ownership from id sets; build them from the
+        // stamp so it draws exactly the owner's finish. Board cells carry cardId.
+        const id = String(card.id || card.cardId || '').trim().toLowerCase();
+        card = card.id ? card : { ...card, id: card.cardId };
+        extraOptions = {
+            useHolographicFullCardArt: true,
+            playerHolographicIds: new Set(stamp === 'HOLO' || stamp === 'GOLD' ? [id] : []),
+            playerHoloArtIds: new Set(stamp === 'SP' ? [id] : []),
+            playerGoldIds: new Set(stamp === 'GOLD' ? [id] : []),
+            ...extraOptions
+        };
+    }
+    const options = { ...(stamp !== null ? {} : holographicFullArtOptions()), imageLoading: 'eager', ...extraOptions };
     const artUrl = bv.holographicFullCardArtUrl(card, options);
     if (!artUrl) {
         return '';

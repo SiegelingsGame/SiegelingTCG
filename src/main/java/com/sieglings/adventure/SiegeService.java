@@ -5180,6 +5180,9 @@ public class SiegeService {
                 : SiegeTuning.xpForLevel(c.getLevel() + 1) - SiegeTuning.xpForLevel(c.getLevel()));
         m.put("leveledThisBattle", c.isLeveledRecently());
         m.put("sourceCardId", c.getSourceCardId());
+        // The form on screen (it changes as the unit evolves): the client keys the
+        // player's sprite finish (Shiny / Gold / Gold Aura) to the card it shows.
+        m.put("displayCardId", c.getDisplayCardId());
         m.put("itemId", c.getItemId());
         m.put("item", c.getItemId() == null ? null : serializeItem(content.findItem(c.getItemId())));
         m.put("alive", c.isAlive());
