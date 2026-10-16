@@ -4906,7 +4906,52 @@
       String(card.cardArtMode || '').toUpperCase() === 'OVERLAY' && Boolean(card.cardArtUrl);
   }
 
+  // Siege animated sprites (js/siege-sprites.js). On the Siege tab a Siegeling
+  // with a shipped sheet walks through its battle poses instead of standing as
+  // a still cutout: idle, walk, attack, cheer, round and round.
+  var SIEGE_ANIM_CYCLE = [['idle', 2, 1], ['walk', 2, 0.7], ['attack', 1, 0.6], ['cheer', 2, 0.8]];
+  // The idle body stands at this share of the cutout figure, like the battle line.
+  var SIEGE_ANIM_BODY = 0.9;
+
+  function siegeAnimSheet(card) {
+    var reg = window.SiegeSprites;
+    return reg && card && card.id != null ? reg.forCard(String(card.id)) : null;
+  }
+
+  function siegeAnimPoseStyle(sheet, step) {
+    var c = SIEGE_ANIM_CYCLE[step];
+    return '--n:' + sheet.frames[c[0]] + ';background-image:url(' + sheet.dir + c[0] + '.webp);' +
+      'animation-name:sg-anim-' + c[0] + ';animation-duration:' + c[2] + 's;animation-iteration-count:' + c[1];
+  }
+
+  function siegeAnimMarkup(card, sheet) {
+    var cellPct = 100 * SIEGE_ANIM_BODY / sheet.fit;
+    return '<div class="sg-anim" role="img" aria-label="' + esc(card.name) + ' animated" style="aspect-ratio:' +
+      sheet.w + '/' + sheet.h + ';height:' + cellPct.toFixed(1) + '%;bottom:' + (-cellPct * (sheet.base || 0)).toFixed(1) + '%">' +
+      '<i class="sg-anim-strip" data-anim-card="' + esc(String(card.id)) + '" data-anim-step="0" style="' +
+      siegeAnimPoseStyle(sheet, 0) + '"></i></div>';
+  }
+
+  // Each pose plays its loops, then hands over to the next: driven by the
+  // animation's own end, so nothing keeps ticking once the sheet is closed, and
+  // reduced motion (no animation) simply rests on the first idle frame.
+  document.addEventListener('animationend', function (e) {
+    var strip = e.target;
+    if (!strip.classList || !strip.classList.contains('sg-anim-strip')) return;
+    var sheet = window.SiegeSprites && window.SiegeSprites.forCard(strip.getAttribute('data-anim-card'));
+    if (!sheet) return;
+    var step = (Number(strip.getAttribute('data-anim-step')) + 1) % SIEGE_ANIM_CYCLE.length;
+    strip.setAttribute('data-anim-step', String(step));
+    strip.setAttribute('style', siegeAnimPoseStyle(sheet, step));
+  });
+
+  function preloadSiegeAnim(sheet) {
+    SIEGE_ANIM_CYCLE.forEach(function (c) { var im = new Image(); im.src = sheet.dir + c[0] + '.webp'; });
+  }
+
   function cutoutFace(card, mode) {
+    var anim = mode === 'siege' ? siegeAnimSheet(card) : null;
+    if (anim) preloadSiegeAnim(anim);
     var scales = MODE_SCALE[mode];
     var size = sizeBand(card);
     var top = scales.GIGANTIC;
@@ -4918,7 +4963,9 @@
     return '<div class="sg-cutout is-' + mode + '" data-size="' + size + '" style="--cut-h:' + heightPct(size) + '%">' +
       '<div class="sg-cutout-ruler" aria-hidden="true">' + ruler + '</div>' +
       '<i class="sg-cutout-ground" aria-hidden="true"></i>' +
-      '<div class="sg-cutout-figure"><img ' + artAttrs(card.cardArtUrl, 480) + ' alt="' + esc(card.name) + '" draggable="false"></div>' +
+      (anim
+        ? '<div class="sg-cutout-figure has-anim">' + siegeAnimMarkup(card, anim) + '</div>'
+        : '<div class="sg-cutout-figure"><img ' + artAttrs(card.cardArtUrl, 480) + ' alt="' + esc(card.name) + '" draggable="false"></div>') +
       '<span class="sg-cutout-tag">' + esc(mode === 'siege' ? 'Siege' : 'Keep') + ' · ' + esc(title(size)) + '</span>' +
     '</div>';
   }
@@ -4927,6 +4974,8 @@
   // the in-world cutout on Siege and Keep.
   function sheetFaceMarkup(card, version, mode) {
     if ((mode === 'siege' || mode === 'keep') && hasCutout(card)) return cutoutFace(card, mode);
+    // A sheet needs no cutout art: the sprite is the in-world look.
+    if (mode === 'siege' && siegeAnimSheet(card)) return cutoutFace(card, mode);
     return versionFace(card, version);
   }
 

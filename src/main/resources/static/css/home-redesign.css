@@ -3265,6 +3265,25 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 @supports (filter: url("#paper-siegling-cutout")) {
   .sg-cutout.is-keep .sg-cutout-figure img { filter:url("#paper-siegling-cutout"); }
 }
+/* Animated Siege sprite (home-redesign.js siegeAnimMarkup): the cell is one
+   frame of the strip, standing on the same ground as the still cutout; the
+   strip slides a frame per step. Each pose has its own keyframes name because
+   a browser only restarts an animation when the name changes. */
+.sg-cutout-figure.has-anim { overflow:visible; }
+.sg-anim {
+  position:absolute; left:50%; transform:translateX(-50%); overflow:hidden; pointer-events:none;
+  filter:drop-shadow(0 6px 6px rgba(0,0,0,.55));
+}
+.sg-anim-strip {
+  display:block; height:100%; width:calc(var(--n, 1) * 100%);
+  background-size:100% 100%; background-repeat:no-repeat;
+  animation-timing-function:steps(var(--n, 1));
+}
+@keyframes sg-anim-idle { from { transform:translateX(0); } to { transform:translateX(-100%); } }
+@keyframes sg-anim-walk { from { transform:translateX(0); } to { transform:translateX(-100%); } }
+@keyframes sg-anim-attack { from { transform:translateX(0); } to { transform:translateX(-100%); } }
+@keyframes sg-anim-cheer { from { transform:translateX(0); } to { transform:translateX(-100%); } }
+@media (prefers-reduced-motion: reduce) { .sg-anim-strip { animation:none !important; } }
 .sg-cutout-ruler { position:absolute; left:4%; top:0; bottom:0; width:12%; }
 .sg-cutout-ruler i {
   position:absolute; left:0; transform:translateY(50%); font-style:normal; font-size:8px; font-weight:800;
