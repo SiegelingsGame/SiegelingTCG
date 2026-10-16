@@ -1,7 +1,7 @@
 // Verifies the animated frame-strip battle sprites in Siege (adventure.js
 // ANIM_SPRITES). Pass 1 (?spriteTest=squirebud) dresses every ally through the
 // test switch; the other passes have no switch and rely on the card mapping
-// (Squire Bud, Flora Knight, Generoot: strips of 2-9 frames) on an ally and on
+// (Squire Bud, Flora Knight, Generoot, Sundile, Raydile, Solgator, the Cacty, Breezee and Fawny lines: strips of 2-9 frames) on an ally and on
 // a foe shade. In both: a fresh
 // battle walks in, the attacker plays its attack pose when its hit leaves, the
 // struck unit plays hurt, a KO plays fainted once and then holds the last frame
@@ -92,7 +92,31 @@ const PASSES = [
   { name: 'floraknight', query: '', sheet: 'floraknight', frames: { idle: 7, fainted: 2 },
     states: [BEFORE, AFTER, WON].map(st => asCard(st, 'floraknight', 'Flora Knight')) },
   { name: 'generoot', query: '', sheet: 'generoot', frames: { idle: 8, fainted: 2 },
-    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'generoot', 'Generoot')) }
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'generoot', 'Generoot')) },
+  { name: 'sundile', query: '', sheet: 'sundile', frames: { idle: 9, fainted: 2 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'sundile', 'Sundile')) },
+  { name: 'raydile', query: '', sheet: 'raydile', frames: { idle: 8, fainted: 2 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'raydile', 'Raydile')) },
+  { name: 'solgator', query: '', sheet: 'solgator', frames: { idle: 8, fainted: 2 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'solgator', 'Solgator')) },
+  { name: 'cacty', query: '', sheet: 'cacty', frames: { idle: 9, fainted: 2 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'cacty', 'Cacty')) },
+  { name: 'jackedty', query: '', sheet: 'jackedty', frames: { idle: 9, fainted: 2 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'jackedty', "Jacked'ty")) },
+  { name: 'cactyjackedty', query: '', sheet: 'cactyjackedty', frames: { idle: 9, fainted: 2 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'cactyjackedty', 'CactyJackedty')) },
+  { name: 'breezee', query: '', sheet: 'breezee', frames: { idle: 9, fainted: 2 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'breezee', 'Breezee')) },
+  { name: 'gagglestand', query: '', sheet: 'gagglestand', frames: { idle: 9, fainted: 2 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'gagglestand', 'Gagglestand')) },
+  { name: 'hurricrane', query: '', sheet: 'hurricrane', frames: { idle: 9, fainted: 2 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'hurricrane', 'Hurricrane')) },
+  { name: 'fawny', query: '', sheet: 'fawny', frames: { idle: 8, fainted: 2 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'fawny', 'Fawny')) },
+  { name: 'chilldoe', query: '', sheet: 'chilldoe', frames: { idle: 8, fainted: 2 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'chilldoe', 'Chilldoe')) },
+  { name: 'frostag', query: '', sheet: 'frostag', frames: { idle: 8, fainted: 2 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'frostag', 'Frostag')) }
 ];
 
 function pose(id) {

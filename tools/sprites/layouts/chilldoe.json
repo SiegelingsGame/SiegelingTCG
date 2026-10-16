@@ -1,0 +1,154 @@
+{
+ "src": "chilldoe-atlas.png",
+ "name": "chilldoe",
+ "scale": 1.0,
+ "anchor": "mass",
+ "pockets": true,
+ "erase": [
+  [
+   15,
+   8,
+   222,
+   55
+  ],
+  [
+   15,
+   266,
+   222,
+   313
+  ],
+  [
+   15,
+   516,
+   222,
+   563
+  ],
+  [
+   15,
+   780,
+   200,
+   827
+  ],
+  [
+   623,
+   780,
+   760,
+   827
+  ],
+  [
+   1044,
+   780,
+   1211,
+   827
+  ],
+  [
+   0,
+   252,
+   1448,
+   264
+  ],
+  [
+   0,
+   502,
+   1448,
+   514
+  ],
+  [
+   0,
+   766,
+   1448,
+   778
+  ],
+  [
+   612,
+   772,
+   624,
+   1086
+  ],
+  [
+   1030,
+   772,
+   1042,
+   1086
+  ]
+ ],
+ "poses": [
+  {
+   "pose": "idle",
+   "box": [
+    0,
+    0,
+    1448,
+    252
+   ],
+   "frames": 8,
+   "dropLoose": true,
+   "seeded": true
+  },
+  {
+   "pose": "walk",
+   "box": [
+    0,
+    264,
+    1448,
+    502
+   ],
+   "frames": 8,
+   "dropLoose": true,
+   "seeded": true
+  },
+  {
+   "pose": "attack",
+   "box": [
+    0,
+    514,
+    1448,
+    766
+   ],
+   "frames": 7,
+   "dropLoose": false,
+   "seeded": true
+  },
+  {
+   "pose": "cheer",
+   "box": [
+    0,
+    778,
+    612,
+    1086
+   ],
+   "frames": 5,
+   "dropLoose": false,
+   "seeded": true,
+   "keep": [
+    0,
+    1,
+    4
+   ]
+  },
+  {
+   "pose": "hurt",
+   "box": [
+    624,
+    778,
+    1030,
+    1086
+   ],
+   "frames": 3,
+   "dropLoose": false,
+   "seeded": true
+  },
+  {
+   "pose": "fainted",
+   "box": [
+    1042,
+    778,
+    1448,
+    1086
+   ],
+   "frames": 2,
+   "dropLoose": false,
+   "seeded": true
+  }
+ ]
+}
