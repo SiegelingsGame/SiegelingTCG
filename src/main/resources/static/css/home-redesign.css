@@ -3189,6 +3189,28 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    tile spins in 3D; the sheet's zoom-in press scale is held off while it does. */
 .sg-sheet-face.is-holo-twirl { perspective:700px; pointer-events:none; position:relative; z-index:3; }
 .sg-sheet-face.is-holo-twirl .sg-card-tile { transition:none; transform-style:preserve-3d; will-change:transform, filter; }
+/* Screen-edge glow for the holo unlock: a soft rainbow bloom inset from the
+   viewport edges, with a rotating conic rim masked down to a thin border. */
+.sg-holo-screen {
+  position:fixed; inset:0; pointer-events:none; z-index:2147482999; opacity:0; overflow:hidden;
+  box-shadow:
+    inset 0 0 14px 3px rgba(255,255,255,.9),
+    inset 0 0 44px 12px rgba(159,243,255,.9),
+    inset 0 0 100px 26px rgba(255,156,240,.6),
+    inset 0 0 190px 40px rgba(255,245,154,.32);
+}
+.sg-holo-screen-rim {
+  position:absolute; inset:0; padding:6px; display:block;
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  filter:blur(1px) saturate(1.4);
+}
+.sg-holo-screen-rim b {
+  position:absolute; left:50%; top:50%; width:160vmax; height:160vmax; display:block;
+  transform:translate(-50%,-50%);
+  background:conic-gradient(#ff9cf0, #9ff3ff, #a6ffcf, #fff59a, #ffb37a, #c9a6ff, #ff9cf0);
+}
 .sg-holo-fx { position:fixed; width:0; height:0; pointer-events:none; z-index:2147483000; }
 .sg-holo-fx > i { position:absolute; left:0; top:0; width:var(--s); height:var(--s); margin:calc(var(--s) / -2) 0 0 calc(var(--s) / -2); opacity:0; }
 /* A cut gem: rainbow body, a white table facet, a coloured glow. */

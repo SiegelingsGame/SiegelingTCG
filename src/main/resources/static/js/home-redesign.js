@@ -4770,6 +4770,118 @@
     }
   }
 
+  /* Screen-edge glow: a rotating rainbow rim masked to the viewport border,
+     over a soft inset bloom. It warms up with the wind-up, flares at the swap
+     and fades with the twinkles. */
+  function holoScreenGlow(half) {
+    var glow = document.createElement('div');
+    glow.className = 'sg-holo-screen';
+    glow.setAttribute('aria-hidden', 'true');
+    glow.innerHTML = '<i class="sg-holo-screen-rim"><b></b></i>';
+    document.body.appendChild(glow);
+    var total = half * 2 + 900;
+    var at = function (ms) { return Math.min(1, ms / total); };
+    glow.animate([
+      { opacity: 0, filter: 'hue-rotate(0deg)' },
+      { opacity: 0.45, offset: at(half * 0.8) },
+      { opacity: 1, filter: 'hue-rotate(120deg)', offset: at(half + 60) },
+      { opacity: 0.7, offset: at(half + 500) },
+      { opacity: 0, filter: 'hue-rotate(360deg)' }
+    ], { duration: total, easing: 'linear', fill: 'both' });
+    glow.querySelector('b').animate([
+      { transform: 'translate(-50%,-50%) rotate(0deg)' },
+      { transform: 'translate(-50%,-50%) rotate(540deg)' }
+    ], { duration: total, easing: 'cubic-bezier(.4,0,.2,1)' });
+    window.setTimeout(function () { if (glow.parentNode) glow.parentNode.removeChild(glow); }, total + 50);
+  }
+
+  /* ---------- holo unlock sound ----------
+     Synthesised with Web Audio rather than shipped as a file: a rising shimmer
+     and spin ticks under the wind-up, then at the swap a sub thump, a bright
+     bell chord and a scatter of glitter pings. The context is created (or
+     resumed) inside the confirming tap - iOS only unlocks audio in a gesture -
+     and played once the purchase lands. Honours the Sound effects setting. */
+  var holoAudio = null;
+
+  function holoAudioPrime() {
+    if (!prefValue('sfx', true)) return null;
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    try {
+      if (!holoAudio) holoAudio = new Ctx();
+      if (holoAudio.state === 'suspended' && holoAudio.resume) holoAudio.resume();
+    } catch (e) { holoAudio = null; }
+    return holoAudio;
+  }
+
+  function playHoloSound(half) {
+    var ctx = holoAudio;
+    if (!ctx || !prefValue('sfx', true)) return;
+    try {
+      var t0 = ctx.currentTime + 0.02;
+      var swap = t0 + half / 1000;
+      var master = ctx.createGain();
+      master.gain.value = 0.32;
+      var comp = ctx.createDynamicsCompressor();
+      master.connect(comp);
+      comp.connect(ctx.destination);
+
+      var tone = function (type, freq, start, dur, peak, freqEnd) {
+        var o = ctx.createOscillator();
+        var g = ctx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(freq, start);
+        if (freqEnd) o.frequency.exponentialRampToValueAtTime(freqEnd, start + dur);
+        g.gain.setValueAtTime(0.0001, start);
+        g.gain.exponentialRampToValueAtTime(peak, start + Math.min(0.012, dur / 4));
+        g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+        o.connect(g);
+        g.connect(master);
+        o.start(start);
+        o.stop(start + dur + 0.05);
+      };
+
+      // Wind-up whoosh: filtered noise sweeping up into the swap.
+      var len = Math.floor(ctx.sampleRate * (half / 1000 + 0.3));
+      var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      var data = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      var noise = ctx.createBufferSource();
+      noise.buffer = buf;
+      var bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.Q.value = 2.5;
+      bp.frequency.setValueAtTime(400, t0);
+      bp.frequency.exponentialRampToValueAtTime(6000, swap);
+      var ng = ctx.createGain();
+      ng.gain.setValueAtTime(0.0001, t0);
+      ng.gain.exponentialRampToValueAtTime(0.5, swap - 0.05);
+      ng.gain.exponentialRampToValueAtTime(0.0001, swap + 0.25);
+      noise.connect(bp); bp.connect(ng); ng.connect(master);
+      noise.start(t0);
+      noise.stop(swap + 0.3);
+
+      // Rising shimmer under it.
+      tone('triangle', 220, t0, half / 1000, 0.12, 1760);
+      // Spin ticks, accelerating with the spin: one per half-turn.
+      var ticks = 7;
+      for (var k = 0; k < ticks; k++) {
+        var p = Math.pow(k / ticks, 0.6);
+        tone('sine', 900 + k * 180, t0 + p * (half / 1000), 0.07, 0.10);
+      }
+
+      // The swap: thump, bell chord (C major across two octaves), glitter.
+      tone('sine', 140, swap, 0.45, 0.6, 45);
+      [1046.5, 1318.5, 1568, 2093, 2637].forEach(function (f, n) {
+        tone('sine', f, swap + n * 0.025, 1.6 - n * 0.15, 0.16);
+        tone('sine', f * 2.01, swap + n * 0.025, 0.5, 0.04);
+      });
+      for (var g = 0; g < 14; g++) {
+        tone('sine', 2500 + Math.random() * 3500, swap + 0.08 + Math.random() * 0.9, 0.12, 0.05 + Math.random() * 0.05);
+      }
+    } catch (e) { /* audio is decoration; never break the unlock */ }
+  }
+
   function playHoloTwirl(face, holoInner, done) {
     var tile = face && face.querySelector('.sg-card-tile');
     function swap() {
@@ -4790,6 +4902,8 @@
     document.body.appendChild(layer);
     face.classList.add('is-holo-twirl');
     var half = HOLO_TWIRL_MS / 2;
+    holoScreenGlow(half);
+    playHoloSound(half);
     tile.animate([
       { transform: 'translateY(0) rotateY(0deg) rotateZ(0deg) scale(1)', filter: 'brightness(1)', easing: 'cubic-bezier(.3,0,.4,1)' },
       { transform: 'translateY(4px) rotateY(-28deg) rotateZ(3deg) scale(.95)', filter: 'brightness(.9)', offset: 0.14, easing: 'cubic-bezier(.55,0,.95,.55)' },
@@ -4819,6 +4933,7 @@
       return;
     }
     if (!api || !api.post) return;
+    holoAudioPrime();
     btn.disabled = true;
     btn.textContent = 'Applying finish\u2026';
     api.post('/api/cards/holographic', { cardId: id }).then(function (data) {
