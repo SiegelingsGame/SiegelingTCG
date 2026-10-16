@@ -969,7 +969,7 @@
       });
       var head = $('unitModalBody').querySelector('.um-art');
       if (head) {
-        head.classList.remove('fx-shiny', 'fx-gold', 'fx-aura');
+        head.classList.remove('fx-holo', 'fx-sp', 'fx-hsp', 'fx-gold', 'fx-gsp');
         if (key !== 'NONE') head.classList.add('fx-' + key.toLowerCase());
       }
       if (state.run && state.run.battle && document.body.dataset.screen === 'battleScreen') renderBattle();
@@ -4535,7 +4535,7 @@
         // aura layer: a CSS mask cut from the art would need CORS on an image
         // the page already cached without it, and then silently draws nothing.
         body = '<div class="sp-art fx-' + finish.toLowerCase() + '">' +
-          (finish === 'AURA' ? '<i class="sp-aura" aria-hidden="true"></i>' : '') +
+          (finish === 'HSP' || finish === 'GOLD' || finish === 'GSP' ? '<i class="sp-finish-aura" aria-hidden="true"></i>' : '') +
           '<img ' + artImgAttrs(u.artUrl, 320,
           'var a=this.parentNode;a.className=\'sp-art sp-art-fallback\';a.innerHTML=\'<span>' + icon(u.element) + '</span>\'') +
           ' alt="" draggable="false"><i class="sp-twinkle" aria-hidden="true"></i></div>';
@@ -6165,18 +6165,24 @@
   }
 
   /* ---------- sprite finishes ----------
-     A Siegeling's battle cutout can wear a finish the account has earned for
-     that card in the Collection: Shiny (from HSP) is a rainbow sheen over
-     the figure, Gold (from GOLD) casts it in gold, and Gold Aura (from GOLD)
-     keeps its colours inside a pulsing gold glow. The pick is a look only - the
-     server never sees it - so it lives in this browser, per card. Ownership
-     comes from /api/player/progression; a guest owns none. */
+     A Siegeling's battle cutout can wear a skin for every card finish the
+     account owns for that card in the Collection, each a sprite-sized take on
+     the card's look: Holo a soft pastel sheen, SP an iridescent colour drift,
+     HSP that plus a rainbow aura, GOLD the creature's own colours in a pulsing
+     gold aura (as the GOLD card keeps its art in colour inside a gold frame),
+     and GSP the whole creature cast in gold (as the GSP card is). A skin needs
+     that version or higher - the ladder includes the tiers below. The pick is
+     a look only - the server never sees it - so it lives in this browser, per
+     card. Ownership comes from /api/player/progression; a guest owns none. */
   var SPRITE_FINISH_KEY = 'siegeSpriteFinish';
+  var FINISH_LADDER = ['STANDARD', 'HOLO', 'SP', 'HSP', 'GOLD', 'GSP'];
   var SPRITE_FINISHES = [
     { key: 'NONE', label: 'Normal', needs: null },
-    { key: 'SHINY', label: 'Shiny', needs: 'HSP' },
-    { key: 'GOLD', label: 'Gold', needs: 'GOLD' },
-    { key: 'AURA', label: 'Gold Aura', needs: 'GOLD' }
+    { key: 'HOLO', label: 'Holo', needs: 'HOLO' },
+    { key: 'SP', label: 'SP', needs: 'SP' },
+    { key: 'HSP', label: 'HSP', needs: 'HSP' },
+    { key: 'GOLD', label: 'GOLD', needs: 'GOLD' },
+    { key: 'GSP', label: 'GSP', needs: 'GSP' }
   ];
   var ownedFinishTiers = {}; // lower-cased card id -> 'HOLO' | 'SP' | 'HSP' | 'GOLD' | 'GSP'
 
@@ -6201,12 +6207,11 @@
       .catch(function () { /* guests and offline play keep plain sprites */ });
   }
 
+  // Owning a finish owns every skin at or below it on the ladder.
   function finishUnlocked(cardId, finish) {
     if (!finish.needs) return true;
-    var tier = ownedFinishTiers[String(cardId || '').toLowerCase()];
-    // Each tier includes the ones below it: GSP > GOLD > HSP.
-    return finish.needs === 'HSP' ? (tier === 'HSP' || tier === 'GOLD' || tier === 'GSP')
-      : (tier === 'GOLD' || tier === 'GSP');
+    var tier = ownedFinishTiers[String(cardId || '').toLowerCase()] || 'STANDARD';
+    return FINISH_LADDER.indexOf(tier) >= FINISH_LADDER.indexOf(finish.needs);
   }
 
   function readFinishPrefs() {
@@ -6235,11 +6240,11 @@
         var open = finishUnlocked(cardId, f);
         return '<button type="button" class="um-finish fx-chip-' + f.key.toLowerCase() + (f.key === current ? ' on' : '') +
           (open ? '' : ' is-locked') + '" data-finish="' + f.key + '"' + (open ? '' : ' disabled') +
-          ' title="' + esc(open ? f.label : f.label + ' unlocks with ' + (f.needs === 'HSP' ? 'HSP' : 'GOLD') + ' in your Collection') + '">' +
+          ' title="' + esc(open ? f.label : f.label + ' unlocks when you own ' + f.label + ' ' + '(or higher) of this card') + '">' +
           (open ? '' : '🔒 ') + esc(f.label) + '</button>';
       }).join('') + '</div>' +
       (SPRITE_FINISHES.some(function (f) { return !finishUnlocked(cardId, f); })
-        ? '<div class="um-finish-note">Shiny unlocks with HSP, Gold and Gold Aura with GOLD (or GSP), all in your Collection.</div>' : '');
+        ? '<div class="um-finish-note">Each skin unlocks when you own that version of this card (or a higher one) in your Collection.</div>' : '');
   }
 
   function showBattleUnitDetails(u) {

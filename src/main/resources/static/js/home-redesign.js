@@ -9536,8 +9536,15 @@
         ['Battlegrounds', 'Field three banked veterans and a veteran knight, buy boons in its shop, and climb the tiers and the leaderboard.'],
         ['Tutorial', 'A guided first battle that teaches AP, cards and targeting.']
       ]],
-      ['sub', 'Looks'],
-      ['p', 'Tap one of your Siegelings in battle to open its sheet, then choose a Look. Shiny unlocks with that card at HSP. Gold and Gold Aura unlock at GOLD or GSP. A Look is cosmetic only.'],
+      ['sub', 'Skins'],
+      ['p', 'Tap one of your Siegelings in battle to open its sheet, then pick a skin under Look. There is one skin per card finish, and each unlocks when you own that version of the card (or a higher one) in your Collection. Skins are cosmetic only.'],
+      ['defs', [
+        ['Holo', 'A soft pastel sheen.'],
+        ['SP', 'An iridescent colour drift.'],
+        ['HSP', 'The iridescent drift inside a rainbow aura.'],
+        ['GOLD', 'Its own colours inside a pulsing gold aura.'],
+        ['GSP', 'The whole creature cast in gold.']
+      ]],
       ['link', ['/siege', 'Start an expedition']]
     ]],
     ['Getting started', 'A first-day guide', '/img/lands/aurora.webp', 'LIGHT', [
@@ -9572,7 +9579,7 @@
       ['list', [
         'Your binder, deck builder, pack reveals and the full-screen card.',
         'Arena matches: each card shows its owner’s finish, so online opponents see yours and you see theirs.',
-        'Siege: HSP and above unlock Looks for that Siegeling’s battle sprite.'
+        'Siege: every finish you own for a Siegeling unlocks its matching skin for that Siegeling’s battle sprite.'
       ]],
       ['note', 'Open a card full screen to see every version: drag sideways to turn it over, swipe up or down to step through Standard to GSP.']
     ]],
