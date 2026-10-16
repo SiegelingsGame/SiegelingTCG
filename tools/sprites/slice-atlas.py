@@ -15,7 +15,9 @@ LAYOUT.json:
               "assign": [[x0,y0,x1,y1,k]],    # every pixel in the box -> frame k
                                               # [..., k, "split"]: only pieces
                                               # walled off by outline from x1;
-                                              # k = -1 discards the pixels
+                                              # k = -1 discards the pixels;
+                                              # [..., k, "divide"]: like split,
+                                              # and pieces reaching x1 go to k+1
               "mirror": [k]}, ...]}           # flip frame k to face like the rest
   assign is for an effect drawn touching the next frame (a fire breath reaching
   the next pose): no automatic rule can tell whose it is, the layout can.
@@ -141,20 +143,29 @@ for p in cfg['poses']:
     for a in p.get('assign', []):
         x0a, y0a, x1a, y1a, k = a[:5]
         box = np.zeros_like(fg); box[y0a:y1a, x0a:x1a] = band[y0a:y1a, x0a:x1a]
-        if a[5:] == ['split']:
+        nxt = None
+        if a[5:] in (['split'], ['divide']):
             # A breath drawn up against the next pose's outline: a straight
             # cut slices one or the other. Outline pixels stay where they are;
             # the rest falls into pieces, and only those that do not reach the
             # box's right edge (the next pose's interior does) change hands.
             dark = rgb.max(2) < 110
             moved = np.zeros_like(fg)
+            nxt = np.zeros_like(fg)
             for c in components(box & ~dark):
                 if c['x1'] < x1a - 1: moved |= c['mask']
+                else: nxt |= c['mask']
             box = moved
+            # divide: the pieces that run on past x1 are the next pose's, even
+            # where the automatic frame cut had left part of them with this one.
+            if a[5] != 'divide': nxt = None
         for f in frames:
             f['mask'] &= ~box
             f['body']['mask'] = f['body']['mask'] & ~box
         if k >= 0: frames[k]['mask'] |= box
+        if nxt is not None:
+            for f in frames: f['mask'] &= ~nxt
+            frames[k + 1]['mask'] |= nxt
     for k in p.get('mirror', []):
         frames[k]['mirror'] = True
     ground = float(np.median([b['y1'] for b in bodies]))
