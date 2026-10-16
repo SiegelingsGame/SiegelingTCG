@@ -2949,10 +2949,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-zoom-version b { font-weight:800; }
 .sg-zoom-version span { font-size:10px; color:var(--muted); letter-spacing:.08em; }
 .sg-zoom-version span.is-owned { color:#8ff0b0; }
-.sg-zoom-version[data-version="HOLO"] b {
+.sg-zoom-version[data-version="HSP"] b {
   background:linear-gradient(90deg, #ff9cf0, #9ff3ff, #a6ffcf, #fff59a); -webkit-background-clip:text; background-clip:text; color:transparent;
 }
-.sg-zoom-version[data-version="GOLD"] b, .sg-zoom-version[data-version="HOLOGOLD"] b { color:#ffd66b; text-shadow:0 0 10px rgba(255,200,60,.5); }
+.sg-zoom-version[data-version="GOLD"] b, .sg-zoom-version[data-version="GSP"] b { color:#ffd66b; text-shadow:0 0 10px rgba(255,200,60,.5); }
 .sg-zoom-hint { margin:6px 0 0; font-size:11px; color:rgba(255,255,255,.55); }
 .sg-zoom-close {
   position:absolute; z-index:2; top:calc(10px + env(safe-area-inset-top)); right:12px;
@@ -3224,6 +3224,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-sheet-version.is-holo.on { background:linear-gradient(115deg, rgba(255,64,160,.38), rgba(64,196,255,.4) 45%, rgba(176,96,255,.42)); }
 .sg-sheet-version.is-gold.on { border-color:#ffd66b; background:linear-gradient(115deg, rgba(150,96,10,.6), rgba(255,206,84,.45) 50%, rgba(150,96,10,.6)); box-shadow:0 0 12px rgba(255,200,60,.4); }
 .sg-sheet-version.on:not(.is-holo):not(.is-gold) { background:rgba(64,196,255,.18); }
+.sg-sheet-version.is-holo-lite.on { background:linear-gradient(115deg, rgba(255,170,230,.22), rgba(150,230,255,.24)); }
 
 /* Siege / Keep views of the sheet face: the cutout stands on a ground line at
    its size band's height relative to the tallest band (--cut-h, set inline),
@@ -5966,3 +5967,29 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-dominion { margin-top:10px; border-color:rgba(244,204,98,.45); }
 .sg-dominion .sg-lobbies-dot { background:#f4cc62; box-shadow:0 0 8px rgba(244,204,98,.8); }
 .sg-dominion em, .sg-dominion .go { color:#f4cc62; }
+
+/* Pulled finish badge on a revealed pack card. */
+.sg-flip-finish {
+  position:absolute; z-index:5; top:-9px; left:50%; transform:translateX(-50%); white-space:nowrap; pointer-events:none;
+  padding:3px 9px; border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  color:#fff; background:rgba(20,16,50,.9); border:1px solid rgba(255,255,255,.4);
+}
+.sg-flip-finish.is-holo { border-color:rgba(160,230,255,.6); }
+.sg-flip-finish.is-sp, .sg-flip-finish.is-hsp {
+  background:linear-gradient(115deg, rgba(255,64,160,.85), rgba(64,196,255,.85) 50%, rgba(176,96,255,.85));
+}
+.sg-flip-finish.is-gold, .sg-flip-finish.is-gsp {
+  color:#2b1a02; border-color:#fff1bd;
+  background:linear-gradient(115deg, #b98222, #ffe9a3 45%, #f2c75a 60%, #b98222);
+  box-shadow:0 0 14px rgba(255,200,60,.8);
+}
+/* Finish odds on the pack sheet: finishes down, rarities across. */
+/* The grid item would otherwise grow to the table's natural width and push
+   the sheet off a phone screen. */
+.sg-godds-card { min-width:0; max-width:100%; }
+.sg-godds-finish { display:block !important; min-width:0; }
+.sg-godds-finish dd { margin:6px 0 0; overflow-x:auto; min-width:0; }
+.sg-godds-finish table { width:100%; border-collapse:collapse; font-size:11px; }
+.sg-godds-finish th, .sg-godds-finish td { padding:3px 4px; text-align:right; white-space:nowrap; }
+.sg-godds-finish th:first-child { text-align:left; }
+.sg-godds-finish tr th.is-gold, .sg-godds-finish tr th.is-gsp { color:#ffd66b; }

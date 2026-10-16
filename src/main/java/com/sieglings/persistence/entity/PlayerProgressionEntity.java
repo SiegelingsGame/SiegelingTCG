@@ -42,6 +42,8 @@ public class PlayerProgressionEntity {
      * implies this tier, so it is never listed in both.
      */
     private List<String> holoArtCardIds = new ArrayList<>();
+    /** Card ids at the HOLO finish: a plain holographic sheen over the standard art. */
+    private List<String> plainHoloCardIds = new ArrayList<>();
     /**
      * Card ids upgraded to GOLD, the tier above HOLO SP: holo art with a gold
      * frame and gold shine. A gold card is still in {@link #holographicCardIds}.
@@ -151,6 +153,10 @@ public class PlayerProgressionEntity {
     public List<String> getHoloArtCardIds() { return holoArtCardIds; }
     public void setHoloArtCardIds(List<String> holoArtCardIds) {
         this.holoArtCardIds = holoArtCardIds == null ? new ArrayList<>() : new ArrayList<>(holoArtCardIds);
+    }
+    public List<String> getPlainHoloCardIds() { return plainHoloCardIds; }
+    public void setPlainHoloCardIds(List<String> plainHoloCardIds) {
+        this.plainHoloCardIds = plainHoloCardIds == null ? new ArrayList<>() : new ArrayList<>(plainHoloCardIds);
     }
     public List<String> getGoldCardIds() { return goldCardIds; }
     public void setGoldCardIds(List<String> goldCardIds) {

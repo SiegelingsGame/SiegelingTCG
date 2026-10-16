@@ -119,6 +119,16 @@
   function hasPlayerHoloGold(card) {
     return Boolean(card && PLAYER_HOLO_GOLD[String(card.id || '').trim().toLowerCase()]);
   }
+  // HOLO, the first finish: a plain sheen over the standard art.
+  var PLAYER_HOLO_PLAIN = {};
+  var PLAYER_HOLO_PLAIN_IDS = [];
+  function setPlayerHoloPlain(ids) {
+    PLAYER_HOLO_PLAIN = holoIdMap(ids);
+    PLAYER_HOLO_PLAIN_IDS = Object.keys(PLAYER_HOLO_PLAIN);
+  }
+  function hasPlayerHoloPlain(card) {
+    return Boolean(card && PLAYER_HOLO_PLAIN[String(card.id || '').trim().toLowerCase()]);
+  }
   function hasPlayerHolo(card) {
     return Boolean(card && PLAYER_HOLO[String(card.id || '').trim().toLowerCase()]);
   }
@@ -130,12 +140,14 @@
     var holo = card.holographic !== true && hasPlayerHolo(card);
     var gold = card.goldFinish !== true && hasPlayerGold(card);
     var holoGold = card.holoGoldFinish !== true && hasPlayerHoloGold(card);
-    if (!holo && !gold && !holoGold) return card;
+    var holoPlain = card.holoPlainFinish !== true && hasPlayerHoloPlain(card);
+    if (!holo && !gold && !holoGold && !holoPlain) return card;
     var copy = {};
     for (var key in card) if (Object.prototype.hasOwnProperty.call(card, key)) copy[key] = card[key];
     if (holo) copy.holographic = true;
     if (gold) copy.goldFinish = true;
     if (holoGold) copy.holoGoldFinish = true;
+    if (holoPlain) copy.holoPlainFinish = true;
     return copy;
   }
   function byIdIn(pool, id) {
@@ -2147,10 +2159,13 @@
     var holoGold = card.holoGoldFinish === true;
     var gold = card.goldFinish === true && !holoGold;
     var holo = card.holographic === true || gold || holoGold;
-    var holoClass = (holo ? ' is-holographic' : '') + (holoGold ? ' is-holo-gold-finish' : gold ? ' is-gold-finish' : '');
+    var plain = !holo && card.holoPlainFinish === true;
+    var holoClass = (holo ? ' is-holographic' : plain ? ' is-holo-plain' : '') +
+      (holoGold ? ' is-holo-gold-finish' : gold ? ' is-gold-finish' : '');
     var holoOverlay = holoGold && visual.renderHoloGoldFinish ? visual.renderHoloGoldFinish()
       : gold && visual.renderGoldFinish ? visual.renderGoldFinish()
-      : holo ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+      : holo ? '<div class="card-holographic-overlay" aria-hidden="true"></div>'
+      : plain ? '<div class="card-holo-plain-overlay" aria-hidden="true"></div>' : '';
     var body = '<div class="knight-card-body">' +
       '<span class="knight-card-name">' + esc(card.name) + '</span>' +
       '<span class="knight-card-meta"><span class="knight-element">' + esc(title(card.element)) + '</span> ' +
@@ -2209,7 +2224,8 @@
           useHolographicFullCardArt: true,
           playerHoloArtIds: PLAYER_HOLO_ART_IDS,
           playerGoldIds: PLAYER_GOLD_IDS,
-          playerHoloGoldIds: PLAYER_HOLO_GOLD_IDS
+          playerHoloGoldIds: PLAYER_HOLO_GOLD_IDS,
+          playerHoloPlainIds: PLAYER_HOLO_PLAIN_IDS
         }) +
       '</button>';
     }
@@ -3980,7 +3996,15 @@
   // server rolls with, never a restatement of them.
   function showOdds(app, pk) {
     var odds = pk.odds || {};
-    var holo = odds.holoPerCard || {};
+    var finishOdds = odds.finishPerCard || {};
+    var rarities = Object.keys(finishOdds);
+    // Tiny odds read better as "1 in N" than as a string of zeros.
+    function chance(p) {
+      if (!p) return '\u2014';
+      if (p >= 0.001) return (Math.round(p * 1000) / 10) + '%';
+      var n = 1 / p;
+      return '1 in ' + (n >= 10000 ? Math.round(n / 1000) + 'k' : (Math.round(n / 100) / 10) + 'k');
+    }
     var layer = document.createElement('div');
     layer.className = 'sg-godds';
     layer.setAttribute('role', 'dialog');
@@ -3992,9 +4016,16 @@
         '<dl>' +
           '<div><dt>Cards per pack</dt><dd>' + esc(odds.cardsPerPack || 5) + '</dd></div>' +
           (odds.siegeKnight != null ? '<div><dt>Bonus SiegeKnight</dt><dd>' + esc(Math.round(odds.siegeKnight * 1000) / 10) + '%</dd></div>' : '') +
-          Object.keys(holo).map(function (r) {
-            return '<div><dt>Holo &middot; ' + esc(title(r)) + '</dt><dd>' + esc(Math.round(holo[r] * 1000) / 10) + '% per card</dd></div>';
-          }).join('') +
+          (rarities.length
+            ? '<div class="sg-godds-finish"><dt>Finish per card</dt><dd><table>' +
+                '<tr><th></th>' + rarities.map(function (r) { return '<th>' + esc(title(r).slice(0, 4)) + '</th>'; }).join('') + '</tr>' +
+                ['HOLO', 'SP', 'HSP', 'GOLD', 'GSP'].map(function (f) {
+                  return '<tr><th class="is-' + f.toLowerCase() + '">' + esc(versionLabel(f)) + '</th>' + rarities.map(function (r) {
+                    return '<td>' + esc(chance((finishOdds[r] || {})[f])) + '</td>';
+                  }).join('') + '</tr>';
+                }).join('') +
+              '</table></dd></div>'
+            : '') +
           (pk.bulk && pk.bulk.count > 1
             ? '<div><dt>&times;' + esc(pk.bulk.count) + ' bundle</dt><dd>' + esc(pk.bulk.price) + ' coins</dd></div>'
             : '') +
@@ -4698,15 +4729,29 @@
       '<a class="sg-sheet-cta" href="/deck-builder" data-screen="builder">Use in a deck \u203a</a>';
   }
 
-  /* ---------- holographic finish ----------
-     Three tiers: Standard -> Holo Art (the card's holographic artwork, no
-     shimmer) -> Holo Flair (holo art plus the foil shimmer). Remnants buy each
-     step (POST /api/cards/holographic, tier ART or FLAIR). Mirrors
-     PlayerProgressionService: Art and the Flair upgrade each cost craft x 2;
-     Flair bought outright costs craft x 4. A card with no holo art has nothing
-     for the Art tier to show, so it only offers Flair. The server re-checks
-     ownership, balance and the starter pack, so this only decides what to offer. */
+  /* ---------- card finishes ----------
+     The ladder (CardFinish on the server): Standard -> Holo (a plain sheen over
+     the standard art) -> SP (the card's holo art; only cards that have some) ->
+     HSP (holo art plus the rainbow foil) -> GOLD (holo art in a gold frame) ->
+     GSP (the whole card cast in gold, notches left in colour). Each tier has a
+     cumulative price in craft-cost multiples and a step costs the difference,
+     so climbing one at a time costs what jumping does. Packs and other card
+     grants can drop any finish too. The server re-checks ownership, balance and
+     the starter pack, so this only decides what to offer. */
   var CRAFT_COST = { COMMON: 500, UNCOMMON: 1000, RARE: 2000, EPIC: 4000, LEGENDARY: 8000 };
+  var FINISH_LADDER = [
+    { key: 'STANDARD', label: 'Standard', total: 0 },
+    { key: 'HOLO', label: 'Holo', total: 1 },
+    { key: 'SP', label: 'SP', total: 2 },
+    { key: 'HSP', label: 'HSP', total: 4 },
+    { key: 'GOLD', label: 'GOLD', total: 12 },
+    { key: 'GSP', label: 'GSP', total: 28 }
+  ];
+
+  function finishIndex(key) {
+    for (var i = 0; i < FINISH_LADDER.length; i++) if (FINISH_LADDER[i].key === key) return i;
+    return 0;
+  }
 
   function craftCost(card) {
     return CRAFT_COST[String(card && card.rarity || 'COMMON').toUpperCase()] || CRAFT_COST.COMMON;
@@ -4716,71 +4761,50 @@
     return Boolean(String(card && card.holographicCardArtUrl || '').trim());
   }
 
-  // What the next purchase is for this card, or null when there is none.
+  // Every version a card can be looked at in; SP only exists with holo art.
+  function versionsFor(card) {
+    return FINISH_LADDER.filter(function (v) { return v.key !== 'SP' || hasHoloArtwork(card); });
+  }
+
+  function versionLabel(key) {
+    return FINISH_LADDER[finishIndex(key)].label;
+  }
+
+  // The finish the player's own copy shows everywhere else in the hub.
+  function bestVersion(card) {
+    if (!card) return 'STANDARD';
+    if (card.holoGoldFinish === true || hasPlayerHoloGold(card)) return 'GSP';
+    if (card.goldFinish === true || hasPlayerGold(card)) return 'GOLD';
+    if (card.holographic === true || hasPlayerHolo(card)) return 'HSP';
+    if (hasHoloArtwork(card) && hasPlayerHoloArt(card)) return 'SP';
+    if (card.holoPlainFinish === true || hasPlayerHoloPlain(card)) return 'HOLO';
+    return 'STANDARD';
+  }
+
+  // What the next purchase is for this card, or null at the top of the ladder.
   function nextHoloStep(card) {
-    if (card.holoGoldFinish === true || hasPlayerHoloGold(card)) return null;
-    if (card.goldFinish === true || hasPlayerGold(card)) {
-      return { tier: 'HOLO_GOLD', cost: craftCost(card) * 16, label: 'Upgrade to HOLO GOLD' };
-    }
-    // GOLD is the step after HOLO SP (and the only one for a card that ships foil).
-    if (card.holographic === true || hasPlayerHolo(card)) {
-      return { tier: 'GOLD', cost: craftCost(card) * 8, label: 'Upgrade to GOLD' };
-    }
-    if (!hasHoloArtwork(card)) {
-      return { tier: 'FLAIR', cost: craftCost(card) * 4, label: 'Make HOLO SP' };
-    }
-    return hasPlayerHoloArt(card)
-      ? { tier: 'FLAIR', cost: craftCost(card) * 2, label: 'Upgrade to HOLO SP' }
-      : { tier: 'ART', cost: craftCost(card) * 2, label: 'Unlock SP' };
+    var current = finishIndex(bestVersion(card));
+    var next = versionsFor(card).filter(function (v) { return finishIndex(v.key) > current; })[0];
+    if (!next) return null;
+    return {
+      tier: next.key,
+      cost: craftCost(card) * (next.total - FINISH_LADDER[current].total),
+      label: (current === 0 ? 'Make ' : 'Upgrade to ') + next.label
+    };
   }
 
   function holoButtonLabel(step) {
     return '✦ ' + step.label + ' · ' + step.cost.toLocaleString() + ' remnants';
   }
 
-  /* ---------- card versions ----------
-     Every card can be looked at in each version, owned or not: Standard, SP
-     (holo art, only when the card has holo art), HOLO SP (holo art plus the
-     foil shimmer), GOLD (holo art in a gold frame with a gold shine, bought
-     after HOLO SP) and HOLO GOLD (the final tier: the whole card cast in gold,
-     notches left in colour, bought after GOLD). */
-  var VERSIONS = [
-    { key: 'STANDARD', label: 'Standard' },
-    { key: 'SP', label: 'SP' },
-    { key: 'HOLO', label: 'HOLO SP' },
-    { key: 'GOLD', label: 'GOLD' },
-    { key: 'HOLOGOLD', label: 'HOLO GOLD' }
-  ];
-
-  function versionsFor(card) {
-    return VERSIONS.filter(function (v) { return v.key !== 'SP' || hasHoloArtwork(card); });
-  }
-
-  function versionLabel(key) {
-    for (var i = 0; i < VERSIONS.length; i++) if (VERSIONS[i].key === key) return VERSIONS[i].label;
-    return key;
-  }
-
-  // The version the player's own copy shows everywhere else in the hub.
-  function bestVersion(card) {
-    if (card && (card.holoGoldFinish === true || hasPlayerHoloGold(card))) return 'HOLOGOLD';
-    if (card && (card.goldFinish === true || hasPlayerGold(card))) return 'GOLD';
-    if (card && (card.holographic === true || hasPlayerHolo(card))) return 'HOLO';
-    if (hasHoloArtwork(card) && hasPlayerHoloArt(card)) return 'SP';
-    return 'STANDARD';
-  }
-
-  // null when ownership is unknown (guest, offline board): no locks are drawn then.
+  // Each tier includes the ones below it. null when ownership is unknown
+  // (guest, offline board): no locks are drawn then.
   function versionOwned(card, key, opts) {
     var live = opts && opts.live;
     var isOwned = live && !opts.guest ? binderOwnership(live) : null;
     if (!isOwned) return null;
     if (!isOwned(card)) return false;
-    if (key === 'STANDARD') return true;
-    if (key === 'SP') return card.holographic === true || hasPlayerHolo(card) || hasPlayerHoloArt(card);
-    if (key === 'HOLO') return card.holographic === true || hasPlayerHolo(card);
-    if (key === 'GOLD') return card.goldFinish === true || hasPlayerGold(card);
-    return card.holoGoldFinish === true || hasPlayerHoloGold(card);
+    return finishIndex(key) <= finishIndex(bestVersion(card));
   }
 
   function copyCard(card, extra) {
@@ -4795,7 +4819,9 @@
   function versionFace(card, key) {
     var visual = window.SieglingsCardBinderVisual;
     if (!visual || !visual.renderBinderCardTile) return galleryCard(card);
-    var base = copyCard(card, { holographic: key === 'HOLO', goldFinish: key === 'GOLD', holoGoldFinish: key === 'HOLOGOLD' });
+    var base = copyCard(card, {
+      holographic: key === 'HSP', goldFinish: key === 'GOLD', holoGoldFinish: key === 'GSP', holoPlainFinish: key === 'HOLO'
+    });
     var inner;
     if (isKnight(card)) {
       inner = knightCard(base);
@@ -4803,7 +4829,7 @@
     if (!inner) {
       inner = visual.renderBinderCardTile(base, {
         descriptionText: cardFaceText(card),
-        useHolographicFullCardArt: key !== 'STANDARD',
+        useHolographicFullCardArt: finishIndex(key) >= finishIndex('SP'),
         playerHoloArtIds: key === 'SP' ? [String(card.id || '').toLowerCase()] : []
       });
     }
@@ -4820,7 +4846,7 @@
         var owned = versionOwned(card, v.key, opts);
         var cls = 'sg-sheet-version' + (v.key === viewing ? ' on' : '') +
           (owned === true ? ' is-owned' : owned === false ? ' is-locked' : '') +
-          (v.key === 'GOLD' || v.key === 'HOLOGOLD' ? ' is-gold' : v.key === 'HOLO' ? ' is-holo' : '');
+          (v.key === 'GOLD' || v.key === 'GSP' ? ' is-gold' : v.key === 'HSP' ? ' is-holo' : v.key === 'HOLO' ? ' is-holo-lite' : '');
         return '<button class="' + cls + '" type="button" data-sheet-version="' + v.key + '"' +
           ' aria-pressed="' + (v.key === viewing) + '"' +
           (owned === false ? ' aria-label="' + esc(v.label) + ' (not owned)"' : '') + '>' +
@@ -5152,11 +5178,23 @@
     window.setTimeout(function () { if (layer.parentNode) layer.parentNode.removeChild(layer); }, HOLO_TWIRL_MS + 1200);
   }
 
+  // Copies a progression payload's finish lists onto the live model and the
+  // lookup sets every card face reads (after a purchase or a pack pull).
+  function applyFinishLists(live, p) {
+    if (!p) return;
+    [['holoCards', setPlayerHoloPlain], ['holoArtCards', setPlayerHoloArt], ['holographicCards', setPlayerHolo],
+     ['goldCards', setPlayerGold], ['holoGoldCards', setPlayerHoloGold]].forEach(function (pair) {
+      if (!Array.isArray(p[pair[0]])) return;
+      if (live) live[pair[0]] = p[pair[0]];
+      pair[1](p[pair[0]]);
+    });
+  }
+
   function buyHoloFinish(app, opts, sheetCard, btn) {
     var api = window.SiegelingsHomeLive;
     var id = btn.getAttribute('data-holo-buy');
     var requested = btn.getAttribute('data-holo-tier');
-    var tier = requested === 'ART' || requested === 'GOLD' || requested === 'HOLO_GOLD' ? requested : 'FLAIR';
+    var tier = FINISH_LADDER[finishIndex(requested)].key;
     var cost = Number(btn.getAttribute('data-holo-cost')) || 0;
     var restingLabel = btn.textContent;
     var note = sheetCard.querySelector('[data-holo-note]');
@@ -5182,19 +5220,7 @@
       var p = data.progression;
       var live = opts.live;
       if (p.remnants != null) live.remnants = p.remnants;
-      if (Array.isArray(p.holographicCards)) live.holographicCards = p.holographicCards;
-      if (Array.isArray(p.holoArtCards)) live.holoArtCards = p.holoArtCards;
-      if (Array.isArray(p.goldCards)) live.goldCards = p.goldCards;
-      if (Array.isArray(p.holoGoldCards)) live.holoGoldCards = p.holoGoldCards;
-      setPlayerHolo(live.holographicCards || []);
-      setPlayerHoloArt(live.holoArtCards || []);
-      setPlayerGold(live.goldCards || []);
-      setPlayerHoloGold(live.holoGoldCards || []);
-      // An older server answers without the new list; trust the tier just bought.
-      if (tier === 'FLAIR' && !hasPlayerHolo({ id: id })) PLAYER_HOLO[String(id).toLowerCase()] = true;
-      if (tier === 'ART' && !hasPlayerHoloArt({ id: id })) setPlayerHoloArt(PLAYER_HOLO_ART_IDS.concat([String(id).toLowerCase()]));
-      if (tier === 'GOLD' && !hasPlayerGold({ id: id })) setPlayerGold(PLAYER_GOLD_IDS.concat([String(id).toLowerCase()]));
-      if (tier === 'HOLO_GOLD' && !hasPlayerHoloGold({ id: id })) setPlayerHoloGold(PLAYER_HOLO_GOLD_IDS.concat([String(id).toLowerCase()]));
+      applyFinishLists(live, p);
       if (typeof loadCachedAuthProfile === 'function' && typeof saveCachedAuthProfile === 'function') {
         var profile = loadCachedAuthProfile();
         if (live.accountId && profile && profile.user && profile.user.id === live.accountId) {
@@ -5215,7 +5241,7 @@
       if (onSheet) sheetCard.setAttribute('data-version', version);
       var block = sheetCard.querySelector('.sg-sheet-holo');
       if (block) block.outerHTML = holoBlock(card, opts, version);
-      playHoloTwirl(face, versionFace(card, version), null, tier === 'GOLD' || tier === 'HOLO_GOLD');
+      playHoloTwirl(face, versionFace(card, version), null, tier === 'GOLD' || tier === 'GSP');
     });
   }
 
@@ -5283,7 +5309,7 @@
      Drag sideways and the card turns on its vertical axis, tilting a little with
      the finger's height; let go and it settles face-on or back-on, a flick
      carrying it round to the other side. Swipe up or down and the card leaves
-     the screen that way and the next version (Standard, SP, HOLO SP, GOLD)
+     the screen that way and the next version (Standard, Holo, SP, HSP, GOLD, GSP)
      comes in from the opposite edge. Arrow keys and the wheel do the same.
 
      The card is still magnified rather than re-laid-out: it is measured and its
@@ -5772,6 +5798,35 @@
     buzzForRarity(card);
   }
 
+  /* A pulled finish gets its moment. HSP throws a rainbow burst; GOLD and GSP
+     are rare enough to be an event - the gold screen glow, a gold burst and the
+     unlock chime, twice over for GSP. The flip is a tap, so audio may start. */
+  function finishFlourish(btn, finish) {
+    var rank = finishIndex(finish);
+    if (rank < finishIndex('HSP') || reducedMotion()) return;
+    var gold = rank >= finishIndex('GOLD');
+    function burst(delay) {
+      var box = btn.getBoundingClientRect();
+      var layer = document.createElement('div');
+      layer.className = 'sg-holo-fx';
+      layer.setAttribute('aria-hidden', 'true');
+      layer.style.left = (box.left + box.width / 2).toFixed(1) + 'px';
+      layer.style.top = (box.top + box.height / 2).toFixed(1) + 'px';
+      document.body.appendChild(layer);
+      holoBurst(layer, box.width, box.height, delay, gold ? GOLD_COLORS : HOLO_COLORS);
+      setTimeout(function () { if (layer.parentNode) layer.parentNode.removeChild(layer); }, delay + 2200);
+    }
+    burst(80);
+    if (gold) {
+      holoAudioPrime();
+      holoScreenGlow(420, true);
+      playHoloSound(300);
+      if (finish === 'GSP') {
+        setTimeout(function () { holoScreenGlow(520, true); burst(60); }, 900);
+      }
+    }
+  }
+
   function openPack(pk, opts, count) {
     var host = document.querySelector('.sg-app');
     if (!host) return;
@@ -5817,6 +5872,9 @@
         var history = (data.progression && data.progression.packHistory) || [];
         var cards = (history[0] && history[0].cards) || [];
         if (!cards.length) { fail('The pack came back empty. Nothing was charged.'); return; }
+        // A pull can raise a card's finish, so every face drawn after this
+        // (binder, sheet) reads the new lists.
+        applyFinishLists(opts && opts.live, data.progression);
         reveal(cards);
       })
       .catch(function () { fail('The server did not answer. Nothing was charged.'); });
@@ -5826,10 +5884,12 @@
       kicker.textContent = 'Tap to reveal';
       note.textContent = cards.length + ' card' + (cards.length === 1 ? '' : 's');
 
-      // Rarest first: the stack is dealt best-on-top, so the pull's headline
-      // card is the one the player turns over first and the commons trail it.
+      // Best first: the stack is dealt best-on-top, so the pull's headline card
+      // is the one the player turns over first. A finish outranks rarity - a GSP
+      // Common is the story of the pull, not the plain Legendary beside it.
       var order = cards.map(function (c, i) { return i; }).sort(function (a, b) {
-        return (rarityRank(cards[b]) - rarityRank(cards[a])) || (a - b);
+        return (finishIndex(cards[b].finish) - finishIndex(cards[a].finish)) ||
+          (rarityRank(cards[b]) - rarityRank(cards[a])) || (a - b);
       });
       var stackMode = cards.length > 1;
       stage.className = 'sg-gacha-stage ' + (stackMode ? 'is-stack' : 'is-grid');
@@ -5910,7 +5970,15 @@
         var card = cards[Number(btn.getAttribute('data-flip'))];
         var front = btn.querySelector('[data-flip-front]');
         var known = byIdIn(ALL_CARDS, card.id);
-        front.innerHTML = known ? galleryCard(known) : cardPlate(card);
+        var finish = FINISH_LADDER[finishIndex(card.finish)].key;
+        // The card is shown in the finish it was pulled in.
+        front.innerHTML = known ? versionFace(known, finish) : cardPlate(card);
+        if (finish !== 'STANDARD') {
+          var badge = document.createElement('span');
+          badge.className = 'sg-flip-finish is-' + finish.toLowerCase();
+          badge.textContent = versionLabel(finish) + (card.finishUpgraded ? ' \u00b7 upgraded' : '');
+          btn.appendChild(badge);
+        }
         var tag = btn.querySelector('[data-flip-tag]');
         if (card.duplicateAtCap) {
           tag.textContent = 'Owned \u00b7 +' + (card.remnantsAwarded || 0);
@@ -5930,6 +5998,7 @@
         if (card.holo) btn.classList.add('is-holo');
         btn.classList.add('is-open');
         gachaFlourish(btn, card);
+        finishFlourish(btn, finish);
         if (stackMode) layoutStack();
 
         // In the grid the card keeps its slot while it crumbles, so it pays out
@@ -9452,14 +9521,121 @@
         ['PSYCHIC', ['LIGHT', 'UNDEAD']], ['LIGHT', ['UNDEAD', 'SHADOW']], ['UNDEAD', ['SHADOW', 'PSYCHIC']]
       ]]
     ]],
-    ['Siege mode', 'The roguelike expedition', '/img/lands/badlands.webp', 'EARTH', [
-      ['p', 'Siege is a run-based solo expedition. Pick a SiegeKnight and a starter warband, cross a branching map of battles, elites, rest camps, shops and events, then fight AP-based card battles up to a boss.'],
+    ['Siege mode', 'Expeditions, Endless and Battlegrounds', '/img/lands/badlands.webp', 'EARTH', [
+      ['p', 'Siege is the solo roguelike. Pick a SiegeKnight and a starter warband, cross a branching map of battles, elites, rest camps, caches, the broker, the smith, the caravan and events, then fight AP-based card battles up to a boss.'],
       ['defs', [
-        ['Build a run', 'Earn gold, recruit cards, collect items and improve the warband as you climb.'],
-        ['Spend AP', 'Play cards from a fresh hand, resolve their actions, and end the turn when your plan is set.'],
+        ['Build a run', 'Earn gold, recruit Siegelings, collect items and level your warband as you climb.'],
+        ['Spend AP', 'Drag cards from the hand fan onto the battlefield, resolve them, and End Turn when your plan is set.'],
+        ['Advantage', 'The unit holding the Advantage token adds a rider to its cards. Watch the ADV lane to see who holds it.'],
         ['Different rules', 'There is no elemental weakness chart in Siege. Its server-driven rules have their own shields and affliction counterparts.']
       ]],
+      ['sub', 'Modes'],
+      ['defs', [
+        ['Expedition', 'The standard run: map, battles, boss. Win to bank your Siegelings as veterans.'],
+        ['Endless', 'Floor after floor of compounding difficulty with a mix of fresh picks and banked veterans. Your best score and floor are kept.'],
+        ['Battlegrounds', 'Field three banked veterans and a veteran knight, buy boons in its shop, and climb the tiers and the leaderboard.'],
+        ['Tutorial', 'A guided first battle that teaches AP, cards and targeting.']
+      ]],
+      ['sub', 'Looks'],
+      ['p', 'Tap one of your Siegelings in battle to open its sheet, then choose a Look. Shiny unlocks with that card at HSP. Gold and Gold Aura unlock at GOLD or GSP. A Look is cosmetic only.'],
       ['link', ['/siege', 'Start an expedition']]
+    ]],
+    ['Getting started', 'A first-day guide', '/img/lands/aurora.webp', 'LIGHT', [
+      ['steps', [
+        ['Choose a starter pack', 'It sets your first element, grants its SiegeKnight and fills a playable deck.'],
+        ['Play the Arena', 'Fight the AI from Play. Wins pay Siegecoins and Remnants, and a win streak pays more.'],
+        ['Build a deck', 'Collection › Deck Builder, from the cards you own, with at most 3 copies of any card. Preset decks run 40 cards: 20 Siegelings, 10 Strategies and 10 Deceptions.'],
+        ['Open packs', 'Spend Siegecoins in the Shop. Every card can arrive with a finish, from Holo all the way up to GSP.'],
+        ['Upgrade finishes', 'Spend Remnants on a card in your Collection to climb its finish ladder.'],
+        ['Go on a Siege', 'Take a warband on the roguelike, bank veterans, then try Endless and Battlegrounds.'],
+        ['Tend the Keep', 'Post Siegelings to stations, craft, and rebuild your hall between matches.']
+      ]],
+      ['note', 'Missions on Home refresh daily, and the Daily Objectives strip shows what is left.']
+    ]],
+    ['Card finishes', 'Holo, SP, HSP, GOLD and GSP', '/img/lands/light.webp', 'LIGHT', [
+      ['p', 'Every card can be owned in a finish. The ladder runs Standard › Holo › SP › HSP › GOLD › GSP. Each finish contains the ones below it, and a card only ever moves up.'],
+      ['defs', [
+        ['Standard', 'The printed card.'],
+        ['Holo', 'A plain holographic sheen over the standard art.'],
+        ['SP', 'The card’s special holo artwork. Only cards that have holo art can be SP.'],
+        ['HSP', 'Holo SP: the holo artwork with the full rainbow foil.'],
+        ['GOLD', 'The holo artwork in a polished gold frame with a gold shine.'],
+        ['GSP', 'Gold SP, the final finish: the whole card cast in gold, with the notches left in colour so they still read in play.']
+      ]],
+      ['sub', 'How to get them'],
+      ['list', [
+        'Upgrade with Remnants from a card’s sheet in your Collection. Each finish has a running price in craft costs (Holo 1, SP 2, HSP 4, GOLD 12, GSP 28), and a step costs the difference.',
+        'Drops: any card you get, from packs, daily shop cards, crafting, Siege prizes or missions, can arrive in a finish. A dropped finish above yours upgrades your card, even when the copy itself turns into Remnants.',
+        'Each finish is rarer than the one below it and rarer on rarer cards. GOLD is a once-in-thousands pull, and GSP is an act of god: about 1 in 20,000 on a Common and 1 in 100,000 on a Legendary. Shop › Packs › Odds lists every number.'
+      ]],
+      ['sub', 'Where they show'],
+      ['list', [
+        'Your binder, deck builder, pack reveals and the full-screen card.',
+        'Arena matches: each card shows its owner’s finish, so online opponents see yours and you see theirs.',
+        'Siege: HSP and above unlock Looks for that Siegeling’s battle sprite.'
+      ]],
+      ['note', 'Open a card full screen to see every version: drag sideways to turn it over, swipe up or down to step through Standard to GSP.']
+    ]],
+    ['Arena & multiplayer', 'Solo, rooms and tournaments', '/img/lands/fire.webp', 'FIRE', [
+      ['p', 'The Arena is the core card game. Play it solo against the AI, or live against another player.'],
+      ['defs', [
+        ['Solo', 'Play › Arena. Pick a deck and a SiegeKnight and fight the AI. Wins pay Siegecoins and Remnants.'],
+        ['Rooms', 'Host a table and share its code or invite link; your opponent joins it from the Room screen.'],
+        ['Tournaments', 'A daily tournament sets an element rule for the day. Every day has a free-element entry.'],
+        ['History', 'Finished matches appear under Profile › Recent, with replays where they were recorded.']
+      ]]
+    ]],
+    ['The Keep', 'Your home base between battles', '/img/lands/earth.webp', 'EARTH', [
+      ['p', 'The Keep is an idle base. Siegelings you own can live there as residents, work stations, and earn resources while you play elsewhere.'],
+      ['defs', [
+        ['Residents & stations', 'Post Siegelings to stations. A station grows faster with residents of its favoured elements, and the card sheet’s Keep tab shows each card’s bonus.'],
+        ['Rapport', 'Residents bond over time, raising their station bonus.'],
+        ['Building', 'Upgrade the hall and its rooms, refit tools and set decorations.'],
+        ['Market', 'Refreshes daily. Its rarest offers cost Siegecoins.'],
+        ['Rebirth', 'Once the hall has evolved, reset the Keep for permanent stacking bonuses plus Siegecoins and Remnants.']
+      ]],
+      ['link', ['/keep', 'Visit the Keep']]
+    ]],
+    ['Chronicles', 'Your knight’s idle adventure', '/img/lands/metal.webp', 'METAL', [
+      ['p', 'Chronicles follows your SiegeKnight between battles: gathering, crafting and venturing out while you are away.'],
+      ['defs', [
+        ['Professions', 'Twenty-one gathering, crafting and support professions, each with a real effect.'],
+        ['Regions & expeditions', 'Send expeditions through tiered regions with hidden routes, twists and Grand Expeditions.'],
+        ['Home base', 'Six buildings and War Room loadouts.'],
+        ['Crowns & guilds', 'Earn Crowns, join a guild, fight weekly Siege Operations and trade on the marketplace.']
+      ]],
+      ['link', ['/chronicles', 'Open Chronicles']]
+    ]],
+    ['Dominion', 'The Keep and Chronicles in one (test mode)', '/img/lands/relic.webp', 'NEUTRAL', [
+      ['p', 'Dominion is a temporary test mode that runs every Keep and Chronicles system as one idle game. It may change or reset while it is being tested.'],
+      ['defs', [
+        ['Base', 'The Keep scene: hall ranks, building interiors, visitors with requests and trust, the Storehouse, Builder’s Yard crews, workshops and Akhar’s Wall.'],
+        ['Knight & companions', 'Your knight works every profession. Tame Siegelings on journeys and level, evolve and rename them.'],
+        ['Expeditions', 'Every Chronicles route as a destination, with provisions and cooked meals that buff the squad.'],
+        ['Wall & sieges', 'Post defenders on Akhar’s Wall, drill them, and hold the siege waves for Crowns and Silver.'],
+        ['Realm', 'Account sync, guilds, Siege Operations and a Crowns market.']
+      ]],
+      ['link', ['/dominion', 'Try Dominion']]
+    ]],
+    ['Glossary', 'Terms used across the game', '/img/lands/psychic.webp', 'PSYCHIC', [
+      ['defs', [
+        ['Siegeling', 'A creature card. It has Health, Speed, notches and abilities, but no printed attack: its damage comes from its abilities.'],
+        ['Strategy / Deception', 'The spell and trap card types.'],
+        ['SiegeKnight', 'Your trainer. It gives a passive and an active or ultimate, and never enters the board.'],
+        ['Notch', 'A coloured dot on a card’s edge. Two adjacent cards whose notches point at each other form a link.'],
+        ['Link', 'A pair of reciprocal notches. Links generate elemental energy.'],
+        ['Socket', 'A board-edge anchor that a card on the outside of your 3x3 can link into instead of a neighbour.'],
+        ['Energy', 'Elemental pools filled by links and sockets that pay for Strategies, Deceptions and abilities.'],
+        ['Claim', 'Retire a surviving Siegeling during Setup for temporary energy.'],
+        ['Speed order', 'Siegelings act in Battle from fastest to slowest.'],
+        ['Bounty', 'Damage dealt to a player when one of their Siegelings is defeated, set by its rarity.'],
+        ['Evolution', 'A card placed onto its living precursor. It ignores the board cap and the one-placement limit.'],
+        ['Siegecoins', 'The main currency: packs, decks, daily shop cards and Keep market lots.'],
+        ['Remnants', 'Earned from duplicates past the 3-copy cap, wins and pack openings. Spent on crafting cards and upgrading finishes.'],
+        ['Crowns', 'The Chronicles and Dominion currency.'],
+        ['Finish', 'A card’s look: Standard, Holo, SP, HSP, GOLD or GSP. See Card finishes.'],
+        ['Veteran', 'A Siegeling banked from a won Siege run, used again in Endless and Battlegrounds.']
+      ]]
     ]]
   ];
 
@@ -9666,6 +9842,7 @@
     if (Array.isArray(model.holoArtCards)) setPlayerHoloArt(model.holoArtCards);
     if (Array.isArray(model.goldCards)) setPlayerGold(model.goldCards);
     if (Array.isArray(model.holoGoldCards)) setPlayerHoloGold(model.holoGoldCards);
+    if (Array.isArray(model.holoCards)) setPlayerHoloPlain(model.holoCards);
     if (model.cards && model.cards.length) {
       ALL_CARDS = model.cards.slice();
     }

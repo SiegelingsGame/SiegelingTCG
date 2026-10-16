@@ -70,9 +70,9 @@ class GameControllerTest {
         assertEquals("SP", invoke(controller, "finishFor", sig, new Object[] { guest, draco }),
                 "The same card shows each owner's own finish.");
         assertEquals("", invoke(controller, "finishFor", sig, new Object[] { ai, draco }));
-        assertEquals("HOLO", invoke(controller, "finishFor", sig, new Object[] { host, foil }),
-                "A card that ships foil is at least HOLO, even where its owner bought SP.");
-        assertEquals("HOLO", invoke(controller, "finishFor", sig, new Object[] { ai, foil }));
+        assertEquals("HSP", invoke(controller, "finishFor", sig, new Object[] { host, foil }),
+                "A card that ships foil is at least HSP, even where its owner bought SP.");
+        assertEquals("HSP", invoke(controller, "finishFor", sig, new Object[] { ai, foil }));
         invoke(controller, "finishFor", sig, new Object[] { host, draco });
         assertEquals(List.of("host", "guest", ""), reads.stream().map(id -> id == null ? "" : id).toList(),
                 "Each player's finishes are read once per match, not on every state poll.");

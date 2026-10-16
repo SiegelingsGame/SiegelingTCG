@@ -471,3 +471,31 @@
 .is-holo-gold-finish .notch-dot {
     z-index: 13;
 }
+
+/* ---------- HOLO finish ----------
+   The first finish: the standard art under a plain holographic sheen - a soft
+   pastel wash and one slow light band, much quieter than HSP's full foil. */
+.is-holo-plain {
+    position: relative;
+}
+.card-holo-plain-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 12;
+    pointer-events: none;
+    border-radius: inherit;
+    overflow: hidden;
+    mix-blend-mode: screen;
+    background:
+        linear-gradient(120deg, rgba(255, 170, 230, .14), rgba(150, 230, 255, .16) 50%, rgba(200, 255, 210, .12));
+}
+.card-holo-plain-overlay::after {
+    content: "";
+    position: absolute;
+    inset: -40%;
+    background: linear-gradient(110deg, transparent 40%, rgba(255, 255, 255, .22) 50%, transparent 60%);
+    animation: card-holographic-sheen 5.5s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .card-holo-plain-overlay::after { animation: none; }
+}

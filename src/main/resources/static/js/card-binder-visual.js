@@ -308,12 +308,37 @@
         return false;
     }
 
+    // HOLO, the first finish: a plain holographic sheen over the standard art.
+    function isHoloPlain(card, options = {}) {
+        if (card?.holoPlainFinish === true) {
+            return true;
+        }
+        const ids = options.playerHoloPlainIds;
+        const cardId = String(card?.id || '').trim().toLowerCase();
+        if (!cardId || !ids) {
+            return false;
+        }
+        if (ids instanceof Set) {
+            return ids.has(cardId);
+        }
+        if (Array.isArray(ids)) {
+            return ids.some((entry) => String(entry || '').trim().toLowerCase() === cardId);
+        }
+        return false;
+    }
+
     function holographicClass(card, options = {}) {
         if (isHoloGold(card, options)) {
             return ' is-holographic is-holo-gold-finish';
         }
-        return (isHolographic(card, options) || isGold(card, options) ? ' is-holographic' : '')
-            + (isGold(card, options) ? ' is-gold-finish' : '');
+        if (isHolographic(card, options) || isGold(card, options)) {
+            return ' is-holographic' + (isGold(card, options) ? ' is-gold-finish' : '');
+        }
+        return isHoloPlain(card, options) ? ' is-holo-plain' : '';
+    }
+
+    function renderHoloPlainOverlay() {
+        return '<div class="card-holo-plain-overlay" aria-hidden="true"></div>';
     }
 
     function renderHoloGoldFinish() {
@@ -333,7 +358,10 @@
         if (isGold(card, options)) {
             return renderGoldFinish();
         }
-        return isHolographic(card, options) ? renderHolographicOverlay() : '';
+        if (isHolographic(card, options)) {
+            return renderHolographicOverlay();
+        }
+        return isHoloPlain(card, options) ? renderHoloPlainOverlay() : '';
     }
 
     function renderHolographicOverlay() {
@@ -878,6 +906,8 @@
         hasHoloArtTier,
         isGold,
         isHoloGold,
+        isHoloPlain,
+        renderHoloPlainOverlay,
         renderGoldFinish,
         renderHoloGoldFinish,
         renderFinishOverlay,

@@ -168,16 +168,9 @@ public class PlayerProgressionController {
                                                            @RequestBody Map<String, Object> req) {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
-            // ART buys the holo art without the shimmer; anything else (or no tier, as
-            // older clients send) is the full Flair finish.
-            String requested = string(req, "tier");
-            PlayerProgressionService.HoloTier tier = "ART".equalsIgnoreCase(requested)
-                    ? PlayerProgressionService.HoloTier.ART
-                    : "GOLD".equalsIgnoreCase(requested)
-                            ? PlayerProgressionService.HoloTier.GOLD
-                            : "HOLO_GOLD".equalsIgnoreCase(requested)
-                                    ? PlayerProgressionService.HoloTier.HOLO_GOLD
-                                    : PlayerProgressionService.HoloTier.FLAIR;
+            // Tier names: HOLO, SP, HSP, GOLD, GSP (older clients' ART / FLAIR /
+            // HOLO_GOLD still map); no tier is the classic HSP finish.
+            com.sieglings.model.enums.CardFinish tier = com.sieglings.model.enums.CardFinish.parseTier(string(req, "tier"));
             PlayerProgressionEntity progression = progressionService.purchaseHolographicFinish(user, string(req, "cardId"), tier);
             return buildResponse(user, progression);
         } catch (IllegalArgumentException ex) {

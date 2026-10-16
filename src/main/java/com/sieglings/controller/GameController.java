@@ -1313,8 +1313,8 @@ public class GameController {
     }
 
     /**
-     * The finish a card shows in play: its owner's tier for it (SP / HOLO / GOLD / HOLOGOLD),
-     * at least HOLO for a card that ships foil, else "" (standard). Stamped on
+     * The finish a card shows in play: its owner's tier for it (a CardFinish name:
+     * HOLO / SP / HSP / GOLD / GSP), at least HSP for a card that ships foil, else "" (standard). Stamped on
      * every card the battle table receives so the client never guesses the owner
      * from its own account - an opponent's cards show the opponent's finishes.
      */
@@ -1331,10 +1331,10 @@ public class GameController {
         }
         String tier = finishes == null ? null : finishes.get(card.getId().toLowerCase(java.util.Locale.ROOT));
         if (tier == null || tier.isBlank()) {
-            return card.isHolographic() ? "HOLO" : "";
+            return card.isHolographic() ? "HSP" : "";
         }
-        if ("SP".equals(tier) && card.isHolographic()) {
-            return "HOLO";
+        if (card.isHolographic() && ("HOLO".equals(tier) || "SP".equals(tier))) {
+            return "HSP";
         }
         return tier;
     }

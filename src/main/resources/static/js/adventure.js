@@ -6166,7 +6166,7 @@
 
   /* ---------- sprite finishes ----------
      A Siegeling's battle cutout can wear a finish the account has earned for
-     that card in the Collection: Shiny (from HOLO SP) is a rainbow sheen over
+     that card in the Collection: Shiny (from HSP) is a rainbow sheen over
      the figure, Gold (from GOLD) casts it in gold, and Gold Aura (from GOLD)
      keeps its colours inside a pulsing gold glow. The pick is a look only - the
      server never sees it - so it lives in this browser, per card. Ownership
@@ -6174,11 +6174,11 @@
   var SPRITE_FINISH_KEY = 'siegeSpriteFinish';
   var SPRITE_FINISHES = [
     { key: 'NONE', label: 'Normal', needs: null },
-    { key: 'SHINY', label: 'Shiny', needs: 'HOLO' },
+    { key: 'SHINY', label: 'Shiny', needs: 'HSP' },
     { key: 'GOLD', label: 'Gold', needs: 'GOLD' },
     { key: 'AURA', label: 'Gold Aura', needs: 'GOLD' }
   ];
-  var ownedFinishTiers = {}; // lower-cased card id -> 'SP' | 'HOLO' | 'GOLD' | 'HOLOGOLD'
+  var ownedFinishTiers = {}; // lower-cased card id -> 'HOLO' | 'SP' | 'HSP' | 'GOLD' | 'GSP'
 
   function loadOwnedFinishes() {
     fetch('/api/player/progression', { credentials: 'same-origin', headers: authHeaders() })
@@ -6190,10 +6190,11 @@
         function mark(ids, tier) {
           (ids || []).forEach(function (id) { if (id) tiers[String(id).toLowerCase()] = tier; });
         }
+        mark(p.holoCards, 'HOLO');
         mark(p.holoArtCards, 'SP');
-        mark(p.holographicCards, 'HOLO');
+        mark(p.holographicCards, 'HSP');
         mark(p.goldCards, 'GOLD');
-        mark(p.holoGoldCards, 'HOLOGOLD');
+        mark(p.holoGoldCards, 'GSP');
         ownedFinishTiers = tiers;
         if (state.run && state.run.battle && document.body.dataset.screen === 'battleScreen') renderBattle();
       })
@@ -6203,9 +6204,9 @@
   function finishUnlocked(cardId, finish) {
     if (!finish.needs) return true;
     var tier = ownedFinishTiers[String(cardId || '').toLowerCase()];
-    // Each tier includes the ones below it: HOLO GOLD > GOLD > HOLO SP.
-    return finish.needs === 'HOLO' ? (tier === 'HOLO' || tier === 'GOLD' || tier === 'HOLOGOLD')
-      : (tier === 'GOLD' || tier === 'HOLOGOLD');
+    // Each tier includes the ones below it: GSP > GOLD > HSP.
+    return finish.needs === 'HSP' ? (tier === 'HSP' || tier === 'GOLD' || tier === 'GSP')
+      : (tier === 'GOLD' || tier === 'GSP');
   }
 
   function readFinishPrefs() {
@@ -6234,11 +6235,11 @@
         var open = finishUnlocked(cardId, f);
         return '<button type="button" class="um-finish fx-chip-' + f.key.toLowerCase() + (f.key === current ? ' on' : '') +
           (open ? '' : ' is-locked') + '" data-finish="' + f.key + '"' + (open ? '' : ' disabled') +
-          ' title="' + esc(open ? f.label : f.label + ' unlocks with ' + (f.needs === 'HOLO' ? 'HOLO SP' : 'GOLD') + ' in your Collection') + '">' +
+          ' title="' + esc(open ? f.label : f.label + ' unlocks with ' + (f.needs === 'HSP' ? 'HSP' : 'GOLD') + ' in your Collection') + '">' +
           (open ? '' : '🔒 ') + esc(f.label) + '</button>';
       }).join('') + '</div>' +
       (SPRITE_FINISHES.some(function (f) { return !finishUnlocked(cardId, f); })
-        ? '<div class="um-finish-note">Shiny unlocks with HOLO SP, Gold and Gold Aura with GOLD, both in your Collection.</div>' : '');
+        ? '<div class="um-finish-note">Shiny unlocks with HSP, Gold and Gold Aura with GOLD (or GSP), all in your Collection.</div>' : '');
   }
 
   function showBattleUnitDetails(u) {
