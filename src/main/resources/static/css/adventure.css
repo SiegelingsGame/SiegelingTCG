@@ -3525,3 +3525,17 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
 .um-finish.fx-chip-gold.on, .um-finish.fx-chip-gsp.on{border-color:#ffd66b; background:linear-gradient(115deg, rgba(150,96,10,.65), rgba(255,206,84,.5) 50%, rgba(150,96,10,.65)); box-shadow:0 0 10px rgba(255,200,60,.4);}
 .um-finish.is-locked{opacity:.5; cursor:default;}
 .um-finish-note{margin-top:6px; font-size:11px; opacity:.65;}
+
+/* Skin name colours: the plate name and the sheet's name and move names take
+   the skin's finish colour, as finished cards do in the Collection. */
+:is(.finish-text-holo, .finish-text-hsp, .finish-text-gold, .finish-text-gsp) :is(.sp-name, .um-name, .um-card-name) {
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+  text-shadow:none; filter:drop-shadow(0 0 1px rgba(8,5,2,.95)); background-size:220% 100%;
+  animation:finish-name-shift 5s linear infinite;
+}
+.finish-text-holo :is(.sp-name, .um-name, .um-card-name) { background-image:linear-gradient(100deg,#ffb0ea,#a6e4ff 35%,#b5ffcc 65%,#ffb0ea); }
+.finish-text-hsp :is(.sp-name, .um-name, .um-card-name) { background-image:linear-gradient(100deg,#ff7ad9,#7ae8ff 25%,#fff38a 50%,#8affc1 75%,#ff7ad9); }
+.finish-text-gold :is(.sp-name, .um-name, .um-card-name) { background-image:linear-gradient(100deg,#b98222,#ffe9a3 30%,#f2c75a 50%,#fff4c8 65%,#b98222); }
+.finish-text-gsp :is(.sp-name, .um-name, .um-card-name) { background-image:linear-gradient(100deg,#ffd66b,#fffbe6 30%,#ffe08a 50%,#fffbe6 70%,#ffd66b); }
+@keyframes finish-name-shift { from { background-position:0 0; } to { background-position:-220% 0; } }
+@media (prefers-reduced-motion:reduce) { :is(.sp-name, .um-name, .um-card-name) { animation:none; } }

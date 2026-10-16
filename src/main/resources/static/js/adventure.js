@@ -968,6 +968,7 @@
         chip.classList.toggle('on', chip === btn);
       });
       var head = $('unitModalBody').querySelector('.um-art');
+      $('unitModalBody').className = key !== 'NONE' && key !== 'SP' ? 'finish-text-' + key.toLowerCase() : '';
       if (head) {
         head.classList.remove('fx-holo', 'fx-sp', 'fx-hsp', 'fx-gold', 'fx-gsp');
         if (key !== 'NONE') head.classList.add('fx-' + key.toLowerCase());
@@ -2505,6 +2506,7 @@
       ? '<div class="um-xp-bar ' + elClass(u.element) + '"><div class="um-xp-fill" style="width:' + u.xpBar.pct + '%"></div></div>' +
         '<div class="um-xp-text">' + esc(u.xpBar.text) + '</div>'
       : '';
+    body.className = headFinish !== 'NONE' && headFinish !== 'SP' ? 'finish-text-' + headFinish.toLowerCase() : '';
     body.innerHTML =
       '<div class="um-head ' + elClass(u.element) + '">' + art +
       '<div><div class="um-name">' + icon(u.element) + ' ' + esc(u.name) + '</div>' +
@@ -4507,6 +4509,9 @@
         (isMerc ? ' merc' : '') +
         (isThreatened ? ' threatened' : ''));
       sp.dataset.id = u.id; sp.dataset.side = u.side;
+      // A skin also colours the name, matching the card's finish name colours.
+      var skin = side === 'ally' && u.artUrl ? spriteFinishFor(u.displayCardId) : 'NONE';
+      if (skin !== 'NONE' && skin !== 'SP') sp.classList.add('finish-text-' + skin.toLowerCase());
       sp.style.setProperty('--idle-delay', (idx * 0.45) + 's');
       // Physical size is the card's authored band (SiegeService#sizeBandOf), the same
       // field keep.js sizes residents by — adventure.css maps it to --sprite-scale.
