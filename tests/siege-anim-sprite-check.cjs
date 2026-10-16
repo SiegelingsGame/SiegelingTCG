@@ -164,19 +164,39 @@ function pose(id) {
 
     const seen = await page.evaluate(() => new Promise(resolve => {
       const log = { a1: new Set(), a2: new Set() };
+      // Frame indices shown per pose: a pose that only swaps its image but
+      // never steps (it inherited idle's finished clock) shows one frame.
+      const frames = {};
       const t0 = performance.now();
       const step = () => {
         for (const id of ['a1', 'a2']) {
           const a = document.querySelector('.sprite[data-id="' + id + '"] .sp-anim-strip');
-          if (a) { const m = /-(\w+)\.webp/.exec(getComputedStyle(a).backgroundImage); if (m) log[id].add(m[1]); }
+          if (!a) continue;
+          const cs = getComputedStyle(a);
+          const m = /-(\w+)\.webp/.exec(cs.backgroundImage);
+          if (!m) continue;
+          log[id].add(m[1]);
+          const cell = a.parentNode.getBoundingClientRect().width;
+          const mt = new DOMMatrix(cs.transform === 'none' ? undefined : cs.transform);
+          const key = id + ':' + m[1];
+          (frames[key] = frames[key] || new Set()).add(Math.round(-mt.m41 / cell));
         }
         if (performance.now() - t0 < 6000) requestAnimationFrame(step);
-        else resolve({ a1: [...log.a1], a2: [...log.a2] });
+        else {
+          const out = {};
+          for (const k in frames) out[k] = [...frames[k]].sort((x, y) => x - y);
+          resolve({ a1: [...log.a1], a2: [...log.a2], frames: out });
+        }
       };
       requestAnimationFrame(step);
       document.getElementById('endTurnBtn').click();
     }));
     check(seen.a1.includes('attack'), `attacker plays attack (${seen.a1})`);
+    const atk = seen.frames['a1:attack'] || [], hurt = seen.frames['a2:hurt'] || [];
+    const faint = seen.frames['a2:fainted'] || [];
+    check(atk.length >= 3 && atk[0] === 0, `attack steps through its frames from the first (${atk})`);
+    check(hurt.length >= 2 && hurt[0] === 0, `hurt steps through its frames from the first (${hurt})`);
+    check(faint[0] === 0 && faint.length === pass.frames.fainted, `faint plays every frame (${faint})`);
     check(seen.a2.includes('hurt') && seen.a2.includes('fainted'), `KO'd ally plays hurt then fainted (${seen.a2})`);
     p = await page.evaluate(pose, 'a2');
     check(p.img === 'fainted' && p.frame === pass.frames.fainted - 1,
