@@ -675,3 +675,44 @@ body[data-screen="over"] #screenOver { display: block; }
 
 /* style.css zeroes every margin; the page's own copy needs its breathing room back. */
 .gt-main p.gt-muted { margin: 0 0 10px; }
+
+/* The card tray: every move in full and the upgrades applied so far. */
+.gt-tray-section { margin-top: 16px; }
+.gt-tray-section h3 {
+  margin: 0 0 8px;
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gt-count { font-family: var(--sans); font-size: 12px; font-weight: 700; color: var(--muted); }
+.gt-move-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.gt-move {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--el, var(--neutral));
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 9px 11px;
+}
+.gt-move.is-forged { border-color: rgba(230, 205, 140, 0.45); border-left-color: var(--gold); background: linear-gradient(90deg, rgba(230, 205, 140, 0.10), var(--panel) 60%); }
+.gt-move-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 14px; }
+.gt-move p { margin: 4px 0 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.gt-cost.is-free { opacity: 0.7; }
+.gt-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+}
+.gt-tag.is-forged { color: var(--gold); border-color: rgba(230, 205, 140, 0.55); }
+.gt-applied { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; line-height: 1.4; color: var(--ink); }
+.gt-tray-actions { margin-top: 16px; }
+.gt-tray-actions .gt-btn { width: 100%; }
+button.gt-mini { padding: 0; cursor: pointer; color: inherit; font: inherit; }

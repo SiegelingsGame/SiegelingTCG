@@ -12,6 +12,7 @@
 
   var ICON_WEBP = { FIRE: 1, EARTH: 1, ICE: 1, WIND: 1 };
   var TYPE_LABEL = { SIEGLING: 'Siegeling', SPELL: 'Strategy', TRAP: 'Deception' };
+  var SELECT_TO_VIEW = 'Select to view moves';
   var KIND_LABEL = { WILD: 'Wild fight', PACK: 'Pack fight', ELITE: 'Elite', KNIGHT: 'SiegeKnight boss' };
 
   var state = {
@@ -20,7 +21,9 @@
     deckId: null,
     knightId: null,
     tab: 'deck',
-    busy: false
+    busy: false,
+    // Cards drawn in the encounter preview, indexed by data-enemy-view.
+    enemyCards: []
   };
 
   // ---- plumbing -----------------------------------------------------
@@ -155,15 +158,23 @@
    * (card-binder-visual.js over game.js): frame, notches, art placement, printed moves.
    * The server sends each card in the Battle Table's own JSON, forged upgrades included.
    */
-  function realFace(card) {
+  function realFace(card, inTray) {
     var v = window.SieglingsCardBinderVisual;
     if (!v || !v.renderBinderCardTile || !card) return '';
-    var showcase = window.SieglingsCardShowcase;
-    var text = showcase && showcase.resolveCardDescriptionText
-      ? showcase.resolveCardDescriptionText(card, card.description)
-      : (card.description || '');
+    var options;
+    if (String(card.type || '').toUpperCase() === 'SIEGLING' && !inTray) {
+      // A Siegeling's moves are what the Gauntlet forges, and they do not fit the face's
+      // panel legibly; the panel points at the tray that lists them in full.
+      options = { summaryMode: 'description', descriptionText: SELECT_TO_VIEW };
+    } else {
+      var showcase = window.SieglingsCardShowcase;
+      var text = showcase && showcase.resolveCardDescriptionText
+        ? showcase.resolveCardDescriptionText(card, card.description)
+        : (card.description || '');
+      options = { descriptionText: text || '' };
+    }
     try {
-      return v.renderBinderCardTile(card, { descriptionText: text || '' }) || '';
+      return v.renderBinderCardTile(card, options) || '';
     } catch (e) {
       return '';
     }
@@ -217,12 +228,15 @@
       + '</div></' + tag + '>';
   }
 
+  /** A small enemy card; selecting it opens the same tray, view only. */
   function miniHtml(card) {
+    state.enemyCards.push(card);
+    var key = ' data-enemy-view="' + (state.enemyCards.length - 1) + '" aria-label="' + esc(card.name) + '"';
     var face = realFace(card);
     if (face) {
-      return '<div class="gt-mini gt-mini-real" data-el="' + esc(card.element) + '" title="' + esc(card.name) + '"><div class="gt-face">' + face + '</div></div>';
+      return '<button type="button" class="gt-mini gt-mini-real" data-el="' + esc(card.element) + '" title="' + esc(card.name) + '"' + key + '><div class="gt-face">' + face + '</div></button>';
     }
-    return '<div class="gt-mini" data-el="' + esc(card.element) + '"><div class="gt-card-art">' + artHtml(card) + '</div><span>' + esc(card.name) + '</span></div>';
+    return '<button type="button" class="gt-mini" data-el="' + esc(card.element) + '"' + key + '><div class="gt-card-art">' + artHtml(card) + '</div><span>' + esc(card.name) + '</span></button>';
   }
 
   /**
@@ -394,6 +408,7 @@
     }).join('');
 
     var enc = run.nextEncounter || {};
+    state.enemyCards = [];
     var box = $('gtEncounter');
     box.setAttribute('data-el', enc.element || 'NEUTRAL');
     var knight = enc.knight
@@ -412,8 +427,8 @@
     $('gtFightBtn').textContent = (enc.kind === 'KNIGHT' ? 'Challenge ' : 'Fight ') + (enc.name || ('floor ' + run.floor));
 
     renderTabs();
-    $('gtDeckNote').textContent = run.deck.length + ' cards. Tap a card to forge it'
-      + (run.freeForges ? ' (' + run.freeForges + ' free).' : ' (gold cost shown on the card).');
+    $('gtDeckNote').textContent = run.deck.length + ' cards. Select a card to view its moves and upgrades, and to forge it'
+      + (run.freeForges ? ' (' + run.freeForges + ' free forge' + (run.freeForges === 1 ? '' : 's') + ').' : '.');
     $('gtDeck').innerHTML = run.deck.map(function (card) {
       return cardHtml(card, { attrs: 'data-uid="' + esc(card.uid) + '"' });
     }).join('');
@@ -441,7 +456,7 @@
         return cardHtml(item.card, {
           price: item.sold ? 'Sold' : item.price,
           cls: item.sold ? 'is-sold' : '',
-          attrs: 'data-buy="' + esc(item.id) + '"' + (afford ? '' : ' data-cant="1"')
+          attrs: 'data-shop-view="' + esc(item.id) + '"'
         });
       }
       var title = item.kind === 'LIFE' ? 'Mend a life' : 'Remove a card';
@@ -483,7 +498,7 @@
       + '<span class="gt-stat">+' + esc(last.xp) + ' XP</span>'
       + (last.note ? '<span class="gt-stat gt-forge">' + esc(last.note) + '</span>' : '') + '</div>';
     $('gtRewardCards').innerHTML = (run.rewardOptions || []).map(function (card) {
-      return cardHtml(card, { attrs: 'data-reward="' + esc(card.id) + '"' });
+      return cardHtml(card, { attrs: 'data-reward-view="' + esc(card.id) + '"' });
     }).join('');
     $('gtSkipBtn').textContent = 'Skip (+' + (run.rewardSkipGold || 0) + ' gold)';
   }
@@ -523,23 +538,65 @@
     $('gtSheetContent').innerHTML = '';
   }
 
+  /**
+   * The card tray: the real card, every move in full (forged numbers and added effects
+   * included, since the server sends the forged copy), and the upgrades applied so far.
+   */
   function sheetHead(card) {
     var type = TYPE_LABEL[card.type] || card.type;
     var stats = card.type === 'SIEGLING'
       ? '<span>HP <b>' + esc(card.health) + '</b></span><span>SPD <b>' + esc(card.speed) + '</b></span>'
       : (card.costAmount != null ? '<span>Cost <b>' + esc(card.costAmount) + '</b></span>' : '');
-    var lines = card.moves && card.moves.length
-      ? card.moves.map(abilityLine).join('')
-      : (card.ability ? abilityLine({ name: 'Effect', description: card.ability.description, energy: 0 }) : '');
-    var face = realFace(card);
+    // Inside the tray the face prints its own moves summary; the full list follows below.
+    var face = realFace(card, true);
     var picture = face ? '<div class="gt-sheet-face"><div class="gt-face">' + face + '</div></div>' : '<div class="gt-card-art">' + artHtml(card) + '</div>';
-    return '<div class="gt-sheet-head' + (face ? ' has-real-face' : '') + '" data-el="' + esc(card.element) + '">' + picture
-      + '<div><h2>' + esc(card.name) + '</h2><div class="gt-card-meta">' + chip(card.element)
+    var head = '<div class="gt-sheet-head' + (face ? ' has-real-face' : '') + '" data-el="' + esc(card.element) + '">' + picture
+      + '<div><h2 id="gtSheetTitle">' + esc(card.name) + '</h2><div class="gt-card-meta">' + chip(card.element)
       + '<span>' + esc(type) + '</span>' + (card.level ? '<span>Level <b>' + esc(card.level) + '</b> / ' + esc(card.maxLevel) + '</span>' : '') + stats + '</div>'
       + (card.evolvesFromName ? '<p class="gt-muted" style="margin:6px 0 0">Evolves from ' + esc(card.evolvesFromName) + '.</p>' : '')
-      + '</div></div>'
-      + (lines ? '<ul class="gt-moves" style="margin-top:12px" data-el="' + esc(card.element) + '">' + lines + '</ul>' : '')
-      + (card.upgrades && card.upgrades.length ? '<div class="gt-upgrades" style="margin-top:10px">' + card.upgrades.map(function (u) { return '<span>' + esc(u) + '</span>'; }).join('') + '</div>' : '');
+      + '</div></div>';
+    return head + movesSection(card) + upgradesSection(card);
+  }
+
+  function movesSection(card) {
+    var upgrades = card.upgrades || [];
+    var rows;
+    if (card.moves && card.moves.length) {
+      rows = card.moves.map(function (move) {
+        // Upgrade labels name the move they changed ("Sundile Strike: +2 damage").
+        var forged = upgrades.some(function (label) { return String(label).indexOf(move.name + ':') === 0; });
+        return moveRow(move, forged);
+      }).join('');
+    } else if (card.ability) {
+      var forgedEffect = card.type !== 'SIEGLING' && upgrades.length > 0;
+      rows = moveRow({ name: TYPE_LABEL[card.type] === 'Deception' ? 'When sprung' : 'Effect', description: card.ability.description, energyCost: 0 }, forgedEffect);
+    } else {
+      rows = '<li class="gt-muted">No moves printed.</li>';
+    }
+    var title = card.type === 'SIEGLING' ? 'Moves' : 'Effect';
+    return '<section class="gt-tray-section"><h3>' + title + '</h3><ul class="gt-move-list" data-el="' + esc(card.element) + '">' + rows + '</ul></section>';
+  }
+
+  function moveRow(move, forged) {
+    var energy = move.energy != null ? move.energy : move.energyCost;
+    var passive = move.passive || move.isPassive;
+    return '<li class="gt-move' + (forged ? ' is-forged' : '') + '">'
+      + '<div class="gt-move-head"><b>' + esc(move.name) + '</b>'
+      + (energy > 0 ? '<span class="gt-cost" title="Energy cost">' + esc(energy) + '</span>' : (passive ? '' : '<span class="gt-cost is-free" title="Energy cost">0</span>'))
+      + (passive ? '<span class="gt-tag">Passive</span>' : '')
+      + (forged ? '<span class="gt-tag is-forged">Forged</span>' : '')
+      + '</div>'
+      + '<p>' + esc(move.description || '') + '</p></li>';
+  }
+
+  /** Only the run's own cards have upgrades; offered and enemy cards print as they are. */
+  function upgradesSection(card) {
+    if (!card.uid) return '';
+    var upgrades = card.upgrades || [];
+    var body = upgrades.length
+      ? '<ol class="gt-applied">' + upgrades.map(function (u) { return '<li>' + esc(u) + '</li>'; }).join('') + '</ol>'
+      : '<p class="gt-muted">No upgrades yet.</p>';
+    return '<section class="gt-tray-section"><h3>Upgrades applied <span class="gt-count">' + upgrades.length + ' / ' + esc((card.maxLevel || 6) - 1) + '</span></h3>' + body + '</section>';
   }
 
   function showForge(uid) {
@@ -580,8 +637,24 @@
     }
   }
 
-  function showCard(card) {
-    openSheet(sheetHead(card));
+  function showCard(card, action) {
+    openSheet(sheetHead(card) + (action ? '<div class="gt-tray-actions">' + action + '</div>' : ''));
+  }
+
+  function showReward(cardId) {
+    var card = ((state.run && state.run.rewardOptions) || []).filter(function (c) { return c.id === cardId; })[0];
+    if (!card) return;
+    showCard(card, '<button type="button" class="gt-btn gt-btn-primary" data-reward="' + esc(card.id) + '">Take ' + esc(card.name) + '</button>');
+  }
+
+  function showShopItem(itemId) {
+    var run = state.run;
+    var item = ((run && run.shop) || []).filter(function (i) { return i.id === itemId; })[0];
+    if (!item || !item.card) return;
+    var afford = run.gold >= item.price;
+    var label = item.sold ? 'Already bought' : (afford ? 'Buy for ' + item.price + ' gold' : 'Need ' + item.price + ' gold (you have ' + run.gold + ')');
+    showCard(item.card, '<button type="button" class="gt-btn' + (item.sold || !afford ? '' : ' gt-btn-primary') + '" data-buy="' + esc(item.id) + '"'
+      + (item.sold || !afford ? ' disabled' : '') + '>' + esc(label) + '</button>');
   }
 
   function showRemovePicker(itemId) {
@@ -610,7 +683,7 @@
       img.src = fallback;
     }, true);
     document.addEventListener('click', function (event) {
-      var t = event.target.closest ? event.target.closest('[data-deck],[data-knight],[data-uid],[data-buy],[data-reward],[data-perk],[data-offer],[data-apply],[data-remove],[data-close],[data-tab]') : null;
+      var t = event.target.closest ? event.target.closest('[data-deck],[data-knight],[data-uid],[data-buy],[data-reward],[data-reward-view],[data-shop-view],[data-enemy-view],[data-perk],[data-offer],[data-apply],[data-remove],[data-close],[data-tab]') : null;
       if (!t) return;
       if (t.hasAttribute('data-close')) { closeSheet(); return; }
       if (t.hasAttribute('data-tab')) {
@@ -654,14 +727,22 @@
         });
         return;
       }
+      if (t.hasAttribute('data-reward-view')) { showReward(t.getAttribute('data-reward-view')); return; }
+      if (t.hasAttribute('data-shop-view')) { showShopItem(t.getAttribute('data-shop-view')); return; }
+      if (t.hasAttribute('data-enemy-view')) {
+        var foe = state.enemyCards[Number(t.getAttribute('data-enemy-view'))];
+        if (foe) showCard(foe);
+        return;
+      }
       if (t.hasAttribute('data-buy')) {
         if (t.getAttribute('data-kind') === 'REMOVE') { showRemovePicker(t.getAttribute('data-buy')); return; }
-        if (t.hasAttribute('data-cant')) { toast('Not enough gold.'); return; }
-        act('shop/buy', { itemId: t.getAttribute('data-buy') }).then(function (run) { if (run) toast('Bought.', true); });
+        act('shop/buy', { itemId: t.getAttribute('data-buy') }).then(function (run) {
+          if (run) { closeSheet(); toast('Bought.', true); }
+        });
         return;
       }
       if (t.hasAttribute('data-reward')) {
-        act('reward', { cardId: t.getAttribute('data-reward') });
+        act('reward', { cardId: t.getAttribute('data-reward') }).then(function (run) { if (run) closeSheet(); });
         return;
       }
       if (t.hasAttribute('data-perk')) {
