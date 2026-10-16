@@ -170,9 +170,12 @@ public class PlayerProgressionController {
             AccountUser user = accountService.requireUser(authorizationHeader);
             // ART buys the holo art without the shimmer; anything else (or no tier, as
             // older clients send) is the full Flair finish.
-            PlayerProgressionService.HoloTier tier = "ART".equalsIgnoreCase(string(req, "tier"))
+            String requested = string(req, "tier");
+            PlayerProgressionService.HoloTier tier = "ART".equalsIgnoreCase(requested)
                     ? PlayerProgressionService.HoloTier.ART
-                    : PlayerProgressionService.HoloTier.FLAIR;
+                    : "GOLD".equalsIgnoreCase(requested)
+                            ? PlayerProgressionService.HoloTier.GOLD
+                            : PlayerProgressionService.HoloTier.FLAIR;
             PlayerProgressionEntity progression = progressionService.purchaseHolographicFinish(user, string(req, "cardId"), tier);
             return buildResponse(user, progression);
         } catch (IllegalArgumentException ex) {

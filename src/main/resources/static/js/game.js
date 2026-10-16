@@ -4242,6 +4242,24 @@ function playerHoloArtCardIds() {
     return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
 }
 
+function playerGoldCardIds() {
+    const raw = authState.profile?.progression?.goldCards;
+    if (!Array.isArray(raw)) {
+        return new Set();
+    }
+    return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
+}
+
+// GOLD, the top finish: a gold frame and shine instead of the rainbow foil.
+function cardShowsPlayerGold(card) {
+    // The binder hands a copy flagged goldFinish to the shared showcase renderer.
+    if (card?.goldFinish === true) {
+        return true;
+    }
+    const cardId = String(card?.id || card?.cardId || card?.definitionId || '').trim().toLowerCase();
+    return Boolean(cardId && playerGoldCardIds().has(cardId));
+}
+
 // True for both holo tiers (Holo Art and Holo Flair): decides the artwork.
 // The foil class and overlay stay on cardShowsPlayerHolographic (Flair only).
 function cardShowsPlayerHoloArt(card) {
@@ -4264,10 +4282,14 @@ function cardShowsPlayerHolographic(card) {
 }
 
 function holographicCardClass(card) {
-    return cardShowsPlayerHolographic(card) ? ' is-holographic' : '';
+    const gold = cardShowsPlayerGold(card);
+    return (cardShowsPlayerHolographic(card) || gold ? ' is-holographic' : '') + (gold ? ' is-gold-finish' : '');
 }
 
 function holographicCardOverlay(card) {
+    if (cardShowsPlayerGold(card)) {
+        return '<div class="card-gold-finish" aria-hidden="true"><i class="card-gold-frame"></i><i class="card-gold-sheen"></i></div>';
+    }
     return cardShowsPlayerHolographic(card) ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
 }
 
@@ -4275,7 +4297,8 @@ function holographicFullArtOptions() {
     return {
         useHolographicFullCardArt: true,
         playerHolographicIds: playerHolographicCardIds(),
-        playerHoloArtIds: playerHoloArtCardIds()
+        playerHoloArtIds: playerHoloArtCardIds(),
+        playerGoldIds: playerGoldCardIds()
     };
 }
 

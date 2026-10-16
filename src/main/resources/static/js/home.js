@@ -7253,6 +7253,8 @@
             playerHolographicIds: playerHolographicCardIds(),
             playerHoloArtIds: new Set((state.progression?.holoArtCards || [])
                 .map((id) => String(id || '').trim().toLowerCase()).filter(Boolean)),
+            playerGoldIds: new Set((state.progression?.goldCards || [])
+                .map((id) => String(id || '').trim().toLowerCase()).filter(Boolean)),
             useHolographicFullCardArt: true
         };
     }

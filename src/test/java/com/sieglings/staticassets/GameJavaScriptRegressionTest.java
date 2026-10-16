@@ -1282,10 +1282,10 @@ class GameJavaScriptRegressionTest {
                 "The Standard/Holographic toggle must retarget the one art builder onto the holo fields."
         );
         assertTrue(
-                fullCardRenderer.indexOf("renderHolographicOverlay()")
+                fullCardRenderer.indexOf("renderFinishOverlay(card, options)")
                         < fullCardRenderer.indexOf("renderHolographicCardData(card, options)")
-                        && fullCardRenderer.contains("isHolographic(card, options) && !usesHolographicArtwork"),
-                "Custom holographic data must render above its foil, without a second outer foil layer."
+                        && fullCardRenderer.contains("!usesHolographicArtwork ? renderFinishOverlay(card, options)"),
+                "Custom holographic data must render above its finish (foil or gold), without a second outer finish layer."
         );
         // The full-art holo component now lives in the shared holographic.css so
         // both the binder (home.css) and the Battle Table (style.css) import it.

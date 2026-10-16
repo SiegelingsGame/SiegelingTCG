@@ -480,8 +480,12 @@ public class PlayerProgressionService {
         }
     }
 
-    /** Holo tiers above the standard card. ART: holographic art, no shimmer. FLAIR: holo art plus the foil shimmer. */
-    public enum HoloTier { ART, FLAIR }
+    /**
+     * Finish tiers above the standard card. ART (shown as SP): holographic art, no
+     * shimmer. FLAIR (HOLO SP): holo art plus the foil shimmer. GOLD: the top tier,
+     * a gold frame and gold shine over the holo art; it needs HOLO SP first.
+     */
+    public enum HoloTier { ART, FLAIR, GOLD }
 
     public PlayerProgressionEntity purchaseHolographicFinish(AccountUser user, String cardId, HoloTier tier) {
         synchronized (progressionWriteLock(user)) {
@@ -493,6 +497,9 @@ public class PlayerProgressionService {
             String normalizedId = normalizeCardId(cardId);
             if (!ownsHolographicTarget(progression, normalizedId)) {
                 throw new IllegalArgumentException("You must own this card before applying a holographic finish.");
+            }
+            if (target == HoloTier.GOLD) {
+                return applyGoldFinish(progression, normalizedId);
             }
             if (hasHolographicFinish(progression, normalizedId)) {
                 throw new IllegalArgumentException("This card already has a holographic finish.");
@@ -533,6 +540,28 @@ public class PlayerProgressionService {
             progression.setUpdatedAt(Instant.now());
             return store.save(progression);
         }
+    }
+
+    /** Caller holds the progression write lock. */
+    private PlayerProgressionEntity applyGoldFinish(PlayerProgressionEntity progression, String normalizedId) {
+        Card card = findHolographicTarget(normalizedId);
+        if (hasGoldFinish(progression, normalizedId)) {
+            throw new IllegalArgumentException("This card is already GOLD.");
+        }
+        // GOLD sits on top of HOLO SP: a card that ships foil already has it.
+        if (!card.isHolographic() && !hasHolographicFinish(progression, normalizedId)) {
+            throw new IllegalArgumentException("Upgrade " + card.getName() + " to HOLO SP before GOLD.");
+        }
+        int cost = goldCost(card);
+        if (progression.getRemnants() < cost) {
+            throw new IllegalArgumentException("Not enough Remnants for a GOLD finish on " + card.getName() + ".");
+        }
+        progression.setRemnants(progression.getRemnants() - cost);
+        List<String> goldIds = new ArrayList<>(progression.getGoldCardIds());
+        goldIds.add(normalizedId);
+        progression.setGoldCardIds(goldIds);
+        progression.setUpdatedAt(Instant.now());
+        return store.save(progression);
     }
 
     public PlayerProgressionEntity purchaseHolographicFinish(AccountUser user, String cardId) {
@@ -772,6 +801,11 @@ public class PlayerProgressionService {
         out.put("holoArtCards", progression.getHoloArtCardIds().stream()
                 .map(this::normalizeCardId)
                 .filter(id -> id != null && !id.isBlank() && !flairIds.contains(id))
+                .distinct()
+                .toList());
+        out.put("goldCards", progression.getGoldCardIds().stream()
+                .map(this::normalizeCardId)
+                .filter(id -> id != null && !id.isBlank())
                 .distinct()
                 .toList());
         if (playerTitleService != null) {
@@ -1150,6 +1184,21 @@ public class PlayerProgressionService {
             return craftCost(card) * 2;
         }
         return holographicCost(card);
+    }
+
+    /** GOLD is the premium step: twice what HOLO SP costs outright (craft cost x 8). */
+    public int goldCost(Card card) {
+        return craftCost(card) * 8;
+    }
+
+    public boolean hasGoldFinish(PlayerProgressionEntity progression, String cardId) {
+        String normalizedId = normalizeCardId(cardId);
+        if (progression == null || normalizedId == null || progression.getGoldCardIds() == null) {
+            return false;
+        }
+        return progression.getGoldCardIds().stream()
+                .map(this::normalizeCardId)
+                .anyMatch(normalizedId::equals);
     }
 
     public boolean hasHoloArt(PlayerProgressionEntity progression, String cardId) {

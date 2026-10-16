@@ -156,7 +156,7 @@
     // Flair (art plus the foil overlay). Only isHolographic() earns the overlay.
     function showsHolographicArt(card, options = {}) {
         return Boolean(options.useHolographicFullCardArt
-            && (isHolographic(card, options) || hasHoloArtTier(card, options))
+            && (isHolographic(card, options) || hasHoloArtTier(card, options) || isGold(card, options))
             && holographicArtMode(card));
     }
 
@@ -269,8 +269,42 @@
         return false;
     }
 
+    // GOLD, the top finish: holo art in a gold frame with a gold shine in place
+    // of the rainbow foil. The art keeps its colours so notches stay readable.
+    function isGold(card, options = {}) {
+        if (card?.goldFinish === true) {
+            return true;
+        }
+        const ids = options.playerGoldIds;
+        const cardId = String(card?.id || '').trim().toLowerCase();
+        if (!cardId || !ids) {
+            return false;
+        }
+        if (ids instanceof Set) {
+            return ids.has(cardId);
+        }
+        if (Array.isArray(ids)) {
+            return ids.some((entry) => String(entry || '').trim().toLowerCase() === cardId);
+        }
+        return false;
+    }
+
     function holographicClass(card, options = {}) {
-        return isHolographic(card, options) ? ' is-holographic' : '';
+        return (isHolographic(card, options) || isGold(card, options) ? ' is-holographic' : '')
+            + (isGold(card, options) ? ' is-gold-finish' : '');
+    }
+
+    function renderGoldFinish() {
+        return '<div class="card-gold-finish" aria-hidden="true"><i class="card-gold-frame"></i><i class="card-gold-sheen"></i></div>';
+    }
+
+    // The finish layer over a card: the gold frame and shine for GOLD, else the
+    // rainbow foil for HOLO SP, else nothing.
+    function renderFinishOverlay(card, options = {}) {
+        if (isGold(card, options)) {
+            return renderGoldFinish();
+        }
+        return isHolographic(card, options) ? renderHolographicOverlay() : '';
     }
 
     function renderHolographicOverlay() {
@@ -356,14 +390,14 @@
         const content = usesHolographicArtwork
             ? `<div class="holographic-card-art-canvas">
                 <img class="binder-full-card-art-image" src="${escapeAttr(artUrl)}" alt="" loading="${imageLoading}" decoding="async">
-                ${isHolographic(card, options) ? renderHolographicOverlay() : ''}
+                ${renderFinishOverlay(card, options)}
                 ${renderHolographicCardData(card, options)}
                 ${renderHolographicNotches(card?.notches)}
             </div>`
             : `<img class="binder-full-card-art-image" src="${escapeAttr(artUrl)}" alt="" loading="${imageLoading}" decoding="async">`;
         return `<div class="binder-full-card-art${extraClass}${holographicClassName}${holographicClass(card, options)}" role="img" aria-label="${escapeAttr(card?.name || 'Full art card')}">
             ${content}
-            ${isHolographic(card, options) && !usesHolographicArtwork ? renderHolographicOverlay() : ''}
+            ${!usesHolographicArtwork ? renderFinishOverlay(card, options) : ''}
         </div>`;
     }
 
@@ -590,7 +624,7 @@
             // so the frame never paints first with an empty art window.
             const pendingClass = window.SieglingsArtReveal && /class="card-art[^"]*"><img /.test(framed)
                 ? ` ${window.SieglingsArtReveal.PENDING}` : '';
-            return `<div class="mulligan-card-slot binder-framed-slot${holoClass}${pendingClass}" aria-hidden="true">${framed}${isHolographic(card, options) ? renderHolographicOverlay() : ''}</div>`;
+            return `<div class="mulligan-card-slot binder-framed-slot${holoClass}${pendingClass}" aria-hidden="true">${framed}${renderFinishOverlay(card, options)}</div>`;
         }
         return renderBinderCardShell(card, options);
     }
@@ -616,7 +650,7 @@
         }
         const shell = renderBinderCardShell(card, options);
         const modeClass = resolveArtModeClass(card);
-        return `<div class="binder-card card-visual-preview${extraClass}${modeClass}${holographicClass(card, options)}" style="--el:${elementColor(element)}">${shell}${isHolographic(card, options) ? renderHolographicOverlay() : ''}</div>`;
+        return `<div class="binder-card card-visual-preview${extraClass}${modeClass}${holographicClass(card, options)}" style="--el:${elementColor(element)}">${shell}${renderFinishOverlay(card, options)}</div>`;
     }
 
     // ── WebP delivery ──────────────────────────────────────────────
@@ -809,6 +843,9 @@
         knightTemplateClass,
         isHolographic,
         hasHoloArtTier,
+        isGold,
+        renderGoldFinish,
+        renderFinishOverlay,
         showsHolographicArt,
         holographicClass,
         normalizeArtMode,

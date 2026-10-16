@@ -42,6 +42,11 @@ public class PlayerProgressionEntity {
      * implies this tier, so it is never listed in both.
      */
     private List<String> holoArtCardIds = new ArrayList<>();
+    /**
+     * Card ids upgraded to GOLD, the tier above HOLO SP: holo art with a gold
+     * frame and gold shine. A gold card is still in {@link #holographicCardIds}.
+     */
+    private List<String> goldCardIds = new ArrayList<>();
     /** SiegeKnight ids unlocked for expedition warband selection (gold purchase). */
     private List<String> siegeUnlockedKnights = new ArrayList<>();
     /** Siegeling card ids unlocked as expedition starters by finding them on a run. */
@@ -141,6 +146,10 @@ public class PlayerProgressionEntity {
     public List<String> getHoloArtCardIds() { return holoArtCardIds; }
     public void setHoloArtCardIds(List<String> holoArtCardIds) {
         this.holoArtCardIds = holoArtCardIds == null ? new ArrayList<>() : new ArrayList<>(holoArtCardIds);
+    }
+    public List<String> getGoldCardIds() { return goldCardIds; }
+    public void setGoldCardIds(List<String> goldCardIds) {
+        this.goldCardIds = goldCardIds == null ? new ArrayList<>() : new ArrayList<>(goldCardIds);
     }
     public List<String> getSiegeUnlockedKnights() { return siegeUnlockedKnights; }
     public void setSiegeUnlockedKnights(List<String> siegeUnlockedKnights) {

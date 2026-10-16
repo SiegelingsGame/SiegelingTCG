@@ -264,6 +264,28 @@ class PlayerProgressionServiceTest {
     }
 
     @Test
+    void goldNeedsHoloSpAndCostsEightTimesCraft() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        store.saved = ownerOf("glimmer", 10000);
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new HoloArtCardDefinitionService());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.purchaseHolographicFinish(user(), "glimmer", PlayerProgressionService.HoloTier.GOLD),
+                "GOLD before HOLO SP is refused.");
+        assertEquals(10000, store.saved.getRemnants());
+
+        service.purchaseHolographicFinish(user(), "glimmer", PlayerProgressionService.HoloTier.FLAIR);
+        assertEquals(8000, store.saved.getRemnants());
+        service.purchaseHolographicFinish(user(), "glimmer", PlayerProgressionService.HoloTier.GOLD);
+        assertEquals(4000, store.saved.getRemnants());
+        assertTrue(store.saved.getGoldCardIds().contains("glimmer"));
+        assertTrue(store.saved.getHolographicCardIds().contains("glimmer"), "GOLD keeps HOLO SP underneath.");
+        assertThrows(IllegalArgumentException.class,
+                () -> service.purchaseHolographicFinish(user(), "glimmer", PlayerProgressionService.HoloTier.GOLD));
+        assertEquals(4000, store.saved.getRemnants());
+    }
+
+    @Test
     void holoArtTierNeedsDedicatedHoloArt() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         store.saved = ownerOf("draco", 5000);

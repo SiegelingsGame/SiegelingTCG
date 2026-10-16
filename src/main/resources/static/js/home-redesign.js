@@ -99,6 +99,16 @@
     PLAYER_HOLO_ART = holoIdMap(ids);
     PLAYER_HOLO_ART_IDS = Object.keys(PLAYER_HOLO_ART);
   }
+  // GOLD, the top finish (a gold card also stays in PLAYER_HOLO).
+  var PLAYER_GOLD = {};
+  var PLAYER_GOLD_IDS = [];
+  function setPlayerGold(ids) {
+    PLAYER_GOLD = holoIdMap(ids);
+    PLAYER_GOLD_IDS = Object.keys(PLAYER_GOLD);
+  }
+  function hasPlayerGold(card) {
+    return Boolean(card && PLAYER_GOLD[String(card.id || '').trim().toLowerCase()]);
+  }
   function hasPlayerHolo(card) {
     return Boolean(card && PLAYER_HOLO[String(card.id || '').trim().toLowerCase()]);
   }
@@ -106,10 +116,14 @@
     return Boolean(card && PLAYER_HOLO_ART[String(card.id || '').trim().toLowerCase()]);
   }
   function withPlayerHolo(card) {
-    if (!card || card.holographic === true || !hasPlayerHolo(card)) return card;
+    if (!card) return card;
+    var holo = card.holographic !== true && hasPlayerHolo(card);
+    var gold = card.goldFinish !== true && hasPlayerGold(card);
+    if (!holo && !gold) return card;
     var copy = {};
     for (var key in card) if (Object.prototype.hasOwnProperty.call(card, key)) copy[key] = card[key];
-    copy.holographic = true;
+    if (holo) copy.holographic = true;
+    if (gold) copy.goldFinish = true;
     return copy;
   }
   function byIdIn(pool, id) {
@@ -2118,9 +2132,11 @@
     if (!visual) return '';
     var rarity = String(card.rarity || 'common').toLowerCase();
     var el = String(card.element || 'NEUTRAL').toLowerCase();
-    var holo = card.holographic === true;
-    var holoClass = holo ? ' is-holographic' : '';
-    var holoOverlay = holo ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+    var gold = card.goldFinish === true;
+    var holo = card.holographic === true || gold;
+    var holoClass = (holo ? ' is-holographic' : '') + (gold ? ' is-gold-finish' : '');
+    var holoOverlay = gold && visual.renderGoldFinish ? visual.renderGoldFinish()
+      : holo ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
     var body = '<div class="knight-card-body">' +
       '<span class="knight-card-name">' + esc(card.name) + '</span>' +
       '<span class="knight-card-meta"><span class="knight-element">' + esc(title(card.element)) + '</span> ' +
@@ -2177,7 +2193,8 @@
         visual.renderBinderCardTile(c, {
           descriptionText: cardFaceText(c),
           useHolographicFullCardArt: true,
-          playerHoloArtIds: PLAYER_HOLO_ART_IDS
+          playerHoloArtIds: PLAYER_HOLO_ART_IDS,
+          playerGoldIds: PLAYER_GOLD_IDS
         }) +
       '</button>';
     }
@@ -4686,7 +4703,11 @@
 
   // What the next purchase is for this card, or null when there is none.
   function nextHoloStep(card) {
-    if (hasPlayerHolo(card)) return null;
+    if (card.goldFinish === true || hasPlayerGold(card)) return null;
+    // GOLD is the step after HOLO SP (and the only one for a card that ships foil).
+    if (card.holographic === true || hasPlayerHolo(card)) {
+      return { tier: 'GOLD', cost: craftCost(card) * 8, label: 'Upgrade to GOLD' };
+    }
     if (!hasHoloArtwork(card)) {
       return { tier: 'FLAIR', cost: craftCost(card) * 4, label: 'Make HOLO SP' };
     }
@@ -4702,8 +4723,8 @@
   /* ---------- card versions ----------
      Every card can be looked at in each version, owned or not: Standard, SP
      (holo art, only when the card has holo art), HOLO SP (holo art plus the
-     foil shimmer) and GOLD. Gold is a preview finish - nothing grants it yet -
-     so it always reads as locked. */
+     foil shimmer) and GOLD (holo art in a gold frame with a gold shine, the
+     top tier, bought after HOLO SP). */
   var VERSIONS = [
     { key: 'STANDARD', label: 'Standard' },
     { key: 'SP', label: 'SP' },
@@ -4722,6 +4743,7 @@
 
   // The version the player's own copy shows everywhere else in the hub.
   function bestVersion(card) {
+    if (card && (card.goldFinish === true || hasPlayerGold(card))) return 'GOLD';
     if (card && (card.holographic === true || hasPlayerHolo(card))) return 'HOLO';
     if (hasHoloArtwork(card) && hasPlayerHoloArt(card)) return 'SP';
     return 'STANDARD';
@@ -4736,7 +4758,7 @@
     if (key === 'STANDARD') return true;
     if (key === 'SP') return card.holographic === true || hasPlayerHolo(card) || hasPlayerHoloArt(card);
     if (key === 'HOLO') return card.holographic === true || hasPlayerHolo(card);
-    return false;
+    return card.goldFinish === true || hasPlayerGold(card);
   }
 
   function copyCard(card, extra) {
@@ -4751,7 +4773,7 @@
   function versionFace(card, key) {
     var visual = window.SieglingsCardBinderVisual;
     if (!visual || !visual.renderBinderCardTile) return galleryCard(card);
-    var base = copyCard(card, { holographic: key === 'HOLO' });
+    var base = copyCard(card, { holographic: key === 'HOLO', goldFinish: key === 'GOLD' });
     var inner;
     if (isKnight(card)) {
       inner = knightCard(base);
@@ -4759,14 +4781,12 @@
     if (!inner) {
       inner = visual.renderBinderCardTile(base, {
         descriptionText: cardFaceText(card),
-        useHolographicFullCardArt: key === 'SP' || key === 'HOLO',
+        useHolographicFullCardArt: key !== 'STANDARD',
         playerHoloArtIds: key === 'SP' ? [String(card.id || '').toLowerCase()] : []
       });
     }
-    var gold = key === 'GOLD';
-    return '<button class="sg-card-tile' + (gold ? ' is-gold' : '') + '" type="button" data-card="' +
-      esc(card.id) + '" data-version="' + key + '">' + inner +
-      (gold ? '<i class="sg-gold-sheen" aria-hidden="true"></i>' : '') + '</button>';
+    return '<button class="sg-card-tile" type="button" data-card="' +
+      esc(card.id) + '" data-version="' + key + '">' + inner + '</button>';
   }
 
   var LOCK_GLYPH = '<svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true" fill="currentColor">' +
@@ -4793,7 +4813,7 @@
     // Cards that ship foil have nothing to buy; guests and the offline board
     // cannot spend remnants.
     var isOwned = live && !opts.guest ? binderOwnership(live) : null;
-    var step = card.holographic === true ? null : nextHoloStep(card);
+    var step = nextHoloStep(card);
     if (step && isOwned && isOwned(card)) {
       var balance = Number(live.remnants);
       var known = isFinite(balance);
@@ -4886,6 +4906,8 @@
      every particle has its own random path. */
   var HOLO_TWIRL_MS = 1500;
   var HOLO_COLORS = ['#ffffff', '#9ff3ff', '#ff9cf0', '#fff59a', '#a6ffcf', '#c9a6ff'];
+  var HOLO_COLORS_DEFAULT = HOLO_COLORS;
+  var GOLD_COLORS = ['#fff6d5', '#ffd66b', '#f5b937', '#ffe9a3', '#e09a1f', '#fff1bd'];
 
   function holoRand(min, max) { return min + Math.random() * (max - min); }
 
@@ -4898,7 +4920,8 @@
     return el;
   }
 
-  function holoBurst(layer, w, h, delay) {
+  function holoBurst(layer, w, h, delay, colors) {
+    var HOLO_COLORS = colors || HOLO_COLORS_DEFAULT;
     var n, i, el, a, d, size, spin;
     // Converge: a ring of glints drawn in towards the card as it winds up.
     for (i = 0; i < 10; i++) {
@@ -4948,9 +4971,9 @@
   /* Screen-edge glow: a rotating rainbow rim masked to the viewport border,
      over a soft inset bloom. It warms up with the wind-up, flares at the swap
      and fades with the twinkles. */
-  function holoScreenGlow(half) {
+  function holoScreenGlow(half, gold) {
     var glow = document.createElement('div');
-    glow.className = 'sg-holo-screen';
+    glow.className = 'sg-holo-screen' + (gold ? ' is-gold' : '');
     glow.setAttribute('aria-hidden', 'true');
     glow.innerHTML = '<i class="sg-holo-screen-rim"><b></b></i>';
     document.body.appendChild(glow);
@@ -4959,9 +4982,10 @@
     glow.animate([
       { opacity: 0, filter: 'hue-rotate(0deg)' },
       { opacity: 0.45, offset: at(half * 0.8) },
-      { opacity: 1, filter: 'hue-rotate(120deg)', offset: at(half + 60) },
+      { opacity: 1, filter: gold ? 'hue-rotate(0deg)' : 'hue-rotate(120deg)', offset: at(half + 60) },
       { opacity: 0.7, offset: at(half + 500) },
-      { opacity: 0, filter: 'hue-rotate(360deg)' }
+      // GOLD stays gold; the holo glow cycles the rainbow.
+      { opacity: 0, filter: gold ? 'hue-rotate(0deg)' : 'hue-rotate(360deg)' }
     ], { duration: total, easing: 'linear', fill: 'both' });
     glow.querySelector('b').animate([
       { transform: 'translate(-50%,-50%) rotate(0deg)' },
@@ -5059,7 +5083,7 @@
 
   // `freshTile` is the full markup of the face to land on; the spinning tile
   // keeps its node (the animation runs on it) and takes the new content and class.
-  function playHoloTwirl(face, freshTile, done) {
+  function playHoloTwirl(face, freshTile, done, gold) {
     var tile = face && face.querySelector('.sg-card-tile');
     function swap() {
       if (tile && tile.isConnected && freshTile) {
@@ -5088,7 +5112,7 @@
     document.body.appendChild(layer);
     face.classList.add('is-holo-twirl');
     var half = HOLO_TWIRL_MS / 2;
-    holoScreenGlow(half);
+    holoScreenGlow(half, gold);
     playHoloSound(half);
     tile.animate([
       { transform: 'translateY(0) rotateY(0deg) rotateZ(0deg) scale(1)', filter: 'brightness(1)', easing: 'cubic-bezier(.3,0,.4,1)' },
@@ -5097,7 +5121,7 @@
       { transform: 'translateY(-4px) rotateY(1060deg) rotateZ(1deg) scale(1.05)', filter: 'brightness(1.25) saturate(1.2)', offset: 0.86, easing: 'cubic-bezier(.3,0,.3,1)' },
       { transform: 'translateY(0) rotateY(1080deg) rotateZ(0deg) scale(1)', filter: 'brightness(1)' }
     ], { duration: HOLO_TWIRL_MS });
-    holoBurst(layer, box.width, box.height, half);
+    holoBurst(layer, box.width, box.height, half, gold ? GOLD_COLORS : HOLO_COLORS);
     window.setTimeout(swap, half);
     window.setTimeout(function () {
       face.classList.remove('is-holo-twirl');
@@ -5109,7 +5133,8 @@
   function buyHoloFinish(app, opts, sheetCard, btn) {
     var api = window.SiegelingsHomeLive;
     var id = btn.getAttribute('data-holo-buy');
-    var tier = btn.getAttribute('data-holo-tier') === 'ART' ? 'ART' : 'FLAIR';
+    var requested = btn.getAttribute('data-holo-tier');
+    var tier = requested === 'ART' || requested === 'GOLD' ? requested : 'FLAIR';
     var cost = Number(btn.getAttribute('data-holo-cost')) || 0;
     var restingLabel = btn.textContent;
     var note = sheetCard.querySelector('[data-holo-note]');
@@ -5137,11 +5162,14 @@
       if (p.remnants != null) live.remnants = p.remnants;
       if (Array.isArray(p.holographicCards)) live.holographicCards = p.holographicCards;
       if (Array.isArray(p.holoArtCards)) live.holoArtCards = p.holoArtCards;
+      if (Array.isArray(p.goldCards)) live.goldCards = p.goldCards;
       setPlayerHolo(live.holographicCards || []);
       setPlayerHoloArt(live.holoArtCards || []);
+      setPlayerGold(live.goldCards || []);
       // An older server answers without the new list; trust the tier just bought.
       if (tier === 'FLAIR' && !hasPlayerHolo({ id: id })) PLAYER_HOLO[String(id).toLowerCase()] = true;
       if (tier === 'ART' && !hasPlayerHoloArt({ id: id })) setPlayerHoloArt(PLAYER_HOLO_ART_IDS.concat([String(id).toLowerCase()]));
+      if (tier === 'GOLD' && !hasPlayerGold({ id: id })) setPlayerGold(PLAYER_GOLD_IDS.concat([String(id).toLowerCase()]));
       if (typeof loadCachedAuthProfile === 'function' && typeof saveCachedAuthProfile === 'function') {
         var profile = loadCachedAuthProfile();
         if (live.accountId && profile && profile.user && profile.user.id === live.accountId) {
@@ -5162,7 +5190,7 @@
       if (onSheet) sheetCard.setAttribute('data-version', version);
       var block = sheetCard.querySelector('.sg-sheet-holo');
       if (block) block.outerHTML = holoBlock(card, opts, version);
-      playHoloTwirl(face, versionFace(card, version));
+      playHoloTwirl(face, versionFace(card, version), null, tier === 'GOLD');
     });
   }
 
@@ -5275,8 +5303,7 @@
       var v = versions[index];
       var owned = versionOwned(card, v.key, opts);
       label.innerHTML = '<b>' + esc(v.label) + '</b>' +
-        (v.key === 'GOLD' ? '<span>Preview</span>'
-          : owned === true ? '<span class="is-owned">Owned</span>'
+        (owned === true ? '<span class="is-owned">Owned</span>'
           : owned === false ? '<span>Not owned</span>' : '');
       label.setAttribute('data-version', v.key);
       dots.innerHTML = versions.length > 1 ? versions.map(function (x, i) {
@@ -9612,6 +9639,7 @@
     noteNewGalleryUnlocks(model);
     if (Array.isArray(model.holographicCards)) setPlayerHolo(model.holographicCards);
     if (Array.isArray(model.holoArtCards)) setPlayerHoloArt(model.holoArtCards);
+    if (Array.isArray(model.goldCards)) setPlayerGold(model.goldCards);
     if (model.cards && model.cards.length) {
       ALL_CARDS = model.cards.slice();
     }

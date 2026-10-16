@@ -361,3 +361,63 @@
 .holographic-card-notch-bottom-left { left: 7.6%; top: 94.1%; }
 .holographic-card-notch-bottom { left: 49.5%; top: 94.3%; }
 .holographic-card-notch-bottom-right { left: 91.7%; top: 94.2%; }
+
+/* ---------- GOLD finish ----------
+   The top card finish: the holo art in full colour (so notches stay readable
+   in battle), framed in polished gold with a warm shine sweeping across it.
+   Sizes are percentages of the card so one rule reads on a 72px board card
+   and a magnified full-screen one alike. */
+.card-gold-finish {
+    position: absolute;
+    inset: 0;
+    z-index: 12;
+    pointer-events: none;
+    border-radius: inherit;
+}
+/* The frame: a metallic band masked to the card's edge, with a dark inner
+   keyline and a soft outer glow so it reads as raised gilt, not a border. */
+.card-gold-frame {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: max(2px, 3.2%);
+    background:
+        linear-gradient(135deg,
+            #7a5410 0%, #f7d77a 12%, #fff4c8 20%, #c9902a 32%,
+            #8a5e12 44%, #f2cf6c 56%, #fff1bd 64%, #b98222 78%, #f7d77a 90%, #7a5410 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    filter: drop-shadow(0 0 1px rgba(60, 36, 4, .9));
+}
+.card-gold-frame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 248, 214, .75),
+        inset 0 0 6px rgba(110, 70, 8, .55);
+}
+.is-gold-finish {
+    box-shadow: 0 0 0 1px rgba(122, 84, 16, .8), 0 0 14px rgba(255, 196, 70, .45);
+}
+.card-gold-sheen {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    overflow: hidden;
+    mix-blend-mode: screen;
+    background:
+        linear-gradient(115deg, transparent 34%, rgba(255, 238, 170, .5) 45%, rgba(255, 206, 90, .24) 53%, transparent 64%),
+        radial-gradient(120% 80% at 50% 0%, rgba(255, 214, 110, .14), transparent 60%);
+    background-size: 260% 100%, 100% 100%;
+    animation: card-gold-sweep 3.6s ease-in-out infinite;
+}
+@keyframes card-gold-sweep {
+    0%, 14% { background-position: 120% 0, 0 0; }
+    72%, 100% { background-position: -60% 0, 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .card-gold-sheen { animation: none; background-position: 40% 0, 0 0; }
+}
