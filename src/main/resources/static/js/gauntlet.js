@@ -544,32 +544,97 @@
    */
   function sheetHead(card) {
     var type = TYPE_LABEL[card.type] || card.type;
+    var base = card.base || null;
     var stats = card.type === 'SIEGLING'
-      ? '<span>HP <b>' + esc(card.health) + '</b></span><span>SPD <b>' + esc(card.speed) + '</b></span>'
-      : (card.costAmount != null ? '<span>Cost <b>' + esc(card.costAmount) + '</b></span>' : '');
+      ? '<span>HP ' + changedValue(base && base.health, card.health) + '</span><span>SPD ' + changedValue(base && base.speed, card.speed) + '</span>'
+      : (card.costAmount != null ? '<span>Cost ' + changedValue(base && base.costAmount, card.costAmount) + '</span>' : '');
+    var element = base && base.element && base.element !== card.element
+      ? '<span class="gt-was-chip">' + chip(base.element) + '</span>' + chip(card.element)
+      : chip(card.element);
     // Inside the tray the face prints its own moves summary; the full list follows below.
     var face = realFace(card, true);
     var picture = face ? '<div class="gt-sheet-face"><div class="gt-face">' + face + '</div></div>' : '<div class="gt-card-art">' + artHtml(card) + '</div>';
     var head = '<div class="gt-sheet-head' + (face ? ' has-real-face' : '') + '" data-el="' + esc(card.element) + '">' + picture
-      + '<div><h2 id="gtSheetTitle">' + esc(card.name) + '</h2><div class="gt-card-meta">' + chip(card.element)
+      + '<div><h2 id="gtSheetTitle">' + esc(card.name) + '</h2><div class="gt-card-meta">' + element
       + '<span>' + esc(type) + '</span>' + (card.level ? '<span>Level <b>' + esc(card.level) + '</b> / ' + esc(card.maxLevel) + '</span>' : '') + stats + '</div>'
       + (card.evolvesFromName ? '<p class="gt-muted" style="margin:6px 0 0">Evolves from ' + esc(card.evolvesFromName) + '.</p>' : '')
       + '</div></div>';
     return head + movesSection(card) + upgradesSection(card);
   }
 
+  /** "14" as is, or "~~14~~ 17" when an upgrade changed it. */
+  function changedValue(before, after) {
+    if (before == null || String(before) === String(after)) return '<b>' + esc(after) + '</b>';
+    return '<s class="gt-was">' + esc(before) + '</s> <b class="gt-now">' + esc(after) + '</b>';
+  }
+
+  // Words, whitespace and punctuation as separate tokens, so "enemy" -> "enemy. Also
+  // heals itself 2." diffs as an addition rather than a replaced word.
+  function tokens(text) {
+    return String(text || '').match(/\s+|[A-Za-z0-9'+-]+|[^\sA-Za-z0-9'+-]+/g) || [];
+  }
+
+  /**
+   * The forged text with what it replaced struck through and what it added marked:
+   * "Deal ~~3~~ 5 damage to 1 enemy. [Also heals itself 2.]" A token-level longest
+   * common subsequence, so two upgrades on one move show as two separate edits.
+   */
+  function diffText(before, after) {
+    if (before == null || before === after) return esc(after || '');
+    var a = tokens(before);
+    var b = tokens(after);
+    var n = a.length;
+    var m = b.length;
+    var lcs = [];
+    for (var i = 0; i <= n; i++) { lcs.push(new Array(m + 1).fill(0)); }
+    for (var x = n - 1; x >= 0; x--) {
+      for (var y = m - 1; y >= 0; y--) {
+        lcs[x][y] = a[x] === b[y] ? lcs[x + 1][y + 1] + 1 : Math.max(lcs[x + 1][y], lcs[x][y + 1]);
+      }
+    }
+    var parts = [];
+    function push(kind, text) {
+      var last = parts[parts.length - 1];
+      if (last && last.kind === kind) { last.text += text; } else { parts.push({ kind: kind, text: text }); }
+    }
+    var p = 0;
+    var q = 0;
+    while (p < n && q < m) {
+      if (a[p] === b[q]) { push('same', a[p]); p++; q++; }
+      else if (lcs[p + 1][q] >= lcs[p][q + 1]) { push('was', a[p]); p++; }
+      else { push('now', b[q]); q++; }
+    }
+    while (p < n) { push('was', a[p++]); }
+    while (q < m) { push('now', b[q++]); }
+    return parts.map(function (part, index) {
+      if (part.kind === 'same' || !part.text.trim()) return esc(part.text);
+      if (part.kind === 'was') {
+        var next = parts[index + 1];
+        return '<s class="gt-was">' + esc(part.text) + '</s>' + (next && next.kind === 'now' ? ' ' : '');
+      }
+      // A sentence added after the old text starts with the period that closes the old
+      // one; that period is punctuation, not part of the upgrade.
+      var lead = (part.text.match(/^[.,;:]+\s*/) || [''])[0];
+      return esc(lead) + '<ins class="gt-now">' + esc(part.text.slice(lead.length)) + '</ins>';
+    }).join('');
+  }
+
   function movesSection(card) {
     var upgrades = card.upgrades || [];
+    var base = card.base || null;
     var rows;
     if (card.moves && card.moves.length) {
-      rows = card.moves.map(function (move) {
+      rows = card.moves.map(function (move, index) {
+        // The unforged printing lists the same moves in the same order.
+        var was = base && base.moves && base.moves[index] && base.moves[index].name === move.name ? base.moves[index] : null;
         // Upgrade labels name the move they changed ("Sundile Strike: +2 damage").
         var forged = upgrades.some(function (label) { return String(label).indexOf(move.name + ':') === 0; });
-        return moveRow(move, forged);
+        return moveRow(move, forged, was);
       }).join('');
     } else if (card.ability) {
       var forgedEffect = card.type !== 'SIEGLING' && upgrades.length > 0;
-      rows = moveRow({ name: TYPE_LABEL[card.type] === 'Deception' ? 'When sprung' : 'Effect', description: card.ability.description, energyCost: 0 }, forgedEffect);
+      var wasEffect = base && base.ability ? { description: base.ability.description, energyCost: 0 } : null;
+      rows = moveRow({ name: TYPE_LABEL[card.type] === 'Deception' ? 'When sprung' : 'Effect', description: card.ability.description, energyCost: 0 }, forgedEffect, wasEffect);
     } else {
       rows = '<li class="gt-muted">No moves printed.</li>';
     }
@@ -577,16 +642,29 @@
     return '<section class="gt-tray-section"><h3>' + title + '</h3><ul class="gt-move-list" data-el="' + esc(card.element) + '">' + rows + '</ul></section>';
   }
 
-  function moveRow(move, forged) {
-    var energy = move.energy != null ? move.energy : move.energyCost;
+  function moveEnergy(move) {
+    return move ? (move.energy != null ? move.energy : move.energyCost) : null;
+  }
+
+  function moveRow(move, forged, was) {
+    var energy = moveEnergy(move);
+    var wasEnergy = was ? moveEnergy(was) : null;
     var passive = move.passive || move.isPassive;
-    return '<li class="gt-move' + (forged ? ' is-forged' : '') + '">'
-      + '<div class="gt-move-head"><b>' + esc(move.name) + '</b>'
-      + (energy > 0 ? '<span class="gt-cost" title="Energy cost">' + esc(energy) + '</span>' : (passive ? '' : '<span class="gt-cost is-free" title="Energy cost">0</span>'))
+    var cost;
+    if (wasEnergy != null && wasEnergy !== energy) {
+      cost = '<span class="gt-cost is-changed" title="Energy cost"><s class="gt-was">' + esc(wasEnergy) + '</s> ' + esc(energy) + '</span>';
+    } else if (energy > 0) {
+      cost = '<span class="gt-cost" title="Energy cost">' + esc(energy) + '</span>';
+    } else {
+      cost = passive ? '' : '<span class="gt-cost is-free" title="Energy cost">0</span>';
+    }
+    var changed = forged || (was && (was.description !== move.description || wasEnergy !== energy));
+    return '<li class="gt-move' + (changed ? ' is-forged' : '') + '">'
+      + '<div class="gt-move-head"><b>' + esc(move.name) + '</b>' + cost
       + (passive ? '<span class="gt-tag">Passive</span>' : '')
-      + (forged ? '<span class="gt-tag is-forged">Forged</span>' : '')
+      + (changed ? '<span class="gt-tag is-forged">Forged</span>' : '')
       + '</div>'
-      + '<p>' + esc(move.description || '') + '</p></li>';
+      + '<p>' + diffText(was ? was.description : null, move.description || '') + '</p></li>';
   }
 
   /** Only the run's own cards have upgrades; offered and enemy cards print as they are. */

@@ -1,4 +1,16 @@
 Original prompt: Go with earth based art for endless
+- October 16, 2026 **The Gauntlet card tray strikes through what each upgrade replaced.**
+  - **Change.** For a forged card, the run view now also sends its unforged printing as `base`, serialized the same way (`GauntletService.cardView`). The tray compares the two:
+    - Move text gets a token-level diff (longest common subsequence), so two upgrades on one move show as two edits. Old words are struck through in red (`.gt-was`), new ones are gold (`ins.gt-now`): "Deal ~~3~~ 5 damage to 1 enemy". An added effect is marked as new, with the period that joins it left plain.
+    - A cheaper move shows ~~2~~ 1 on its cost chip.
+    - HP and SPD show ~~9~~ 12 in the header, and an infusion shows the old element chip struck beside the new one.
+    - Strategy and Deception cost and effect get the same treatment.
+    - Any move whose text or cost differs from the printing carries the Forged tag.
+    - `gauntlet.js?v=6`, `gauntlet.css?v=8`.
+  - **Verification.**
+    - `GauntletServiceTest` now asserts that a forged card carries `base`. All 13 Gauntlet tests pass. `node --check` passes.
+    - Unit-checked `diffText`: a damage change gives `Deal <s>3</s> <ins>5</ins> damage`; an added rider gives `enemy. <ins>Also deals 1 damage to every enemy.</ins>`; damage plus a rider together gives two separate edits; "+3" to "+5" gives `<s>+3</s> <ins>+5</ins>`.
+    - Headless Chromium, 390x844: on a real run, forging "+2 damage" on Emberpup made the tray read "Deal ~~3~~ 5 damage to 1 enemy". Draco with a splash rider and +3 Health read "HP ~~9~~ 12" with the new sentence highlighted. The same held at 1920x1080. No page errors.
 - October 16, 2026 **Gauntlet cards say "Select to view moves" and open a tray with every move and the upgrades applied.**
   - **Change.** In the grids (draft, deck, rewards, shop, enemy preview), Siegeling faces print "Select to view moves" in the description box. This uses `renderShowcaseCard`'s `summaryMode: 'description'`; Strategies and Deceptions keep their effect text. Selecting any card opens the tray. It shows the real card (inside the tray it prints its own moves summary), then **Moves**: each move with its energy cost and a Passive tag, the forged numbers and added effects in its text, and a Forged tag when an upgrade names it. Then **Upgrades applied**, n / 5 with the labels in order, or "No upgrades yet". Rewards and shop items no longer act on the first tap: the tray carries "Take <card>" or "Buy for N gold" (disabled with the balance when you can't afford it) and closes once it succeeds. Enemy preview cards open the tray view-only. At camp the forge still sits under the tray. `gauntlet.js?v=4`, `gauntlet.css?v=6`.
   - **Verification.** `node --check` passes. Headless Chromium at 390x844 and 1920x1080, with live art merged into local responses, on a run sitting on its first reward:

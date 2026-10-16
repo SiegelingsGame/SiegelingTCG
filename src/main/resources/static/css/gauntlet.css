@@ -716,3 +716,13 @@ body[data-screen="over"] #screenOver { display: block; }
 .gt-tray-actions { margin-top: 16px; }
 .gt-tray-actions .gt-btn { width: 100%; }
 button.gt-mini { padding: 0; cursor: pointer; color: inherit; font: inherit; }
+
+/* Forged changes in the tray: what the upgrade replaced, struck through, beside what
+   it is now. */
+.gt-was { color: #ff9d9d; font-weight: 600; text-decoration: line-through; text-decoration-color: rgba(255, 107, 107, 0.95); text-decoration-thickness: 2px; }
+.gt-now, ins.gt-now { color: var(--gold); font-weight: 700; text-decoration: none; }
+ins.gt-now { background: rgba(230, 205, 140, 0.12); border-radius: 4px; padding: 0 2px; }
+.gt-cost.is-changed { background: rgba(230, 205, 140, 0.22); }
+.gt-cost.is-changed .gt-was { color: inherit; opacity: 0.6; }
+.gt-was-chip { opacity: 0.55; text-decoration: line-through; text-decoration-color: rgba(255, 107, 107, 0.85); text-decoration-thickness: 2px; }
+.gt-was-chip .gt-chip { text-decoration: inherit; }

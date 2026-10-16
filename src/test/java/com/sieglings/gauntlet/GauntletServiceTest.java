@@ -139,6 +139,11 @@ class GauntletServiceTest {
         Map<String, Object> forged = ((List<Map<String, Object>>) view.get("deck")).stream()
                 .filter(card -> target.uid.equals(card.get("uid"))).findFirst().orElseThrow();
         assertEquals(2, forged.get("level"));
+        // ...and the unforged printing beside it, which the tray strikes through.
+        @SuppressWarnings("unchecked")
+        Map<String, Object> printed = (Map<String, Object>) forged.get("base");
+        assertNotNull(printed, "A forged card carries its unforged printing.");
+        assertEquals(forged.get("id"), printed.get("id"));
         assertNotNull(forged.get("type"));
         assertTrue(forged.containsKey("moveIds") || !"SIEGLING".equals(forged.get("type")),
                 "Siegelings carry the battle serializer's move ids.");

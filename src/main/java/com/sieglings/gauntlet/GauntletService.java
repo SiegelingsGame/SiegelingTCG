@@ -924,11 +924,29 @@ public class GauntletService {
             out.put("maxLevel", GauntletRules.MAX_CARD_LEVEL);
             out.put("upgrades", entry.upgrades.stream().map(Upgrade::label).toList());
             out.put("forgeCost", GauntletRules.forgeCost(entry.level()));
+            if (!entry.upgrades.isEmpty()) {
+                // The unforged printing, so the tray can strike through what each upgrade
+                // replaced ("Deal 3 -> 5 damage", "HP 14 -> 17").
+                cardDefs.findCardCopy(entry.cardId).ifPresent(base -> {
+                    Map<String, Object> printed = miniCard(base);
+                    if (clientCardJson == null) {
+                        appendPlainFields(printed, base);
+                    }
+                    out.put("base", printed);
+                });
+            }
         }
         if (clientCardJson != null) {
             // The serialized card already carries cost, stats, notches and its (forged) moves.
             return out;
         }
+        appendPlainFields(out, card);
+        out.put("description", card.getDescription());
+        return out;
+    }
+
+    /** The card fields this page reads, for when the Battle Table serializer is not wired (unit tests). */
+    private void appendPlainFields(Map<String, Object> out, Card card) {
         if (card.getCostElement() != null) {
             out.put("costElement", card.getCostElement().name());
             out.put("costAmount", card.getCostAmount());
@@ -954,8 +972,6 @@ public class GauntletService {
         } else if (card.getAbility() != null) {
             out.put("ability", abilityView(card.getAbility()));
         }
-        out.put("description", card.getDescription());
-        return out;
     }
 
     private static Map<String, Object> abilityView(Ability ability) {
