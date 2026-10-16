@@ -8,8 +8,16 @@ slice-sheets.py instead.
 LAYOUT.json:
   {"src": "atlas.png", "name": "floraknight", "scale": 1.0,
    "erase": [[x0,y0,x1,y1], ...],            # labels, panel rules
+   "anchor": "face",                         # or "mass" for faceless art
    "poses": [{"pose": "idle", "box": [x0,y0,x1,y1], "frames": 7,
-              "dropLoose": true}, ...]}       # dropLoose: discard floating petals
+              "dropLoose": true,              # discard floating petals
+              "assign": [[x0,y0,x1,y1,k]],    # every pixel in the box -> frame k
+                                              # [..., k, "split"]: only pieces
+                                              # walled off by outline from x1;
+                                              # k = -1 discards the pixels
+              "mirror": [k]}, ...]}           # flip frame k to face like the rest
+  assign is for an effect drawn touching the next frame (a fire breath reaching
+  the next pose): no automatic rule can tell whose it is, the layout can.
 
 The backdrop is painted soft, the sprites are crisp pixel art, so background is
 "smooth pixels reachable from the image edge". Every pose shares one cell with
@@ -72,6 +80,15 @@ def face_x(mask):
     return float(xs[near].mean())
 
 
+MASS = cfg.get('anchor', 'face') == 'mass'
+
+
+def mass_x(mask):
+    # Median column of the body: the tail and the snout balance out, so the
+    # torso stays put while the head bobs.
+    return float(np.median(np.nonzero(mask)[1]))
+
+
 poses = {}
 for p in cfg['poses']:
     x0, y0, x1, y1 = p['box']
@@ -80,7 +97,9 @@ for p in cfg['poses']:
     # A big effect (a slash crescent) can outweigh a crouched body, so pieces
     # with a face rank first; size only decides among equals (faint frames
     # hide the face entirely).
-    for c in cs: c['face'] = int((c['mask'] & skin).sum()) >= 40
+    # "mass" sheets (a creature with no tan face, all orange fur and fire)
+    # rank by size alone: the face test would also light up flames.
+    for c in cs: c['face'] = MASS or int((c['mask'] & skin).sum()) >= 40
     bodies = sorted([c for c in cs if c['area'] > 4000],
                     key=lambda c: (not c['face'], -c['area']))[:p['frames']]
     # Neighbouring frames whose swords touch come out as one blob: split the
@@ -107,9 +126,28 @@ for p in cfg['poses']:
         cx = (c['x0'] + c['x1']) / 2
         dist = [0 if b['x0'] <= cx <= b['x1'] else min(abs(cx - b['x0']), abs(cx - b['x1'])) for b in bodies]
         frames[int(np.argmin(dist))]['mask'] |= c['mask']
+    for a in p.get('assign', []):
+        x0a, y0a, x1a, y1a, k = a[:5]
+        box = np.zeros_like(fg); box[y0a:y1a, x0a:x1a] = band[y0a:y1a, x0a:x1a]
+        if a[5:] == ['split']:
+            # A breath drawn up against the next pose's outline: a straight
+            # cut slices one or the other. Outline pixels stay where they are;
+            # the rest falls into pieces, and only those that do not reach the
+            # box's right edge (the next pose's interior does) change hands.
+            dark = rgb.max(2) < 110
+            moved = np.zeros_like(fg)
+            for c in components(box & ~dark):
+                if c['x1'] < x1a - 1: moved |= c['mask']
+            box = moved
+        for f in frames:
+            f['mask'] &= ~box
+            f['body']['mask'] = f['body']['mask'] & ~box
+        if k >= 0: frames[k]['mask'] |= box
+    for k in p.get('mirror', []):
+        frames[k]['mirror'] = True
     ground = float(np.median([b['y1'] for b in bodies]))
     for f in frames:
-        fx = face_x(f['body']['mask'])
+        fx = mass_x(f['body']['mask']) if MASS else face_x(f['body']['mask'])
         f['ax'] = fx if fx is not None else (f['body']['x0'] + f['body']['x1']) / 2
         f['ay'] = ground
     poses[p['pose']] = frames
@@ -131,9 +169,13 @@ for name, frames in poses.items():
     for i, f in enumerate(frames):
         ys, xs = np.nonzero(f['mask'])
         bx0, bx1, by0, by1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1
-        tile = np.dstack([rgb[by0:by1, bx0:bx1], f['mask'][by0:by1, bx0:bx1] * 255]).astype(np.uint8)
-        strip.alpha_composite(Image.fromarray(tile),
-                              (int(round(i * CW + half + bx0 - f['ax'])), int(round(top + by0 - f['ay']))))
+        tile = Image.fromarray(np.dstack([rgb[by0:by1, bx0:bx1], f['mask'][by0:by1, bx0:bx1] * 255]).astype(np.uint8))
+        x = i * CW + half + bx0 - f['ax']
+        if f.get('mirror'):
+            # Reflect about the anchor so the body stays on the cell's centre line.
+            tile = tile.transpose(Image.FLIP_LEFT_RIGHT)
+            x = i * CW + half - (bx1 - f['ax'])
+        strip.alpha_composite(tile, (int(round(x)), int(round(top + by0 - f['ay']))))
     strip = strip.resize((cw * len(frames), ch), Image.LANCZOS)
     strip.save('%s/%s-%s.webp' % (OUT, cfg['name'], name), 'WEBP', quality=88, method=6)
 idle = poses['idle'][0]['body']
