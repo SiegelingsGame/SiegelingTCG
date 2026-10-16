@@ -122,12 +122,17 @@
       : '/img/elements/element-' + el + '.svg';
   }
 
+  // Last-resort art when the shared renderer is missing: the creature image, and the
+  // element sigil in its place if that image fails to load (never a broken-image box).
   function artHtml(item) {
     var url = item && item.cardArtUrl ? String(item.cardArtUrl) : '';
+    var icon = elementIcon(item && item.element);
     if (url) {
-      return '<img src="' + esc(url) + '" alt="" loading="lazy" decoding="async">';
+      var v = window.SieglingsCardBinderVisual;
+      var attrs = v && v.artImgAttrs ? v.artImgAttrs(url, 480) : 'src="' + esc(url) + '"';
+      return '<img ' + attrs + ' alt="" loading="lazy" decoding="async" data-fallback="' + esc(icon) + '">';
     }
-    return '<img class="is-icon" src="' + esc(elementIcon(item && item.element)) + '" alt="" loading="lazy">';
+    return '<img class="is-icon" src="' + esc(icon) + '" alt="" loading="lazy">';
   }
 
   function chip(element) {
@@ -135,15 +140,53 @@
     return '<span class="gt-chip" data-el="' + esc(name) + '">' + esc(name.charAt(0) + name.slice(1).toLowerCase()) + '</span>';
   }
 
+  // Moves arrive in the Battle Table's shape (energyCost/isPassive); knight abilities
+  // in the Gauntlet's (energy/passive).
   function abilityLine(ability) {
     if (!ability) return '';
-    var cost = ability.energy > 0 ? '<span class="gt-cost">' + esc(ability.energy) + '</span>' : '';
-    var passive = ability.passive ? ' <em>(passive)</em>' : '';
+    var energy = ability.energy != null ? ability.energy : ability.energyCost;
+    var cost = energy > 0 ? '<span class="gt-cost">' + esc(energy) + '</span>' : '';
+    var passive = (ability.passive || ability.isPassive) ? ' <em>(passive)</em>' : '';
     return '<li><b>' + esc(ability.name) + '</b>' + cost + passive + ' &mdash; ' + esc(ability.description || '') + '</li>';
+  }
+
+  /**
+   * The real card face, drawn by the same renderer as the binder and the battle hand
+   * (card-binder-visual.js over game.js): frame, notches, art placement, printed moves.
+   * The server sends each card in the Battle Table's own JSON, forged upgrades included.
+   */
+  function realFace(card) {
+    var v = window.SieglingsCardBinderVisual;
+    if (!v || !v.renderBinderCardTile || !card) return '';
+    var showcase = window.SieglingsCardShowcase;
+    var text = showcase && showcase.resolveCardDescriptionText
+      ? showcase.resolveCardDescriptionText(card, card.description)
+      : (card.description || '');
+    try {
+      return v.renderBinderCardTile(card, { descriptionText: text || '' }) || '';
+    } catch (e) {
+      return '';
+    }
   }
 
   function cardHtml(card, opts) {
     opts = opts || {};
+    var face = realFace(card);
+    if (!face) return plainCardHtml(card, opts);
+    var attrs = opts.attrs || '';
+    var tag = opts.tag || 'button';
+    var level = card.level && card.level > 1 ? '<span class="gt-card-level">Lv ' + esc(card.level) + '</span>' : '';
+    var upgrades = (card.upgrades && card.upgrades.length && opts.showUpgrades !== false)
+      ? '<div class="gt-upgrades">' + card.upgrades.map(function (u) { return '<span>' + esc(u) + '</span>'; }).join('') + '</div>'
+      : '';
+    var price = opts.price != null ? '<div class="gt-card-price">' + esc(opts.price) + (typeof opts.price === 'number' ? ' gold' : '') + '</div>' : '';
+    var foot = upgrades || price ? '<div class="gt-card-foot">' + upgrades + price + '</div>' : '';
+    return '<' + tag + (tag === 'button' ? ' type="button"' : '') + ' class="gt-card gt-card-real' + (opts.cls ? ' ' + opts.cls : '') + '" data-el="' + esc(card.element) + '" aria-label="' + esc(card.name) + '" ' + attrs + '>'
+      + '<div class="gt-face">' + face + level + '</div>' + foot
+      + '</' + tag + '>';
+  }
+
+  function plainCardHtml(card, opts) {
     var type = TYPE_LABEL[card.type] || card.type || '';
     var level = card.level && card.level > 1 ? '<span class="gt-card-level">Lv ' + esc(card.level) + '</span>' : '';
     var meta = '<span class="gt-rarity gt-rarity-' + esc(card.rarity) + '">' + esc(String(card.rarity || '').toLowerCase()) + '</span>';
@@ -154,14 +197,14 @@
     }
     var lines = '';
     if (card.moves && card.moves.length) {
-      lines = card.moves.filter(function (m) { return !m.passive || opts.full; }).map(abilityLine).join('');
+      lines = card.moves.filter(function (m) { return !(m.passive || m.isPassive); }).map(abilityLine).join('');
     } else if (card.ability) {
       lines = abilityLine({ name: 'Effect', description: card.ability.description, energy: 0 });
     }
     var upgrades = (card.upgrades && card.upgrades.length && opts.showUpgrades !== false)
       ? '<div class="gt-upgrades">' + card.upgrades.map(function (u) { return '<span>' + esc(u) + '</span>'; }).join('') + '</div>'
       : '';
-    var price = opts.price != null ? '<div class="gt-card-price">' + esc(opts.price) + ' gold</div>' : '';
+    var price = opts.price != null ? '<div class="gt-card-price">' + esc(opts.price) + (typeof opts.price === 'number' ? ' gold' : '') + '</div>' : '';
     var attrs = opts.attrs || '';
     var tag = opts.tag || 'button';
     return '<' + tag + (tag === 'button' ? ' type="button"' : '') + ' class="gt-card' + (opts.cls ? ' ' + opts.cls : '') + '" data-el="' + esc(card.element) + '" ' + attrs + '>'
@@ -175,11 +218,68 @@
   }
 
   function miniHtml(card) {
+    var face = realFace(card);
+    if (face) {
+      return '<div class="gt-mini gt-mini-real" data-el="' + esc(card.element) + '" title="' + esc(card.name) + '"><div class="gt-face">' + face + '</div></div>';
+    }
     return '<div class="gt-mini" data-el="' + esc(card.element) + '"><div class="gt-card-art">' + artHtml(card) + '</div><span>' + esc(card.name) + '</span></div>';
   }
 
+  /**
+   * A SiegeKnight's printed card. Mirrors the hub's knightCard (home-redesign.js), which
+   * in turn mirrors home.js, using the same classes so style.css dresses it identically.
+   */
+  function knightFace(knight) {
+    var v = window.SieglingsCardBinderVisual;
+    if (!v || !knight) return '';
+    var rarity = String(knight.rarity || 'common').toLowerCase();
+    var el = String(knight.element || 'NEUTRAL').toLowerCase();
+    var elTitle = el.charAt(0).toUpperCase() + el.slice(1);
+    var passive = knight.passive && knight.passive.description ? knight.passive.description : '';
+    var body = '<div class="knight-card-body">'
+      + '<span class="knight-card-name">' + esc(knight.name) + '</span>'
+      + '<span class="knight-card-meta"><span class="knight-element">' + esc(elTitle) + '</span> '
+      + '<span class="knight-tier tier-' + esc(String(knight.tier || 'siegeknight').toLowerCase()) + '">' + esc(knight.tier || 'SiegeKnight') + '</span> '
+      + '<span class="knight-rarity rarity-' + esc(rarity) + '">' + esc(rarity.charAt(0).toUpperCase() + rarity.slice(1)) + '</span></span>'
+      + (passive ? '<span class="knight-card-ability"><span>Passive</span>' + esc(passive) + '</span>' : '')
+      + '</div>';
+    try {
+      if (v.usesFullCardArt && v.usesFullCardArt(knight) && knight.cardArtUrl) {
+        var crop = v.buildArtTransformStyle ? v.buildArtTransformStyle(knight) : '';
+        var attrs = v.artImgAttrs ? v.artImgAttrs(knight.cardArtUrl, 640) : 'src="' + esc(knight.cardArtUrl) + '"';
+        return '<div class="knight-card knight-full-card-art knight-binder-card rarity-frame-' + esc(rarity) + ' el-' + esc(el) + '" role="img" aria-label="' + esc(knight.name) + '">'
+          + '<img ' + attrs + ' alt="' + esc(knight.name) + '" loading="lazy"' + (crop ? ' style="' + esc(crop) + '"' : '') + '>'
+          + body + '</div>';
+      }
+      if (v.usesKnightOverlayArt && v.usesKnightOverlayArt(knight)) {
+        var tplClass = v.knightTemplateClass ? v.knightTemplateClass(knight) : '';
+        return '<div class="knight-card knight-full-card-art knight-overlay-art' + tplClass + ' knight-binder-card rarity-frame-' + esc(rarity) + ' el-' + esc(el)
+          + '" style="--knight-color:' + v.elementColor(knight.element)
+          + ";--knight-card-back:url('/img/knights/card-back-siegeknight.png');--knight-card-template:url('/img/knights/siegeknight-card-template.png')\">"
+          + v.renderKnightOverlayArtWindow(knight)
+          + '<div class="knight-card-template" aria-hidden="true"></div>' + body + '</div>';
+      }
+    } catch (e) { /* fall through to the plain portrait */ }
+    return '';
+  }
+
   function knightArt(knight) {
+    var face = knightFace(knight);
+    if (face) {
+      return '<div class="gt-knight-art gt-knight-real" data-el="' + esc(knight && knight.element) + '">' + face + '</div>';
+    }
     return '<div class="gt-knight-art" data-el="' + esc(knight && knight.element) + '">' + artHtml(knight) + '</div>';
+  }
+
+  /** Text fitting the shared renderer expects after its markup lands. */
+  function fitFaces() {
+    var showcase = window.SieglingsCardShowcase;
+    var v = window.SieglingsCardBinderVisual;
+    try {
+      if (showcase && showcase.scheduleFramedSummaryFit) showcase.scheduleFramedSummaryFit();
+      if (showcase && showcase.scheduleSiegeKnightCardFit) showcase.scheduleSiegeKnightCardFit();
+      if (v && v.scheduleDescriptionFit) v.scheduleDescriptionFit();
+    } catch (e) { /* fitting is cosmetic */ }
   }
 
   function abilityText(label, ability) {
@@ -206,6 +306,7 @@
       case 'OVER': renderOver(run); setScreen('over'); break;
       default: setScreen('start');
     }
+    fitFaces();
     var main = $('gtMain');
     if (main && render.lastPhase !== run.phase) main.scrollTop = 0;
     render.lastPhase = run.phase;
@@ -254,11 +355,12 @@
       return '<button type="button" class="gt-pick gt-knight-pick' + selected + locked + '" data-knight="' + esc(knight.id) + '"' + (knight.locked ? ' aria-disabled="true"' : '') + '>'
         + (knight.locked ? '<span class="gt-pick-lock">Locked</span>' : '')
         + knightArt(knight)
-        + '<span><span class="gt-pick-name">' + esc(knight.name) + '</span><br>'
+        + '<span class="gt-pick-caption"><span class="gt-pick-name">' + esc(knight.name) + '</span>'
         + '<span class="gt-pick-sub">' + esc(knight.passive ? knight.passive.name : '') + '</span></span>'
         + '</button>';
     }).join('');
     $('gtStartBtn').disabled = !(state.deckId && state.knightId);
+    fitFaces();
   }
 
   function renderDraft(run) {
@@ -413,6 +515,7 @@
   function openSheet(html) {
     $('gtSheetContent').innerHTML = html;
     $('gtSheet').hidden = false;
+    fitFaces();
   }
 
   function closeSheet() {
@@ -428,7 +531,9 @@
     var lines = card.moves && card.moves.length
       ? card.moves.map(abilityLine).join('')
       : (card.ability ? abilityLine({ name: 'Effect', description: card.ability.description, energy: 0 }) : '');
-    return '<div class="gt-sheet-head" data-el="' + esc(card.element) + '"><div class="gt-card-art">' + artHtml(card) + '</div>'
+    var face = realFace(card);
+    var picture = face ? '<div class="gt-sheet-face"><div class="gt-face">' + face + '</div></div>' : '<div class="gt-card-art">' + artHtml(card) + '</div>';
+    return '<div class="gt-sheet-head' + (face ? ' has-real-face' : '') + '" data-el="' + esc(card.element) + '">' + picture
       + '<div><h2>' + esc(card.name) + '</h2><div class="gt-card-meta">' + chip(card.element)
       + '<span>' + esc(type) + '</span>' + (card.level ? '<span>Level <b>' + esc(card.level) + '</b> / ' + esc(card.maxLevel) + '</span>' : '') + stats + '</div>'
       + (card.evolvesFromName ? '<p class="gt-muted" style="margin:6px 0 0">Evolves from ' + esc(card.evolvesFromName) + '.</p>' : '')
@@ -496,6 +601,14 @@
   }
 
   function bind() {
+    document.addEventListener('error', function (event) {
+      var img = event.target;
+      if (!img || img.tagName !== 'IMG' || !img.getAttribute('data-fallback')) return;
+      var fallback = img.getAttribute('data-fallback');
+      img.removeAttribute('data-fallback');
+      img.className = 'is-icon';
+      img.src = fallback;
+    }, true);
     document.addEventListener('click', function (event) {
       var t = event.target.closest ? event.target.closest('[data-deck],[data-knight],[data-uid],[data-buy],[data-reward],[data-perk],[data-offer],[data-apply],[data-remove],[data-close],[data-tab]') : null;
       if (!t) return;

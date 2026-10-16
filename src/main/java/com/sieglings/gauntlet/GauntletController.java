@@ -1,7 +1,9 @@
 package com.sieglings.gauntlet;
 
+import com.sieglings.controller.GameController;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.service.AccountService;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +32,14 @@ public class GauntletController {
 
     @Autowired
     private AccountService accountService;
+
+    @Autowired
+    private GameController gameController;
+
+    @PostConstruct
+    void shareCardJson() {
+        gauntlet.useClientCardJson(gameController::clientCardJson);
+    }
 
     @GetMapping("/api/gauntlet/options")
     public Map<String, Object> options(@RequestHeader(value = "Authorization", required = false) String auth) {

@@ -16,7 +16,7 @@
   --light: #ffe59a;
   --neutral: #95a5a6;
 
-  --bg: #0b1020;
+  --gt-bg: #0b1020;
   --bg-2: #121a30;
   --panel: #161f38;
   --panel-2: #1d2846;
@@ -42,7 +42,7 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: var(--bg);
+  background: var(--gt-bg);
   color: var(--ink);
   font-family: var(--sans);
   /* Same zoom guard as the battle pages: a stray pinch zoom clips fixed layouts on iOS. */
@@ -54,12 +54,15 @@ body {
   background:
     radial-gradient(1200px 600px at 50% -10%, rgba(230, 205, 140, 0.10), transparent 60%),
     radial-gradient(900px 500px at 100% 100%, rgba(120, 50, 180, 0.12), transparent 60%),
-    var(--bg);
+    var(--gt-bg);
 }
 
 button { font-family: inherit; touch-action: manipulation; }
 
 .gt-shell {
+  /* style.css makes body a flex column; with auto side margins the shell would
+     otherwise shrink to its content instead of filling up to max-width. */
+  width: 100%;
   height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -634,3 +637,41 @@ body[data-screen="over"] #screenOver { display: block; }
   .gt-card, .gt-pick, .gt-perk, .gt-forge-option { transition: transform 0.12s ease, border-color 0.12s ease; }
   .gt-card:active, .gt-pick:active, .gt-perk:active, .gt-forge-option:active { transform: scale(0.98); }
 }
+
+/* ==========================================================================
+   Real card faces. card-binder-visual.js (over game.js and style.css) draws the
+   same frame, notches, art placement and printed moves as the binder and the
+   battle hand; these rules only give that face a home in the Gauntlet's grids,
+   the same way home-redesign.css hosts it in the hub (.sg-card-tile).
+   ========================================================================== */
+.gt-card.gt-card-real {
+  border: 0;
+  background: none;
+  overflow: visible;
+  padding: 0;
+  gap: 6px;
+}
+.gt-face { position: relative; width: 100%; }
+.gt-face > :not(.gt-card-level) { width: 100%; }
+.gt-face .mulligan-card-slot,
+.gt-face .binder-framed-slot,
+.gt-face .binder-card { width: 100%; max-width: none; height: auto; max-height: none; margin: 0; }
+.gt-card-real .gt-card-level { top: 4%; left: auto; right: 6%; z-index: 6; }
+.gt-card-foot { display: flex; flex-direction: column; gap: 4px; padding: 0 2px; }
+.gt-card-foot .gt-card-price { margin: 0; padding: 0; text-align: center; }
+.gt-card-real.is-sold { opacity: 0.4; }
+
+.gt-mini.gt-mini-real { width: 92px; border: 0; background: none; overflow: visible; }
+
+.gt-knight-real { border: 0; background: none; display: block; aspect-ratio: auto; }
+.gt-knight-real .knight-card { width: 100%; height: auto; margin: 0; }
+.gt-knight-pick.gt-knight-pick { flex-direction: column; align-items: stretch; }
+.gt-knight-pick .gt-knight-art { width: 100%; height: auto; }
+.gt-knight-pick .gt-knight-art:not(.gt-knight-real) { aspect-ratio: 5 / 7; }
+.gt-pick-caption { display: flex; flex-direction: column; gap: 2px; }
+
+.gt-sheet-head.has-real-face { grid-template-columns: minmax(130px, 42%) 1fr; }
+.gt-sheet-face { width: 100%; }
+
+/* style.css zeroes every margin; the page's own copy needs its breathing room back. */
+.gt-main p.gt-muted { margin: 0 0 10px; }
