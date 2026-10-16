@@ -9416,33 +9416,52 @@ body.placement-active .board-cell.legal {
 }
 
 /* The art window spans the template's whole painted scene (rail to rail, top
-   rail to info panel), so it reaches under the painted notch sockets. Punch
-   those sockets out of the art so empty ones still read as whole rings. The
-   ellipse sizes/centres are the template's 49px socket circles (centres x
-   47/320/592, y 43/459 of 639x919) mapped into this window's box. */
-.board-card.arena-board-card.element-frame .card-art-hand,
-:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-art-hand,
-.card-preview-card.element-frame .card-art-preview,
-.card-preview-card.element-frame .card-art-selected,
-.selected-preview-card.element-frame .card-art-preview,
-.selected-preview-card.element-frame .card-art-selected,
-.mulligan-showcase.element-frame .card-art-preview,
-.mulligan-showcase.element-frame .card-art-selected {
-    border-radius: 0;
+   rail to info panel), so it runs under the painted notch sockets. Redraw just
+   those sockets above the art: the frame image is handed down with
+   background-image: inherit (painted at 0x0 on the layers in between, so they
+   stay invisible) and masked to the socket circles on .hand-notches::before.
+   It has to live inside .hand-card-shell, which is its own stacking context,
+   so the notch icons still sit on top. The circles are the template's 49px
+   sockets (centres x 47/320/592, y 43/459 of 639x919). */
+.board-card.arena-board-card.element-frame .hand-card-shell,
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .hand-card-shell,
+.card-preview-card.element-frame .hand-card-shell,
+.selected-preview-card.element-frame .hand-card-shell,
+.mulligan-showcase.element-frame .hand-card-shell,
+.board-card.arena-board-card.element-frame .hand-notches,
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .hand-notches,
+.card-preview-card.element-frame .hand-notches,
+.selected-preview-card.element-frame .hand-notches,
+.mulligan-showcase.element-frame .hand-notches {
+    background-image: inherit;
+    background-size: 0 0;
+}
+
+.board-card.arena-board-card.element-frame .hand-notches::before,
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .hand-notches::before,
+.card-preview-card.element-frame .hand-notches::before,
+.selected-preview-card.element-frame .hand-notches::before,
+.mulligan-showcase.element-frame .hand-notches::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: inherit;
+    background-size: 100% 100%;
+    background-position: center;
+    background-repeat: no-repeat;
     -webkit-mask-image:
-        radial-gradient(9.4% 8.6% at -1.4% -1.5%, transparent 98%, #000 100%),
-        radial-gradient(9.4% 8.6% at 50.2% -1.5%, transparent 98%, #000 100%),
-        radial-gradient(9.4% 8.6% at 101.6% -1.5%, transparent 98%, #000 100%),
-        radial-gradient(9.4% 8.6% at -1.4% 70.6%, transparent 98%, #000 100%),
-        radial-gradient(9.4% 8.6% at 101.6% 70.6%, transparent 98%, #000 100%);
-    -webkit-mask-composite: source-in;
+        radial-gradient(7.75% 5.39% at 7.36% 4.68%, #000 98%, transparent 100%),
+        radial-gradient(7.75% 5.39% at 50.08% 4.68%, #000 98%, transparent 100%),
+        radial-gradient(7.75% 5.39% at 92.64% 4.68%, #000 98%, transparent 100%),
+        radial-gradient(7.75% 5.39% at 7.36% 49.95%, #000 98%, transparent 100%),
+        radial-gradient(7.75% 5.39% at 92.64% 49.95%, #000 98%, transparent 100%);
     mask-image:
-        radial-gradient(9.4% 8.6% at -1.4% -1.5%, transparent 98%, #000 100%),
-        radial-gradient(9.4% 8.6% at 50.2% -1.5%, transparent 98%, #000 100%),
-        radial-gradient(9.4% 8.6% at 101.6% -1.5%, transparent 98%, #000 100%),
-        radial-gradient(9.4% 8.6% at -1.4% 70.6%, transparent 98%, #000 100%),
-        radial-gradient(9.4% 8.6% at 101.6% 70.6%, transparent 98%, #000 100%);
-    mask-composite: intersect;
+        radial-gradient(7.75% 5.39% at 7.36% 4.68%, #000 98%, transparent 100%),
+        radial-gradient(7.75% 5.39% at 50.08% 4.68%, #000 98%, transparent 100%),
+        radial-gradient(7.75% 5.39% at 92.64% 4.68%, #000 98%, transparent 100%),
+        radial-gradient(7.75% 5.39% at 7.36% 49.95%, #000 98%, transparent 100%),
+        radial-gradient(7.75% 5.39% at 92.64% 49.95%, #000 98%, transparent 100%);
 }
 
 .card-preview-card.element-frame .card-art-preview.card-art-fallback::before,
