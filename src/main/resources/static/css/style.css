@@ -7964,10 +7964,10 @@ body.placement-active .board-cell.legal {
    own art (when set) fills the window above it. */
 .board-card.arena-board-card.element-frame .card-art-hand {
     position: absolute;
-    left: 9.8%;
-    top: 10%;
-    width: 80.4%;
-    height: 58.7%;
+    left: 8.5%;
+    top: 5.6%;
+    width: 82.8%;
+    height: 62.8%;
     min-height: 0;
     padding: 0;
     border: none;
@@ -8942,10 +8942,10 @@ body.placement-active .board-cell.legal {
 
 :is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-art-hand {
     position: absolute;
-    left: 9.8%;
-    top: 10%;
-    width: 80.4%;
-    height: 58.7%;
+    left: 8.5%;
+    top: 5.6%;
+    width: 82.8%;
+    height: 62.8%;
     min-height: 0;
     padding: 0;
     border: none;
@@ -9402,10 +9402,10 @@ body.placement-active .board-cell.legal {
 .mulligan-showcase.element-frame .card-art-preview,
 .mulligan-showcase.element-frame .card-art-selected {
     position: absolute;
-    left: 9.8%;
-    top: 10%;
-    width: 80.4%;
-    height: 58.7%;
+    left: 8.5%;
+    top: 5.6%;
+    width: 82.8%;
+    height: 62.8%;
     min-height: 0;
     margin: 0;
     padding: 0;
@@ -9413,6 +9413,36 @@ body.placement-active .board-cell.legal {
     border-radius: 2px;
     background: none;
     box-shadow: none;
+}
+
+/* The art window spans the template's whole painted scene (rail to rail, top
+   rail to info panel), so it reaches under the painted notch sockets. Punch
+   those sockets out of the art so empty ones still read as whole rings. The
+   ellipse sizes/centres are the template's 49px socket circles (centres x
+   47/320/592, y 43/459 of 639x919) mapped into this window's box. */
+.board-card.arena-board-card.element-frame .card-art-hand,
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-art-hand,
+.card-preview-card.element-frame .card-art-preview,
+.card-preview-card.element-frame .card-art-selected,
+.selected-preview-card.element-frame .card-art-preview,
+.selected-preview-card.element-frame .card-art-selected,
+.mulligan-showcase.element-frame .card-art-preview,
+.mulligan-showcase.element-frame .card-art-selected {
+    border-radius: 0;
+    -webkit-mask-image:
+        radial-gradient(9.4% 8.6% at -1.4% -1.5%, transparent 98%, #000 100%),
+        radial-gradient(9.4% 8.6% at 50.2% -1.5%, transparent 98%, #000 100%),
+        radial-gradient(9.4% 8.6% at 101.6% -1.5%, transparent 98%, #000 100%),
+        radial-gradient(9.4% 8.6% at -1.4% 70.6%, transparent 98%, #000 100%),
+        radial-gradient(9.4% 8.6% at 101.6% 70.6%, transparent 98%, #000 100%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+        radial-gradient(9.4% 8.6% at -1.4% -1.5%, transparent 98%, #000 100%),
+        radial-gradient(9.4% 8.6% at 50.2% -1.5%, transparent 98%, #000 100%),
+        radial-gradient(9.4% 8.6% at 101.6% -1.5%, transparent 98%, #000 100%),
+        radial-gradient(9.4% 8.6% at -1.4% 70.6%, transparent 98%, #000 100%),
+        radial-gradient(9.4% 8.6% at 101.6% 70.6%, transparent 98%, #000 100%);
+    mask-composite: intersect;
 }
 
 .card-preview-card.element-frame .card-art-preview.card-art-fallback::before,
@@ -14912,10 +14942,10 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-preview,
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-selected {
     position: absolute;
-    left: 9.8%;
-    top: 10%;
-    width: 80.4%;
-    height: 58.7%;
+    left: 8.5%;
+    top: 5.6%;
+    width: 82.8%;
+    height: 62.8%;
     aspect-ratio: auto;
     flex: none;
     min-height: 0;
@@ -14988,10 +15018,10 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-preview {
     position: absolute;
-    left: 9.8%;
-    top: 10%;
-    width: 80.4%;
-    height: 58.7%;
+    left: 8.5%;
+    top: 5.6%;
+    width: 82.8%;
+    height: 62.8%;
     min-height: 0;
     margin: 0;
     flex: none;
