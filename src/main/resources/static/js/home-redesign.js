@@ -8988,6 +8988,43 @@
         ['Different rules', 'There is no elemental weakness chart in Siege. Its server-driven rules have their own shields and affliction counterparts.']
       ]],
       ['link', ['/siege', 'Start an expedition']]
+    ]],
+    ['The Gauntlet', 'Roguelike climb on the Battle Table', '/img/lands/obsidian.webp', 'SHADOW', [
+      ['p', 'The Gauntlet is a solo climb that uses real Battle Table matches — not Siege’s AP battles. Pick an unlocked preset deck and a SiegeKnight, draft 10 balanced cards (one redraw), then fight floor after floor at 25 HP. Three losses end the run.'],
+      ['defs', [
+        ['Floors & acts', 'Each act has ten floors. Floor 5 is an elite; floor 10 is a SiegeKnight on 30 HP (+5 per act) with a cut-down preset deck.'],
+        ['Rewards', 'Wins pay gold, SiegeKnight XP, and a choice of 3 cards (or 10 gold). Elites and knights also grant free forges. Fights do not write match history or pay Siegecoins.'],
+        ['Camp tools', 'Forge upgrades onto cards (up to level 6), shop for cards / a life / card removal, and spend knight level-ups on Vitality, Command, Tactics, Plunder or Forgemaster.']
+      ]],
+      ['note', 'A lost floor can be rematched. Quitting or finishing a fight returns you via Return to the Gauntlet on the Battle Table end screen.'],
+      ['link', ['/gauntlet', 'Enter the Gauntlet']]
+    ]],
+    ['Keep', 'Your sanctuary outside the table', '/img/gallery/cactyjackedty-ruins.webp', 'EARTH', [
+      ['p', 'My Keep is your stronghold outside of card matches. Raise the Woodlot and Storehouse, expand workshops, display decorations, and post defenders on Akhar’s Wall for Crowns.'],
+      ['defs', [
+        ['Build & craft', 'Spend Timber and materials on Hall upgrades, tool rooms and decorations. Higher Hall ranks unlock deeper ladders.'],
+        ['Residents', 'Post Siegelings to rooms that match their affinities. Helpers speed workshops; resting companions gather in the Enclave.'],
+        ['Akhar’s Wall', 'Manned posts earn Crowns. Raiders you watch fall for a bounty. Leave the Wall empty and the Keep can take damage.']
+      ]],
+      ['link', ['/keep', 'Visit your Keep']]
+    ]],
+    ['Chronicles', 'Idle RPG for the SiegeKnight', '/img/gallery/hurricrane-skyruins.webp', 'WIND', [
+      ['p', 'Siegeknight Chronicles is an idle progression layer around your SiegeKnight and company. Train professions, raise bonds, send timed expeditions, and spend Crowns at the guild market — separate from Siegecoins.'],
+      ['defs', [
+        ['Knight & company', 'Level the knight, assign companions, and unlock bond techniques as rapport grows.'],
+        ['Work & expeditions', 'Park the company on professions or send them on a timed route. Return for XP, materials and bond gains.'],
+        ['Realm & wilds', 'Join or found a guild for weekly operations, shop the market, and chase wild encounters when they appear.']
+      ]],
+      ['link', ['/chronicles', 'Open Chronicles']]
+    ]],
+    ['Dominion', 'Test band · Keep + Chronicles', '/img/lands/relic.webp', 'NEUTRAL', [
+      ['p', 'Dominion is the hub’s temporary test mode that merges Keep construction with Chronicles progression in one browser-driven shell. Progress here is separate from the live Keep and Chronicles saves.'],
+      ['defs', [
+        ['Keep systems', 'Woodlot, Storehouse, Builder’s Yard, workshops, decorations, tool tiers, and Akhar’s Wall with posted defenders and siege waves.'],
+        ['Chronicles systems', 'Knight skills, companions, Crowns and expedition-style sinks live in the same UI rather than as a separate page.'],
+        ['Expect change', 'Rules, economy and UI shift while this mode is under test. Prefer live Keep / Chronicles when you want account progression that sticks.']
+      ]],
+      ['link', ['/dominion', 'Open Dominion (test)']]
     ]]
   ];
 

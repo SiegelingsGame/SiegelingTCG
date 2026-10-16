@@ -1,4 +1,8 @@
 Original prompt: Go with earth based art for endless
+- October 16, 2026 **Field Guide covers the Gauntlet, Keep, Chronicles, and Dominion.**
+  - **Change.** Help had only Battle + Siege. `/help` (`help.html`) now has sections for The Gauntlet (Battle Table roguelike: draft 10, 25 HP, floors/acts, forge/shop), Keep, Chronicles, and Dominion (test · Keep + Chronicles), with matching TOC, chip nav, FAB jumps, footer links, and lede/meta. The hub Help screen’s `HELP` chapters in `home-redesign.js` stay in sync (13 chapters). Mode fact grids use `.help-mode-grid` (alias of the old siege grid). `help.css?v=5`, `home-redesign.js?v=102`.
+  - **Verification.** `node --check` on `home-redesign.js`. Headless Chromium (Chrome stable) at 390×844 and 1920×1080 on `help.html`: all 12 section ids present; search `gauntlet` shows only that section; TOC/FAB include the new anchors. Hub Help mounts 13 chapter tiles including Gauntlet/Keep/Chronicles/Dominion; opening The Gauntlet shows draft/floors/camp copy. No page errors.
+
 - October 16, 2026 **Dominion: Siegelings stand in the interior they are assigned to, and resting ones gather in the Enclave as a group.**
   - **Change.**
     - **Enclave.** Resting Siegelings never appeared inside: `decorateRoom` replaced each Keep enclave slot's class, which removed the `.has-resident` that `dominion-keep.css` needs to show the slot. The Enclave now draws everyone resting as one group with name tags, wrapping into two ranks (the back rank smaller) once more than five are resting.

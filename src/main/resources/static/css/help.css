@@ -449,6 +449,7 @@ body {
 .help-mode-banner > strong { font-size: 1.15rem; }
 .help-mode-banner p { margin: 0; color: var(--text-dim); font-size: 0.88rem; }
 
+.help-mode-grid,
 .help-siege-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -457,6 +458,7 @@ body {
     margin-top: 15px;
 }
 
+.help-mode-grid > div,
 .help-siege-grid > div {
     padding: 13px;
     border: 1px solid var(--line);
@@ -464,9 +466,13 @@ body {
     background: rgba(22, 33, 62, 0.5);
 }
 
+.help-mode-grid strong,
+.help-mode-grid span,
 .help-siege-grid strong,
 .help-siege-grid span { display: block; }
+.help-mode-grid strong,
 .help-siege-grid strong { margin-bottom: 5px; color: var(--accent); }
+.help-mode-grid span,
 .help-siege-grid span { color: var(--text-dim); font-size: 0.82rem; line-height: 1.45; }
 
 .help-glossary {
@@ -759,6 +765,7 @@ body.help-embed .help-chip-nav {
         grid-template-columns: 1fr;
     }
 
+    .help-mode-grid,
     .help-siege-grid { grid-template-columns: 1fr; }
 }
 
