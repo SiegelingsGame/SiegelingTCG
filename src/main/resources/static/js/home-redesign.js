@@ -78,6 +78,27 @@
   var CARDS = DATA.sieglings.slice();
   // Binder pool: every card type. Falls back to the Siegeling snapshot offline.
   var ALL_CARDS = DATA.sieglings.slice();
+  // Holographic finishes this account bought with remnants (or pulled foil),
+  // keyed by lowercased id. The catalog's own `holographic` flag only covers
+  // cards that ship foil, so every face rendered here consults this as well.
+  var PLAYER_HOLO = {};
+  function setPlayerHolo(ids) {
+    PLAYER_HOLO = {};
+    (ids || []).forEach(function (id) {
+      var key = String(id || '').trim().toLowerCase();
+      if (key) PLAYER_HOLO[key] = true;
+    });
+  }
+  function hasPlayerHolo(card) {
+    return Boolean(card && PLAYER_HOLO[String(card.id || '').trim().toLowerCase()]);
+  }
+  function withPlayerHolo(card) {
+    if (!card || card.holographic === true || !hasPlayerHolo(card)) return card;
+    var copy = {};
+    for (var key in card) if (Object.prototype.hasOwnProperty.call(card, key)) copy[key] = card[key];
+    copy.holographic = true;
+    return copy;
+  }
   function byIdIn(pool, id) {
     for (var i = 0; i < pool.length; i++) if (pool[i].id === id) return pool[i];
     return null;
@@ -2084,6 +2105,9 @@
     if (!visual) return '';
     var rarity = String(card.rarity || 'common').toLowerCase();
     var el = String(card.element || 'NEUTRAL').toLowerCase();
+    var holo = card.holographic === true;
+    var holoClass = holo ? ' is-holographic' : '';
+    var holoOverlay = holo ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
     var body = '<div class="knight-card-body">' +
       '<span class="knight-card-name">' + esc(card.name) + '</span>' +
       '<span class="knight-card-meta"><span class="knight-element">' + esc(title(card.element)) + '</span> ' +
@@ -2095,18 +2119,18 @@
     if (visual.usesFullCardArt && visual.usesFullCardArt(card)) {
       var crop = visual.buildArtTransformStyle ? visual.buildArtTransformStyle(card) : '';
       return '<div class="knight-card knight-full-card-art knight-binder-card rarity-frame-' + esc(rarity) +
-        ' el-' + esc(el) + '" role="img" aria-label="' + esc(card.name) + '">' +
+        ' el-' + esc(el) + holoClass + '" role="img" aria-label="' + esc(card.name) + '">' +
         '<img ' + artAttrs(card.cardArtUrl, 640) +
         ' alt="' + esc(card.name) + '" loading="lazy"' + (crop ? ' style="' + esc(crop) + '"' : '') + '>' +
-        body + '</div>';
+        holoOverlay + body + '</div>';
     }
     if (visual.usesKnightOverlayArt && visual.usesKnightOverlayArt(card)) {
       var tplClass = visual.knightTemplateClass ? visual.knightTemplateClass(card) : '';
       return '<div class="knight-card knight-full-card-art knight-overlay-art' + tplClass + ' knight-binder-card rarity-frame-' +
-        esc(rarity) + ' el-' + esc(el) + '" style="--knight-color:' + visual.elementColor(card.element) +
+        esc(rarity) + ' el-' + esc(el) + holoClass + '" style="--knight-color:' + visual.elementColor(card.element) +
         ";--knight-card-back:url('/img/knights/card-back-siegeknight.png');--knight-card-template:url('/img/knights/siegeknight-card-template.png')\">" +
         visual.renderKnightOverlayArtWindow(card) +
-        '<div class="knight-card-template" aria-hidden="true"></div>' + body + '</div>';
+        '<div class="knight-card-template" aria-hidden="true"></div>' + holoOverlay + body + '</div>';
     }
     return '';
   }
@@ -2130,13 +2154,14 @@
   // dashboard the moment a designer changed a frame.
   function galleryCard(c) {
     var visual = window.SieglingsCardBinderVisual;
+    c = withPlayerHolo(c);
     if (String(c.type || '').toUpperCase() === 'SIEGEKNIGHT') {
       var knight = knightCard(c);
       if (knight) return '<button class="sg-card-tile" type="button" data-card="' + esc(c.id) + '">' + knight + '</button>';
     }
     if (visual && visual.renderBinderCardTile) {
       return '<button class="sg-card-tile" type="button" data-card="' + esc(c.id) + '">' +
-        visual.renderBinderCardTile(c, { descriptionText: cardFaceText(c) }) +
+        visual.renderBinderCardTile(c, { descriptionText: cardFaceText(c), useHolographicFullCardArt: true }) +
       '</button>';
     }
     // Offline preview board: no renderer loaded, so fall back to the plate.
@@ -4619,7 +4644,327 @@
             '</div>'
           : '') +
       '</div>' +
+      holoBlock(card, opts) +
       '<a class="sg-sheet-cta" href="/deck-builder" data-screen="builder">Use in a deck \u203a</a>';
+  }
+
+  /* ---------- holographic finish ----------
+     Remnants buy a holographic finish on a card the account owns
+     (POST /api/cards/holographic). Mirrors PlayerProgressionService:
+     holographicCost = craftCost x 4. The server re-checks ownership, balance
+     and the starter pack, so this only decides what to offer. */
+  var HOLO_COST = { COMMON: 2000, UNCOMMON: 4000, RARE: 8000, EPIC: 16000, LEGENDARY: 32000 };
+
+  function holoCost(card) {
+    return HOLO_COST[String(card && card.rarity || 'COMMON').toUpperCase()] || HOLO_COST.COMMON;
+  }
+
+  function holoBlock(card, opts) {
+    var live = opts && opts.live;
+    // Cards that ship foil have nothing to buy; guests and the offline board
+    // cannot spend remnants.
+    if (!live || opts.guest || card.holographic === true) return '';
+    if (hasPlayerHolo(card)) {
+      return '<div class="sg-sheet-holo is-done"><span class="sg-sheet-holo-chip">\u2726 Holographic finish</span></div>';
+    }
+    var isOwned = binderOwnership(live);
+    if (!isOwned || !isOwned(card)) return '';
+    var cost = holoCost(card);
+    var balance = Number(live.remnants);
+    var known = isFinite(balance);
+    var short = known && balance < cost;
+    return '<div class="sg-sheet-holo">' +
+      '<button class="sg-sheet-holo-btn" type="button" data-holo-buy="' + esc(card.id) + '"' +
+        ' data-holo-cost="' + cost + '"' + (short ? ' disabled' : '') + '>' +
+        '\u2726 Make holographic \u00b7 ' + cost.toLocaleString() + ' remnants</button>' +
+      '<p class="sg-sheet-holo-note" data-holo-note>' + (known
+        ? (short ? 'You have ' + balance.toLocaleString() + ' remnants. Duplicates and wins earn more.'
+                 : 'You have ' + balance.toLocaleString() + ' remnants.')
+        : '') + '</p>' +
+    '</div>';
+  }
+
+  // Repaints every face of this card already on the page (binder tiles behind
+  // the sheet) so the foil is there when the sheet closes, without rebuilding
+  // the binder and losing their scroll position. `skip` is the sheet face,
+  // which the twirl swaps itself at the moment it is edge-on.
+  function repaintCardFaces(app, card, skip) {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = galleryCard(card);
+    var fresh = tmp.querySelector('.sg-card-tile');
+    if (!fresh) return '';
+    [].slice.call(app.querySelectorAll('.sg-card-tile[data-card]')).forEach(function (tile) {
+      if (tile === skip) return;
+      if (tile.getAttribute('data-card') === String(card.id)) tile.innerHTML = fresh.innerHTML;
+    });
+    scheduleFit(app);
+    return fresh.innerHTML;
+  }
+
+  /* ---------- holo unlock: twirl + diamond burst ----------
+     The card spins up on its vertical axis and is swapped for its foil face at
+     exactly the frame it is edge-on (rotateY 630deg at the halfway keyframe),
+     so the change itself is never seen - it simply comes out of the spin holo.
+     Sparkles converge on the card while it winds up and burst out of it at the
+     swap. Particles live in a fixed layer on <body>: the sheet clips, and the
+     burst is meant to spill over it. Web Animations, not CSS classes, because
+     every particle has its own random path. */
+  var HOLO_TWIRL_MS = 1500;
+  var HOLO_COLORS = ['#ffffff', '#9ff3ff', '#ff9cf0', '#fff59a', '#a6ffcf', '#c9a6ff'];
+
+  function holoRand(min, max) { return min + Math.random() * (max - min); }
+
+  function holoParticle(layer, cls, size, color) {
+    var el = document.createElement('i');
+    el.className = cls;
+    el.style.setProperty('--s', size.toFixed(1) + 'px');
+    if (color) el.style.setProperty('--c', color);
+    layer.appendChild(el);
+    return el;
+  }
+
+  function holoBurst(layer, w, h, delay) {
+    var n, i, el, a, d, size, spin;
+    // Converge: a ring of glints drawn in towards the card as it winds up.
+    for (i = 0; i < 10; i++) {
+      a = (i / 10) * Math.PI * 2 + holoRand(-0.2, 0.2);
+      d = holoRand(120, 170);
+      el = holoParticle(layer, 'sg-holo-star', holoRand(8, 14), HOLO_COLORS[i % HOLO_COLORS.length]);
+      el.animate([
+        { transform: 'translate(' + Math.cos(a) * d + 'px,' + Math.sin(a) * d + 'px) scale(.2) rotate(0deg)', opacity: 0 },
+        { opacity: 1, offset: 0.4 },
+        { transform: 'translate(0px,0px) scale(1) rotate(180deg)', opacity: 0.9 }
+      ], { duration: delay, delay: 0, easing: 'cubic-bezier(.55,0,.9,.5)', fill: 'forwards' });
+    }
+    // Shockwave at the swap.
+    var ring = holoParticle(layer, 'sg-holo-ring', Math.max(w, h));
+    ring.animate([
+      { transform: 'scale(.35)', opacity: 0 },
+      { transform: 'scale(.6)', opacity: 1, offset: 0.15 },
+      { transform: 'scale(1.9)', opacity: 0 }
+    ], { duration: 700, delay: delay, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'both' });
+    // Diamonds: faceted rainbow gems thrown out of the card, tumbling.
+    n = 22;
+    for (i = 0; i < n; i++) {
+      a = (i / n) * Math.PI * 2 + holoRand(-0.25, 0.25);
+      d = holoRand(Math.max(w, h) * 0.55, Math.max(w, h) * 1.15);
+      size = holoRand(9, 18);
+      spin = holoRand(-540, 540);
+      el = holoParticle(layer, 'sg-holo-diamond', size, HOLO_COLORS[i % HOLO_COLORS.length]);
+      el.animate([
+        { transform: 'translate(0px,0px) rotate(45deg) scale(.2)', opacity: 0 },
+        { opacity: 1, offset: 0.12 },
+        { transform: 'translate(' + (Math.cos(a) * d).toFixed(1) + 'px,' + (Math.sin(a) * d + 30).toFixed(1) +
+          'px) rotate(' + (45 + spin).toFixed(0) + 'deg) scale(' + holoRand(0.5, 1).toFixed(2) + ')', opacity: 0 }
+      ], { duration: holoRand(800, 1150), delay: delay + holoRand(0, 90), easing: 'cubic-bezier(.12,.75,.3,1)', fill: 'both' });
+    }
+    // Twinkles: stars that wink on and off around the card after the burst.
+    for (i = 0; i < 12; i++) {
+      el = holoParticle(layer, 'sg-holo-star', holoRand(9, 18), HOLO_COLORS[(i + 2) % HOLO_COLORS.length]);
+      var x = holoRand(-w * 0.75, w * 0.75), y = holoRand(-h * 0.7, h * 0.7);
+      el.animate([
+        { transform: 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) scale(0) rotate(0deg)', opacity: 0 },
+        { transform: 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) scale(1.15) rotate(90deg)', opacity: 1, offset: 0.4 },
+        { transform: 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) scale(0) rotate(180deg)', opacity: 0 }
+      ], { duration: holoRand(450, 700), delay: delay + 120 + holoRand(0, 650), easing: 'ease-in-out', fill: 'both' });
+    }
+  }
+
+  /* Screen-edge glow: a rotating rainbow rim masked to the viewport border,
+     over a soft inset bloom. It warms up with the wind-up, flares at the swap
+     and fades with the twinkles. */
+  function holoScreenGlow(half) {
+    var glow = document.createElement('div');
+    glow.className = 'sg-holo-screen';
+    glow.setAttribute('aria-hidden', 'true');
+    glow.innerHTML = '<i class="sg-holo-screen-rim"><b></b></i>';
+    document.body.appendChild(glow);
+    var total = half * 2 + 900;
+    var at = function (ms) { return Math.min(1, ms / total); };
+    glow.animate([
+      { opacity: 0, filter: 'hue-rotate(0deg)' },
+      { opacity: 0.45, offset: at(half * 0.8) },
+      { opacity: 1, filter: 'hue-rotate(120deg)', offset: at(half + 60) },
+      { opacity: 0.7, offset: at(half + 500) },
+      { opacity: 0, filter: 'hue-rotate(360deg)' }
+    ], { duration: total, easing: 'linear', fill: 'both' });
+    glow.querySelector('b').animate([
+      { transform: 'translate(-50%,-50%) rotate(0deg)' },
+      { transform: 'translate(-50%,-50%) rotate(540deg)' }
+    ], { duration: total, easing: 'cubic-bezier(.4,0,.2,1)' });
+    window.setTimeout(function () { if (glow.parentNode) glow.parentNode.removeChild(glow); }, total + 50);
+  }
+
+  /* ---------- holo unlock sound ----------
+     Synthesised with Web Audio rather than shipped as a file: a rising shimmer
+     and spin ticks under the wind-up, then at the swap a sub thump, a bright
+     bell chord and a scatter of glitter pings. The context is created (or
+     resumed) inside the confirming tap - iOS only unlocks audio in a gesture -
+     and played once the purchase lands. Honours the Sound effects setting. */
+  var holoAudio = null;
+
+  function holoAudioPrime() {
+    if (!prefValue('sfx', true)) return null;
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    try {
+      if (!holoAudio) holoAudio = new Ctx();
+      if (holoAudio.state === 'suspended' && holoAudio.resume) holoAudio.resume();
+    } catch (e) { holoAudio = null; }
+    return holoAudio;
+  }
+
+  function playHoloSound(half) {
+    var ctx = holoAudio;
+    if (!ctx || !prefValue('sfx', true)) return;
+    try {
+      var t0 = ctx.currentTime + 0.02;
+      var swap = t0 + half / 1000;
+      var master = ctx.createGain();
+      master.gain.value = 0.32;
+      var comp = ctx.createDynamicsCompressor();
+      master.connect(comp);
+      comp.connect(ctx.destination);
+
+      var tone = function (type, freq, start, dur, peak, freqEnd) {
+        var o = ctx.createOscillator();
+        var g = ctx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(freq, start);
+        if (freqEnd) o.frequency.exponentialRampToValueAtTime(freqEnd, start + dur);
+        g.gain.setValueAtTime(0.0001, start);
+        g.gain.exponentialRampToValueAtTime(peak, start + Math.min(0.012, dur / 4));
+        g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+        o.connect(g);
+        g.connect(master);
+        o.start(start);
+        o.stop(start + dur + 0.05);
+      };
+
+      // Wind-up whoosh: filtered noise sweeping up into the swap.
+      var len = Math.floor(ctx.sampleRate * (half / 1000 + 0.3));
+      var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      var data = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      var noise = ctx.createBufferSource();
+      noise.buffer = buf;
+      var bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.Q.value = 2.5;
+      bp.frequency.setValueAtTime(400, t0);
+      bp.frequency.exponentialRampToValueAtTime(6000, swap);
+      var ng = ctx.createGain();
+      ng.gain.setValueAtTime(0.0001, t0);
+      ng.gain.exponentialRampToValueAtTime(0.5, swap - 0.05);
+      ng.gain.exponentialRampToValueAtTime(0.0001, swap + 0.25);
+      noise.connect(bp); bp.connect(ng); ng.connect(master);
+      noise.start(t0);
+      noise.stop(swap + 0.3);
+
+      // Rising shimmer under it.
+      tone('triangle', 220, t0, half / 1000, 0.12, 1760);
+      // Spin ticks, accelerating with the spin: one per half-turn.
+      var ticks = 7;
+      for (var k = 0; k < ticks; k++) {
+        var p = Math.pow(k / ticks, 0.6);
+        tone('sine', 900 + k * 180, t0 + p * (half / 1000), 0.07, 0.10);
+      }
+
+      // The swap: thump, bell chord (C major across two octaves), glitter.
+      tone('sine', 140, swap, 0.45, 0.6, 45);
+      [1046.5, 1318.5, 1568, 2093, 2637].forEach(function (f, n) {
+        tone('sine', f, swap + n * 0.025, 1.6 - n * 0.15, 0.16);
+        tone('sine', f * 2.01, swap + n * 0.025, 0.5, 0.04);
+      });
+      for (var g = 0; g < 14; g++) {
+        tone('sine', 2500 + Math.random() * 3500, swap + 0.08 + Math.random() * 0.9, 0.12, 0.05 + Math.random() * 0.05);
+      }
+    } catch (e) { /* audio is decoration; never break the unlock */ }
+  }
+
+  function playHoloTwirl(face, holoInner, done) {
+    var tile = face && face.querySelector('.sg-card-tile');
+    function swap() {
+      if (tile && tile.isConnected && holoInner) tile.innerHTML = holoInner;
+      if (face && face.isConnected) fitCardDescriptions(face);
+    }
+    if (!tile || !tile.animate || prefersReducedMotion()) {
+      swap();
+      if (done) done();
+      return;
+    }
+    var box = tile.getBoundingClientRect();
+    var layer = document.createElement('div');
+    layer.className = 'sg-holo-fx';
+    layer.setAttribute('aria-hidden', 'true');
+    layer.style.left = (box.left + box.width / 2).toFixed(1) + 'px';
+    layer.style.top = (box.top + box.height / 2).toFixed(1) + 'px';
+    document.body.appendChild(layer);
+    face.classList.add('is-holo-twirl');
+    var half = HOLO_TWIRL_MS / 2;
+    holoScreenGlow(half);
+    playHoloSound(half);
+    tile.animate([
+      { transform: 'translateY(0) rotateY(0deg) rotateZ(0deg) scale(1)', filter: 'brightness(1)', easing: 'cubic-bezier(.3,0,.4,1)' },
+      { transform: 'translateY(4px) rotateY(-28deg) rotateZ(3deg) scale(.95)', filter: 'brightness(.9)', offset: 0.14, easing: 'cubic-bezier(.55,0,.95,.55)' },
+      { transform: 'translateY(-14px) rotateY(630deg) rotateZ(-5deg) scale(1.16)', filter: 'brightness(2.4) saturate(1.6)', offset: 0.5, easing: 'cubic-bezier(.12,.62,.22,1)' },
+      { transform: 'translateY(-4px) rotateY(1060deg) rotateZ(1deg) scale(1.05)', filter: 'brightness(1.25) saturate(1.2)', offset: 0.86, easing: 'cubic-bezier(.3,0,.3,1)' },
+      { transform: 'translateY(0) rotateY(1080deg) rotateZ(0deg) scale(1)', filter: 'brightness(1)' }
+    ], { duration: HOLO_TWIRL_MS });
+    holoBurst(layer, box.width, box.height, half);
+    window.setTimeout(swap, half);
+    window.setTimeout(function () {
+      face.classList.remove('is-holo-twirl');
+      if (done) done();
+    }, HOLO_TWIRL_MS);
+    window.setTimeout(function () { if (layer.parentNode) layer.parentNode.removeChild(layer); }, HOLO_TWIRL_MS + 1200);
+  }
+
+  function buyHoloFinish(app, opts, sheetCard, btn) {
+    var api = window.SiegelingsHomeLive;
+    var id = btn.getAttribute('data-holo-buy');
+    var cost = Number(btn.getAttribute('data-holo-cost')) || 0;
+    var note = sheetCard.querySelector('[data-holo-note]');
+    // Up to 32,000 remnants in one tap is too easy to spend by accident, so
+    // the first tap arms and the second one spends.
+    if (!btn.classList.contains('is-armed')) {
+      btn.classList.add('is-armed');
+      btn.textContent = 'Tap again to spend ' + cost.toLocaleString() + ' remnants';
+      return;
+    }
+    if (!api || !api.post) return;
+    holoAudioPrime();
+    btn.disabled = true;
+    btn.textContent = 'Applying finish\u2026';
+    api.post('/api/cards/holographic', { cardId: id }).then(function (data) {
+      if (!data || data.error || !data.progression) {
+        btn.disabled = false;
+        btn.classList.remove('is-armed');
+        btn.textContent = '\u2726 Make holographic \u00b7 ' + cost.toLocaleString() + ' remnants';
+        if (note) note.textContent = (data && data.error) || 'The finish could not be applied. Try again.';
+        return;
+      }
+      var p = data.progression;
+      var live = opts.live;
+      if (p.remnants != null) live.remnants = p.remnants;
+      if (Array.isArray(p.holographicCards)) live.holographicCards = p.holographicCards;
+      setPlayerHolo(live.holographicCards || []);
+      if (!hasPlayerHolo({ id: id })) PLAYER_HOLO[String(id).toLowerCase()] = true;
+      if (typeof loadCachedAuthProfile === 'function' && typeof saveCachedAuthProfile === 'function') {
+        var profile = loadCachedAuthProfile();
+        if (live.accountId && profile && profile.user && profile.user.id === live.accountId) {
+          profile.progression = Object.assign({}, profile.progression, p);
+          saveCachedAuthProfile(profile);
+        }
+      }
+      var card = byIdIn(ALL_CARDS, id) || byId(id);
+      var face = sheetCard.getAttribute('data-zoom-card') === String(id)
+        ? sheetCard.querySelector('.sg-sheet-face') : null;
+      var holoInner = repaintCardFaces(app, card, face && face.querySelector('.sg-card-tile'));
+      var block = sheetCard.querySelector('.sg-sheet-holo');
+      if (block) block.outerHTML = holoBlock(card, opts);
+      playHoloTwirl(face, holoInner);
+    });
   }
 
   function wireTabs(sheetCard) {
@@ -4792,6 +5137,11 @@
     // The face inside the sheet opens the card full screen. It sits inside the
     // sheet, so the gallery's own [data-card] delegation deliberately skips it.
     sheetCard.addEventListener('click', function (e) {
+      var holoBtn = e.target.closest ? e.target.closest('[data-holo-buy]') : null;
+      if (holoBtn) {
+        if (!holoBtn.disabled) buyHoloFinish(app, opts || {}, sheetCard, holoBtn);
+        return;
+      }
       // Walking the line re-opens the sheet in place rather than stacking a
       // second one, so a player can step base -> final and back without
       // building a pile of sheets they have to dismiss one at a time.
@@ -8837,6 +9187,7 @@
       GALLERY_UNLOCKED = model.galleryUnlockedIds.map(function (id) { return String(id).toLowerCase(); });
     }
     noteNewGalleryUnlocks(model);
+    if (Array.isArray(model.holographicCards)) setPlayerHolo(model.holographicCards);
     if (model.cards && model.cards.length) {
       ALL_CARDS = model.cards.slice();
     }
