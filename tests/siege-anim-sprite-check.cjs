@@ -141,7 +141,9 @@ function pose(id) {
   const server = await serve();
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   const failures = [];
-  for (const pass of PASSES) for (const vp of VIEWPORTS) {
+  // ONLY=switch,fawny runs a subset of passes (the full sweep takes a while).
+  const only = process.env.ONLY ? process.env.ONLY.split(',') : null;
+  for (const pass of PASSES.filter(p => !only || only.includes(p.name))) for (const vp of VIEWPORTS) {
     const tag = pass.name + '-' + vp.name;
     const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
     const errors = [];
