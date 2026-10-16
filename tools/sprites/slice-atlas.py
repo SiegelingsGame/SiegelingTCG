@@ -77,7 +77,12 @@ for p in cfg['poses']:
     x0, y0, x1, y1 = p['box']
     band = np.zeros_like(fg); band[y0:y1, x0:x1] = fg[y0:y1, x0:x1]
     cs = components(band)
-    bodies = sorted([c for c in cs if c['area'] > 4000], key=lambda c: -c['area'])[:p['frames']]
+    # A big effect (a slash crescent) can outweigh a crouched body, so pieces
+    # with a face rank first; size only decides among equals (faint frames
+    # hide the face entirely).
+    for c in cs: c['face'] = int((c['mask'] & skin).sum()) >= 40
+    bodies = sorted([c for c in cs if c['area'] > 4000],
+                    key=lambda c: (not c['face'], -c['area']))[:p['frames']]
     # Neighbouring frames whose swords touch come out as one blob: split the
     # widest blob at its thinnest column until the frame count is reached.
     while len(bodies) < p['frames']:

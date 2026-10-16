@@ -4505,12 +4505,14 @@
     acorn: { dir: '/img/sprites/acorn/acorn-', w: 642, h: 337, fit: 0.82, base: 0.018,
       frames: { idle: 4, walk: 4, attack: 4, cheer: 4, hurt: 4, fainted: 4 } },
     floraknight: { dir: '/img/sprites/floraknight/floraknight-', w: 526, h: 264, fit: 0.667, base: 0.091,
-      frames: { idle: 7, walk: 9, attack: 7, cheer: 4, hurt: 3, fainted: 2 } }
+      frames: { idle: 7, walk: 9, attack: 7, cheer: 4, hurt: 3, fainted: 2 } },
+    generoot: { dir: '/img/sprites/generoot/generoot-', w: 518, h: 258, fit: 0.678, base: 0.027,
+      frames: { idle: 8, walk: 9, attack: 6, cheer: 4, hurt: 3, fainted: 2 } }
   };
   var ANIM_BODY = 0.9;
   var ANIM_POSES = ['idle', 'walk', 'attack', 'cheer', 'hurt', 'fainted'];
   // displayCardId -> ANIM_SPRITES key, for Siegelings whose sheets have shipped.
-  var ANIM_SPRITE_CARDS = { floraknight: 'floraknight' };
+  var ANIM_SPRITE_CARDS = { floraknight: 'floraknight', generoot: 'generoot' };
   /*
    * ?spriteTest=<sheet> (e.g. acorn) dresses every ally in that sheet so it can be tried in a
    * real run before it is assigned to a card; ?spriteTest=off clears it. It is
@@ -4610,7 +4612,8 @@
           animFainted[u.id] = true;
         } else {
           delete animFainted[u.id];
-          if (b.phase === 'WON') sp.classList.add('cheering');
+          // The winning side cheers; a foe left standing on your victory does not.
+          if (b.phase === (side === 'ally' ? 'WON' : 'LOST')) sp.classList.add('cheering');
           else if (side === 'ally' && Date.now() < animWalkUntil) {
             sp.classList.add('walk-in');
             setTimeout(function () { sp.classList.remove('walk-in'); }, animWalkUntil - Date.now());

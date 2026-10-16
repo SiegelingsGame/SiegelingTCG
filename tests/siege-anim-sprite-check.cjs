@@ -1,7 +1,7 @@
 // Verifies the animated frame-strip battle sprites in Siege (adventure.js
 // ANIM_SPRITES). Pass 1 (?spriteTest=acorn, 4-frame strips) dresses every ally;
-// pass 2 has no switch and relies on the card mapping (Flora Knight, strips of
-// 7/9/7/4/3/2 frames) on an ally and on a foe shade. In both: a fresh
+// passes 2-3 have no switch and rely on the card mapping (Flora Knight and
+// Generoot, strips of 2-9 frames) on an ally and on a foe shade. In both: a fresh
 // battle walks in, the attacker plays its attack pose when its hit leaves, the
 // struck unit plays hurt, a KO plays fainted once and then holds the last frame
 // across the post-playback re-render, and a won battle cheers.
@@ -76,18 +76,20 @@ const WON = JSON.parse(JSON.stringify(AFTER));
 WON.battle.phase = 'WON'; WON.battle.events = [];
 
 // Pass 2 states: no test switch, so only the card mapping can dress a unit.
-function asFlora(state) {
+function asCard(state, id, name) {
   const s = JSON.parse(JSON.stringify(state));
-  s.battle.allies.forEach(u => { u.displayCardId = 'floraknight'; u.name = 'Flora Knight'; });
-  s.battle.enemies.push(unit('e2', 'Shade of Flora Knight', 'EARTH', 30, 30,
-    { side: 'ENEMY', position: 1, displayCardId: 'floraknight', shadeOf: 'Flora Knight' }));
+  s.battle.allies.forEach(u => { u.displayCardId = id; u.name = name; });
+  s.battle.enemies.push(unit('e2', 'Shade of ' + name, 'EARTH', 30, 30,
+    { side: 'ENEMY', position: 1, displayCardId: id, shadeOf: name }));
   return s;
 }
 const PASSES = [
   { name: 'acorn', query: '?spriteTest=acorn', sheet: 'acorn', frames: { idle: 4, fainted: 4 },
     states: [BEFORE, AFTER, WON] },
   { name: 'floraknight', query: '', sheet: 'floraknight', frames: { idle: 7, fainted: 2 },
-    states: [asFlora(BEFORE), asFlora(AFTER), asFlora(WON)] }
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'floraknight', 'Flora Knight')) },
+  { name: 'generoot', query: '', sheet: 'generoot', frames: { idle: 8, fainted: 2 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'generoot', 'Generoot')) }
 ];
 
 function pose(id) {
@@ -145,9 +147,9 @@ function pose(id) {
     check(p.h > 40 && p.w > p.h, `cell renders ${Math.round(p.w)}x${Math.round(p.h)}`);
     const e1 = await page.evaluate(pose, 'e1');
     check(e1.img === null, 'foe without a sheet keeps static art');
-    if (pass.name === 'floraknight') {
+    if (pass.name !== 'acorn') {
       const e2 = await page.evaluate(pose, 'e2');
-      check(e2.sheet === 'floraknight' && /paper-siegling-shadow|brightness/.test(e2.filter),
+      check(e2.sheet === pass.sheet && /paper-siegling-shadow|brightness/.test(e2.filter),
         `foe shade of a mapped card animates in silhouette (${e2.filter.slice(0, 40)})`);
     }
     await page.screenshot({ path: path.join(OUT, tag + '-walk.png') });
@@ -185,6 +187,10 @@ function pose(id) {
     await page.waitForTimeout(800);
     p = await page.evaluate(pose, 'a1');
     check(p && p.img === 'cheer' && /cheering/.test(p.cls), `won battle cheers (${p && p.img})`);
+    if (pass.name !== 'acorn') {
+      const foe = await page.evaluate(pose, 'e2');
+      check(foe.img === 'idle' && !/cheering/.test(foe.cls), `a surviving foe does not cheer your win (${foe.img})`);
+    }
     p = await page.evaluate(pose, 'a2');
     check(p.img === 'fainted' && /faint-held/.test(p.cls) && p.anim === 'none' && p.frame === pass.frames.fainted - 1,
       `re-render holds the faint instead of replaying it (${p.anim})`);
