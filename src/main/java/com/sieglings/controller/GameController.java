@@ -109,7 +109,18 @@ public class GameController {
                 "minDeckSize", gameService.getDeckBuilderMinSize(),
                 "maxCopies", gameService.getDeckBuilderMaxCopies()
         ));
-        resp.put("cardCatalog", gameService.getDeckBuilderCatalog().stream().map(this::serializeCard).toList());
+        List<Card> catalog = gameService.getDeckBuilderCatalog();
+        Map<String, Card> catalogById = new java.util.HashMap<>();
+        catalog.forEach(card -> catalogById.putIfAbsent(card.getId(), card));
+        resp.put("cardCatalog", catalog.stream().map(card -> {
+            Map<String, Object> m = serializeCard(card);
+            // The physical band Siege sprites and Keep cutouts are drawn at, so the
+            // binder's Siege/Keep previews stand the creature at the same height.
+            if (card instanceof SieglingCard s) {
+                m.put("size", sizeBandOf(s, catalogById).name());
+            }
+            return m;
+        }).toList());
         resp.put("liveElements", gameService.getActiveLiveElementNames());
         resp.put("defaultDeckId", defaultDeck == null ? null : defaultDeck.id());
         resp.put("defaultTrainerId", defaultDeck == null ? null : defaultDeck.recommendedTrainerId());
@@ -1316,6 +1327,21 @@ public class GameController {
             serialized.add(serializeCard(card));
         }
         return serialized;
+    }
+
+    /** Same rule as SiegeService#sizeBandOf: the pinned size, else rarity vs evolution depth. */
+    private static com.sieglings.model.enums.SieglingSize sizeBandOf(SieglingCard s, Map<String, Card> byId) {
+        if (s.getSize() != null) {
+            return s.getSize();
+        }
+        int depth = 0;
+        String from = s.getEvolvesFromId();
+        while (from != null && !from.isBlank() && depth < 6) {
+            depth++;
+            Card parent = byId.get(from);
+            from = parent instanceof SieglingCard ps ? ps.getEvolvesFromId() : null;
+        }
+        return com.sieglings.model.enums.SieglingSize.defaultFor(s.getRarity(), depth);
     }
 
     private Map<String, Object> serializeCard(Card card) {

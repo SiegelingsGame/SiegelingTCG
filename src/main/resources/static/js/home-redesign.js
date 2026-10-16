@@ -4614,7 +4614,8 @@
     var knight = isKnight(card);
     return '<button class="sg-sheet-dismiss" type="button" aria-label="Close card details"></button>' +
       '<div class="sg-sheet-head">' +
-        '<div class="sg-sheet-face" data-face-type="' + esc(faceType) + '">' + galleryCard(card) + '</div>' +
+        '<div class="sg-sheet-face" data-face-type="' + esc(faceType) + '">' +
+          sheetFaceMarkup(card, bestVersion(card), 'arena') + '</div>' +
         '<div class="sg-sheet-id">' +
           '<div class="sg-sheet-idtop' + (peek ? ' has-peek' : '') + '">' +
             '<div class="sg-sheet-idname">' +
@@ -4687,55 +4688,175 @@
   function nextHoloStep(card) {
     if (hasPlayerHolo(card)) return null;
     if (!hasHoloArtwork(card)) {
-      return { tier: 'FLAIR', cost: craftCost(card) * 4, label: 'Make holographic' };
+      return { tier: 'FLAIR', cost: craftCost(card) * 4, label: 'Make HOLO SP' };
     }
     return hasPlayerHoloArt(card)
-      ? { tier: 'FLAIR', cost: craftCost(card) * 2, label: 'Add Holo Flair' }
-      : { tier: 'ART', cost: craftCost(card) * 2, label: 'Unlock Holo Art' };
+      ? { tier: 'FLAIR', cost: craftCost(card) * 2, label: 'Upgrade to HOLO SP' }
+      : { tier: 'ART', cost: craftCost(card) * 2, label: 'Unlock SP' };
   }
 
   function holoButtonLabel(step) {
-    return '\u2726 ' + step.label + ' \u00b7 ' + step.cost.toLocaleString() + ' remnants';
+    return '✦ ' + step.label + ' · ' + step.cost.toLocaleString() + ' remnants';
   }
 
-  function holoTierTrack(card) {
-    var level = hasPlayerHolo(card) ? 2 : (hasPlayerHoloArt(card) ? 1 : 0);
-    return '<ol class="sg-sheet-holo-tiers" aria-label="Card finish">' +
-      [['Standard', 0], ['Holo Art', 1], ['Holo Flair', 2]].map(function (t) {
-        var cls = t[1] < level ? 'is-done' : (t[1] === level ? 'is-current' : '');
-        return '<li class="' + cls + '"' + (t[1] === level ? ' aria-current="step"' : '') + '>' + esc(t[0]) + '</li>';
-      }).join('') +
-    '</ol>';
+  /* ---------- card versions ----------
+     Every card can be looked at in each version, owned or not: Standard, SP
+     (holo art, only when the card has holo art), HOLO SP (holo art plus the
+     foil shimmer) and GOLD. Gold is a preview finish - nothing grants it yet -
+     so it always reads as locked. */
+  var VERSIONS = [
+    { key: 'STANDARD', label: 'Standard' },
+    { key: 'SP', label: 'SP' },
+    { key: 'HOLO', label: 'HOLO SP' },
+    { key: 'GOLD', label: 'GOLD' }
+  ];
+
+  function versionsFor(card) {
+    return VERSIONS.filter(function (v) { return v.key !== 'SP' || hasHoloArtwork(card); });
   }
 
-  function holoBlock(card, opts) {
+  function versionLabel(key) {
+    for (var i = 0; i < VERSIONS.length; i++) if (VERSIONS[i].key === key) return VERSIONS[i].label;
+    return key;
+  }
+
+  // The version the player's own copy shows everywhere else in the hub.
+  function bestVersion(card) {
+    if (card && (card.holographic === true || hasPlayerHolo(card))) return 'HOLO';
+    if (hasHoloArtwork(card) && hasPlayerHoloArt(card)) return 'SP';
+    return 'STANDARD';
+  }
+
+  // null when ownership is unknown (guest, offline board): no locks are drawn then.
+  function versionOwned(card, key, opts) {
     var live = opts && opts.live;
+    var isOwned = live && !opts.guest ? binderOwnership(live) : null;
+    if (!isOwned) return null;
+    if (!isOwned(card)) return false;
+    if (key === 'STANDARD') return true;
+    if (key === 'SP') return card.holographic === true || hasPlayerHolo(card) || hasPlayerHoloArt(card);
+    if (key === 'HOLO') return card.holographic === true || hasPlayerHolo(card);
+    return false;
+  }
+
+  function copyCard(card, extra) {
+    var out = {};
+    for (var key in card) if (Object.prototype.hasOwnProperty.call(card, key)) out[key] = card[key];
+    for (var k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
+    return out;
+  }
+
+  // One version of a card, rendered with the same production renderer the
+  // binder uses but independent of what this account owns.
+  function versionFace(card, key) {
+    var visual = window.SieglingsCardBinderVisual;
+    if (!visual || !visual.renderBinderCardTile) return galleryCard(card);
+    var base = copyCard(card, { holographic: key === 'HOLO' });
+    var inner;
+    if (isKnight(card)) {
+      inner = knightCard(base);
+    }
+    if (!inner) {
+      inner = visual.renderBinderCardTile(base, {
+        descriptionText: cardFaceText(card),
+        useHolographicFullCardArt: key === 'SP' || key === 'HOLO',
+        playerHoloArtIds: key === 'SP' ? [String(card.id || '').toLowerCase()] : []
+      });
+    }
+    var gold = key === 'GOLD';
+    return '<button class="sg-card-tile' + (gold ? ' is-gold' : '') + '" type="button" data-card="' +
+      esc(card.id) + '" data-version="' + key + '">' + inner +
+      (gold ? '<i class="sg-gold-sheen" aria-hidden="true"></i>' : '') + '</button>';
+  }
+
+  var LOCK_GLYPH = '<svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true" fill="currentColor">' +
+    '<path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2h.5A1 1 0 0 1 13 8v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm1.6 0h3.8V5a1.9 1.9 0 0 0-3.8 0z"/></svg>';
+
+  function versionsRow(card, viewing, opts) {
+    return '<div class="sg-sheet-versions" role="group" aria-label="Card versions">' +
+      versionsFor(card).map(function (v) {
+        var owned = versionOwned(card, v.key, opts);
+        var cls = 'sg-sheet-version' + (v.key === viewing ? ' on' : '') +
+          (owned === true ? ' is-owned' : owned === false ? ' is-locked' : '') +
+          (v.key === 'GOLD' ? ' is-gold' : v.key === 'HOLO' ? ' is-holo' : '');
+        return '<button class="' + cls + '" type="button" data-sheet-version="' + v.key + '"' +
+          ' aria-pressed="' + (v.key === viewing) + '"' +
+          (owned === false ? ' aria-label="' + esc(v.label) + ' (not owned)"' : '') + '>' +
+          (owned === false ? LOCK_GLYPH : '') + esc(v.label) + '</button>';
+      }).join('') +
+    '</div>';
+  }
+
+  function holoBlock(card, opts, viewing) {
+    var live = opts && opts.live;
+    var out = '<div class="sg-sheet-holo">' + versionsRow(card, viewing || bestVersion(card), opts);
     // Cards that ship foil have nothing to buy; guests and the offline board
     // cannot spend remnants.
-    if (!live || opts.guest || card.holographic === true) return '';
-    var tiered = hasHoloArtwork(card);
-    if (hasPlayerHolo(card)) {
-      // With the track the top step already says it; the chip is for cards with no track.
-      return '<div class="sg-sheet-holo is-done">' + (tiered
-        ? holoTierTrack(card)
-        : '<span class="sg-sheet-holo-chip">\u2726 Holo Flair</span>') + '</div>';
+    var isOwned = live && !opts.guest ? binderOwnership(live) : null;
+    var step = card.holographic === true ? null : nextHoloStep(card);
+    if (step && isOwned && isOwned(card)) {
+      var balance = Number(live.remnants);
+      var known = isFinite(balance);
+      var short = known && balance < step.cost;
+      out += '<button class="sg-sheet-holo-btn" type="button" data-holo-buy="' + esc(card.id) + '"' +
+          ' data-holo-tier="' + step.tier + '" data-holo-cost="' + step.cost + '"' + (short ? ' disabled' : '') + '>' +
+          holoButtonLabel(step) + '</button>' +
+        '<p class="sg-sheet-holo-note" data-holo-note>' + (known
+          ? (short ? 'You have ' + balance.toLocaleString() + ' remnants. Duplicates and wins earn more.'
+                   : 'You have ' + balance.toLocaleString() + ' remnants.')
+          : '') + '</p>';
     }
-    var isOwned = binderOwnership(live);
-    if (!isOwned || !isOwned(card)) return '';
-    var step = nextHoloStep(card);
-    var balance = Number(live.remnants);
-    var known = isFinite(balance);
-    var short = known && balance < step.cost;
-    return '<div class="sg-sheet-holo">' +
-      (tiered ? holoTierTrack(card) : '') +
-      '<button class="sg-sheet-holo-btn" type="button" data-holo-buy="' + esc(card.id) + '"' +
-        ' data-holo-tier="' + step.tier + '" data-holo-cost="' + step.cost + '"' + (short ? ' disabled' : '') + '>' +
-        holoButtonLabel(step) + '</button>' +
-      '<p class="sg-sheet-holo-note" data-holo-note>' + (known
-        ? (short ? 'You have ' + balance.toLocaleString() + ' remnants. Duplicates and wins earn more.'
-                 : 'You have ' + balance.toLocaleString() + ' remnants.')
-        : '') + '</p>' +
+    return out + '</div>';
+  }
+
+  /* ---------- Siege / Keep views of the sheet face ----------
+     On the Siege and Keep tabs the face shows the Siegeling as it stands in
+     that mode: its overlay cutout, scaled by its size band with the same
+     multipliers adventure.css (--sprite-scale) and keep.css (--cutout-scale)
+     use, against the tallest band so a Small reads small beside a Gigantic.
+     The Keep view adds the Keep's die-cut paper filter. */
+  var SIZE_BANDS = ['SMALL', 'MEDIUM', 'LARGE', 'GIGANTIC'];
+  var MODE_SCALE = {
+    siege: { SMALL: 1, MEDIUM: 1.19, LARGE: 1.48, GIGANTIC: 1.93 },
+    keep: { SMALL: 0.84, MEDIUM: 1, LARGE: 1.24, GIGANTIC: 1.62 }
+  };
+
+  // The server resolves it (GameController#sizeBandOf); rarity is the fallback an
+  // older payload gets, the same one keep.js uses.
+  function sizeBand(card) {
+    var size = String(card && card.size || '').toUpperCase();
+    if (SIZE_BANDS.indexOf(size) !== -1) return size;
+    var r = String(card && card.rarity || '').toUpperCase();
+    return r === 'LEGENDARY' ? 'GIGANTIC' : r === 'EPIC' ? 'LARGE' : r === 'RARE' ? 'MEDIUM' : 'SMALL';
+  }
+
+  function hasCutout(card) {
+    return String(card && card.type || 'SIEGLING').toUpperCase() === 'SIEGLING' &&
+      String(card.cardArtMode || '').toUpperCase() === 'OVERLAY' && Boolean(card.cardArtUrl);
+  }
+
+  function cutoutFace(card, mode) {
+    var scales = MODE_SCALE[mode];
+    var size = sizeBand(card);
+    var top = scales.GIGANTIC;
+    var heightPct = function (band) { return (scales[band] / top * 76).toFixed(1); };
+    var ruler = SIZE_BANDS.map(function (band) {
+      return '<i class="' + (band === size ? 'on' : '') + '" style="bottom:calc(' + heightPct(band) + '% + 15%)">' +
+        esc(band.charAt(0)) + '</i>';
+    }).join('');
+    return '<div class="sg-cutout is-' + mode + '" data-size="' + size + '" style="--cut-h:' + heightPct(size) + '%">' +
+      '<div class="sg-cutout-ruler" aria-hidden="true">' + ruler + '</div>' +
+      '<i class="sg-cutout-ground" aria-hidden="true"></i>' +
+      '<div class="sg-cutout-figure"><img ' + artAttrs(card.cardArtUrl, 480) + ' alt="' + esc(card.name) + '" draggable="false"></div>' +
+      '<span class="sg-cutout-tag">' + esc(mode === 'siege' ? 'Siege' : 'Keep') + ' · ' + esc(title(size)) + '</span>' +
     '</div>';
+  }
+
+  // What the sheet face shows: the chosen version on Arena (and Evolution),
+  // the in-world cutout on Siege and Keep.
+  function sheetFaceMarkup(card, version, mode) {
+    if ((mode === 'siege' || mode === 'keep') && hasCutout(card)) return cutoutFace(card, mode);
+    return versionFace(card, version);
   }
 
   // Repaints every face of this card already on the page (binder tiles behind
@@ -4936,10 +5057,21 @@
     } catch (e) { /* audio is decoration; never break the unlock */ }
   }
 
-  function playHoloTwirl(face, holoInner, done) {
+  // `freshTile` is the full markup of the face to land on; the spinning tile
+  // keeps its node (the animation runs on it) and takes the new content and class.
+  function playHoloTwirl(face, freshTile, done) {
     var tile = face && face.querySelector('.sg-card-tile');
     function swap() {
-      if (tile && tile.isConnected && holoInner) tile.innerHTML = holoInner;
+      if (tile && tile.isConnected && freshTile) {
+        var tmp = document.createElement('div');
+        tmp.innerHTML = freshTile;
+        var fresh = tmp.querySelector('.sg-card-tile');
+        if (fresh) {
+          tile.innerHTML = fresh.innerHTML;
+          tile.className = fresh.className;
+          tile.setAttribute('data-version', fresh.getAttribute('data-version') || '');
+        }
+      }
       if (face && face.isConnected) fitCardDescriptions(face);
     }
     if (!tile || !tile.animate || prefersReducedMotion()) {
@@ -5018,16 +5150,23 @@
         }
       }
       var card = byIdIn(ALL_CARDS, id) || byId(id);
-      var face = sheetCard.getAttribute('data-zoom-card') === String(id)
-        ? sheetCard.querySelector('.sg-sheet-face') : null;
-      var holoInner = repaintCardFaces(app, card, face && face.querySelector('.sg-card-tile'));
+      var onSheet = sheetCard.getAttribute('data-zoom-card') === String(id);
+      // The unlock plays on the card itself, so a purchase made from the Siege or
+      // Keep tab brings the Arena face back first.
+      if (onSheet && sheetCard.getAttribute('data-mode') !== 'arena' && sheetCard.sgShowTab) {
+        sheetCard.sgShowTab('arena');
+      }
+      var face = onSheet ? sheetCard.querySelector('.sg-sheet-face') : null;
+      repaintCardFaces(app, card, face && face.querySelector('.sg-card-tile'));
+      var version = bestVersion(card);
+      if (onSheet) sheetCard.setAttribute('data-version', version);
       var block = sheetCard.querySelector('.sg-sheet-holo');
-      if (block) block.outerHTML = holoBlock(card, opts);
-      playHoloTwirl(face, holoInner);
+      if (block) block.outerHTML = holoBlock(card, opts, version);
+      playHoloTwirl(face, versionFace(card, version));
     });
   }
 
-  function wireTabs(sheetCard) {
+  function wireTabs(sheetCard, onShow) {
     var tabs = [].slice.call(sheetCard.querySelectorAll('[data-sheet-tab]'));
     var panels = [].slice.call(sheetCard.querySelectorAll('[data-sheet-panel]'));
     var panelHost = sheetCard.querySelector('.sg-sheet-panels');
@@ -5043,6 +5182,7 @@
       if (panelHost) panelHost.scrollTop = 0;
       // Now that the panel has a width, the chain's names can be measured.
       fitEvolutionNames(sheetCard);
+      if (onShow) onShow(id);
     }
     tabs.forEach(function (tab) {
       tab.addEventListener('click', function () { show(tab.getAttribute('data-sheet-tab')); });
@@ -5062,9 +5202,14 @@
   // One sheet host per screen; any tile with data-card opens it.
   function sheetHost() {
     return '<div class="sg-sheet" data-sheet><div class="sg-sheet-card" data-sheet-card></div></div>' +
-      '<div class="sg-zoom" data-zoom hidden>' +
+      '<div class="sg-zoom" data-zoom tabindex="-1" hidden>' +
         '<button class="sg-zoom-scrim" type="button" data-zoom-close aria-label="Close full screen card"></button>' +
         '<div class="sg-zoom-stage" data-zoom-stage></div>' +
+        '<div class="sg-zoom-dots" data-zoom-dots aria-hidden="true"></div>' +
+        '<div class="sg-zoom-foot">' +
+          '<div class="sg-zoom-version" data-zoom-version aria-live="polite"></div>' +
+          '<p class="sg-zoom-hint">Drag to turn the card \u00b7 Swipe up or down for versions</p>' +
+        '</div>' +
         '<button class="sg-zoom-close" type="button" data-zoom-close aria-label="Close full screen card">\u00d7</button>' +
       '</div>';
   }
@@ -5076,78 +5221,261 @@
      It is the identical `.sg-card-tile` markup, which is what keeps the
      description fitter - the rules that hold the box off the bottom notch -
      applying here exactly as it does in the binder. */
-  function mountZoom(app) {
+  /* The full-screen card is a 3D object, not a picture of one.
+
+     Structure: .sg-zoom-mover (vertical travel, for changing versions) >
+     .sg-zoom-card (scale + rotateX/rotateY, preserve-3d) > a front face (the
+     printed card) and a back face (the card back), each hidden when turned away.
+
+     Drag sideways and the card turns on its vertical axis, tilting a little with
+     the finger's height; let go and it settles face-on or back-on, a flick
+     carrying it round to the other side. Swipe up or down and the card leaves
+     the screen that way and the next version (Standard, SP, HOLO SP, GOLD)
+     comes in from the opposite edge. Arrow keys and the wheel do the same.
+
+     The card is still magnified rather than re-laid-out: it is measured and its
+     description fitted at natural size, then the whole composition is scaled,
+     so every placement stays the printed one. */
+  var ZOOM_SETTLE = 'transform .42s cubic-bezier(.2,.8,.25,1)';
+  var ZOOM_EXIT_MS = 240;
+
+  function mountZoom(app, opts) {
     var zoom = app.querySelector('[data-zoom]');
     if (!zoom) return null;
     var stage = zoom.querySelector('[data-zoom-stage]');
+    var label = zoom.querySelector('[data-zoom-version]');
+    var dots = zoom.querySelector('[data-zoom-dots]');
     var opener = null;
+    var card = null, versions = [], index = 0;
+    var mover = null, obj = null;
+    var scale = 1, rx = 0, ry = 0, ty = 0;
+    var busy = false, drag = null, wheelAt = 0;
+
+    function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    function apply(transition, s) {
+      if (!obj) return;
+      mover.style.transition = obj.style.transition = transition || 'none';
+      mover.style.transform = 'translate3d(0,' + ty.toFixed(1) + 'px,0)';
+      obj.style.transform = 'scale(' + (s || scale).toFixed(3) + ') rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+    }
+
+    function backArt(c) {
+      var type = String(c.type || 'SIEGLING').toUpperCase();
+      if (type === 'SIEGEKNIGHT') return '/img/knights/card-back-siegeknight.webp';
+      if (type === 'SPELL') return '/img/packs/spell-card-back.webp';
+      if (type === 'TRAP') return '/img/packs/trap-card-back.webp';
+      // The player's chosen sleeve when they have one, else the card's own element.
+      var entry = cardBackEntry(prefs().preferredCardBack) || cardBackEntry(c.element);
+      return entry ? cardBackArt(entry) : '/img/packs/siegeling-back.webp';
+    }
+
+    function paintLabel() {
+      var v = versions[index];
+      var owned = versionOwned(card, v.key, opts);
+      label.innerHTML = '<b>' + esc(v.label) + '</b>' +
+        (v.key === 'GOLD' ? '<span>Preview</span>'
+          : owned === true ? '<span class="is-owned">Owned</span>'
+          : owned === false ? '<span>Not owned</span>' : '');
+      label.setAttribute('data-version', v.key);
+      dots.innerHTML = versions.length > 1 ? versions.map(function (x, i) {
+        return '<i class="' + (i === index ? 'on' : '') + '" title="' + esc(x.label) + '"></i>';
+      }).join('') : '';
+    }
+
+    function build() {
+      stage.innerHTML = '<div class="sg-zoom-mover"><div class="sg-zoom-card">' +
+        '<div class="sg-zoom-face sg-zoom-front">' + versionFace(card, versions[index].key) + '</div>' +
+        '<div class="sg-zoom-face sg-zoom-back"><img src="' + esc(backArt(card)) +
+          '" alt="Card back" draggable="false"></div>' +
+      '</div></div>';
+      mover = stage.firstChild;
+      obj = mover.firstChild;
+      // The tile is a button in the binder because it opens this; here it IS
+      // the content, so it stops being a control.
+      var tile = obj.querySelector('.sg-card-tile');
+      if (tile) {
+        tile.setAttribute('tabindex', '-1');
+        tile.removeAttribute('data-card');
+      }
+      // A press focuses the tile button, and rebuilding for a new version
+      // removes it - focus would fall to <body>, past the key handlers.
+      if (zoom.classList.contains('open') && !zoom.contains(document.activeElement)) {
+        zoom.focus({ preventScroll: true });
+      }
+      paintLabel();
+    }
 
     function close() {
       zoom.classList.remove('open');
       zoom.hidden = true;
       stage.innerHTML = '';
+      mover = obj = null;
+      drag = null;
+      busy = false;
       if (opener && opener.isConnected) opener.focus({ preventScroll: true });
       opener = null;
     }
-    function open(card, from) {
-      if (!card) return;
+
+    function open(c, from, versionKey) {
+      if (!c) return;
+      card = c;
       opener = from || document.activeElement;
-      stage.innerHTML = galleryCard(card);
-      // The tile is a button in the binder because it opens this; here it IS
-      // the content, so it stops being a control.
-      var tile = stage.querySelector('.sg-card-tile');
-      if (tile) {
-        tile.setAttribute('tabindex', '-1');
-        tile.removeAttribute('data-card');
-      }
+      versions = versionsFor(c);
+      var keys = versions.map(function (v) { return v.key; });
+      index = Math.max(0, keys.indexOf(versionKey || bestVersion(c)));
+      rx = ry = ty = 0;
+      busy = false;
+      build();
       zoom.hidden = false;
       zoom.classList.add('open');
       var closer = zoom.querySelector('.sg-zoom-close');
       if (closer) closer.focus({ preventScroll: true });
-      window.requestAnimationFrame(layout);
+      window.requestAnimationFrame(function () { layout(true); });
     }
 
-    /* The card is magnified, not re-laid-out.
-
-       The printed card is a fixed-proportion box whose type sizes are absolute
-       px (`.card-summary-list` is 9px, everything inside it is an em of that),
-       and `.mulligan-card-slot` caps at 200px. Widening the box for full screen
-       would therefore give a 560px card with 9px flavour text, and the
-       description box would sit in a completely different place relative to the
-       notches than it does on the real card - which is the one thing this view
-       must not do. So the card is laid out at its natural size, the description
-       is fitted there under the same rules as the binder, and the whole
-       composition is scaled up as a unit: every placement is the printed one.
-
-       Fit first, scale second. `fitOneDescription` mixes scroll metrics
+    /* Fit first, scale second. `fitOneDescription` mixes scroll metrics
        (unscaled) with getBoundingClientRect (scaled), so measuring through a
-       transform would put the notch clearance out by the scale factor. */
-    function layout() {
-      var tile = stage.querySelector('.sg-card-tile');
-      if (!tile) return;
-      // Measure through a running transition and getBoundingClientRect returns
-      // the ANIMATED size, not the natural one - a re-layout while the card was
-      // still growing computed a scale of 1 and left it at thumbnail size. The
-      // transition is suspended for the measurement, not just the transform.
+       transform would put the notch clearance out by the scale factor. A
+       transition is suspended for the measurement too, or the rect is the
+       animated size rather than the natural one. */
+    function layout(pop) {
+      if (!obj) return;
       zoom.classList.add('is-measuring');
-      tile.style.setProperty('--sg-zoom-scale', '1');
+      mover.style.transition = obj.style.transition = 'none';
+      mover.style.transform = obj.style.transform = 'none';
       fitCardDescriptions(zoom);
       fitTileNames(zoom);
-      var box = tile.getBoundingClientRect();
+      var box = obj.getBoundingClientRect();
       var room = stage.getBoundingClientRect();
-      if (!box.width || !box.height || !room.width || !room.height) {
-        zoom.classList.remove('is-measuring');
-        return;
-      }
-      var scale = Math.min(room.width / box.width, room.height / box.height);
-      // Never shrink: on a viewport narrower than the printed card the stage
-      // already clamps the width, and scaling below 1 would only add blur.
-      tile.style.setProperty('--sg-zoom-scale', Math.max(1, scale).toFixed(3));
       zoom.classList.remove('is-measuring');
+      if (!box.width || !box.height || !room.width || !room.height) return;
+      // Never shrink: below the printed size scaling only adds blur.
+      scale = Math.max(1, Math.min(room.width / box.width, room.height / box.height) * 0.96);
+      if (pop) {
+        apply('none', scale * 0.92);
+        void obj.offsetWidth;
+      }
+      apply(pop ? ZOOM_SETTLE : 'none');
     }
 
+    // Leaves through one edge, swaps the version, arrives from the other.
+    function cycle(dir) {
+      if (!obj || busy) return;
+      if (versions.length < 2) { ty = rx = 0; apply(ZOOM_SETTLE); return; }
+      busy = true;
+      var h = (window.innerHeight || 800) * 1.05;
+      ty = dir > 0 ? -h : h;
+      rx = dir > 0 ? 16 : -16;
+      apply('transform ' + ZOOM_EXIT_MS + 'ms cubic-bezier(.5,0,.9,.6)');
+      window.setTimeout(function () {
+        if (!zoom.classList.contains('open')) return;
+        index = (index + dir + versions.length) % versions.length;
+        ry = 0;
+        build();
+        layout(false);
+        ty = dir > 0 ? h : -h;
+        rx = dir > 0 ? -14 : 14;
+        apply('none');
+        void obj.offsetWidth;
+        ty = rx = 0;
+        apply(ZOOM_SETTLE);
+        window.setTimeout(function () { busy = false; }, 420);
+      }, ZOOM_EXIT_MS);
+    }
+
+    function turn(dir) {
+      if (!obj || busy) return;
+      ry = Math.round(ry / 180) * 180 + dir * 180;
+      rx = 0;
+      apply(ZOOM_SETTLE);
+    }
+
+    stage.addEventListener('pointerdown', function (e) {
+      if (!obj || busy || !(e.target.closest && e.target.closest('.sg-zoom-card'))) return;
+      var t = now();
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, rx: rx, ry: ry, axis: null,
+        lx: e.clientX, ly: e.clientY, lt: t, vx: 0, vy: 0 };
+      try { stage.setPointerCapture(e.pointerId); } catch (err) { /* old Safari */ }
+      // Pressing a plain div drops focus to <body>, outside the app listeners
+      // that handle Escape and the arrow keys; keep it inside the overlay.
+      if (!zoom.contains(document.activeElement)) zoom.focus({ preventScroll: true });
+      apply('none');
+    });
+    stage.addEventListener('pointermove', function (e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      // The axis is locked on the first real movement so a slightly diagonal
+      // turn never also starts a version change.
+      if (!drag.axis) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        drag.axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+      }
+      var t = now(), dt = t - drag.lt;
+      if (dt > 0) {
+        drag.vx = drag.vx * 0.6 + ((e.clientX - drag.lx) / dt) * 0.4;
+        drag.vy = drag.vy * 0.6 + ((e.clientY - drag.ly) / dt) * 0.4;
+      }
+      drag.lx = e.clientX; drag.ly = e.clientY; drag.lt = t;
+      if (drag.axis === 'x') {
+        ry = drag.ry + dx * 0.55;
+        rx = clamp(drag.rx - dy * 0.25, -22, 22);
+      } else {
+        ty = dy;
+        rx = clamp(-dy * 0.05, -12, 12);
+      }
+      apply('none');
+      e.preventDefault();
+    });
+    function release(e) {
+      if (!drag || (e && e.pointerId !== drag.id)) return;
+      var d = drag;
+      drag = null;
+      if (!d.axis) return;
+      if (d.axis === 'x') {
+        // Settle on the nearest face; a flick carries it on to the next one.
+        var target = Math.round(ry / 180) * 180;
+        if (Math.abs(d.vx) > 0.45) {
+          target = d.vx > 0 ? Math.ceil(ry / 180) * 180 : Math.floor(ry / 180) * 180;
+          if (target === ry) target += d.vx > 0 ? 180 : -180;
+        }
+        ry = target;
+        rx = 0;
+        apply(ZOOM_SETTLE);
+        return;
+      }
+      var moved = (e ? e.clientY : d.ly) - d.y;
+      if (Math.abs(moved) > 70 || Math.abs(d.vy) > 0.55) {
+        cycle(moved < 0 ? 1 : -1);
+      } else {
+        ty = rx = 0;
+        apply(ZOOM_SETTLE);
+      }
+    }
+    stage.addEventListener('dragstart', function (e) { e.preventDefault(); });
+    stage.addEventListener('pointerup', release);
+    stage.addEventListener('pointercancel', release);
+
+    zoom.addEventListener('wheel', function (e) {
+      if (!zoom.classList.contains('open') || Math.abs(e.deltaY) < 12) return;
+      e.preventDefault();
+      // A trackpad fires dozens of wheel events per gesture; one change each.
+      var t = now();
+      if (t - wheelAt < 600) return;
+      wheelAt = t;
+      cycle(e.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
+
+    app.addEventListener('keydown', function (e) {
+      if (!zoom.classList.contains('open') || e.sgEscapeHandled) return;
+      var keys = { ArrowUp: function () { cycle(1); }, ArrowDown: function () { cycle(-1); },
+        ArrowLeft: function () { turn(-1); }, ArrowRight: function () { turn(1); } };
+      if (keys[e.key]) { keys[e.key](); e.preventDefault(); }
+    });
+
     window.addEventListener('resize', function () {
-      if (zoom.classList.contains('open')) window.requestAnimationFrame(layout);
+      if (zoom.classList.contains('open') && !busy) window.requestAnimationFrame(function () { layout(false); });
     });
     zoom.addEventListener('click', function (e) {
       if (e.target.closest('[data-zoom-close]')) close();
@@ -5161,7 +5489,7 @@
     var sheet = app.querySelector('[data-sheet]');
     if (!sheet) return null;
     var sheetCard = sheet.querySelector('[data-sheet-card]');
-    var zoom = mountZoom(app);
+    var zoom = mountZoom(app, opts);
     var opener = null;
     var swipe = null;
     function close() {
@@ -5176,8 +5504,18 @@
       opener = document.activeElement;
       sheetCard.innerHTML = cardSheetMarkup(card, opts);
       sheetCard.setAttribute('data-zoom-card', String(card.id == null ? '' : card.id));
+      sheetCard.setAttribute('data-version', bestVersion(card));
+      sheetCard.setAttribute('data-mode', 'arena');
       sheetCard.scrollTop = 0;
-      var show = wireTabs(sheetCard);
+      var show = wireTabs(sheetCard, function (id) {
+        // Siege and Keep stand the Siegeling up as it looks there; every other
+        // tab keeps the card itself.
+        var mode = id === 'siege' || id === 'keep' ? id : 'arena';
+        if (sheetCard.getAttribute('data-mode') === mode) return;
+        sheetCard.setAttribute('data-mode', mode);
+        paintSheetFace(card);
+      });
+      sheetCard.sgShowTab = show;
       if (tab && sheetCard.querySelector('[data-sheet-tab="' + tab + '"]')) show(tab);
       if (isKnight(card) && sheetCard.querySelector('[data-knight-siege-loading]')) {
         loadSiegeKnights().then(function () {
@@ -5196,7 +5534,31 @@
     });
     // The face inside the sheet opens the card full screen. It sits inside the
     // sheet, so the gallery's own [data-card] delegation deliberately skips it.
+    function paintSheetFace(card) {
+      var face = sheetCard.querySelector('.sg-sheet-face');
+      if (!face) return;
+      face.innerHTML = sheetFaceMarkup(card, sheetCard.getAttribute('data-version') || 'STANDARD',
+        sheetCard.getAttribute('data-mode') || 'arena');
+      face.setAttribute('data-face-view', sheetCard.getAttribute('data-mode') || 'arena');
+      fitCardDescriptions(face);
+      fitTileNames(face);
+    }
     sheetCard.addEventListener('click', function (e) {
+      var versionBtn = e.target.closest ? e.target.closest('[data-sheet-version]') : null;
+      if (versionBtn) {
+        var vCard = byIdIn(ALL_CARDS, sheetCard.getAttribute('data-zoom-card')) || byId(sheetCard.getAttribute('data-zoom-card'));
+        sheetCard.setAttribute('data-version', versionBtn.getAttribute('data-sheet-version'));
+        [].slice.call(sheetCard.querySelectorAll('[data-sheet-version]')).forEach(function (b) {
+          var on = b === versionBtn;
+          b.classList.toggle('on', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        // A version is a look of the card, so picking one from Siege or Keep
+        // brings the card face back to show it.
+        if (sheetCard.getAttribute('data-mode') !== 'arena' && sheetCard.sgShowTab) sheetCard.sgShowTab('arena');
+        else paintSheetFace(vCard);
+        return;
+      }
       var holoBtn = e.target.closest ? e.target.closest('[data-holo-buy]') : null;
       if (holoBtn) {
         if (!holoBtn.disabled) buyHoloFinish(app, opts || {}, sheetCard, holoBtn);
@@ -5219,7 +5581,8 @@
       var face = e.target.closest ? e.target.closest('.sg-sheet-face') : null;
       if (!face || !zoom) return;
       var id = sheetCard.getAttribute('data-zoom-card');
-      zoom.open(byIdIn(ALL_CARDS, id) || byId(id), face.querySelector('.sg-card-tile') || face);
+      zoom.open(byIdIn(ALL_CARDS, id) || byId(id), face.querySelector('.sg-card-tile') || face,
+        sheetCard.getAttribute('data-version') || 'STANDARD');
     });
     app.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape' || e.sgEscapeHandled) return;
