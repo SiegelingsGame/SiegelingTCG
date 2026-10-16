@@ -6178,11 +6178,11 @@
   var FINISH_LADDER = ['STANDARD', 'HOLO', 'SP', 'HSP', 'GOLD', 'GSP'];
   var SPRITE_FINISHES = [
     { key: 'NONE', label: 'Normal', needs: null },
-    { key: 'HOLO', label: 'Holo', needs: 'HOLO' },
-    { key: 'SP', label: 'SP', needs: 'SP' },
-    { key: 'HSP', label: 'HSP', needs: 'HSP' },
-    { key: 'GOLD', label: 'GOLD', needs: 'GOLD' },
-    { key: 'GSP', label: 'GSP', needs: 'GSP' }
+    { key: 'HOLO', label: 'Holo', name: 'Holographic', needs: 'HOLO' },
+    { key: 'SP', label: 'SP', name: 'Special', needs: 'SP' },
+    { key: 'HSP', label: 'HSP', name: 'Holographic Special', needs: 'HSP' },
+    { key: 'GOLD', label: 'GOLD', name: 'Gold', needs: 'GOLD' },
+    { key: 'GSP', label: 'GSP', name: 'Gold Special', needs: 'GSP' }
   ];
   var ownedFinishTiers = {}; // lower-cased card id -> 'HOLO' | 'SP' | 'HSP' | 'GOLD' | 'GSP'
 
@@ -6240,7 +6240,7 @@
         var open = finishUnlocked(cardId, f);
         return '<button type="button" class="um-finish fx-chip-' + f.key.toLowerCase() + (f.key === current ? ' on' : '') +
           (open ? '' : ' is-locked') + '" data-finish="' + f.key + '"' + (open ? '' : ' disabled') +
-          ' title="' + esc(open ? f.label : f.label + ' unlocks when you own ' + f.label + ' ' + '(or higher) of this card') + '">' +
+          ' title="' + esc(!f.name ? f.label : open ? f.name : f.name + ' unlocks when you own the ' + f.name + ' version (or higher) of this card') + '">' +
           (open ? '' : '🔒 ') + esc(f.label) + '</button>';
       }).join('') + '</div>' +
       (SPRITE_FINISHES.some(function (f) { return !finishUnlocked(cardId, f); })

@@ -2947,6 +2947,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:#fff;
 }
 .sg-zoom-version b { font-weight:800; }
+.sg-zoom-version em { font-style:normal; font-size:10px; letter-spacing:.06em; color:rgba(255,255,255,.75); }
 .sg-zoom-version span { font-size:10px; color:var(--muted); letter-spacing:.08em; }
 .sg-zoom-version span.is-owned { color:#8ff0b0; }
 .sg-zoom-version[data-version="HSP"] b {

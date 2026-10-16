@@ -4740,12 +4740,12 @@
      the starter pack, so this only decides what to offer. */
   var CRAFT_COST = { COMMON: 500, UNCOMMON: 1000, RARE: 2000, EPIC: 4000, LEGENDARY: 8000 };
   var FINISH_LADDER = [
-    { key: 'STANDARD', label: 'Standard', total: 0 },
-    { key: 'HOLO', label: 'Holo', total: 1 },
-    { key: 'SP', label: 'SP', total: 2 },
-    { key: 'HSP', label: 'HSP', total: 4 },
-    { key: 'GOLD', label: 'GOLD', total: 12 },
-    { key: 'GSP', label: 'GSP', total: 28 }
+    { key: 'STANDARD', label: 'Standard', name: 'Standard', total: 0 },
+    { key: 'HOLO', label: 'Holo', name: 'Holographic', total: 1 },
+    { key: 'SP', label: 'SP', name: 'Special', total: 2 },
+    { key: 'HSP', label: 'HSP', name: 'Holographic Special', total: 4 },
+    { key: 'GOLD', label: 'GOLD', name: 'Gold', total: 12 },
+    { key: 'GSP', label: 'GSP', name: 'Gold Special', total: 28 }
   ];
 
   function finishIndex(key) {
@@ -4848,7 +4848,7 @@
           (owned === true ? ' is-owned' : owned === false ? ' is-locked' : '') +
           (v.key === 'GOLD' || v.key === 'GSP' ? ' is-gold' : v.key === 'HSP' ? ' is-holo' : v.key === 'HOLO' ? ' is-holo-lite' : '');
         return '<button class="' + cls + '" type="button" data-sheet-version="' + v.key + '"' +
-          ' aria-pressed="' + (v.key === viewing) + '"' +
+          ' aria-pressed="' + (v.key === viewing) + '" title="' + esc(v.name) + '"' +
           (owned === false ? ' aria-label="' + esc(v.label) + ' (not owned)"' : '') + '>' +
           (owned === false ? LOCK_GLYPH : '') + esc(v.label) + '</button>';
       }).join('') +
@@ -5354,6 +5354,7 @@
       var v = versions[index];
       var owned = versionOwned(card, v.key, opts);
       label.innerHTML = '<b>' + esc(v.label) + '</b>' +
+        (v.name && v.name !== v.label ? '<em>' + esc(v.name) + '</em>' : '') +
         (owned === true ? '<span class="is-owned">Owned</span>'
           : owned === false ? '<span>Not owned</span>' : '');
       label.setAttribute('data-version', v.key);
@@ -9539,11 +9540,11 @@
       ['sub', 'Skins'],
       ['p', 'Tap one of your Siegelings in battle to open its sheet, then pick a skin under Look. There is one skin per card finish, and each unlocks when you own that version of the card (or a higher one) in your Collection. Skins are cosmetic only.'],
       ['defs', [
-        ['Holo', 'A soft pastel sheen.'],
-        ['SP', 'An iridescent colour drift.'],
-        ['HSP', 'The iridescent drift inside a rainbow aura.'],
-        ['GOLD', 'Its own colours inside a pulsing gold aura.'],
-        ['GSP', 'The whole creature cast in gold.']
+        ['Holographic (Holo)', 'A soft pastel sheen.'],
+        ['Special (SP)', 'An iridescent colour drift.'],
+        ['Holographic Special (HSP)', 'The iridescent drift inside a rainbow aura.'],
+        ['Gold (GOLD)', 'Its own colours inside a pulsing gold aura.'],
+        ['Gold Special (GSP)', 'The whole creature cast in gold.']
       ]],
       ['link', ['/siege', 'Start an expedition']]
     ]],
@@ -9560,14 +9561,14 @@
       ['note', 'Missions on Home refresh daily, and the Daily Objectives strip shows what is left.']
     ]],
     ['Card finishes', 'Holo, SP, HSP, GOLD and GSP', '/img/lands/light.webp', 'LIGHT', [
-      ['p', 'Every card can be owned in a finish. The ladder runs Standard › Holo › SP › HSP › GOLD › GSP. Each finish contains the ones below it, and a card only ever moves up.'],
+      ['p', 'Every card can be owned in a finish. The ladder runs Standard › Holographic › Special › Holographic Special › Gold › Gold Special, shortened on cards and buttons to Holo, SP, HSP, GOLD and GSP. Each finish contains the ones below it, and a card only ever moves up.'],
       ['defs', [
         ['Standard', 'The printed card.'],
-        ['Holo', 'A plain holographic sheen over the standard art.'],
-        ['SP', 'The card’s special holo artwork. Only cards that have holo art can be SP.'],
-        ['HSP', 'Holo SP: the holo artwork with the full rainbow foil.'],
-        ['GOLD', 'The holo artwork in a polished gold frame with a gold shine.'],
-        ['GSP', 'Gold SP, the final finish: the whole card cast in gold, with the notches left in colour so they still read in play.']
+        ['Holographic (Holo)', 'A plain holographic sheen over the standard art.'],
+        ['Special (SP)', 'The card’s special holo artwork. Only cards that have holo art can be Special.'],
+        ['Holographic Special (HSP)', 'The special holo artwork with the full rainbow foil.'],
+        ['Gold (GOLD)', 'The special holo artwork in a polished gold frame with a gold shine.'],
+        ['Gold Special (GSP)', 'The final finish: the whole card cast in gold, with the notches left in colour so they still read in play.']
       ]],
       ['sub', 'How to get them'],
       ['list', [
@@ -9640,7 +9641,7 @@
         ['Siegecoins', 'The main currency: packs, decks, daily shop cards and Keep market lots.'],
         ['Remnants', 'Earned from duplicates past the 3-copy cap, wins and pack openings. Spent on crafting cards and upgrading finishes.'],
         ['Crowns', 'The Chronicles and Dominion currency.'],
-        ['Finish', 'A card’s look: Standard, Holo, SP, HSP, GOLD or GSP. See Card finishes.'],
+        ['Finish', 'A card’s look: Standard, Holographic (Holo), Special (SP), Holographic Special (HSP), Gold (GOLD) or Gold Special (GSP). See Card finishes.'],
         ['Veteran', 'A Siegeling banked from a won Siege run, used again in Endless and Battlegrounds.']
       ]]
     ]]
