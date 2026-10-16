@@ -9520,6 +9520,41 @@ body.placement-active .board-cell.legal {
     transform: translateY(var(--card-art-offset-y, 0%));
 }
 
+/* Replace art must render at the scale it was tuned at in the dashboard on
+   every framed surface. cardArtScale is applied on top of a base size, so the
+   base has to be the same everywhere: the dashboard preview's cover fit
+   (height = window x zoom) with its zoom/focus/offset. The per-surface defaults
+   (hand 2, selected 2.05, board 2.2) and the fit-inside img rules for hand,
+   board and binder slots (.card-art-hand img, the board's contain rule,
+   .mulligan-card-slot ... img) otherwise shrank the art before the scale, so it
+   came out several times smaller than in the editor. */
+.board-card.arena-board-card.element-frame .card-art-hand.card-art-crop-illustration,
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-art-hand.card-art-crop-illustration,
+.card-preview-card.element-frame .card-art-preview.card-art-crop-illustration,
+.card-preview-card.element-frame .card-art-selected.card-art-crop-illustration,
+.selected-preview-card.element-frame .card-art-preview.card-art-crop-illustration,
+.selected-preview-card.element-frame .card-art-selected.card-art-crop-illustration,
+.mulligan-showcase.element-frame .card-art-preview.card-art-crop-illustration,
+.mulligan-showcase.element-frame .card-art-selected.card-art-crop-illustration {
+    --card-art-zoom: 2.08;
+    --card-art-focus-y: 23%;
+    --card-art-offset-y: 1%;
+}
+
+.board-card.arena-board-card.element-frame .card-art-hand.card-art-crop-illustration img,
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .card-art-hand.card-art-crop-illustration img,
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-preview.card-art-crop-illustration img,
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-selected.card-art-crop-illustration img {
+    width: auto;
+    height: calc(100% * var(--card-art-zoom, 1));
+    flex-shrink: 0;
+    max-width: none;
+    max-height: none;
+    object-fit: cover;
+    object-position: center var(--card-art-focus-y, 50%);
+    filter: none;
+}
+
 .card-preview-card.element-frame .hand-card-body,
 .selected-preview-card.element-frame .hand-card-body,
 .mulligan-showcase.element-frame .hand-card-body {
