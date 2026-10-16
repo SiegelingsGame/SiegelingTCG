@@ -4684,18 +4684,126 @@
     '</div>';
   }
 
-  // Repaints every face of this card already on the page (binder tile, sheet
-  // face) so the foil appears where the player is looking, without rebuilding
-  // the binder and losing their scroll position.
-  function repaintCardFaces(app, card) {
+  // Repaints every face of this card already on the page (binder tiles behind
+  // the sheet) so the foil is there when the sheet closes, without rebuilding
+  // the binder and losing their scroll position. `skip` is the sheet face,
+  // which the twirl swaps itself at the moment it is edge-on.
+  function repaintCardFaces(app, card, skip) {
     var tmp = document.createElement('div');
     tmp.innerHTML = galleryCard(card);
     var fresh = tmp.querySelector('.sg-card-tile');
-    if (!fresh) return;
+    if (!fresh) return '';
     [].slice.call(app.querySelectorAll('.sg-card-tile[data-card]')).forEach(function (tile) {
+      if (tile === skip) return;
       if (tile.getAttribute('data-card') === String(card.id)) tile.innerHTML = fresh.innerHTML;
     });
     scheduleFit(app);
+    return fresh.innerHTML;
+  }
+
+  /* ---------- holo unlock: twirl + diamond burst ----------
+     The card spins up on its vertical axis and is swapped for its foil face at
+     exactly the frame it is edge-on (rotateY 630deg at the halfway keyframe),
+     so the change itself is never seen - it simply comes out of the spin holo.
+     Sparkles converge on the card while it winds up and burst out of it at the
+     swap. Particles live in a fixed layer on <body>: the sheet clips, and the
+     burst is meant to spill over it. Web Animations, not CSS classes, because
+     every particle has its own random path. */
+  var HOLO_TWIRL_MS = 1500;
+  var HOLO_COLORS = ['#ffffff', '#9ff3ff', '#ff9cf0', '#fff59a', '#a6ffcf', '#c9a6ff'];
+
+  function holoRand(min, max) { return min + Math.random() * (max - min); }
+
+  function holoParticle(layer, cls, size, color) {
+    var el = document.createElement('i');
+    el.className = cls;
+    el.style.setProperty('--s', size.toFixed(1) + 'px');
+    if (color) el.style.setProperty('--c', color);
+    layer.appendChild(el);
+    return el;
+  }
+
+  function holoBurst(layer, w, h, delay) {
+    var n, i, el, a, d, size, spin;
+    // Converge: a ring of glints drawn in towards the card as it winds up.
+    for (i = 0; i < 10; i++) {
+      a = (i / 10) * Math.PI * 2 + holoRand(-0.2, 0.2);
+      d = holoRand(120, 170);
+      el = holoParticle(layer, 'sg-holo-star', holoRand(8, 14), HOLO_COLORS[i % HOLO_COLORS.length]);
+      el.animate([
+        { transform: 'translate(' + Math.cos(a) * d + 'px,' + Math.sin(a) * d + 'px) scale(.2) rotate(0deg)', opacity: 0 },
+        { opacity: 1, offset: 0.4 },
+        { transform: 'translate(0px,0px) scale(1) rotate(180deg)', opacity: 0.9 }
+      ], { duration: delay, delay: 0, easing: 'cubic-bezier(.55,0,.9,.5)', fill: 'forwards' });
+    }
+    // Shockwave at the swap.
+    var ring = holoParticle(layer, 'sg-holo-ring', Math.max(w, h));
+    ring.animate([
+      { transform: 'scale(.35)', opacity: 0 },
+      { transform: 'scale(.6)', opacity: 1, offset: 0.15 },
+      { transform: 'scale(1.9)', opacity: 0 }
+    ], { duration: 700, delay: delay, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'both' });
+    // Diamonds: faceted rainbow gems thrown out of the card, tumbling.
+    n = 22;
+    for (i = 0; i < n; i++) {
+      a = (i / n) * Math.PI * 2 + holoRand(-0.25, 0.25);
+      d = holoRand(Math.max(w, h) * 0.55, Math.max(w, h) * 1.15);
+      size = holoRand(9, 18);
+      spin = holoRand(-540, 540);
+      el = holoParticle(layer, 'sg-holo-diamond', size, HOLO_COLORS[i % HOLO_COLORS.length]);
+      el.animate([
+        { transform: 'translate(0px,0px) rotate(45deg) scale(.2)', opacity: 0 },
+        { opacity: 1, offset: 0.12 },
+        { transform: 'translate(' + (Math.cos(a) * d).toFixed(1) + 'px,' + (Math.sin(a) * d + 30).toFixed(1) +
+          'px) rotate(' + (45 + spin).toFixed(0) + 'deg) scale(' + holoRand(0.5, 1).toFixed(2) + ')', opacity: 0 }
+      ], { duration: holoRand(800, 1150), delay: delay + holoRand(0, 90), easing: 'cubic-bezier(.12,.75,.3,1)', fill: 'both' });
+    }
+    // Twinkles: stars that wink on and off around the card after the burst.
+    for (i = 0; i < 12; i++) {
+      el = holoParticle(layer, 'sg-holo-star', holoRand(9, 18), HOLO_COLORS[(i + 2) % HOLO_COLORS.length]);
+      var x = holoRand(-w * 0.75, w * 0.75), y = holoRand(-h * 0.7, h * 0.7);
+      el.animate([
+        { transform: 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) scale(0) rotate(0deg)', opacity: 0 },
+        { transform: 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) scale(1.15) rotate(90deg)', opacity: 1, offset: 0.4 },
+        { transform: 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) scale(0) rotate(180deg)', opacity: 0 }
+      ], { duration: holoRand(450, 700), delay: delay + 120 + holoRand(0, 650), easing: 'ease-in-out', fill: 'both' });
+    }
+  }
+
+  function playHoloTwirl(face, holoInner, done) {
+    var tile = face && face.querySelector('.sg-card-tile');
+    function swap() {
+      if (tile && tile.isConnected && holoInner) tile.innerHTML = holoInner;
+      if (face && face.isConnected) fitCardDescriptions(face);
+    }
+    if (!tile || !tile.animate || prefersReducedMotion()) {
+      swap();
+      if (done) done();
+      return;
+    }
+    var box = tile.getBoundingClientRect();
+    var layer = document.createElement('div');
+    layer.className = 'sg-holo-fx';
+    layer.setAttribute('aria-hidden', 'true');
+    layer.style.left = (box.left + box.width / 2).toFixed(1) + 'px';
+    layer.style.top = (box.top + box.height / 2).toFixed(1) + 'px';
+    document.body.appendChild(layer);
+    face.classList.add('is-holo-twirl');
+    var half = HOLO_TWIRL_MS / 2;
+    tile.animate([
+      { transform: 'translateY(0) rotateY(0deg) rotateZ(0deg) scale(1)', filter: 'brightness(1)', easing: 'cubic-bezier(.3,0,.4,1)' },
+      { transform: 'translateY(4px) rotateY(-28deg) rotateZ(3deg) scale(.95)', filter: 'brightness(.9)', offset: 0.14, easing: 'cubic-bezier(.55,0,.95,.55)' },
+      { transform: 'translateY(-14px) rotateY(630deg) rotateZ(-5deg) scale(1.16)', filter: 'brightness(2.4) saturate(1.6)', offset: 0.5, easing: 'cubic-bezier(.12,.62,.22,1)' },
+      { transform: 'translateY(-4px) rotateY(1060deg) rotateZ(1deg) scale(1.05)', filter: 'brightness(1.25) saturate(1.2)', offset: 0.86, easing: 'cubic-bezier(.3,0,.3,1)' },
+      { transform: 'translateY(0) rotateY(1080deg) rotateZ(0deg) scale(1)', filter: 'brightness(1)' }
+    ], { duration: HOLO_TWIRL_MS });
+    holoBurst(layer, box.width, box.height, half);
+    window.setTimeout(swap, half);
+    window.setTimeout(function () {
+      face.classList.remove('is-holo-twirl');
+      if (done) done();
+    }, HOLO_TWIRL_MS);
+    window.setTimeout(function () { if (layer.parentNode) layer.parentNode.removeChild(layer); }, HOLO_TWIRL_MS + 1200);
   }
 
   function buyHoloFinish(app, opts, sheetCard, btn) {
@@ -4735,15 +4843,12 @@
         }
       }
       var card = byIdIn(ALL_CARDS, id) || byId(id);
-      repaintCardFaces(app, card);
+      var face = sheetCard.getAttribute('data-zoom-card') === String(id)
+        ? sheetCard.querySelector('.sg-sheet-face') : null;
+      var holoInner = repaintCardFaces(app, card, face && face.querySelector('.sg-card-tile'));
       var block = sheetCard.querySelector('.sg-sheet-holo');
       if (block) block.outerHTML = holoBlock(card, opts);
-      var face = sheetCard.querySelector('.sg-sheet-face');
-      if (face) {
-        face.classList.remove('is-holo-unlock');
-        void face.offsetWidth;
-        face.classList.add('is-holo-unlock');
-      }
+      playHoloTwirl(face, holoInner);
     });
   }
 
