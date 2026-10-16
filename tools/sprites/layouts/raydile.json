@@ -1,0 +1,142 @@
+{
+ "src": "raydile-atlas.png",
+ "name": "raydile",
+ "scale": 1.0,
+ "anchor": "mass",
+ "erase": [],
+ "poses": [
+  {
+   "pose": "idle",
+   "box": [
+    168,
+    81,
+    1432,
+    232
+   ],
+   "frames": 8,
+   "dropLoose": true,
+   "mirror": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ]
+  },
+  {
+   "pose": "walk",
+   "box": [
+    168,
+    269,
+    1432,
+    415
+   ],
+   "frames": 8,
+   "dropLoose": true,
+   "mirror": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ]
+  },
+  {
+   "pose": "attack",
+   "box": [
+    168,
+    450,
+    1432,
+    594
+   ],
+   "frames": 6,
+   "assign": [
+    [
+     555,
+     480,
+     632,
+     535,
+     1,
+     "split"
+    ],
+    [
+     748,
+     478,
+     846,
+     537,
+     2
+    ],
+    [
+     748,
+     537,
+     822,
+     565,
+     2
+    ],
+    [
+     990,
+     465,
+     1110,
+     565,
+     3,
+     "split"
+    ]
+   ],
+   "dropDark": true
+  },
+  {
+   "pose": "cheer",
+   "box": [
+    168,
+    630,
+    1135,
+    775
+   ],
+   "frames": 4,
+   "mirror": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "dropDark": true
+  },
+  {
+   "pose": "hurt",
+   "box": [
+    168,
+    810,
+    885,
+    926
+   ],
+   "frames": 3,
+   "mirror": [
+    0,
+    1,
+    2
+   ],
+   "dropDark": true
+  },
+  {
+   "pose": "fainted",
+   "box": [
+    168,
+    957,
+    755,
+    1048
+   ],
+   "frames": 2,
+   "mirror": [
+    0,
+    1
+   ],
+   "dropDark": true
+  }
+ ]
+}

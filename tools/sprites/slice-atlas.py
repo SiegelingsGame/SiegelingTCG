@@ -11,6 +11,7 @@ LAYOUT.json:
    "anchor": "face",                         # or "mass" for faceless art
    "poses": [{"pose": "idle", "box": [x0,y0,x1,y1], "frames": 7,
               "dropLoose": true,              # discard floating petals
+              "dropDark": true,               # discard dim loose specks (cold embers)
               "assign": [[x0,y0,x1,y1,k]],    # every pixel in the box -> frame k
                                               # [..., k, "split"]: only pieces
                                               # walled off by outline from x1;
@@ -45,6 +46,16 @@ for x in range(0, W, 5):
 for y in range(0, H, 5):
     for x in (0, W - 1):
         if m.getpixel((x, y)) == 255: ImageDraw.floodfill(m, (x, y), 128)
+# Panelled atlases fence each row in a closed border, so the backdrop inside
+# a panel is unreachable from the image edge: seed from each pose box too.
+for q in cfg['poses']:
+    bx0, by0, bx1, by1 = q['box']
+    for x in range(bx0, bx1, 5):
+        for y in (by0, by1 - 1):
+            if m.getpixel((x, y)) == 255: ImageDraw.floodfill(m, (x, y), 128)
+    for y in range(by0, by1, 5):
+        for x in (bx0, bx1 - 1):
+            if m.getpixel((x, y)) == 255: ImageDraw.floodfill(m, (x, y), 128)
 fg = np.array(m) != 128
 for x0, y0, x1, y1 in cfg.get('erase', []):
     fg[y0:y1, x0:x1] = False
@@ -123,6 +134,7 @@ for p in cfg['poses']:
     frames = [dict(mask=b['mask'].copy(), body=b) for b in bodies]
     for c in cs:
         if c.get('used') or p.get('dropLoose') or c['area'] < 12: continue
+        if p.get('dropDark') and c['area'] < 60 and rgb[c['mask']].max(1).mean() < 150: continue
         cx = (c['x0'] + c['x1']) / 2
         dist = [0 if b['x0'] <= cx <= b['x1'] else min(abs(cx - b['x0']), abs(cx - b['x1'])) for b in bodies]
         frames[int(np.argmin(dist))]['mask'] |= c['mask']
