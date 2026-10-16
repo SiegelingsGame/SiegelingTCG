@@ -314,6 +314,17 @@ const LOBBY_INTENT = (function () {
 })();
 let lobbyTournament = null;
 
+// /play?gauntlet=1: the Gauntlet page already opened this floor's fight on the
+// server and left its solo token in storage, so the Battle Table resumes that
+// match instead of offering a loadout, and the end screen leads back to the run.
+const GAUNTLET_ENTRY = (function () {
+    try {
+        return new URLSearchParams(window.location.search).get('gauntlet') === '1';
+    } catch (e) {
+        return false;
+    }
+})();
+
 // Mirror of TournamentService.checkLoadout, so the picker never offers a deck
 // the server will refuse. Returns '' when allowed, otherwise the reason.
 function tournamentDeckProblem(tournament, elements, customDeck) {
@@ -364,7 +375,7 @@ let battleAutoAdvanceTimer = null;
 let battleAutoAdvanceInFlight = false;
 let battleHandViewOpen = false;
 let welcomeSlideIndex = 0;
-let welcomeDismissed = DIRECT_BATTLE_ENTRY;
+let welcomeDismissed = DIRECT_BATTLE_ENTRY || GAUNTLET_ENTRY;
 const LEADERBOARD_STORAGE_KEY = 'sieglings_leaderboards_v1';
 const LEADERBOARD_TABS = [
     { id: 'wins', label: 'Wins' },
@@ -8069,8 +8080,11 @@ function renderGameOverOverlay() {
             : `${gameState.winner} wins!`;
     }
 
+    const gauntlet = gameState.gauntlet || null;
     const subtext = document.getElementById('gameOverSubtext');
-    if (subtext) {
+    if (subtext && gauntlet) {
+        subtext.textContent = `Gauntlet floor ${gauntlet.floor}: ${gauntlet.encounter || 'the next fight'}`;
+    } else if (subtext) {
         subtext.textContent = isOnline
             ? `Match vs ${endScreen.opponentName || gameState.enemyName || 'opponent'}`
             : (endScreen.matchType === 'SOLO' ? 'Solo campaign battle' : '');
@@ -8094,7 +8108,13 @@ function renderGameOverOverlay() {
     }
 
     const rewardsEl = document.getElementById('gameOverRewards');
-    if (rewardsEl) {
+    if (rewardsEl && gauntlet) {
+        // Gauntlet spoils (gold, cards, knight XP) are paid by the run, not the account.
+        rewardsEl.innerHTML = result === 'WIN'
+            ? '<h3>Floor cleared</h3><p class="game-over-rewards-note">Return to the Gauntlet to collect gold, pick a card and level your SiegeKnight.</p>'
+            : '<h3>Fallen</h3><p class="game-over-rewards-note">This fight costs one life. The floor will wait for a rematch.</p>';
+        rewardsEl.classList.remove('is-guest-preview');
+    } else if (rewardsEl) {
         const gold = Number(endScreen.goldEarned || 0);
         const remnants = Number(endScreen.remnantsEarned || 0);
         const streakBonus = Number(endScreen.streakBonus || 0);
@@ -8160,10 +8180,14 @@ function renderGameOverOverlay() {
     }
 
     if (btnPlayAgain) {
-        btnPlayAgain.hidden = isOnline;
+        btnPlayAgain.hidden = isOnline || Boolean(gauntlet);
     }
     if (btnMainMenu) {
-        btnMainMenu.hidden = false;
+        btnMainMenu.hidden = Boolean(gauntlet);
+    }
+    const btnGauntlet = document.getElementById('btnGameOverGauntlet');
+    if (btnGauntlet) {
+        btnGauntlet.hidden = !gauntlet;
     }
     if (rematchStatus) {
         if (!isOnline) {
@@ -10500,6 +10524,13 @@ async function loadGameOptions() {
         if (peekPendingHomeLoadout()) {
             welcomeDismissed = true;
         }
+        if (GAUNTLET_ENTRY && window.SieglingsLoadingGate) {
+            window.SieglingsLoadingGate.show({
+                player: { name: getCurrentPlayerName() || 'You', trainerName: 'Your SiegeKnight' },
+                opponent: { name: 'Gauntlet', element: 'FIRE', trainerName: 'The next floor' },
+                minDurationMs: 900
+            });
+        }
         syncEntryOverlays();
         loadoutErrorMessage = '';
         updateLoadoutSummary();
@@ -10551,7 +10582,7 @@ async function loadGameOptions() {
         renderWelcomeAuth();
         renderLoadoutOptions();
         updateLoadoutSummary();
-        const resumed = await resumeMultiplayerSession();
+        const resumed = await resumeMultiplayerSession() || await resumeGauntletBattle();
         if (!resumed) {
             syncEntryOverlays();
         }
@@ -11170,6 +11201,47 @@ function applyPendingHomeLoadout() {
         }
     }
 }
+
+async function resumeGauntletBattle() {
+    if (!GAUNTLET_ENTRY) {
+        return false;
+    }
+    const backToRun = () => {
+        window.location.replace('/gauntlet');
+        return true;
+    };
+    // The boot-time read of the saved token runs before SOLO_SESSION_TOKEN_KEY is
+    // initialised (temporal dead zone), so it always comes back null; read it now.
+    if (!soloSessionToken) {
+        soloSessionToken = loadSavedSoloToken();
+    }
+    if (!soloSessionToken) {
+        return backToRun();
+    }
+    const data = await fetchJson(apiUrls('/api/game/state'), {
+        headers: getAuthHeaders({ 'X-Solo-Token': soloSessionToken })
+    }, LOADOUT_ACTION_TIMEOUT_MS);
+    if (!data || data.error || !data.gauntlet) {
+        // A redeploy drops in-memory matches; the run notices and offers the floor again.
+        setSoloSessionToken(null);
+        return backToRun();
+    }
+    matchMode = 'solo';
+    tutorialMatchActive = false;
+    welcomeDismissed = true;
+    clearExternalSocketElementMemory();
+    gameState = data;
+    render();
+    syncEntryOverlays();
+    window.SieglingsLoadingGate?.hide?.();
+    return true;
+}
+
+function returnToGauntlet() {
+    setSoloSessionToken(null);
+    window.location.href = '/gauntlet';
+}
+window.returnToGauntlet = returnToGauntlet;
 
 async function resumeMultiplayerSession() {
     if (!multiplayerSession?.roomId || !multiplayerSession?.playerToken) {
@@ -13086,9 +13158,12 @@ async function placeCard(row, col) {
     // optimistic removal is what stops the player from re-dropping a card that
     // is already on its way to the board.
     const pendingCardId = selectedCard.id;
+    const pendingHandIndex = Number.isInteger(selectedHandIndex) ? selectedHandIndex : null;
     applyOptimisticHandRemoval(selectedHandIndex);
     try {
-        const data = await api('place', 'POST', { cardId: pendingCardId, row, col });
+        // The slot rides along because Gauntlet copies of one card can carry different
+        // upgrades under the same id; the server swaps the picked copy to the front.
+        const data = await api('place', 'POST', { cardId: pendingCardId, row, col, handIndex: pendingHandIndex });
         if (data) {
             closeCardPreviewSurfaces();
         }
@@ -13145,6 +13220,9 @@ async function claimBoardCard(row, col) {
 async function castSpell(cardId, targetRow, targetCol, destRow = -1, destCol = -1) {
     window.SieglingsSounds?.play('spell');
     const body = { cardId, targetRow, targetCol };
+    if (Number.isInteger(selectedHandIndex) && gameState?.player?.hand?.[selectedHandIndex]?.id === cardId) {
+        body.handIndex = selectedHandIndex;
+    }
     if (destRow >= 0 && destCol >= 0) {
         body.destRow = destRow;
         body.destCol = destCol;
@@ -13616,6 +13694,13 @@ function updateSafeAreaHpStrip(state) {
     applySafeAreaHpSide('player', state.player);
 }
 
+// Standard matches start both sides on 50; a Gauntlet fight sets each side's own
+// ceiling (25 for the player, a few HP for a lone wild Siegeling), sent as maxHealth.
+function sideMaxHealth(side) {
+    const max = Number(side?.maxHealth);
+    return Number.isFinite(max) && max > 0 ? max : 50;
+}
+
 function updateHudRails(state) {
     if (!state) return;
     const p = state.player || {};
@@ -13626,8 +13711,8 @@ function updateHudRails(state) {
 
     const pHealth = getDisplayedSideHealth(true, p.health ?? 0);
     const eHealth = getDisplayedSideHealth(false, e.health ?? 0);
-    const pPct = Math.max(0, Math.min(100, Math.round((pHealth / 50) * 100)));
-    const ePct = Math.max(0, Math.min(100, Math.round((eHealth / 50) * 100)));
+    const pPct = Math.max(0, Math.min(100, Math.round((pHealth / sideMaxHealth(p)) * 100)));
+    const ePct = Math.max(0, Math.min(100, Math.round((eHealth / sideMaxHealth(e)) * 100)));
     setTextIfExists('railPlayerHealth', pHealth);
     setTextIfExists('railEnemyHealth', eHealth);
 
@@ -13793,7 +13878,7 @@ function syncOverchargeCue(elementId, playerData) {
 
 function updateMobileHudSide(label, playerData, ids) {
     const health = getDisplayedSideHealth(!!ids.isPlayer, playerData?.health ?? 0);
-    const pct = Math.max(0, Math.min(100, Math.round((health / 50) * 100)));
+    const pct = Math.max(0, Math.min(100, Math.round((health / sideMaxHealth(playerData)) * 100)));
     const handSize = playerData?.handSize ?? (Array.isArray(playerData?.hand) ? playerData.hand.length : 0);
     const deckSize = playerData?.deckSize ?? 0;
     const energyTotal = getEnergyRowsForPlayer(playerData).reduce((sum, entry) => sum + entry.val, 0);

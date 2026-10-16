@@ -435,6 +435,12 @@ public class GameController {
         }
     }
 
+    /** The hand slot the client picked; only Gauntlet decks hold copies that differ under one id. */
+    private static Integer optionalHandIndex(Map<String, Object> req) {
+        Object raw = req == null ? null : req.get("handIndex");
+        return raw instanceof Number n ? n.intValue() : null;
+    }
+
     /** Resolves the caller's solo game from its token, or fails if none is active. */
     private GameState requireSoloState(String soloToken) {
         GameState state = gameService.getSoloGame(soloToken);
@@ -680,6 +686,7 @@ public class GameController {
         try {
             GameState state = requireSoloState(soloToken);
             attachAuthenticatedSoloUser(state, authorizationHeader);
+            state.getPlayer().preferHandCopy(cardId, optionalHandIndex(req));
             gameService.placeSiegling(state, true, cardId, row, col);
             attachAuthenticatedSoloUser(state, authorizationHeader);
             return buildStateResponse(state, true, null);
@@ -713,6 +720,7 @@ public class GameController {
         try {
             GameState state = requireSoloState(soloToken);
             attachAuthenticatedSoloUser(state, authorizationHeader);
+            state.getPlayer().preferHandCopy(cardId, optionalHandIndex(req));
             gameService.castSpell(state, true, cardId, targetRow, targetCol, destRow, destCol);
             attachAuthenticatedSoloUser(state, authorizationHeader);
             return buildStateResponse(state, true, null);
@@ -937,6 +945,13 @@ public class GameController {
         resp.put("setupTurnsTakenThisRound", gs.getSetupTurnsTakenThisRound());
         resp.put("gameOver", gs.isGameOver());
         resp.put("winner", gs.getWinner());
+        if (gs.getGauntletFloor() != null) {
+            Map<String, Object> gauntlet = new LinkedHashMap<>();
+            gauntlet.put("floor", gs.getGauntletFloor());
+            gauntlet.put("encounter", gs.getGauntletEncounterName());
+            gauntlet.put("boss", gs.isGauntletBossFight());
+            resp.put("gauntlet", gauntlet);
+        }
         resp.put("multiplayer", roomId != null);
         resp.put("roomId", roomId);
         resp.put("viewerSide", viewerIsPlayer ? "PLAYER" : "ENEMY");
@@ -1048,6 +1063,13 @@ public class GameController {
 
         String matchType = roomId != null || gs.isEnemyHumanControlled() ? "ONLINE" : "SOLO";
         screen.put("matchType", matchType);
+        if (gs.getGauntletFloor() != null) {
+            // Gauntlet fights pay out through the run (gold, cards, knight XP), never
+            // Siegecoins, so describing account rewards here would promise coins that
+            // were never granted.
+            screen.put("matchType", "GAUNTLET");
+            return screen;
+        }
 
         // Solo endpoints build the response without an explicit user, but the
         // logged-in player's id is attached to their Player. Resolve it so the
@@ -1249,6 +1271,7 @@ public class GameController {
         Map<String, Object> info = new LinkedHashMap<>();
         info.put("name", player.getName());
         info.put("health", player.getHealth());
+        info.put("maxHealth", player.getMaxHealth());
         info.put("fireEnergy", player.getFireEnergy());
         info.put("earthEnergy", player.getEarthEnergy());
         info.put("windEnergy", player.getWindEnergy());
@@ -1724,6 +1747,21 @@ public class GameController {
 
     private List<Map<String, Object>> serializeSieglingMoves(SieglingCard s) {
         List<Map<String, Object>> rows = new ArrayList<>();
+        if (s != null && s.hasCustomMoves()) {
+            // Gauntlet-forged moves no longer match their pool entry, so read them off the card.
+            int index = 0;
+            for (Ability custom : s.getCustomMoves()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", index < s.getMoveIds().size() ? s.getMoveIds().get(index) : "custom_" + index);
+                row.put("name", custom.getName());
+                row.put("energyCost", custom.getRequiredEnergy());
+                row.put("description", custom.getDescription());
+                row.put("isPassive", custom.isPassive());
+                rows.add(row);
+                index++;
+            }
+            return rows;
+        }
         if (s == null || s.getMoveIds() == null) {
             return rows;
         }

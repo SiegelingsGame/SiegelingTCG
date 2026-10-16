@@ -422,7 +422,7 @@
     'Gallery': 'art'
   };
   var EXTERNAL = {
-    'Battle': '/battle', 'Siege': '/siege', 'Keep': '/keep', 'Chronicles': '/chronicles', 'Dominion': '/dominion',
+    'Battle': '/battle', 'Siege': '/siege', 'Gauntlet': '/gauntlet', 'Keep': '/keep', 'Chronicles': '/chronicles', 'Dominion': '/dominion',
     'Social Lobbies': 'social',
     'Featured Packs': 'shop', 'Open Packs': 'shop', 'Siegelcoins': 'shop'
   };
@@ -477,7 +477,7 @@
       // Same vocabulary as the Play screen and the shipping picker: the two real
       // modes are Battle and Siege.
       { id: 'play', ico: '⚔', label: 'Play', screen: 'play', items: [
-          ['Battle', ''], ['Siege', runs ? 'Saved' : ''],
+          ['Battle', ''], ['Siege', runs ? 'Saved' : ''], ['Gauntlet', ''],
           ['Lobbies & Tournaments', n(rooms) ? n(rooms) + ' open' : ''], ['Keep', ''], ['Chronicles', '']] },
       { id: 'collection', ico: '◈', label: 'Collection', screen: 'collection', items: [
           ['Cards', n(live.ownedTotal != null ? live.ownedTotal : (ALL_CARDS.length || null))],
@@ -2687,6 +2687,9 @@
       '<div class="sg-scroll">' +
         '<div class="sg-modes">' + MODES.map(function (m) { return modePanel(m, opts); }).join('') + '</div>' +
         // Temporary fifth mode for live testing: a band, so the four-plate grid keeps its fit.
+        // The Gauntlet is a roguelike climb on the Battle Table itself, so it sits with
+        // the play bands rather than taking a fifth plate.
+        '<a class="sg-lobbies sg-gauntlet"' + linkAttrs('Gauntlet') + '><span class="sg-lobbies-dot"></span>Gauntlet<em>Roguelike \u00b7 draft 10, climb the floors</em><span class="go">\u203a</span></a>' +
         '<a class="sg-lobbies sg-dominion"' + linkAttrs('Dominion') + '><span class="sg-lobbies-dot"></span>Dominion<em>Test \u00b7 Keep + Chronicles</em><span class="go">\u203a</span></a>' +
         expeditionsSection(opts) +
         (function () {
@@ -9795,6 +9798,7 @@
       ['/shop',                'Shop tab',                                'shop'],
       ['/play arena',          'Play tray › Arena · PLAY on hero',        'play'],
       ['/siege expedition',    'Play tray › Siege Expedition',            'play'],
+      ['/gauntlet',            'Play tray › Gauntlet',                    'play'],
       ['/keep',                'Play tray › Keep',                        'play'],
       ['/chronicles',          'Play tray › Chronicles',                  'play'],
       ['/dominion',            'Play tray › Dominion (test band)',        'play'],

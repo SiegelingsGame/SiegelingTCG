@@ -22,6 +22,8 @@ public class Player {
     private List<Card> discard = new ArrayList<>();
     private TrainerCard activeTrainer;
     private int health = STARTING_HEALTH;
+    /** Gauntlet runs start sides below the standard 50 and cap heals there, so the ceiling is per player. */
+    private int maxHealth = STARTING_HEALTH;
     private String accountUserId;
     private String loadoutLabel;
 
@@ -66,6 +68,28 @@ public class Player {
         return card;
     }
 
+    /**
+     * Placement and casting find a hand card by id, which picks the first copy. Gauntlet copies
+     * of one card can carry different upgrades, so the copy the player actually picked is
+     * swapped into that first slot. The two share an id, so the hand still reads the same.
+     */
+    public void preferHandCopy(String cardId, Integer handIndex) {
+        if (cardId == null || handIndex == null || handIndex < 0 || handIndex >= hand.size()) {
+            return;
+        }
+        Card picked = hand.get(handIndex);
+        if (!cardId.equals(picked.getId())) {
+            return;
+        }
+        for (int i = 0; i < handIndex; i++) {
+            if (cardId.equals(hand.get(i).getId())) {
+                hand.set(handIndex, hand.get(i));
+                hand.set(i, picked);
+                return;
+            }
+        }
+    }
+
     public void removeFromHand(Card card) {
         hand.remove(card);
     }
@@ -75,7 +99,7 @@ public class Player {
     }
 
     public void healPlayer(int amount) {
-        health = Math.min(STARTING_HEALTH, health + Math.max(0, amount));
+        health = Math.min(maxHealth, health + Math.max(0, amount));
     }
 
     public void mulliganHand(int handSize) {
@@ -266,7 +290,13 @@ public class Player {
     public boolean isMistActive() { return mistActive; }
     public void setMistActive(boolean mistActive) { this.mistActive = mistActive; }
     public int getHealth() { return health; }
-    public void setHealth(int health) { this.health = Math.max(0, Math.min(STARTING_HEALTH, health)); }
+    public void setHealth(int health) { this.health = Math.max(0, Math.min(maxHealth, health)); }
+    public int getMaxHealth() { return maxHealth; }
+    /** Sets the ceiling and refills to it; only called while a match is being built. */
+    public void setMaxHealthAndRefill(int maxHealth) {
+        this.maxHealth = Math.max(1, maxHealth);
+        this.health = this.maxHealth;
+    }
     public String getAccountUserId() { return accountUserId; }
 
     /**

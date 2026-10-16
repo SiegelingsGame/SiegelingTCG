@@ -72,6 +72,10 @@ public class GameState {
     public String getTournamentId() { return tournamentId; }
     public void setTournamentId(String tournamentId) { this.tournamentId = tournamentId; }
     private boolean matchHistoryRecorded = false;
+    /** Set on an Gauntlet run's battle: the floor and encounter the client shows and returns to. */
+    private Integer gauntletFloor;
+    private String gauntletEncounterName;
+    private boolean gauntletBossFight;
     /** NORMAL or FORFEIT when the match ends. */
     private String endReason = "NORMAL";
     /** Display name of the player who forfeited, if any. */
@@ -369,6 +373,14 @@ public class GameState {
     }
     public boolean isMatchHistoryRecorded() { return matchHistoryRecorded; }
     public void setMatchHistoryRecorded(boolean matchHistoryRecorded) { this.matchHistoryRecorded = matchHistoryRecorded; }
+    public Integer getGauntletFloor() { return gauntletFloor; }
+    public String getGauntletEncounterName() { return gauntletEncounterName; }
+    public boolean isGauntletBossFight() { return gauntletBossFight; }
+    public void markGauntlet(int floor, String encounterName, boolean bossFight) {
+        this.gauntletFloor = floor;
+        this.gauntletEncounterName = encounterName;
+        this.gauntletBossFight = bossFight;
+    }
     public String getEndReason() { return endReason; }
     public void setEndReason(String endReason) { this.endReason = endReason; }
     public String getForfeitedBy() { return forfeitedBy; }

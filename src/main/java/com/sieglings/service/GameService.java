@@ -257,6 +257,89 @@ public class GameService {
         return new SoloHandle(token, state);
     }
 
+    /** One side of an Gauntlet battle: its run-built deck, knight (null for wild packs), and HP. */
+    public record GauntletSide(String name, List<Card> deck, TrainerCard trainer, int maxHealth,
+                            int openingHandSize, List<GauntletPlacement> board, String label) {}
+
+    /** A Siegling already standing on the board when an Gauntlet battle opens (e.g. a Draco pack). */
+    public record GauntletPlacement(SieglingCard card, int row, int col) {}
+
+    /**
+     * Starts an Gauntlet run's battle. Same rules engine and client as a solo match; what
+     * differs is that both decks come from the run, HP is set per encounter (25 for the
+     * player, a little for a lone wild Siegling, 30 for a floor-ten knight), wild packs
+     * fight with no SiegeKnight, and the pack can already be on the board.
+     */
+    public SoloHandle newGauntletGame(GauntletSide playerSide, GauntletSide enemySide, int floor,
+                                   String encounterName, boolean bossFight) {
+        GameState state = new GameState();
+        state.setEnemyHumanControlled(false);
+        // Gauntlet fights are practice against scripted packs, so they stay out of match
+        // history (and the wins/missions it feeds); the run keeps its own record.
+        state.setMatchHistoryRecorded(true);
+        state.markGauntlet(floor, encounterName, bossFight);
+
+        Player player = new Player(safePlayerName(playerSide.name(), "Player"), true);
+        Player enemy = new Player(enemySide.name(), false);
+        player.setMaxHealthAndRefill(playerSide.maxHealth());
+        enemy.setMaxHealthAndRefill(enemySide.maxHealth());
+        player.setDeck(new ArrayList<>(playerSide.deck()));
+        enemy.setDeck(new ArrayList<>(enemySide.deck()));
+        player.setActiveTrainer(playerSide.trainer());
+        enemy.setActiveTrainer(enemySide.trainer());
+        player.setLoadoutLabel(playerSide.label());
+        enemy.setLoadoutLabel(enemySide.label());
+        player.shuffleDeck();
+        enemy.shuffleDeck();
+        biasOpeningDraw(player);
+        biasOpeningDraw(enemy);
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+
+        for (GauntletPlacement placement : enemySide.board() == null ? List.<GauntletPlacement>of() : enemySide.board()) {
+            if (placement == null || placement.card() == null || state.getAt(false, placement.row(), placement.col()) != null) {
+                continue;
+            }
+            CardInstance placed = new CardInstance(placement.card(), placement.row(), placement.col(), false);
+            placed.setPlacementOrder(state.consumePlacementOrder());
+            state.setAt(false, placement.row(), placement.col(), placed);
+        }
+
+        for (int i = 0; i < Math.max(1, playerSide.openingHandSize()); i++) {
+            player.drawCard();
+        }
+        for (int i = 0; i < Math.max(1, enemySide.openingHandSize()); i++) {
+            enemy.drawCard();
+        }
+
+        // The player always opens: a pack already on the board has had its tempo.
+        state.setCurrentPhase(Phase.MULLIGAN);
+        state.resetRoundOrder(true);
+        state.setMulliganPending(true, true);
+        state.setMulliganUsed(true, false);
+        state.setMulliganUsed(false, false);
+        state.log("Game started!");
+        state.log("Gauntlet floor " + floor + ": " + encounterName + ".");
+        state.log(player.getName() + " begins at " + player.getHealth() + " health; "
+                + enemy.getName() + " at " + enemy.getHealth() + ".");
+        state.log("Opening hand check: each player may mulligan once (replace any subset; draw as many as you return).");
+        recalculateTrainerPassiveStatBuffs(state);
+        effectService.recalculateBoardAuraDamageBoosts(state);
+        energyService.recalculateEnergy(state);
+        resolveAutomatedOpeningMulligan(state, false);
+        tryCompleteOpeningMulligan(state);
+
+        purgeStaleSoloGames();
+        String token = generateSoloToken();
+        soloGames.put(token, new SoloSession(state));
+        return new SoloHandle(token, state);
+    }
+
+    /** Applies the SiegeKnight level bonus to a fresh trainer copy (Gauntlet knights level per run). */
+    public TrainerCard leveledTrainer(TrainerCard trainer, int level) {
+        return applyTrainerLevel(trainer, level);
+    }
+
     /** Starts a brand-new solo game scoped to a freshly generated token. */
     public SoloHandle newSoloGame(StartOptions options, String playerName) {
         GameState state = createGame(options, null, safePlayerName(playerName, "Player"), "AI Opponent", false);

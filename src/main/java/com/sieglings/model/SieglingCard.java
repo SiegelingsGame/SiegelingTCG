@@ -25,6 +25,12 @@ public class SieglingCard extends Card {
     private Boolean expeditionStarter;
     /** Null means "derive from rarity" — see {@link SieglingSize#defaultFor}. */
     private SieglingSize size;
+    /**
+     * Per-copy move loadout that replaces the pool lookup for {@link #moveIds}. Only Gauntlet
+     * runs set it: a forged move (more damage, cheaper, extra riders) belongs to that one
+     * copy of the card, so it cannot live in the shared moves pool.
+     */
+    private List<Ability> customMoves;
 
     public SieglingCard() {
         setCardType(CardType.SIEGLING);
@@ -67,6 +73,13 @@ public class SieglingCard extends Card {
         c.setDescription(getDescription());
         c.setExpeditionStarter(getExpeditionStarter());
         c.setSize(size);
+        if (customMoves != null) {
+            List<Ability> moves = new ArrayList<>();
+            for (Ability move : customMoves) {
+                moves.add(move.copy());
+            }
+            c.customMoves = moves;
+        }
         return c;
     }
 
@@ -101,8 +114,11 @@ public class SieglingCard extends Card {
         return out;
     }
     public boolean hasMoveLoadout() {
-        return moveIds != null && !moveIds.isEmpty();
+        return (moveIds != null && !moveIds.isEmpty()) || hasCustomMoves();
     }
+    public List<Ability> getCustomMoves() { return customMoves; }
+    public void setCustomMoves(List<Ability> customMoves) { this.customMoves = customMoves; }
+    public boolean hasCustomMoves() { return customMoves != null && !customMoves.isEmpty(); }
     public Row getPreferredRow() { return preferredRow; }
     public void setPreferredRow(Row preferredRow) { this.preferredRow = preferredRow; }
     public String getEvolvesFromId() { return evolvesFromId; }
