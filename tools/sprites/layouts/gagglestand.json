@@ -1,0 +1,149 @@
+{
+ "src": "gagglestand-atlas.png",
+ "name": "gagglestand",
+ "scale": 1.0,
+ "anchor": "mass",
+ "pockets": true,
+ "erase": [
+  [
+   8,
+   0,
+   216,
+   58
+  ],
+  [
+   8,
+   251,
+   216,
+   299
+  ],
+  [
+   8,
+   486,
+   208,
+   536
+  ],
+  [
+   8,
+   741,
+   208,
+   791
+  ],
+  [
+   614,
+   741,
+   770,
+   791
+  ],
+  [
+   1083,
+   741,
+   1254,
+   791
+  ],
+  [
+   0,
+   241,
+   1536,
+   257
+  ],
+  [
+   0,
+   476,
+   1536,
+   492
+  ],
+  [
+   0,
+   731,
+   1536,
+   747
+  ],
+  [
+   602,
+   739,
+   618,
+   1024
+  ],
+  [
+   1071,
+   739,
+   1087,
+   1024
+  ]
+ ],
+ "poses": [
+  {
+   "pose": "idle",
+   "box": [
+    0,
+    0,
+    1536,
+    244
+   ],
+   "frames": 9,
+   "dropLoose": true,
+   "seeded": true
+  },
+  {
+   "pose": "walk",
+   "box": [
+    0,
+    254,
+    1536,
+    479
+   ],
+   "frames": 9,
+   "dropLoose": true,
+   "seeded": true
+  },
+  {
+   "pose": "attack",
+   "box": [
+    0,
+    489,
+    1536,
+    734
+   ],
+   "frames": 7,
+   "dropLoose": false,
+   "seeded": true
+  },
+  {
+   "pose": "cheer",
+   "box": [
+    0,
+    744,
+    605,
+    1024
+   ],
+   "frames": 4,
+   "dropLoose": false,
+   "seeded": true
+  },
+  {
+   "pose": "hurt",
+   "box": [
+    615,
+    744,
+    1074,
+    1024
+   ],
+   "frames": 3,
+   "dropLoose": false,
+   "seeded": true
+  },
+  {
+   "pose": "fainted",
+   "box": [
+    1084,
+    744,
+    1536,
+    1024
+   ],
+   "frames": 2,
+   "dropLoose": false,
+   "seeded": true
+  }
+ ]
+}

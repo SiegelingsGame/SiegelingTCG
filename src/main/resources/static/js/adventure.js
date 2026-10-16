@@ -4519,14 +4519,21 @@
     jackedty: { dir: '/img/sprites/jackedty/jackedty-', w: 352, h: 219, fit: 0.744, base: 0.027,
       frames: { idle: 9, walk: 9, attack: 7, cheer: 4, hurt: 3, fainted: 2 } },
     cactyjackedty: { dir: '/img/sprites/cactyjackedty/cactyjackedty-', w: 374, h: 235, fit: 0.681, base: 0.03,
-      frames: { idle: 9, walk: 9, attack: 6, cheer: 4, hurt: 3, fainted: 2 } }
+      frames: { idle: 9, walk: 9, attack: 6, cheer: 4, hurt: 3, fainted: 2 } },
+    breezee: { dir: '/img/sprites/breezee/breezee-', w: 640, h: 252, fit: 0.512, base: 0.119,
+      frames: { idle: 9, walk: 8, attack: 6, cheer: 4, hurt: 3, fainted: 2 } },
+    gagglestand: { dir: '/img/sprites/gagglestand/gagglestand-', w: 340, h: 270, fit: 0.663, base: 0.115,
+      frames: { idle: 9, walk: 9, attack: 7, cheer: 4, hurt: 3, fainted: 2 } },
+    hurricrane: { dir: '/img/sprites/hurricrane/hurricrane-', w: 496, h: 276, fit: 0.623, base: 0.029,
+      frames: { idle: 9, walk: 9, attack: 4, cheer: 4, hurt: 3, fainted: 2 } }
   };
   var ANIM_BODY = 0.9;
   var ANIM_POSES = ['idle', 'walk', 'attack', 'cheer', 'hurt', 'fainted'];
   // displayCardId -> ANIM_SPRITES key, for Siegelings whose sheets have shipped.
   var ANIM_SPRITE_CARDS = { squirebud: 'squirebud', floraknight: 'floraknight', generoot: 'generoot',
     sundile: 'sundile', raydile: 'raydile', solgator: 'solgator',
-    cacty: 'cacty', jackedty: 'jackedty', cactyjackedty: 'cactyjackedty' };
+    cacty: 'cacty', jackedty: 'jackedty', cactyjackedty: 'cactyjackedty',
+    breezee: 'breezee', gagglestand: 'gagglestand', hurricrane: 'hurricrane' };
   /*
    * ?spriteTest=<sheet> (e.g. squirebud) dresses every ally in that sheet so it can be tried in a
    * real run before it is assigned to a card; ?spriteTest=off clears it. It is

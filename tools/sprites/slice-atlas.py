@@ -10,6 +10,7 @@ LAYOUT.json:
    "erase": [[x0,y0,x1,y1], ...],            # labels, panel rules
    "anchor": "face",                         # or "mass" for faceless art
    "pockets": true,                          # clear enclosed backdrop patches
+   "key": [[x0,y0,x1,y1,tol(,[r,g,b])], ...],# drop backdrop-coloured pixels
    "poses": [{"pose": "idle", "box": [x0,y0,x1,y1], "frames": 7,
               "dropLoose": true,              # discard floating petals
               "dropDark": true,               # discard dim loose specks (cold embers)
@@ -68,6 +69,22 @@ for q in cfg['poses']:
 fg = np.array(m) != 128
 for x0, y0, x1, y1 in cfg.get('erase', []):
     fg[y0:y1, x0:x1] = False
+for kq in cfg.get('key', []):
+    # Textured ground (grass) under a creature's feet is too busy to read as
+    # smooth backdrop, so it clings to the art. Inside the strip, pixels close
+    # to the backdrop colour around them go; the art's own colours do not. A
+    # painted shadow under the wings is darker than the open backdrop, so a
+    # key can name its colour outright.
+    x0, y0, x1, y1, tol = kq[:5]
+    near = ~fg[y0:y1, x0:x1]
+    if len(kq) > 5:
+        ref = np.array(kq[5])
+    elif near.sum() < 50:
+        continue
+    else:
+        ref = np.median(rgb[y0:y1, x0:x1][near], axis=0)
+    close = np.abs(rgb[y0:y1, x0:x1] - ref).max(2) < tol
+    fg[y0:y1, x0:x1] &= ~close
 if cfg.get('pockets'):
     # Backdrop seen through a gap the art closes on every side (between a big
     # creature's arms and legs) is unreachable from the edge. It is smooth and

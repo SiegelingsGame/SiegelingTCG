@@ -1,4 +1,13 @@
 Original prompt: Go with earth based art for endless
+- October 16, 2026 **The Breezee line (Breezee, Gagglestand, Hurricrane) animates in Siege battles; the atlas cutter can key out textured ground.**
+  - **Change.** Three atlases are cut into `img/sprites/{breezee,gagglestand,hurricrane}/` and mapped in `ANIM_SPRITE_CARDS`. Frame counts: Breezee 9/8/6/4/3/2, Gagglestand 9/9/7/4/3/2, Hurricrane 9/9/4/4/3/2; Hurricrane's sheet has four attack bodies, and the closing gust is effect only. All three use the seeded race and `pockets`. Fixes per sheet:
+    - **Attack seeds.** Hurricrane's and Breezee's attack seeds are placed by hand, because the gusts outweigh the bodies.
+    - **Long gusts.** Hurricrane's closing gust is kept out to x=1300 and Breezee's water stream out to x=1200, with the far ends dropped.
+    - **Panel borders.** Breezee's rounded panel borders needed wider erases.
+    - **`key`.** `tools/sprites/slice-atlas.py` gains an opt-in `key` option. Inside a strip it drops pixels close to the local backdrop colour, or to a named colour. Hurricrane's idle row had grass and a dark slate painted shadow under the wings stuck between its legs; neither is smooth enough for the edge flood, and the shadow is darker than the open backdrop, so it is keyed by colour (62,87,100).
+
+    Layouts are committed under `tools/sprites/layouts/`. `adventure.js?v=143`.
+  - **Verification.** Re-cutting the eight earlier sheets after the cutter change reproduces their shipped strips byte for byte. Contact sheets for all rows were checked by eye. Remaining small flaws are straight edges where wings overlap in the drawing: Hurricrane cheer 1/2 and hurt 0/1, Breezee attack 2/3. The Cacty-line run of `tests/siege-anim-sprite-check.cjs` passed 336/336. `node --check` passes; the browser check with the three new passes follows this commit.
 - October 16, 2026 **The Cacty line (Cacty, Jacked'ty, CactyJackedty) animates in Siege battles; the atlas cutter splits touching limbs with a seeded race and clears enclosed backdrop.**
   - **Change.** Three atlases are cut into `img/sprites/{cacty,jackedty,cactyjackedty}/` and mapped in `ANIM_SPRITE_CARDS`. Frame counts: Cacty 9/9/6/4/3/2, Jacked'ty 9/9/7/4/3/2, CactyJackedty 9/9/6/4/3/2. `tools/sprites/slice-atlas.py` gains two opt-in options:
     - **`seeded`.** Each frame grows from a point inside its body (`seeds` names the points explicitly), one pixel per step through foreground, and a pixel belongs to the frame that reaches it first. Arms that touch the next pose part near the contact instead of at a straight column cut, so CactyJackedty's long arms and Jacked'ty's punches stay whole. With `dropLoose`, pieces no front reaches are dropped; otherwise they join the frame nearest by x.
