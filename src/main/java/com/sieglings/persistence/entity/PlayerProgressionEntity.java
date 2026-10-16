@@ -36,6 +36,12 @@ public class PlayerProgressionEntity {
     private int craftCount;
     /** Card or SiegeKnight ids the player upgraded to a holographic foil finish. */
     private List<String> holographicCardIds = new ArrayList<>();
+    /**
+     * Card ids upgraded to the first holo tier: the card's holographic art with
+     * no foil shimmer. A card in {@link #holographicCardIds} (the flair tier)
+     * implies this tier, so it is never listed in both.
+     */
+    private List<String> holoArtCardIds = new ArrayList<>();
     /** SiegeKnight ids unlocked for expedition warband selection (gold purchase). */
     private List<String> siegeUnlockedKnights = new ArrayList<>();
     /** Siegeling card ids unlocked as expedition starters by finding them on a run. */
@@ -131,6 +137,10 @@ public class PlayerProgressionEntity {
     public List<String> getHolographicCardIds() { return holographicCardIds; }
     public void setHolographicCardIds(List<String> holographicCardIds) {
         this.holographicCardIds = holographicCardIds == null ? new ArrayList<>() : new ArrayList<>(holographicCardIds);
+    }
+    public List<String> getHoloArtCardIds() { return holoArtCardIds; }
+    public void setHoloArtCardIds(List<String> holoArtCardIds) {
+        this.holoArtCardIds = holoArtCardIds == null ? new ArrayList<>() : new ArrayList<>(holoArtCardIds);
     }
     public List<String> getSiegeUnlockedKnights() { return siegeUnlockedKnights; }
     public void setSiegeUnlockedKnights(List<String> siegeUnlockedKnights) {

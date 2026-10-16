@@ -1792,7 +1792,7 @@ function preloadCardArtFor(card) {
     const meta = getCardArtMeta(card);
     // Holographic full-card faces render from the original, so warm that.
     preloadArtUrl(meta?.url, meta?.fullCard ? 0 : SG_CARD_ART_WIDTH);
-    if (cardShowsPlayerHolographic(card)) {
+    if (cardShowsPlayerHoloArt(card)) {
         preloadArtUrl(String(card?.holographicCardArtUrl || '').trim());
     }
 }
@@ -1919,7 +1919,7 @@ function getDashboardCardArtMeta(card) {
     if (!card) {
         return null;
     }
-    const holographicUrl = cardShowsPlayerHolographic(card)
+    const holographicUrl = cardShowsPlayerHoloArt(card)
         ? String(card.holographicCardArtUrl || '').trim()
         : '';
     if (holographicUrl) {
@@ -4234,6 +4234,24 @@ function playerHolographicCardIds() {
     return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
 }
 
+function playerHoloArtCardIds() {
+    const raw = authState.profile?.progression?.holoArtCards;
+    if (!Array.isArray(raw)) {
+        return new Set();
+    }
+    return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
+}
+
+// True for both holo tiers (Holo Art and Holo Flair): decides the artwork.
+// The foil class and overlay stay on cardShowsPlayerHolographic (Flair only).
+function cardShowsPlayerHoloArt(card) {
+    if (cardShowsPlayerHolographic(card)) {
+        return true;
+    }
+    const cardId = String(card?.id || card?.cardId || card?.definitionId || '').trim().toLowerCase();
+    return Boolean(cardId && playerHoloArtCardIds().has(cardId));
+}
+
 function cardShowsPlayerHolographic(card) {
     if (!card) {
         return false;
@@ -4256,7 +4274,8 @@ function holographicCardOverlay(card) {
 function holographicFullArtOptions() {
     return {
         useHolographicFullCardArt: true,
-        playerHolographicIds: playerHolographicCardIds()
+        playerHolographicIds: playerHolographicCardIds(),
+        playerHoloArtIds: playerHoloArtCardIds()
     };
 }
 

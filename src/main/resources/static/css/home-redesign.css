@@ -3169,6 +3169,21 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* Holographic finish: bought with remnants, sits above the deck CTA so it is
    reachable on every tab without scrolling a panel. */
 .sg-sheet-card .sg-sheet-holo { flex:0 0 auto; margin-top:10px; display:flex; flex-direction:column; gap:5px; }
+/* Standard -> Holo Art -> Holo Flair: where this card sits on the finish ladder. */
+.sg-sheet-holo-tiers {
+  align-self:stretch; display:flex; gap:4px; margin:0; padding:0; list-style:none;
+  font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+}
+.sg-sheet-holo-tiers li {
+  flex:1 1 0; min-width:0; padding:5px 4px; border-radius:999px; text-align:center;
+  color:var(--muted); border:1px solid rgba(160,220,255,.18); background:rgba(36,26,96,.35);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.sg-sheet-holo-tiers li.is-done { color:#dff6ff; border-color:rgba(160,220,255,.4); background:rgba(64,196,255,.12); }
+.sg-sheet-holo-tiers li.is-current {
+  color:#f4fbff; border-color:rgba(255,255,255,.7);
+  background:linear-gradient(115deg, rgba(255,64,160,.35), rgba(64,196,255,.38) 45%, rgba(176,96,255,.4));
+}
 .sg-sheet-holo-btn {
   width:100%; padding:11px 12px; border-radius:999px; cursor:pointer;
   font:inherit; font-size:11.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#f4fbff;

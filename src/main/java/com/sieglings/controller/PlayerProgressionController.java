@@ -168,7 +168,12 @@ public class PlayerProgressionController {
                                                            @RequestBody Map<String, Object> req) {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
-            PlayerProgressionEntity progression = progressionService.purchaseHolographicFinish(user, string(req, "cardId"));
+            // ART buys the holo art without the shimmer; anything else (or no tier, as
+            // older clients send) is the full Flair finish.
+            PlayerProgressionService.HoloTier tier = "ART".equalsIgnoreCase(string(req, "tier"))
+                    ? PlayerProgressionService.HoloTier.ART
+                    : PlayerProgressionService.HoloTier.FLAIR;
+            PlayerProgressionEntity progression = progressionService.purchaseHolographicFinish(user, string(req, "cardId"), tier);
             return buildResponse(user, progression);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());

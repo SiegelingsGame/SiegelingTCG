@@ -82,15 +82,28 @@
   // keyed by lowercased id. The catalog's own `holographic` flag only covers
   // cards that ship foil, so every face rendered here consults this as well.
   var PLAYER_HOLO = {};
-  function setPlayerHolo(ids) {
-    PLAYER_HOLO = {};
+  // The tier below it: the card's holo art, no foil shimmer. Kept as a list
+  // too because the card renderer takes ids, and every tile would rebuild it.
+  var PLAYER_HOLO_ART = {};
+  var PLAYER_HOLO_ART_IDS = [];
+  function holoIdMap(ids) {
+    var map = {};
     (ids || []).forEach(function (id) {
       var key = String(id || '').trim().toLowerCase();
-      if (key) PLAYER_HOLO[key] = true;
+      if (key) map[key] = true;
     });
+    return map;
+  }
+  function setPlayerHolo(ids) { PLAYER_HOLO = holoIdMap(ids); }
+  function setPlayerHoloArt(ids) {
+    PLAYER_HOLO_ART = holoIdMap(ids);
+    PLAYER_HOLO_ART_IDS = Object.keys(PLAYER_HOLO_ART);
   }
   function hasPlayerHolo(card) {
     return Boolean(card && PLAYER_HOLO[String(card.id || '').trim().toLowerCase()]);
+  }
+  function hasPlayerHoloArt(card) {
+    return Boolean(card && PLAYER_HOLO_ART[String(card.id || '').trim().toLowerCase()]);
   }
   function withPlayerHolo(card) {
     if (!card || card.holographic === true || !hasPlayerHolo(card)) return card;
@@ -2161,7 +2174,11 @@
     }
     if (visual && visual.renderBinderCardTile) {
       return '<button class="sg-card-tile" type="button" data-card="' + esc(c.id) + '">' +
-        visual.renderBinderCardTile(c, { descriptionText: cardFaceText(c), useHolographicFullCardArt: true }) +
+        visual.renderBinderCardTile(c, {
+          descriptionText: cardFaceText(c),
+          useHolographicFullCardArt: true,
+          playerHoloArtIds: PLAYER_HOLO_ART_IDS
+        }) +
       '</button>';
     }
     // Offline preview board: no renderer loaded, so fall back to the plate.
@@ -4649,14 +4666,46 @@
   }
 
   /* ---------- holographic finish ----------
-     Remnants buy a holographic finish on a card the account owns
-     (POST /api/cards/holographic). Mirrors PlayerProgressionService:
-     holographicCost = craftCost x 4. The server re-checks ownership, balance
-     and the starter pack, so this only decides what to offer. */
-  var HOLO_COST = { COMMON: 2000, UNCOMMON: 4000, RARE: 8000, EPIC: 16000, LEGENDARY: 32000 };
+     Three tiers: Standard -> Holo Art (the card's holographic artwork, no
+     shimmer) -> Holo Flair (holo art plus the foil shimmer). Remnants buy each
+     step (POST /api/cards/holographic, tier ART or FLAIR). Mirrors
+     PlayerProgressionService: Art and the Flair upgrade each cost craft x 2;
+     Flair bought outright costs craft x 4. A card with no holo art has nothing
+     for the Art tier to show, so it only offers Flair. The server re-checks
+     ownership, balance and the starter pack, so this only decides what to offer. */
+  var CRAFT_COST = { COMMON: 500, UNCOMMON: 1000, RARE: 2000, EPIC: 4000, LEGENDARY: 8000 };
 
-  function holoCost(card) {
-    return HOLO_COST[String(card && card.rarity || 'COMMON').toUpperCase()] || HOLO_COST.COMMON;
+  function craftCost(card) {
+    return CRAFT_COST[String(card && card.rarity || 'COMMON').toUpperCase()] || CRAFT_COST.COMMON;
+  }
+
+  function hasHoloArtwork(card) {
+    return Boolean(String(card && card.holographicCardArtUrl || '').trim());
+  }
+
+  // What the next purchase is for this card, or null when there is none.
+  function nextHoloStep(card) {
+    if (hasPlayerHolo(card)) return null;
+    if (!hasHoloArtwork(card)) {
+      return { tier: 'FLAIR', cost: craftCost(card) * 4, label: 'Make holographic' };
+    }
+    return hasPlayerHoloArt(card)
+      ? { tier: 'FLAIR', cost: craftCost(card) * 2, label: 'Add Holo Flair' }
+      : { tier: 'ART', cost: craftCost(card) * 2, label: 'Unlock Holo Art' };
+  }
+
+  function holoButtonLabel(step) {
+    return '\u2726 ' + step.label + ' \u00b7 ' + step.cost.toLocaleString() + ' remnants';
+  }
+
+  function holoTierTrack(card) {
+    var level = hasPlayerHolo(card) ? 2 : (hasPlayerHoloArt(card) ? 1 : 0);
+    return '<ol class="sg-sheet-holo-tiers" aria-label="Card finish">' +
+      [['Standard', 0], ['Holo Art', 1], ['Holo Flair', 2]].map(function (t) {
+        var cls = t[1] < level ? 'is-done' : (t[1] === level ? 'is-current' : '');
+        return '<li class="' + cls + '"' + (t[1] === level ? ' aria-current="step"' : '') + '>' + esc(t[0]) + '</li>';
+      }).join('') +
+    '</ol>';
   }
 
   function holoBlock(card, opts) {
@@ -4664,19 +4713,24 @@
     // Cards that ship foil have nothing to buy; guests and the offline board
     // cannot spend remnants.
     if (!live || opts.guest || card.holographic === true) return '';
+    var tiered = hasHoloArtwork(card);
     if (hasPlayerHolo(card)) {
-      return '<div class="sg-sheet-holo is-done"><span class="sg-sheet-holo-chip">\u2726 Holographic finish</span></div>';
+      // With the track the top step already says it; the chip is for cards with no track.
+      return '<div class="sg-sheet-holo is-done">' + (tiered
+        ? holoTierTrack(card)
+        : '<span class="sg-sheet-holo-chip">\u2726 Holo Flair</span>') + '</div>';
     }
     var isOwned = binderOwnership(live);
     if (!isOwned || !isOwned(card)) return '';
-    var cost = holoCost(card);
+    var step = nextHoloStep(card);
     var balance = Number(live.remnants);
     var known = isFinite(balance);
-    var short = known && balance < cost;
+    var short = known && balance < step.cost;
     return '<div class="sg-sheet-holo">' +
+      (tiered ? holoTierTrack(card) : '') +
       '<button class="sg-sheet-holo-btn" type="button" data-holo-buy="' + esc(card.id) + '"' +
-        ' data-holo-cost="' + cost + '"' + (short ? ' disabled' : '') + '>' +
-        '\u2726 Make holographic \u00b7 ' + cost.toLocaleString() + ' remnants</button>' +
+        ' data-holo-tier="' + step.tier + '" data-holo-cost="' + step.cost + '"' + (short ? ' disabled' : '') + '>' +
+        holoButtonLabel(step) + '</button>' +
       '<p class="sg-sheet-holo-note" data-holo-note>' + (known
         ? (short ? 'You have ' + balance.toLocaleString() + ' remnants. Duplicates and wins earn more.'
                  : 'You have ' + balance.toLocaleString() + ' remnants.')
@@ -4923,7 +4977,9 @@
   function buyHoloFinish(app, opts, sheetCard, btn) {
     var api = window.SiegelingsHomeLive;
     var id = btn.getAttribute('data-holo-buy');
+    var tier = btn.getAttribute('data-holo-tier') === 'ART' ? 'ART' : 'FLAIR';
     var cost = Number(btn.getAttribute('data-holo-cost')) || 0;
+    var restingLabel = btn.textContent;
     var note = sheetCard.querySelector('[data-holo-note]');
     // Up to 32,000 remnants in one tap is too easy to spend by accident, so
     // the first tap arms and the second one spends.
@@ -4936,11 +4992,11 @@
     holoAudioPrime();
     btn.disabled = true;
     btn.textContent = 'Applying finish\u2026';
-    api.post('/api/cards/holographic', { cardId: id }).then(function (data) {
+    api.post('/api/cards/holographic', { cardId: id, tier: tier }).then(function (data) {
       if (!data || data.error || !data.progression) {
         btn.disabled = false;
         btn.classList.remove('is-armed');
-        btn.textContent = '\u2726 Make holographic \u00b7 ' + cost.toLocaleString() + ' remnants';
+        btn.textContent = restingLabel;
         if (note) note.textContent = (data && data.error) || 'The finish could not be applied. Try again.';
         return;
       }
@@ -4948,8 +5004,12 @@
       var live = opts.live;
       if (p.remnants != null) live.remnants = p.remnants;
       if (Array.isArray(p.holographicCards)) live.holographicCards = p.holographicCards;
+      if (Array.isArray(p.holoArtCards)) live.holoArtCards = p.holoArtCards;
       setPlayerHolo(live.holographicCards || []);
-      if (!hasPlayerHolo({ id: id })) PLAYER_HOLO[String(id).toLowerCase()] = true;
+      setPlayerHoloArt(live.holoArtCards || []);
+      // An older server answers without the new list; trust the tier just bought.
+      if (tier === 'FLAIR' && !hasPlayerHolo({ id: id })) PLAYER_HOLO[String(id).toLowerCase()] = true;
+      if (tier === 'ART' && !hasPlayerHoloArt({ id: id })) setPlayerHoloArt(PLAYER_HOLO_ART_IDS.concat([String(id).toLowerCase()]));
       if (typeof loadCachedAuthProfile === 'function' && typeof saveCachedAuthProfile === 'function') {
         var profile = loadCachedAuthProfile();
         if (live.accountId && profile && profile.user && profile.user.id === live.accountId) {
@@ -9188,6 +9248,7 @@
     }
     noteNewGalleryUnlocks(model);
     if (Array.isArray(model.holographicCards)) setPlayerHolo(model.holographicCards);
+    if (Array.isArray(model.holoArtCards)) setPlayerHoloArt(model.holoArtCards);
     if (model.cards && model.cards.length) {
       ALL_CARDS = model.cards.slice();
     }

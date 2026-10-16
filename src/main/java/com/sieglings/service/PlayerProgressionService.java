@@ -480,12 +480,16 @@ public class PlayerProgressionService {
         }
     }
 
-    public PlayerProgressionEntity purchaseHolographicFinish(AccountUser user, String cardId) {
+    /** Holo tiers above the standard card. ART: holographic art, no shimmer. FLAIR: holo art plus the foil shimmer. */
+    public enum HoloTier { ART, FLAIR }
+
+    public PlayerProgressionEntity purchaseHolographicFinish(AccountUser user, String cardId, HoloTier tier) {
         synchronized (progressionWriteLock(user)) {
             PlayerProgressionEntity progression = getOrCreate(user);
             if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
                 throw new IllegalArgumentException("Choose a starter pack before upgrading cards.");
             }
+            HoloTier target = tier == null ? HoloTier.FLAIR : tier;
             String normalizedId = normalizeCardId(cardId);
             if (!ownsHolographicTarget(progression, normalizedId)) {
                 throw new IllegalArgumentException("You must own this card before applying a holographic finish.");
@@ -497,18 +501,42 @@ public class PlayerProgressionService {
             if (card.isHolographic()) {
                 throw new IllegalArgumentException("This card already ships with a holographic finish.");
             }
-            int cost = holographicCost(card);
+            boolean hasArtTier = hasHoloArt(progression, normalizedId);
+            if (target == HoloTier.ART) {
+                // Without dedicated holo art the first tier would change nothing on the card.
+                if (!hasHolographicArtwork(card)) {
+                    throw new IllegalArgumentException(card.getName() + " has no holographic art yet.");
+                }
+                if (hasArtTier) {
+                    throw new IllegalArgumentException("This card already has holographic art.");
+                }
+            }
+            int cost = holographicTierCost(card, target, hasArtTier);
             if (progression.getRemnants() < cost) {
                 throw new IllegalArgumentException("Not enough Remnants for a holographic finish on " + card.getName() + ".");
             }
             progression.setRemnants(progression.getRemnants() - cost);
-            List<String> holographicIds = new ArrayList<>(
-                    progression.getHolographicCardIds() == null ? List.of() : progression.getHolographicCardIds());
-            holographicIds.add(normalizedId);
-            progression.setHolographicCardIds(holographicIds);
+            if (target == HoloTier.ART) {
+                List<String> artIds = new ArrayList<>(progression.getHoloArtCardIds());
+                artIds.add(normalizedId);
+                progression.setHoloArtCardIds(artIds);
+            } else {
+                List<String> holographicIds = new ArrayList<>(
+                        progression.getHolographicCardIds() == null ? List.of() : progression.getHolographicCardIds());
+                holographicIds.add(normalizedId);
+                progression.setHolographicCardIds(holographicIds);
+                // Flair includes the art tier, so the card leaves the art-only list.
+                progression.setHoloArtCardIds(progression.getHoloArtCardIds().stream()
+                        .filter(id -> !normalizedId.equals(normalizeCardId(id)))
+                        .toList());
+            }
             progression.setUpdatedAt(Instant.now());
             return store.save(progression);
         }
+    }
+
+    public PlayerProgressionEntity purchaseHolographicFinish(AccountUser user, String cardId) {
+        return purchaseHolographicFinish(user, cardId, HoloTier.FLAIR);
     }
 
     public PlayerProgressionEntity craftCard(AccountUser user, String cardId) {
@@ -735,6 +763,15 @@ public class PlayerProgressionService {
         out.put("holographicCards", holographicCards.stream()
                 .map(this::normalizeCardId)
                 .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList());
+        java.util.Set<String> flairIds = holographicCards.stream()
+                .map(this::normalizeCardId)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        out.put("holoArtCards", progression.getHoloArtCardIds().stream()
+                .map(this::normalizeCardId)
+                .filter(id -> id != null && !id.isBlank() && !flairIds.contains(id))
                 .distinct()
                 .toList());
         if (playerTitleService != null) {
@@ -1102,6 +1139,31 @@ public class PlayerProgressionService {
 
     public int holographicCost(Card card) {
         return craftCost(card) * 4;
+    }
+
+    /**
+     * Holo Art costs half of the full finish and Flair the other half, so going
+     * through both tiers costs the same as buying Flair outright (craft cost x 4).
+     */
+    public int holographicTierCost(Card card, HoloTier tier, boolean alreadyHasArtTier) {
+        if (tier == HoloTier.ART || alreadyHasArtTier) {
+            return craftCost(card) * 2;
+        }
+        return holographicCost(card);
+    }
+
+    public boolean hasHoloArt(PlayerProgressionEntity progression, String cardId) {
+        String normalizedId = normalizeCardId(cardId);
+        if (progression == null || normalizedId == null || progression.getHoloArtCardIds() == null) {
+            return false;
+        }
+        return progression.getHoloArtCardIds().stream()
+                .map(this::normalizeCardId)
+                .anyMatch(normalizedId::equals);
+    }
+
+    private boolean hasHolographicArtwork(Card card) {
+        return card.getHolographicCardArtUrl() != null && !card.getHolographicCardArtUrl().isBlank();
     }
 
     public boolean hasHolographicFinish(PlayerProgressionEntity progression, String cardId) {

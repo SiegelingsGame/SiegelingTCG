@@ -235,6 +235,45 @@ class PlayerProgressionServiceTest {
         assertTrue(store.saved.getHolographicCardIds().contains("draco"));
     }
 
+    private PlayerProgressionEntity ownerOf(String cardId, int remnants) {
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setRemnants(remnants);
+        progression.getOwnedCards().put(cardId, 1);
+        return progression;
+    }
+
+    @Test
+    void holoArtTierCostsHalfAndFlairUpgradeCostsTheOtherHalf() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        store.saved = ownerOf("glimmer", 2500);
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new HoloArtCardDefinitionService());
+
+        service.purchaseHolographicFinish(user(), "glimmer", PlayerProgressionService.HoloTier.ART);
+        assertEquals(1500, store.saved.getRemnants());
+        assertTrue(store.saved.getHoloArtCardIds().contains("glimmer"));
+        assertTrue(store.saved.getHolographicCardIds().isEmpty());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.purchaseHolographicFinish(user(), "glimmer", PlayerProgressionService.HoloTier.ART));
+
+        service.purchaseHolographicFinish(user(), "glimmer", PlayerProgressionService.HoloTier.FLAIR);
+        assertEquals(500, store.saved.getRemnants());
+        assertTrue(store.saved.getHolographicCardIds().contains("glimmer"));
+        assertTrue(store.saved.getHoloArtCardIds().isEmpty(), "Flair replaces the art-only entry.");
+    }
+
+    @Test
+    void holoArtTierNeedsDedicatedHoloArt() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        store.saved = ownerOf("draco", 5000);
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new HoloArtCardDefinitionService());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.purchaseHolographicFinish(user(), "draco", PlayerProgressionService.HoloTier.ART));
+        assertEquals(5000, store.saved.getRemnants());
+    }
+
     @Test
     void holographicFinishRequiresOwnership() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
@@ -668,6 +707,18 @@ class PlayerProgressionServiceTest {
                     60,
                     new SieglingCard("draco", "Draco", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT)
             ));
+        }
+    }
+
+    /** Adds a card with dedicated holo art, which the Holo Art tier requires. */
+    private static class HoloArtCardDefinitionService extends FakeCardDefinitionService {
+        @Override
+        public List<Card> getDeckBuilderCatalog() {
+            SieglingCard glimmer = new SieglingCard("glimmer", "Glimmer", Element.FIRE, Rarity.COMMON, 6, 4, List.of(), Row.FRONT);
+            glimmer.setHolographicCardArtUrl("https://example.com/glimmer-holo.webp");
+            List<Card> cards = new java.util.ArrayList<>(super.getDeckBuilderCatalog());
+            cards.add(glimmer);
+            return cards;
         }
     }
 

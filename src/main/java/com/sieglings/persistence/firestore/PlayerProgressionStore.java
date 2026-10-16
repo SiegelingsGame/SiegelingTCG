@@ -72,6 +72,7 @@ public class PlayerProgressionStore {
         payload.put("purchasedTitleIds", progression.getPurchasedTitleIds());
         payload.put("craftCount", progression.getCraftCount());
         payload.put("holographicCardIds", progression.getHolographicCardIds());
+        payload.put("holoArtCardIds", progression.getHoloArtCardIds());
         payload.put("siegeUnlockedKnights", progression.getSiegeUnlockedKnights());
         payload.put("siegeUnlockedSieglings", progression.getSiegeUnlockedSieglings());
         payload.put("siegeRuns", progression.getSiegeRuns());
@@ -137,6 +138,7 @@ public class PlayerProgressionStore {
         Long craftCount = snapshot.getLong("craftCount");
         progression.setCraftCount(craftCount == null ? 0 : craftCount.intValue());
         progression.setHolographicCardIds(readStringList(snapshot.get("holographicCardIds")));
+        progression.setHoloArtCardIds(readStringList(snapshot.get("holoArtCardIds")));
         progression.setSiegeUnlockedKnights(readStringList(snapshot.get("siegeUnlockedKnights")));
         progression.setSiegeUnlockedSieglings(readStringList(snapshot.get("siegeUnlockedSieglings")));
         progression.setSiegeRuns(intValue(snapshot.getLong("siegeRuns")));

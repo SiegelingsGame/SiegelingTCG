@@ -1463,11 +1463,14 @@ class GameJavaScriptRegressionTest {
         String artRenderer = extractFunction(gameScript, "function renderCardArt(card, variant, fallbackLabel = '', artOptions = {})");
         String style = Files.readString(STYLE_CSS);
 
+        String holoArtTier = extractFunction(gameScript, "function cardShowsPlayerHoloArt(card)");
         assertTrue(
-                artResolver.contains("cardShowsPlayerHolographic(card)")
+                artResolver.contains("cardShowsPlayerHoloArt(card)")
+                        && holoArtTier.contains("cardShowsPlayerHolographic(card)")
+                        && holoArtTier.contains("playerHoloArtCardIds()")
                         && artResolver.contains("card.holographicCardArtUrl")
                         && artResolver.contains("mode: 'HOLOGRAPHIC_FULL_CARD'"),
-                "Battle art selection must use dedicated holo art only when that card instance displays the player's holographic finish."
+                "Battle art selection must use dedicated holo art only when that card instance displays one of the player's holo tiers (Holo Art or Holo Flair)."
         );
         assertTrue(
                 artRenderer.contains("game-holographic-full-card-art")

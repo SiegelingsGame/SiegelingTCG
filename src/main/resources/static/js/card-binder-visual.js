@@ -152,8 +152,12 @@
         return normalizeArtMode(card?.holographicCardArtMode) || 'FULL_CARD';
     }
 
+    // Holo art shows for both upgrade tiers: Holo Art (art only) and Holo
+    // Flair (art plus the foil overlay). Only isHolographic() earns the overlay.
     function showsHolographicArt(card, options = {}) {
-        return Boolean(options.useHolographicFullCardArt && isHolographic(card, options) && holographicArtMode(card));
+        return Boolean(options.useHolographicFullCardArt
+            && (isHolographic(card, options) || hasHoloArtTier(card, options))
+            && holographicArtMode(card));
     }
 
     // REPLACE/OVERLAY holo art renders through the standard template, so the
@@ -236,6 +240,22 @@
             return true;
         }
         const ids = options.playerHolographicIds || options.holographicCardIds;
+        const cardId = String(card?.id || '').trim().toLowerCase();
+        if (!cardId || !ids) {
+            return false;
+        }
+        if (ids instanceof Set) {
+            return ids.has(cardId);
+        }
+        if (Array.isArray(ids)) {
+            return ids.some((entry) => String(entry || '').trim().toLowerCase() === cardId);
+        }
+        return false;
+    }
+
+    // The Holo Art tier: the card's holographic artwork with no foil shimmer.
+    function hasHoloArtTier(card, options = {}) {
+        const ids = options.playerHoloArtIds;
         const cardId = String(card?.id || '').trim().toLowerCase();
         if (!cardId || !ids) {
             return false;
@@ -788,6 +808,8 @@
         renderKnightOverlayArtWindow,
         knightTemplateClass,
         isHolographic,
+        hasHoloArtTier,
+        showsHolographicArt,
         holographicClass,
         normalizeArtMode,
         normalizeArtTransform,
