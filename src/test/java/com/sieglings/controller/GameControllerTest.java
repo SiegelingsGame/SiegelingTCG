@@ -44,6 +44,46 @@ class GameControllerTest {
     }
 
     @Test
+    void battleCardsCarryTheirOwnersFinishNotTheViewers() throws Exception {
+        java.util.List<String> reads = new java.util.ArrayList<>();
+        GameController controller = createController(new MultiplayerService(), accountServiceReturning(null));
+        setField(controller, "playerProgressionService", new PlayerProgressionService() {
+            @Override
+            public Map<String, String> cardFinishesForUser(String userId) {
+                reads.add(userId);
+                return "host".equals(userId) ? new java.util.HashMap<>(Map.of("draco", "GOLD", "pylme", "SP"))
+                        : "guest".equals(userId) ? new java.util.HashMap<>(Map.of("draco", "SP"))
+                        : new java.util.HashMap<>();
+            }
+        });
+        com.sieglings.model.Player host = new com.sieglings.model.Player("Host", true);
+        host.setAccountUserId("host");
+        com.sieglings.model.Player guest = new com.sieglings.model.Player("Guest", true);
+        guest.setAccountUserId("guest");
+        com.sieglings.model.Player ai = new com.sieglings.model.Player("AI", false);
+        com.sieglings.model.SieglingCard draco = siegling("draco");
+        com.sieglings.model.SieglingCard foil = siegling("pylme");
+        foil.setHolographic(true);
+        Class<?>[] sig = { com.sieglings.model.Player.class, com.sieglings.model.Card.class };
+
+        assertEquals("GOLD", invoke(controller, "finishFor", sig, new Object[] { host, draco }));
+        assertEquals("SP", invoke(controller, "finishFor", sig, new Object[] { guest, draco }),
+                "The same card shows each owner's own finish.");
+        assertEquals("", invoke(controller, "finishFor", sig, new Object[] { ai, draco }));
+        assertEquals("HSP", invoke(controller, "finishFor", sig, new Object[] { host, foil }),
+                "A card that ships foil is at least HSP, even where its owner bought SP.");
+        assertEquals("HSP", invoke(controller, "finishFor", sig, new Object[] { ai, foil }));
+        invoke(controller, "finishFor", sig, new Object[] { host, draco });
+        assertEquals(List.of("host", "guest", ""), reads.stream().map(id -> id == null ? "" : id).toList(),
+                "Each player's finishes are read once per match, not on every state poll.");
+    }
+
+    private com.sieglings.model.SieglingCard siegling(String id) {
+        return new com.sieglings.model.SieglingCard(id, id, Element.FIRE, Rarity.COMMON, 7, 3, List.of(),
+                com.sieglings.model.enums.Row.FRONT);
+    }
+
+    @Test
     void signedInNonHostCannotCloseAnonymousRoomWithoutHostToken() throws Exception {
         MultiplayerService multiplayerService = new MultiplayerService();
         MultiplayerService.RoomSession session = multiplayerService.createRoom(

@@ -2894,37 +2894,67 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    taller than the viewport - a card whose bottom notch row is off screen is
    exactly the crop this view exists to undo. */
 .sg-zoom {
-  position:absolute; inset:0; z-index:80; display:flex; align-items:center; justify-content:center;
-  padding:calc(18px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom));
-  opacity:0; transition:opacity .22s ease;
+  position:absolute; inset:0; z-index:80; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:calc(18px + env(safe-area-inset-top)) 18px calc(12px + env(safe-area-inset-bottom));
+  opacity:0; transition:opacity .22s ease; overflow:hidden;
 }
 .sg-zoom.open { opacity:1; }
+.sg-zoom:focus { outline:none; }
 .sg-zoom[hidden] { display:none; }
 .sg-zoom-scrim {
   position:absolute; inset:0; border:0; padding:0; cursor:zoom-out;
   background:rgba(2,4,10,.9); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
 }
+/* The stage is the room the card is magnified into; only the card itself takes
+   pointer input, so a tap beside it still lands on the scrim and closes. */
 .sg-zoom-stage {
   position:relative; z-index:1; display:flex; align-items:center; justify-content:center;
-  width:100%; height:100%; pointer-events:none;
+  flex:1 1 auto; min-height:0; width:100%; pointer-events:none; perspective:1400px;
 }
-/* The card lays out at its natural printed size and is magnified by
-   --sg-zoom-scale (set in mountZoom), so the frame, the notch ring and the
-   description box keep the exact placement they have on the real card. 200px is
-   `.mulligan-card-slot`'s own max-width: the largest the card lays out at. */
-.sg-zoom-stage .sg-card-tile {
-  width:min(200px, 100%); cursor:default;
-  filter:drop-shadow(0 26px 60px rgba(0,0,0,.72));
-  transform:scale(calc(var(--sg-zoom-scale, 1) * .94));
-  transform-origin:center center;
-  transition:transform .28s cubic-bezier(.2,.8,.25,1);
+.sg-zoom-mover { will-change:transform; }
+/* The card lays out at its natural printed size and is magnified as a unit by
+   mountZoom, so the frame, the notch ring and the description box keep the
+   exact placement they have on the real card. 200px is `.mulligan-card-slot`'s
+   own max-width: the largest the card lays out at. */
+.sg-zoom-card {
+  /* A fixed natural width: the mover around it shrinks to fit, so a percentage
+     here measured as nothing and the magnification ran away. */
+  position:relative; width:200px; flex:0 0 auto; pointer-events:auto; touch-action:none; cursor:grab;
+  transform-style:preserve-3d; will-change:transform; user-select:none; -webkit-user-select:none;
 }
-.sg-zoom.open .sg-zoom-stage .sg-card-tile { transform:scale(var(--sg-zoom-scale, 1)); }
-/* See layout() in home-redesign.js: the natural size cannot be measured
-   through a running transition. */
-.sg-zoom.is-measuring .sg-zoom-stage .sg-card-tile { transition:none; }
-/* The binder tile's hover/press lift would fight the magnification. */
-.sg-zoom-stage .sg-card-tile:active { transform:scale(var(--sg-zoom-scale, 1)); }
+.sg-zoom-card:active { cursor:grabbing; }
+/* A press on card art would start the browser's native image drag, which
+   cancels the pointer stream mid-turn. */
+.sg-zoom-card img { -webkit-user-drag:none; pointer-events:none; }
+.sg-zoom-face { backface-visibility:hidden; -webkit-backface-visibility:hidden; }
+.sg-zoom-front { position:relative; filter:drop-shadow(0 26px 60px rgba(0,0,0,.72)); }
+.sg-zoom-back {
+  position:absolute; inset:0; transform:rotateY(180deg); border-radius:10px; overflow:hidden;
+  background:#0b0f1a; box-shadow:0 26px 60px rgba(0,0,0,.72);
+}
+.sg-zoom-back img { display:block; width:100%; height:100%; object-fit:cover; pointer-events:none; }
+.sg-zoom-card .sg-card-tile { cursor:inherit; transform:none !important; transition:none; }
+.sg-zoom-dots {
+  position:absolute; z-index:2; right:calc(14px + env(safe-area-inset-right)); top:50%; transform:translateY(-50%);
+  display:flex; flex-direction:column; gap:8px; pointer-events:none;
+}
+.sg-zoom-dots i { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.28); transition:transform .2s, background .2s; }
+.sg-zoom-dots i.on { background:#fff; transform:scale(1.35); }
+.sg-zoom-foot { position:relative; z-index:2; flex:0 0 auto; text-align:center; pointer-events:none; padding-top:8px; }
+.sg-zoom-version {
+  display:inline-flex; align-items:center; gap:8px; padding:6px 14px; border-radius:999px;
+  background:rgba(7,11,20,.82); border:1px solid rgba(200,165,79,.34);
+  font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:#fff;
+}
+.sg-zoom-version b { font-weight:800; }
+.sg-zoom-version em { font-style:normal; font-size:10px; letter-spacing:.06em; color:rgba(255,255,255,.75); }
+.sg-zoom-version span { font-size:10px; color:var(--muted); letter-spacing:.08em; }
+.sg-zoom-version span.is-owned { color:#8ff0b0; }
+.sg-zoom-version[data-version="HSP"] b {
+  background:linear-gradient(90deg, #ff9cf0, #9ff3ff, #a6ffcf, #fff59a); -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.sg-zoom-version[data-version="GOLD"] b, .sg-zoom-version[data-version="GSP"] b { color:#ffd66b; text-shadow:0 0 10px rgba(255,200,60,.5); }
+.sg-zoom-hint { margin:6px 0 0; font-size:11px; color:rgba(255,255,255,.55); }
 .sg-zoom-close {
   position:absolute; z-index:2; top:calc(10px + env(safe-area-inset-top)); right:12px;
   width:38px; height:38px; padding:0; line-height:1; font-size:20px; cursor:pointer;
@@ -2933,7 +2963,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 .sg-zoom-close:focus-visible { outline:2px solid var(--gold-bright); outline-offset:2px; }
 @media (prefers-reduced-motion:reduce) {
-  .sg-zoom, .sg-zoom-stage .sg-card-tile, .sg-sheet-face .sg-card-tile { transition:none; }
+  .sg-zoom, .sg-sheet-face .sg-card-tile { transition:none; }
 }
 .sg-feat { cursor:pointer; }
 .sg-feat:focus-visible { outline:2px solid var(--gold-bright); outline-offset:3px; border-radius:16px; }
@@ -3178,13 +3208,80 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 .sg-sheet-holo-btn.is-armed { border-color:#fff; box-shadow:0 0 22px rgba(255,255,255,.45); }
 .sg-sheet-holo-btn:disabled { cursor:default; opacity:.5; }
+/* Card versions: every look of the card, owned or not. Tapping one shows it
+   on the face; a lock marks a version this account does not have. */
+/* Five versions don't fit one row beside a padlock at phone widths, so the row wraps. */
+.sg-sheet-versions { display:flex; flex-wrap:wrap; gap:5px; }
+.sg-sheet-version {
+  flex:1 0 auto; min-width:0; display:inline-flex; align-items:center; justify-content:center; gap:4px;
+  padding:6px 8px; border-radius:999px; cursor:pointer; font:inherit;
+  font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap;
+  color:var(--muted); border:1px solid rgba(160,220,255,.2); background:rgba(36,26,96,.35);
+}
+.sg-sheet-version.is-owned { color:#dff6ff; border-color:rgba(160,220,255,.42); }
+.sg-sheet-version.is-locked { color:rgba(220,220,240,.5); }
+.sg-sheet-version svg { flex:0 0 auto; opacity:.8; }
+.sg-sheet-version.on { color:#fff; border-color:#fff; box-shadow:0 0 12px rgba(160,220,255,.35); }
+.sg-sheet-version.is-holo.on { background:linear-gradient(115deg, rgba(255,64,160,.38), rgba(64,196,255,.4) 45%, rgba(176,96,255,.42)); }
+.sg-sheet-version.is-gold.on { border-color:#ffd66b; background:linear-gradient(115deg, rgba(150,96,10,.6), rgba(255,206,84,.45) 50%, rgba(150,96,10,.6)); box-shadow:0 0 12px rgba(255,200,60,.4); }
+.sg-sheet-version.on:not(.is-holo):not(.is-gold) { background:rgba(64,196,255,.18); }
+.sg-sheet-version.is-holo-lite.on { background:linear-gradient(115deg, rgba(255,170,230,.22), rgba(150,230,255,.24)); }
+
+/* Siege / Keep views of the sheet face: the cutout stands on a ground line at
+   its size band's height relative to the tallest band (--cut-h, set inline),
+   with a ruler marking where each band reaches. */
+.sg-sheet-face[data-face-view="siege"], .sg-sheet-face[data-face-view="keep"] { cursor:zoom-in; }
+.sg-cutout {
+  position:relative; width:168px; max-width:60%; aspect-ratio:5 / 7; border-radius:12px; overflow:hidden;
+  border:1px solid rgba(255,255,255,.12);
+}
+.sg-cutout.is-siege {
+  background:
+    radial-gradient(120% 60% at 50% 100%, rgba(255,120,60,.22), transparent 60%),
+    linear-gradient(180deg, #1b2347 0%, #2b2140 55%, #3a2a24 100%);
+}
+.sg-cutout.is-keep {
+  background:
+    radial-gradient(120% 70% at 50% 100%, rgba(120,90,40,.35), transparent 62%),
+    linear-gradient(180deg, #e9dcb8 0%, #d9c393 60%, #b99c62 100%);
+  border-color:rgba(120,90,40,.5);
+}
+.sg-cutout-ground {
+  position:absolute; left:12%; right:12%; bottom:12%; height:7%; border-radius:50%;
+  background:radial-gradient(closest-side, rgba(0,0,0,.5), transparent);
+}
+.sg-cutout.is-keep .sg-cutout-ground { background:radial-gradient(closest-side, rgba(60,40,20,.45), transparent); }
+.sg-cutout-figure {
+  position:absolute; left:14%; right:6%; bottom:15%; height:var(--cut-h, 50%);
+  display:flex; align-items:flex-end; justify-content:center;
+}
+.sg-cutout-figure img { max-width:100%; max-height:100%; object-fit:contain; object-position:50% 100%; pointer-events:none; }
+.sg-cutout.is-siege .sg-cutout-figure img { filter:drop-shadow(0 6px 6px rgba(0,0,0,.55)); }
+.sg-cutout.is-keep .sg-cutout-figure img {
+  filter:drop-shadow(1px 0 0 #282019) drop-shadow(-1px 0 0 #282019) drop-shadow(0 1px 0 #282019) drop-shadow(0 -1px 0 #282019)
+    drop-shadow(3px 6px 3px rgba(23,19,15,.52));
+  transform:rotate(-1deg); transform-origin:50% 92%;
+}
+@supports (filter: url("#paper-siegling-cutout")) {
+  .sg-cutout.is-keep .sg-cutout-figure img { filter:url("#paper-siegling-cutout"); }
+}
+.sg-cutout-ruler { position:absolute; left:4%; top:0; bottom:0; width:12%; }
+.sg-cutout-ruler i {
+  position:absolute; left:0; transform:translateY(50%); font-style:normal; font-size:8px; font-weight:800;
+  line-height:1; padding:1px 3px; border-radius:3px; color:rgba(255,255,255,.4); border-top:1px dashed rgba(255,255,255,.25);
+}
+.sg-cutout.is-keep .sg-cutout-ruler i { color:rgba(60,40,20,.45); border-top-color:rgba(60,40,20,.3); }
+.sg-cutout-ruler i.on { color:#fff; background:rgba(0,0,0,.45); border-top-color:#fff; }
+.sg-cutout.is-keep .sg-cutout-ruler i.on { color:#fff4d8; background:rgba(70,48,20,.8); }
+.sg-cutout-tag {
+  position:absolute; bottom:5px; left:50%; transform:translateX(-50%); white-space:nowrap;
+  padding:3px 8px; border-radius:999px; font-size:9px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  color:#fff; background:rgba(0,0,0,.5);
+}
+.sg-cutout.is-keep .sg-cutout-tag { color:#fff4d8; background:rgba(70,48,20,.75); }
+
 .sg-sheet-holo-note { margin:0; min-height:0; font-size:11px; line-height:1.4; color:var(--muted); text-align:center; }
 .sg-sheet-holo-note:empty { display:none; }
-.sg-sheet-holo.is-done { align-items:center; }
-.sg-sheet-holo-chip {
-  padding:5px 12px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
-  color:#dff6ff; border:1px solid rgba(160,220,255,.45); background:rgba(64,196,255,.14);
-}
 /* Holo unlock twirl (playHoloTwirl). The perspective lives on the face so the
    tile spins in 3D; the sheet's zoom-in press scale is held off while it does. */
 .sg-sheet-face.is-holo-twirl { perspective:700px; pointer-events:none; position:relative; z-index:3; }
@@ -3210,6 +3307,16 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   position:absolute; left:50%; top:50%; width:160vmax; height:160vmax; display:block;
   transform:translate(-50%,-50%);
   background:conic-gradient(#ff9cf0, #9ff3ff, #a6ffcf, #fff59a, #ffb37a, #c9a6ff, #ff9cf0);
+}
+.sg-holo-screen.is-gold {
+  box-shadow:
+    inset 0 0 14px 3px rgba(255,250,230,.9),
+    inset 0 0 44px 12px rgba(255,214,107,.9),
+    inset 0 0 100px 26px rgba(245,185,55,.6),
+    inset 0 0 190px 40px rgba(224,154,31,.32);
+}
+.sg-holo-screen.is-gold .sg-holo-screen-rim b {
+  background:conic-gradient(#fff6d5, #ffd66b, #e09a1f, #fff1bd, #f5b937, #fff6d5);
 }
 .sg-holo-fx { position:fixed; width:0; height:0; pointer-events:none; z-index:2147483000; }
 .sg-holo-fx > i { position:absolute; left:0; top:0; width:var(--s); height:var(--s); margin:calc(var(--s) / -2) 0 0 calc(var(--s) / -2); opacity:0; }
@@ -5861,6 +5968,32 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-dominion { margin-top:10px; border-color:rgba(244,204,98,.45); }
 .sg-dominion .sg-lobbies-dot { background:#f4cc62; box-shadow:0 0 8px rgba(244,204,98,.8); }
 .sg-dominion em, .sg-dominion .go { color:#f4cc62; }
+
+/* Pulled finish badge on a revealed pack card. */
+.sg-flip-finish {
+  position:absolute; z-index:5; top:-9px; left:50%; transform:translateX(-50%); white-space:nowrap; pointer-events:none;
+  padding:3px 9px; border-radius:999px; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  color:#fff; background:rgba(20,16,50,.9); border:1px solid rgba(255,255,255,.4);
+}
+.sg-flip-finish.is-holo { border-color:rgba(160,230,255,.6); }
+.sg-flip-finish.is-sp, .sg-flip-finish.is-hsp {
+  background:linear-gradient(115deg, rgba(255,64,160,.85), rgba(64,196,255,.85) 50%, rgba(176,96,255,.85));
+}
+.sg-flip-finish.is-gold, .sg-flip-finish.is-gsp {
+  color:#2b1a02; border-color:#fff1bd;
+  background:linear-gradient(115deg, #b98222, #ffe9a3 45%, #f2c75a 60%, #b98222);
+  box-shadow:0 0 14px rgba(255,200,60,.8);
+}
+/* Finish odds on the pack sheet: finishes down, rarities across. */
+/* The grid item would otherwise grow to the table's natural width and push
+   the sheet off a phone screen. */
+.sg-godds-card { min-width:0; max-width:100%; }
+.sg-godds-finish { display:block !important; min-width:0; }
+.sg-godds-finish dd { margin:6px 0 0; overflow-x:auto; min-width:0; }
+.sg-godds-finish table { width:100%; border-collapse:collapse; font-size:11px; }
+.sg-godds-finish th, .sg-godds-finish td { padding:3px 4px; text-align:right; white-space:nowrap; }
+.sg-godds-finish th:first-child { text-align:left; }
+.sg-godds-finish tr th.is-gold, .sg-godds-finish tr th.is-gsp { color:#ffd66b; }
 .sg-gauntlet { margin-top:10px; border-color:rgba(200,150,255,.45); }
 .sg-gauntlet .sg-lobbies-dot { background:#c896ff; box-shadow:0 0 8px rgba(200,150,255,.8); }
 .sg-gauntlet em, .sg-gauntlet .go { color:#c896ff; }

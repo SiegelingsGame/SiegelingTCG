@@ -2,6 +2,7 @@ package com.sieglings.service;
 
 import com.sieglings.model.Card;
 import com.sieglings.model.TrainerCard;
+import com.sieglings.model.enums.CardFinish;
 import com.sieglings.model.enums.CardType;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Element;
@@ -28,16 +29,53 @@ public class PackCatalogService {
     public static final double TRAINER_DROP_CHANCE = 0.03;
 
     /**
-     * Chance for each pulled card to drop with a holographic finish. Higher
-     * rarities are rarer as holos, so the shiniest pulls stay special.
+     * Chance, per card acquired, that it arrives in each finish. Every tier is
+     * rarer than the one below it, and every tier is rarer on a rarer card. GOLD
+     * is a once-in-thousands event and GSP an act of god: about 1 in 20,000 on a
+     * Common and 1 in 100,000 on a Legendary.
      */
-    public static final Map<Rarity, Double> HOLO_DROP_CHANCE = new EnumMap<>(Map.of(
-            Rarity.COMMON, 0.08,
-            Rarity.UNCOMMON, 0.06,
-            Rarity.RARE, 0.04,
-            Rarity.EPIC, 0.02,
-            Rarity.LEGENDARY, 0.01
+    public static final Map<Rarity, Map<CardFinish, Double>> FINISH_DROP_CHANCE = new EnumMap<>(Map.of(
+            Rarity.COMMON, finishOdds(0.06, 0.02, 0.008, 0.0005, 0.00005),
+            Rarity.UNCOMMON, finishOdds(0.05, 0.016, 0.006, 0.00035, 0.000035),
+            Rarity.RARE, finishOdds(0.04, 0.012, 0.0045, 0.00025, 0.000025),
+            Rarity.EPIC, finishOdds(0.03, 0.009, 0.003, 0.00015, 0.000015),
+            Rarity.LEGENDARY, finishOdds(0.02, 0.006, 0.002, 0.0001, 0.00001)
     ));
+
+    private static Map<CardFinish, Double> finishOdds(double holo, double sp, double hsp, double gold, double gsp) {
+        Map<CardFinish, Double> odds = new EnumMap<>(CardFinish.class);
+        odds.put(CardFinish.HOLO, holo);
+        odds.put(CardFinish.SP, sp);
+        odds.put(CardFinish.HSP, hsp);
+        odds.put(CardFinish.GOLD, gold);
+        odds.put(CardFinish.GSP, gsp);
+        return odds;
+    }
+
+    private final Random finishRandom = new Random();
+
+    /**
+     * The finish one acquired card arrives in, rolled rarest first against
+     * {@link #FINISH_DROP_CHANCE}. An SP roll on a card with no holo art lands as
+     * HOLO, since SP would show nothing new.
+     */
+    public CardFinish rollFinish(Card card) {
+        if (card == null) {
+            return CardFinish.STANDARD;
+        }
+        Map<CardFinish, Double> odds = FINISH_DROP_CHANCE.getOrDefault(card.getRarity(), Map.of());
+        double roll = finishRandom.nextDouble();
+        double threshold = 0;
+        CardFinish[] rarestFirst = { CardFinish.GSP, CardFinish.GOLD, CardFinish.HSP, CardFinish.SP, CardFinish.HOLO };
+        for (CardFinish finish : rarestFirst) {
+            threshold += odds.getOrDefault(finish, 0.0);
+            if (roll < threshold) {
+                boolean hasHoloArt = card.getHolographicCardArtUrl() != null && !card.getHolographicCardArtUrl().isBlank();
+                return finish == CardFinish.SP && !hasHoloArt ? CardFinish.HOLO : finish;
+            }
+        }
+        return CardFinish.STANDARD;
+    }
 
     public record PackDefinition(
             String id,
@@ -49,7 +87,12 @@ public class PackCatalogService {
             boolean starterEligible
     ) {}
 
-    public record PackOpenResult(PackDefinition pack, List<Card> cards, TrainerCard bonusTrainer, List<String> holoCardIds) {
+    /**
+     * {@code finishes} is positional - one per card, in the same order - so two
+     * copies of a card in one bundle can land in different finishes. Empty means
+     * "not rolled yet": the grant rolls each card itself.
+     */
+    public record PackOpenResult(PackDefinition pack, List<Card> cards, TrainerCard bonusTrainer, List<CardFinish> finishes) {
         public PackOpenResult(PackDefinition pack, List<Card> cards) {
             this(pack, cards, null, List.of());
         }
@@ -189,7 +232,7 @@ public class PackCatalogService {
             if (cards.size() < 5) {
                 throw new IllegalArgumentException("This summon does not have enough live " + formatElement(pack.elements().get(0)) + " Siegelings configured.");
             }
-            return new PackOpenResult(pack, cards, rollBonusTrainer(pack), rollHolographicDrops(cards));
+            return new PackOpenResult(pack, cards, rollBonusTrainer(pack), rollFinishes(cards));
         }
         if (focusType.isPresent()) {
             List<Card> focusCards = randomElementPool(pool, focusType.get()).stream()
@@ -204,7 +247,7 @@ public class PackCatalogService {
             if (cards.size() < 5) {
                 throw new IllegalArgumentException("This pack does not have enough live " + focusType.get().name().toLowerCase(Locale.ROOT) + " cards configured.");
             }
-            return new PackOpenResult(pack, cards, rollBonusTrainer(pack), rollHolographicDrops(cards));
+            return new PackOpenResult(pack, cards, rollBonusTrainer(pack), rollFinishes(cards));
         }
 
         List<Card> sieglings = selectRandom(pool, CardType.SIEGLING, 3);
@@ -230,7 +273,7 @@ public class PackCatalogService {
             }
             cards.add(filler.get(0));
         }
-        return new PackOpenResult(pack, cards, rollBonusTrainer(pack), rollHolographicDrops(cards));
+        return new PackOpenResult(pack, cards, rollBonusTrainer(pack), rollFinishes(cards));
     }
 
     /**
@@ -266,20 +309,13 @@ public class PackCatalogService {
         return candidates.isEmpty() ? trainers : candidates;
     }
 
-    /** Rolls each pulled card against its rarity's holo chance. */
-    private List<String> rollHolographicDrops(List<Card> cards) {
-        Random random = new Random();
-        List<String> holo = new ArrayList<>();
+    /** One finish roll per pulled card, in pull order. */
+    private List<CardFinish> rollFinishes(List<Card> cards) {
+        List<CardFinish> finishes = new ArrayList<>();
         for (Card card : cards) {
-            if (card.isHolographic()) {
-                continue;
-            }
-            double chance = HOLO_DROP_CHANCE.getOrDefault(card.getRarity(), 0.0);
-            if (random.nextDouble() < chance) {
-                holo.add(card.getId());
-            }
+            finishes.add(rollFinish(card));
         }
-        return holo;
+        return finishes;
     }
 
     /** Shop-facing listing: deactivated packs are omitted entirely. */
@@ -367,11 +403,14 @@ public class PackCatalogService {
         out.put("starterEligible", pack.starterEligible());
         Map<String, Object> odds = new LinkedHashMap<>();
         odds.put("siegeKnight", TRAINER_DROP_CHANCE);
-        Map<String, Double> holoPerCard = new LinkedHashMap<>();
+        // finishPerCard[rarity][finish] = chance per card; the shop's odds sheet reads it.
+        Map<String, Map<String, Double>> finishPerCard = new LinkedHashMap<>();
         for (Rarity rarity : Rarity.values()) {
-            holoPerCard.put(rarity.name(), HOLO_DROP_CHANCE.getOrDefault(rarity, 0.0));
+            Map<String, Double> row = new LinkedHashMap<>();
+            FINISH_DROP_CHANCE.getOrDefault(rarity, Map.of()).forEach((finish, chance) -> row.put(finish.name(), chance));
+            finishPerCard.put(rarity.name(), row);
         }
-        odds.put("holoPerCard", holoPerCard);
+        odds.put("finishPerCard", finishPerCard);
         odds.put("cardsPerPack", 5);
         out.put("odds", odds);
         // The ×10 price the server will actually charge, so a client never

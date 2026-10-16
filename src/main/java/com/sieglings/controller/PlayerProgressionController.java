@@ -168,7 +168,10 @@ public class PlayerProgressionController {
                                                            @RequestBody Map<String, Object> req) {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
-            PlayerProgressionEntity progression = progressionService.purchaseHolographicFinish(user, string(req, "cardId"));
+            // Tier names: HOLO, SP, HSP, GOLD, GSP (older clients' ART / FLAIR /
+            // HOLO_GOLD still map); no tier is the classic HSP finish.
+            com.sieglings.model.enums.CardFinish tier = com.sieglings.model.enums.CardFinish.parseTier(string(req, "tier"));
+            PlayerProgressionEntity progression = progressionService.purchaseHolographicFinish(user, string(req, "cardId"), tier);
             return buildResponse(user, progression);
         } catch (IllegalArgumentException ex) {
             return Map.of("error", ex.getMessage());

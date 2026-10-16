@@ -2,6 +2,7 @@ package com.sieglings.service;
 
 import com.sieglings.model.Card;
 import com.sieglings.model.TrainerCard;
+import com.sieglings.model.enums.CardFinish;
 import com.sieglings.model.enums.Element;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.MatchHistoryEntity;
@@ -65,7 +66,13 @@ public class PlayerProgressionService {
     /** Siegecoins per XP point; scales with current knight level (cost = level × this value). */
     public static final int TRAINER_XP_COIN_COST_PER_LEVEL = 50;
 
-    public record CardGrantOutcome(Card card, boolean grantedCopy, int remnantsAwarded, int ownedAfter) {}
+    /** {@code finish} is the finish the card arrived in; {@code finishUpgraded} whether it raised the owned one. */
+    public record CardGrantOutcome(Card card, boolean grantedCopy, int remnantsAwarded, int ownedAfter,
+                                   CardFinish finish, boolean finishUpgraded) {
+        public CardGrantOutcome(Card card, boolean grantedCopy, int remnantsAwarded, int ownedAfter) {
+            this(card, grantedCopy, remnantsAwarded, ownedAfter, CardFinish.STANDARD, false);
+        }
+    }
 
     public record TrainerGrantOutcome(String trainerId, String trainerName, String element, String rarity, String tier,
                                       boolean newlyOwned, boolean leveledUp, int level, int points, int pointsForNext) {}
@@ -181,7 +188,7 @@ public class PlayerProgressionService {
                 throw new IllegalArgumentException("Starter pack has already been chosen.");
             }
             PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, true);
-            List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards());
+            List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards(), result.finishes());
             grantRemnants(progression, PACK_OPEN_REMNANTS);
             progression.setStarterPackId(result.pack().id());
             // Grant the SiegeKnight matching the player's starting element for free.
@@ -216,7 +223,7 @@ public class PlayerProgressionService {
                 throw new IllegalArgumentException("Choose a starter pack before claiming the tutorial reward.");
             }
             PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, true);
-            List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards());
+            List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards(), result.finishes());
             grantRemnants(progression, PACK_OPEN_REMNANTS);
             progression.setGold(progression.getGold() + TUTORIAL_GOLD_REWARD);
             progression.setTutorialCompleted(true);
@@ -271,7 +278,7 @@ public class PlayerProgressionService {
             throw new IllegalArgumentException("Not enough Siegecoins for that pack.");
         }
         progression.setGold(progression.getGold() - result.pack().price());
-        List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards());
+        List<CardGrantOutcome> outcomes = grantCardsWithCap(progression, result.cards(), result.finishes());
         grantRemnants(progression, PACK_OPEN_REMNANTS);
         TrainerGrantOutcome trainerOutcome = result.bonusTrainer() == null
                 ? null
@@ -327,14 +334,14 @@ public class PlayerProgressionService {
         progression.setGold(progression.getGold() - totalCost);
 
         List<Card> allCards = new ArrayList<>();
-        List<String> allHoloIds = new ArrayList<>();
+        List<CardFinish> allFinishes = new ArrayList<>();
         List<CardGrantOutcome> allOutcomes = new ArrayList<>();
         TrainerGrantOutcome firstTrainerOutcome = null;
         PackCatalogService.PackDefinition openedPack = pack;
         for (int i = 0; i < safeCount; i++) {
             PackCatalogService.PackOpenResult result = packCatalogService.openPack(packId, false);
             openedPack = result.pack();
-            allOutcomes.addAll(grantCardsWithCap(progression, result.cards()));
+            allOutcomes.addAll(grantCardsWithCap(progression, result.cards(), result.finishes()));
             grantRemnants(progression, PACK_OPEN_REMNANTS);
             if (result.bonusTrainer() != null) {
                 TrainerGrantOutcome trainerOutcome = grantTrainer(progression, result.bonusTrainer());
@@ -343,12 +350,12 @@ public class PlayerProgressionService {
                 }
             }
             allCards.addAll(result.cards());
-            if (result.holoCardIds() != null) {
-                allHoloIds.addAll(result.holoCardIds());
-            }
+            allFinishes.addAll(result.finishes() == null || result.finishes().size() != result.cards().size()
+                    ? java.util.Collections.nCopies(result.cards().size(), (CardFinish) null)
+                    : result.finishes());
         }
         PackCatalogService.PackOpenResult combined =
-                new PackCatalogService.PackOpenResult(openedPack, allCards, null, allHoloIds);
+                new PackCatalogService.PackOpenResult(openedPack, allCards, null, allFinishes);
         addPackHistory(progression, combined, allOutcomes, firstTrainerOutcome, totalCost, "SHOP", requestId);
         progression.setUpdatedAt(Instant.now());
         PlayerProgressionEntity saved = store.save(progression);
@@ -480,35 +487,103 @@ public class PlayerProgressionService {
         }
     }
 
-    public PlayerProgressionEntity purchaseHolographicFinish(AccountUser user, String cardId) {
+    /**
+     * Buys a card's finish up to {@code target}, paying the difference between
+     * the cumulative price of the target and of the card's current finish (see
+     * {@link CardFinish#totalCraftMultiple()}). A finish never goes down, and SP
+     * needs dedicated holo art, since without it SP would show nothing new.
+     */
+    public PlayerProgressionEntity purchaseHolographicFinish(AccountUser user, String cardId, CardFinish target) {
         synchronized (progressionWriteLock(user)) {
             PlayerProgressionEntity progression = getOrCreate(user);
             if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
                 throw new IllegalArgumentException("Choose a starter pack before upgrading cards.");
             }
+            CardFinish wanted = target == null ? CardFinish.HSP : target;
             String normalizedId = normalizeCardId(cardId);
             if (!ownsHolographicTarget(progression, normalizedId)) {
                 throw new IllegalArgumentException("You must own this card before applying a holographic finish.");
             }
-            if (hasHolographicFinish(progression, normalizedId)) {
-                throw new IllegalArgumentException("This card already has a holographic finish.");
-            }
             Card card = findHolographicTarget(normalizedId);
-            if (card.isHolographic()) {
-                throw new IllegalArgumentException("This card already ships with a holographic finish.");
+            CardFinish current = currentFinish(progression, card);
+            if (!wanted.isAbove(current)) {
+                throw new IllegalArgumentException(card.getName() + " is already " + current.name() + ".");
             }
-            int cost = holographicCost(card);
+            if (wanted == CardFinish.SP && !hasHolographicArtwork(card)) {
+                throw new IllegalArgumentException(card.getName() + " has no holographic art yet.");
+            }
+            int cost = finishUpgradeCost(card, current, wanted);
             if (progression.getRemnants() < cost) {
-                throw new IllegalArgumentException("Not enough Remnants for a holographic finish on " + card.getName() + ".");
+                throw new IllegalArgumentException("Not enough Remnants for " + wanted.name() + " on " + card.getName() + ".");
             }
             progression.setRemnants(progression.getRemnants() - cost);
-            List<String> holographicIds = new ArrayList<>(
-                    progression.getHolographicCardIds() == null ? List.of() : progression.getHolographicCardIds());
-            holographicIds.add(normalizedId);
-            progression.setHolographicCardIds(holographicIds);
+            applyFinish(progression, card, wanted);
             progression.setUpdatedAt(Instant.now());
             return store.save(progression);
         }
+    }
+
+    public PlayerProgressionEntity purchaseHolographicFinish(AccountUser user, String cardId) {
+        return purchaseHolographicFinish(user, cardId, CardFinish.HSP);
+    }
+
+    /** The highest finish this account has on the card (a card that ships foil is at least HSP). */
+    public CardFinish currentFinish(PlayerProgressionEntity progression, Card card) {
+        String id = normalizeCardId(card.getId());
+        if (listHas(progression.getHoloGoldCardIds(), id)) return CardFinish.GSP;
+        if (listHas(progression.getGoldCardIds(), id)) return CardFinish.GOLD;
+        if (card.isHolographic() || listHas(progression.getHolographicCardIds(), id)) return CardFinish.HSP;
+        if (listHas(progression.getHoloArtCardIds(), id)) return CardFinish.SP;
+        if (listHas(progression.getPlainHoloCardIds(), id)) return CardFinish.HOLO;
+        return CardFinish.STANDARD;
+    }
+
+    /**
+     * Raises the card to {@code finish} if that is above what the account has.
+     * Returns whether it changed. Keeps the lists' invariants: GOLD and GSP cards
+     * stay on the HSP list (the cards ship-foil checks read), GSP stays on GOLD,
+     * and anything at HSP or above leaves the SP-only list.
+     */
+    public boolean applyFinish(PlayerProgressionEntity progression, Card card, CardFinish finish) {
+        if (card == null || finish == null || !finish.isAbove(currentFinish(progression, card))) {
+            return false;
+        }
+        String id = normalizeCardId(card.getId());
+        switch (finish) {
+            case HOLO -> progression.setPlainHoloCardIds(withId(progression.getPlainHoloCardIds(), id));
+            case SP -> progression.setHoloArtCardIds(withId(progression.getHoloArtCardIds(), id));
+            default -> {
+                progression.setHolographicCardIds(withId(progression.getHolographicCardIds(), id));
+                if (finish == CardFinish.GOLD || finish == CardFinish.GSP) {
+                    progression.setGoldCardIds(withId(progression.getGoldCardIds(), id));
+                }
+                if (finish == CardFinish.GSP) {
+                    progression.setHoloGoldCardIds(withId(progression.getHoloGoldCardIds(), id));
+                }
+                progression.setHoloArtCardIds(progression.getHoloArtCardIds().stream()
+                        .filter(existing -> !id.equals(normalizeCardId(existing)))
+                        .toList());
+            }
+        }
+        return true;
+    }
+
+    public int finishUpgradeCost(Card card, CardFinish from, CardFinish to) {
+        int multiple = to.totalCraftMultiple() - (from == null ? 0 : from.totalCraftMultiple());
+        return craftCost(card) * Math.max(0, multiple);
+    }
+
+    private boolean listHas(List<String> ids, String normalizedId) {
+        return ids != null && normalizedId != null
+                && ids.stream().map(this::normalizeCardId).anyMatch(normalizedId::equals);
+    }
+
+    private List<String> withId(List<String> ids, String normalizedId) {
+        List<String> next = new ArrayList<>(ids == null ? List.of() : ids);
+        if (!listHas(next, normalizedId)) {
+            next.add(normalizedId);
+        }
+        return next;
     }
 
     public PlayerProgressionEntity craftCard(AccountUser user, String cardId) {
@@ -737,6 +812,30 @@ public class PlayerProgressionService {
                 .filter(id -> id != null && !id.isBlank())
                 .distinct()
                 .toList());
+        java.util.Set<String> flairIds = holographicCards.stream()
+                .map(this::normalizeCardId)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        out.put("holoArtCards", progression.getHoloArtCardIds().stream()
+                .map(this::normalizeCardId)
+                .filter(id -> id != null && !id.isBlank() && !flairIds.contains(id))
+                .distinct()
+                .toList());
+        out.put("holoCards", progression.getPlainHoloCardIds().stream()
+                .map(this::normalizeCardId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList());
+        out.put("goldCards", progression.getGoldCardIds().stream()
+                .map(this::normalizeCardId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList());
+        out.put("holoGoldCards", progression.getHoloGoldCardIds().stream()
+                .map(this::normalizeCardId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList());
         if (playerTitleService != null) {
             out.put("playerTitles", playerTitleService.serializeTitlesForUser(user, progression));
         } else {
@@ -829,22 +928,38 @@ public class PlayerProgressionService {
         return Math.max(0, level - 1);
     }
 
+    /** Grants cards, rolling each one's finish (shop, crafting, Siege and mission rewards). */
     public List<CardGrantOutcome> grantCardsWithCap(PlayerProgressionEntity progression, List<Card> cards) {
+        return grantCardsWithCap(progression, cards, List.of());
+    }
+
+    /**
+     * Grants cards. Each arrives in a finish - {@code finishes[i]} when the pack
+     * already rolled it, else rolled here - and a finish above the one owned
+     * upgrades the card, even when the copy itself converts to Remnants at the cap.
+     */
+    public List<CardGrantOutcome> grantCardsWithCap(PlayerProgressionEntity progression, List<Card> cards,
+                                                    List<CardFinish> finishes) {
         int maxCopies = cardDefinitionService.getDeckBuilderMaxCopies();
         Map<String, Integer> owned = new LinkedHashMap<>(progression.getOwnedCards());
         List<CardGrantOutcome> outcomes = new ArrayList<>();
         int remnantsFromDuplicates = 0;
-        for (Card card : cards) {
+        for (int i = 0; i < cards.size(); i++) {
+            Card card = cards.get(i);
+            CardFinish finish = finishes != null && i < finishes.size() && finishes.get(i) != null
+                    ? finishes.get(i)
+                    : (packCatalogService == null ? CardFinish.STANDARD : packCatalogService.rollFinish(card));
+            boolean upgraded = applyFinish(progression, card, finish);
             String cardId = card.getId();
             int current = owned.getOrDefault(cardId, 0);
             if (current < maxCopies) {
                 int next = current + 1;
                 owned.put(cardId, next);
-                outcomes.add(new CardGrantOutcome(card, true, 0, next));
+                outcomes.add(new CardGrantOutcome(card, true, 0, next, finish, upgraded));
             } else {
                 int remnants = duplicateRemnantValue(card);
                 remnantsFromDuplicates += remnants;
-                outcomes.add(new CardGrantOutcome(card, false, remnants, current));
+                outcomes.add(new CardGrantOutcome(card, false, remnants, current, finish, upgraded));
             }
         }
         progression.setOwnedCards(owned);
@@ -1100,8 +1215,71 @@ public class PlayerProgressionService {
         };
     }
 
-    public int holographicCost(Card card) {
-        return craftCost(card) * 4;
+    /**
+     * Every finish an account owns, keyed by lower-cased card id: a
+     * {@link CardFinish} name (HOLO, SP, HSP, GOLD, GSP), the highest tier winning. The battle table stamps
+     * these onto each player's own cards so finishes follow the owner into play.
+     * Empty for guests, unknown users, or when progression cannot be read.
+     */
+    public Map<String, String> cardFinishesForUser(String userId) {
+        Map<String, String> finishes = new java.util.HashMap<>();
+        if (userId == null || userId.isBlank()) {
+            return finishes;
+        }
+        PlayerProgressionEntity progression;
+        try {
+            progression = store.findByUserId(userId).orElse(null);
+        } catch (RuntimeException ex) {
+            return finishes;
+        }
+        if (progression == null) {
+            return finishes;
+        }
+        java.util.function.BiConsumer<List<String>, String> mark = (ids, tier) -> {
+            if (ids == null) return;
+            ids.stream().map(this::normalizeCardId).filter(java.util.Objects::nonNull)
+                    .forEach(id -> finishes.put(id, tier));
+        };
+        mark.accept(progression.getPlainHoloCardIds(), CardFinish.HOLO.name());
+        mark.accept(progression.getHoloArtCardIds(), CardFinish.SP.name());
+        mark.accept(progression.getHolographicCardIds(), CardFinish.HSP.name());
+        mark.accept(progression.getGoldCardIds(), CardFinish.GOLD.name());
+        mark.accept(progression.getHoloGoldCardIds(), CardFinish.GSP.name());
+        return finishes;
+    }
+
+    public boolean hasHoloGoldFinish(PlayerProgressionEntity progression, String cardId) {
+        String normalizedId = normalizeCardId(cardId);
+        if (progression == null || normalizedId == null || progression.getHoloGoldCardIds() == null) {
+            return false;
+        }
+        return progression.getHoloGoldCardIds().stream()
+                .map(this::normalizeCardId)
+                .anyMatch(normalizedId::equals);
+    }
+
+    public boolean hasGoldFinish(PlayerProgressionEntity progression, String cardId) {
+        String normalizedId = normalizeCardId(cardId);
+        if (progression == null || normalizedId == null || progression.getGoldCardIds() == null) {
+            return false;
+        }
+        return progression.getGoldCardIds().stream()
+                .map(this::normalizeCardId)
+                .anyMatch(normalizedId::equals);
+    }
+
+    public boolean hasHoloArt(PlayerProgressionEntity progression, String cardId) {
+        String normalizedId = normalizeCardId(cardId);
+        if (progression == null || normalizedId == null || progression.getHoloArtCardIds() == null) {
+            return false;
+        }
+        return progression.getHoloArtCardIds().stream()
+                .map(this::normalizeCardId)
+                .anyMatch(normalizedId::equals);
+    }
+
+    private boolean hasHolographicArtwork(Card card) {
+        return card.getHolographicCardArtUrl() != null && !card.getHolographicCardArtUrl().isBlank();
     }
 
     public boolean hasHolographicFinish(PlayerProgressionEntity progression, String cardId) {
@@ -1193,21 +1371,6 @@ public class PlayerProgressionService {
                 .toList());
     }
 
-    /** Records pack-dropped holographic finishes on the player's collection. */
-    private void applyHolographicDrops(PlayerProgressionEntity progression, PackCatalogService.PackOpenResult result) {
-        if (result.holoCardIds() == null || result.holoCardIds().isEmpty()) {
-            return;
-        }
-        if (progression.getHolographicCardIds() == null) {
-            progression.setHolographicCardIds(new ArrayList<>());
-        }
-        for (String cardId : result.holoCardIds()) {
-            if (!progression.getHolographicCardIds().contains(cardId)) {
-                progression.getHolographicCardIds().add(cardId);
-            }
-        }
-    }
-
     private void addPackHistory(PlayerProgressionEntity progression,
                                 PackCatalogService.PackOpenResult result,
                                 List<CardGrantOutcome> outcomes,
@@ -1215,7 +1378,6 @@ public class PlayerProgressionService {
                                 int price,
                                 String source,
                                 String requestId) {
-        applyHolographicDrops(progression, result);
         Map<String, Object> entry = new LinkedHashMap<>();
         entry.put("packId", result.pack().id());
         entry.put("packName", result.pack().name());
@@ -1250,7 +1412,11 @@ public class PlayerProgressionService {
             cardEntry.put("type", card.getCardType().name());
             cardEntry.put("element", card.getElement().name());
             cardEntry.put("rarity", card.getRarity().name());
-            cardEntry.put("holo", result.holoCardIds() != null && result.holoCardIds().contains(card.getId()));
+            // The finish this copy was pulled in, and whether it raised the card's
+            // finish; "holo" stays for older clients that only know one foil.
+            cardEntry.put("finish", outcome.finish().name());
+            cardEntry.put("finishUpgraded", outcome.finishUpgraded());
+            cardEntry.put("holo", outcome.finish().ordinal() >= CardFinish.HSP.ordinal());
             cardEntry.put("granted", outcome.grantedCopy());
             cardEntry.put("duplicateAtCap", !outcome.grantedCopy());
             cardEntry.put("remnantsAwarded", outcome.remnantsAwarded());

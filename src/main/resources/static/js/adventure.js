@@ -954,6 +954,27 @@
     $('ledgerClose').addEventListener('click', function () { toggleLedger(false); });
     $('unitModalClose').addEventListener('click', closeUnitModal);
     $('unitModal').addEventListener('click', function (e) { if (e.target === $('unitModal')) closeUnitModal(); });
+    // Look picker in an ally's sheet: save the finish, repaint the chips and the
+    // head art in place, and redraw the battle line so the sprite wears it now.
+    $('unitModalBody').addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('[data-finish]') : null;
+      if (!btn || btn.disabled) return;
+      var host = btn.closest('[data-finish-card]');
+      var cardId = host && host.getAttribute('data-finish-card');
+      if (!cardId) return;
+      var key = btn.getAttribute('data-finish');
+      saveSpriteFinish(cardId, key);
+      Array.prototype.forEach.call(host.querySelectorAll('[data-finish]'), function (chip) {
+        chip.classList.toggle('on', chip === btn);
+      });
+      var head = $('unitModalBody').querySelector('.um-art');
+      if (head) {
+        head.classList.remove('fx-holo', 'fx-sp', 'fx-hsp', 'fx-gold', 'fx-gsp');
+        if (key !== 'NONE') head.classList.add('fx-' + key.toLowerCase());
+      }
+      if (state.run && state.run.battle && document.body.dataset.screen === 'battleScreen') renderBattle();
+    });
+    loadOwnedFinishes();
     var knightLockClose = $('knightLockClose');
     var knightLockDismiss = $('knightLockDismiss');
     var knightLockModal = $('knightLockModal');
@@ -2452,8 +2473,9 @@
   // ---- unit detail modal (cards + abilities) ---------------------------
   function showUnitModal(u) {
     var body = $('unitModalBody');
+    var headFinish = u.finishCardId ? spriteFinishFor(u.finishCardId) : 'NONE';
     var art = u.artUrl
-      ? '<div class="um-art" ' + bgArtAttrs(u.artUrl, 480) + '></div>'
+      ? '<div class="um-art' + (headFinish !== 'NONE' ? ' fx-' + headFinish.toLowerCase() : '') + '" ' + bgArtAttrs(u.artUrl, 480) + '></div>'
       : '<div class="um-art um-art-fallback">' + icon(u.element) + '</div>';
     var cards = (u.cards || []).map(function (spec) {
       var status = spec.status && spec.statusChance
@@ -2491,6 +2513,7 @@
         ? '<div class="um-cards-title">' + esc(u.statsTitle || 'Details') + '</div>' +
           (stats ? '<div class="um-stats">' + stats + '</div>' : '') + bar
         : '') +
+      (u.finishCardId ? spriteFinishPicker(u.finishCardId) : '') +
       (effects ? '<div class="um-cards-title">Active effects</div><div class="um-effects">' + effects + '</div>' : '') +
       '<div class="um-cards-title">' + (u.cards && u.cards.length ? 'Cards & abilities' : 'No cards') + '</div>' +
       '<div class="um-cards">' + cards + '</div>';
@@ -4505,11 +4528,24 @@
         var tip = meta.tip ? (meta.label + ' — ' + meta.tip) : meta.label;
         return '<span class="sp-status st-' + s + '" title="' + tip + '">' + meta.icon + '</span>';
       }).join('');
-      var body = u.artUrl
-        ? '<div class="sp-art"><img ' + artImgAttrs(u.artUrl, 320,
-          'this.parentNode.className=\'sp-art sp-art-fallback\';this.outerHTML=\'<span>' + icon(u.element) + '</span>\'') +
-          ' alt="" draggable="false"></div>'
-        : '<div class="sp-art sp-art-fallback"><span>' + icon(u.element) + '</span></div>';
+      var finish = side === 'ally' && u.artUrl ? spriteFinishFor(u.displayCardId) : 'NONE';
+      var body;
+      if (finish !== 'NONE') {
+        // Finishes work on the image's own pixels (filters) plus a twinkle or
+        // aura layer: a CSS mask cut from the art would need CORS on an image
+        // the page already cached without it, and then silently draws nothing.
+        body = '<div class="sp-art fx-' + finish.toLowerCase() + '">' +
+          (finish === 'HSP' || finish === 'GOLD' || finish === 'GSP' ? '<i class="sp-finish-aura" aria-hidden="true"></i>' : '') +
+          '<img ' + artImgAttrs(u.artUrl, 320,
+          'var a=this.parentNode;a.className=\'sp-art sp-art-fallback\';a.innerHTML=\'<span>' + icon(u.element) + '</span>\'') +
+          ' alt="" draggable="false"><i class="sp-twinkle" aria-hidden="true"></i></div>';
+      } else {
+        body = u.artUrl
+          ? '<div class="sp-art"><img ' + artImgAttrs(u.artUrl, 320,
+            'this.parentNode.className=\'sp-art sp-art-fallback\';this.outerHTML=\'<span>' + icon(u.element) + '</span>\'') +
+            ' alt="" draggable="false"></div>'
+          : '<div class="sp-art sp-art-fallback"><span>' + icon(u.element) + '</span></div>';
+      }
       // Intent lives inside the plate so it can never clip off-screen.
       var intentLine = '';
       if (side === 'enemy' && u.alive && isStunned(u)) {
@@ -6128,6 +6164,89 @@
     return 'Battle ' + word + ' bonus · lasts the battle';
   }
 
+  /* ---------- sprite finishes ----------
+     A Siegeling's battle cutout can wear a skin for every card finish the
+     account owns for that card in the Collection, each a sprite-sized take on
+     the card's look: Holo a soft pastel sheen, SP an iridescent colour drift,
+     HSP that plus a rainbow aura, GOLD the creature's own colours in a pulsing
+     gold aura (as the GOLD card keeps its art in colour inside a gold frame),
+     and GSP the whole creature cast in gold (as the GSP card is). A skin needs
+     that version or higher - the ladder includes the tiers below. The pick is
+     a look only - the server never sees it - so it lives in this browser, per
+     card. Ownership comes from /api/player/progression; a guest owns none. */
+  var SPRITE_FINISH_KEY = 'siegeSpriteFinish';
+  var FINISH_LADDER = ['STANDARD', 'HOLO', 'SP', 'HSP', 'GOLD', 'GSP'];
+  var SPRITE_FINISHES = [
+    { key: 'NONE', label: 'Normal', needs: null },
+    { key: 'HOLO', label: 'Holo', name: 'Holographic', needs: 'HOLO' },
+    { key: 'SP', label: 'SP', name: 'Special', needs: 'SP' },
+    { key: 'HSP', label: 'HSP', name: 'Holographic Special', needs: 'HSP' },
+    { key: 'GOLD', label: 'GOLD', name: 'Gold', needs: 'GOLD' },
+    { key: 'GSP', label: 'GSP', name: 'Gold Special', needs: 'GSP' }
+  ];
+  var ownedFinishTiers = {}; // lower-cased card id -> 'HOLO' | 'SP' | 'HSP' | 'GOLD' | 'GSP'
+
+  function loadOwnedFinishes() {
+    fetch('/api/player/progression', { credentials: 'same-origin', headers: authHeaders() })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        var p = data && data.progression;
+        if (!p) return;
+        var tiers = {};
+        function mark(ids, tier) {
+          (ids || []).forEach(function (id) { if (id) tiers[String(id).toLowerCase()] = tier; });
+        }
+        mark(p.holoCards, 'HOLO');
+        mark(p.holoArtCards, 'SP');
+        mark(p.holographicCards, 'HSP');
+        mark(p.goldCards, 'GOLD');
+        mark(p.holoGoldCards, 'GSP');
+        ownedFinishTiers = tiers;
+        if (state.run && state.run.battle && document.body.dataset.screen === 'battleScreen') renderBattle();
+      })
+      .catch(function () { /* guests and offline play keep plain sprites */ });
+  }
+
+  // Owning a finish owns every skin at or below it on the ladder.
+  function finishUnlocked(cardId, finish) {
+    if (!finish.needs) return true;
+    var tier = ownedFinishTiers[String(cardId || '').toLowerCase()] || 'STANDARD';
+    return FINISH_LADDER.indexOf(tier) >= FINISH_LADDER.indexOf(finish.needs);
+  }
+
+  function readFinishPrefs() {
+    try { return JSON.parse(localStorage.getItem(SPRITE_FINISH_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+
+  // The finish a unit wears: its saved pick, if the account still owns it.
+  function spriteFinishFor(cardId) {
+    if (!cardId) return 'NONE';
+    var pick = readFinishPrefs()[String(cardId).toLowerCase()];
+    var finish = SPRITE_FINISHES.filter(function (f) { return f.key === pick; })[0];
+    return finish && finishUnlocked(cardId, finish) ? finish.key : 'NONE';
+  }
+
+  function saveSpriteFinish(cardId, key) {
+    var prefs = readFinishPrefs();
+    if (key === 'NONE') delete prefs[String(cardId).toLowerCase()];
+    else prefs[String(cardId).toLowerCase()] = key;
+    try { localStorage.setItem(SPRITE_FINISH_KEY, JSON.stringify(prefs)); } catch (e) { /* private mode */ }
+  }
+
+  function spriteFinishPicker(cardId) {
+    var current = spriteFinishFor(cardId);
+    return '<div class="um-cards-title">Look</div><div class="um-finishes" data-finish-card="' + esc(cardId) + '">' +
+      SPRITE_FINISHES.map(function (f) {
+        var open = finishUnlocked(cardId, f);
+        return '<button type="button" class="um-finish fx-chip-' + f.key.toLowerCase() + (f.key === current ? ' on' : '') +
+          (open ? '' : ' is-locked') + '" data-finish="' + f.key + '"' + (open ? '' : ' disabled') +
+          ' title="' + esc(!f.name ? f.label : open ? f.name : f.name + ' unlocks when you own the ' + f.name + ' version (or higher) of this card') + '">' +
+          (open ? '' : '🔒 ') + esc(f.label) + '</button>';
+      }).join('') + '</div>' +
+      (SPRITE_FINISHES.some(function (f) { return !finishUnlocked(cardId, f); })
+        ? '<div class="um-finish-note">Each skin unlocks when you own that version of this card (or a higher one) in your Collection.</div>' : '');
+  }
+
   function showBattleUnitDetails(u) {
     var run = state.run;
     if (u.side === 'ENEMY') {
@@ -6153,7 +6272,8 @@
     showUnitModal({
       name: u.name, element: u.element, artUrl: u.artUrl,
       subtitle: 'HP ' + u.hp + '/' + u.maxHp + ' · ⚡ ' + u.speed + evoNote,
-      cards: member ? (member.cards || []) : [], effects: battleUnitEffects(u)
+      cards: member ? (member.cards || []) : [], effects: battleUnitEffects(u),
+      finishCardId: u.artUrl ? u.displayCardId : null
     });
   }
 

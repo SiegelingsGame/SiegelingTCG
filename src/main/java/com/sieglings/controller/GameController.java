@@ -109,7 +109,18 @@ public class GameController {
                 "minDeckSize", gameService.getDeckBuilderMinSize(),
                 "maxCopies", gameService.getDeckBuilderMaxCopies()
         ));
-        resp.put("cardCatalog", gameService.getDeckBuilderCatalog().stream().map(this::serializeCard).toList());
+        List<Card> catalog = gameService.getDeckBuilderCatalog();
+        Map<String, Card> catalogById = new java.util.HashMap<>();
+        catalog.forEach(card -> catalogById.putIfAbsent(card.getId(), card));
+        resp.put("cardCatalog", catalog.stream().map(card -> {
+            Map<String, Object> m = serializeCard(card);
+            // The physical band Siege sprites and Keep cutouts are drawn at, so the
+            // binder's Siege/Keep previews stand the creature at the same height.
+            if (card instanceof SieglingCard s) {
+                m.put("size", sizeBandOf(s, catalogById).name());
+            }
+            return m;
+        }).toList());
         resp.put("liveElements", gameService.getActiveLiveElementNames());
         resp.put("defaultDeckId", defaultDeck == null ? null : defaultDeck.id());
         resp.put("defaultTrainerId", defaultDeck == null ? null : defaultDeck.recommendedTrainerId());
@@ -1315,8 +1326,8 @@ public class GameController {
         info.put("trainer", serializeTrainer(player.getActiveTrainer()));
 
         if (includeHand) {
-            info.put("hand", serializeHand(player));
-            info.put("remainingDeck", serializeCards(player.getDeck()));
+            info.put("hand", serializeOwnedCards(player.getHand(), player));
+            info.put("remainingDeck", serializeOwnedCards(player.getDeck(), player));
         } else {
             info.put("handSize", player.getHand().size());
         }
@@ -1324,8 +1335,41 @@ public class GameController {
         return info;
     }
 
-    private List<Map<String, Object>> serializeHand(Player player) {
-        return serializeCards(player.getHand());
+    /**
+     * The finish a card shows in play: its owner's tier for it (a CardFinish name:
+     * HOLO / SP / HSP / GOLD / GSP), at least HSP for a card that ships foil, else "" (standard). Stamped on
+     * every card the battle table receives so the client never guesses the owner
+     * from its own account - an opponent's cards show the opponent's finishes.
+     */
+    private String finishFor(Player owner, Card card) {
+        if (card == null) {
+            return "";
+        }
+        Map<String, String> finishes = owner == null ? Map.of() : owner.getCardFinishes();
+        if (owner != null && finishes == null) {
+            finishes = playerProgressionService == null
+                    ? new java.util.HashMap<>()
+                    : playerProgressionService.cardFinishesForUser(owner.getAccountUserId());
+            owner.setCardFinishes(finishes);
+        }
+        String tier = finishes == null ? null : finishes.get(card.getId().toLowerCase(java.util.Locale.ROOT));
+        if (tier == null || tier.isBlank()) {
+            return card.isHolographic() ? "HSP" : "";
+        }
+        if (card.isHolographic() && ("HOLO".equals(tier) || "SP".equals(tier))) {
+            return "HSP";
+        }
+        return tier;
+    }
+
+    private List<Map<String, Object>> serializeOwnedCards(List<Card> cards, Player owner) {
+        List<Map<String, Object>> serialized = new ArrayList<>();
+        for (Card card : cards) {
+            Map<String, Object> m = serializeCard(card);
+            m.put("finish", finishFor(owner, card));
+            serialized.add(m);
+        }
+        return serialized;
     }
 
     /** Ordered id+count summary of a preset deck so clients can preview its contents. */
@@ -1339,6 +1383,21 @@ public class GameController {
             serialized.add(serializeCard(card));
         }
         return serialized;
+    }
+
+    /** Same rule as SiegeService#sizeBandOf: the pinned size, else rarity vs evolution depth. */
+    private static com.sieglings.model.enums.SieglingSize sizeBandOf(SieglingCard s, Map<String, Card> byId) {
+        if (s.getSize() != null) {
+            return s.getSize();
+        }
+        int depth = 0;
+        String from = s.getEvolvesFromId();
+        while (from != null && !from.isBlank() && depth < 6) {
+            depth++;
+            Card parent = byId.get(from);
+            from = parent instanceof SieglingCard ps ? ps.getEvolvesFromId() : null;
+        }
+        return com.sieglings.model.enums.SieglingSize.defaultFor(s.getRarity(), depth);
     }
 
     private Map<String, Object> serializeCard(Card card) {
@@ -1602,6 +1661,7 @@ public class GameController {
                 // transform) onto the board cell so placed Siegelings render the
                 // same art the binder and hand show, instead of the default scene.
                 appendCardArt(m, ci.getCard());
+                m.put("finish", finishFor(canonicalPlayerSide ? gs.getPlayer() : gs.getEnemy(), ci.getCard()));
                 List<Ability> visibleBoardAbilities = visibleSieglingAbilities(ci.getCard());
                 if (!visibleBoardAbilities.isEmpty()) {
                     m.put("abilities", visibleBoardAbilities.stream()

@@ -82,21 +82,72 @@
   // keyed by lowercased id. The catalog's own `holographic` flag only covers
   // cards that ship foil, so every face rendered here consults this as well.
   var PLAYER_HOLO = {};
-  function setPlayerHolo(ids) {
-    PLAYER_HOLO = {};
+  // The tier below it: the card's holo art, no foil shimmer. Kept as a list
+  // too because the card renderer takes ids, and every tile would rebuild it.
+  var PLAYER_HOLO_ART = {};
+  var PLAYER_HOLO_ART_IDS = [];
+  function holoIdMap(ids) {
+    var map = {};
     (ids || []).forEach(function (id) {
       var key = String(id || '').trim().toLowerCase();
-      if (key) PLAYER_HOLO[key] = true;
+      if (key) map[key] = true;
     });
+    return map;
+  }
+  function setPlayerHolo(ids) { PLAYER_HOLO = holoIdMap(ids); }
+  function setPlayerHoloArt(ids) {
+    PLAYER_HOLO_ART = holoIdMap(ids);
+    PLAYER_HOLO_ART_IDS = Object.keys(PLAYER_HOLO_ART);
+  }
+  // GOLD, the top finish (a gold card also stays in PLAYER_HOLO).
+  var PLAYER_GOLD = {};
+  var PLAYER_GOLD_IDS = [];
+  function setPlayerGold(ids) {
+    PLAYER_GOLD = holoIdMap(ids);
+    PLAYER_GOLD_IDS = Object.keys(PLAYER_GOLD);
+  }
+  function hasPlayerGold(card) {
+    return Boolean(card && PLAYER_GOLD[String(card.id || '').trim().toLowerCase()]);
+  }
+  // HOLO GOLD, the final finish (a HOLO GOLD card also stays in PLAYER_GOLD).
+  var PLAYER_HOLO_GOLD = {};
+  var PLAYER_HOLO_GOLD_IDS = [];
+  function setPlayerHoloGold(ids) {
+    PLAYER_HOLO_GOLD = holoIdMap(ids);
+    PLAYER_HOLO_GOLD_IDS = Object.keys(PLAYER_HOLO_GOLD);
+  }
+  function hasPlayerHoloGold(card) {
+    return Boolean(card && PLAYER_HOLO_GOLD[String(card.id || '').trim().toLowerCase()]);
+  }
+  // HOLO, the first finish: a plain sheen over the standard art.
+  var PLAYER_HOLO_PLAIN = {};
+  var PLAYER_HOLO_PLAIN_IDS = [];
+  function setPlayerHoloPlain(ids) {
+    PLAYER_HOLO_PLAIN = holoIdMap(ids);
+    PLAYER_HOLO_PLAIN_IDS = Object.keys(PLAYER_HOLO_PLAIN);
+  }
+  function hasPlayerHoloPlain(card) {
+    return Boolean(card && PLAYER_HOLO_PLAIN[String(card.id || '').trim().toLowerCase()]);
   }
   function hasPlayerHolo(card) {
     return Boolean(card && PLAYER_HOLO[String(card.id || '').trim().toLowerCase()]);
   }
+  function hasPlayerHoloArt(card) {
+    return Boolean(card && PLAYER_HOLO_ART[String(card.id || '').trim().toLowerCase()]);
+  }
   function withPlayerHolo(card) {
-    if (!card || card.holographic === true || !hasPlayerHolo(card)) return card;
+    if (!card) return card;
+    var holo = card.holographic !== true && hasPlayerHolo(card);
+    var gold = card.goldFinish !== true && hasPlayerGold(card);
+    var holoGold = card.holoGoldFinish !== true && hasPlayerHoloGold(card);
+    var holoPlain = card.holoPlainFinish !== true && hasPlayerHoloPlain(card);
+    if (!holo && !gold && !holoGold && !holoPlain) return card;
     var copy = {};
     for (var key in card) if (Object.prototype.hasOwnProperty.call(card, key)) copy[key] = card[key];
-    copy.holographic = true;
+    if (holo) copy.holographic = true;
+    if (gold) copy.goldFinish = true;
+    if (holoGold) copy.holoGoldFinish = true;
+    if (holoPlain) copy.holoPlainFinish = true;
     return copy;
   }
   function byIdIn(pool, id) {
@@ -2105,9 +2156,16 @@
     if (!visual) return '';
     var rarity = String(card.rarity || 'common').toLowerCase();
     var el = String(card.element || 'NEUTRAL').toLowerCase();
-    var holo = card.holographic === true;
-    var holoClass = holo ? ' is-holographic' : '';
-    var holoOverlay = holo ? '<div class="card-holographic-overlay" aria-hidden="true"></div>' : '';
+    var holoGold = card.holoGoldFinish === true;
+    var gold = card.goldFinish === true && !holoGold;
+    var holo = card.holographic === true || gold || holoGold;
+    var plain = !holo && card.holoPlainFinish === true;
+    var holoClass = (holo ? ' is-holographic' : plain ? ' is-holo-plain' : '') +
+      (holoGold ? ' is-holo-gold-finish' : gold ? ' is-gold-finish' : '');
+    var holoOverlay = holoGold && visual.renderHoloGoldFinish ? visual.renderHoloGoldFinish()
+      : gold && visual.renderGoldFinish ? visual.renderGoldFinish()
+      : holo ? '<div class="card-holographic-overlay" aria-hidden="true"></div>'
+      : plain ? '<div class="card-holo-plain-overlay" aria-hidden="true"></div>' : '';
     var body = '<div class="knight-card-body">' +
       '<span class="knight-card-name">' + esc(card.name) + '</span>' +
       '<span class="knight-card-meta"><span class="knight-element">' + esc(title(card.element)) + '</span> ' +
@@ -2161,7 +2219,14 @@
     }
     if (visual && visual.renderBinderCardTile) {
       return '<button class="sg-card-tile" type="button" data-card="' + esc(c.id) + '">' +
-        visual.renderBinderCardTile(c, { descriptionText: cardFaceText(c), useHolographicFullCardArt: true }) +
+        visual.renderBinderCardTile(c, {
+          descriptionText: cardFaceText(c),
+          useHolographicFullCardArt: true,
+          playerHoloArtIds: PLAYER_HOLO_ART_IDS,
+          playerGoldIds: PLAYER_GOLD_IDS,
+          playerHoloGoldIds: PLAYER_HOLO_GOLD_IDS,
+          playerHoloPlainIds: PLAYER_HOLO_PLAIN_IDS
+        }) +
       '</button>';
     }
     // Offline preview board: no renderer loaded, so fall back to the plate.
@@ -3934,7 +3999,15 @@
   // server rolls with, never a restatement of them.
   function showOdds(app, pk) {
     var odds = pk.odds || {};
-    var holo = odds.holoPerCard || {};
+    var finishOdds = odds.finishPerCard || {};
+    var rarities = Object.keys(finishOdds);
+    // Tiny odds read better as "1 in N" than as a string of zeros.
+    function chance(p) {
+      if (!p) return '\u2014';
+      if (p >= 0.001) return (Math.round(p * 1000) / 10) + '%';
+      var n = 1 / p;
+      return '1 in ' + (n >= 10000 ? Math.round(n / 1000) + 'k' : (Math.round(n / 100) / 10) + 'k');
+    }
     var layer = document.createElement('div');
     layer.className = 'sg-godds';
     layer.setAttribute('role', 'dialog');
@@ -3946,9 +4019,16 @@
         '<dl>' +
           '<div><dt>Cards per pack</dt><dd>' + esc(odds.cardsPerPack || 5) + '</dd></div>' +
           (odds.siegeKnight != null ? '<div><dt>Bonus SiegeKnight</dt><dd>' + esc(Math.round(odds.siegeKnight * 1000) / 10) + '%</dd></div>' : '') +
-          Object.keys(holo).map(function (r) {
-            return '<div><dt>Holo &middot; ' + esc(title(r)) + '</dt><dd>' + esc(Math.round(holo[r] * 1000) / 10) + '% per card</dd></div>';
-          }).join('') +
+          (rarities.length
+            ? '<div class="sg-godds-finish"><dt>Finish per card</dt><dd><table>' +
+                '<tr><th></th>' + rarities.map(function (r) { return '<th>' + esc(title(r).slice(0, 4)) + '</th>'; }).join('') + '</tr>' +
+                ['HOLO', 'SP', 'HSP', 'GOLD', 'GSP'].map(function (f) {
+                  return '<tr><th class="is-' + f.toLowerCase() + '">' + esc(versionLabel(f)) + '</th>' + rarities.map(function (r) {
+                    return '<td>' + esc(chance((finishOdds[r] || {})[f])) + '</td>';
+                  }).join('') + '</tr>';
+                }).join('') +
+              '</table></dd></div>'
+            : '') +
           (pk.bulk && pk.bulk.count > 1
             ? '<div><dt>&times;' + esc(pk.bulk.count) + ' bundle</dt><dd>' + esc(pk.bulk.price) + ' coins</dd></div>'
             : '') +
@@ -4600,7 +4680,8 @@
     var knight = isKnight(card);
     return '<button class="sg-sheet-dismiss" type="button" aria-label="Close card details"></button>' +
       '<div class="sg-sheet-head">' +
-        '<div class="sg-sheet-face" data-face-type="' + esc(faceType) + '">' + galleryCard(card) + '</div>' +
+        '<div class="sg-sheet-face" data-face-type="' + esc(faceType) + '">' +
+          sheetFaceMarkup(card, bestVersion(card), 'arena') + '</div>' +
         '<div class="sg-sheet-id">' +
           '<div class="sg-sheet-idtop' + (peek ? ' has-peek' : '') + '">' +
             '<div class="sg-sheet-idname">' +
@@ -4651,40 +4732,202 @@
       '<a class="sg-sheet-cta" href="/deck-builder" data-screen="builder">Use in a deck \u203a</a>';
   }
 
-  /* ---------- holographic finish ----------
-     Remnants buy a holographic finish on a card the account owns
-     (POST /api/cards/holographic). Mirrors PlayerProgressionService:
-     holographicCost = craftCost x 4. The server re-checks ownership, balance
-     and the starter pack, so this only decides what to offer. */
-  var HOLO_COST = { COMMON: 2000, UNCOMMON: 4000, RARE: 8000, EPIC: 16000, LEGENDARY: 32000 };
+  /* ---------- card finishes ----------
+     The ladder (CardFinish on the server): Standard -> Holo (a plain sheen over
+     the standard art) -> SP (the card's holo art; only cards that have some) ->
+     HSP (holo art plus the rainbow foil) -> GOLD (holo art in a gold frame) ->
+     GSP (the whole card cast in gold, notches left in colour). Each tier has a
+     cumulative price in craft-cost multiples and a step costs the difference,
+     so climbing one at a time costs what jumping does. Packs and other card
+     grants can drop any finish too. The server re-checks ownership, balance and
+     the starter pack, so this only decides what to offer. */
+  var CRAFT_COST = { COMMON: 500, UNCOMMON: 1000, RARE: 2000, EPIC: 4000, LEGENDARY: 8000 };
+  var FINISH_LADDER = [
+    { key: 'STANDARD', label: 'Standard', name: 'Standard', total: 0 },
+    { key: 'HOLO', label: 'Holo', name: 'Holographic', total: 1 },
+    { key: 'SP', label: 'SP', name: 'Special', total: 2 },
+    { key: 'HSP', label: 'HSP', name: 'Holographic Special', total: 4 },
+    { key: 'GOLD', label: 'GOLD', name: 'Gold', total: 12 },
+    { key: 'GSP', label: 'GSP', name: 'Gold Special', total: 28 }
+  ];
 
-  function holoCost(card) {
-    return HOLO_COST[String(card && card.rarity || 'COMMON').toUpperCase()] || HOLO_COST.COMMON;
+  function finishIndex(key) {
+    for (var i = 0; i < FINISH_LADDER.length; i++) if (FINISH_LADDER[i].key === key) return i;
+    return 0;
   }
 
-  function holoBlock(card, opts) {
+  function craftCost(card) {
+    return CRAFT_COST[String(card && card.rarity || 'COMMON').toUpperCase()] || CRAFT_COST.COMMON;
+  }
+
+  function hasHoloArtwork(card) {
+    return Boolean(String(card && card.holographicCardArtUrl || '').trim());
+  }
+
+  // Every version a card can be looked at in; SP only exists with holo art.
+  function versionsFor(card) {
+    return FINISH_LADDER.filter(function (v) { return v.key !== 'SP' || hasHoloArtwork(card); });
+  }
+
+  function versionLabel(key) {
+    return FINISH_LADDER[finishIndex(key)].label;
+  }
+
+  // The finish the player's own copy shows everywhere else in the hub.
+  function bestVersion(card) {
+    if (!card) return 'STANDARD';
+    if (card.holoGoldFinish === true || hasPlayerHoloGold(card)) return 'GSP';
+    if (card.goldFinish === true || hasPlayerGold(card)) return 'GOLD';
+    if (card.holographic === true || hasPlayerHolo(card)) return 'HSP';
+    if (hasHoloArtwork(card) && hasPlayerHoloArt(card)) return 'SP';
+    if (card.holoPlainFinish === true || hasPlayerHoloPlain(card)) return 'HOLO';
+    return 'STANDARD';
+  }
+
+  // What the next purchase is for this card, or null at the top of the ladder.
+  function nextHoloStep(card) {
+    var current = finishIndex(bestVersion(card));
+    var next = versionsFor(card).filter(function (v) { return finishIndex(v.key) > current; })[0];
+    if (!next) return null;
+    return {
+      tier: next.key,
+      cost: craftCost(card) * (next.total - FINISH_LADDER[current].total),
+      label: (current === 0 ? 'Make ' : 'Upgrade to ') + next.label
+    };
+  }
+
+  function holoButtonLabel(step) {
+    return '✦ ' + step.label + ' · ' + step.cost.toLocaleString() + ' remnants';
+  }
+
+  // Each tier includes the ones below it. null when ownership is unknown
+  // (guest, offline board): no locks are drawn then.
+  function versionOwned(card, key, opts) {
     var live = opts && opts.live;
+    var isOwned = live && !opts.guest ? binderOwnership(live) : null;
+    if (!isOwned) return null;
+    if (!isOwned(card)) return false;
+    return finishIndex(key) <= finishIndex(bestVersion(card));
+  }
+
+  function copyCard(card, extra) {
+    var out = {};
+    for (var key in card) if (Object.prototype.hasOwnProperty.call(card, key)) out[key] = card[key];
+    for (var k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) out[k] = extra[k];
+    return out;
+  }
+
+  // One version of a card, rendered with the same production renderer the
+  // binder uses but independent of what this account owns.
+  function versionFace(card, key) {
+    var visual = window.SieglingsCardBinderVisual;
+    if (!visual || !visual.renderBinderCardTile) return galleryCard(card);
+    var base = copyCard(card, {
+      holographic: key === 'HSP', goldFinish: key === 'GOLD', holoGoldFinish: key === 'GSP', holoPlainFinish: key === 'HOLO'
+    });
+    var inner;
+    if (isKnight(card)) {
+      inner = knightCard(base);
+    }
+    if (!inner) {
+      inner = visual.renderBinderCardTile(base, {
+        descriptionText: cardFaceText(card),
+        useHolographicFullCardArt: finishIndex(key) >= finishIndex('SP'),
+        playerHoloArtIds: key === 'SP' ? [String(card.id || '').toLowerCase()] : []
+      });
+    }
+    return '<button class="sg-card-tile" type="button" data-card="' +
+      esc(card.id) + '" data-version="' + key + '">' + inner + '</button>';
+  }
+
+  var LOCK_GLYPH = '<svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true" fill="currentColor">' +
+    '<path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2h.5A1 1 0 0 1 13 8v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zm1.6 0h3.8V5a1.9 1.9 0 0 0-3.8 0z"/></svg>';
+
+  function versionsRow(card, viewing, opts) {
+    return '<div class="sg-sheet-versions" role="group" aria-label="Card versions">' +
+      versionsFor(card).map(function (v) {
+        var owned = versionOwned(card, v.key, opts);
+        var cls = 'sg-sheet-version' + (v.key === viewing ? ' on' : '') +
+          (owned === true ? ' is-owned' : owned === false ? ' is-locked' : '') +
+          (v.key === 'GOLD' || v.key === 'GSP' ? ' is-gold' : v.key === 'HSP' ? ' is-holo' : v.key === 'HOLO' ? ' is-holo-lite' : '');
+        return '<button class="' + cls + '" type="button" data-sheet-version="' + v.key + '"' +
+          ' aria-pressed="' + (v.key === viewing) + '" title="' + esc(v.name) + '"' +
+          (owned === false ? ' aria-label="' + esc(v.label) + ' (not owned)"' : '') + '>' +
+          (owned === false ? LOCK_GLYPH : '') + esc(v.label) + '</button>';
+      }).join('') +
+    '</div>';
+  }
+
+  function holoBlock(card, opts, viewing) {
+    var live = opts && opts.live;
+    var out = '<div class="sg-sheet-holo">' + versionsRow(card, viewing || bestVersion(card), opts);
     // Cards that ship foil have nothing to buy; guests and the offline board
     // cannot spend remnants.
-    if (!live || opts.guest || card.holographic === true) return '';
-    if (hasPlayerHolo(card)) {
-      return '<div class="sg-sheet-holo is-done"><span class="sg-sheet-holo-chip">\u2726 Holographic finish</span></div>';
+    var isOwned = live && !opts.guest ? binderOwnership(live) : null;
+    var step = nextHoloStep(card);
+    if (step && isOwned && isOwned(card)) {
+      var balance = Number(live.remnants);
+      var known = isFinite(balance);
+      var short = known && balance < step.cost;
+      out += '<button class="sg-sheet-holo-btn" type="button" data-holo-buy="' + esc(card.id) + '"' +
+          ' data-holo-tier="' + step.tier + '" data-holo-cost="' + step.cost + '"' + (short ? ' disabled' : '') + '>' +
+          holoButtonLabel(step) + '</button>' +
+        '<p class="sg-sheet-holo-note" data-holo-note>' + (known
+          ? (short ? 'You have ' + balance.toLocaleString() + ' remnants. Duplicates and wins earn more.'
+                   : 'You have ' + balance.toLocaleString() + ' remnants.')
+          : '') + '</p>';
     }
-    var isOwned = binderOwnership(live);
-    if (!isOwned || !isOwned(card)) return '';
-    var cost = holoCost(card);
-    var balance = Number(live.remnants);
-    var known = isFinite(balance);
-    var short = known && balance < cost;
-    return '<div class="sg-sheet-holo">' +
-      '<button class="sg-sheet-holo-btn" type="button" data-holo-buy="' + esc(card.id) + '"' +
-        ' data-holo-cost="' + cost + '"' + (short ? ' disabled' : '') + '>' +
-        '\u2726 Make holographic \u00b7 ' + cost.toLocaleString() + ' remnants</button>' +
-      '<p class="sg-sheet-holo-note" data-holo-note>' + (known
-        ? (short ? 'You have ' + balance.toLocaleString() + ' remnants. Duplicates and wins earn more.'
-                 : 'You have ' + balance.toLocaleString() + ' remnants.')
-        : '') + '</p>' +
+    return out + '</div>';
+  }
+
+  /* ---------- Siege / Keep views of the sheet face ----------
+     On the Siege and Keep tabs the face shows the Siegeling as it stands in
+     that mode: its overlay cutout, scaled by its size band with the same
+     multipliers adventure.css (--sprite-scale) and keep.css (--cutout-scale)
+     use, against the tallest band so a Small reads small beside a Gigantic.
+     The Keep view adds the Keep's die-cut paper filter. */
+  var SIZE_BANDS = ['SMALL', 'MEDIUM', 'LARGE', 'GIGANTIC'];
+  var MODE_SCALE = {
+    siege: { SMALL: 1, MEDIUM: 1.19, LARGE: 1.48, GIGANTIC: 1.93 },
+    keep: { SMALL: 0.84, MEDIUM: 1, LARGE: 1.24, GIGANTIC: 1.62 }
+  };
+
+  // The server resolves it (GameController#sizeBandOf); rarity is the fallback an
+  // older payload gets, the same one keep.js uses.
+  function sizeBand(card) {
+    var size = String(card && card.size || '').toUpperCase();
+    if (SIZE_BANDS.indexOf(size) !== -1) return size;
+    var r = String(card && card.rarity || '').toUpperCase();
+    return r === 'LEGENDARY' ? 'GIGANTIC' : r === 'EPIC' ? 'LARGE' : r === 'RARE' ? 'MEDIUM' : 'SMALL';
+  }
+
+  function hasCutout(card) {
+    return String(card && card.type || 'SIEGLING').toUpperCase() === 'SIEGLING' &&
+      String(card.cardArtMode || '').toUpperCase() === 'OVERLAY' && Boolean(card.cardArtUrl);
+  }
+
+  function cutoutFace(card, mode) {
+    var scales = MODE_SCALE[mode];
+    var size = sizeBand(card);
+    var top = scales.GIGANTIC;
+    var heightPct = function (band) { return (scales[band] / top * 76).toFixed(1); };
+    var ruler = SIZE_BANDS.map(function (band) {
+      return '<i class="' + (band === size ? 'on' : '') + '" style="bottom:calc(' + heightPct(band) + '% + 15%)">' +
+        esc(band.charAt(0)) + '</i>';
+    }).join('');
+    return '<div class="sg-cutout is-' + mode + '" data-size="' + size + '" style="--cut-h:' + heightPct(size) + '%">' +
+      '<div class="sg-cutout-ruler" aria-hidden="true">' + ruler + '</div>' +
+      '<i class="sg-cutout-ground" aria-hidden="true"></i>' +
+      '<div class="sg-cutout-figure"><img ' + artAttrs(card.cardArtUrl, 480) + ' alt="' + esc(card.name) + '" draggable="false"></div>' +
+      '<span class="sg-cutout-tag">' + esc(mode === 'siege' ? 'Siege' : 'Keep') + ' · ' + esc(title(size)) + '</span>' +
     '</div>';
+  }
+
+  // What the sheet face shows: the chosen version on Arena (and Evolution),
+  // the in-world cutout on Siege and Keep.
+  function sheetFaceMarkup(card, version, mode) {
+    if ((mode === 'siege' || mode === 'keep') && hasCutout(card)) return cutoutFace(card, mode);
+    return versionFace(card, version);
   }
 
   // Repaints every face of this card already on the page (binder tiles behind
@@ -4714,6 +4957,8 @@
      every particle has its own random path. */
   var HOLO_TWIRL_MS = 1500;
   var HOLO_COLORS = ['#ffffff', '#9ff3ff', '#ff9cf0', '#fff59a', '#a6ffcf', '#c9a6ff'];
+  var HOLO_COLORS_DEFAULT = HOLO_COLORS;
+  var GOLD_COLORS = ['#fff6d5', '#ffd66b', '#f5b937', '#ffe9a3', '#e09a1f', '#fff1bd'];
 
   function holoRand(min, max) { return min + Math.random() * (max - min); }
 
@@ -4726,7 +4971,8 @@
     return el;
   }
 
-  function holoBurst(layer, w, h, delay) {
+  function holoBurst(layer, w, h, delay, colors) {
+    var HOLO_COLORS = colors || HOLO_COLORS_DEFAULT;
     var n, i, el, a, d, size, spin;
     // Converge: a ring of glints drawn in towards the card as it winds up.
     for (i = 0; i < 10; i++) {
@@ -4776,9 +5022,9 @@
   /* Screen-edge glow: a rotating rainbow rim masked to the viewport border,
      over a soft inset bloom. It warms up with the wind-up, flares at the swap
      and fades with the twinkles. */
-  function holoScreenGlow(half) {
+  function holoScreenGlow(half, gold) {
     var glow = document.createElement('div');
-    glow.className = 'sg-holo-screen';
+    glow.className = 'sg-holo-screen' + (gold ? ' is-gold' : '');
     glow.setAttribute('aria-hidden', 'true');
     glow.innerHTML = '<i class="sg-holo-screen-rim"><b></b></i>';
     document.body.appendChild(glow);
@@ -4787,9 +5033,10 @@
     glow.animate([
       { opacity: 0, filter: 'hue-rotate(0deg)' },
       { opacity: 0.45, offset: at(half * 0.8) },
-      { opacity: 1, filter: 'hue-rotate(120deg)', offset: at(half + 60) },
+      { opacity: 1, filter: gold ? 'hue-rotate(0deg)' : 'hue-rotate(120deg)', offset: at(half + 60) },
       { opacity: 0.7, offset: at(half + 500) },
-      { opacity: 0, filter: 'hue-rotate(360deg)' }
+      // GOLD stays gold; the holo glow cycles the rainbow.
+      { opacity: 0, filter: gold ? 'hue-rotate(0deg)' : 'hue-rotate(360deg)' }
     ], { duration: total, easing: 'linear', fill: 'both' });
     glow.querySelector('b').animate([
       { transform: 'translate(-50%,-50%) rotate(0deg)' },
@@ -4885,10 +5132,21 @@
     } catch (e) { /* audio is decoration; never break the unlock */ }
   }
 
-  function playHoloTwirl(face, holoInner, done) {
+  // `freshTile` is the full markup of the face to land on; the spinning tile
+  // keeps its node (the animation runs on it) and takes the new content and class.
+  function playHoloTwirl(face, freshTile, done, gold) {
     var tile = face && face.querySelector('.sg-card-tile');
     function swap() {
-      if (tile && tile.isConnected && holoInner) tile.innerHTML = holoInner;
+      if (tile && tile.isConnected && freshTile) {
+        var tmp = document.createElement('div');
+        tmp.innerHTML = freshTile;
+        var fresh = tmp.querySelector('.sg-card-tile');
+        if (fresh) {
+          tile.innerHTML = fresh.innerHTML;
+          tile.className = fresh.className;
+          tile.setAttribute('data-version', fresh.getAttribute('data-version') || '');
+        }
+      }
       if (face && face.isConnected) fitCardDescriptions(face);
     }
     if (!tile || !tile.animate || prefersReducedMotion()) {
@@ -4905,7 +5163,7 @@
     document.body.appendChild(layer);
     face.classList.add('is-holo-twirl');
     var half = HOLO_TWIRL_MS / 2;
-    holoScreenGlow(half);
+    holoScreenGlow(half, gold);
     playHoloSound(half);
     tile.animate([
       { transform: 'translateY(0) rotateY(0deg) rotateZ(0deg) scale(1)', filter: 'brightness(1)', easing: 'cubic-bezier(.3,0,.4,1)' },
@@ -4914,7 +5172,7 @@
       { transform: 'translateY(-4px) rotateY(1060deg) rotateZ(1deg) scale(1.05)', filter: 'brightness(1.25) saturate(1.2)', offset: 0.86, easing: 'cubic-bezier(.3,0,.3,1)' },
       { transform: 'translateY(0) rotateY(1080deg) rotateZ(0deg) scale(1)', filter: 'brightness(1)' }
     ], { duration: HOLO_TWIRL_MS });
-    holoBurst(layer, box.width, box.height, half);
+    holoBurst(layer, box.width, box.height, half, gold ? GOLD_COLORS : HOLO_COLORS);
     window.setTimeout(swap, half);
     window.setTimeout(function () {
       face.classList.remove('is-holo-twirl');
@@ -4923,10 +5181,25 @@
     window.setTimeout(function () { if (layer.parentNode) layer.parentNode.removeChild(layer); }, HOLO_TWIRL_MS + 1200);
   }
 
+  // Copies a progression payload's finish lists onto the live model and the
+  // lookup sets every card face reads (after a purchase or a pack pull).
+  function applyFinishLists(live, p) {
+    if (!p) return;
+    [['holoCards', setPlayerHoloPlain], ['holoArtCards', setPlayerHoloArt], ['holographicCards', setPlayerHolo],
+     ['goldCards', setPlayerGold], ['holoGoldCards', setPlayerHoloGold]].forEach(function (pair) {
+      if (!Array.isArray(p[pair[0]])) return;
+      if (live) live[pair[0]] = p[pair[0]];
+      pair[1](p[pair[0]]);
+    });
+  }
+
   function buyHoloFinish(app, opts, sheetCard, btn) {
     var api = window.SiegelingsHomeLive;
     var id = btn.getAttribute('data-holo-buy');
+    var requested = btn.getAttribute('data-holo-tier');
+    var tier = FINISH_LADDER[finishIndex(requested)].key;
     var cost = Number(btn.getAttribute('data-holo-cost')) || 0;
+    var restingLabel = btn.textContent;
     var note = sheetCard.querySelector('[data-holo-note]');
     // Up to 32,000 remnants in one tap is too easy to spend by accident, so
     // the first tap arms and the second one spends.
@@ -4939,20 +5212,18 @@
     holoAudioPrime();
     btn.disabled = true;
     btn.textContent = 'Applying finish\u2026';
-    api.post('/api/cards/holographic', { cardId: id }).then(function (data) {
+    api.post('/api/cards/holographic', { cardId: id, tier: tier }).then(function (data) {
       if (!data || data.error || !data.progression) {
         btn.disabled = false;
         btn.classList.remove('is-armed');
-        btn.textContent = '\u2726 Make holographic \u00b7 ' + cost.toLocaleString() + ' remnants';
+        btn.textContent = restingLabel;
         if (note) note.textContent = (data && data.error) || 'The finish could not be applied. Try again.';
         return;
       }
       var p = data.progression;
       var live = opts.live;
       if (p.remnants != null) live.remnants = p.remnants;
-      if (Array.isArray(p.holographicCards)) live.holographicCards = p.holographicCards;
-      setPlayerHolo(live.holographicCards || []);
-      if (!hasPlayerHolo({ id: id })) PLAYER_HOLO[String(id).toLowerCase()] = true;
+      applyFinishLists(live, p);
       if (typeof loadCachedAuthProfile === 'function' && typeof saveCachedAuthProfile === 'function') {
         var profile = loadCachedAuthProfile();
         if (live.accountId && profile && profile.user && profile.user.id === live.accountId) {
@@ -4961,16 +5232,23 @@
         }
       }
       var card = byIdIn(ALL_CARDS, id) || byId(id);
-      var face = sheetCard.getAttribute('data-zoom-card') === String(id)
-        ? sheetCard.querySelector('.sg-sheet-face') : null;
-      var holoInner = repaintCardFaces(app, card, face && face.querySelector('.sg-card-tile'));
+      var onSheet = sheetCard.getAttribute('data-zoom-card') === String(id);
+      // The unlock plays on the card itself, so a purchase made from the Siege or
+      // Keep tab brings the Arena face back first.
+      if (onSheet && sheetCard.getAttribute('data-mode') !== 'arena' && sheetCard.sgShowTab) {
+        sheetCard.sgShowTab('arena');
+      }
+      var face = onSheet ? sheetCard.querySelector('.sg-sheet-face') : null;
+      repaintCardFaces(app, card, face && face.querySelector('.sg-card-tile'));
+      var version = bestVersion(card);
+      if (onSheet) sheetCard.setAttribute('data-version', version);
       var block = sheetCard.querySelector('.sg-sheet-holo');
-      if (block) block.outerHTML = holoBlock(card, opts);
-      playHoloTwirl(face, holoInner);
+      if (block) block.outerHTML = holoBlock(card, opts, version);
+      playHoloTwirl(face, versionFace(card, version), null, tier === 'GOLD' || tier === 'GSP');
     });
   }
 
-  function wireTabs(sheetCard) {
+  function wireTabs(sheetCard, onShow) {
     var tabs = [].slice.call(sheetCard.querySelectorAll('[data-sheet-tab]'));
     var panels = [].slice.call(sheetCard.querySelectorAll('[data-sheet-panel]'));
     var panelHost = sheetCard.querySelector('.sg-sheet-panels');
@@ -4986,6 +5264,7 @@
       if (panelHost) panelHost.scrollTop = 0;
       // Now that the panel has a width, the chain's names can be measured.
       fitEvolutionNames(sheetCard);
+      if (onShow) onShow(id);
     }
     tabs.forEach(function (tab) {
       tab.addEventListener('click', function () { show(tab.getAttribute('data-sheet-tab')); });
@@ -5005,9 +5284,14 @@
   // One sheet host per screen; any tile with data-card opens it.
   function sheetHost() {
     return '<div class="sg-sheet" data-sheet><div class="sg-sheet-card" data-sheet-card></div></div>' +
-      '<div class="sg-zoom" data-zoom hidden>' +
+      '<div class="sg-zoom" data-zoom tabindex="-1" hidden>' +
         '<button class="sg-zoom-scrim" type="button" data-zoom-close aria-label="Close full screen card"></button>' +
         '<div class="sg-zoom-stage" data-zoom-stage></div>' +
+        '<div class="sg-zoom-dots" data-zoom-dots aria-hidden="true"></div>' +
+        '<div class="sg-zoom-foot">' +
+          '<div class="sg-zoom-version" data-zoom-version aria-live="polite"></div>' +
+          '<p class="sg-zoom-hint">Drag to turn the card \u00b7 Swipe up or down for versions</p>' +
+        '</div>' +
         '<button class="sg-zoom-close" type="button" data-zoom-close aria-label="Close full screen card">\u00d7</button>' +
       '</div>';
   }
@@ -5019,78 +5303,261 @@
      It is the identical `.sg-card-tile` markup, which is what keeps the
      description fitter - the rules that hold the box off the bottom notch -
      applying here exactly as it does in the binder. */
-  function mountZoom(app) {
+  /* The full-screen card is a 3D object, not a picture of one.
+
+     Structure: .sg-zoom-mover (vertical travel, for changing versions) >
+     .sg-zoom-card (scale + rotateX/rotateY, preserve-3d) > a front face (the
+     printed card) and a back face (the card back), each hidden when turned away.
+
+     Drag sideways and the card turns on its vertical axis, tilting a little with
+     the finger's height; let go and it settles face-on or back-on, a flick
+     carrying it round to the other side. Swipe up or down and the card leaves
+     the screen that way and the next version (Standard, Holo, SP, HSP, GOLD, GSP)
+     comes in from the opposite edge. Arrow keys and the wheel do the same.
+
+     The card is still magnified rather than re-laid-out: it is measured and its
+     description fitted at natural size, then the whole composition is scaled,
+     so every placement stays the printed one. */
+  var ZOOM_SETTLE = 'transform .42s cubic-bezier(.2,.8,.25,1)';
+  var ZOOM_EXIT_MS = 240;
+
+  function mountZoom(app, opts) {
     var zoom = app.querySelector('[data-zoom]');
     if (!zoom) return null;
     var stage = zoom.querySelector('[data-zoom-stage]');
+    var label = zoom.querySelector('[data-zoom-version]');
+    var dots = zoom.querySelector('[data-zoom-dots]');
     var opener = null;
+    var card = null, versions = [], index = 0;
+    var mover = null, obj = null;
+    var scale = 1, rx = 0, ry = 0, ty = 0;
+    var busy = false, drag = null, wheelAt = 0;
+
+    function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    function apply(transition, s) {
+      if (!obj) return;
+      mover.style.transition = obj.style.transition = transition || 'none';
+      mover.style.transform = 'translate3d(0,' + ty.toFixed(1) + 'px,0)';
+      obj.style.transform = 'scale(' + (s || scale).toFixed(3) + ') rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+    }
+
+    function backArt(c) {
+      var type = String(c.type || 'SIEGLING').toUpperCase();
+      if (type === 'SIEGEKNIGHT') return '/img/knights/card-back-siegeknight.webp';
+      if (type === 'SPELL') return '/img/packs/spell-card-back.webp';
+      if (type === 'TRAP') return '/img/packs/trap-card-back.webp';
+      // The player's chosen sleeve when they have one, else the card's own element.
+      var entry = cardBackEntry(prefs().preferredCardBack) || cardBackEntry(c.element);
+      return entry ? cardBackArt(entry) : '/img/packs/siegeling-back.webp';
+    }
+
+    function paintLabel() {
+      var v = versions[index];
+      var owned = versionOwned(card, v.key, opts);
+      label.innerHTML = '<b>' + esc(v.label) + '</b>' +
+        (v.name && v.name !== v.label ? '<em>' + esc(v.name) + '</em>' : '') +
+        (owned === true ? '<span class="is-owned">Owned</span>'
+          : owned === false ? '<span>Not owned</span>' : '');
+      label.setAttribute('data-version', v.key);
+      dots.innerHTML = versions.length > 1 ? versions.map(function (x, i) {
+        return '<i class="' + (i === index ? 'on' : '') + '" title="' + esc(x.label) + '"></i>';
+      }).join('') : '';
+    }
+
+    function build() {
+      stage.innerHTML = '<div class="sg-zoom-mover"><div class="sg-zoom-card">' +
+        '<div class="sg-zoom-face sg-zoom-front">' + versionFace(card, versions[index].key) + '</div>' +
+        '<div class="sg-zoom-face sg-zoom-back"><img src="' + esc(backArt(card)) +
+          '" alt="Card back" draggable="false"></div>' +
+      '</div></div>';
+      mover = stage.firstChild;
+      obj = mover.firstChild;
+      // The tile is a button in the binder because it opens this; here it IS
+      // the content, so it stops being a control.
+      var tile = obj.querySelector('.sg-card-tile');
+      if (tile) {
+        tile.setAttribute('tabindex', '-1');
+        tile.removeAttribute('data-card');
+      }
+      // A press focuses the tile button, and rebuilding for a new version
+      // removes it - focus would fall to <body>, past the key handlers.
+      if (zoom.classList.contains('open') && !zoom.contains(document.activeElement)) {
+        zoom.focus({ preventScroll: true });
+      }
+      paintLabel();
+    }
 
     function close() {
       zoom.classList.remove('open');
       zoom.hidden = true;
       stage.innerHTML = '';
+      mover = obj = null;
+      drag = null;
+      busy = false;
       if (opener && opener.isConnected) opener.focus({ preventScroll: true });
       opener = null;
     }
-    function open(card, from) {
-      if (!card) return;
+
+    function open(c, from, versionKey) {
+      if (!c) return;
+      card = c;
       opener = from || document.activeElement;
-      stage.innerHTML = galleryCard(card);
-      // The tile is a button in the binder because it opens this; here it IS
-      // the content, so it stops being a control.
-      var tile = stage.querySelector('.sg-card-tile');
-      if (tile) {
-        tile.setAttribute('tabindex', '-1');
-        tile.removeAttribute('data-card');
-      }
+      versions = versionsFor(c);
+      var keys = versions.map(function (v) { return v.key; });
+      index = Math.max(0, keys.indexOf(versionKey || bestVersion(c)));
+      rx = ry = ty = 0;
+      busy = false;
+      build();
       zoom.hidden = false;
       zoom.classList.add('open');
       var closer = zoom.querySelector('.sg-zoom-close');
       if (closer) closer.focus({ preventScroll: true });
-      window.requestAnimationFrame(layout);
+      window.requestAnimationFrame(function () { layout(true); });
     }
 
-    /* The card is magnified, not re-laid-out.
-
-       The printed card is a fixed-proportion box whose type sizes are absolute
-       px (`.card-summary-list` is 9px, everything inside it is an em of that),
-       and `.mulligan-card-slot` caps at 200px. Widening the box for full screen
-       would therefore give a 560px card with 9px flavour text, and the
-       description box would sit in a completely different place relative to the
-       notches than it does on the real card - which is the one thing this view
-       must not do. So the card is laid out at its natural size, the description
-       is fitted there under the same rules as the binder, and the whole
-       composition is scaled up as a unit: every placement is the printed one.
-
-       Fit first, scale second. `fitOneDescription` mixes scroll metrics
+    /* Fit first, scale second. `fitOneDescription` mixes scroll metrics
        (unscaled) with getBoundingClientRect (scaled), so measuring through a
-       transform would put the notch clearance out by the scale factor. */
-    function layout() {
-      var tile = stage.querySelector('.sg-card-tile');
-      if (!tile) return;
-      // Measure through a running transition and getBoundingClientRect returns
-      // the ANIMATED size, not the natural one - a re-layout while the card was
-      // still growing computed a scale of 1 and left it at thumbnail size. The
-      // transition is suspended for the measurement, not just the transform.
+       transform would put the notch clearance out by the scale factor. A
+       transition is suspended for the measurement too, or the rect is the
+       animated size rather than the natural one. */
+    function layout(pop) {
+      if (!obj) return;
       zoom.classList.add('is-measuring');
-      tile.style.setProperty('--sg-zoom-scale', '1');
+      mover.style.transition = obj.style.transition = 'none';
+      mover.style.transform = obj.style.transform = 'none';
       fitCardDescriptions(zoom);
       fitTileNames(zoom);
-      var box = tile.getBoundingClientRect();
+      var box = obj.getBoundingClientRect();
       var room = stage.getBoundingClientRect();
-      if (!box.width || !box.height || !room.width || !room.height) {
-        zoom.classList.remove('is-measuring');
-        return;
-      }
-      var scale = Math.min(room.width / box.width, room.height / box.height);
-      // Never shrink: on a viewport narrower than the printed card the stage
-      // already clamps the width, and scaling below 1 would only add blur.
-      tile.style.setProperty('--sg-zoom-scale', Math.max(1, scale).toFixed(3));
       zoom.classList.remove('is-measuring');
+      if (!box.width || !box.height || !room.width || !room.height) return;
+      // Never shrink: below the printed size scaling only adds blur.
+      scale = Math.max(1, Math.min(room.width / box.width, room.height / box.height) * 0.96);
+      if (pop) {
+        apply('none', scale * 0.92);
+        void obj.offsetWidth;
+      }
+      apply(pop ? ZOOM_SETTLE : 'none');
     }
 
+    // Leaves through one edge, swaps the version, arrives from the other.
+    function cycle(dir) {
+      if (!obj || busy) return;
+      if (versions.length < 2) { ty = rx = 0; apply(ZOOM_SETTLE); return; }
+      busy = true;
+      var h = (window.innerHeight || 800) * 1.05;
+      ty = dir > 0 ? -h : h;
+      rx = dir > 0 ? 16 : -16;
+      apply('transform ' + ZOOM_EXIT_MS + 'ms cubic-bezier(.5,0,.9,.6)');
+      window.setTimeout(function () {
+        if (!zoom.classList.contains('open')) return;
+        index = (index + dir + versions.length) % versions.length;
+        ry = 0;
+        build();
+        layout(false);
+        ty = dir > 0 ? h : -h;
+        rx = dir > 0 ? -14 : 14;
+        apply('none');
+        void obj.offsetWidth;
+        ty = rx = 0;
+        apply(ZOOM_SETTLE);
+        window.setTimeout(function () { busy = false; }, 420);
+      }, ZOOM_EXIT_MS);
+    }
+
+    function turn(dir) {
+      if (!obj || busy) return;
+      ry = Math.round(ry / 180) * 180 + dir * 180;
+      rx = 0;
+      apply(ZOOM_SETTLE);
+    }
+
+    stage.addEventListener('pointerdown', function (e) {
+      if (!obj || busy || !(e.target.closest && e.target.closest('.sg-zoom-card'))) return;
+      var t = now();
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, rx: rx, ry: ry, axis: null,
+        lx: e.clientX, ly: e.clientY, lt: t, vx: 0, vy: 0 };
+      try { stage.setPointerCapture(e.pointerId); } catch (err) { /* old Safari */ }
+      // Pressing a plain div drops focus to <body>, outside the app listeners
+      // that handle Escape and the arrow keys; keep it inside the overlay.
+      if (!zoom.contains(document.activeElement)) zoom.focus({ preventScroll: true });
+      apply('none');
+    });
+    stage.addEventListener('pointermove', function (e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      // The axis is locked on the first real movement so a slightly diagonal
+      // turn never also starts a version change.
+      if (!drag.axis) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        drag.axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+      }
+      var t = now(), dt = t - drag.lt;
+      if (dt > 0) {
+        drag.vx = drag.vx * 0.6 + ((e.clientX - drag.lx) / dt) * 0.4;
+        drag.vy = drag.vy * 0.6 + ((e.clientY - drag.ly) / dt) * 0.4;
+      }
+      drag.lx = e.clientX; drag.ly = e.clientY; drag.lt = t;
+      if (drag.axis === 'x') {
+        ry = drag.ry + dx * 0.55;
+        rx = clamp(drag.rx - dy * 0.25, -22, 22);
+      } else {
+        ty = dy;
+        rx = clamp(-dy * 0.05, -12, 12);
+      }
+      apply('none');
+      e.preventDefault();
+    });
+    function release(e) {
+      if (!drag || (e && e.pointerId !== drag.id)) return;
+      var d = drag;
+      drag = null;
+      if (!d.axis) return;
+      if (d.axis === 'x') {
+        // Settle on the nearest face; a flick carries it on to the next one.
+        var target = Math.round(ry / 180) * 180;
+        if (Math.abs(d.vx) > 0.45) {
+          target = d.vx > 0 ? Math.ceil(ry / 180) * 180 : Math.floor(ry / 180) * 180;
+          if (target === ry) target += d.vx > 0 ? 180 : -180;
+        }
+        ry = target;
+        rx = 0;
+        apply(ZOOM_SETTLE);
+        return;
+      }
+      var moved = (e ? e.clientY : d.ly) - d.y;
+      if (Math.abs(moved) > 70 || Math.abs(d.vy) > 0.55) {
+        cycle(moved < 0 ? 1 : -1);
+      } else {
+        ty = rx = 0;
+        apply(ZOOM_SETTLE);
+      }
+    }
+    stage.addEventListener('dragstart', function (e) { e.preventDefault(); });
+    stage.addEventListener('pointerup', release);
+    stage.addEventListener('pointercancel', release);
+
+    zoom.addEventListener('wheel', function (e) {
+      if (!zoom.classList.contains('open') || Math.abs(e.deltaY) < 12) return;
+      e.preventDefault();
+      // A trackpad fires dozens of wheel events per gesture; one change each.
+      var t = now();
+      if (t - wheelAt < 600) return;
+      wheelAt = t;
+      cycle(e.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
+
+    app.addEventListener('keydown', function (e) {
+      if (!zoom.classList.contains('open') || e.sgEscapeHandled) return;
+      var keys = { ArrowUp: function () { cycle(1); }, ArrowDown: function () { cycle(-1); },
+        ArrowLeft: function () { turn(-1); }, ArrowRight: function () { turn(1); } };
+      if (keys[e.key]) { keys[e.key](); e.preventDefault(); }
+    });
+
     window.addEventListener('resize', function () {
-      if (zoom.classList.contains('open')) window.requestAnimationFrame(layout);
+      if (zoom.classList.contains('open') && !busy) window.requestAnimationFrame(function () { layout(false); });
     });
     zoom.addEventListener('click', function (e) {
       if (e.target.closest('[data-zoom-close]')) close();
@@ -5104,7 +5571,7 @@
     var sheet = app.querySelector('[data-sheet]');
     if (!sheet) return null;
     var sheetCard = sheet.querySelector('[data-sheet-card]');
-    var zoom = mountZoom(app);
+    var zoom = mountZoom(app, opts);
     var opener = null;
     var swipe = null;
     function close() {
@@ -5119,8 +5586,18 @@
       opener = document.activeElement;
       sheetCard.innerHTML = cardSheetMarkup(card, opts);
       sheetCard.setAttribute('data-zoom-card', String(card.id == null ? '' : card.id));
+      sheetCard.setAttribute('data-version', bestVersion(card));
+      sheetCard.setAttribute('data-mode', 'arena');
       sheetCard.scrollTop = 0;
-      var show = wireTabs(sheetCard);
+      var show = wireTabs(sheetCard, function (id) {
+        // Siege and Keep stand the Siegeling up as it looks there; every other
+        // tab keeps the card itself.
+        var mode = id === 'siege' || id === 'keep' ? id : 'arena';
+        if (sheetCard.getAttribute('data-mode') === mode) return;
+        sheetCard.setAttribute('data-mode', mode);
+        paintSheetFace(card);
+      });
+      sheetCard.sgShowTab = show;
       if (tab && sheetCard.querySelector('[data-sheet-tab="' + tab + '"]')) show(tab);
       if (isKnight(card) && sheetCard.querySelector('[data-knight-siege-loading]')) {
         loadSiegeKnights().then(function () {
@@ -5139,7 +5616,31 @@
     });
     // The face inside the sheet opens the card full screen. It sits inside the
     // sheet, so the gallery's own [data-card] delegation deliberately skips it.
+    function paintSheetFace(card) {
+      var face = sheetCard.querySelector('.sg-sheet-face');
+      if (!face) return;
+      face.innerHTML = sheetFaceMarkup(card, sheetCard.getAttribute('data-version') || 'STANDARD',
+        sheetCard.getAttribute('data-mode') || 'arena');
+      face.setAttribute('data-face-view', sheetCard.getAttribute('data-mode') || 'arena');
+      fitCardDescriptions(face);
+      fitTileNames(face);
+    }
     sheetCard.addEventListener('click', function (e) {
+      var versionBtn = e.target.closest ? e.target.closest('[data-sheet-version]') : null;
+      if (versionBtn) {
+        var vCard = byIdIn(ALL_CARDS, sheetCard.getAttribute('data-zoom-card')) || byId(sheetCard.getAttribute('data-zoom-card'));
+        sheetCard.setAttribute('data-version', versionBtn.getAttribute('data-sheet-version'));
+        [].slice.call(sheetCard.querySelectorAll('[data-sheet-version]')).forEach(function (b) {
+          var on = b === versionBtn;
+          b.classList.toggle('on', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        // A version is a look of the card, so picking one from Siege or Keep
+        // brings the card face back to show it.
+        if (sheetCard.getAttribute('data-mode') !== 'arena' && sheetCard.sgShowTab) sheetCard.sgShowTab('arena');
+        else paintSheetFace(vCard);
+        return;
+      }
       var holoBtn = e.target.closest ? e.target.closest('[data-holo-buy]') : null;
       if (holoBtn) {
         if (!holoBtn.disabled) buyHoloFinish(app, opts || {}, sheetCard, holoBtn);
@@ -5162,7 +5663,8 @@
       var face = e.target.closest ? e.target.closest('.sg-sheet-face') : null;
       if (!face || !zoom) return;
       var id = sheetCard.getAttribute('data-zoom-card');
-      zoom.open(byIdIn(ALL_CARDS, id) || byId(id), face.querySelector('.sg-card-tile') || face);
+      zoom.open(byIdIn(ALL_CARDS, id) || byId(id), face.querySelector('.sg-card-tile') || face,
+        sheetCard.getAttribute('data-version') || 'STANDARD');
     });
     app.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape' || e.sgEscapeHandled) return;
@@ -5300,6 +5802,35 @@
     buzzForRarity(card);
   }
 
+  /* A pulled finish gets its moment. HSP throws a rainbow burst; GOLD and GSP
+     are rare enough to be an event - the gold screen glow, a gold burst and the
+     unlock chime, twice over for GSP. The flip is a tap, so audio may start. */
+  function finishFlourish(btn, finish) {
+    var rank = finishIndex(finish);
+    if (rank < finishIndex('HSP') || reducedMotion()) return;
+    var gold = rank >= finishIndex('GOLD');
+    function burst(delay) {
+      var box = btn.getBoundingClientRect();
+      var layer = document.createElement('div');
+      layer.className = 'sg-holo-fx';
+      layer.setAttribute('aria-hidden', 'true');
+      layer.style.left = (box.left + box.width / 2).toFixed(1) + 'px';
+      layer.style.top = (box.top + box.height / 2).toFixed(1) + 'px';
+      document.body.appendChild(layer);
+      holoBurst(layer, box.width, box.height, delay, gold ? GOLD_COLORS : HOLO_COLORS);
+      setTimeout(function () { if (layer.parentNode) layer.parentNode.removeChild(layer); }, delay + 2200);
+    }
+    burst(80);
+    if (gold) {
+      holoAudioPrime();
+      holoScreenGlow(420, true);
+      playHoloSound(300);
+      if (finish === 'GSP') {
+        setTimeout(function () { holoScreenGlow(520, true); burst(60); }, 900);
+      }
+    }
+  }
+
   function openPack(pk, opts, count) {
     var host = document.querySelector('.sg-app');
     if (!host) return;
@@ -5345,6 +5876,9 @@
         var history = (data.progression && data.progression.packHistory) || [];
         var cards = (history[0] && history[0].cards) || [];
         if (!cards.length) { fail('The pack came back empty. Nothing was charged.'); return; }
+        // A pull can raise a card's finish, so every face drawn after this
+        // (binder, sheet) reads the new lists.
+        applyFinishLists(opts && opts.live, data.progression);
         reveal(cards);
       })
       .catch(function () { fail('The server did not answer. Nothing was charged.'); });
@@ -5354,10 +5888,12 @@
       kicker.textContent = 'Tap to reveal';
       note.textContent = cards.length + ' card' + (cards.length === 1 ? '' : 's');
 
-      // Rarest first: the stack is dealt best-on-top, so the pull's headline
-      // card is the one the player turns over first and the commons trail it.
+      // Best first: the stack is dealt best-on-top, so the pull's headline card
+      // is the one the player turns over first. A finish outranks rarity - a GSP
+      // Common is the story of the pull, not the plain Legendary beside it.
       var order = cards.map(function (c, i) { return i; }).sort(function (a, b) {
-        return (rarityRank(cards[b]) - rarityRank(cards[a])) || (a - b);
+        return (finishIndex(cards[b].finish) - finishIndex(cards[a].finish)) ||
+          (rarityRank(cards[b]) - rarityRank(cards[a])) || (a - b);
       });
       var stackMode = cards.length > 1;
       stage.className = 'sg-gacha-stage ' + (stackMode ? 'is-stack' : 'is-grid');
@@ -5438,7 +5974,15 @@
         var card = cards[Number(btn.getAttribute('data-flip'))];
         var front = btn.querySelector('[data-flip-front]');
         var known = byIdIn(ALL_CARDS, card.id);
-        front.innerHTML = known ? galleryCard(known) : cardPlate(card);
+        var finish = FINISH_LADDER[finishIndex(card.finish)].key;
+        // The card is shown in the finish it was pulled in.
+        front.innerHTML = known ? versionFace(known, finish) : cardPlate(card);
+        if (finish !== 'STANDARD') {
+          var badge = document.createElement('span');
+          badge.className = 'sg-flip-finish is-' + finish.toLowerCase();
+          badge.textContent = versionLabel(finish) + (card.finishUpgraded ? ' \u00b7 upgraded' : '');
+          btn.appendChild(badge);
+        }
         var tag = btn.querySelector('[data-flip-tag]');
         if (card.duplicateAtCap) {
           tag.textContent = 'Owned \u00b7 +' + (card.remnantsAwarded || 0);
@@ -5458,6 +6002,7 @@
         if (card.holo) btn.classList.add('is-holo');
         btn.classList.add('is-open');
         gachaFlourish(btn, card);
+        finishFlourish(btn, finish);
         if (stackMode) layoutStack();
 
         // In the grid the card keeps its slot while it crumbles, so it pays out
@@ -8980,14 +9525,128 @@
         ['PSYCHIC', ['LIGHT', 'UNDEAD']], ['LIGHT', ['UNDEAD', 'SHADOW']], ['UNDEAD', ['SHADOW', 'PSYCHIC']]
       ]]
     ]],
-    ['Siege mode', 'The roguelike expedition', '/img/lands/badlands.webp', 'EARTH', [
-      ['p', 'Siege is a run-based solo expedition. Pick a SiegeKnight and a starter warband, cross a branching map of battles, elites, rest camps, shops and events, then fight AP-based card battles up to a boss.'],
+    ['Siege mode', 'Expeditions, Endless and Battlegrounds', '/img/lands/badlands.webp', 'EARTH', [
+      ['p', 'Siege is the solo roguelike. Pick a SiegeKnight and a starter warband, cross a branching map of battles, elites, rest camps, caches, the broker, the smith, the caravan and events, then fight AP-based card battles up to a boss.'],
       ['defs', [
-        ['Build a run', 'Earn gold, recruit cards, collect items and improve the warband as you climb.'],
-        ['Spend AP', 'Play cards from a fresh hand, resolve their actions, and end the turn when your plan is set.'],
+        ['Build a run', 'Earn gold, recruit Siegelings, collect items and level your warband as you climb.'],
+        ['Spend AP', 'Drag cards from the hand fan onto the battlefield, resolve them, and End Turn when your plan is set.'],
+        ['Advantage', 'The unit holding the Advantage token adds a rider to its cards. Watch the ADV lane to see who holds it.'],
         ['Different rules', 'There is no elemental weakness chart in Siege. Its server-driven rules have their own shields and affliction counterparts.']
       ]],
+      ['sub', 'Modes'],
+      ['defs', [
+        ['Expedition', 'The standard run: map, battles, boss. Win to bank your Siegelings as veterans.'],
+        ['Endless', 'Floor after floor of compounding difficulty with a mix of fresh picks and banked veterans. Your best score and floor are kept.'],
+        ['Battlegrounds', 'Field three banked veterans and a veteran knight, buy boons in its shop, and climb the tiers and the leaderboard.'],
+        ['Tutorial', 'A guided first battle that teaches AP, cards and targeting.']
+      ]],
+      ['sub', 'Skins'],
+      ['p', 'Tap one of your Siegelings in battle to open its sheet, then pick a skin under Look. There is one skin per card finish, and each unlocks when you own that version of the card (or a higher one) in your Collection. Skins are cosmetic only.'],
+      ['defs', [
+        ['Holographic (Holo)', 'A soft pastel sheen.'],
+        ['Special (SP)', 'An iridescent colour drift.'],
+        ['Holographic Special (HSP)', 'The iridescent drift inside a rainbow aura.'],
+        ['Gold (GOLD)', 'Its own colours inside a pulsing gold aura.'],
+        ['Gold Special (GSP)', 'The whole creature cast in gold.']
+      ]],
       ['link', ['/siege', 'Start an expedition']]
+    ]],
+    ['Getting started', 'A first-day guide', '/img/lands/aurora.webp', 'LIGHT', [
+      ['steps', [
+        ['Choose a starter pack', 'It sets your first element, grants its SiegeKnight and fills a playable deck.'],
+        ['Play the Arena', 'Fight the AI from Play. Wins pay Siegecoins and Remnants, and a win streak pays more.'],
+        ['Build a deck', 'Collection › Deck Builder, from the cards you own, with at most 3 copies of any card. Preset decks run 40 cards: 20 Siegelings, 10 Strategies and 10 Deceptions.'],
+        ['Open packs', 'Spend Siegecoins in the Shop. Every card can arrive with a finish, from Holo all the way up to GSP.'],
+        ['Upgrade finishes', 'Spend Remnants on a card in your Collection to climb its finish ladder.'],
+        ['Go on a Siege', 'Take a warband on the roguelike, bank veterans, then try Endless and Battlegrounds.'],
+        ['Tend the Keep', 'Post Siegelings to stations, craft, and rebuild your hall between matches.']
+      ]],
+      ['note', 'Missions on Home refresh daily, and the Daily Objectives strip shows what is left.']
+    ]],
+    ['Card finishes', 'Holo, SP, HSP, GOLD and GSP', '/img/lands/light.webp', 'LIGHT', [
+      ['p', 'Every card can be owned in a finish. The ladder runs Standard › Holographic › Special › Holographic Special › Gold › Gold Special, shortened on cards and buttons to Holo, SP, HSP, GOLD and GSP. Each finish contains the ones below it, and a card only ever moves up.'],
+      ['defs', [
+        ['Standard', 'The printed card.'],
+        ['Holographic (Holo)', 'A plain holographic sheen over the standard art.'],
+        ['Special (SP)', 'The card’s special holo artwork. Only cards that have holo art can be Special.'],
+        ['Holographic Special (HSP)', 'The special holo artwork with the full rainbow foil.'],
+        ['Gold (GOLD)', 'The special holo artwork in a polished gold frame with a gold shine.'],
+        ['Gold Special (GSP)', 'The final finish: the whole card cast in gold, with the notches left in colour so they still read in play.']
+      ]],
+      ['sub', 'How to get them'],
+      ['list', [
+        'Upgrade with Remnants from a card’s sheet in your Collection. Each finish has a running price in craft costs (Holo 1, SP 2, HSP 4, GOLD 12, GSP 28), and a step costs the difference.',
+        'Drops: any card you get, from packs, daily shop cards, crafting, Siege prizes or missions, can arrive in a finish. A dropped finish above yours upgrades your card, even when the copy itself turns into Remnants.',
+        'Each finish is rarer than the one below it and rarer on rarer cards. GOLD is a once-in-thousands pull, and GSP is an act of god: about 1 in 20,000 on a Common and 1 in 100,000 on a Legendary. Shop › Packs › Odds lists every number.'
+      ]],
+      ['sub', 'Where they show'],
+      ['list', [
+        'Your binder, deck builder, pack reveals and the full-screen card.',
+        'Arena matches: each card shows its owner’s finish, so online opponents see yours and you see theirs.',
+        'Siege: every finish you own for a Siegeling unlocks its matching skin for that Siegeling’s battle sprite.'
+      ]],
+      ['note', 'Open a card full screen to see every version: drag sideways to turn it over, swipe up or down to step through Standard to GSP.']
+    ]],
+    ['Arena & multiplayer', 'Solo, rooms and tournaments', '/img/lands/fire.webp', 'FIRE', [
+      ['p', 'The Arena is the core card game. Play it solo against the AI, or live against another player.'],
+      ['defs', [
+        ['Solo', 'Play › Arena. Pick a deck and a SiegeKnight and fight the AI. Wins pay Siegecoins and Remnants.'],
+        ['Rooms', 'Host a table and share its code or invite link; your opponent joins it from the Room screen.'],
+        ['Tournaments', 'A daily tournament sets an element rule for the day. Every day has a free-element entry.'],
+        ['History', 'Finished matches appear under Profile › Recent, with replays where they were recorded.']
+      ]]
+    ]],
+    ['The Keep', 'Your home base between battles', '/img/lands/earth.webp', 'EARTH', [
+      ['p', 'The Keep is an idle base. Siegelings you own can live there as residents, work stations, and earn resources while you play elsewhere.'],
+      ['defs', [
+        ['Residents & stations', 'Post Siegelings to stations. A station grows faster with residents of its favoured elements, and the card sheet’s Keep tab shows each card’s bonus.'],
+        ['Rapport', 'Residents bond over time, raising their station bonus.'],
+        ['Building', 'Upgrade the hall and its rooms, refit tools and set decorations.'],
+        ['Market', 'Refreshes daily. Its rarest offers cost Siegecoins.'],
+        ['Rebirth', 'Once the hall has evolved, reset the Keep for permanent stacking bonuses plus Siegecoins and Remnants.']
+      ]],
+      ['link', ['/keep', 'Visit the Keep']]
+    ]],
+    ['Chronicles', 'Your knight’s idle adventure', '/img/lands/metal.webp', 'METAL', [
+      ['p', 'Chronicles follows your SiegeKnight between battles: gathering, crafting and venturing out while you are away.'],
+      ['defs', [
+        ['Professions', 'Twenty-one gathering, crafting and support professions, each with a real effect.'],
+        ['Regions & expeditions', 'Send expeditions through tiered regions with hidden routes, twists and Grand Expeditions.'],
+        ['Home base', 'Six buildings and War Room loadouts.'],
+        ['Crowns & guilds', 'Earn Crowns, join a guild, fight weekly Siege Operations and trade on the marketplace.']
+      ]],
+      ['link', ['/chronicles', 'Open Chronicles']]
+    ]],
+    ['Dominion', 'The Keep and Chronicles in one (test mode)', '/img/lands/relic.webp', 'NEUTRAL', [
+      ['p', 'Dominion is a temporary test mode that runs every Keep and Chronicles system as one idle game. It may change or reset while it is being tested.'],
+      ['defs', [
+        ['Base', 'The Keep scene: hall ranks, building interiors, visitors with requests and trust, the Storehouse, Builder’s Yard crews, workshops and Akhar’s Wall.'],
+        ['Knight & companions', 'Your knight works every profession. Tame Siegelings on journeys and level, evolve and rename them.'],
+        ['Expeditions', 'Every Chronicles route as a destination, with provisions and cooked meals that buff the squad.'],
+        ['Wall & sieges', 'Post defenders on Akhar’s Wall, drill them, and hold the siege waves for Crowns and Silver.'],
+        ['Realm', 'Account sync, guilds, Siege Operations and a Crowns market.']
+      ]],
+      ['link', ['/dominion', 'Try Dominion']]
+    ]],
+    ['Glossary', 'Terms used across the game', '/img/lands/psychic.webp', 'PSYCHIC', [
+      ['defs', [
+        ['Siegeling', 'A creature card. It has Health, Speed, notches and abilities, but no printed attack: its damage comes from its abilities.'],
+        ['Strategy / Deception', 'The spell and trap card types.'],
+        ['SiegeKnight', 'Your trainer. It gives a passive and an active or ultimate, and never enters the board.'],
+        ['Notch', 'A coloured dot on a card’s edge. Two adjacent cards whose notches point at each other form a link.'],
+        ['Link', 'A pair of reciprocal notches. Links generate elemental energy.'],
+        ['Socket', 'A board-edge anchor that a card on the outside of your 3x3 can link into instead of a neighbour.'],
+        ['Energy', 'Elemental pools filled by links and sockets that pay for Strategies, Deceptions and abilities.'],
+        ['Claim', 'Retire a surviving Siegeling during Setup for temporary energy.'],
+        ['Speed order', 'Siegelings act in Battle from fastest to slowest.'],
+        ['Bounty', 'Damage dealt to a player when one of their Siegelings is defeated, set by its rarity.'],
+        ['Evolution', 'A card placed onto its living precursor. It ignores the board cap and the one-placement limit.'],
+        ['Siegecoins', 'The main currency: packs, decks, daily shop cards and Keep market lots.'],
+        ['Remnants', 'Earned from duplicates past the 3-copy cap, wins and pack openings. Spent on crafting cards and upgrading finishes.'],
+        ['Crowns', 'The Chronicles and Dominion currency.'],
+        ['Finish', 'A card’s look: Standard, Holographic (Holo), Special (SP), Holographic Special (HSP), Gold (GOLD) or Gold Special (GSP). See Card finishes.'],
+        ['Veteran', 'A Siegeling banked from a won Siege run, used again in Endless and Battlegrounds.']
+      ]]
     ]]
   ];
 
@@ -9192,6 +9851,10 @@
     }
     noteNewGalleryUnlocks(model);
     if (Array.isArray(model.holographicCards)) setPlayerHolo(model.holographicCards);
+    if (Array.isArray(model.holoArtCards)) setPlayerHoloArt(model.holoArtCards);
+    if (Array.isArray(model.goldCards)) setPlayerGold(model.goldCards);
+    if (Array.isArray(model.holoGoldCards)) setPlayerHoloGold(model.holoGoldCards);
+    if (Array.isArray(model.holoCards)) setPlayerHoloPlain(model.holoCards);
     if (model.cards && model.cards.length) {
       ALL_CARDS = model.cards.slice();
     }

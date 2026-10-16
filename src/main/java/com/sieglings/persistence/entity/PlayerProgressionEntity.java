@@ -36,6 +36,24 @@ public class PlayerProgressionEntity {
     private int craftCount;
     /** Card or SiegeKnight ids the player upgraded to a holographic foil finish. */
     private List<String> holographicCardIds = new ArrayList<>();
+    /**
+     * Card ids upgraded to the first holo tier: the card's holographic art with
+     * no foil shimmer. A card in {@link #holographicCardIds} (the flair tier)
+     * implies this tier, so it is never listed in both.
+     */
+    private List<String> holoArtCardIds = new ArrayList<>();
+    /** Card ids at the HOLO finish: a plain holographic sheen over the standard art. */
+    private List<String> plainHoloCardIds = new ArrayList<>();
+    /**
+     * Card ids upgraded to GOLD, the tier above HOLO SP: holo art with a gold
+     * frame and gold shine. A gold card is still in {@link #holographicCardIds}.
+     */
+    private List<String> goldCardIds = new ArrayList<>();
+    /**
+     * Card ids upgraded to HOLO GOLD, the final tier: the whole card cast in gold
+     * with its notches left in colour. A HOLO GOLD card is still in {@link #goldCardIds}.
+     */
+    private List<String> holoGoldCardIds = new ArrayList<>();
     /** SiegeKnight ids unlocked for expedition warband selection (gold purchase). */
     private List<String> siegeUnlockedKnights = new ArrayList<>();
     /** Siegeling card ids unlocked as expedition starters by finding them on a run. */
@@ -131,6 +149,22 @@ public class PlayerProgressionEntity {
     public List<String> getHolographicCardIds() { return holographicCardIds; }
     public void setHolographicCardIds(List<String> holographicCardIds) {
         this.holographicCardIds = holographicCardIds == null ? new ArrayList<>() : new ArrayList<>(holographicCardIds);
+    }
+    public List<String> getHoloArtCardIds() { return holoArtCardIds; }
+    public void setHoloArtCardIds(List<String> holoArtCardIds) {
+        this.holoArtCardIds = holoArtCardIds == null ? new ArrayList<>() : new ArrayList<>(holoArtCardIds);
+    }
+    public List<String> getPlainHoloCardIds() { return plainHoloCardIds; }
+    public void setPlainHoloCardIds(List<String> plainHoloCardIds) {
+        this.plainHoloCardIds = plainHoloCardIds == null ? new ArrayList<>() : new ArrayList<>(plainHoloCardIds);
+    }
+    public List<String> getGoldCardIds() { return goldCardIds; }
+    public void setGoldCardIds(List<String> goldCardIds) {
+        this.goldCardIds = goldCardIds == null ? new ArrayList<>() : new ArrayList<>(goldCardIds);
+    }
+    public List<String> getHoloGoldCardIds() { return holoGoldCardIds; }
+    public void setHoloGoldCardIds(List<String> holoGoldCardIds) {
+        this.holoGoldCardIds = holoGoldCardIds == null ? new ArrayList<>() : new ArrayList<>(holoGoldCardIds);
     }
     public List<String> getSiegeUnlockedKnights() { return siegeUnlockedKnights; }
     public void setSiegeUnlockedKnights(List<String> siegeUnlockedKnights) {

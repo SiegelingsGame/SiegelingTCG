@@ -1282,10 +1282,10 @@ class GameJavaScriptRegressionTest {
                 "The Standard/Holographic toggle must retarget the one art builder onto the holo fields."
         );
         assertTrue(
-                fullCardRenderer.indexOf("renderHolographicOverlay()")
+                fullCardRenderer.indexOf("renderFinishOverlay(card, options)")
                         < fullCardRenderer.indexOf("renderHolographicCardData(card, options)")
-                        && fullCardRenderer.contains("isHolographic(card, options) && !usesHolographicArtwork"),
-                "Custom holographic data must render above its foil, without a second outer foil layer."
+                        && fullCardRenderer.contains("!usesHolographicArtwork ? renderFinishOverlay(card, options)"),
+                "Custom holographic data must render above its finish (foil or gold), without a second outer finish layer."
         );
         // The full-art holo component now lives in the shared holographic.css so
         // both the binder (home.css) and the Battle Table (style.css) import it.
@@ -1463,11 +1463,14 @@ class GameJavaScriptRegressionTest {
         String artRenderer = extractFunction(gameScript, "function renderCardArt(card, variant, fallbackLabel = '', artOptions = {})");
         String style = Files.readString(STYLE_CSS);
 
+        String holoArtTier = extractFunction(gameScript, "function cardShowsPlayerHoloArt(card)");
         assertTrue(
-                artResolver.contains("cardShowsPlayerHolographic(card)")
+                artResolver.contains("cardShowsPlayerHoloArt(card)")
+                        && holoArtTier.contains("cardShowsPlayerHolographic(card)")
+                        && holoArtTier.contains("playerHoloArtCardIds()")
                         && artResolver.contains("card.holographicCardArtUrl")
                         && artResolver.contains("mode: 'HOLOGRAPHIC_FULL_CARD'"),
-                "Battle art selection must use dedicated holo art only when that card instance displays the player's holographic finish."
+                "Battle art selection must use dedicated holo art only when that card instance displays one of the player's holo tiers (Holo Art or Holo Flair)."
         );
         assertTrue(
                 artRenderer.contains("game-holographic-full-card-art")

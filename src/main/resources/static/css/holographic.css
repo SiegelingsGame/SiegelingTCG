@@ -361,3 +361,141 @@
 .holographic-card-notch-bottom-left { left: 7.6%; top: 94.1%; }
 .holographic-card-notch-bottom { left: 49.5%; top: 94.3%; }
 .holographic-card-notch-bottom-right { left: 91.7%; top: 94.2%; }
+
+/* ---------- GOLD finish ----------
+   The top card finish: the holo art in full colour (so notches stay readable
+   in battle), framed in polished gold with a warm shine sweeping across it.
+   Sizes are percentages of the card so one rule reads on a 72px board card
+   and a magnified full-screen one alike. */
+.card-gold-finish {
+    position: absolute;
+    inset: 0;
+    z-index: 12;
+    pointer-events: none;
+    border-radius: inherit;
+}
+/* The frame: a metallic band masked to the card's edge, with a dark inner
+   keyline and a soft outer glow so it reads as raised gilt, not a border. */
+.card-gold-frame {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: max(2px, 3.2%);
+    background:
+        linear-gradient(135deg,
+            #7a5410 0%, #f7d77a 12%, #fff4c8 20%, #c9902a 32%,
+            #8a5e12 44%, #f2cf6c 56%, #fff1bd 64%, #b98222 78%, #f7d77a 90%, #7a5410 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    filter: drop-shadow(0 0 1px rgba(60, 36, 4, .9));
+}
+.card-gold-frame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 248, 214, .75),
+        inset 0 0 6px rgba(110, 70, 8, .55);
+}
+.is-gold-finish {
+    box-shadow: 0 0 0 1px rgba(122, 84, 16, .8), 0 0 14px rgba(255, 196, 70, .45);
+}
+.card-gold-sheen {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    overflow: hidden;
+    mix-blend-mode: screen;
+    background:
+        linear-gradient(115deg, transparent 34%, rgba(255, 238, 170, .5) 45%, rgba(255, 206, 90, .24) 53%, transparent 64%),
+        radial-gradient(120% 80% at 50% 0%, rgba(255, 214, 110, .14), transparent 60%);
+    background-size: 260% 100%, 100% 100%;
+    animation: card-gold-sweep 3.6s ease-in-out infinite;
+}
+@keyframes card-gold-sweep {
+    0%, 14% { background-position: 120% 0, 0 0; }
+    72%, 100% { background-position: -60% 0, 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .card-gold-sheen { animation: none; background-position: 40% 0, 0 0; }
+}
+
+/* ---------- HOLO GOLD finish ----------
+   The final tier: the whole card cast in gold. A `color` blend keeps every
+   pixel's lightness and takes gold's hue and saturation, so the art still
+   reads, just in gold leaf. The layer sits under the notch layers, which are
+   lifted above it, so element colours on the notches stay true - they are
+   gameplay information, not decoration. */
+/* No z-index on the wrapper: one would make it its own stacking context, and
+   the blend layers inside would then mix with nothing and paint flat gold.
+   Each layer carries its own z-index instead, below the lifted notches. */
+.card-holo-gold-finish {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+}
+.card-holo-gold-finish > i {
+    position: absolute;
+    inset: 0;
+    z-index: 11;
+    border-radius: inherit;
+}
+.card-holo-gold-finish > .card-gold-sheen,
+.card-holo-gold-finish > .card-holo-gold-rim {
+    z-index: 12;
+}
+.card-holo-gold-tint {
+    background: linear-gradient(135deg, #c8901f 0%, #f2c75a 40%, #ffdf8a 55%, #c48a1c 100%);
+    mix-blend-mode: color;
+}
+.card-holo-gold-warm {
+    background: radial-gradient(120% 90% at 50% 20%, rgba(255, 226, 150, .35), rgba(150, 96, 10, .2) 70%);
+    mix-blend-mode: soft-light;
+}
+.card-holo-gold-rim {
+    box-shadow:
+        inset 0 0 0 2px rgba(255, 226, 140, .92),
+        inset 0 0 14px rgba(255, 190, 60, .55);
+}
+.is-holo-gold-finish {
+    box-shadow: 0 0 0 1px rgba(122, 84, 16, .8), 0 0 18px rgba(255, 190, 60, .45);
+}
+/* Notches ride above the gold. The board's own notch rule is more specific,
+   so it is matched here class for class. */
+.board-card.arena-board-card.is-holo-gold-finish .arena-board-notches,
+.is-holo-gold-finish .hand-notches,
+.is-holo-gold-finish .holographic-card-notches,
+.is-holo-gold-finish .notch-dot {
+    z-index: 13;
+}
+
+/* ---------- HOLO finish ----------
+   The first finish: the standard art under a plain holographic sheen - a soft
+   pastel wash and one slow light band, much quieter than HSP's full foil. */
+.is-holo-plain {
+    position: relative;
+}
+.card-holo-plain-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 12;
+    pointer-events: none;
+    border-radius: inherit;
+    overflow: hidden;
+    mix-blend-mode: screen;
+    background:
+        linear-gradient(120deg, rgba(255, 170, 230, .14), rgba(150, 230, 255, .16) 50%, rgba(200, 255, 210, .12));
+}
+.card-holo-plain-overlay::after {
+    content: "";
+    position: absolute;
+    inset: -40%;
+    background: linear-gradient(110deg, transparent 40%, rgba(255, 255, 255, .22) 50%, transparent 60%);
+    animation: card-holographic-sheen 5.5s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .card-holo-plain-overlay::after { animation: none; }
+}

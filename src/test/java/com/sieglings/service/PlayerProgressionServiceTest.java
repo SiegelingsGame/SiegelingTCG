@@ -6,6 +6,7 @@ import com.sieglings.model.SieglingCard;
 import com.sieglings.model.SpellCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.TrapCard;
+import com.sieglings.model.enums.CardFinish;
 import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.Rarity;
 import com.sieglings.model.enums.Row;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -233,6 +235,104 @@ class PlayerProgressionServiceTest {
 
         assertEquals(500, store.saved.getRemnants());
         assertTrue(store.saved.getHolographicCardIds().contains("draco"));
+    }
+
+    private PlayerProgressionEntity ownerOf(String cardId, int remnants) {
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setRemnants(remnants);
+        progression.getOwnedCards().put(cardId, 1);
+        return progression;
+    }
+
+    @Test
+    void finishLadderChargesEachStepTheDifference() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        store.saved = ownerOf("glimmer", 20000); // Common: craft cost 500
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new HoloArtCardDefinitionService());
+
+        service.purchaseHolographicFinish(user(), "glimmer", CardFinish.HOLO);
+        assertEquals(19500, store.saved.getRemnants());
+        service.purchaseHolographicFinish(user(), "glimmer", CardFinish.SP);
+        assertEquals(19000, store.saved.getRemnants());
+        service.purchaseHolographicFinish(user(), "glimmer", CardFinish.HSP);
+        assertEquals(18000, store.saved.getRemnants());
+        assertTrue(store.saved.getHoloArtCardIds().isEmpty(), "HSP replaces the SP-only entry.");
+        service.purchaseHolographicFinish(user(), "glimmer", CardFinish.GOLD);
+        assertEquals(14000, store.saved.getRemnants());
+        service.purchaseHolographicFinish(user(), "glimmer", CardFinish.GSP);
+        assertEquals(6000, store.saved.getRemnants());
+        assertTrue(store.saved.getGoldCardIds().contains("glimmer"));
+        assertTrue(store.saved.getHolographicCardIds().contains("glimmer"));
+        assertEquals("GSP", service.cardFinishesForUser("player@example.com").get("glimmer"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.purchaseHolographicFinish(user(), "glimmer", CardFinish.GSP));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.purchaseHolographicFinish(user(), "glimmer", CardFinish.HOLO),
+                "A finish never goes down.");
+        assertEquals(6000, store.saved.getRemnants());
+    }
+
+    @Test
+    void skippingTiersPaysTheWholeDifference() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        store.saved = ownerOf("draco", 7000);
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new HoloArtCardDefinitionService());
+
+        service.purchaseHolographicFinish(user(), "draco", CardFinish.GOLD);
+
+        assertEquals(1000, store.saved.getRemnants(), "STANDARD -> GOLD is craft x 12.");
+        assertEquals("GOLD", service.cardFinishesForUser("player@example.com").get("draco"));
+    }
+
+    @Test
+    void spNeedsDedicatedHoloArt() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        store.saved = ownerOf("draco", 5000);
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new HoloArtCardDefinitionService());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.purchaseHolographicFinish(user(), "draco", CardFinish.SP));
+        assertEquals(5000, store.saved.getRemnants());
+    }
+
+    @Test
+    void droppedFinishesUpgradeButNeverDowngrade() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = ownerOf("draco", 0);
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+        Card draco = new SieglingCard("draco", "Draco", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT);
+
+        List<PlayerProgressionService.CardGrantOutcome> gold =
+                service.grantCardsWithCap(progression, List.of(draco), List.of(CardFinish.GOLD));
+        assertTrue(gold.get(0).finishUpgraded());
+        List<PlayerProgressionService.CardGrantOutcome> holo =
+                service.grantCardsWithCap(progression, List.of(draco), List.of(CardFinish.HOLO));
+        assertFalse(holo.get(0).finishUpgraded());
+        assertEquals(CardFinish.GOLD, service.currentFinish(progression, draco));
+        assertEquals(3, progression.getOwnedCards().get("draco"));
+    }
+
+    @Test
+    void finishDropOddsShrinkUpTheLadderAndUpTheRarities() {
+        CardFinish[] ladder = { CardFinish.HOLO, CardFinish.SP, CardFinish.HSP, CardFinish.GOLD, CardFinish.GSP };
+        Rarity[] rarities = Rarity.values();
+        for (Rarity rarity : rarities) {
+            Map<CardFinish, Double> odds = PackCatalogService.FINISH_DROP_CHANCE.get(rarity);
+            for (int i = 1; i < ladder.length; i++) {
+                assertTrue(odds.get(ladder[i]) < odds.get(ladder[i - 1]), rarity + " " + ladder[i] + " must be rarer than " + ladder[i - 1]);
+            }
+        }
+        for (CardFinish finish : ladder) {
+            for (int r = 1; r < rarities.length; r++) {
+                assertTrue(PackCatalogService.FINISH_DROP_CHANCE.get(rarities[r]).get(finish)
+                                < PackCatalogService.FINISH_DROP_CHANCE.get(rarities[r - 1]).get(finish),
+                        finish + " must be rarer on " + rarities[r] + " than on " + rarities[r - 1]);
+            }
+        }
+        assertTrue(PackCatalogService.FINISH_DROP_CHANCE.get(Rarity.COMMON).get(CardFinish.GSP) <= 1.0 / 10000,
+                "GSP is an act of god even on a Common.");
     }
 
     @Test
@@ -668,6 +768,18 @@ class PlayerProgressionServiceTest {
                     60,
                     new SieglingCard("draco", "Draco", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT)
             ));
+        }
+    }
+
+    /** Adds a card with dedicated holo art, which the Holo Art tier requires. */
+    private static class HoloArtCardDefinitionService extends FakeCardDefinitionService {
+        @Override
+        public List<Card> getDeckBuilderCatalog() {
+            SieglingCard glimmer = new SieglingCard("glimmer", "Glimmer", Element.FIRE, Rarity.COMMON, 6, 4, List.of(), Row.FRONT);
+            glimmer.setHolographicCardArtUrl("https://example.com/glimmer-holo.webp");
+            List<Card> cards = new java.util.ArrayList<>(super.getDeckBuilderCatalog());
+            cards.add(glimmer);
+            return cards;
         }
     }
 

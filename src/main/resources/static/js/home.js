@@ -7251,6 +7251,14 @@
     function binderHolographicOptions() {
         return {
             playerHolographicIds: playerHolographicCardIds(),
+            playerHoloArtIds: new Set((state.progression?.holoArtCards || [])
+                .map((id) => String(id || '').trim().toLowerCase()).filter(Boolean)),
+            playerGoldIds: new Set((state.progression?.goldCards || [])
+                .map((id) => String(id || '').trim().toLowerCase()).filter(Boolean)),
+            playerHoloGoldIds: new Set((state.progression?.holoGoldCards || [])
+                .map((id) => String(id || '').trim().toLowerCase()).filter(Boolean)),
+            playerHoloPlainIds: new Set((state.progression?.holoCards || [])
+                .map((id) => String(id || '').trim().toLowerCase()).filter(Boolean)),
             useHolographicFullCardArt: true
         };
     }
