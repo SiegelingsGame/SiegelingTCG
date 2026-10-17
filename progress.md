@@ -1,4 +1,7 @@
 Original prompt: Go with earth based art for endless
+- October 17, 2026 **Dominion: inventory tabs never need scrolling.**
+  - **Change.** The inventory's seven tabs were a sideways scroller, and Goods, Refine and Store sat off screen on a phone. They are now a wrapping grid (4 + 3 on phones, one row of 7 from 560px), sticky at the top of the sheet so the item list scrolls beneath them. First-visit tips now sit below open windows (z-index 35, under the modal's 40), so they no longer cover the inventory.
+  - **Verification.** Headless Chromium at 320x640, 390x844 and 1920x1080: the tab row has no horizontal overflow, all 7 buttons lie inside the sheet with no clipped labels, and after scrolling the list 600px the tabs stay at the top of the sheet. The inventory and store checks still pass, with no page errors.
 - October 17, 2026 **Dominion: a Keep inventory for every raw and manufactured material, and a Daily Store open from day one.**
   - **Change.**
     - **Keep inventory.** A sheet modelled on the Keep's own inventory panel (`keep.js` `inventoryMarkup`), with tabs All / Raw / Refined / Made / Goods / Refine / Store, Silver, Crowns and Insight at the top, and a card per item. The tabs cover:

@@ -570,8 +570,12 @@ button.dm-res-strip { border: 0; background: none; padding: 0; color: inherit; f
 
 /* Keep inventory and Daily Store */
 #ckModal[data-kind="inv"] .ck-modal-card { width: min(640px, 100%); }
-.dm-inv-tabs { display: flex; gap: 6px; overflow-x: auto; margin: 10px -2px 8px; padding: 2px; scrollbar-width: none; }
-.dm-inv-tabs button { flex: 0 0 auto; min-height: 38px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: var(--ink); font: 800 13px/1 var(--sans); cursor: pointer; }
+/* Every tab is on screen at once: a wrapping grid (4 + 3 on a phone, one row when wide), never a
+   sideways scroller. It sticks to the top of the sheet so the list scrolls under it. */
+.dm-inv-tabs { position: sticky; top: -18px; z-index: 2; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 10px -18px 8px; padding: 8px 18px;
+    background: linear-gradient(180deg, #0d1428 85%, rgba(13,20,40,0)); }
+@media (min-width: 560px) { .dm-inv-tabs { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+.dm-inv-tabs button { min-width: 0; min-height: 38px; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 12px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: var(--ink); font: 800 13px/1 var(--sans); cursor: pointer; }
 .dm-inv-tabs button.is-on { background: linear-gradient(180deg, #f6d77a, #e3b649); color: #2a1c06; border-color: #f6d77a; }
 .dm-inv-purse { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
 .dm-inv-card, .dm-offer { display: flex; align-items: center; gap: 12px; margin: 8px 0; padding: 10px 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); }
@@ -603,7 +607,7 @@ button.dm-res-strip { border: 0; background: none; padding: 0; color: inherit; f
     font: 900 10px/1.3 var(--sans); font-style: normal; box-shadow: 0 0 8px rgba(255,218,97,.7); white-space: nowrap; }
 
 /* First-visit tips float above the tab bar, outside the page flow, so one-screen tabs keep their layout. */
-.dm-hint { position: fixed; z-index: 45; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 78px); max-width: 560px; margin-inline: auto; display: flex; align-items: center; gap: 10px;
+.dm-hint { position: fixed; z-index: 35; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 78px); max-width: 560px; margin-inline: auto; display: flex; align-items: center; gap: 10px;
     padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(244,204,98,.5); background: rgba(14,20,34,.94); box-shadow: 0 10px 28px rgba(0,0,0,.45); color: var(--cream, #fff4dc); }
 .dm-hint p { margin: 0; flex: 1; font: 600 12.5px/1.35 var(--sans); }
 .dm-hint > span { font-size: 18px; }
