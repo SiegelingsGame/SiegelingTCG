@@ -1,4 +1,31 @@
 Original prompt: Go with earth based art for endless
+- October 17, 2026 **Dominion: a Keep inventory for every raw and manufactured material, and a Daily Store open from day one.**
+  - **Change.**
+    - **Keep inventory.** A sheet modelled on the Keep's own inventory panel (`keep.js` `inventoryMarkup`), with tabs All / Raw / Refined / Made / Goods / Refine / Store, Silver, Crowns and Insight at the top, and a card per item. The tabs cover:
+      - every Keep raw material with its source workshop (Timber shows its store meter);
+      - every refined material (`KeepEconomy.REFINED`);
+      - manufactured goods (crafted tools, decorations and bonuses, with display state);
+      - everything else carried, grouped by kind.
+
+      It opens from the Grounds resource row, the Base resource strip, a new 🎒 Inventory dock button, and the Upkeep section.
+    - **Daily Store.** It refreshes at local midnight and is open before the Storehouse. Each day it offers:
+      - 4 common lots;
+      - 2 tier-2 lots;
+      - 1 Crowns lot (runes, essences or tier 3);
+      - a 🔥 Deal of the day at 40% off with a double amount.
+
+      Gear is never sold. The Keep's bulk market lots join the same tab once the Storehouse stands.
+    - **Smaller changes.**
+      - The old "Stores" section is renamed Upkeep, so it isn't confused with the Store.
+      - Collect now explains a full Timber store ("The Timber store is full (300/300)…") instead of "Nothing to collect yet."
+      - Room standees keep the SVG cutout filter on the image alone, with no filter or transform animation on the parent, because iOS Safari can drop the image when both are present (a favorite with no visible art was reported).
+  - **Verification.**
+    - `node --check js/dominion.js`.
+    - Headless Chromium at 390x844 and 1920x1080:
+      - Tapping the resource row opens the inventory (18 cards; Raw, Refined, Manufactured and Goods sections).
+      - The Store lists 8 offers including a deal; buying Copper Fittings charges 8 Silver.
+      - Collect with 300/300 Timber shows the full-store message.
+    - The favorite, round 3, smoke and resting checks still pass, with no page errors.
 - October 16, 2026 **Standard (and every lower finish) can be viewed again once an account owns a higher finish of the card.**
   - **Change.** The shared showcase renderer in `game.js` treats a card's `finish` stamp as the whole truth, but without one it reads `holographic: false` as "unknown" and falls back to the signed-in account's finish lists. So the Collection's full-screen viewer and card-sheet version row drew the Standard (and Holo) face with the player's foil and SP art, and the dashboard's "Cards Menu View" Standard preview wore the designer's own holo. `versionFace` in `home-redesign.js` now stamps `finish` (`''` for Standard, else the version key) and the dashboard's `toBinderPreviewCard` stamps `finish` from its own foil checkbox (`HSP` or `''`). `home-redesign.js?v=110`, `card-dashboard.js?v=71`.
   - **Verification.** A headless-Chromium fixture loading `game.js` + `card-binder-visual.js` with an account owning HSP and SP of Firsky rendered the Standard face with foil and holo art before the stamp, and with neither after; HSP and HOLO stamps still draw their foil/sheen. `node --check` on both scripts.
