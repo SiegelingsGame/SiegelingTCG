@@ -2617,11 +2617,23 @@
     // cards are mentors who travel with them (the standee and road walker), chosen by tapping the portrait.
     const KNIGHT_TITLES = ['', 'Ser', 'Dame', 'Lady', 'Lord', 'Sir', 'Knight'];
     // Default player portraits (img/dominion/knights): one die-cut figure per element.
-    const PORTRAITS = ['fire', 'water', 'earth', 'wind', 'ice', 'electric', 'light', 'shadow', 'psychic', 'metal'];
+    // LiveElementCatalogService's filter order, restricted to the available player portraits.
+    const PORTRAITS = ['fire', 'ice', 'earth', 'wind', 'water', 'electric', 'metal', 'psychic', 'light', 'shadow'];
     const portraitOf = (k) => (PORTRAITS.includes(k && k.portrait) ? k.portrait : PORTRAITS.includes(k && k.crest && k.crest.color) ? k.crest.color : 'fire');
     const portraitSrc = (el, thumb) => '/img/dominion/knights/knight-' + el + (thumb ? '-thumb' : '') + '.webp';
     const CREST_EMBLEMS = ['🌲', '🔥', '🌊', '⛰️', '⭐', '🌙', '🦁', '🛡️', '🐉', '🌸'];
-    const CREST_COLORS = ['fire', 'water', 'earth', 'wind', 'ice', 'electric', 'light', 'shadow', 'psychic', 'metal'];
+    const CREST_COLORS = PORTRAITS;
+    const knightSpriteSrc = (el, pose) => '/img/dominion/knights/sprites/knight-' + el + '-' + (pose || 'idle') + '.webp';
+    function knightFigure(el, pose, thumb) {
+        pose = pose || 'idle';
+        return '<span class="dm-knight-figure" data-knight="' + el + '" data-pose="' + pose + '">' +
+            '<img class="dm-paper dm-knight-fallback" src="' + portraitSrc(el, thumb) + '" alt=""' + (thumb ? ' loading="lazy"' : '') + '>' +
+            '<span class="dm-knight-sprite"><img class="dm-knight-strip" src="' + knightSpriteSrc(el, pose) + '" alt=""' + (thumb ? ' loading="lazy"' : '') + ' onload="dmKnightSpriteReady(this)"></span></span>';
+    }
+    window.dmKnightSpriteReady = (img) => {
+        const ready = typeof img.decode === 'function' ? img.decode() : Promise.resolve();
+        ready.then(() => { const figure = img.closest('.dm-knight-figure'); if (figure && img.naturalWidth) figure.classList.add('is-ready'); }).catch(() => {});
+    };
     const CALLINGS = {
         woodwarden: ['🪓', 'Woodwarden', ['woodcutting', 'carpentry']], forager: ['🌿', 'Forager', ['foraging', 'cooking']], delver: ['⛏️', 'Delver', ['mining', 'excavation']],
         smith: ['⚒️', 'Smith', ['smelting', 'smithing']], scholar: ['📚', 'Scholar', ['elemental_studies', 'runecrafting']], weaver: ['🧵', 'Weaver', ['weaving', 'alchemy']]
@@ -2713,8 +2725,8 @@
         if (!draft) startDraft();
         const d = draft, preview = (d.title ? d.title + ' ' : '') + (d.given || 'Your name');
         return '<span class="ck-kicker">' + (S.knight.made ? 'Your knight' : 'A new knight') + '</span><h2 id="ckModalTitle">' + (S.knight.made ? 'Edit your knight' : 'Make your knight') + '</h2>' +
-            '<div class="dm-cc-preview"><span class="dm-cc-figure"><img class="dm-paper" src="' + portraitSrc(d.portrait) + '" alt=""></span><span>' + crest({ crest: { emblem: d.emblem, color: d.color } }) + '<b>' + esc(preview) + '</b><small>' + esc(CALLINGS[d.calling][1]) + '</small></span></div>' +
-            '<h3>Portrait</h3><div class="dm-cc-portraits">' + PORTRAITS.map((el) => '<button type="button" class="dm-cc-portrait' + (d.portrait === el ? ' is-on' : '') + '" data-act="cc" data-arg="portrait:' + el + '" style="--el:var(--' + el + ')" aria-label="' + titleCase(el) + ' knight"><img class="dm-paper" src="' + portraitSrc(el, true) + '" alt="" loading="lazy"><small>' + titleCase(el) + '</small></button>').join('') + '</div>' +
+            '<div class="dm-cc-preview"><span class="dm-cc-figure">' + knightFigure(d.portrait) + '</span><span>' + crest({ crest: { emblem: d.emblem, color: d.color } }) + '<b>' + esc(preview) + '</b><small>' + esc(CALLINGS[d.calling][1]) + '</small></span></div>' +
+            '<h3>Portrait</h3><div class="dm-cc-portraits">' + PORTRAITS.map((el) => '<button type="button" class="dm-cc-portrait' + (d.portrait === el ? ' is-on' : '') + '" data-act="cc" data-arg="portrait:' + el + '" style="--el:var(--' + el + ')" aria-label="' + titleCase(el) + ' knight">' + knightFigure(el, 'idle', true) + '<small>' + titleCase(el) + '</small></button>').join('') + '</div>' +
             '<h3>Name</h3><input id="dmKnightGiven" class="dm-cc-input" type="text" maxlength="20" autocomplete="off" placeholder="Your knight’s name" value="' + esc(d.given) + '">' +
             '<h3>Title</h3><div class="dm-cc-row">' + KNIGHT_TITLES.map((t) => '<button type="button" class="ck-pill' + (d.title === t ? ' is-on' : '') + '" data-act="cc" data-arg="title:' + t + '">' + (t || 'No title') + '</button>').join('') + '</div>' +
             '<h3>Crest</h3><div class="dm-cc-row">' + CREST_EMBLEMS.map((e) => '<button type="button" class="dm-cc-emblem' + (d.emblem === e ? ' is-on' : '') + '" data-act="cc" data-arg="emblem:' + e + '" aria-label="Emblem ' + e + '">' + e + '</button>').join('') + '</div>' +
@@ -2735,23 +2747,30 @@
             const selected = d[arg.slice(0, i)] === arg.slice(i + 1);
             button.classList.toggle('is-on', selected);
             button.setAttribute('aria-pressed', String(selected));
+            const strip = selected && button.querySelector('.dm-knight-strip');
+            if (strip && strip.complete && !strip.naturalWidth) strip.src = knightSpriteSrc(d.portrait);
         });
         // Keep the picker, focus and decoded art mounted. Only swap the preview once the
         // new portrait is ready, and ignore loads superseded by another choice or sheet.
-        const current = preview.querySelector('.dm-cc-figure img'), src = portraitSrc(d.portrait);
+        const current = preview.querySelector('.dm-knight-figure'), src = knightSpriteSrc(d.portrait);
         if (current.dataset.requested === src) return;
         current.dataset.requested = src;
-        if (current.getAttribute('src') === src) return;
+        if (current.dataset.knight === d.portrait) return;
         const next = new Image();
-        next.className = current.className; next.alt = '';
+        next.className = 'dm-knight-strip'; next.alt = '';
         const retry = () => { if (current.dataset.requested === src) delete current.dataset.requested; };
         next.onerror = retry;
         next.onload = () => {
             const ready = typeof next.decode === 'function' ? next.decode() : Promise.resolve();
             ready.then(() => {
-                if (draft === d && current.isConnected && current.dataset.requested === src && portraitSrc(d.portrait) === src) {
-                    next.dataset.requested = src;
-                    current.replaceWith(next);
+                if (draft === d && current.isConnected && current.dataset.requested === src && knightSpriteSrc(d.portrait) === src) {
+                    const holder = document.createElement('span');
+                    holder.innerHTML = knightFigure(d.portrait);
+                    const figure = holder.firstElementChild;
+                    figure.querySelector('.dm-knight-strip').replaceWith(next);
+                    figure.classList.add('is-ready');
+                    figure.dataset.requested = src;
+                    current.replaceWith(figure);
                 }
             }).catch(retry);
         };
@@ -2793,8 +2812,8 @@
         if (u && u.indexOf(STORAGE_ART_PREFIX) === 0 && token) return STORAGE_ART_PREFIX + encodeURIComponent('art-thumbs/' + token + '/w' + (width || 240) + '.webp') + '?alt=media&token=' + token;
         return u || '';
     }
-    function knightPaper(cls) {
-        return '<img class="dm-paper dm-self ' + (cls || '') + '" src="' + portraitSrc(portraitOf(S.knight)) + '" alt="">';
+    function knightPaper(pose) {
+        return knightFigure(portraitOf(S.knight), pose);
     }
     function mentorPaper(cls) {
         const id = knightCardId(), raw = id ? ART_URLS['knight:' + id] : '';
@@ -2905,15 +2924,26 @@
         const keepJ = {};
         main.querySelectorAll('.dm-journey').forEach((j) => { keepJ[j.dataset.start + ':' + j.dataset.end] = j; });
         const keepF = main.querySelector('.dm-front .front-battle');
-        const oldImgs = {};
-        main.querySelectorAll('img').forEach((im) => { const k = im.getAttribute('src'); if (k && im.complete && im.naturalWidth) (oldImgs[k] = oldImgs[k] || []).push(im); });
+        const oldImgs = {}, oldKnights = {};
+        main.querySelectorAll('.dm-knight-figure').forEach((figure) => {
+            if (figure.closest('.dm-journey')) return;
+            const k = figure.dataset.knight + ':' + figure.dataset.pose;
+            (oldKnights[k] = oldKnights[k] || []).push(figure);
+        });
+        main.querySelectorAll('img').forEach((im) => { const k = im.getAttribute('src'); if (!im.closest('.dm-knight-figure') && k && im.complete && im.naturalWidth) (oldImgs[k] = oldImgs[k] || []).push(im); });
         main.innerHTML = view();
+        // Keep the playing strip mounted so background refreshes do not restart its frames.
+        main.querySelectorAll('.dm-knight-figure').forEach((figure) => {
+            if (figure.closest('.dm-journey')) return;
+            const pool = oldKnights[figure.dataset.knight + ':' + figure.dataset.pose], old = pool && pool.pop();
+            if (old) figure.replaceWith(old);
+        });
         main.querySelectorAll('.dm-journey').forEach((j) => { const old = keepJ[j.dataset.start + ':' + j.dataset.end]; if (old) j.replaceWith(old); });
         const newF = main.querySelector('.dm-front .front-battle');
         if (keepF && newF && keepF.dataset.key === newF.dataset.key) newF.replaceWith(keepF);
         // Reuse already-decoded images so portraits and art never blink on a re-render.
         main.querySelectorAll('img').forEach((im) => {
-            if ((im.closest('.dm-journey') && !im.isConnected) || im.closest('.front-battle')) return;
+            if (im.closest('.dm-knight-figure') || (im.closest('.dm-journey') && !im.isConnected) || im.closest('.front-battle')) return;
             const pool = oldImgs[im.getAttribute('src')], old = pool && pool.pop();
             if (old && old !== im) { old.className = im.className; old.alt = im.alt; im.replaceWith(old); }
         });
@@ -3300,7 +3330,7 @@
             '<span class="dm-j-marker" data-live="walker" data-start="' + o.start + '" data-end="' + o.end + '"></span></div>' +
             '<script type="application/json" class="dm-j-labels">' + JSON.stringify(o.areas.map((a) => a.title + (a.status === 'ok' ? ' · handled' : a.status === 'part' ? ' · a struggle' : a.status === 'miss' ? ' · unanswered' : ''))).replace(/</g, '\\u003c') + '</script></section>';
     }
-    const knightWalker = () => ({ knight: true, html: knightPaper() });
+    const knightWalker = () => ({ knight: true, html: knightPaper('walk') });
     // A sworn mentor walks the road beside the Knight.
     const mentorWalkers = () => (knightCardId() ? [{ html: mentorPaper() }] : []);
     const compWalker = (id) => ({ html: compArt(id, C(id).name) });
@@ -3653,7 +3683,10 @@
         const dmg = (S.events || []).filter((e) => !e.repaired);
         if (dmg.length) ov.push('<button class="dm-pip" type="button" data-act="base-sec" data-arg="keep" style="right:4%;top:31%;pointer-events:auto;border-color:rgba(255,138,115,.7);color:#ffb3a3">' + dmg.length + ' to repair</button>');
         // Visitors at the gate are counted on the Grounds dock, not as a pip over the Archive.
-        $('dmSceneOverlay').innerHTML = ov.join('');
+        const overlay = $('dmSceneOverlay'), oldKnight = overlay.querySelector('.dm-knight-figure');
+        overlay.innerHTML = ov.join('');
+        const newKnight = overlay.querySelector('.dm-knight-figure');
+        if (oldKnight && newKnight && oldKnight.dataset.knight === newKnight.dataset.knight && oldKnight.dataset.pose === newKnight.dataset.pose) newKnight.replaceWith(oldKnight);
     }
 
     // The Keep's construction drawings (keep.js BUILD_ART): each group rises at its phase.

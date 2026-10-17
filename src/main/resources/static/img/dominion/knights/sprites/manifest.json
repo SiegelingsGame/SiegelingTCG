@@ -1,0 +1,202 @@
+{
+  "fire": {
+    "source": "1-Photo-1.jpg",
+    "cell": [
+      256,
+      384
+    ],
+    "frames": 6,
+    "poses": [
+      "idle",
+      "walk"
+    ],
+    "idleSourceFrames": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "metal": {
+    "source": "2-Photo-2.jpg",
+    "cell": [
+      256,
+      384
+    ],
+    "frames": 6,
+    "poses": [
+      "idle",
+      "walk"
+    ],
+    "idleSourceFrames": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "ice": {
+    "source": "3-Photo-3.jpg",
+    "cell": [
+      256,
+      384
+    ],
+    "frames": 6,
+    "poses": [
+      "idle",
+      "walk"
+    ],
+    "idleSourceFrames": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "psychic": {
+    "source": "4-Photo-4.jpg",
+    "cell": [
+      256,
+      384
+    ],
+    "frames": 6,
+    "poses": [
+      "idle",
+      "walk"
+    ],
+    "idleSourceFrames": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "shadow": {
+    "source": "5-Photo-5.jpg",
+    "cell": [
+      256,
+      384
+    ],
+    "frames": 6,
+    "poses": [
+      "idle",
+      "walk"
+    ],
+    "idleSourceFrames": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "light": {
+    "source": "6-Photo-6.jpg",
+    "cell": [
+      256,
+      384
+    ],
+    "frames": 6,
+    "poses": [
+      "idle",
+      "walk"
+    ],
+    "idleSourceFrames": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "wind": {
+    "source": "7-Photo-7.jpg",
+    "cell": [
+      256,
+      384
+    ],
+    "frames": 6,
+    "poses": [
+      "idle",
+      "walk"
+    ],
+    "idleSourceFrames": [
+      1,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "earth": {
+    "source": "8-Photo-8.jpg",
+    "cell": [
+      256,
+      384
+    ],
+    "frames": 6,
+    "poses": [
+      "idle",
+      "walk"
+    ],
+    "idleSourceFrames": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "water": {
+    "source": "9-Photo-9.jpg",
+    "cell": [
+      256,
+      384
+    ],
+    "frames": 6,
+    "poses": [
+      "idle",
+      "walk"
+    ],
+    "idleSourceFrames": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "electric": {
+    "source": "10-Photo-10.jpg",
+    "cell": [
+      256,
+      384
+    ],
+    "frames": 6,
+    "poses": [
+      "idle",
+      "walk"
+    ],
+    "idleSourceFrames": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      1
+    ]
+  }
+}
