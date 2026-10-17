@@ -301,6 +301,21 @@
     // Live card art for any species; the three starters keep their hand-aimed local crops.
     let ART_URLS = {};
     const STORAGE_ART_PREFIX = 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/';
+    // The registry export still lists retired species; once the live art map arrives, only species
+    // the card catalog really has may appear in the wilds or march on the Wall.
+    const isLive = (k) => !Object.keys(ART_URLS).length || !!ART_URLS[k];
+    function liveSightings(s) {
+        const by = (el) => Object.keys(SPECIES).filter((k) => SPECIES[k].element === el && SPECIES[k].stage === 1 && isLive(k));
+        let changed = false;
+        (s.sightings || []).forEach((v) => {
+            if (isLive(v.species)) return;
+            const sp = SPECIES[v.species] || {}, pool = by(sp.element).length ? by(sp.element) : Object.keys(SPECIES).filter((k) => SPECIES[k].stage === 1 && isLive(k));
+            if (!pool.length) return;
+            v.species = pool[((hashOf(v.id) % pool.length) + pool.length) % pool.length];
+            changed = true;
+        });
+        if (changed) s.rev++;
+    }
     function catalogArt(speciesId, width) {
         const u = ART_URLS[speciesId];
         if (!u) return '';
@@ -739,7 +754,7 @@
     }
     function grantAffinity(s, el, xp) {
         if (!(xp > 0) || !(el in s.knight.affinity)) return;
-        xp *= 1 + 0.02 * ((s.wings && s.wings.library) || 0);
+        xp *= (1 + 0.02 * ((s.wings && s.wings.library) || 0)) * (mentorEl(s) === el ? 1.1 : 1);
         const before = affLvl(s, el);
         s.knight.affinity[el] += xp;
         levelUp(s, titleCase(el) + ' Affinity', before, affLvl(s, el), false);
@@ -796,7 +811,7 @@
     }
     function knightSpeed(s, def) {
         const wing = wingFor(def.skillId);
-        return 1 + toolBonus(s, def) + helperBonus(s, def) + toolSpeed(s, def.skillId) + (wing ? wingSpeed(s, wing) : 0) + (skillLvl(s, def.skillId) >= 100 ? 0.2 : 0);
+        return 1 + toolBonus(s, def) + helperBonus(s, def) + toolSpeed(s, def.skillId) + callingSpeed(s, def.skillId) + (wing ? wingSpeed(s, wing) : 0) + (skillLvl(s, def.skillId) >= 100 ? 0.2 : 0);
     }
     const actionMs = (s, def) => def.actionSeconds * ACTION_SCALE * 1000 / knightSpeed(s, def);
     function usable(s, inputs) {
@@ -2056,7 +2071,7 @@
         const rand = rng(x.id + ':sighting');
         const chance = d.sighting * (x.weapon === 'bow' ? 1.5 : 1) * (1 + okN * 0.05);
         if (rand() >= chance) return null;
-        const pool = Object.keys(SPECIES).filter((k) => SPECIES[k].element === d.element && SPECIES[k].stage === 1);
+        const pool = Object.keys(SPECIES).filter((k) => SPECIES[k].element === d.element && SPECIES[k].stage === 1 && isLive(k));
         if (!pool.length) return null;
         // Rarer species surface on higher-tier roads.
         const weight = (sp) => ({ COMMON: 6, UNCOMMON: 3 + (d.tier || 0), RARE: 1 + (d.tier || 0), EPIC: Math.max(0, (d.tier || 0) - 1), LEGENDARY: Math.max(0, (d.tier || 0) - 2) })[sp.rarity] || 1;
@@ -2363,7 +2378,7 @@
     }
     function bootOnline() {
         if (!ONLINE) return Promise.resolve();
-        api('/api/dominion/art').then((m) => { if (m && !m.error) { ART_URLS = m; renderAll(); } });
+        api('/api/dominion/art').then((m) => { if (m && !m.error) { ART_URLS = m; liveSightings(S); save(); renderAll(); } });
         if (!authToken()) { NET.checked = true; renderAll(); return Promise.resolve(); }
         return api('/api/dominion').then((d) => {
             NET.checked = true;
@@ -2592,6 +2607,48 @@
     // The Knight is a SiegeKnight with overlay (cutout) art, drawn as a paper standee like the
     // Siegelings. Full-card art can't be cut out, so it is only the offline fallback.
     const DEFAULT_KNIGHT = 'aero';
+    // The player's own knight: a name, an optional title, a crest and a calling. The SiegeKnight
+    // cards are mentors who travel with them (the standee and road walker), chosen by tapping the portrait.
+    const KNIGHT_TITLES = ['', 'Ser', 'Dame', 'Lady', 'Lord', 'Sir', 'Knight'];
+    const CREST_EMBLEMS = ['🌲', '🔥', '🌊', '⛰️', '⭐', '🌙', '🦁', '🛡️', '🐉', '🌸'];
+    const CREST_COLORS = ['fire', 'water', 'earth', 'wind', 'ice', 'electric', 'light', 'shadow', 'psychic', 'metal'];
+    const CALLINGS = {
+        woodwarden: ['🪓', 'Woodwarden', ['woodcutting', 'carpentry']], forager: ['🌿', 'Forager', ['foraging', 'cooking']], delver: ['⛏️', 'Delver', ['mining', 'excavation']],
+        smith: ['⚒️', 'Smith', ['smelting', 'smithing']], scholar: ['📚', 'Scholar', ['elemental_studies', 'runecrafting']], weaver: ['🧵', 'Weaver', ['weaving', 'alchemy']]
+    };
+    const callingSpeed = (s, skill) => { const c = CALLINGS[s.knight.calling]; return c && c[2].includes(skill) ? 0.1 : 0; };
+    const mentorEl = (s) => String(ART_URLS['knight-el:' + (s.knight.card || DEFAULT_KNIGHT)] || '').toUpperCase();
+    function crest(k, cls) {
+        const c = (k && k.crest) || {};
+        return '<span class="dm-crest' + (cls ? ' ' + cls : '') + '" style="--el:var(--' + (c.color || 'light') + ')" aria-hidden="true"><i>' + (c.emblem || '🛡️') + '</i></span>';
+    }
+    let draft = null;
+    function startDraft() {
+        const k = S.knight, given = k.made ? (k.given || k.name) : '';
+        draft = { given: given, title: k.made ? (k.title || '') : 'Ser', emblem: (k.crest && k.crest.emblem) || '🛡️', color: (k.crest && k.crest.color) || 'light', calling: k.calling || 'woodwarden', mentor: k.card || DEFAULT_KNIGHT };
+    }
+    function createModal() {
+        if (!draft) startDraft();
+        const d = draft, preview = (d.title ? d.title + ' ' : '') + (d.given || 'Your name');
+        return '<span class="ck-kicker">' + (S.knight.made ? 'Your knight' : 'A new knight') + '</span><h2 id="ckModalTitle">' + (S.knight.made ? 'Edit your knight' : 'Make your knight') + '</h2>' +
+            '<div class="dm-cc-preview">' + crest({ crest: { emblem: d.emblem, color: d.color } }, 'is-lg') + '<b>' + esc(preview) + '</b><small>' + esc(CALLINGS[d.calling][1]) + '</small></div>' +
+            '<h3>Name</h3><input id="dmKnightGiven" class="dm-cc-input" type="text" maxlength="20" autocomplete="off" placeholder="Your knight’s name" value="' + esc(d.given) + '">' +
+            '<h3>Title</h3><div class="dm-cc-row">' + KNIGHT_TITLES.map((t) => '<button type="button" class="ck-pill' + (d.title === t ? ' is-on' : '') + '" data-act="cc" data-arg="title:' + t + '">' + (t || 'No title') + '</button>').join('') + '</div>' +
+            '<h3>Crest</h3><div class="dm-cc-row">' + CREST_EMBLEMS.map((e) => '<button type="button" class="dm-cc-emblem' + (d.emblem === e ? ' is-on' : '') + '" data-act="cc" data-arg="emblem:' + e + '" aria-label="Emblem ' + e + '">' + e + '</button>').join('') + '</div>' +
+            '<div class="dm-cc-row">' + CREST_COLORS.map((c) => '<button type="button" class="dm-cc-color' + (d.color === c ? ' is-on' : '') + '" data-act="cc" data-arg="color:' + c + '" style="--el:var(--' + c + ')" aria-label="' + titleCase(c) + '"></button>').join('') + '</div>' +
+            '<h3>Calling</h3><div class="dm-cc-callings">' + Object.keys(CALLINGS).map((id) => { const c = CALLINGS[id]; return '<button type="button" class="dm-cc-calling' + (d.calling === id ? ' is-on' : '') + '" data-act="cc" data-arg="calling:' + id + '"><span>' + c[0] + '</span><b>' + c[1] + '</b><small>' + c[2].map((x) => (SKILLS[x] ? SKILLS[x].name : titleCase(x))).join(' & ') + ' +10% faster</small></button>'; }).join('') + '</div>' +
+            (knightCards().length ? '<h3>Mentor</h3><p class="ck-small ck-muted">A SiegeKnight who trains you and walks the roads with you. Their element’s affinity grows 10% faster. Change them any time by tapping their portrait.</p>' + mentorGrid(d.mentor, 'cc') : '') +
+            '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="cc-save">' + (S.knight.made ? 'Save' : 'Begin') + '</button>' + (S.knight.made ? '<button type="button" class="ck-btn" data-act="close-modal">Cancel</button>' : '') + '</div>';
+    }
+    function mentorGrid(on, mode) {
+        return '<div class="dm-knight-picker">' + knightCards().map((id) => '<button type="button" class="dm-knight-pick' + (id === on ? ' is-on' : '') + '" data-act="' + (mode === 'cc' ? 'cc' : 'mentor') + '" data-arg="' + (mode === 'cc' ? 'mentor:' : '') + esc(id) + '" style="--el:var(--' + elKey(ART_URLS['knight-el:' + id]) + ')">' +
+            '<span class="dm-knight-pick-art"><img class="dm-paper" src="' + esc(thumbOf(ART_URLS['knight:' + id], 240)) + '" data-raw="' + esc(ART_URLS['knight:' + id]) + '" alt="" loading="lazy" onerror="dmArtFallback(this)"></span>' +
+            '<small>' + esc(ART_URLS['knight-name:' + id]) + '</small><em>' + esc(titleCase(ART_URLS['knight-el:' + id] || '')) + '</em></button>').join('') + '</div>';
+    }
+    function mentorModal() {
+        return '<span class="ck-kicker">Mentor</span><h2 id="ckModalTitle">Choose your mentor</h2><p class="ck-small ck-muted">The SiegeKnight who trains you and walks the roads with you. Their element’s affinity grows 10% faster.</p>' +
+            mentorGrid(knightCardId(), 'mentor') + '<div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
+    }
     const knightCards = () => Object.keys(ART_URLS).filter((k) => k.indexOf('knight:') === 0).map((k) => k.slice(7))
         .sort((a, b) => String(ART_URLS['knight-name:' + a]).localeCompare(String(ART_URLS['knight-name:' + b])));
     const knightCardId = () => (ART_URLS['knight:' + (S.knight.card || DEFAULT_KNIGHT)] ? (S.knight.card || DEFAULT_KNIGHT) : knightCards()[0] || '');
@@ -2634,7 +2691,7 @@
     function renderModal() {
         if (!modal) return;
         const m = $('ckModal'), body = $('ckModalBody');
-        const html = ({ report: reportModal, away: awayModal, plan: planModal, item: itemModal, skill: skillModal, menu: menuModal, inv: invModal, objective: objectiveModal, coach: coachModal, lore: loreModal, voice: voiceModal, comp: null }[modal.kind] || (() => ''))(modal.arg);
+        const html = ({ report: reportModal, away: awayModal, plan: planModal, item: itemModal, skill: skillModal, menu: menuModal, inv: invModal, create: createModal, mentor: mentorModal, objective: objectiveModal, coach: coachModal, lore: loreModal, voice: voiceModal, comp: null }[modal.kind] || (() => ''))(modal.arg);
         const scroll = body.scrollTop;
         m.dataset.kind = modal.kind;
         body.innerHTML = html;
@@ -2669,6 +2726,7 @@
         const d = new Date(now()), off = Math.round(S.offset / HOUR);
         $('ckClock').textContent = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
         $('ckClock').title = off ? 'Test clock: ' + off + 'h ahead' : '';
+        document.querySelectorAll('.dm-pass-clock').forEach((e) => { e.textContent = '· ' + $('ckClock').textContent; });
     }
     function renderStatus() {
         const parts = [];
@@ -2679,13 +2737,13 @@
         const st = ['woodlot'].concat(Object.keys(WS)).reduce((a, id) => a + storedCount(S, id), 0);
         if (st > 0) parts.push('<button type="button" class="ck-stat" data-act="collect-all"><span class="ck-dot is-ready"></span><span>Collect ' + st + '</span></button>');
         if ((S.builds || []).length) parts.push('<button type="button" class="ck-stat" data-act="base-sec" data-arg="build"><span class="ck-dot is-on"></span><span>' + esc(S.builds[0].name) + '</span>' + eta(S.builds[0].endAt) + '</button>');
-        parts.push('<button type="button" class="ck-stat dm-pass" data-act="pass" data-arg="4" title="Test control: advances the shared clock by 4 hours"><span>⏩ +4h</span></button>');
+        parts.push('<button type="button" class="ck-stat dm-pass" data-act="pass" data-arg="4" title="Test control: advances the shared clock by 4 hours"><span>⏩ +4h <span class="dm-pass-clock"></span></span></button>');
         $('ckStatus').innerHTML = parts.join('');
     }
 
     // First-visit tips: a single dismissible line per tab instead of a walkthrough.
     const HINTS = {
-        knight: 'Your SiegeKnight: pick their art, wear crafted gear, and watch their rank grow from everything the Keep does.',
+        knight: 'This is your knight. Tap your mentor’s portrait to change who trains you; ✏️ edits your name, crest and calling.',
         company: 'Give each Siegeling a job: help a room, rest in the Enclave, explore, or stand on Akhar’s Wall.',
         work: 'Choose what the Knight works on. Tools crafted in the matching room make that work faster.',
         expedition: 'Pack provisions or food, pick a party and send them down a road. You can watch them walk.',
@@ -2792,9 +2850,12 @@
         const worn = SLOTS.map((sl) => k.equip[sl[0]]);
         const bag = Object.keys(RES).filter((x) => !GEAR_SLOT[RES[x].kind] && RES[x].kind !== 'CURRENCY' && fl(S.inv[x]) > 0);
         let h = hero({
-            cls: 'is-knight', scene: namedScene('light-shelter'), kicker: 'Rank ' + rankLvl(S) + ' · ' + esc(HALL_RANKS[S.b.hall - 1]), title: esc(k.name),
-            art: '<span class="ck-portrait is-hero dm-paper-frame dm-knight-portrait" style="--el:var(--' + elKey(ART_URLS['knight-el:' + knightCardId()] || 'WIND') + ')">' + knightPaper() + '</span>',
+            cls: 'is-knight', scene: namedScene('light-shelter'), kicker: 'Rank ' + rankLvl(S) + ' · ' + esc(HALL_RANKS[S.b.hall - 1]) + (CALLINGS[k.calling] ? ' · ' + CALLINGS[k.calling][1] : ''),
+            title: crest(k) + esc(k.name),
+            art: '<button type="button" class="ck-portrait is-hero dm-paper-frame dm-knight-portrait dm-mentor-btn" data-act="mentor-pick" aria-label="Change your mentor" style="--el:var(--' + elKey(ART_URLS['knight-el:' + knightCardId()] || 'WIND') + ')">' + knightPaper() +
+                (knightCardId() ? '<span class="dm-mentor-tag">Mentor · ' + esc(ART_URLS['knight-name:' + knightCardId()] || '') + ' ▸</span>' : '') + '</button>',
             body: barP(rp.pct, 'is-fat') + '<p class="ck-banner-line">' + esc(rp.label) + ' rank XP</p>' +
+                '<div class="ck-pills"><button type="button" class="ck-pill" data-act="create">✏️ Edit knight</button></div>' +
                 '<div class="ck-bubbles"><span class="ck-bubble">🗺️ <b>' + (S.runs || 0) + '</b> trips</span><span class="ck-bubble">🐾 <b>' + tamed + '</b> companions</span>' +
                 '<span class="ck-bubble">👑 <b>' + fl(S.inv.crowns) + '</b></span><span class="ck-bubble">🪙 <b>' + fl(S.inv.silver) + '</b></span></div>'
         });
@@ -2812,13 +2873,6 @@
             '<p class="ck-hint">Every weapon and garment is crafted: Carpentry carves wooden gear, Smithing forges metal, Weaving sews cloth. Weapon tier adds 20% to that weapon’s rewards on the road.</p>' +
             '<h4>Gathering tool</h4><div class="ck-tiles is-gear">' + ['woodaxe', 'pickaxe'].filter((t) => fl(S.inv[t]) > 0).map((t) =>
                 '<button type="button" class="ck-tile' + (k.tool === t ? ' is-on' : '') + '" data-act="tool" data-arg="' + t + '"' + (busy ? ' disabled' : '') + ' title="' + esc(RES[t].blurb) + '">' + itemIcon(t) + '<b>' + esc(RES[t].name) + '</b>' + (k.tool === t ? '<span class="ck-tile-tag">Carried</span>' : '') + '</button>').join('') + '</div></section>';
-        const ks = knightCards();
-        if (ks.length) {
-            h += '<section class="ck-card"><h3>🛡️ Your SiegeKnight</h3><p class="ck-small ck-muted">Who walks the roads and stands at the Hall door. Cosmetic: skills, gear and progress stay with you.</p><div class="dm-knight-picker">' +
-                ks.map((id) => '<button type="button" class="dm-knight-pick' + (id === knightCardId() ? ' is-on' : '') + '" data-act="knight-card" data-arg="' + esc(id) + '" style="--el:var(--' + elKey(ART_URLS['knight-el:' + id]) + ')">' +
-                    '<span class="dm-knight-pick-art"><img class="dm-paper" src="' + esc(thumbOf(ART_URLS['knight:' + id], 240)) + '" data-raw="' + esc(ART_URLS['knight:' + id]) + '" alt="" loading="lazy" onerror="dmArtFallback(this)"></span>' +
-                    '<small>' + esc(ART_URLS['knight-name:' + id]) + '</small></button>').join('') + '</div></section>';
-        }
         const GROUP_EMOJI = { Gathering: '🌿', Production: '⚒️', Siegeling: '🐾', Expedition: '🧭', Knowledge: '📚' };
         SKILL_GROUPS.forEach((gp) => {
             const ids = Object.keys(SKILLS).filter((id) => SKILLS[id].group === gp[0]);
@@ -2970,8 +3024,7 @@
     function viewWork() {
         const sk = workSkill(), isCraft = craftSkills().includes(sk), group = isCraft ? craftSkills() : gatherSkills(), working = activeSkill();
         S.ui.workSkill = sk;
-        return nowStrip(working) +
-            '<div class="ck-worktype" role="tablist" aria-label="Task type">' +
+        return '<div class="ck-worktype" role="tablist" aria-label="Task type">' +
             '<button type="button" role="tab" aria-selected="' + !isCraft + '" class="ck-type' + (!isCraft ? ' is-on' : '') + '" data-act="work-type" data-arg="gather">Gathering' + (gatherSkills().includes(working) ? '<span class="ck-dot is-on"></span>' : '') + '</button>' +
             '<button type="button" role="tab" aria-selected="' + isCraft + '" class="ck-type' + (isCraft ? ' is-on' : '') + '" data-act="work-type" data-arg="craft">Crafting' + (craftSkills().includes(working) ? '<span class="ck-dot is-on"></span>' : '') + '</button></div>' +
             '<div class="ck-skillbar" aria-label="Professions">' + group.map((id) => {
@@ -2990,13 +3043,26 @@
             '<span class="ck-nowbar-text"><b>' + esc(taskLabel(S)) + '</b><span class="ck-small ' + (S.knight.stall ? 'ck-warn' : 'ck-muted') + '">' + esc(S.knight.stall || (g.concat(u).join(', ') + ' per hour' + (help ? ' · ' + C(help).name + ' assisting' : ''))) + '</span></span>' +
             '<span class="ck-bar is-live"><i data-live="action"></i></span></button><button type="button" class="ck-btn is-sm" data-act="task" data-arg="idle:">Rest</button></div>';
     }
+    // What the Knight is doing, shown inside the skill's art card above its XP line, so the page
+    // leads with the art instead of a separate status strip.
+    function taskPanel(id) {
+        const working = activeSkill(), def = taskDef(S.knight.task);
+        if (S.exp) return '<div class="dm-task is-idle"><span class="ck-dot is-on"></span><span class="dm-task-text"><b>On the road: ' + esc(expTitle(S.exp)) + '</b><small>Work resumes when the Knight returns in ' + fmtDur(S.exp.endAt - S.t) + '.</small></span></div>';
+        if (!def) return '<div class="dm-task is-idle"><span class="ck-dot"></span><span class="dm-task-text"><b>Resting</b><small>Tap a task below to start. Work runs while you are away.</small></span></div>';
+        if (working !== id) return '<button type="button" class="dm-task is-elsewhere" data-act="work-skill" data-arg="' + esc(working) + '"><span class="ck-dot is-on"></span><span class="dm-task-text"><b>Working: ' + esc(taskLabel(S)) + '</b><small>' + esc(SKILLS[working] ? SKILLS[working].name : '') + ' · tap to view</small></span></button>';
+        const r = knightRates(S), help = knightHelper(S);
+        const g = Object.keys(r.gain).map((x) => '+' + fmtRate(r.gain[x]) + ' ' + itemName(x)), u = Object.keys(r.use).map((x) => '−' + fmtRate(r.use[x]) + ' ' + itemName(x));
+        return '<div class="dm-task">' + emojiIcon(SKILL_EMOJI[working] || '✨', SKILL_LOOK[working], 'is-sm is-spin') +
+            '<span class="dm-task-text"><b>' + esc(taskLabel(S)) + '</b><small class="' + (S.knight.stall ? 'ck-warn' : '') + '">' + esc(S.knight.stall || (g.concat(u).join(', ') + ' per hour' + (help ? ' · ' + C(help).name + ' assisting' : ''))) + '</small></span>' +
+            '<button type="button" class="ck-btn is-sm" data-act="task" data-arg="idle:">Rest</button><span class="ck-bar is-live"><i data-live="action"></i></span></div>';
+    }
     function skillHead(id) {
         const sk = SKILLS[id], un = skillUnlocked(S, id), pr = xpProgress(S.knight.skills[id]), hue = SKILL_LOOK[id] || 'neutral';
         return hero({
             cls: 'is-skill', el: hue.toUpperCase(), scene: namedScene(PROFESSION_SCENES[id] || 'earth-journey'), kicker: (sk.group === 'Gathering' ? 'Gathering' : 'Crafting') + (un ? '' : ' · Locked') + (SKILL_PLACE[id] ? ' · ' + esc(SKILL_PLACE[id]) : ''),
             title: '<span class="ck-banner-emoji" aria-hidden="true">' + (SKILL_EMOJI[id] || '⭐') + '</span>' + esc(sk.name),
             art: '<span class="ck-level-orb' + (un ? '' : ' is-locked') + '"><small>Level</small><b>' + (un ? pr.l : '&#128274;') + '</b></span>',
-            body: (un ? barP(pr.pct, 'is-fat') + '<p class="ck-banner-line">' + esc(pr.label) + ' XP</p>' : '<p class="ck-banner-line is-warn">' + esc(lockText(S, id)) + '</p>') + '<p class="ck-banner-line">' + esc(sk.blurb || '') + '</p>'
+            body: taskPanel(id) + (un ? barP(pr.pct, 'is-fat') + '<p class="ck-banner-line">' + esc(pr.label) + ' XP</p>' : '<p class="ck-banner-line is-warn">' + esc(lockText(S, id)) + '</p>') + '<p class="ck-banner-line">' + esc(sk.blurb || '') + '</p>'
         });
     }
     const cellTop = (lv, xp) => '<span class="ck-cell-top"><span class="ck-cell-lv">Lv ' + lv + '</span><span class="ck-cell-xp">' + xp + ' xp</span></span>';
@@ -4265,7 +4331,7 @@
             '<h3>Test time</h3><div class="ck-pills"><button type="button" class="ck-pill" data-act="pass" data-arg="1">Pass 1 hour</button><button type="button" class="ck-pill" data-act="pass" data-arg="4">Pass 4 hours</button><button type="button" class="ck-pill" data-act="pass" data-arg="12">Pass 12 hours</button></div>' +
             '<h3>Start over</h3><p class="ck-small ck-muted">Erase this save and begin again on bare ground' + (ONLINE && NET.signedIn ? ' (your synced save is replaced too)' : '') + '.</p>' +
             '<div class="ck-actions">' + (confirmReset ? '<button type="button" class="ck-btn is-primary" data-act="reset-yes">Erase and restart</button><button type="button" class="ck-btn" data-act="reset-no">Keep my save</button>' : '<button type="button" class="ck-btn" data-act="reset">Reset Dominion</button>') + '</div>' +
-            '<div class="ck-actions"><a class="ck-btn is-glass" href="/home">Back to the hub</a><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
+            '<div class="ck-actions"><button type="button" class="ck-btn" data-act="create">✏️ Edit your knight</button><a class="ck-btn is-glass" href="/home">Back to the hub</a><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
     }
 
     // —— Clock ——
@@ -4358,7 +4424,20 @@
             toast('Made ' + recipeName(CRAFTS[arg]) + '.');
             break;
         case 'equip': { const parts = String(arg).split(':'); const msg = equip(s, parts[0], parts[1]); if (msg) { toast(msg); return; } break; }
-        case 'knight-card': if (ART_URLS['knight:' + arg]) { s.knight.card = arg; s.knight.name = ART_URLS['knight-name:' + arg] || s.knight.name; s.rev++; } break;
+        case 'mentor': if (ART_URLS['knight:' + arg]) { s.knight.card = arg; s.rev++; closeModal(); toast(ART_URLS['knight-name:' + arg] + ' is now your mentor.'); } break;
+        case 'mentor-pick': if (knightCards().length) openModal('mentor'); return;
+        case 'create': startDraft(); openModal('create'); return;
+        case 'cc': { const i = arg.indexOf(':'), key = arg.slice(0, i), v = arg.slice(i + 1); if (!draft) startDraft(); draft[key] = v; renderModal(); return; }
+        case 'cc-save': {
+            const given = String((draft && draft.given) || '').replace(/\s+/g, ' ').trim();
+            if (given.length < 2) { toast('Give your knight a name (2–20 letters).'); return; }
+            const k = s.knight;
+            k.given = given; k.title = draft.title; k.name = (draft.title ? draft.title + ' ' : '') + given;
+            k.crest = { emblem: draft.emblem, color: draft.color }; k.calling = draft.calling;
+            if (ART_URLS['knight:' + draft.mentor]) k.card = draft.mentor;
+            const first = !k.made; k.made = true; draft = null; s.rev++; closeModal();
+            toast(first ? 'Welcome, ' + k.name + '.' : 'Your knight is updated.'); break;
+        }
         case 'tool': if (knightBusy(s) || fl(s.inv[arg]) < 1) return; s.knight.tool = arg; s.rev++; break;
         case 'comp-toggle': openComp = openComp === arg ? '' : arg; if (s.ui.tab !== 'company') setTab('company'); break;
         case 'feed': { const parts = String(arg).split(':'); const b = feedBlock(s, parts[0], parts[1]); if (b) { toast(b); return; } feed(s, parts[0], parts[1]); toast(C(parts[0]).name + ' enjoyed the ' + RES[parts[1]].name + '.'); break; }
@@ -4516,8 +4595,12 @@
             const b = e.target.closest('[data-building]');
             if (b) act('room', b.dataset.building);
         });
-        $('ckModal').addEventListener('click', (e) => { if (e.target === $('ckModal')) closeModal(); });
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal) closeModal(); });
+        // A brand-new knight must be made before play: that one sheet does not close on a stray tap.
+        const mustCreate = () => modal && modal.kind === 'create' && !S.knight.made;
+        $('ckModal').addEventListener('click', (e) => { if (e.target === $('ckModal') && !mustCreate()) closeModal(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal && !mustCreate()) closeModal(); });
+        // The name field keeps its draft as you type, so tapping a crest or calling never wipes it.
+        document.addEventListener('input', (e) => { if (e.target.id === 'dmKnightGiven' && draft) draft.given = e.target.value.slice(0, 20); });
         document.addEventListener('submit', (e) => {
             const f = e.target.closest('[data-form]');
             if (!f) return;
@@ -4529,7 +4612,7 @@
         document.body.dataset.screen = 'main';
         ['ckTabs', 'ckRank', 'ckStatus', 'ckAvatar', 'ckCrowns'].forEach((id) => { $(id).hidden = false; });
         renderAll();
-        if (S.away) openModal('away'); else maybeShowReport();
+        if (!S.knight.made) { startDraft(); openModal('create'); } else if (S.away) openModal('away'); else maybeShowReport();
         setInterval(step, 1000);
         setInterval(save, 10000);
         if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(frontLoop);
