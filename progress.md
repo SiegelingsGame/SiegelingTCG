@@ -1,4 +1,28 @@
 Original prompt: Go with earth based art for endless
+- October 17, 2026 **Dominion: SiegeKnight mentors must be met and won over — squires easily, knights harder, raiders tougher, lords a long effort.**
+  - **Change.**
+    - **Server.** `DominionService.art()` now sends every SiegeKnight with art, not only the overlay ones, with `knight-tier:` (SiegeSquire, SiegeKnight, Raider or SiegeLord) and `knight-full:` for full-card art. Full-card art is framed as a card, because it cannot be cut out.
+    - **Meeting.**
+      - **Squires:** one waits at the Keep gate each day (Ser Airek first on a new save) and is greeted from the Mentors sheet.
+      - **Knights:** met on returning roads (35%, preferring the road's element).
+      - **Raiders:** met on tier-2+ roads (15%) or after a held siege wave (30%).
+      - **Lords:** met on the Sunken Vault or tier-3 roads with Hall 5+ (20%), or after a siege held at Wall 6+ (10%).
+
+      A met mentor appears in the expedition report.
+    - **Winning them over.** Each met mentor has a rapport meter. You build it by:
+      - 💬 Talk: +1, once a day;
+      - 🎁 Gift: up to twice a day — squire 10 Silver for +1, knight 40 Silver for +2, raider 60 Crowns for +2, lord 150 Crowns and a Keystone for +4;
+      - shared deeds: +2 for each finished road of their element, and +1 per held siege for raiders and lords.
+    - **Swearing in.** At full rapport (squire 3, knight 10, raider 20, lord 40), and once the tier's proof is met, "Ask to train you" swears them in. The proofs are: knights want Knight Rank 5; raiders want Akhar's Wall 3 and 3 sieges held; lords want Hall 6 and the Sunken Vault cleared.
+    - **Mentor effects.** Only a sworn mentor walks the roads, stands in the scene and gives +10% affinity for their element; any sworn mentor can be set as the active one. Until then, the Knight stands under their own crest. The creation sheet no longer picks a mentor, and an existing save's unsworn pick is ignored. The mentor portrait opens the Mentors sheet, which has four sections: your mentors, the squire at the gate today, those being won over, and a count of who is still unmet per tier.
+  - **Verification.**
+    - `./mvnw -q -DskipTests compile` and the Dominion tests.
+    - Headless Chromium at 390x844 and 1920x1080, with the live trainer list (25 trainers in four tiers):
+      - **New save:** no mentor, and a crest standee.
+      - **Gate squire:** greeting Ser Airek works. A second talk the same day is refused; two gifts go through and the third is refused (rapport 3, Silver 100→80). Asking swears him in and sets the mentor.
+      - **Roads and Wall:** a road trip met Lady Verity. A held siege met the raider Aldera.
+      - **Proofs:** at full rapport, asks for a knight, a raider and a lord are refused with "Knight Rank 5", "Akhar's Wall 3 and 3 sieges held" and "Hall 6 and the Sunken Vault cleared".
+    - The smoke, round 4, inventory and journey checks still pass, with no page errors.
 - October 17, 2026 **Dominion: make your own knight with a SiegeKnight mentor, the current task inside the skill's art card, no truncated names, and only real Siegelings in the wilds.**
   - **Change.**
     - **Character creation.** A sheet opens on first visit, and from ✏️ Edit knight or the ⋯ menu. It sets:
