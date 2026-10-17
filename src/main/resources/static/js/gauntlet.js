@@ -21,6 +21,8 @@
     deckId: null,
     knightId: null,
     tab: 'deck',
+    // The next-floor box: 'details' (HP, blurb, boss) or 'cards' (what the room holds).
+    encTab: 'details',
     busy: false,
     // Cards drawn in the encounter preview, indexed by data-enemy-view.
     enemyCards: []
@@ -228,19 +230,31 @@
       + '</div></' + tag + '>';
   }
 
-  function foeGroup(label, html) {
-    return '<div class="gt-foe-group"><div class="gt-mini-label">' + label + '</div><div>' + html + '</div></div>';
-  }
-
-  /** A small enemy card; selecting it opens the same tray, view only. */
-  function miniHtml(card) {
+  /** A small enemy card; selecting it opens the same tray, view only. tag marks board cards. */
+  function miniHtml(card, tag) {
     state.enemyCards.push(card);
     var key = ' data-enemy-view="' + (state.enemyCards.length - 1) + '" aria-label="' + esc(card.name) + '"';
+    var badge = tag ? '<span class="gt-mini-tag">' + esc(tag) + '</span>' : '';
     var face = realFace(card);
     if (face) {
-      return '<button type="button" class="gt-mini gt-mini-real" data-el="' + esc(card.element) + '" title="' + esc(card.name) + '"' + key + '><div class="gt-face">' + face + '</div></button>';
+      return '<button type="button" class="gt-mini gt-mini-real" data-el="' + esc(card.element) + '" title="' + esc(card.name) + '"' + key + '><div class="gt-face">' + face + '</div>' + badge + '</button>';
     }
-    return '<button type="button" class="gt-mini" data-el="' + esc(card.element) + '"' + key + '><div class="gt-card-art">' + artHtml(card) + '</div><span>' + esc(card.name) + '</span></button>';
+    return '<button type="button" class="gt-mini" data-el="' + esc(card.element) + '"' + key + '><div class="gt-card-art">' + artHtml(card) + '</div><span>' + esc(card.name) + '</span>' + badge + '</button>';
+  }
+
+  function renderEncTabs() {
+    var box = $('gtEncounter');
+    if (!box) return;
+    var tabs = box.querySelectorAll('[data-enc-tab]');
+    for (var i = 0; i < tabs.length; i++) {
+      var on = tabs[i].getAttribute('data-enc-tab') === state.encTab;
+      tabs[i].classList.toggle('is-active', on);
+      tabs[i].setAttribute('aria-selected', on ? 'true' : 'false');
+    }
+    var pages = box.querySelectorAll('[data-enc-page]');
+    for (var j = 0; j < pages.length; j++) {
+      pages[j].hidden = pages[j].getAttribute('data-enc-page') !== state.encTab;
+    }
   }
 
   /**
@@ -397,6 +411,7 @@
       renderStart();
       return;
     }
+    if (run.phase !== 'CAMP') $('gtBanner').hidden = true;
     switch (run.phase) {
       case 'DRAFT': renderDraft(run); setScreen('draft'); break;
       case 'CAMP': renderCamp(run); setScreen('camp'); break;
@@ -481,6 +496,7 @@
         ? '<b>Floor ' + esc(last.floor) + ' cleared.</b> +' + esc(last.gold) + ' gold, +' + esc(last.xp) + ' XP. ' + esc(last.note || '')
         : (last.encounter ? '<b>Defeated by ' + esc(last.encounter) + '.</b> ' : '') + esc(last.note || '');
       // Clamped inside, not on the padded box, or a third line peeks into the padding.
+      banner.title = banner.textContent;
       banner.innerHTML = '<span class="gt-clamp">' + banner.innerHTML + '</span>';
     } else if (banner) {
       banner.hidden = true;
@@ -498,26 +514,38 @@
     state.enemyCards = [];
     var box = $('gtEncounter');
     box.setAttribute('data-el', enc.element || 'NEUTRAL');
-    // Board, deck and boss share one sideways strip so the preview has a fixed height.
-    var groups = '';
-    if (enc.board && enc.board.length) {
-      groups += foeGroup('On the board', enc.board.map(miniHtml).join(''));
-    }
-    if (enc.roster && enc.roster.length) {
-      groups += foeGroup('In its deck (' + esc(enc.deckCount) + ')', enc.roster.map(miniHtml).join(''));
-    }
-    if (enc.knight) {
-      groups += foeGroup('SiegeKnight', '<button type="button" class="gt-mini gt-mini-knight" data-enemy-knight="1" aria-label="' + esc(enc.knight.name) + '">' + knightArt(enc.knight) + '</button>');
-    }
-    box.innerHTML = '<div class="gt-enc-head"><div>'
+    // Two pages in one fixed box: the floor's details, and the cards it holds sized to
+    // fill the box (a .gt-fit rail like the deck's).
+    var board = enc.board || [];
+    var roster = enc.roster || [];
+    var minis = board.map(function (card) { return miniHtml(card, 'Board'); }).join('')
+      + roster.map(function (card) { return miniHtml(card); }).join('')
+      + (enc.knight ? '<button type="button" class="gt-mini gt-mini-knight" data-enemy-knight="1" aria-label="' + esc(enc.knight.name) + '">'
+        + knightArt(enc.knight) + '<span class="gt-mini-tag">Boss</span></button>' : '');
+    var cardCount = board.length + roster.length + (enc.knight ? 1 : 0);
+    if (!cardCount) state.encTab = 'details';
+    var counts = [];
+    if (board.length) counts.push(board.length + ' on the board');
+    if (roster.length) counts.push(roster.length === enc.deckCount ? enc.deckCount + ' in its deck' : roster.length + ' of ' + esc(enc.deckCount) + ' in its deck');
+    if (enc.knight) counts.push('its SiegeKnight');
+    var abilities = enc.knight ? abilityText('Passive', enc.knight.passive) + abilityText('Active', enc.knight.active) : '';
+    box.innerHTML = '<div class="gt-enc-top">'
       + '<div class="gt-encounter-kind">Floor ' + esc(enc.floor) + ' &middot; Act ' + esc(run.act) + ' &middot; ' + esc(KIND_LABEL[enc.kind] || '') + '</div>'
-      + '<h2>' + esc(enc.name || '') + '</h2></div>'
+      + (cardCount ? '<div class="gt-enc-tabs" role="tablist">'
+        + '<button type="button" role="tab" data-enc-tab="details">Details</button>'
+        + '<button type="button" role="tab" data-enc-tab="cards">Cards <span>' + cardCount + '</span></button></div>' : '')
+      + '</div>'
+      + '<h2>' + esc(enc.name || '') + '</h2>'
+      + '<div class="gt-enc-page" data-enc-page="details">'
       + '<div class="gt-encounter-hp"><span class="gt-hp">Enemy ' + esc(enc.enemyHp) + ' HP</span>'
       + '<span class="gt-hp is-you">You ' + esc(run.maxHealth) + ' HP</span>'
-      + '<span class="gt-hp is-you">Hand ' + esc(run.openingHand) + '</span></div></div>'
-      + (enc.blurb ? '<p class="gt-enc-blurb">' + esc(enc.blurb) + '</p>' : '')
-      + (groups ? '<div class="gt-strip gt-foes">' + groups + '</div>' : '')
-      + (enc.knight ? '<div class="gt-enc-knight">' + abilityText('Passive', enc.knight.passive) + abilityText('Active', enc.knight.active) + '</div>' : '');
+      + '<span class="gt-hp is-you">Hand ' + esc(run.openingHand) + '</span></div>'
+      + '<div class="gt-enc-text">' + (enc.blurb ? '<p class="gt-enc-blurb">' + esc(enc.blurb) + '</p>' : '') + abilities + '</div>'
+      + '</div>'
+      + (cardCount ? '<div class="gt-enc-page" data-enc-page="cards">'
+        + '<p class="gt-muted gt-note gt-enc-count">' + counts.join(' &middot; ') + '</p>'
+        + '<div class="gt-fit gt-foe-rail" data-min="52" data-max="150">' + minis + '</div></div>' : '');
+    renderEncTabs();
     $('gtFightBtn').textContent = (enc.kind === 'KNIGHT' ? 'Challenge ' : 'Fight ') + (enc.name || ('floor ' + run.floor));
 
     renderTabs();
@@ -878,9 +906,15 @@
       img.src = fallback;
     }, true);
     document.addEventListener('click', function (event) {
-      var t = event.target.closest ? event.target.closest('[data-deck],[data-knight],[data-uid],[data-buy],[data-reward],[data-reward-view],[data-shop-view],[data-enemy-view],[data-enemy-knight],[data-perk],[data-offer],[data-apply],[data-remove],[data-close],[data-tab]') : null;
+      var t = event.target.closest ? event.target.closest('[data-deck],[data-knight],[data-uid],[data-buy],[data-reward],[data-reward-view],[data-shop-view],[data-enemy-view],[data-enemy-knight],[data-perk],[data-offer],[data-apply],[data-remove],[data-close],[data-tab],[data-enc-tab]') : null;
       if (!t) return;
       if (t.hasAttribute('data-close')) { closeSheet(); return; }
+      if (t.hasAttribute('data-enc-tab')) {
+        state.encTab = t.getAttribute('data-enc-tab');
+        renderEncTabs();
+        layout($('gtEncounter'));
+        return;
+      }
       if (t.hasAttribute('data-tab')) {
         switchTab(t.getAttribute('data-tab'));
         return;

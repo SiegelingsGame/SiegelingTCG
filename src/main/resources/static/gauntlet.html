@@ -17,7 +17,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <!-- The battle stylesheet dresses the real card faces (frames, notches, finishes). -->
 <link rel="stylesheet" href="/css/style.css?v=283">
-<link rel="stylesheet" href="/css/gauntlet.css?v=10">
+<link rel="stylesheet" href="/css/gauntlet.css?v=11">
 </head>
 <body data-screen="loading">
 <div class="gt-shell">
@@ -27,6 +27,8 @@
       <span class="gt-eyebrow">Roguelike</span>
       <h1>The Gauntlet</h1>
     </div>
+    <!-- The last fight's result lives beside the title, freeing the camp for the next one. -->
+    <div class="gt-banner" id="gtBanner" role="status" hidden></div>
     <div class="gt-stats" id="gtStats" hidden>
       <span class="gt-stat" id="gtLives" title="Lives"></span>
       <span class="gt-stat gt-gold" id="gtGold" title="Gold"></span>
@@ -77,7 +79,6 @@
          fight in a side column beside the tabs. -->
     <section class="gt-screen" id="screenCamp">
       <div class="gt-camp-side">
-        <div class="gt-banner" id="gtBanner" hidden></div>
         <div class="gt-track" id="gtTrack" aria-label="This act's floors"></div>
         <article class="gt-encounter" id="gtEncounter"></article>
         <div class="gt-cta">
@@ -163,6 +164,6 @@
      battle UI when #loadoutOverlay exists, so here it is a library. -->
 <script src="/js/game.js?v=325"></script>
 <script src="/js/card-binder-visual.js?v=35"></script>
-<script src="/js/gauntlet.js?v=7"></script>
+<script src="/js/gauntlet.js?v=8"></script>
 </body>
 </html>

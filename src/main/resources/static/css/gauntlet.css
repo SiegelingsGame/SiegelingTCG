@@ -99,7 +99,9 @@ button { font-family: inherit; touch-action: manipulation; }
   font-size: 18px;
 }
 
-.gt-title { flex: 1 1 auto; min-width: 0; }
+/* The title keeps its width; the result banner beside it takes what is left. */
+.gt-title { flex: 1 0 auto; min-width: 0; }
+.gt-top:has(.gt-banner:not([hidden])) .gt-title { flex-grow: 0; }
 .gt-title h1 {
   margin: 0;
   font-family: var(--serif);
@@ -111,7 +113,7 @@ button { font-family: inherit; touch-action: manipulation; }
 }
 .gt-eyebrow { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--faint); }
 
-.gt-stats { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.gt-stats { flex: 0 0 auto; display: flex; gap: 6px; justify-content: flex-end; }
 .gt-stat {
   display: inline-flex;
   align-items: center;
@@ -448,11 +450,15 @@ body[data-screen="over"] #screenOver { display: flex; }
 .gt-tab > * { flex: 0 0 auto; }
 .gt-tab > .gt-fit, .gt-tab > .gt-log, .gt-tab > .gt-knight-tab { flex: 1 1 0; min-height: 0; }
 
+/* Last fight's result, in the header between the title and the stats. */
 .gt-banner {
-  border-radius: 12px;
-  padding: 7px 12px;
-  font-size: 13px;
-  line-height: 1.35;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-self: center;
+  border-radius: 10px;
+  padding: 5px 10px;
+  font-size: 12.5px;
+  line-height: 1.3;
   border: 1px solid var(--line);
   background: var(--panel);
 }
@@ -486,26 +492,24 @@ body[data-screen="over"] #screenOver { display: flex; }
 .gt-stop.is-elite { color: #ffb36b; }
 .gt-stop.is-knight { color: var(--psychic); font-size: 15px; }
 
+/* The next floor: a box of fixed height with two pages, Details and Cards. */
 .gt-encounter {
   --el: var(--neutral);
-  --mini-w: 58px;
+  height: clamp(150px, 26dvh, 230px);
   border-radius: 16px;
   border: 1px solid color-mix(in srgb, var(--el) 50%, transparent);
   background:
     radial-gradient(500px 220px at 85% 0%, color-mix(in srgb, var(--el) 26%, transparent), transparent 70%),
     var(--panel);
-  padding: 10px 12px;
+  padding: 9px 12px 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   min-height: 0;
   overflow: hidden;
 }
-/* Only the boss text may give up height; the strip of enemy cards keeps its own. */
-.gt-encounter > * { flex: 0 0 auto; }
-.gt-encounter > .gt-enc-knight { flex: 0 1 auto; min-height: 0; overflow: hidden; }
-.gt-enc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.gt-enc-head > div { min-width: 0; }
+.gt-encounter > * { flex: 0 0 auto; min-width: 0; }
+.gt-enc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .gt-encounter-kind {
   font-size: 10.5px;
   letter-spacing: 0.16em;
@@ -514,9 +518,41 @@ body[data-screen="over"] #screenOver { display: flex; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+.gt-enc-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+}
+.gt-enc-tabs button {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 28px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.gt-enc-tabs button.is-active { background: var(--panel-2); color: var(--gold); }
+.gt-enc-tabs button span {
+  display: inline-block;
+  min-width: 16px;
+  margin-left: 3px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(230, 205, 140, 0.18);
+  color: var(--gold);
+  font-size: 10.5px;
 }
 .gt-encounter h2 {
-  margin: 2px 0 0;
+  margin: 0;
   font-family: var(--serif);
   font-size: 21px;
   font-weight: 600;
@@ -525,17 +561,10 @@ body[data-screen="over"] #screenOver { display: flex; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.gt-enc-blurb {
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.gt-encounter-hp { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; flex: 0 0 auto; max-width: 52%; }
+.gt-encounter > .gt-enc-page { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.gt-enc-page > * { flex: 0 0 auto; }
+.gt-enc-page > .gt-fit, .gt-enc-page > .gt-enc-text { flex: 1 1 0; min-height: 0; }
+.gt-encounter-hp { display: flex; flex-wrap: wrap; gap: 5px; }
 .gt-hp {
   padding: 3px 8px;
   border-radius: 999px;
@@ -546,14 +575,24 @@ body[data-screen="over"] #screenOver { display: flex; }
   border: 1px solid rgba(255, 107, 107, 0.35);
 }
 .gt-hp.is-you { background: rgba(95, 208, 139, 0.12); border-color: rgba(95, 208, 139, 0.35); }
-/* Board, deck and boss knight in one sideways strip, each group labelled. */
-.gt-foes { align-items: flex-end; }
-.gt-foe-group { display: flex; flex-direction: column; gap: 3px; }
-.gt-foe-group > div { display: flex; gap: 5px; }
-.gt-mini-label { font-size: 10px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.12em; white-space: nowrap; }
+/* Blurb and boss abilities flow into further columns sideways, never down. */
+.gt-enc-text {
+  column-width: 240px;
+  column-gap: 20px;
+  column-fill: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  touch-action: pan-x;
+}
+.gt-enc-text > * { break-inside: avoid; }
+.gt-enc-blurb { margin: 0 0 6px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.gt-enc-text .gt-ability { font-size: 12.5px; margin: 0 0 4px; }
+.gt-foe-rail { gap: 6px; }
+.gt-enc-count { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gt-mini {
   --el: var(--neutral);
-  width: var(--mini-w);
+  position: relative;
+  width: 58px;
   flex: 0 0 auto;
   border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--el) 55%, transparent);
@@ -563,12 +602,28 @@ body[data-screen="over"] #screenOver { display: flex; }
   text-align: center;
   color: var(--muted);
 }
+.gt-fit > .gt-mini { width: var(--card-w, 58px); }
 .gt-mini .gt-card-art { aspect-ratio: 1 / 1; }
-.gt-mini span { display: block; padding: 2px 3px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gt-mini > span:not(.gt-mini-tag) { display: block; padding: 2px 3px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gt-mini .gt-knight-art { width: 100%; border-radius: 6px; }
-/* The boss's passive and active, shown in full where the side column has room. */
-.gt-enc-knight { display: none; }
-.gt-enc-knight .gt-ability { font-size: 12.5px; margin: 0 0 4px; }
+/* Marks the board cards and the boss among the room's cards. */
+.gt-mini-tag {
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  transform: translateX(-50%);
+  z-index: 7;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(11, 16, 32, 0.88);
+  border: 1px solid var(--line-strong);
+  color: var(--gold);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
 
 .gt-tabs {
   display: flex;
@@ -847,19 +902,18 @@ body[data-screen="over"] #screenOver { display: flex; }
     min-height: 0;
   }
   .gt-camp-side > * { flex: 0 0 auto; }
-  .gt-camp-side .gt-encounter { flex: 0 1 auto; --mini-w: 96px; }
+  /* The box fills the column down to the Fight button (up to a cap on tall screens). */
+  .gt-camp-side .gt-encounter { flex: 1 1 0; height: auto; max-height: 440px; }
   .gt-camp-panel { order: 0; }
   .gt-camp-side .gt-cta .gt-btn { width: 100%; min-width: 0; }
-  .gt-enc-knight { display: block; }
-  .gt-enc-blurb { -webkit-line-clamp: 4; }
-  .gt-encounter-hp { max-width: none; justify-content: flex-start; }
-  .gt-enc-head { flex-direction: column; }
 }
 
 /* Short viewports (small phones, landscape): drop the nice-to-haves first. */
 @media (max-height: 700px) {
-  .gt-rules, .gt-enc-blurb { display: none; }
-  .gt-encounter { --mini-w: 46px; padding: 8px 10px; }
+  .gt-rules { display: none; }
+  .gt-encounter { padding: 7px 10px 8px; height: clamp(150px, 26dvh, 180px); }
+  /* The tab already counts the cards; the room's height goes to the cards themselves. */
+  .gt-enc-page .gt-note { display: none; }
   .gt-stop { height: 24px; font-size: 11px; }
   .gt-screen { gap: 8px; }
   .gt-h2 { font-size: 16px; }
@@ -877,8 +931,6 @@ body[data-screen="over"] #screenOver { display: flex; }
   .gt-victory-compact h2 { font-size: 18px; margin: 0; }
   .gt-victory-compact p, #screenReward > .gt-note { display: none; }
   .gt-victory-compact .gt-spoils { margin: 0; }
-  /* The boss's abilities stay one tap away on its card. */
-  .gt-camp-side .gt-enc-knight { display: none; }
   .gt-tabs button { min-height: 30px; padding: 4px 8px; }
 }
 
@@ -890,19 +942,19 @@ body[data-screen="over"] #screenOver { display: flex; }
   .gt-stat { padding: 3px 8px; font-size: 12px; }
   #screenCamp { gap: 12px; }
   .gt-camp-side { flex-basis: min(400px, 44%); gap: 6px; }
-  .gt-banner { padding: 5px 10px; font-size: 12px; }
-  .gt-banner .gt-clamp { -webkit-line-clamp: 1; }
+  .gt-banner { padding: 3px 8px; font-size: 12px; }
   .gt-stop { height: 22px; }
   .gt-encounter { padding: 7px 10px; gap: 4px; }
-  /* Here the column is short, so the encounter fills it down to the Fight button and
-     the enemy cards are sized from the height left rather than a fixed width. */
-  .gt-camp-side .gt-encounter { flex: 1 1 0; min-height: 0; }
-  .gt-camp-side .gt-foes { flex: 1 1 0; min-height: 56px; container-type: size; align-items: flex-start; }
-  .gt-camp-side .gt-foes .gt-mini { width: clamp(44px, calc((100cqh - 22px) * 0.7), 112px); }
-  .gt-enc-head { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 3px; }
   .gt-encounter h2 { font-size: 18px; }
   .gt-hp { padding: 2px 7px; font-size: 11px; }
   .gt-camp-side .gt-cta .gt-btn { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+}
+
+/* Phones in portrait: no room beside the title, so the result takes a second header row. */
+@media (max-width: 599px) {
+  .gt-top { flex-wrap: wrap; row-gap: 6px; }
+  .gt-banner { order: 3; flex-basis: 100%; padding: 4px 10px; font-size: 12px; }
+  .gt-banner .gt-clamp { -webkit-line-clamp: 1; }
 }
 
 @media (max-width: 420px) {
