@@ -568,7 +568,7 @@
             inv: inv,
             reserve: { ember: 0, frost: 0, storm: 0, ore: 0, produce: 0, provisions: 2 },
             b: { hall: 1, woodlot: 0, archive: 0, storehouse: 0, yard: 0, front: 0, crews: 0 },
-            siege: { nextAt: 0, n: 0, won: 0, last: null },
+            siege: { nextAt: 0, n: 0, won: 0, last: null }, mentors: {},
             // Workshop level 0 = not built yet; each one is a construction project.
             wsl: { forge: 0, fridge: 0, generator: 0, garden: 0, kitchen: 0, quarry: 0 }, annex: {},
             wings: { sanctuary: 0, forge: 0, garden: 0, war_room: 0, stable: 0, library: 0 },
@@ -1322,6 +1322,10 @@
             add(s, spoils);
             s.siege.won = (s.siege.won || 0) + 1;
             s.siege.last = { at: s.t, won: true, str: str, def: def, spoils: spoils };
+            mentorDeeds(s, '', 'siege');
+            const rr = rng('siege-mentor:' + s.siege.n);
+            if (rr() < 0.3) { const pool = unmetOf(s, 'raider'); if (pool.length) meetMentor(s, pool[Math.floor(rr() * pool.length)], 'at Akhar’s Wall'); }
+            if (lvl >= 6 && rr() < 0.1) { const pool = unmetOf(s, 'lord'); if (pool.length) meetMentor(s, pool[Math.floor(rr() * pool.length)], 'after a siege held'); }
             logEvent(s, 'Siege wave ' + s.siege.n + ' repelled at Akhar’s Wall (' + def + ' against ' + str + ').');
             FRESH.push('Siege repelled! +' + spoils.crowns + ' Crowns, +' + spoils.silver + ' Silver.');
         } else {
@@ -2162,6 +2166,8 @@
             s.disc[k] = true;
             if (k === 'fawny') { const f = s.comps.fawny || {}; s.comps.fawny = Object.assign({ species: 'fawny', nick: '', explore: 0, treats: { day: '', n: 0 }, xp: 0, legend: false }, f, { joined: true, job: { kind: 'rest' }, bond: Math.max(f.bond || 0, 20) }); }
         });
+        mentorDeeds(s, String(d.element || '').toUpperCase(), 'road');
+        const mentorMet = meetOnRoad(s, x, d);
         const sighting = rollSighting(s, x, d, okN);
         if (sighting) {
             s.sightings = (s.sightings || []).filter((v) => v.expiresAt > s.t);
@@ -2179,7 +2185,7 @@
             id: x.id, dest: x.dest, at: x.endAt, seen: false, weapon: x.weapon, weaponId: x.weaponId, tool: x.tool, party: x.party, rations: x.rations, food: x.food || '',
             lines: lines.filter((r) => r.status !== 'skip').map((r) => ({ status: r.status, title: r.title, by: r.by, text: r.text, need: r.need })),
             total: total, xp: gained, prof: prof, bonds: bonds, levels: levels, discs: discs, sighting: sighting, summary: summary, resumed: resumed,
-            lootPct: Math.round(lootMul * 100), minutes: minutes, rune: x.rune, potions: x.potions
+            lootPct: Math.round(lootMul * 100), minutes: minutes, rune: x.rune, potions: x.potions, mentorMet: mentorMet
         });
         logEvent(s, 'Returned from ' + d.name + '.');
         FRESH.push('The Knight returned from ' + d.name + '. Report ready.');
@@ -2616,8 +2622,80 @@
         woodwarden: ['🪓', 'Woodwarden', ['woodcutting', 'carpentry']], forager: ['🌿', 'Forager', ['foraging', 'cooking']], delver: ['⛏️', 'Delver', ['mining', 'excavation']],
         smith: ['⚒️', 'Smith', ['smelting', 'smithing']], scholar: ['📚', 'Scholar', ['elemental_studies', 'runecrafting']], weaver: ['🧵', 'Weaver', ['weaving', 'alchemy']]
     };
+    // —— Mentors are earned: meet a SiegeKnight, build rapport, then ask them to train you. ——
+    // Squires wait at the gate and are quick to win; knights are met on the roads; raiders on harder
+    // roads or after holding the Wall; lords only once the Keep is grand, and they take real work.
+    const MENTOR_TIER = {
+        squire: { name: 'Squire', need: 3, gift: { silver: 10 }, giftR: 1, where: 'Visit the Keep gate', req: () => '' },
+        knight: { name: 'Knight', need: 10, gift: { silver: 40 }, giftR: 2, where: 'Met on the roads', req: (s) => (rankLvl(s) < 5 ? 'Knight Rank 5' : '') },
+        raider: { name: 'Raider', need: 20, gift: { crowns: 60 }, giftR: 2, where: 'Met on harder roads or after holding the Wall', req: (s) => ((s.b.front || 0) < 3 || ((s.siege && s.siege.won) || 0) < 3 ? 'Akhar’s Wall 3 and 3 sieges held' : '') },
+        lord: { name: 'Lord', need: 40, gift: { crowns: 150, covenant_keystone: 1 }, giftR: 4, where: 'Met in a grand Keep, the Sunken Vault or the far roads', req: (s) => (s.b.hall < 6 || !(s.disc && s.disc.vaultCleared) ? 'Hall 6 and the Sunken Vault cleared' : '') }
+    };
+    const GIFTS_PER_DAY = 2;
+    function mentorTier(id) {
+        const t = String(ART_URLS['knight-tier:' + id] || '').toLowerCase();
+        return t.indexOf('squire') >= 0 ? 'squire' : t.indexOf('raider') >= 0 ? 'raider' : t.indexOf('lord') >= 0 ? 'lord' : 'knight';
+    }
+    const mentorName = (id) => ART_URLS['knight-name:' + id] || titleCase(id);
+    const metOf = (s, id) => (s.mentors && s.mentors[id]) || null;
+    const recruited = (s, id) => !!(metOf(s, id) && metOf(s, id).sworn);
+    const unmetOf = (s, tier, el) => knightCards().filter((id) => !metOf(s, id) && mentorTier(id) === tier && (!el || String(ART_URLS['knight-el:' + id]).toUpperCase() === el));
+    function meetMentor(s, id, how) {
+        if (!id || metOf(s, id)) return false;
+        s.mentors = s.mentors || {};
+        s.mentors[id] = { r: 0, at: s.t, how: how || '', talk: '', gifts: { day: '', n: 0 }, sworn: false };
+        logEvent(s, 'Met ' + mentorName(id) + ' (' + MENTOR_TIER[mentorTier(id)].name + ')' + (how ? ' ' + how : '') + '.');
+        FRESH.push('You met ' + mentorName(id) + ', a ' + MENTOR_TIER[mentorTier(id)].name.toLowerCase() + '. Win their trust from the mentor portrait.');
+        s.rev++;
+        return true;
+    }
+    // One squire waits at the gate each day until every squire has been met.
+    function gateSquire(s) {
+        const pool = unmetOf(s, 'squire');
+        if (!pool.length) return '';
+        const prefer = pool.indexOf('ser-airek') >= 0 && !Object.keys(s.mentors || {}).length ? 'ser-airek' : '';
+        return prefer || pool[((hashOf('gate:' + dayKey(s)) % pool.length) + pool.length) % pool.length];
+    }
+    function rapportGain(s, id, n) {
+        const m = metOf(s, id);
+        if (!m || m.sworn) return;
+        m.r = Math.min(MENTOR_TIER[mentorTier(id)].need, m.r + n);
+    }
+    function talkBlock(s, id) { const m = metOf(s, id); return !m ? 'You have not met them.' : m.sworn ? 'Already your mentor.' : m.talk === dayKey(s) ? 'You have talked today. Come back tomorrow.' : ''; }
+    function giftBlock(s, id) {
+        const m = metOf(s, id), t = MENTOR_TIER[mentorTier(id)];
+        if (!m) return 'You have not met them.';
+        if (m.sworn) return 'Already your mentor.';
+        if (m.gifts.day === dayKey(s) && m.gifts.n >= GIFTS_PER_DAY) return 'They will take no more gifts today.';
+        if (!canAfford(s, ka(t.gift))) return 'Not enough for the gift.';
+        return '';
+    }
+    function askBlock(s, id) {
+        const m = metOf(s, id), t = MENTOR_TIER[mentorTier(id)];
+        if (!m) return 'You have not met them.';
+        if (m.sworn) return 'Already your mentor.';
+        if (m.r < t.need) return 'Rapport ' + m.r + '/' + t.need + '.';
+        return t.req(s) ? 'They want to see ' + t.req(s) + ' first.' : '';
+    }
+    // Shared deeds move rapport: a finished road of a met mentor's element, a siege held for raiders and lords.
+    function mentorDeeds(s, el, kind) {
+        Object.keys(s.mentors || {}).forEach((id) => {
+            const tier = mentorTier(id), mel = String(ART_URLS['knight-el:' + id] || '').toUpperCase();
+            if (kind === 'road' && el && mel === el) rapportGain(s, id, 2);
+            if (kind === 'siege' && (tier === 'raider' || tier === 'lord')) rapportGain(s, id, 1);
+        });
+    }
+    function meetOnRoad(s, x, d) {
+        const r = rng(x.id + ':mentor'), el = String(d.element || '').toUpperCase(), tier = d.tier || 1;
+        const pick = (t) => { const a = unmetOf(s, t, el), b = a.length ? a : unmetOf(s, t); return b.length ? b[Math.floor(r() * b.length)] : ''; };
+        let id = '';
+        if ((x.dest === 'vault' || tier >= 3) && s.b.hall >= 5 && r() < 0.2) id = pick('lord');
+        if (!id && tier >= 2 && r() < 0.15) id = pick('raider');
+        if (!id && r() < 0.35) id = pick('knight');
+        return meetMentor(s, id, 'on the road to ' + d.name) ? id : '';
+    }
     const callingSpeed = (s, skill) => { const c = CALLINGS[s.knight.calling]; return c && c[2].includes(skill) ? 0.1 : 0; };
-    const mentorEl = (s) => String(ART_URLS['knight-el:' + (s.knight.card || DEFAULT_KNIGHT)] || '').toUpperCase();
+    const mentorEl = (s) => (knightCardId() ? String(ART_URLS['knight-el:' + knightCardId()] || '').toUpperCase() : '');
     function crest(k, cls) {
         const c = (k && k.crest) || {};
         return '<span class="dm-crest' + (cls ? ' ' + cls : '') + '" style="--el:var(--' + (c.color || 'light') + ')" aria-hidden="true"><i>' + (c.emblem || '🛡️') + '</i></span>';
@@ -2637,21 +2715,40 @@
             '<h3>Crest</h3><div class="dm-cc-row">' + CREST_EMBLEMS.map((e) => '<button type="button" class="dm-cc-emblem' + (d.emblem === e ? ' is-on' : '') + '" data-act="cc" data-arg="emblem:' + e + '" aria-label="Emblem ' + e + '">' + e + '</button>').join('') + '</div>' +
             '<div class="dm-cc-row">' + CREST_COLORS.map((c) => '<button type="button" class="dm-cc-color' + (d.color === c ? ' is-on' : '') + '" data-act="cc" data-arg="color:' + c + '" style="--el:var(--' + c + ')" aria-label="' + titleCase(c) + '"></button>').join('') + '</div>' +
             '<h3>Calling</h3><div class="dm-cc-callings">' + Object.keys(CALLINGS).map((id) => { const c = CALLINGS[id]; return '<button type="button" class="dm-cc-calling' + (d.calling === id ? ' is-on' : '') + '" data-act="cc" data-arg="calling:' + id + '"><span>' + c[0] + '</span><b>' + c[1] + '</b><small>' + c[2].map((x) => (SKILLS[x] ? SKILLS[x].name : titleCase(x))).join(' & ') + ' +10% faster</small></button>'; }).join('') + '</div>' +
-            (knightCards().length ? '<h3>Mentor</h3><p class="ck-small ck-muted">A SiegeKnight who trains you and walks the roads with you. Their element’s affinity grows 10% faster. Change them any time by tapping their portrait.</p>' + mentorGrid(d.mentor, 'cc') : '') +
+            '<h3>Mentor</h3><p class="ck-small ck-muted">SiegeKnights must be met and convinced to train you. A squire waits at the gate; knights, raiders and lords are met on the roads and at the Wall. Tap the portrait on the Knight tab to win them over.</p>' +
             '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="cc-save">' + (S.knight.made ? 'Save' : 'Begin') + '</button>' + (S.knight.made ? '<button type="button" class="ck-btn" data-act="close-modal">Cancel</button>' : '') + '</div>';
     }
-    function mentorGrid(on, mode) {
-        return '<div class="dm-knight-picker">' + knightCards().map((id) => '<button type="button" class="dm-knight-pick' + (id === on ? ' is-on' : '') + '" data-act="' + (mode === 'cc' ? 'cc' : 'mentor') + '" data-arg="' + (mode === 'cc' ? 'mentor:' : '') + esc(id) + '" style="--el:var(--' + elKey(ART_URLS['knight-el:' + id]) + ')">' +
-            '<span class="dm-knight-pick-art"><img class="dm-paper" src="' + esc(thumbOf(ART_URLS['knight:' + id], 240)) + '" data-raw="' + esc(ART_URLS['knight:' + id]) + '" alt="" loading="lazy" onerror="dmArtFallback(this)"></span>' +
-            '<small>' + esc(ART_URLS['knight-name:' + id]) + '</small><em>' + esc(titleCase(ART_URLS['knight-el:' + id] || '')) + '</em></button>').join('') + '</div>';
+    function mentorArt(id) {
+        const raw = ART_URLS['knight:' + id], full = !!ART_URLS['knight-full:' + id];
+        return '<span class="dm-knight-pick-art' + (full ? ' is-card' : '') + '"><img class="' + (full ? 'dm-knight-card' : 'dm-paper') + '" src="' + esc(thumbOf(raw, 240)) + '" data-raw="' + esc(raw) + '" alt="" loading="lazy" onerror="dmArtFallback(this)"></span>';
+    }
+    function mentorRow(id) {
+        const m = metOf(S, id), tier = mentorTier(id), t = MENTOR_TIER[tier], el = ART_URLS['knight-el:' + id] || '';
+        const tb = talkBlock(S, id), gb = giftBlock(S, id), ab = askBlock(S, id);
+        return '<div class="dm-mentor-row is-' + tier + '" style="--el:var(--' + elKey(el) + ')">' + mentorArt(id) + '<div class="dm-inv-main"><small>' + t.name + ' · ' + esc(titleCase(el)) + (m.how ? ' · met ' + esc(m.how) : '') + '</small><b>' + esc(mentorName(id)) + '</b>' +
+            '<i class="dm-inv-meter"><b style="width:' + Math.round(m.r / t.need * 100) + '%"></b></i><strong>Rapport ' + m.r + ' / ' + t.need + '</strong>' +
+            (t.req(S) ? '<span class="ck-small ck-warn">Wants to see ' + esc(t.req(S)) + '.</span>' : '') +
+            '<div class="ck-pills"><button type="button" class="ck-pill" data-act="m-talk" data-arg="' + esc(id) + '"' + (tb ? ' disabled title="' + esc(tb) + '"' : '') + '>💬 Talk +1</button>' +
+            '<button type="button" class="ck-pill" data-act="m-gift" data-arg="' + esc(id) + '"' + (gb ? ' disabled title="' + esc(gb) + '"' : '') + '>🎁 Gift +' + t.giftR + ' · ' + Object.keys(t.gift).map((k) => t.gift[k] + ' ' + itemName(KEEP_ALIAS[k] || k)).join(' + ') + '</button>' +
+            '<button type="button" class="ck-pill is-forge" data-act="m-ask" data-arg="' + esc(id) + '"' + (ab ? ' disabled title="' + esc(ab) + '"' : '') + '>🤝 Ask to train you</button></div></div></div>';
     }
     function mentorModal() {
-        return '<span class="ck-kicker">Mentor</span><h2 id="ckModalTitle">Choose your mentor</h2><p class="ck-small ck-muted">The SiegeKnight who trains you and walks the roads with you. Their element’s affinity grows 10% faster.</p>' +
-            mentorGrid(knightCardId(), 'mentor') + '<div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
+        const ids = knightCards(), sworn = ids.filter((id) => recruited(S, id)), met = ids.filter((id) => metOf(S, id) && !recruited(S, id)), gate = gateSquire(S);
+        const unmet = {};
+        ids.filter((id) => !metOf(S, id)).forEach((id) => { const t = mentorTier(id); unmet[t] = (unmet[t] || 0) + 1; });
+        let h = '<span class="ck-kicker">Mentors</span><h2 id="ckModalTitle">SiegeKnight mentors</h2><p class="ck-small ck-muted">Meet SiegeKnights and convince them to train you. Squires come easily, knights take more, raiders more again, and lords take real work. Your mentor walks the roads with you, and their element’s affinity grows 10% faster.</p>';
+        h += '<h3>Your mentor</h3>' + (sworn.length ? '<div class="dm-knight-picker">' + sworn.map((id) => '<button type="button" class="dm-knight-pick' + (id === knightCardId() ? ' is-on' : '') + '" data-act="mentor" data-arg="' + esc(id) + '" style="--el:var(--' + elKey(ART_URLS['knight-el:' + id]) + ')">' + mentorArt(id) +
+            '<small>' + esc(mentorName(id)) + '</small><em>' + MENTOR_TIER[mentorTier(id)].name + ' · ' + esc(titleCase(ART_URLS['knight-el:' + id] || '')) + '</em></button>').join('') + '</div>' : '<p class="ck-small ck-muted">Nobody has agreed to train you yet.</p>');
+        if (gate) h += '<h3>At the gate today</h3><div class="dm-mentor-row is-squire is-gate" style="--el:var(--' + elKey(ART_URLS['knight-el:' + gate]) + ')">' + mentorArt(gate) + '<div class="dm-inv-main"><small>Squire · ' + esc(titleCase(ART_URLS['knight-el:' + gate] || '')) + '</small><b>' + esc(mentorName(gate)) + '</b><span class="ck-small ck-muted">A squire looking for a knight to serve beside. Easy to win over.</span>' +
+            '<div class="ck-pills"><button type="button" class="ck-pill is-on" data-act="m-meet" data-arg="' + esc(gate) + '">👋 Greet them</button></div></div></div>';
+        if (met.length) h += '<h3>Winning them over</h3>' + met.map(mentorRow).join('');
+        h += '<h3>Still to meet</h3><div class="dm-mentor-unmet">' + ['squire', 'knight', 'raider', 'lord'].map((t) => '<span class="dm-unmet is-' + t + '"><b>' + (unmet[t] || 0) + '</b> ' + MENTOR_TIER[t].name + (unmet[t] === 1 ? '' : 's') + '<small>' + esc(MENTOR_TIER[t].where) + '</small></span>').join('') + '</div>';
+        return h + '<div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
     }
     const knightCards = () => Object.keys(ART_URLS).filter((k) => k.indexOf('knight:') === 0).map((k) => k.slice(7))
         .sort((a, b) => String(ART_URLS['knight-name:' + a]).localeCompare(String(ART_URLS['knight-name:' + b])));
-    const knightCardId = () => (ART_URLS['knight:' + (S.knight.card || DEFAULT_KNIGHT)] ? (S.knight.card || DEFAULT_KNIGHT) : knightCards()[0] || '');
+    // Only a sworn mentor walks with you; until one is won over the Knight travels under their own crest.
+    const knightCardId = () => (S.knight.card && ART_URLS['knight:' + S.knight.card] && recruited(S, S.knight.card) ? S.knight.card : '');
     function thumbOf(u, width) {
         const token = (String(u || '').match(/[?&]token=([0-9A-Za-z-]{8,64})(?:&|$)/) || [])[1];
         if (u && u.indexOf(STORAGE_ART_PREFIX) === 0 && token) return STORAGE_ART_PREFIX + encodeURIComponent('art-thumbs/' + token + '/w' + (width || 240) + '.webp') + '?alt=media&token=' + token;
@@ -2659,7 +2756,8 @@
     }
     function knightPaper(cls) {
         const id = knightCardId(), raw = id ? ART_URLS['knight:' + id] : '';
-        if (!raw) return '<img class="' + (cls || '') + ' dm-knight-full" src="' + KNIGHT_ART + '" alt="">';
+        if (!raw) return crest(S.knight, 'is-standee' + (cls ? ' ' + cls : ''));
+        if (ART_URLS['knight-full:' + id]) return '<img class="dm-knight-card ' + (cls || '') + '" src="' + esc(thumbOf(raw, 320)) + '" data-raw="' + esc(raw) + '" alt="" onerror="dmArtFallback(this)">';
         return '<img class="dm-paper ' + (cls || '') + '" src="' + esc(thumbOf(raw, 320)) + '" data-raw="' + esc(raw) + '" alt="" onerror="dmArtFallback(this)">';
     }
     const leadComp = () => prepParty(S)[0] || joinedIds(S)[0] || '';
@@ -2743,7 +2841,7 @@
 
     // First-visit tips: a single dismissible line per tab instead of a walkthrough.
     const HINTS = {
-        knight: 'This is your knight. Tap your mentor’s portrait to change who trains you; ✏️ edits your name, crest and calling.',
+        knight: 'This is your knight. Tap the portrait to meet SiegeKnights and win one over as your mentor; ✏️ edits your name, crest and calling.',
         company: 'Give each Siegeling a job: help a room, rest in the Enclave, explore, or stand on Akhar’s Wall.',
         work: 'Choose what the Knight works on. Tools crafted in the matching room make that work faster.',
         expedition: 'Pack provisions or food, pick a party and send them down a road. You can watch them walk.',
@@ -2853,7 +2951,7 @@
             cls: 'is-knight', scene: namedScene('light-shelter'), kicker: 'Rank ' + rankLvl(S) + ' · ' + esc(HALL_RANKS[S.b.hall - 1]) + (CALLINGS[k.calling] ? ' · ' + CALLINGS[k.calling][1] : ''),
             title: crest(k) + esc(k.name),
             art: '<button type="button" class="ck-portrait is-hero dm-paper-frame dm-knight-portrait dm-mentor-btn" data-act="mentor-pick" aria-label="Change your mentor" style="--el:var(--' + elKey(ART_URLS['knight-el:' + knightCardId()] || 'WIND') + ')">' + knightPaper() +
-                (knightCardId() ? '<span class="dm-mentor-tag">Mentor · ' + esc(ART_URLS['knight-name:' + knightCardId()] || '') + ' ▸</span>' : '') + '</button>',
+                '<span class="dm-mentor-tag">' + (knightCardId() ? 'Mentor · ' + esc(mentorName(knightCardId())) : gateSquire(S) ? 'A squire is at the gate' : 'Find a mentor') + ' ▸</span></button>',
             body: barP(rp.pct, 'is-fat') + '<p class="ck-banner-line">' + esc(rp.label) + ' rank XP</p>' +
                 '<div class="ck-pills"><button type="button" class="ck-pill" data-act="create">✏️ Edit knight</button></div>' +
                 '<div class="ck-bubbles"><span class="ck-bubble">🗺️ <b>' + (S.runs || 0) + '</b> trips</span><span class="ck-bubble">🐾 <b>' + tamed + '</b> companions</span>' +
@@ -3154,7 +3252,7 @@
             '<span class="dm-j-marker" data-live="walker" data-start="' + o.start + '" data-end="' + o.end + '"></span></div>' +
             '<script type="application/json" class="dm-j-labels">' + JSON.stringify(o.areas.map((a) => a.title + (a.status === 'ok' ? ' · handled' : a.status === 'part' ? ' · a struggle' : a.status === 'miss' ? ' · unanswered' : ''))).replace(/</g, '\\u003c') + '</script></section>';
     }
-    const knightWalker = () => (knightCardId() ? { html: knightPaper() } : { knight: true, html: '<span class="dm-j-knight"><img src="' + KNIGHT_ART + '" alt=""></span>' });
+    const knightWalker = () => ({ html: knightPaper() });
     const compWalker = (id) => ({ html: compArt(id, C(id).name) });
     function foeArt(seed, element) {
         const pool = Object.keys(SPECIES).filter((k) => (!element || SPECIES[k].element === element) && catalogArt(k, 240));
@@ -3282,7 +3380,7 @@
         if (!r) return '<p class="ck-muted">This report is no longer stored.</p><div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
         return '<h2 id="ckModalTitle">' + esc(reportTitle(r)) + '</h2><p class="ck-outcome is-complete">' + esc(r.summary) + '</p>' +
             '<h3>How preparation shaped the journey</h3><ol class="ck-timeline">' + r.lines.map((l) => '<li class="is-' + (l.status === 'ok' ? 'good' : l.status === 'miss' ? 'bad' : 'info') + '"><time>' + (l.status === 'ok' ? '✓' : l.status === 'part' ? '~' : '✕') + '</time><span><b>' + esc(l.title) + '.</b> ' + esc(l.text) + (l.status !== 'ok' && l.need ? ' <i>Next time: ' + esc(l.need) + '</i>' : '') + '</span></li>').join('') + '</ol>' +
-            (r.discs.length || r.sighting ? '<h3>Discoveries</h3><ul class="ck-milestones">' + r.discs.map((d) => '<li>' + (d === 'fawny' ? 'Fawny joined the Keep.' : d === 'vaultCleared' ? 'The Sunken Vault’s warden fell: 2 Covenant Keystones, an Aether Core, 2 Ancient Relics and 250 Crowns.' : 'The Sealed Vault Map.') + '</li>').join('') + (r.sighting ? '<li>A wild ' + esc((SPECIES[r.sighting.species] || {}).name || r.sighting.species) + ' was sighted. Visit the Wilds within 48 hours.</li>' : '') + '</ul>' : '') +
+            (r.discs.length || r.sighting || r.mentorMet ? '<h3>Discoveries</h3><ul class="ck-milestones">' + r.discs.map((d) => '<li>' + (d === 'fawny' ? 'Fawny joined the Keep.' : d === 'vaultCleared' ? 'The Sunken Vault’s warden fell: 2 Covenant Keystones, an Aether Core, 2 Ancient Relics and 250 Crowns.' : 'The Sealed Vault Map.') + '</li>').join('') + (r.sighting ? '<li>A wild ' + esc((SPECIES[r.sighting.species] || {}).name || r.sighting.species) + ' was sighted. Visit the Wilds within 48 hours.</li>' : '') + (r.mentorMet ? '<li>You met ' + esc(mentorName(r.mentorMet)) + ', a ' + MENTOR_TIER[mentorTier(r.mentorMet)].name.toLowerCase() + '. Win their trust from the mentor portrait on the Knight tab.</li>' : '') + '</ul>' : '') +
             '<h3>Company</h3><ul class="ck-xp">' + Object.keys(r.bonds).map((k) => '<li><span>' + esc(S.comps[k] ? C(k).name : k) + '</span><b>+' + r.bonds[k] + ' bond' + (r.levels && r.levels[k] ? ' · Lv ' + r.levels[k] : '') + '</b></li>').join('') + '</ul>' +
             '<h3>Knowledge</h3><ul class="ck-xp">' + Object.keys(r.xp).map((k) => '<li><span>' + esc(SKILLS[k].name) + '</span><b>+' + r.xp[k] + ' xp</b></li>').join('') + (r.prof ? '<li><span>' + esc(WEAPONS[r.weapon].name) + '</span><b>+' + r.prof + ' xp</b></li>' : '') + '</ul>' +
             (r.food && FOODS[r.food] ? '<p class="ck-small is-ready">' + itemEmoji(r.food) + ' The company ate ' + esc(itemName(r.food)) + ': ' + esc(buffText(FOODS[r.food])) + '.</p>' : '') + '<h3>Loot</h3>' + lootRow(r.total) + '<p class="ck-small ck-muted">Haul kept: ' + r.lootPct + '% of the base find.' + (r.resumed.length ? ' Resumed: ' + esc(r.resumed.join(' · ')) + '.' : '') + '</p>' +
@@ -3809,7 +3907,6 @@
     }
     // The Knight stands at the Hall door as a paper standee (faded while away on the road).
     function sceneKnight(away) {
-        if (!knightCardId()) return '<span class="dm-art"' + (away ? ' style="opacity:.55"' : '') + '>' + artImg('knight', '') + '</span>';
         return '<span class="dm-knight-standee' + (away ? ' is-away' : '') + '">' + knightPaper() + '</span>';
     }
     // —— Akhar's Wall: the Keep's Front battle (keep.js initializeFrontCombat), fought live while the Wall is open ——
@@ -4424,8 +4521,21 @@
             toast('Made ' + recipeName(CRAFTS[arg]) + '.');
             break;
         case 'equip': { const parts = String(arg).split(':'); const msg = equip(s, parts[0], parts[1]); if (msg) { toast(msg); return; } break; }
-        case 'mentor': if (ART_URLS['knight:' + arg]) { s.knight.card = arg; s.rev++; closeModal(); toast(ART_URLS['knight-name:' + arg] + ' is now your mentor.'); } break;
-        case 'mentor-pick': if (knightCards().length) openModal('mentor'); return;
+        case 'mentor': if (recruited(s, arg)) { s.knight.card = arg; s.rev++; toast(mentorName(arg) + ' walks with you now.'); renderModal(); } break;
+        case 'm-meet': if (arg === gateSquire(s)) { meetMentor(s, arg, 'at the gate'); FRESH.length = 0; toast('You greeted ' + mentorName(arg) + '.'); renderModal(); } break;
+        case 'm-talk': { const b = talkBlock(s, arg); if (b) { toast(b); return; } metOf(s, arg).talk = dayKey(s); rapportGain(s, arg, 1); grantRank(s, 2); s.rev++; toast('You and ' + mentorName(arg) + ' talk a while. Rapport +1.'); renderModal(); break; }
+        case 'm-gift': {
+            const b = giftBlock(s, arg); if (b) { toast(b); return; }
+            const m = metOf(s, arg), t = MENTOR_TIER[mentorTier(arg)];
+            spend(s, ka(t.gift)); if (m.gifts.day !== dayKey(s)) m.gifts = { day: dayKey(s), n: 0 }; m.gifts.n++;
+            rapportGain(s, arg, t.giftR); s.rev++; toast(mentorName(arg) + ' accepts your gift. Rapport +' + t.giftR + '.'); renderModal(); break;
+        }
+        case 'm-ask': {
+            const b = askBlock(s, arg); if (b) { toast(b); return; }
+            metOf(s, arg).sworn = true; if (!knightCardId()) s.knight.card = arg; grantRank(s, 50);
+            logEvent(s, mentorName(arg) + ' agreed to train you.'); s.rev++; toast(mentorName(arg) + ' agrees to train you!'); renderModal(); break;
+        }
+        case 'mentor-pick': openModal('mentor'); return;
         case 'create': startDraft(); openModal('create'); return;
         case 'cc': { const i = arg.indexOf(':'), key = arg.slice(0, i), v = arg.slice(i + 1); if (!draft) startDraft(); draft[key] = v; renderModal(); return; }
         case 'cc-save': {
@@ -4434,7 +4544,6 @@
             const k = s.knight;
             k.given = given; k.title = draft.title; k.name = (draft.title ? draft.title + ' ' : '') + given;
             k.crest = { emblem: draft.emblem, color: draft.color }; k.calling = draft.calling;
-            if (ART_URLS['knight:' + draft.mentor]) k.card = draft.mentor;
             const first = !k.made; k.made = true; draft = null; s.rev++; closeModal();
             toast(first ? 'Welcome, ' + k.name + '.' : 'Your knight is updated.'); break;
         }
