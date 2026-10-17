@@ -2875,8 +2875,11 @@
     function renderHeader() {
         $('ckKnightName').textContent = S.knight.name;
         // Rebuilding the avatar every tick reloads its art and makes it flash.
-        const lead = leadComp(), av = $('ckAvatar'), key = lead + '|' + (lead ? catalogArt(speciesOf(lead).id, 240) : '');
-        if (av.dataset.key !== key) { av.dataset.key = key; av.innerHTML = lead ? portrait(lead) : ''; }
+        const av = $('ckAvatar'), key = portraitOf(S.knight);
+        if (av.dataset.key !== key) {
+            av.dataset.key = key;
+            av.innerHTML = '<span class="ck-portrait dm-paper-frame" style="--el:var(--' + key + ')">' + knightFigure(key, 'idle', true) + '</span>';
+        }
         $('ckCrownsNum').textContent = fl(S.inv.crowns);
         $('ckRankNum').textContent = rankLvl(S);
         $('ckRankTitle').textContent = HALL_RANKS[S.b.hall - 1] + (rebirths(S) ? ' · ' + REBIRTH_TITLES[rebirths(S)] : '');
@@ -4666,10 +4669,18 @@
         case 'reset-yes': {
             try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
             // Keep the sync ledger: a fresh version 0 would lose the 409 race and re-adopt the old save.
-            const keep = { sync: S.sync, applied: S.applied };
+            const keep = { sync: S.sync, applied: S.applied, rev: S.rev };
             S = defaults(Date.now()); Object.assign(S, keep); S.rev++;
-            modal = null; $('ckModal').hidden = true;
-            save(); syncNow(true); renderAll(); toast('Dominion reset: bare ground and 30 Timber.');
+            modal = null; confirmReset = false; draft = null;
+            $('ckModal').dataset.kind = ''; $('ckModalBody').innerHTML = '';
+            lastSig = ''; lastRev = -1;
+            save();
+            // If a save is already in flight, send the reset after its version is acknowledged.
+            if (NET.busy) NET.pending.then(() => syncNow(true));
+            else syncNow(true);
+            renderAll();
+            startDraft(); openModal('create'); $('ckModalBody').scrollTop = 0;
+            toast('Dominion reset. Create your new knight.');
             return;
         }
         case 'base-sec': s.ui.base = arg; if (s.ui.tab !== 'base') setTab('base'); if (arg !== 'grounds') s.ui.room = s.ui.room; $('ckMain').scrollTop = 0; break;
@@ -4919,7 +4930,8 @@
     }
 
     window.render_game_to_text = () => JSON.stringify({
-        mode: 'dominion', tab: S?.ui.tab,
+        mode: 'dominion', tab: S?.ui.tab, modal: modal?.kind || null,
+        knight: S ? { name: S.knight.name, portrait: portraitOf(S.knight), made: !!S.knight.made } : null,
         report: modal?.kind === 'report' ? { id: modal.arg, tab: modal.reportTab, page: (modal.reportPage || 0) + 1, pages: modal.reportPages, visible: Array.from(document.querySelectorAll('[data-report-cell]:not([hidden])')).map((cell) => cell.innerText) } : null
     });
 
