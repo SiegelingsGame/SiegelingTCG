@@ -17,7 +17,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <!-- The battle stylesheet dresses the real card faces (frames, notches, finishes). -->
 <link rel="stylesheet" href="/css/style.css?v=283">
-<link rel="stylesheet" href="/css/gauntlet.css?v=8">
+<link rel="stylesheet" href="/css/gauntlet.css?v=11">
 </head>
 <body data-screen="loading">
 <div class="gt-shell">
@@ -27,6 +27,8 @@
       <span class="gt-eyebrow">Roguelike</span>
       <h1>The Gauntlet</h1>
     </div>
+    <!-- The last fight's result lives beside the title, freeing the camp for the next one. -->
+    <div class="gt-banner" id="gtBanner" role="status" hidden></div>
     <div class="gt-stats" id="gtStats" hidden>
       <span class="gt-stat" id="gtLives" title="Lives"></span>
       <span class="gt-stat gt-gold" id="gtGold" title="Gold"></span>
@@ -34,6 +36,8 @@
     </div>
   </header>
 
+  <!-- One screen, no page scroll: each screen is a flex column whose card rail takes
+       the free space; gauntlet.js sizes the cards to fit it (fitRails). -->
   <main class="gt-main" id="gtMain">
     <section class="gt-screen" id="screenLoading">
       <p class="gt-muted gt-center">Loading the Gauntlet&hellip;</p>
@@ -42,81 +46,90 @@
     <!-- Start: pick a deck, pick a SiegeKnight. -->
     <section class="gt-screen" id="screenStart">
       <div class="gt-resume" id="gtResume" hidden></div>
-      <div class="gt-intro">
-        <p>Draft <strong>10 cards</strong> from a preset deck, then climb floor after floor on the Battle Table.
-          You start every fight at <strong>25 HP</strong>. Wins pay gold, cards and SiegeKnight XP; gold buys cards and
-          forges upgrades onto them. <strong>Every 10th floor</strong> is a SiegeKnight with 30 HP.
-          Lose three fights and the run ends.</p>
-      </div>
-      <h2 class="gt-h2"><span>1</span> Pick a deck to draft from</h2>
-      <div class="gt-deck-grid" id="gtDecks"></div>
-      <h2 class="gt-h2"><span>2</span> Pick your SiegeKnight</h2>
-      <div class="gt-knight-grid" id="gtKnights"></div>
-      <div class="gt-sticky-cta">
+      <ul class="gt-rules" aria-label="How the Gauntlet works">
+        <li>Draft <b>10 cards</b></li>
+        <li><b>25 HP</b> every fight</li>
+        <li>Gold buys cards &amp; forges</li>
+        <li>Floor <b>10</b>: SiegeKnight boss</li>
+        <li><b>3 losses</b> end the run</li>
+      </ul>
+      <h2 class="gt-h2"><span>1</span> Deck to draft from</h2>
+      <div class="gt-strip" id="gtDecks"></div>
+      <h2 class="gt-h2"><span>2</span> Your SiegeKnight</h2>
+      <div class="gt-fit" id="gtKnights" data-min="84" data-max="220"></div>
+      <div class="gt-cta">
         <button class="gt-btn gt-btn-primary" id="gtStartBtn" type="button" disabled>Draft my ten</button>
       </div>
     </section>
 
     <!-- Draft: the ten cards, one redraw. -->
     <section class="gt-screen" id="screenDraft">
-      <h2 class="gt-h2">Your draft</h2>
-      <p class="gt-muted" id="gtDraftNote"></p>
-      <div class="gt-card-grid" id="gtDraftCards"></div>
-      <div class="gt-sticky-cta gt-cta-row">
+      <div class="gt-screen-head">
+        <h2 class="gt-h2">Your draft</h2>
+        <p class="gt-muted" id="gtDraftNote"></p>
+      </div>
+      <div class="gt-fit" id="gtDraftCards"></div>
+      <div class="gt-cta gt-cta-row">
         <button class="gt-btn" id="gtRerollBtn" type="button">Redraw once</button>
         <button class="gt-btn gt-btn-primary" id="gtBeginBtn" type="button">Begin the climb</button>
       </div>
     </section>
 
-    <!-- Camp: the hub between floors. -->
+    <!-- Camp: the hub between floors. Phones stack it; wide screens put the next
+         fight in a side column beside the tabs. -->
     <section class="gt-screen" id="screenCamp">
-      <div class="gt-banner" id="gtBanner" hidden></div>
-      <div class="gt-track" id="gtTrack" aria-label="This act's floors"></div>
-      <article class="gt-encounter" id="gtEncounter"></article>
-      <div class="gt-sticky-cta">
-        <button class="gt-btn gt-btn-primary gt-btn-fight" id="gtFightBtn" type="button">Fight floor 1</button>
+      <div class="gt-camp-side">
+        <div class="gt-track" id="gtTrack" aria-label="This act's floors"></div>
+        <article class="gt-encounter" id="gtEncounter"></article>
+        <div class="gt-cta">
+          <button class="gt-btn gt-btn-primary gt-btn-fight" id="gtFightBtn" type="button">Fight floor 1</button>
+        </div>
       </div>
-      <nav class="gt-tabs" role="tablist">
-        <button type="button" role="tab" data-tab="deck" class="is-active">Deck &amp; Forge</button>
-        <button type="button" role="tab" data-tab="shop">Shop</button>
-        <button type="button" role="tab" data-tab="knight">SiegeKnight</button>
-        <button type="button" role="tab" data-tab="log">Log</button>
-      </nav>
-      <div class="gt-tab" data-panel="deck">
-        <p class="gt-muted" id="gtDeckNote"></p>
-        <div class="gt-card-grid" id="gtDeck"></div>
-      </div>
-      <div class="gt-tab" data-panel="shop" hidden>
-        <div class="gt-shop" id="gtShop"></div>
-      </div>
-      <div class="gt-tab" data-panel="knight" hidden>
-        <div id="gtKnight"></div>
-      </div>
-      <div class="gt-tab" data-panel="log" hidden>
-        <ol class="gt-log" id="gtLog"></ol>
-        <button class="gt-btn gt-btn-danger" id="gtAbandonBtn" type="button">End this run</button>
+      <div class="gt-camp-panel">
+        <nav class="gt-tabs" role="tablist">
+          <button type="button" role="tab" data-tab="deck" class="is-active">Deck &amp; Forge</button>
+          <button type="button" role="tab" data-tab="shop">Shop</button>
+          <button type="button" role="tab" data-tab="knight">SiegeKnight</button>
+          <button type="button" role="tab" data-tab="log">Log</button>
+        </nav>
+        <div class="gt-tab" data-panel="deck">
+          <p class="gt-muted gt-note" id="gtDeckNote"></p>
+          <div class="gt-fit" id="gtDeck"></div>
+        </div>
+        <div class="gt-tab" data-panel="shop" hidden>
+          <div class="gt-fit gt-shop" id="gtShop"></div>
+        </div>
+        <div class="gt-tab" data-panel="knight" hidden>
+          <div class="gt-knight-tab" id="gtKnight"></div>
+        </div>
+        <div class="gt-tab" data-panel="log" hidden>
+          <div class="gt-log-head">
+            <p class="gt-muted gt-note">The run so far, oldest first.</p>
+            <button class="gt-btn gt-btn-small gt-btn-danger" id="gtAbandonBtn" type="button">End this run</button>
+          </div>
+          <ol class="gt-log" id="gtLog"></ol>
+        </div>
       </div>
     </section>
 
     <!-- Reward after a win. -->
     <section class="gt-screen" id="screenReward">
-      <div class="gt-victory" id="gtVictory"></div>
-      <h2 class="gt-h2">Choose a card for your deck</h2>
-      <p class="gt-muted">Select a card to view its moves, then take it.</p>
-      <div class="gt-card-grid gt-card-grid-3" id="gtRewardCards"></div>
-      <div class="gt-sticky-cta">
+      <div class="gt-victory gt-victory-compact" id="gtVictory"></div>
+      <p class="gt-muted gt-note gt-center">Choose a card for your deck: select one to view its moves, then take it.</p>
+      <div class="gt-fit" id="gtRewardCards" data-max="280"></div>
+      <div class="gt-cta">
         <button class="gt-btn" id="gtSkipBtn" type="button">Skip</button>
       </div>
     </section>
 
     <!-- SiegeKnight level-up. -->
     <section class="gt-screen" id="screenLevel">
-      <div class="gt-victory" id="gtLevelHead"></div>
+      <div class="gt-victory gt-victory-compact" id="gtLevelHead"></div>
       <div class="gt-perk-grid" id="gtPerks"></div>
     </section>
 
     <!-- A fight is live (the player came back mid-match). -->
-    <section class="gt-screen" id="screenBattle">
+    <section class="gt-screen gt-screen-center" id="screenBattle">
       <div class="gt-victory">
         <h2>A fight is under way</h2>
         <p class="gt-muted">Your floor's battle is still open on the Battle Table.</p>
@@ -125,9 +138,9 @@
     </section>
 
     <!-- Run over. -->
-    <section class="gt-screen" id="screenOver">
+    <section class="gt-screen gt-screen-center" id="screenOver">
       <div class="gt-victory" id="gtOver"></div>
-      <div class="gt-sticky-cta">
+      <div class="gt-cta">
         <button class="gt-btn gt-btn-primary" id="gtNewRunBtn" type="button">Start a new run</button>
       </div>
     </section>
@@ -151,6 +164,6 @@
      battle UI when #loadoutOverlay exists, so here it is a library. -->
 <script src="/js/game.js?v=325"></script>
 <script src="/js/card-binder-visual.js?v=35"></script>
-<script src="/js/gauntlet.js?v=6"></script>
+<script src="/js/gauntlet.js?v=8"></script>
 </body>
 </html>

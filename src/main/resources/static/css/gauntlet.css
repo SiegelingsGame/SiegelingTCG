@@ -1,6 +1,8 @@
 /* The Gauntlet: the roguelike climb's between-fight pages. The fights themselves run
-   on play.html; this page is menus, so its main region scrolls while the header and
-   the primary action stay put. Element hexes mirror style.css :root. */
+   on play.html. Like the battle screens, every screen here fits one viewport and never
+   scrolls vertically: each screen is a flex column whose card rail (.gt-fit) takes the
+   free space, and gauntlet.js sizes the cards to fit it. When they cannot fit at a
+   readable size the rail becomes a horizontal strip. Element hexes mirror style.css :root. */
 :root {
   --fire: #ff501e;
   --earth: #b48c50;
@@ -42,6 +44,7 @@
 html, body {
   margin: 0;
   height: 100%;
+  overflow: hidden;
   background: var(--gt-bg);
   color: var(--ink);
   font-family: var(--sans);
@@ -51,6 +54,9 @@ html, body {
 }
 
 body {
+  /* style.css pads the battle body for its bottom tray on small screens; this page
+     has no tray and must fill the viewport exactly. */
+  padding: 0 !important;
   background:
     radial-gradient(1200px 600px at 50% -10%, rgba(230, 205, 140, 0.10), transparent 60%),
     radial-gradient(900px 500px at 100% 100%, rgba(120, 50, 180, 0.12), transparent 60%),
@@ -74,8 +80,8 @@ button { font-family: inherit; touch-action: manipulation; }
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: calc(10px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+  gap: 10px;
+  padding: calc(8px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(11, 16, 32, 0.96), rgba(11, 16, 32, 0.82));
 }
@@ -84,8 +90,8 @@ button { font-family: inherit; touch-action: manipulation; }
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: 1px solid var(--line-strong);
   color: var(--gold);
@@ -93,23 +99,26 @@ button { font-family: inherit; touch-action: manipulation; }
   font-size: 18px;
 }
 
-.gt-title { flex: 1 1 auto; min-width: 0; }
+/* The title keeps its width; the result banner beside it takes what is left. */
+.gt-title { flex: 1 0 auto; min-width: 0; }
+.gt-top:has(.gt-banner:not([hidden])) .gt-title { flex-grow: 0; }
 .gt-title h1 {
   margin: 0;
   font-family: var(--serif);
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 600;
   color: var(--gold);
   line-height: 1.1;
+  white-space: nowrap;
 }
 .gt-eyebrow { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--faint); }
 
-.gt-stats { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.gt-stats { flex: 0 0 auto; display: flex; gap: 6px; justify-content: flex-end; }
 .gt-stat {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 9px;
+  padding: 4px 9px;
   border-radius: 999px;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -120,14 +129,14 @@ button { font-family: inherit; touch-action: manipulation; }
 .gt-gold { color: var(--gold); }
 .gt-forge { color: #ffb36b; }
 
-/* The one region that scrolls. */
+/* The screen host: a fixed box, never a scroller. */
 .gt-main {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  padding: 14px max(16px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 10px max(16px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 }
 
 .gt-screen { display: none; }
@@ -138,17 +147,30 @@ body[data-screen="camp"] #screenCamp,
 body[data-screen="reward"] #screenReward,
 body[data-screen="level"] #screenLevel,
 body[data-screen="battle"] #screenBattle,
-body[data-screen="over"] #screenOver { display: block; }
+body[data-screen="over"] #screenOver { display: flex; }
+
+/* Each screen is a column; chrome rows keep their size and the one .gt-fit (or
+   .gt-perk-grid / .gt-camp-panel) takes what is left. */
+.gt-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+.gt-screen > * { flex: 0 0 auto; min-width: 0; }
+.gt-screen-center { justify-content: center; }
+#screenLoading { justify-content: center; }
 
 .gt-center { text-align: center; }
 .gt-muted { color: var(--muted); font-size: 14px; line-height: 1.45; }
+.gt-note { font-size: 13px; line-height: 1.35; }
 
 .gt-h2 {
   font-family: var(--serif);
   font-weight: 600;
-  font-size: 19px;
+  font-size: 18px;
   color: var(--gold);
-  margin: 22px 0 10px;
+  margin: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -156,22 +178,89 @@ body[data-screen="over"] #screenOver { display: block; }
 .gt-h2 span {
   display: inline-grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   border: 1px solid var(--line-strong);
-  font-size: 13px;
+  font-size: 12px;
   font-family: var(--sans);
 }
+.gt-screen-head { display: flex; flex-direction: column; gap: 2px; }
 
-.gt-intro {
-  background: linear-gradient(135deg, rgba(230, 205, 140, 0.10), rgba(22, 31, 56, 0.6));
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 12px 14px;
+/* The run's rules as one swipeable line of chips instead of a paragraph. */
+.gt-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  touch-action: pan-x;
+  scrollbar-width: none;
 }
-.gt-intro p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
-.gt-intro strong { color: var(--ink); }
+.gt-rules::-webkit-scrollbar { display: none; }
+.gt-rules li {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(230, 205, 140, 0.10), rgba(22, 31, 56, 0.6));
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.gt-rules b { color: var(--ink); }
+
+/* Horizontal-only strips (deck picker, enemy cards, rails in strip mode). */
+.gt-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  scroll-snap-type: x proximity;
+  padding-bottom: 2px;
+}
+.gt-strip > * { flex: 0 0 auto; scroll-snap-align: start; }
+
+/* The card rail. gauntlet.js (fitRails) measures it and either lays every card out in
+   a grid that fits (.is-fit) or, when that would make cards unreadably small, flows
+   them into a fixed number of rows that scroll sideways (.is-strip). */
+/* Fill regions use a zero flex basis so their size never depends on their content:
+   the rail is measured, then filled, and must not grow with what it holds. */
+.gt-fit {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, var(--card-w, 140px));
+  justify-content: center;
+  align-content: center;
+  align-items: start;
+  overflow: hidden;
+}
+.gt-fit > * { width: var(--card-w, 140px); min-width: 0; }
+.gt-fit.is-strip {
+  grid-auto-flow: column;
+  grid-auto-columns: var(--card-w, 140px);
+  justify-content: start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  scroll-snap-type: x proximity;
+  padding-bottom: 6px;
+}
+.gt-fit.is-strip > * { scroll-snap-align: start; }
+/* Measuring pass: natural heights, nothing stretched. */
+.gt-fit.is-measuring { align-items: start; visibility: hidden; }
+
+.gt-cta { display: flex; justify-content: center; }
+.gt-cta .gt-btn { width: 100%; }
+.gt-cta-row { gap: 10px; }
+.gt-cta-row .gt-btn { flex: 1 1 0; }
 
 /* Buttons */
 .gt-btn {
@@ -195,24 +284,8 @@ body[data-screen="over"] #screenOver { display: block; }
 .gt-btn-danger { border-color: rgba(255, 107, 107, 0.5); color: var(--bad); background: transparent; margin-top: 16px; }
 .gt-btn-small { min-height: 34px; padding: 6px 12px; font-size: 13px; }
 
-.gt-sticky-cta {
-  position: sticky;
-  bottom: calc(-24px - env(safe-area-inset-bottom));
-  margin: 16px -16px 0;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, rgba(11, 16, 32, 0), rgba(11, 16, 32, 0.94) 32%);
-  z-index: 2;
-}
-.gt-sticky-cta .gt-btn { width: 100%; }
-.gt-cta-row { display: flex; gap: 10px; }
-.gt-cta-row .gt-btn { flex: 1 1 0; }
-
 /* Deck and knight pickers */
-.gt-deck-grid, .gt-knight-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 10px;
-}
+#gtDecks .gt-pick { width: 168px; min-height: 0; padding: 9px 12px; }
 .gt-pick {
   position: relative;
   text-align: left;
@@ -231,7 +304,7 @@ body[data-screen="over"] #screenOver { display: block; }
 .gt-pick.is-locked { opacity: 0.45; cursor: not-allowed; }
 .gt-pick-name { font-weight: 700; font-size: 14px; }
 .gt-pick-sub { font-size: 12px; color: var(--muted); line-height: 1.35; }
-.gt-pick-lock { position: absolute; top: 8px; right: 10px; font-size: 12px; color: var(--faint); }
+.gt-pick-lock { position: absolute; top: 8px; right: 10px; font-size: 12px; color: var(--faint); z-index: 7; }
 .gt-knight-pick { flex-direction: row; align-items: center; }
 .gt-knight-pick .gt-knight-art { width: 44px; height: 60px; flex: 0 0 auto; }
 
@@ -246,13 +319,6 @@ body[data-screen="over"] #screenOver { display: block; }
 }
 
 /* Cards */
-.gt-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 10px;
-}
-.gt-card-grid-3 { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-
 .gt-card {
   --el: var(--neutral);
   position: relative;
@@ -363,14 +429,44 @@ body[data-screen="over"] #screenOver { display: block; }
 [data-el="NEUTRAL"] { --el: var(--neutral); }
 
 /* Camp */
+.gt-camp-side { display: contents; }
+.gt-camp-side > * { flex: 0 0 auto; }
+.gt-camp-panel {
+  order: 1;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#screenCamp .gt-cta { order: 2; }
+.gt-tab {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.gt-tab > * { flex: 0 0 auto; }
+.gt-tab > .gt-fit, .gt-tab > .gt-log, .gt-tab > .gt-knight-tab { flex: 1 1 0; min-height: 0; }
+
+/* Last fight's result, in the header between the title and the stats. */
 .gt-banner {
-  border-radius: var(--radius);
-  padding: 10px 14px;
-  margin-bottom: 12px;
-  font-size: 14px;
-  line-height: 1.4;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-self: center;
+  border-radius: 10px;
+  padding: 5px 10px;
+  font-size: 12.5px;
+  line-height: 1.3;
   border: 1px solid var(--line);
   background: var(--panel);
+}
+.gt-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .gt-banner.is-win { border-color: rgba(95, 208, 139, 0.45); background: rgba(95, 208, 139, 0.08); }
 .gt-banner.is-loss { border-color: rgba(255, 107, 107, 0.45); background: rgba(255, 107, 107, 0.08); }
@@ -379,10 +475,9 @@ body[data-screen="over"] #screenOver { display: block; }
   display: grid;
   grid-template-columns: repeat(10, minmax(0, 1fr));
   gap: 4px;
-  margin-bottom: 12px;
 }
 .gt-stop {
-  height: 34px;
+  height: 28px;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--panel);
@@ -397,38 +492,109 @@ body[data-screen="over"] #screenOver { display: block; }
 .gt-stop.is-elite { color: #ffb36b; }
 .gt-stop.is-knight { color: var(--psychic); font-size: 15px; }
 
+/* The next floor: a box of fixed height with two pages, Details and Cards. */
 .gt-encounter {
   --el: var(--neutral);
-  border-radius: 18px;
+  height: clamp(150px, 26dvh, 230px);
+  border-radius: 16px;
   border: 1px solid color-mix(in srgb, var(--el) 50%, transparent);
   background:
     radial-gradient(500px 220px at 85% 0%, color-mix(in srgb, var(--el) 26%, transparent), transparent 70%),
     var(--panel);
-  padding: 14px;
+  padding: 9px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow: hidden;
 }
+.gt-encounter > * { flex: 0 0 auto; min-width: 0; }
+.gt-enc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .gt-encounter-kind {
-  font-size: 11px;
-  letter-spacing: 0.18em;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
-.gt-encounter h2 { margin: 4px 0 6px; font-family: var(--serif); font-size: 24px; font-weight: 600; }
-.gt-encounter p { margin: 0 0 10px; color: var(--muted); font-size: 14px; line-height: 1.45; }
-.gt-encounter-hp { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.gt-enc-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+}
+.gt-enc-tabs button {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 28px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.gt-enc-tabs button.is-active { background: var(--panel-2); color: var(--gold); }
+.gt-enc-tabs button span {
+  display: inline-block;
+  min-width: 16px;
+  margin-left: 3px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(230, 205, 140, 0.18);
+  color: var(--gold);
+  font-size: 10.5px;
+}
+.gt-encounter h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gt-encounter > .gt-enc-page { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.gt-enc-page > * { flex: 0 0 auto; }
+.gt-enc-page > .gt-fit, .gt-enc-page > .gt-enc-text { flex: 1 1 0; min-height: 0; }
+.gt-encounter-hp { display: flex; flex-wrap: wrap; gap: 5px; }
 .gt-hp {
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 999px;
   font-weight: 800;
-  font-size: 13px;
+  font-size: 12px;
+  white-space: nowrap;
   background: rgba(255, 107, 107, 0.14);
   border: 1px solid rgba(255, 107, 107, 0.35);
 }
 .gt-hp.is-you { background: rgba(95, 208, 139, 0.12); border-color: rgba(95, 208, 139, 0.35); }
-.gt-mini-row { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Blurb and boss abilities flow into further columns sideways, never down. */
+.gt-enc-text {
+  column-width: 240px;
+  column-gap: 20px;
+  column-fill: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  touch-action: pan-x;
+}
+.gt-enc-text > * { break-inside: avoid; }
+.gt-enc-blurb { margin: 0 0 6px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.gt-enc-text .gt-ability { font-size: 12.5px; margin: 0 0 4px; }
+.gt-foe-rail { gap: 6px; }
+.gt-enc-count { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gt-mini {
   --el: var(--neutral);
+  position: relative;
   width: 58px;
-  border-radius: 10px;
+  flex: 0 0 auto;
+  border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--el) 55%, transparent);
   background: var(--bg-2);
   overflow: hidden;
@@ -436,23 +602,45 @@ body[data-screen="over"] #screenOver { display: block; }
   text-align: center;
   color: var(--muted);
 }
+.gt-fit > .gt-mini { width: var(--card-w, 58px); }
 .gt-mini .gt-card-art { aspect-ratio: 1 / 1; }
-.gt-mini span { display: block; padding: 2px 3px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gt-mini-label { font-size: 11px; color: var(--faint); margin: 8px 0 4px; text-transform: uppercase; letter-spacing: 0.12em; }
+.gt-mini > span:not(.gt-mini-tag) { display: block; padding: 2px 3px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gt-mini .gt-knight-art { width: 100%; border-radius: 6px; }
+/* Marks the board cards and the boss among the room's cards. */
+.gt-mini-tag {
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  transform: translateX(-50%);
+  z-index: 7;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(11, 16, 32, 0.88);
+  border: 1px solid var(--line-strong);
+  color: var(--gold);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
 
 .gt-tabs {
   display: flex;
   gap: 4px;
-  margin: 16px 0 12px;
-  padding: 4px;
+  padding: 3px;
   border-radius: 12px;
   background: var(--bg-2);
   border: 1px solid var(--line);
   overflow-x: auto;
+  overflow-y: hidden;
+  touch-action: pan-x;
+  scrollbar-width: none;
 }
+.gt-tabs::-webkit-scrollbar { display: none; }
 .gt-tabs button {
   flex: 1 0 auto;
-  min-height: 38px;
+  min-height: 36px;
   border: 0;
   border-radius: 9px;
   background: transparent;
@@ -464,7 +652,8 @@ body[data-screen="over"] #screenOver { display: block; }
 }
 .gt-tabs button.is-active { background: var(--panel-2); color: var(--gold); }
 
-.gt-shop { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+/* Shop services stand in the card rail beside the cards, as tall as them. */
+.gt-shop.is-fit, .gt-shop.is-strip { align-items: stretch; }
 .gt-service {
   display: flex;
   flex-direction: column;
@@ -473,18 +662,38 @@ body[data-screen="over"] #screenOver { display: block; }
   border-radius: var(--radius);
   border: 1px dashed var(--line-strong);
   background: var(--panel);
-  padding: 12px;
-  min-height: 150px;
+  padding: 10px;
+  min-height: 0;
+  overflow: hidden;
 }
-.gt-service h3 { margin: 0; font-size: 15px; }
-.gt-service p { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.gt-service h3 { margin: 0 0 4px; font-size: 14px; }
+.gt-service p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.35; }
+.gt-service .gt-btn { width: 100%; }
 
+/* SiegeKnight tab: the card fills the height on the left, its text on the right. */
+.gt-knight-tab { overflow: hidden; }
 .gt-knight-panel {
+  height: 100%;
   display: grid;
-  grid-template-columns: 120px 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
+.gt-knight-panel > .gt-knight-art { width: auto; height: min(100%, 300px); max-width: 38vw; aspect-ratio: 5 / 7; }
+.gt-knight-panel > .gt-knight-art.gt-knight-real { display: grid; }
+/* Long knight text flows into further columns sideways rather than down. */
+.gt-knight-text {
+  height: 100%;
+  min-height: 0;
+  column-width: 230px;
+  column-gap: 20px;
+  column-fill: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  touch-action: pan-x;
+}
+.gt-knight-text > * { break-inside: avoid; }
+.gt-knight-text .gt-h2 { margin: 0 0 4px; }
 .gt-knight-art {
   --el: var(--neutral);
   width: 120px;
@@ -498,12 +707,29 @@ body[data-screen="over"] #screenOver { display: block; }
 }
 .gt-knight-art img { width: 100%; height: 100%; object-fit: cover; }
 .gt-knight-art img.is-icon { width: 55%; height: auto; object-fit: contain; }
-.gt-xp { height: 8px; border-radius: 999px; background: var(--bg-2); overflow: hidden; border: 1px solid var(--line); margin: 6px 0 10px; }
+.gt-xp { height: 8px; border-radius: 999px; background: var(--bg-2); overflow: hidden; border: 1px solid var(--line); margin: 6px 0 8px; }
 .gt-xp i { display: block; height: 100%; background: linear-gradient(90deg, var(--gold-deep), var(--gold)); }
-.gt-ability { font-size: 13px; color: var(--muted); line-height: 1.4; margin: 0 0 8px; }
+.gt-ability { font-size: 13px; color: var(--muted); line-height: 1.4; margin: 0 0 6px; }
 .gt-ability b { color: var(--ink); }
 
-.gt-log { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+/* The log flows into columns that scroll sideways, so it never grows the page. */
+.gt-log-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.gt-log-head .gt-btn-danger { margin: 0; flex: 0 0 auto; }
+.gt-log {
+  margin: 0;
+  padding: 0 0 6px;
+  list-style-position: inside;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  column-width: 240px;
+  column-gap: 24px;
+  column-fill: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  touch-action: pan-x;
+}
+.gt-log li { break-inside: avoid; margin-bottom: 4px; }
 
 /* Victory / level / over */
 .gt-victory {
@@ -516,61 +742,83 @@ body[data-screen="over"] #screenOver { display: block; }
 .gt-victory h2 { margin: 0 0 6px; font-family: var(--serif); font-size: 26px; color: var(--gold); font-weight: 600; }
 .gt-victory p { margin: 4px 0; }
 .gt-victory .gt-btn { margin-top: 12px; }
-.gt-spoils { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 10px; }
+.gt-victory-compact { padding: 10px 14px; }
+.gt-victory-compact h2 { font-size: 22px; margin: 0 0 2px; }
+.gt-spoils { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 6px; }
 
-.gt-perk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 14px; }
+.gt-perk-grid {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  grid-auto-rows: minmax(0, auto);
+  align-content: center;
+  gap: 10px;
+  overflow: hidden;
+}
 .gt-perk {
   text-align: left;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--panel);
   color: var(--ink);
-  padding: 14px;
+  padding: 12px 14px;
   cursor: pointer;
-  min-height: 96px;
+  min-height: 72px;
 }
-.gt-perk h3 { margin: 0 0 6px; font-family: var(--serif); color: var(--gold); font-size: 19px; font-weight: 600; }
-.gt-perk p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.4; }
+.gt-perk h3 { margin: 0 0 4px; font-family: var(--serif); color: var(--gold); font-size: 18px; font-weight: 600; }
+.gt-perk p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
 
 .gt-resume {
-  border-radius: var(--radius);
+  border-radius: 12px;
   border: 1px solid var(--gold);
   background: rgba(230, 205, 140, 0.08);
-  padding: 12px 14px;
-  margin-bottom: 14px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
 }
-.gt-resume p { margin: 0; font-size: 14px; }
+.gt-resume p { margin: 0; font-size: 13px; }
 
-/* Card sheet */
+/* Card tray: a dialog sized to the viewport. On phones the face sits beside the
+   title and the moves, upgrades and forge run below; on wide screens the face
+   takes a column of its own. */
 .gt-sheet { position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
 .gt-sheet[hidden] { display: none; }
 .gt-sheet-scrim { position: absolute; inset: 0; background: rgba(4, 6, 14, 0.66); }
 .gt-sheet-body {
   position: relative;
   width: min(560px, 100%);
-  max-height: 88dvh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  max-height: calc(100dvh - env(safe-area-inset-top) - 8px);
+  display: flex;
+  flex-direction: column;
   background: var(--bg-2);
   border: 1px solid var(--line-strong);
   border-radius: 20px 20px 0 0;
-  padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+  padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  overflow: hidden;
 }
-@media (min-width: 720px) {
-  .gt-sheet { align-items: center; }
-  .gt-sheet-body { border-radius: 20px; }
+#gtSheetContent {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* Last resort only: the tray is laid out to fit, but a five-upgrade card on a
+     very short phone must still reach its forge buttons. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
+.gt-sheet-body.is-picker { height: min(82dvh, 760px); }
+.gt-sheet-body.is-picker #gtSheetContent { overflow: hidden; gap: 6px; }
+.gt-sheet-body.is-picker .gt-fit { flex: 1 1 0; }
 .gt-sheet-close {
   position: absolute;
   top: 8px;
   right: 10px;
-  width: 38px;
-  height: 38px;
+  z-index: 3;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: 1px solid var(--line);
   background: var(--panel);
@@ -578,25 +826,46 @@ body[data-screen="over"] #screenOver { display: block; }
   font-size: 22px;
   cursor: pointer;
 }
-.gt-sheet-head { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: start; margin-right: 40px; }
-.gt-sheet-head .gt-card-art { border-radius: 12px; aspect-ratio: 3 / 4; }
-.gt-sheet h2 { margin: 0 0 4px; font-family: var(--serif); font-size: 22px; font-weight: 600; }
-.gt-forge-head { margin: 16px 0 8px; font-family: var(--serif); color: var(--gold); font-size: 18px; font-weight: 600; }
-.gt-forge-options { display: flex; flex-direction: column; gap: 8px; }
+.gt-tray {
+  display: grid;
+  grid-template-columns: var(--tray-face, min(36%, 150px, calc(24dvh * 5 / 7))) minmax(0, 1fr);
+  grid-template-areas: "face head" "body body";
+  column-gap: 12px;
+  row-gap: 10px;
+  align-items: start;
+}
+.gt-tray-face { grid-area: face; }
+.gt-tray-face .gt-card-art { border-radius: 12px; aspect-ratio: 3 / 4; }
+.gt-tray-face .gt-knight-art { width: 100%; }
+.gt-tray-headline { grid-area: head; margin-right: 40px; min-width: 0; }
+.gt-tray-body { grid-area: body; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.gt-sheet h2 { margin: 0 0 4px; font-family: var(--serif); font-size: 21px; font-weight: 600; }
+.gt-forge-head { margin: 0 0 6px; font-family: var(--serif); color: var(--gold); font-size: 17px; font-weight: 600; }
+.gt-forge-options { display: flex; flex-direction: column; gap: 6px; }
 .gt-forge-option {
   text-align: left;
   border: 1px solid var(--line-strong);
   background: var(--panel);
   color: var(--ink);
   border-radius: 12px;
-  padding: 12px;
+  padding: 8px 12px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  min-height: 48px;
+  min-height: 44px;
 }
-.gt-forge-option small { display: block; color: var(--muted); font-weight: 500; margin-top: 2px; }
-.gt-remove-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin-top: 10px; }
+.gt-forge-option small { display: block; color: var(--muted); font-weight: 500; margin-top: 1px; font-size: 12px; }
+@media (min-width: 720px) {
+  .gt-sheet { align-items: center; }
+  .gt-sheet-body { width: min(900px, calc(100% - 32px)); max-height: min(92dvh, 860px); border-radius: 20px; padding: 18px; }
+  .gt-tray {
+    --tray-face: min(300px, calc((min(92dvh, 860px) - 40px) * 5 / 7));
+    grid-template-areas: "face head" "face body";
+    grid-template-rows: auto 1fr;
+    column-gap: 20px;
+  }
+  .gt-sheet-body.is-picker { height: min(86dvh, 820px); }
+}
 
 .gt-toast {
   position: fixed;
@@ -615,22 +884,85 @@ body[data-screen="over"] #screenOver { display: block; }
 }
 .gt-toast.is-info { background: #13261c; border-color: rgba(95, 208, 139, 0.5); }
 
+/* Wide screens: the next fight gets a side column and the tabs fill the rest.
+   Landscape phones take the same split, since stacking leaves the cards no height. */
 @media (min-width: 900px) {
-  .gt-title h1 { font-size: 26px; }
-  .gt-card-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-  .gt-sticky-cta { position: static; margin: 16px 0 0; padding: 0; background: none; }
-  .gt-sticky-cta .gt-btn { width: auto; min-width: 240px; }
+  .gt-title h1 { font-size: 25px; }
+  .gt-main { padding-top: 14px; }
+  .gt-cta .gt-btn { width: auto; min-width: 260px; }
   .gt-cta-row .gt-btn { flex: 0 0 auto; }
+}
+@media (min-width: 900px), (orientation: landscape) and (min-width: 640px) {
+  #screenCamp { flex-direction: row; gap: 16px; }
+  .gt-camp-side {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 0 0 min(380px, 34%);
+    min-height: 0;
+  }
+  .gt-camp-side > * { flex: 0 0 auto; }
+  /* The box fills the column down to the Fight button (up to a cap on tall screens). */
+  .gt-camp-side .gt-encounter { flex: 1 1 0; height: auto; max-height: 440px; }
+  .gt-camp-panel { order: 0; }
+  .gt-camp-side .gt-cta .gt-btn { width: 100%; min-width: 0; }
+}
+
+/* Short viewports (small phones, landscape): drop the nice-to-haves first. */
+@media (max-height: 700px) {
+  .gt-rules { display: none; }
+  .gt-encounter { padding: 7px 10px 8px; height: clamp(150px, 26dvh, 180px); }
+  /* The tab already counts the cards; the room's height goes to the cards themselves. */
+  .gt-enc-page .gt-note { display: none; }
+  .gt-stop { height: 24px; font-size: 11px; }
+  .gt-screen { gap: 8px; }
+  .gt-h2 { font-size: 16px; }
+}
+@media (max-height: 520px) {
+  .gt-top { padding-top: calc(4px + env(safe-area-inset-top)); padding-bottom: 4px; }
+  .gt-home { width: 30px; height: 30px; font-size: 15px; }
+  .gt-main { padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
+  .gt-screen { gap: 6px; }
+  .gt-h2 { font-size: 14px; }
+  .gt-h2 span { width: 20px; height: 20px; font-size: 11px; }
+  #gtDecks .gt-pick { flex-direction: row; align-items: center; padding: 6px 10px; width: auto; }
+  .gt-btn { min-height: 38px; padding: 7px 14px; }
+  .gt-victory-compact { padding: 6px 12px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  .gt-victory-compact h2 { font-size: 18px; margin: 0; }
+  .gt-victory-compact p, #screenReward > .gt-note { display: none; }
+  .gt-victory-compact .gt-spoils { margin: 0; }
+  .gt-tabs button { min-height: 30px; padding: 4px 8px; }
+}
+
+/* Landscape phones: a wider fight column and a slimmer header, so the encounter has
+   room to show its cards at a readable size. */
+@media (orientation: landscape) and (max-height: 520px) and (min-width: 640px) {
+  .gt-eyebrow { display: none; }
+  .gt-title h1 { font-size: 18px; }
+  .gt-stat { padding: 3px 8px; font-size: 12px; }
+  #screenCamp { gap: 12px; }
+  .gt-camp-side { flex-basis: min(400px, 44%); gap: 6px; }
+  .gt-banner { padding: 3px 8px; font-size: 12px; }
+  .gt-stop { height: 22px; }
+  .gt-encounter { padding: 7px 10px; gap: 4px; }
+  .gt-encounter h2 { font-size: 18px; }
+  .gt-hp { padding: 2px 7px; font-size: 11px; }
+  .gt-camp-side .gt-cta .gt-btn { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+}
+
+/* Phones in portrait: no room beside the title, so the result takes a second header row. */
+@media (max-width: 599px) {
+  .gt-top { flex-wrap: wrap; row-gap: 6px; }
+  .gt-banner { order: 3; flex-basis: 100%; padding: 4px 10px; font-size: 12px; }
+  .gt-banner .gt-clamp { -webkit-line-clamp: 1; }
 }
 
 @media (max-width: 420px) {
   .gt-title h1 { font-size: 19px; }
   .gt-eyebrow { display: none; }
-  .gt-stat { padding: 4px 7px; font-size: 12px; }
-  .gt-card-grid, .gt-deck-grid, .gt-knight-grid, .gt-shop { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .gt-knight-panel { grid-template-columns: 96px 1fr; }
-  .gt-knight-art { width: 96px; }
-  .gt-stop { height: 30px; font-size: 11px; }
+  .gt-stat { padding: 3px 7px; font-size: 12px; }
+  .gt-stop { font-size: 11px; }
+  .gt-tabs button { font-size: 12.5px; padding: 6px 8px; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -661,7 +993,8 @@ body[data-screen="over"] #screenOver { display: block; }
 .gt-card-foot .gt-card-price { margin: 0; padding: 0; text-align: center; }
 .gt-card-real.is-sold { opacity: 0.4; }
 
-.gt-mini.gt-mini-real { width: 92px; border: 0; background: none; overflow: visible; }
+.gt-mini.gt-mini-real { border: 0; background: none; overflow: visible; }
+.gt-mini.gt-mini-knight { border: 0; background: none; padding: 0; }
 
 .gt-knight-real { border: 0; background: none; display: block; aspect-ratio: auto; }
 .gt-knight-real .knight-card { width: 100%; height: auto; margin: 0; }
@@ -670,16 +1003,12 @@ body[data-screen="over"] #screenOver { display: block; }
 .gt-knight-pick .gt-knight-art:not(.gt-knight-real) { aspect-ratio: 5 / 7; }
 .gt-pick-caption { display: flex; flex-direction: column; gap: 2px; }
 
-.gt-sheet-head.has-real-face { grid-template-columns: minmax(130px, 42%) 1fr; }
-.gt-sheet-face { width: 100%; }
-
-/* style.css zeroes every margin; the page's own copy needs its breathing room back. */
-.gt-main p.gt-muted { margin: 0 0 10px; }
+/* style.css zeroes every margin; the page's own copy sets its spacing through gaps. */
+.gt-main p.gt-muted { margin: 0; }
 
 /* The card tray: every move in full and the upgrades applied so far. */
-.gt-tray-section { margin-top: 16px; }
 .gt-tray-section h3 {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   font-family: var(--serif);
   font-size: 17px;
   font-weight: 600;
@@ -689,17 +1018,17 @@ body[data-screen="over"] #screenOver { display: block; }
   gap: 8px;
 }
 .gt-count { font-family: var(--sans); font-size: 12px; font-weight: 700; color: var(--muted); }
-.gt-move-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.gt-move-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .gt-move {
   border: 1px solid var(--line);
   border-left: 3px solid var(--el, var(--neutral));
   border-radius: 10px;
   background: var(--panel);
-  padding: 9px 11px;
+  padding: 7px 10px;
 }
 .gt-move.is-forged { border-color: rgba(230, 205, 140, 0.45); border-left-color: var(--gold); background: linear-gradient(90deg, rgba(230, 205, 140, 0.10), var(--panel) 60%); }
 .gt-move-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 14px; }
-.gt-move p { margin: 4px 0 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.gt-move p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
 .gt-cost.is-free { opacity: 0.7; }
 .gt-tag {
   font-size: 10px;
@@ -712,9 +1041,20 @@ body[data-screen="over"] #screenOver { display: block; }
   color: var(--muted);
 }
 .gt-tag.is-forged { color: var(--gold); border-color: rgba(230, 205, 140, 0.55); }
-.gt-applied { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; line-height: 1.4; color: var(--ink); }
-.gt-tray-actions { margin-top: 16px; }
-.gt-tray-actions .gt-btn { width: 100%; }
+/* Upgrades applied, in order, as chips: five of them fit on two lines. */
+.gt-applied { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 5px; counter-reset: gt-up; }
+.gt-applied li {
+  counter-increment: gt-up;
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(230, 205, 140, 0.12);
+  border: 1px solid rgba(230, 205, 140, 0.25);
+  color: var(--ink);
+}
+.gt-applied li::before { content: counter(gt-up) ". "; color: var(--gold); font-weight: 700; }
+.gt-tray-actions .gt-btn, .gt-btn-block { width: 100%; }
 button.gt-mini { padding: 0; cursor: pointer; color: inherit; font: inherit; }
 
 /* Forged changes in the tray: what the upgrade replaced, struck through, beside what
