@@ -5180,3 +5180,9 @@ Verified at 390x844 with live card art: every rendered notch measured 0.1698–0
 ## 2026-09-29 — Correct painted socket alignment
 Replaced estimated external notch offsets with the exact framed arena/hand coordinates from style.css (10.4% diameter; inset centers). Corrects the earlier inaccurate claim that 17% was standard. Extended the connector to meet the inset socket centers. CSS pin v40. Browser geometry checks passed on every rendered notch at 390px and 1920px; mobile screenshot inspected. Local only.
 
+
+## 2026-10-17 — Stop Dominion knight creation art flicker
+
+Selecting a portrait, title, crest or calling now updates the existing creation sheet in place instead of replacing its HTML. Picker images, name input, focus, caret and scroll survive selection and background refreshes. The preview retains its decoded image until the replacement loads and decodes; stale loads cannot overwrite a newer selection or a reopened sheet, and failed loads keep the previous art and allow retries. Selection buttons expose aria-pressed. Bumped dominion.js to v19.
+
+Verified with node --check and git diff --check. Focused Playwright checks passed at 390x844 and 1920x1080: all ten portraits, retained image/input nodes and focus, deliberately delayed out-of-order image responses, background refresh with a live caret, title/crest preview, save, cancel, reopen and reload persistence. No page errors. Screenshots were opened and inspected. Required web-game client also exercised Water selection; artifacts are in output/web-game/knight-art-flicker/. Production verification follows the merge and deployment.

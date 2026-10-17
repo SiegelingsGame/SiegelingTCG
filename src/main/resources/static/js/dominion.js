@@ -2723,6 +2723,40 @@
             '<h3>Mentor</h3><p class="ck-small ck-muted">SiegeKnights must be met and convinced to train you. A squire waits at the gate; knights, raiders and lords are met on the roads and at the Wall. Tap the portrait on the Knight tab to win them over.</p>' +
             '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="cc-save">' + (S.knight.made ? 'Save' : 'Begin') + '</button>' + (S.knight.made ? '<button type="button" class="ck-btn" data-act="close-modal">Cancel</button>' : '') + '</div>';
     }
+    function updateCreateModal(body) {
+        const d = draft, preview = body.querySelector('.dm-cc-preview');
+        preview.querySelector('b').textContent = (d.title ? d.title + ' ' : '') + (d.given.trim() || 'Your name');
+        preview.querySelector('small').textContent = CALLINGS[d.calling][1];
+        const badge = preview.querySelector('.dm-crest');
+        badge.style.setProperty('--el', 'var(--' + d.color + ')');
+        badge.querySelector('i').textContent = d.emblem;
+        body.querySelectorAll('[data-act="cc"]').forEach((button) => {
+            const arg = button.dataset.arg, i = arg.indexOf(':');
+            const selected = d[arg.slice(0, i)] === arg.slice(i + 1);
+            button.classList.toggle('is-on', selected);
+            button.setAttribute('aria-pressed', String(selected));
+        });
+        // Keep the picker, focus and decoded art mounted. Only swap the preview once the
+        // new portrait is ready, and ignore loads superseded by another choice or sheet.
+        const current = preview.querySelector('.dm-cc-figure img'), src = portraitSrc(d.portrait);
+        if (current.dataset.requested === src) return;
+        current.dataset.requested = src;
+        if (current.getAttribute('src') === src) return;
+        const next = new Image();
+        next.className = current.className; next.alt = '';
+        const retry = () => { if (current.dataset.requested === src) delete current.dataset.requested; };
+        next.onerror = retry;
+        next.onload = () => {
+            const ready = typeof next.decode === 'function' ? next.decode() : Promise.resolve();
+            ready.then(() => {
+                if (draft === d && current.isConnected && current.dataset.requested === src && portraitSrc(d.portrait) === src) {
+                    next.dataset.requested = src;
+                    current.replaceWith(next);
+                }
+            }).catch(retry);
+        };
+        next.src = src;
+    }
     function mentorArt(id) {
         const raw = ART_URLS['knight:' + id], full = !!ART_URLS['knight-full:' + id];
         return '<span class="dm-knight-pick-art' + (full ? ' is-card' : '') + '"><img class="' + (full ? 'dm-knight-card' : 'dm-paper') + '" src="' + esc(thumbOf(raw, 240)) + '" data-raw="' + esc(raw) + '" alt="" loading="lazy" onerror="dmArtFallback(this)"></span>';
@@ -2797,10 +2831,15 @@
     function renderModal() {
         if (!modal) return;
         const m = $('ckModal'), body = $('ckModalBody');
+        if (modal.kind === 'create' && m.dataset.kind === 'create' && body.querySelector('#dmKnightGiven') && draft) {
+            updateCreateModal(body);
+            return;
+        }
         const html = ({ report: reportModal, away: awayModal, plan: planModal, item: itemModal, skill: skillModal, menu: menuModal, inv: invModal, create: createModal, mentor: mentorModal, objective: objectiveModal, coach: coachModal, lore: loreModal, voice: voiceModal, comp: null }[modal.kind] || (() => ''))(modal.arg);
         const scroll = body.scrollTop;
         m.dataset.kind = modal.kind;
         body.innerHTML = html;
+        if (modal.kind === 'create') updateCreateModal(body);
         body.scrollTop = scroll;
         m.hidden = false;
     }
