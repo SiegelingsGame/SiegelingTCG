@@ -420,7 +420,8 @@
 .dm-grounds .dm-scene-box { flex: 1 1 auto; height: auto; min-height: 0; margin: 0; }
 .dm-hud-top { position: absolute; z-index: 15; left: 8px; right: 8px; top: 8px; display: grid; gap: 6px; justify-items: start; pointer-events: none; }
 .dm-hud-top > * { pointer-events: auto; }
-.dm-hud-resrow { display: flex; gap: 4px; flex-wrap: wrap; }
+.dm-hud-resrow { display: flex; gap: 4px; flex-wrap: wrap; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+button.dm-res-strip { border: 0; background: none; padding: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; }
 .dm-hud-res { display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px; border-radius: 999px; background: rgba(11,16,32,.72); border: 1px solid var(--glass-line); font: 700 12px/1.2 var(--sans); color: var(--ink); font-variant-numeric: tabular-nums; }
 .dm-hud-obj { display: flex; align-items: center; gap: 6px; max-width: calc(100% - 60px); padding: 5px 10px; border-radius: 12px; border: 1px solid rgba(200,165,79,.5); background: rgba(11,16,32,.8); color: var(--ink); font: 600 12px/1.25 var(--sans); text-align: left; }
 .dm-hud-obj span { flex: none; color: var(--gold-bright); font-weight: 800; }
@@ -566,6 +567,31 @@
 .dm-favor-pick small { font: 700 10px/1.2 var(--sans); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dm-favor-pick em { font: 800 10px/1 var(--sans); font-style: normal; color: #ffe08a; }
 .dm-favor-pick.is-on { border-color: #f4cc62; box-shadow: 0 0 0 2px rgba(244,204,98,.35), 0 0 14px rgba(244,204,98,.35); background: rgba(70,52,16,.45); }
+
+/* Keep inventory and Daily Store */
+#ckModal[data-kind="inv"] .ck-modal-card { width: min(640px, 100%); }
+.dm-inv-tabs { display: flex; gap: 6px; overflow-x: auto; margin: 10px -2px 8px; padding: 2px; scrollbar-width: none; }
+.dm-inv-tabs button { flex: 0 0 auto; min-height: 38px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: var(--ink); font: 800 13px/1 var(--sans); cursor: pointer; }
+.dm-inv-tabs button.is-on { background: linear-gradient(180deg, #f6d77a, #e3b649); color: #2a1c06; border-color: #f6d77a; }
+.dm-inv-purse { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.dm-inv-card, .dm-offer { display: flex; align-items: center; gap: 12px; margin: 8px 0; padding: 10px 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); }
+.dm-inv-card.is-empty { opacity: .55; }
+.dm-inv-main { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.dm-inv-main small { font: 800 10px/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted, #9aa6b8); }
+.dm-inv-main b { font: 800 16px/1.2 var(--sans); }
+.dm-inv-main strong { font: 800 14px/1.2 var(--sans); color: #f6d77a; font-variant-numeric: tabular-nums; }
+.dm-inv-meter { display: block; height: 8px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
+.dm-inv-meter b { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #6fbf5a, #b8e06a); }
+.dm-offer.is-deal { border-color: rgba(255,150,80,.65); background: linear-gradient(90deg, rgba(255,120,60,.14), rgba(255,255,255,.03)); }
+.dm-offer.is-sold { opacity: .5; }
+.dm-offer .ck-btn { flex: 0 0 auto; }
+
+/* The Hall and room standees: iOS Safari can drop an SVG-filtered image whose parent carries its
+   own filter and transform animation, so the standee keeps the filter alone and bobs the image. */
+.hall-favorite-resident > span.has-overlay-art, .lodge-resident > span.has-overlay-art, .facility-room-resident > span.has-overlay-art { filter: none; animation: none; }
+.hall-favorite-resident, .lodge-resident, .facility-room-resident { filter: none; }
+.has-overlay-art > img { animation: dm-standee-bob 2.4s ease-in-out infinite; }
+@keyframes dm-standee-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -3px; } }
 
 /* Siege, drill and rush */
 .dm-siege { margin: 8px 0; padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(244,204,98,.35); background: rgba(11,16,32,.45); }

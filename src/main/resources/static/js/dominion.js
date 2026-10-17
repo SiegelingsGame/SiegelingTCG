@@ -1330,7 +1330,7 @@
         const e = list[Math.floor(r() * list.length)];
         s.events.push({ id: e.id, title: e.title, kicker: e.kicker, text: e.description, target: e.targetId, targetName: e.targetName, cost: e.coinCost, repairMs: e.repairSeconds * 4000, at: s.t, repairEndAt: 0, repaired: false });
         logEvent(s, e.title + '.');
-        FRESH.push(e.title + '. Repair it from Activities › Keep.');
+        FRESH.push(e.title + '. Repair it from Base › Upkeep.');
         s.rev++;
     }
     function repairBlock(s, id) {
@@ -1396,10 +1396,37 @@
         out.push(...pick(r() < 0.15 ? 'EPIC' : 'RARE', 1, out));
         return out;
     }
+    // The Daily Store: a rotating stall of Keep and Chronicles goods that refreshes at local midnight.
+    // Gear is never sold (it is always crafted); currencies, Insight and Keep lots stay out of the pool.
+    const STORE_KINDS = { MATERIAL: 8, FOOD: 6, POTION: 22, LURE: 18, RUNE: 70, ESSENCE: 45 };
+    const STORE_SKIP = ['crowns', 'silver', 'insight', 'relic', 'timber'];
+    function storePool() {
+        const lots = MARKET_POOL.map((m) => m.res);
+        return Object.keys(RES).filter((k) => STORE_KINDS[RES[k].kind] && !STORE_SKIP.includes(k) && !lots.includes(k) && !REFINED[k]);
+    }
+    function storeLot(k, tag) {
+        const r = RES[k], t = Math.max(1, Math.min(4, r.tier || 1)), base = STORE_KINDS[r.kind];
+        const premium = r.kind === 'RUNE' || r.kind === 'ESSENCE' || t >= 3;
+        const amount = r.kind === 'MATERIAL' ? [0, 5, 3, 1, 1][t] : r.kind === 'FOOD' ? 2 : 1;
+        return { id: 'store_' + k, res: k, amount: amount, price: premium ? base * t : base * t * t, currency: premium ? 'crowns' : 'silver', rarity: premium ? 'RARE' : t >= 2 ? 'UNCOMMON' : 'COMMON', stock: premium ? 1 : t >= 2 ? 2 : 3, tag: tag || '' };
+    }
+    function dailyStore(s) {
+        const r = rng('store:' + dayKey(s) + ':' + (s.knight.name || '')), pool = storePool();
+        const take = (f, n) => { const c = pool.filter((k) => f(RES[k]) && !out.some((o) => o.res === k)); const got = []; while (got.length < n && c.length) got.push(c.splice(Math.floor(r() * c.length), 1)[0]); return got; };
+        const out = [];
+        take((x) => (x.tier || 1) <= 1, 4).forEach((k) => out.push(storeLot(k)));
+        take((x) => (x.tier || 1) === 2 && x.kind !== 'RUNE' && x.kind !== 'ESSENCE', 2).forEach((k) => out.push(storeLot(k)));
+        take((x) => x.kind === 'RUNE' || x.kind === 'ESSENCE' || (x.tier || 1) >= 3, 1).forEach((k) => out.push(storeLot(k)));
+        // Deal of the day: a second lot of anything, 40% off, one per day.
+        take(() => true, 1).forEach((k) => { const d = storeLot(k, 'deal'); d.id = 'deal_' + k; d.price = Math.max(1, Math.round(d.price * 0.6)); d.stock = 1; d.amount *= 2; out.push(d); });
+        return out;
+    }
+    const allOffers = (s) => dailyStore(s).concat(s.b.storehouse >= 1 ? marketOffers(s) : []);
+    const storeResetIn = (s) => { const d = new Date(s.t); d.setHours(24, 0, 0, 0); return d.getTime(); };
     function marketLeft(s, m) { const b = s.market && s.market.day === dayKey(s) ? (s.market.bought[m.id] || 0) : 0; return m.stock - b; }
     function buyBlock(s, id) {
-        if (!(s.b.storehouse >= 1)) return 'Raise the Storehouse to open the market.';
-        const m = marketOffers(s).find((x) => x.id === id);
+        const m = allOffers(s).find((x) => x.id === id);
+        if (!m && marketOffers(s).some((x) => x.id === id)) return 'Raise the Storehouse to open the Keep market lots.';
         if (!m) return 'Not on offer today.';
         if (marketLeft(s, m) <= 0) return 'Sold out today.';
         if (fl(s.inv[m.currency]) < m.price) return 'Needs ' + m.price + ' ' + itemName(m.currency) + '.';
@@ -1407,7 +1434,7 @@
     }
     function buy(s, id) {
         if (buyBlock(s, id)) return false;
-        const m = marketOffers(s).find((x) => x.id === id);
+        const m = allOffers(s).find((x) => x.id === id);
         if (!s.market || s.market.day !== dayKey(s)) s.market = { day: dayKey(s), bought: {} };
         s.market.bought[id] = (s.market.bought[id] || 0) + 1;
         s.inv[m.currency] -= m.price;
@@ -2607,7 +2634,7 @@
     function renderModal() {
         if (!modal) return;
         const m = $('ckModal'), body = $('ckModalBody');
-        const html = ({ report: reportModal, away: awayModal, plan: planModal, item: itemModal, skill: skillModal, menu: menuModal, objective: objectiveModal, coach: coachModal, lore: loreModal, voice: voiceModal, comp: null }[modal.kind] || (() => ''))(modal.arg);
+        const html = ({ report: reportModal, away: awayModal, plan: planModal, item: itemModal, skill: skillModal, menu: menuModal, inv: invModal, objective: objectiveModal, coach: coachModal, lore: loreModal, voice: voiceModal, comp: null }[modal.kind] || (() => ''))(modal.arg);
         const scroll = body.scrollTop;
         m.dataset.kind = modal.kind;
         body.innerHTML = html;
@@ -3273,7 +3300,7 @@
         return h;
     }
     // —— Base: the Keep ——
-    const BASE_SECS = [['grounds', 'Grounds'], ['visitors', 'Visitors'], ['chronicle', 'Chronicle'], ['build', 'Build'], ['keep', 'Stores'], ['log', 'Log']];
+    const BASE_SECS = [['grounds', 'Grounds'], ['visitors', 'Visitors'], ['chronicle', 'Chronicle'], ['build', 'Build'], ['keep', 'Upkeep'], ['log', 'Log']];
     function baseCounts() {
         return {
             visitors: visitorsHere(S).length + S.requests.filter((q) => !requestBlock(S, q.id)).length,
@@ -3287,7 +3314,7 @@
         // The open Grounds is one screen: the scene fills the tab and everything floats on it.
         if (sec === 'grounds' && !S.ui.room) return groundsHud(n);
         const strip = ['timber', 'stone', 'provisions', 'glass', 'silver'].map((k) => '<span class="ck-chip dm-res" title="' + esc(itemName(k)) + '">' + itemEmoji(k) + ' <b data-res="' + k + '">' + fl(S.inv[k]) + '</b>' + (k === 'timber' ? '<small>/' + timberCap(S) + '</small>' : '') + '</span>').join('');
-        let h = '<div class="dm-base-head"><div class="ck-chips dm-res-strip">' + strip + '</div></div>' +
+        let h = '<div class="dm-base-head"><button type="button" class="ck-chips dm-res-strip" data-act="inv" data-arg="all" aria-label="Open the Keep inventory">' + strip + '</button></div>' +
             '<div class="ck-worktype dm-base-nav" role="tablist" aria-label="Keep sections">' + BASE_SECS.map((x) =>
                 '<button type="button" role="tab" aria-selected="' + (sec === x[0]) + '" class="ck-type' + (sec === x[0] ? ' is-on' : '') + '" data-act="base-sec" data-arg="' + x[0] + '">' + x[1] + (n[x[0]] ? '<span class="ck-badge dm-inline-badge">' + n[x[0]] + '</span>' : '') + '</button>').join('') + '</div>';
         if (sec === 'visitors') return h + visitorsSection();
@@ -3303,18 +3330,18 @@
         return '<button type="button" class="ck-card dm-objective-card" data-act="objective"><span class="ck-kicker">' + esc(obj.ch.chapter) + ' · ' + (obj.i + 1) + '/' + obj.ch.steps.length + '</span><b>' + esc(obj.step.title) + '</b>' +
             '<span class="ck-small ck-muted">' + esc(obj.step.hint) + '</span><span class="dm-steps">' + obj.ch.steps.map((st, i) => '<i class="' + (S.obj[st.id] ? 'done' : i === obj.i ? 'now' : '') + '"></i>').join('') + '</span></button>';
     }
-    const DOCK = [['visitors', '🚪', 'Visitors'], ['chronicle', '📜', 'Chronicle'], ['build', '🔨', 'Build'], ['keep', '📦', 'Stores'], ['log', '📓', 'Log']];
+    const DOCK = [['visitors', '🚪', 'Visitors'], ['chronicle', '📜', 'Chronicle'], ['build', '🔨', 'Build'], ['inv', '🎒', 'Inventory'], ['store', '🛍️', 'Store'], ['keep', '🧰', 'Upkeep'], ['log', '📓', 'Log']];
     function groundsHud(n) {
         const stored = ['woodlot'].concat(Object.keys(WS)).reduce((a, id) => a + storedCount(S, id), 0), obj = currentObjective(S);
         const res = ['timber', 'stone', 'provisions', 'glass', 'silver'].map((k) => '<span class="dm-hud-res" title="' + esc(itemName(k)) + '">' + itemEmoji(k) + '<b data-res="' + k + '">' + fl(S.inv[k]) + '</b></span>').join('');
         return '<div class="dm-grounds"><div class="dm-scene-box" id="dmSceneSlot"></div>' +
-            '<div class="dm-hud-top"><div class="dm-hud-resrow">' + res + '</div>' +
+            '<div class="dm-hud-top"><button type="button" class="dm-hud-resrow" data-act="inv" data-arg="all" aria-label="Open the Keep inventory">' + res + '</button>' +
             (obj ? '<button type="button" class="dm-hud-obj" data-act="objective"><span>' + (obj.i + 1) + '/' + obj.ch.steps.length + '</span><b>' + esc(obj.step.title) + '</b><i aria-hidden="true">›</i></button>' : '') + '</div>' +
             // One bar along the bottom: collect, the Quarter, then each Keep section with its count.
             '<nav class="dm-dock" aria-label="Keep actions">' +
             '<button type="button" class="' + (stored ? 'is-hot' : '') + '" data-act="collect-all"' + (stored ? '' : ' disabled') + ' aria-label="Collect everything"><span aria-hidden="true">🧺</span><small>' + (stored ? stored : 'Collect') + '</small></button>' +
             '<button type="button" data-act="room" data-arg="quarter" aria-label="Elemental Quarter"><span aria-hidden="true">⚙️</span><small>Quarter</small></button>' +
-            DOCK.map((d) => '<button type="button" data-act="base-sec" data-arg="' + d[0] + '" aria-label="' + d[2] + '"><span aria-hidden="true">' + d[1] + '</span><small>' + d[2] + '</small>' +
+            DOCK.map((d) => '<button type="button" data-act="' + (d[0] === 'inv' ? 'inv' : d[0] === 'store' ? 'inv' : 'base-sec') + '" data-arg="' + (d[0] === 'inv' ? 'all' : d[0]) + '" aria-label="' + d[2] + '"><span aria-hidden="true">' + d[1] + '</span><small>' + d[2] + '</small>' +
                 (n[d[0]] ? '<i class="dm-dock-badge">' + n[d[0]] + '</i>' : '') + '</button>').join('') + '</nav></div>';
     }
     function groundsSection() {
@@ -3922,7 +3949,7 @@
         const rates = id === 'woodlot' ? { timber: woodlotRate(S) } : workshopRates(S, id), st = storedOf(S, id), helper = helperOf(S, id), n = storedCount(S, id);
         const keys = Object.keys(rates).filter((k) => rates[k] > 0);
         return '<section class="ck-card"><div class="ck-row"><h3>🧺 Stores</h3>' + chip(Math.round(storeFill(S, id) * 100) + '% full') + '</div>' +
-            barP(storeFill(S, id) * 100, 'is-fat') + '<p class="ck-small">' + (keys.length ? keys.map((k) => fmtRate(rates[k]) + ' ' + esc(itemName(k)) + '/h').join(' · ') : 'Not producing.') + (damaged(S, id === 'hall' ? 'great_hall' : id) ? ' <span class="ck-warn">Damaged: repair it in Stores.</span>' : '') + '</p>' +
+            barP(storeFill(S, id) * 100, 'is-fat') + '<p class="ck-small">' + (keys.length ? keys.map((k) => fmtRate(rates[k]) + ' ' + esc(itemName(k)) + '/h').join(' · ') : 'Not producing.') + (damaged(S, id === 'hall' ? 'great_hall' : id) ? ' <span class="ck-warn">Damaged: repair it in Upkeep.</span>' : '') + '</p>' +
             (Object.keys(st).length ? lootRow(Object.fromEntries(Object.keys(st).map((k) => [k, fl(st[k])]))) : '') +
             '<div class="ck-actions"><button type="button" class="ck-btn' + (n ? ' is-primary' : '') + '" data-act="collect" data-arg="' + id + '"' + (n ? '' : ' disabled') + '>Collect' + (n ? ' ' + n : '') + '</button></div>' +
             '<h4>Resident</h4><div class="ck-pills">' + (helper ? '<span class="ck-chip is-help">' + esc(C(helper).name) + ' +' + Math.round((helperMul(S, id) - 1) * 100) + '%' + (onExpedition(S, helper) ? ' (away)' : '') + '</span><button type="button" class="ck-pill" data-act="cjob" data-arg="' + helper + ':rest">Send to rest</button>' : '') +
@@ -4136,7 +4163,7 @@
                 (e.repairEndAt ? liveBar(e.repairEndAt - e.repairMs, e.repairEndAt) + '<span class="ck-small">Repaired in ' + eta(e.repairEndAt) + '</span>' : '<div class="ck-actions"><button type="button" class="ck-btn is-sm is-primary" data-act="repair" data-arg="' + esc(e.id) + '"' + (b ? ' disabled' : '') + '>Repair · ' + e.cost + ' Timber · ' + fmtDur(e.repairMs) + '</button>' + (b ? '<span class="ck-small ck-muted">' + esc(b) + '</span>' : '') + '</div>') + '</div>';
         }).join('') + '<p class="ck-hint">Each repair pays 6 Silver.</p></section>';
         h += '<section class="ck-card"><div class="ck-row"><h3>🧭 Stewardship</h3>' + chip('🪙 ' + fl(S.inv.silver)) + chip('👑 ' + fl(S.inv.crowns)) + '</div><p class="ck-small ck-muted">Walk the Keep once a day for 4 Silver.</p><div class="ck-actions"><button type="button" class="ck-btn is-sm' + (stewardReady(S) ? ' is-primary' : '') + '" data-act="steward"' + (stewardReady(S) ? '' : ' disabled') + '>' + (stewardReady(S) ? 'Walk the Keep' : 'Walked today') + '</button></div></section>';
-        if (!(S.b.storehouse >= 1)) return h + '<section class="ck-card"><h3>📦 Storehouse</h3><p class="ck-small ck-muted">Raise the Covenant Storehouse (Build) to open refining, recycling and the Keep market.</p></section>';
+        if (!(S.b.storehouse >= 1)) return h + '<section class="ck-card"><h3>🛍️ Daily store</h3><p class="ck-small ck-muted">Fresh stock every day.</p><div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="inv" data-arg="store">Open the store</button><button type="button" class="ck-btn" data-act="inv" data-arg="all">Keep inventory</button></div></section><section class="ck-card"><h3>📦 Storehouse</h3><p class="ck-small ck-muted">Raise the Covenant Storehouse (Build) to open refining, recycling and the Keep market.</p></section>';
         h += '<section class="ck-card"><h3>⚗️ Refine</h3>' + Object.keys(REFINED).map((id) => {
             const r = REFINED[id], b = refineBlock(S, id);
             return '<div class="ck-recipe">' + itemIcon(id, 'is-lg') + '<div class="ck-recipe-main"><div class="ck-row"><b>' + esc(r.name) + '</b><span class="ck-small">' + fl(S.inv[id]) + ' in store</span></div><span class="ck-small ck-muted">' + esc(r.blurb) + '</span>' + costRow(ka(r.inputs)) +
@@ -4147,10 +4174,7 @@
             ['timber'].concat(RAW, Object.keys(REFINED).filter((k) => fl(S.inv[k]) > 0)).map((k) => '<button type="button" class="ck-pill' + (rf === k ? ' is-on' : '') + '" data-act="rec-from" data-arg="' + k + '">' + esc(itemName(k)) + ' (' + fl(S.inv[k]) + ')</button>').join('') + '</div>' +
             (REFINED[rf] ? '' : '<h4>Get</h4><div class="ck-pills">' + RAW.filter((k) => k !== rf).map((k) => '<button type="button" class="ck-pill' + (rt === k ? ' is-on' : '') + '" data-act="rec-to" data-arg="' + k + '">' + esc(itemName(k)) + '</button>').join('') + '</div>') +
             '<div class="ck-actions"><button type="button" class="ck-btn is-sm" data-act="recycle"' + (recycleBlock(S, rf, rt) ? ' disabled' : '') + '>' + (REFINED[rf] ? 'Salvage 1 ' + esc(itemName(rf)) : 'Recycle into ' + esc(itemName(rt))) + '</button><span class="ck-small ck-muted">' + esc(recycleBlock(S, rf, rt)) + '</span></div></section>';
-        h += '<section class="ck-card"><h3>🛍️ Keep market</h3><p class="ck-small ck-muted">New lots each day, in Silver, plus a rare lot in Crowns. Materials only: gear is always crafted.</p><div class="ck-listings">' + marketOffers(S).map((m) => {
-            const b = buyBlock(S, m.id);
-            return '<div class="ck-listing">' + itemIcon(m.res, 'is-sm') + '<div><b>' + m.amount + '× ' + esc(itemName(m.res)) + '</b><span class="ck-small ck-muted">' + titleCase(m.rarity) + ' · ' + marketLeft(S, m) + ' left today</span></div><button type="button" class="ck-btn is-sm" data-act="buy" data-arg="' + m.id + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '>' + (m.currency === 'crowns' ? '👑' : '🪙') + ' ' + m.price + '</button></div>';
-        }).join('') + '</div></section>';
+        h += '<section class="ck-card"><h3>🛍️ Daily store</h3><p class="ck-small ck-muted">Fresh stock every day, plus the Keep’s market lots.</p><div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="inv" data-arg="store">Open the store</button><button type="button" class="ck-btn" data-act="inv" data-arg="all">Keep inventory</button></div></section>';
         return h;
     }
     function logSection() {
@@ -4181,6 +4205,60 @@
     function objectiveModal() {
         return '<h2 id="ckModalTitle">Objectives</h2>' + OBJECTIVES.map((ch) => '<h3>' + esc(ch.chapter) + '</h3><ol class="ck-ladder">' + ch.steps.map((st) => '<li class="' + (S.obj[st.id] ? 'is-on' : '') + '"><b>' + esc(st.title) + '</b><span>' + esc(st.hint) + '</span></li>').join('') + '</ol>').join('') +
             '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="close-modal">Close</button></div>';
+    }
+    // Keep inventory, as the Keep's own panel: raw, refined and manufactured goods, everything else
+    // the Knight carries, the refinery, and the Daily Store, each a tab.
+    const INV_TABS = [['all', 'All'], ['raw', 'Raw'], ['refined', 'Refined'], ['made', 'Made'], ['goods', 'Goods'], ['refine', 'Refine'], ['store', 'Store']];
+    const RAW_SOURCE = { timber: 'Woodlot', fiber: 'Garden', produce: 'Garden', ember: 'Forge', frost: 'Fridge', storm: 'Generator', stone: 'Quarry', provisions: 'Kitchen' };
+    const KEEP_RAW = ['timber', 'fiber', 'ember', 'frost', 'storm', 'stone', 'provisions', 'produce'];
+    function invCard(k, tag, cap, note) {
+        const n = fl(S.inv[k]), pct = cap ? Math.min(100, n / cap * 100) : 0;
+        return '<div class="dm-inv-card' + (n ? '' : ' is-empty') + '">' + itemIcon(k, 'is-lg') + '<div class="dm-inv-main"><small>' + esc(tag) + '</small><b>' + esc(itemName(k)) + '</b>' +
+            (cap ? '<i class="dm-inv-meter"><b style="width:' + pct.toFixed(1) + '%"></b></i><strong>' + n + ' / ' + cap + '</strong>' : '<strong>×' + n + '</strong>') + (note ? '<span class="ck-small ck-muted">' + esc(note) + '</span>' : '') + '</div></div>';
+    }
+    function offerRow(m) {
+        const b = buyBlock(S, m.id), left = marketLeft(S, m);
+        return '<div class="dm-offer' + (m.tag === 'deal' ? ' is-deal' : '') + (left <= 0 ? ' is-sold' : '') + '">' + itemIcon(m.res, 'is-lg') + '<div class="dm-inv-main"><small>' + (m.tag === 'deal' ? '🔥 Deal of the day · 40% off' : titleCase(m.rarity) + ' · ' + esc(titleCase((RES[m.res] || {}).kind || 'item'))) + '</small><b>' + m.amount + '× ' + esc(itemName(m.res)) + '</b>' +
+            '<span class="ck-small ck-muted">' + (left > 0 ? left + ' left today · you have ' + fl(S.inv[m.res]) : 'Sold out until tomorrow') + '</span></div>' +
+            '<button type="button" class="ck-btn is-sm' + (b ? '' : ' is-primary') + '" data-act="buy" data-arg="' + m.id + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '>' + (m.currency === 'crowns' ? '👑' : '🪙') + ' ' + m.price + '</button></div>';
+    }
+    function invModal() {
+        const tab = S.ui.invTab || 'all';
+        let h = '<span class="ck-kicker">Raw &amp; manufactured</span><h2 id="ckModalTitle">Keep inventory</h2>' +
+            '<div class="dm-inv-tabs" role="tablist">' + INV_TABS.map((t) => '<button type="button" role="tab" aria-selected="' + (tab === t[0]) + '" class="' + (tab === t[0] ? 'is-on' : '') + '" data-act="inv-tab" data-arg="' + t[0] + '">' + t[1] + '</button>').join('') + '</div>' +
+            '<div class="dm-inv-purse">' + chip('🪙 ' + fl(S.inv.silver) + ' Silver') + chip('👑 ' + fl(S.inv.crowns) + ' Crowns') + chip('💡 ' + fl(S.inv.insight) + ' Insight') + '</div>';
+        if (tab === 'store') {
+            h += '<p class="ck-small ck-muted">New stock every day at midnight · refreshes in ' + fmtDur(storeResetIn(S) - S.t) + '. Gear is never sold: it is always crafted.</p><h3>🛍️ Daily store</h3>' + dailyStore(S).map(offerRow).join('');
+            h += '<h3>📦 Keep market lots</h3>' + (S.b.storehouse >= 1 ? marketOffers(S).map(offerRow).join('') : '<p class="ck-small ck-muted">Raise the Covenant Storehouse to add the Keep’s bulk lots of Timber, raw and refined materials.</p>');
+        } else if (tab === 'refine') {
+            h += S.b.storehouse >= 1 ? Object.keys(REFINED).map((id) => {
+                const r = REFINED[id], b = refineBlock(S, id);
+                return '<div class="dm-inv-card">' + itemIcon(id, 'is-lg') + '<div class="dm-inv-main"><small>Refined · Tier ' + r.tier + '</small><b>' + esc(r.name) + '</b><strong>×' + fl(S.inv[id]) + '</strong>' + costRow(ka(r.inputs)) + '</div>' +
+                    '<button type="button" class="ck-btn is-sm' + (b ? '' : ' is-primary') + '" data-act="refine" data-arg="' + id + '"' + (b ? ' disabled title="' + esc(b) + '"' : '') + '>Make</button></div>';
+            }).join('') : '<p class="ck-small ck-muted">Raise the Covenant Storehouse (Build) to open the refinery.</p>';
+        } else {
+            const raw = tab === 'all' || tab === 'raw', ref = tab === 'all' || tab === 'refined', made = tab === 'all' || tab === 'made', goods = tab === 'all' || tab === 'goods';
+            h += '<p class="ck-small ck-muted">Raw stocks come from the Woodlot and the Quarter’s workshops. Refined materials are linked in the Quarter or made in the refinery. Manufactured goods are the tools, decorations and bonuses the Keep has crafted.</p>';
+            if (raw) h += '<h3>Raw materials</h3>' + KEEP_RAW.map((k) => invCard(k, 'Raw · ' + RAW_SOURCE[k], k === 'timber' ? timberCap(S) : 0)).join('');
+            if (ref) h += '<h3>Refined materials</h3>' + Object.keys(REFINED).map((k) => invCard(k, 'Refined · Tier ' + REFINED[k].tier, 0)).join('') +
+                ['preserves', 'smelt'].filter((k) => RES[k]).map((k) => invCard(k, 'Refined · Quarter link', 0)).join('');
+            if (made) {
+                const ids = Object.keys(KEEP_CRAFTS).filter((k) => S.crafted[k]);
+                h += '<h3>Manufactured</h3>' + (ids.length ? ids.map((k) => { const c = KEEP_CRAFTS[k]; return '<div class="dm-inv-card">' + emojiIcon(c[1] === 'TOOL' ? '🔧' : c[1] === 'BONUS' ? '📦' : '🎨', 'earth', 'is-lg') +
+                    '<div class="dm-inv-main"><small>Manufactured · ' + esc(titleCase(c[1])) + ' · ' + esc(titleCase(c[2])) + '</small><b>' + esc(c[0]) + '</b><span class="ck-small ck-muted">' + esc(c[8] || c[7] || '') + (c[1] === 'DECORATION' ? (S.placed[k] ? ' · On display' : ' · In storage') : '') + '</span></div></div>'; }).join('')
+                    : '<p class="ck-small ck-muted">No manufactured goods yet. Craft tools, decorations and bonuses inside the Keep’s rooms.</p>');
+            }
+            if (goods) {
+                const skip = KEEP_RAW.concat(Object.keys(REFINED), ['preserves', 'smelt', 'silver', 'crowns', 'insight']);
+                const kinds = {};
+                Object.keys(S.inv).filter((k) => !skip.includes(k) && fl(S.inv[k]) > 0).forEach((k) => { const kd = (RES[k] || {}).kind || 'MATERIAL'; (kinds[kd] = kinds[kd] || []).push(k); });
+                const order = ['MATERIAL', 'FOOD', 'POTION', 'LURE', 'ESSENCE', 'RUNE', 'TOOL', 'WEAPON', 'ARMOR', 'HELMET', 'BOOTS', 'ACCESSORY', 'RELIC'];
+                const ks = Object.keys(kinds).sort((a, b) => (order.indexOf(a) + 99) % 99 - (order.indexOf(b) + 99) % 99);
+                h += '<h3>Goods &amp; gear</h3>' + (ks.length ? ks.map((kd) => '<h4>' + esc(titleCase(kd)) + '</h4>' + kinds[kd].map((k) => invCard(k, titleCase(kd) + ((RES[k] || {}).tier ? ' · Tier ' + RES[k].tier : ''), 0)).join('')).join('')
+                    : '<p class="ck-small ck-muted">Nothing else in the packs yet. Gathering, crafting and expeditions fill this up.</p>');
+            }
+        }
+        return h + '<div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
     }
     function menuModal() {
         return '<h2 id="ckModalTitle">Dominion · test mode</h2><p class="ck-small">The Keep and Chronicles as one game. Rules run in this browser' + (ONLINE ? ' and sync to your account when signed in.' : '; this preview saves only here.') + '</p>' +
@@ -4258,8 +4336,13 @@
         case 'base-sec': s.ui.base = arg; if (s.ui.tab !== 'base') setTab('base'); if (arg !== 'grounds') s.ui.room = s.ui.room; $('ckMain').scrollTop = 0; break;
         case 'room': s.ui.room = arg || ''; s.ui.base = 'grounds'; scrollToRoom = !!arg; if (arg !== 'quarter') { arranging = false; quarterSel = -1; } if (s.ui.tab !== 'base') setTab('base'); $('ckMain').scrollTop = 0; break;
         case 'building': act('room', arg); return;
-        case 'collect': { const g = collect(s, arg); if (!g) { toast(arg === 'woodlot' && fl(s.inv.timber) >= timberCap(s) ? 'The timber store is full.' : 'Nothing to collect yet.'); return; } toast('Collected ' + Object.keys(g).map((k) => g[k] + ' ' + itemName(k)).join(', ') + '.'); break; }
-        case 'collect-all': { const g = collectAll(s); const keys = Object.keys(g); toast(keys.length ? 'Collected ' + keys.map((k) => g[k] + ' ' + itemName(k)).join(', ') + '.' : 'Nothing to collect yet.'); if (!keys.length) return; break; }
+        case 'collect': { const g = collect(s, arg); if (!g) { toast(arg === 'woodlot' && fl(s.inv.timber) >= timberCap(s) ? 'The Timber store is full (' + fl(s.inv.timber) + '/' + timberCap(s) + '). Spend Timber or raise the Storehouse to make room.' : 'Nothing to collect yet.'); return; } toast('Collected ' + Object.keys(g).map((k) => g[k] + ' ' + itemName(k)).join(', ') + '.'); break; }
+        case 'collect-all': {
+            const g = collectAll(s), keys = Object.keys(g);
+            const full = !keys.length && storedCount(s, 'woodlot') > 0 && fl(s.inv.timber) >= timberCap(s);
+            toast(keys.length ? 'Collected ' + keys.map((k) => g[k] + ' ' + itemName(k)).join(', ') + '.' : full ? 'The Timber store is full (' + fl(s.inv.timber) + '/' + timberCap(s) + '). Spend Timber or raise the Storehouse to make room.' : 'Nothing to collect yet.');
+            if (!keys.length) return; break;
+        }
         case 'work-skill': s.ui.workSkill = arg; recipePick = ''; setTab('work'); break;
         case 'work-type': { const list = arg === 'craft' ? craftSkills() : gatherSkills(); s.ui.workSkill = list.includes(activeSkill()) ? activeSkill() : list[0]; recipePick = ''; break; }
         case 'recipe-pick': recipePick = arg; break;
@@ -4333,7 +4416,9 @@
         case 'rec-from': s.ui.recFrom = arg; break;
         case 'rec-to': s.ui.recTo = arg; break;
         case 'recycle': if (!recycle(s, s.ui.recFrom || 'stone', s.ui.recTo || 'ember')) { toast(recycleBlock(s, s.ui.recFrom || 'stone', s.ui.recTo || 'ember')); return; } break;
-        case 'buy': if (!buy(s, arg)) { toast(buyBlock(s, arg)); return; } break;
+        case 'buy': { const m = allOffers(s).find((x) => x.id === arg); if (!buy(s, arg)) { toast(buyBlock(s, arg)); return; } toast('Bought ' + m.amount + '× ' + itemName(m.res) + '.'); break; }
+        case 'inv': S.ui.invTab = arg || S.ui.invTab || 'all'; openModal('inv'); return;
+        case 'inv-tab': S.ui.invTab = arg; renderModal(); return;
         case 'kcraft': if (!keepCraft(s, arg)) { toast(keepCraftBlock(s, arg)); return; } toast('Made ' + KEEP_CRAFTS[arg][0] + '.'); break;
         case 'decor': placeDecoration(s, arg, !s.placed[arg]); break;
         case 'theme': if (HALL_THEMES.some((t) => t[0] === arg && s.b.hall >= t[3])) { s.theme = arg; s.rev++; } break;
