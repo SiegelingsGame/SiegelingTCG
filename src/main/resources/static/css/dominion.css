@@ -792,3 +792,59 @@ button.dm-res-strip { border: 0; background: none; padding: 0; color: inherit; f
     .dm-knight-figure .dm-knight-sprite > img.dm-knight-strip { animation: none; }
     .dm-knight-figure > img.dm-knight-fallback, .dm-knight-sprite { transition: none; }
 }
+
+/* Expedition reports are paged sheets: only the selected cells enter the layout. */
+#ckModal[data-kind="report"] { overflow: hidden; }
+#ckModal[data-kind="report"] .ck-modal-card {
+    width: min(720px, 100%); height: min(720px, 100%); max-height: 100%;
+    padding: 20px; overflow: hidden; display: flex; flex-direction: column;
+}
+#ckModal[data-kind="report"] .ck-modal-body {
+    flex: 1; min-height: 0; display: grid;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    gap: 12px; overflow: hidden;
+}
+.dm-report-eyebrow { color: var(--good); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .16em; }
+.dm-report-header h2 { font-size: clamp(20px, 5vw, 28px); line-height: 1.15; margin: 5px 0 0; overflow-wrap: anywhere; }
+.dm-report-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+.dm-report-tabs button {
+    min-width: 0; min-height: 44px; padding: 7px 3px; border: 1px solid var(--line); border-radius: 10px;
+    background: rgba(255,255,255,.04); color: var(--muted); font: 700 12px/1.2 var(--sans);
+}
+.dm-report-tabs button[aria-selected="true"] { background: rgba(111,207,139,.14); color: var(--good); border-color: var(--good); }
+.dm-report-tabs button:focus-visible, .dm-report-footer button:focus-visible, .dm-report-panel:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+.dm-report-context { font-size: 12px; line-height: 1.3; color: var(--muted); }
+.dm-report-panel { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 10px; min-height: 0; overflow: hidden; }
+.dm-report-panel.is-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dm-report-cell { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.035); overflow-wrap: anywhere; }
+.dm-report-cell[hidden] { display: none; }
+.dm-report-cell.is-good { border-left: 3px solid var(--good); }
+.dm-report-cell.is-bad { border-left: 3px solid var(--bad); }
+.dm-report-cell.is-info { border-left: 3px solid var(--muted); }
+.dm-report-cell.is-discovery { border-left: 3px solid var(--gold-bright); }
+.ck-modal-card .dm-report-cell h3 { margin: 0 0 8px; font-size: 13px; line-height: 1.3; letter-spacing: 0; text-transform: none; color: var(--ink); }
+.dm-report-cell p { margin: 0; font-size: 14px; line-height: 1.5; }
+.dm-report-gain { display: grid; align-content: start; gap: 5px; }
+.dm-report-label { font-size: 14px; font-weight: 650; line-height: 1.3; }
+.dm-report-gain strong { color: var(--gold-bright); font-size: 20px; line-height: 1.15; }
+.dm-report-gain small { font-size: 11px; color: var(--muted); }
+.dm-report-footer { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+.dm-report-pager { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.dm-report-pager .ck-btn { min-width: 0; min-height: 44px; padding: 8px; font-size: 12px; }
+.dm-report-pager [role="status"] { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.dm-report-footer > .ck-btn { min-height: 44px; }
+@media (max-width: 380px), (max-height: 650px) {
+    #ckModal[data-kind="report"] .ck-modal-card { padding: 12px; }
+    #ckModal[data-kind="report"] .ck-modal-body { gap: 8px; }
+    .dm-report-cell { padding: 10px; }
+    .dm-report-cell p { font-size: 13px; line-height: 1.4; }
+    .dm-report-footer { gap: 6px; padding-top: 8px; }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+    #ckModal[data-kind="report"] .ck-modal-card { width: min(900px, 100%); }
+    .dm-report-header { display: flex; align-items: baseline; gap: 14px; }
+    .dm-report-header h2 { margin: 0; font-size: 21px; }
+    .dm-report-footer { grid-template-columns: 1fr minmax(140px, .45fr); align-items: center; gap: 16px; }
+    .dm-report-gain { position: relative; padding-right: 48px; }
+    .dm-report-gain .ck-ico { position: absolute; top: 10px; right: 10px; }
+}

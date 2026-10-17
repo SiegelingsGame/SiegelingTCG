@@ -18614,7 +18614,15 @@ syncDesktopInspectTabUi();
 })();
 
 function renderBattleGameToText() {
-    if (!gameState) return JSON.stringify({ mode: 'not-started' });
+    if (!gameState) return JSON.stringify({
+        mode: 'not-started',
+        loadout: {
+            step: loadoutStep,
+            matchMode,
+            choices: ['pvp', 'pvai', 'gauntlet', 'tutorial'],
+            gauntletUrl: '/gauntlet'
+        }
+    });
     const summarizeBoard = (board) => (board || []).map((row, rowIndex) =>
         (row || []).map((cell, colIndex) => cell ? {
             row: rowIndex,
