@@ -658,7 +658,30 @@
         // Saves from before the Favor honored the first companion in the Hall; keep that one honored.
         if (s.favorite === undefined) s.favorite = Object.keys(s.comps).find((id) => s.comps[id].joined) || '';
         Object.keys(s.comps).forEach((id) => { const c = s.comps[id]; if (!c.species) c.species = id; if (c.xp == null) c.xp = 0; if (!c.treats) c.treats = { day: '', n: 0 }; });
+        // `knight.made` arrived with character creation. Older saves omit it, and the boot
+        // gate treats a missing flag as a brand-new knight: an undismissable sheet whose
+        // Begin replaces knight.name. A Keep that has already been played is theirs.
+        // A fresh save (no buildings, journeys, log or chosen card) still has to be named,
+        // including one boot() rewrote while that sheet was open.
+        if (!s.knight.made && keepAlreadyPlayed(s)) {
+            s.knight.made = true;
+            if (!s.knight.given && s.knight.name) s.knight.given = s.knight.name;
+        }
         return s;
+    }
+    function keepAlreadyPlayed(s) {
+        const b = s.b || {};
+        if ((b.woodlot || 0) > 0 || (b.hall || 1) > 1 || (b.archive || 0) > 0
+            || (b.storehouse || 0) > 0 || (b.yard || 0) > 0 || (b.front || 0) > 0 || (b.crews || 0) > 0) return true;
+        if (Object.keys(s.wsl || {}).some((id) => (s.wsl[id] || 0) > 0)) return true;
+        if (Object.keys(s.wings || {}).some((id) => (s.wings[id] || 0) > 0)) return true;
+        if ((s.runs || 0) > 0 || (s.rebirths || 0) > 0) return true;
+        if ((s.reports && s.reports.length) || (s.sightings && s.sightings.length) || (s.log && s.log.length)) return true;
+        if (s.grid && s.grid.some((c) => c && c.id)) return true;
+        if (s.knight && s.knight.card) return true;
+        if (s.disc && (s.disc.fawny || s.disc.vaultMap || s.disc.vaultCleared)) return true;
+        if (s.crafted && Object.keys(s.crafted).some((id) => s.crafted[id])) return true;
+        return false;
     }
     function load() {
         let saved = null;
@@ -2393,11 +2416,29 @@
             NET.signedIn = true;
             if (d.name && S.knight.name === 'Ser Airek') S.knight.name = d.name;
             const v = Number(d.version) || 0;
-            if (d.state && v > (S.sync.version || 0)) { if (adoptServer(d.state, v)) toast('Loaded your synced Dominion progress.'); }
+            let adoptedPlayedKnight = false;
+            if (d.state && v > (S.sync.version || 0)) {
+                if (adoptServer(d.state, v)) {
+                    toast('Loaded your synced Dominion progress.');
+                    // Boot opened the create sheet against the empty local save. Once the
+                    // account's Keep is in hand, that sheet must not stay up: Begin would
+                    // replace the knight's name. A still-unmade cloud save keeps the sheet.
+                    if (S.knight.made && modal && modal.kind === 'create') {
+                        draft = null;
+                        modal = null;
+                        const box = $('ckModal');
+                        if (box) { box.hidden = true; box.dataset.kind = ''; }
+                        const body = $('ckModalBody');
+                        if (body) body.innerHTML = '';
+                        adoptedPlayedKnight = true;
+                    }
+                }
+            }
             applyInbox(S, d.inbox);
             advance(S, now());
             save();
             renderAll();
+            if (adoptedPlayedKnight) maybeShowReport();
             return syncNow(true);
         });
     }

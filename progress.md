@@ -1,4 +1,7 @@
 Original prompt: Go with earth based art for endless
+- October 17, 2026 **Dominion: an existing Keep is not forced through character creation.**
+  - **Change.** Character creation keys off `knight.made`, which older saves never stored, so every returning Keep opened an undismissable "Make your knight" sheet and Begin replaced `knight.name`. `sanitize` now marks a Keep that has already been played (a building, journey, log entry, chosen card, workshop, or crafted good) as made and keeps the name. A brand-new save, including one boot rewrote while the sheet was open, still has to be named. Loading a played cloud Keep over an empty local save dismisses that sheet so Begin cannot rename the account knight.
+  - **Verification.** `node --check js/dominion.js`. `tests/dominion-existing-knight-check.cjs` in headless Chromium: a played local save stays on its name with the sheet closed and Escape does not matter; a fresh save and a saved-but-unplayed keep still open an undismissable sheet; an empty device that then loads a played cloud save closes the sheet and keeps the cloud name.
 - October 17, 2026 **Gauntlet camp: the next-floor box has Details and Cards tabs, and the last fight's result moves into the header.**
   - **Change.** The next-floor box (`#gtEncounter`) is now a fixed-height box with two pages, switched by a small tab control on its top row (`state.encTab`, `renderEncTabs`). The floor line and the name stay above both pages.
     - **Details** holds the HP chips, the blurb and the boss's passive and active. Long text flows into sideways columns.
