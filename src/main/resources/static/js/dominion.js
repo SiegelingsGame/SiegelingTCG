@@ -2856,11 +2856,16 @@
         }
         const html = ({ report: reportModal, away: awayModal, plan: planModal, item: itemModal, skill: skillModal, menu: menuModal, inv: invModal, create: createModal, mentor: mentorModal, objective: objectiveModal, coach: coachModal, lore: loreModal, voice: voiceModal, comp: null }[modal.kind] || (() => ''))(modal.arg);
         const scroll = body.scrollTop;
+        const reportFocus = modal.kind === 'report' && body.contains(document.activeElement) ? document.activeElement.dataset.reportFocus : '';
         m.dataset.kind = modal.kind;
         body.innerHTML = html;
         if (modal.kind === 'create') updateCreateModal(body);
         body.scrollTop = scroll;
         m.hidden = false;
+        if (modal.kind === 'report') {
+            fitReportPages();
+            if (reportFocus) body.querySelector('[data-report-focus="' + reportFocus + '"]')?.focus({ preventScroll: true });
+        }
     }
     function markSeen(id) {
         const r = S.reports.find((x) => x.id === id);
@@ -3455,16 +3460,98 @@
             '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="depart" data-arg="' + id + '"' + (block && !/destination/i.test(block) ? ' disabled' : '') + '>🚀 Set out</button><button type="button" class="ck-btn" data-act="close-modal">Not yet</button></div>' +
             (block ? '<p class="ck-small ck-warn">' + esc(block) + '</p>' : '');
     }
+    const REPORT_TABS = { overview: 'Overview', journey: 'Journey', growth: 'Growth', loot: 'Loot' };
+    // Short, complete text cells let the pager fit small phones without discarding details.
+    function reportTextCells(label, text, tone) {
+        const words = String(text || '').split(/\s+/).filter(Boolean), chunks = [];
+        let chunk = '';
+        words.forEach((word) => {
+            if (chunk && chunk.length + word.length > 220) { chunks.push(chunk); chunk = ''; }
+            chunk += (chunk ? ' ' : '') + word;
+        });
+        if (chunk) chunks.push(chunk);
+        return chunks.map((text, i) => '<article class="dm-report-cell ' + (tone || '') + '" data-report-cell><h3>' + esc(label + (i ? ' · continued' : '')) + '</h3><p>' + esc(text) + '</p></article>');
+    }
+    function reportCells(r, tab) {
+        const cells = [];
+        const text = (label, value, tone) => cells.push(...reportTextCells(label, value, tone));
+        const gain = (label, value, kind, icon) => cells.push('<article class="dm-report-cell dm-report-gain" data-report-cell>' + (icon || '') + '<span class="dm-report-label">' + esc(label) + '</span><strong>' + esc(value) + '</strong><small>' + esc(kind) + '</small></article>');
+        if (tab === 'overview') {
+            text('Journey complete', r.summary, 'is-good');
+            (r.discs || []).forEach((d) => text('Discovery', d === 'fawny' ? 'Fawny joined the Keep.' : d === 'vaultCleared' ? 'The Sunken Vault’s warden fell: 2 Covenant Keystones, an Aether Core, 2 Ancient Relics and 250 Crowns.' : 'The Sealed Vault Map.', 'is-discovery'));
+            if (r.sighting) text('Wild sighting', 'A wild ' + ((SPECIES[r.sighting.species] || {}).name || r.sighting.species) + ' was sighted. Visit the Wilds within 48 hours.', 'is-discovery');
+            if (r.mentorMet) text('Mentor met', 'You met ' + mentorName(r.mentorMet) + ', a ' + MENTOR_TIER[mentorTier(r.mentorMet)].name.toLowerCase() + '. Win their trust from the mentor portrait on the Knight tab.', 'is-discovery');
+            if (r.food && FOODS[r.food]) text('Food bonus', 'The company ate ' + itemName(r.food) + ': ' + buffText(FOODS[r.food]) + '.');
+            if ((r.resumed || []).length) text('Back to work', 'Resumed: ' + r.resumed.join(' · ') + '.');
+        } else if (tab === 'journey') {
+            (r.lines || []).forEach((l) => text((l.status === 'ok' ? '✓ ' : l.status === 'part' ? '~ ' : '✕ ') + l.title, l.text + (l.status !== 'ok' && l.need ? ' Next time: ' + l.need + '.' : ''), l.status === 'ok' ? 'is-good' : l.status === 'miss' ? 'is-bad' : 'is-info'));
+        } else if (tab === 'growth') {
+            Object.keys(r.bonds || {}).forEach((k) => gain(S.comps[k] ? C(k).name : k, '+' + r.bonds[k] + ' bond', 'Company' + (r.levels && r.levels[k] ? ' · Level ' + r.levels[k] : '')));
+            Object.keys(r.xp || {}).forEach((k) => gain((SKILLS[k] || {}).name || k, '+' + r.xp[k] + ' XP', 'Knowledge'));
+            if (r.prof) gain((WEAPONS[r.weapon] || {}).name || r.weapon, '+' + r.prof + ' XP', 'Weapon proficiency');
+        } else {
+            Object.keys(r.total || {}).filter((k) => r.total[k] > 0).forEach((k) => gain(itemName(k), fl(r.total[k]) + '×', 'Collected', itemIcon(k, 'is-sm')));
+        }
+        if (!cells.length) text('Nothing to report', tab === 'loot' ? 'No items were brought back on this journey.' : tab === 'growth' ? 'No bond or knowledge gains on this journey.' : 'No additional events on this journey.');
+        return cells.join('');
+    }
     function reportModal(id) {
         const r = S.reports.find((x) => x.id === id);
-        if (!r) return '<p class="ck-muted">This report is no longer stored.</p><div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
-        return '<h2 id="ckModalTitle">' + esc(reportTitle(r)) + '</h2><p class="ck-outcome is-complete">' + esc(r.summary) + '</p>' +
-            '<h3>How preparation shaped the journey</h3><ol class="ck-timeline">' + r.lines.map((l) => '<li class="is-' + (l.status === 'ok' ? 'good' : l.status === 'miss' ? 'bad' : 'info') + '"><time>' + (l.status === 'ok' ? '✓' : l.status === 'part' ? '~' : '✕') + '</time><span><b>' + esc(l.title) + '.</b> ' + esc(l.text) + (l.status !== 'ok' && l.need ? ' <i>Next time: ' + esc(l.need) + '</i>' : '') + '</span></li>').join('') + '</ol>' +
-            (r.discs.length || r.sighting || r.mentorMet ? '<h3>Discoveries</h3><ul class="ck-milestones">' + r.discs.map((d) => '<li>' + (d === 'fawny' ? 'Fawny joined the Keep.' : d === 'vaultCleared' ? 'The Sunken Vault’s warden fell: 2 Covenant Keystones, an Aether Core, 2 Ancient Relics and 250 Crowns.' : 'The Sealed Vault Map.') + '</li>').join('') + (r.sighting ? '<li>A wild ' + esc((SPECIES[r.sighting.species] || {}).name || r.sighting.species) + ' was sighted. Visit the Wilds within 48 hours.</li>' : '') + (r.mentorMet ? '<li>You met ' + esc(mentorName(r.mentorMet)) + ', a ' + MENTOR_TIER[mentorTier(r.mentorMet)].name.toLowerCase() + '. Win their trust from the mentor portrait on the Knight tab.</li>' : '') + '</ul>' : '') +
-            '<h3>Company</h3><ul class="ck-xp">' + Object.keys(r.bonds).map((k) => '<li><span>' + esc(S.comps[k] ? C(k).name : k) + '</span><b>+' + r.bonds[k] + ' bond' + (r.levels && r.levels[k] ? ' · Lv ' + r.levels[k] : '') + '</b></li>').join('') + '</ul>' +
-            '<h3>Knowledge</h3><ul class="ck-xp">' + Object.keys(r.xp).map((k) => '<li><span>' + esc(SKILLS[k].name) + '</span><b>+' + r.xp[k] + ' xp</b></li>').join('') + (r.prof ? '<li><span>' + esc(WEAPONS[r.weapon].name) + '</span><b>+' + r.prof + ' xp</b></li>' : '') + '</ul>' +
-            (r.food && FOODS[r.food] ? '<p class="ck-small is-ready">' + itemEmoji(r.food) + ' The company ate ' + esc(itemName(r.food)) + ': ' + esc(buffText(FOODS[r.food])) + '.</p>' : '') + '<h3>Loot</h3>' + lootRow(r.total) + '<p class="ck-small ck-muted">Haul kept: ' + r.lootPct + '% of the base find.' + (r.resumed.length ? ' Resumed: ' + esc(r.resumed.join(' · ')) + '.' : '') + '</p>' +
-            '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="close-modal">Home again</button></div>';
+        if (!r) return '<h2 id="ckModalTitle">Report unavailable</h2><p class="ck-muted">This report is no longer stored.</p><div class="ck-actions"><button type="button" class="ck-btn" data-act="close-modal">Close</button></div>';
+        const tab = REPORT_TABS[modal.reportTab] ? modal.reportTab : 'overview';
+        modal.reportTab = tab;
+        return '<header class="dm-report-header"><span class="dm-report-eyebrow">Expedition results</span><h2 id="ckModalTitle">' + esc(reportTitle(r)) + '</h2></header>' +
+            '<div class="dm-report-tabs" role="tablist" aria-label="Expedition results">' + Object.keys(REPORT_TABS).map((key) => '<button type="button" role="tab" id="dmReportTab-' + key + '" aria-controls="dmReportPanel" aria-selected="' + (key === tab) + '" tabindex="' + (key === tab ? '0' : '-1') + '" data-act="report-tab" data-arg="' + key + '" data-report-focus="' + key + '">' + REPORT_TABS[key] + '</button>').join('') + '</div>' +
+            '<div class="dm-report-context">' + (tab === 'journey' ? 'How preparation shaped the journey' : tab === 'growth' ? 'Company bonds & knowledge' : tab === 'loot' ? 'Haul kept: ' + r.lootPct + '% of the base find' : 'Home again · the story of your expedition') + '</div>' +
+            '<section class="dm-report-panel' + (tab === 'growth' || tab === 'loot' ? ' is-cells' : '') + '" id="dmReportPanel" role="tabpanel" aria-labelledby="dmReportTab-' + tab + '" tabindex="0">' + reportCells(r, tab) + '</section>' +
+            '<footer class="dm-report-footer"><div class="dm-report-pager" aria-label="Result pages"><button type="button" class="ck-btn is-sm" data-act="report-page" data-arg="-1" data-report-focus="prev" aria-label="Previous results page">‹ Previous</button><span id="dmReportPage" role="status" aria-live="polite"></span><button type="button" class="ck-btn is-sm" data-act="report-page" data-arg="1" data-report-focus="next" aria-label="Next results page">Next ›</button></div><button type="button" class="ck-btn is-primary" data-act="close-modal" data-report-focus="close">Home again</button></footer>';
+    }
+    function fitReportPages() {
+        const panel = $('dmReportPanel');
+        if (!panel || !modal || modal.kind !== 'report') return;
+        const cells = Array.from(panel.children), columns = panel.classList.contains('is-cells') ? 2 : 1;
+        const pages = [];
+        let page = [];
+        cells.forEach((cell) => { cell.hidden = true; });
+        // A short landscape viewport can be smaller than one narrative cell.
+        // Split that cell's text again before packing rows, rather than clipping it.
+        for (let i = 0; i < cells.length; i++) {
+            const cell = cells[i], paragraph = cell.querySelector('p');
+            cell.hidden = false;
+            const words = paragraph?.textContent.split(/\s+/) || [];
+            if (cell.getBoundingClientRect().height > panel.clientHeight && words.length > 1) {
+                const continuation = cell.cloneNode(true), middle = Math.ceil(words.length / 2);
+                paragraph.textContent = words.slice(0, middle).join(' ');
+                continuation.querySelector('p').textContent = words.slice(middle).join(' ');
+                const heading = continuation.querySelector('h3');
+                if (!heading.textContent.endsWith(' · continued')) heading.textContent += ' · continued';
+                continuation.hidden = true;
+                cell.after(continuation);
+                cells.splice(i + 1, 0, continuation);
+                i--;
+            }
+            cell.hidden = true;
+        }
+        // Measure real wrapped rows: longer translations/names get fewer cells per page.
+        for (let i = 0; i < cells.length; i += columns) {
+            const row = cells.slice(i, i + columns);
+            row.forEach((cell) => { cell.hidden = false; });
+            if (page.length && panel.scrollHeight > panel.clientHeight + 1) {
+                pages.push(page);
+                page.forEach((cell) => { cell.hidden = true; });
+                page = [];
+            }
+            page.push(...row);
+        }
+        if (page.length) pages.push(page);
+        modal.reportPage = Math.max(0, Math.min(modal.reportPage || 0, pages.length - 1));
+        modal.reportPages = pages.length;
+        cells.forEach((cell) => { cell.hidden = !pages[modal.reportPage].includes(cell); });
+        $('dmReportPage').textContent = (modal.reportPage + 1) + ' / ' + pages.length;
+        const prev = document.querySelector('[data-act="report-page"][data-arg="-1"]');
+        const next = document.querySelector('[data-act="report-page"][data-arg="1"]');
+        prev.disabled = modal.reportPage === 0;
+        next.disabled = modal.reportPage === pages.length - 1;
     }
     function awayModal() {
         const a = S.away || { ms: 0, gains: {}, notes: [] };
@@ -4562,6 +4649,12 @@
         case 'menu': openModal('menu'); return;
         case 'objective': openModal('objective'); return;
         case 'report': openModal('report', arg); return;
+        case 'report-tab':
+            if (modal && modal.kind === 'report' && REPORT_TABS[arg]) { modal.reportTab = arg; modal.reportPage = 0; renderModal(); $('dmReportTab-' + arg).focus({ preventScroll: true }); }
+            return;
+        case 'report-page':
+            if (modal && modal.kind === 'report') { modal.reportPage = Math.max(0, Math.min((modal.reportPages || 1) - 1, (modal.reportPage || 0) + Number(arg))); renderModal(); }
+            return;
         case 'item': openModal('item', arg); return;
         case 'plan': openModal('plan', arg); return;
         case 'skill':
@@ -4791,6 +4884,14 @@
         const mustCreate = () => modal && modal.kind === 'create' && !S.knight.made;
         $('ckModal').addEventListener('click', (e) => { if (e.target === $('ckModal') && !mustCreate()) closeModal(); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal && !mustCreate()) closeModal(); });
+        window.addEventListener('resize', () => { if (modal && modal.kind === 'report') renderModal(); });
+        document.addEventListener('keydown', (e) => {
+            const tab = e.target.closest('.dm-report-tabs [role="tab"]');
+            if (!tab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+            e.preventDefault();
+            const keys = Object.keys(REPORT_TABS), i = keys.indexOf(tab.dataset.arg);
+            act('report-tab', keys[e.key === 'Home' ? 0 : e.key === 'End' ? keys.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + keys.length) % keys.length]);
+        });
         // The name field keeps its draft as you type, so tapping a crest or calling never wipes it.
         document.addEventListener('input', (e) => {
             if (e.target.id !== 'dmKnightGiven' || !draft) return;
@@ -4816,6 +4917,11 @@
         setInterval(() => syncNow(false), 30000);
         bootOnline();
     }
+
+    window.render_game_to_text = () => JSON.stringify({
+        mode: 'dominion', tab: S?.ui.tab,
+        report: modal?.kind === 'report' ? { id: modal.arg, tab: modal.reportTab, page: (modal.reportPage || 0) + 1, pages: modal.reportPages, visible: Array.from(document.querySelectorAll('[data-report-cell]:not([hidden])')).map((cell) => cell.innerText) } : null
+    });
 
     // Test hook for headless checks; harmless in a test mode.
     window.dominionDebug = {

@@ -474,11 +474,10 @@
           ['From the Gallery', ''],
           ['Daily Objectives', n(openQuests)],
           ['Continue Playing', runs ? n(runs) : '']] },
-      // Same vocabulary as the Play screen and the shipping picker: the two real
-      // modes are Battle and Siege.
+      // Keep this tray aligned with the top-level Play destinations.
       { id: 'play', ico: '⚔', label: 'Play', screen: 'play', items: [
-          ['Battle', ''], ['Siege', runs ? 'Saved' : ''], ['Gauntlet', ''],
-          ['Lobbies & Tournaments', n(rooms) ? n(rooms) + ' open' : ''], ['Keep', ''], ['Chronicles', '']] },
+          ['Battle', ''], ['Siege', runs ? 'Saved' : ''], ['Dominion', ''],
+          ['Lobbies & Tournaments', n(rooms) ? n(rooms) + ' open' : '']] },
       { id: 'collection', ico: '◈', label: 'Collection', screen: 'collection', items: [
           ['Cards', n(live.ownedTotal != null ? live.ownedTotal : (ALL_CARDS.length || null))],
           ['Decks', n(saved)], ['Deck Builder', '']] },
@@ -2651,12 +2650,9 @@
     { id: 'siege', label: 'Siege', tag: 'Expedition',
       line: 'Roguelike expedition — build a warband.',
       art: '/img/gallery/bearzooka-rampage.webp', el: 'FIRE', cta: 'Enter' },
-    { id: 'keep', label: 'Keep', tag: 'Sanctuary',
-      line: 'Restore your keep — residents, crafting, builds.',
-      art: '/img/gallery/cactyjackedty-ruins.webp', el: 'EARTH', cta: 'Visit' },
-    { id: 'chronicles', label: 'Chronicles', tag: 'Idle RPG',
-      line: 'Train your Siegeknight — bonds, mastery, expeditions.',
-      art: '/img/gallery/hurricrane-skyruins.webp', el: 'WIND', cta: 'Enter' }
+    { id: 'dominion', label: 'Dominion', tag: 'Kingdom & Idle RPG',
+      line: 'Build your keep, train your SiegeKnight, and explore.',
+      art: '/img/gallery/cactyjackedty-ruins.webp', el: 'EARTH', cta: 'Enter' }
   ];
 
   // The Siege panel's tag said "New" with a badge. Whether a run is waiting is
@@ -2666,7 +2662,7 @@
       m = { id: m.id, label: m.label, tag: 'Run saved', badge: true, line: m.line,
             art: m.art, el: m.el, cta: 'Resume' };
     }
-    return '<a class="sg-mode' + (m.primary ? ' is-primary' : '') + '"' + linkAttrs(m.label) +
+    return '<a class="sg-mode sg-mode-' + m.id + (m.primary ? ' is-primary' : '') + '"' + linkAttrs(m.label) +
       ' style="--el:' + color(m.el) + '">' +
       '<img class="sg-mode-bg" src="' + esc(m.art) + '" alt="" loading="lazy">' +
       '<div class="sg-mode-veil"></div>' +
@@ -2686,11 +2682,6 @@
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<div class="sg-modes">' + MODES.map(function (m) { return modePanel(m, opts); }).join('') + '</div>' +
-        // Temporary fifth mode for live testing: a band, so the four-plate grid keeps its fit.
-        // The Gauntlet is a roguelike climb on the Battle Table itself, so it sits with
-        // the play bands rather than taking a fifth plate.
-        '<a class="sg-lobbies sg-gauntlet"' + linkAttrs('Gauntlet') + '><span class="sg-lobbies-dot"></span>Gauntlet<em>Roguelike \u00b7 draft 10, climb the floors</em><span class="go">\u203a</span></a>' +
-        '<a class="sg-lobbies sg-dominion"' + linkAttrs('Dominion') + '><span class="sg-lobbies-dot"></span>Dominion<em>Test \u00b7 Keep + Chronicles</em><span class="go">\u203a</span></a>' +
         expeditionsSection(opts) +
         (function () {
           // The count is whatever /api/match/rooms reported. Unknown says so
@@ -9851,10 +9842,8 @@
       ['/shop',                'Shop tab',                                'shop'],
       ['/play arena',          'Play tray › Arena · PLAY on hero',        'play'],
       ['/siege expedition',    'Play tray › Siege Expedition',            'play'],
-      ['/gauntlet',            'Play tray › Gauntlet',                    'play'],
-      ['/keep',                'Play tray › Keep',                        'play'],
-      ['/chronicles',          'Play tray › Chronicles',                  'play'],
-      ['/dominion',            'Play tray › Dominion (test band)',        'play'],
+      ['/gauntlet',            'Battle modes › Gauntlet',                 'play'],
+      ['/dominion',            'Play tray › Dominion',                   'play'],
       ['/help',                'More tray › Help',                        'more']
     ]},
     { area: 'Dashboard actions', rows: [
@@ -9872,7 +9861,7 @@
       ['Loadout shelf',        'Home › Continue Playing · Play › Loadout','play'],
       ['Element starters',     'Shop › Packs',                            'shop'],
       ['Siegelcoin balance',   'Top bar chip (every screen)',             'home'],
-      ['Remnants / craft',     'Play tray › Keep',                        'play'],
+      ['Remnants / craft',     'Play tray › Dominion',                    'play'],
       ['Daily missions',       'Home › Daily Objectives strip',           'home'],
       ['Match history',        'Profile › Recent',                        'more'],
       ['Pack odds',            'Shop › Packs › Odds',                     'shop'],

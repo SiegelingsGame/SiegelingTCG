@@ -6016,3 +6016,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-gauntlet { margin-top:10px; border-color:rgba(200,150,255,.45); }
 .sg-gauntlet .sg-lobbies-dot { background:#c896ff; box-shadow:0 0 8px rgba(200,150,255,.8); }
 .sg-gauntlet em, .sg-gauntlet .go { color:#c896ff; }
+
+/* Three destinations: Dominion fills the second phone row. */
+.sg-modes .sg-mode-dominion { grid-column: 1 / -1; }
+@media (min-width: 901px) {
+  .sg-modes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sg-modes .sg-mode-dominion { grid-column: auto; }
+}

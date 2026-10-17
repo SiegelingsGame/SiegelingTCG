@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="/css/style.css?v=283">
     <!-- Art-first re-skin of the loadout overlay. After style.css on purpose:
          equal-specificity rules in it are meant to win. -->
-    <link rel="stylesheet" href="/css/play-next.css?v=13">
+    <link rel="stylesheet" href="/css/play-next.css?v=14">
     <link rel="stylesheet" href="/css/coach.css?v=7">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
@@ -758,12 +758,33 @@
                     </label>
                     <div class="identity-note" id="playerIdentityNote">This name is shown in online matches and saved on this device.</div>
                 </div>
-                <div class="loadout-toggle-set">
-                    <div class="loadout-toggle-label">Battle Mode</div>
-                    <div class="match-mode-tabs" role="group" aria-label="Battle Mode">
-                        <button class="loadout-tab active" id="soloMatchTab" type="button" onclick="setMatchMode('solo')" aria-pressed="true">Solo Vs AI</button>
-                        <button class="loadout-tab" id="onlineMatchTab" type="button" onclick="setMatchMode('online')" aria-pressed="false">Online Match</button>
-                        <button class="loadout-tab" id="tutorialMatchTab" type="button" onclick="setMatchMode('tutorial')" aria-pressed="false">Tutorial Match</button>
+                <div class="loadout-toggle-set battle-mode-picker">
+                    <h3 class="battle-mode-heading">Choose your mode</h3>
+                    <div class="match-mode-tabs battle-mode-grid" role="group" aria-label="Battle Mode">
+                        <button class="battle-mode-card battle-mode-pvp" id="onlineMatchTab" type="button" onclick="setMatchMode('online')" aria-pressed="false">
+                            <span class="battle-mode-kicker">Live multiplayer</span>
+                            <span class="battle-mode-title">PvP</span>
+                            <span class="battle-mode-description">Challenge another player. Bring your best deck.</span>
+                            <span class="battle-mode-meta">Host or join a room</span>
+                        </button>
+                        <button class="battle-mode-card battle-mode-pvai active" id="soloMatchTab" type="button" onclick="setMatchMode('solo')" aria-pressed="true">
+                            <span class="battle-mode-kicker">Solo battle</span>
+                            <span class="battle-mode-title">PvAI</span>
+                            <span class="battle-mode-description">Take on the AI and put your deck to the test.</span>
+                            <span class="battle-mode-meta">Play at your own pace</span>
+                        </button>
+                        <a class="battle-mode-card battle-mode-gauntlet" id="gauntletMatchLink" href="/gauntlet">
+                            <span class="battle-mode-kicker">Roguelike climb</span>
+                            <span class="battle-mode-title">Gauntlet</span>
+                            <span class="battle-mode-description">Draft 10 cards. Grow your deck as you climb.</span>
+                            <span class="battle-mode-meta">Enter the Gauntlet &rsaquo;</span>
+                        </a>
+                        <button class="battle-mode-card battle-mode-tutorial" id="tutorialMatchTab" type="button" onclick="setMatchMode('tutorial')" aria-pressed="false">
+                            <span class="battle-mode-kicker">Guided match</span>
+                            <span class="battle-mode-title">Tutorial</span>
+                            <span class="battle-mode-description">Learn the cards, your board, and the flow of battle.</span>
+                            <span class="battle-mode-meta">New here? Start here</span>
+                        </button>
                     </div>
                 </div>
                 <div id="tutorialMatchPanel" class="hidden loadout-tutorial-panel">
@@ -950,7 +971,7 @@
     <script src="/js/coach.js?v=11"></script>
     <script src="/js/arena-tutorial.js?v=51"></script>
     <script src="/js/knight-tutorial.js?v=2"></script>
-<script src="/js/game.js?v=325"></script>
+<script src="/js/game.js?v=326"></script>
     <script src="/js/play-mode-picker.js?v=4"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,
