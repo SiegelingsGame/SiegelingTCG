@@ -420,7 +420,8 @@
 .dm-grounds .dm-scene-box { flex: 1 1 auto; height: auto; min-height: 0; margin: 0; }
 .dm-hud-top { position: absolute; z-index: 15; left: 8px; right: 8px; top: 8px; display: grid; gap: 6px; justify-items: start; pointer-events: none; }
 .dm-hud-top > * { pointer-events: auto; }
-.dm-hud-resrow { display: flex; gap: 4px; flex-wrap: wrap; }
+.dm-hud-resrow { display: flex; gap: 4px; flex-wrap: wrap; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+button.dm-res-strip { border: 0; background: none; padding: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; }
 .dm-hud-res { display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px; border-radius: 999px; background: rgba(11,16,32,.72); border: 1px solid var(--glass-line); font: 700 12px/1.2 var(--sans); color: var(--ink); font-variant-numeric: tabular-nums; }
 .dm-hud-obj { display: flex; align-items: center; gap: 6px; max-width: calc(100% - 60px); padding: 5px 10px; border-radius: 12px; border: 1px solid rgba(200,165,79,.5); background: rgba(11,16,32,.8); color: var(--ink); font: 600 12px/1.25 var(--sans); text-align: left; }
 .dm-hud-obj span { flex: none; color: var(--gold-bright); font-weight: 800; }
@@ -567,6 +568,35 @@
 .dm-favor-pick em { font: 800 10px/1 var(--sans); font-style: normal; color: #ffe08a; }
 .dm-favor-pick.is-on { border-color: #f4cc62; box-shadow: 0 0 0 2px rgba(244,204,98,.35), 0 0 14px rgba(244,204,98,.35); background: rgba(70,52,16,.45); }
 
+/* Keep inventory and Daily Store */
+#ckModal[data-kind="inv"] .ck-modal-card { width: min(640px, 100%); }
+/* Every tab is on screen at once: a wrapping grid (4 + 3 on a phone, one row when wide), never a
+   sideways scroller. It sticks to the top of the sheet so the list scrolls under it. */
+.dm-inv-tabs { position: sticky; top: -18px; z-index: 2; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 10px -18px 8px; padding: 8px 18px;
+    background: linear-gradient(180deg, #0d1428 85%, rgba(13,20,40,0)); }
+@media (min-width: 560px) { .dm-inv-tabs { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+.dm-inv-tabs button { min-width: 0; min-height: 38px; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 12px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: var(--ink); font: 800 13px/1 var(--sans); cursor: pointer; }
+.dm-inv-tabs button.is-on { background: linear-gradient(180deg, #f6d77a, #e3b649); color: #2a1c06; border-color: #f6d77a; }
+.dm-inv-purse { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.dm-inv-card, .dm-offer { display: flex; align-items: center; gap: 12px; margin: 8px 0; padding: 10px 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); }
+.dm-inv-card.is-empty { opacity: .55; }
+.dm-inv-main { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.dm-inv-main small { font: 800 10px/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted, #9aa6b8); }
+.dm-inv-main b { font: 800 16px/1.2 var(--sans); }
+.dm-inv-main strong { font: 800 14px/1.2 var(--sans); color: #f6d77a; font-variant-numeric: tabular-nums; }
+.dm-inv-meter { display: block; height: 8px; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
+.dm-inv-meter b { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #6fbf5a, #b8e06a); }
+.dm-offer.is-deal { border-color: rgba(255,150,80,.65); background: linear-gradient(90deg, rgba(255,120,60,.14), rgba(255,255,255,.03)); }
+.dm-offer.is-sold { opacity: .5; }
+.dm-offer .ck-btn { flex: 0 0 auto; }
+
+/* The Hall and room standees: iOS Safari can drop an SVG-filtered image whose parent carries its
+   own filter and transform animation, so the standee keeps the filter alone and bobs the image. */
+.hall-favorite-resident > span.has-overlay-art, .lodge-resident > span.has-overlay-art, .facility-room-resident > span.has-overlay-art { filter: none; animation: none; }
+.hall-favorite-resident, .lodge-resident, .facility-room-resident { filter: none; }
+.has-overlay-art > img { animation: dm-standee-bob 2.4s ease-in-out infinite; }
+@keyframes dm-standee-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -3px; } }
+
 /* Siege, drill and rush */
 .dm-siege { margin: 8px 0; padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(244,204,98,.35); background: rgba(11,16,32,.45); }
 .dm-siege.is-safe { border-color: rgba(111,207,139,.55); }
@@ -577,7 +607,7 @@
     font: 900 10px/1.3 var(--sans); font-style: normal; box-shadow: 0 0 8px rgba(255,218,97,.7); white-space: nowrap; }
 
 /* First-visit tips float above the tab bar, outside the page flow, so one-screen tabs keep their layout. */
-.dm-hint { position: fixed; z-index: 45; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 78px); max-width: 560px; margin-inline: auto; display: flex; align-items: center; gap: 10px;
+.dm-hint { position: fixed; z-index: 35; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom, 0px) + 78px); max-width: 560px; margin-inline: auto; display: flex; align-items: center; gap: 10px;
     padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(244,204,98,.5); background: rgba(14,20,34,.94); box-shadow: 0 10px 28px rgba(0,0,0,.45); color: var(--cream, #fff4dc); }
 .dm-hint p { margin: 0; flex: 1; font: 600 12.5px/1.35 var(--sans); }
 .dm-hint > span { font-size: 18px; }
@@ -637,3 +667,79 @@
 .dm-knight-pick-art { width: 64px; height: 76px; display: block; background: radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--el) 35%, transparent), transparent 70%); }
 .dm-knight-pick small { font: 700 10px/1.2 var(--sans); text-align: center; }
 .dm-knight-portrait img.dm-paper { padding: 4%; }
+
+/* —— Header: names are never cut short. The name may wrap to two lines and shrink a little; on
+   phones the Dominion kicker hides (its test clock rides on the +4h pill) and the status pills wrap. */
+.ck-title strong { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.08; font-size: clamp(15px, 4.4vw, 19px); }
+.ck-status { flex-wrap: wrap; }
+.ck-stat { flex: 1 1 auto; }
+.ck-stat > span:not(.ck-dot):not(.ck-bar) { overflow: visible; text-overflow: clip; flex: 0 1 auto; }
+.ck-stat .ck-bar { flex: 1 0 28px; min-width: 28px; }
+.dm-pass-clock { opacity: .75; font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) {
+    .ck-title .ck-kicker { display: none; }
+    .ck-top { gap: 8px; }
+    .ck-rank { width: auto; grid-template-columns: auto; }
+    .ck-rank-title, .ck-rank .ck-bar { display: none; }
+}
+@media (min-width: 601px) { .dm-pass-clock { display: none; } }
+
+/* Work: skill names in full. Tiles widen to the longest name instead of truncating it. */
+.ck-skillbar { grid-auto-columns: minmax(96px, 1fr); }
+.ck-skilltab { padding-left: 2px; padding-right: 2px; }
+.ck-skilltab b { overflow: visible; text-overflow: clip; font-size: 12px; letter-spacing: -.01em; }
+
+/* The current task sits inside the skill's art card, above its XP line. */
+.dm-task { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 10px; margin: 6px 0 10px; padding: 8px 10px; border-radius: 14px;
+    background: rgba(6,10,20,.55); border: 1px solid color-mix(in srgb, var(--el, #8fd18a) 55%, transparent); backdrop-filter: blur(2px); color: inherit; text-align: left; width: 100%; }
+.dm-task .ck-bar { grid-column: 1 / -1; margin: 2px 0 0; }
+.dm-task.is-idle, .dm-task.is-elsewhere { grid-template-columns: auto 1fr; border-color: rgba(255,255,255,.14); }
+.dm-task.is-elsewhere { cursor: pointer; }
+.dm-task-text { min-width: 0; display: grid; gap: 2px; }
+.dm-task-text b { font: 800 15px/1.2 var(--fun, var(--sans)); }
+.dm-task-text small { font: 600 12px/1.3 var(--sans); opacity: .85; }
+
+/* Your knight's crest, beside the name. */
+.dm-crest { display: inline-grid; place-items: center; width: 1.25em; height: 1.4em; margin-right: .3em; vertical-align: -.2em; background: linear-gradient(180deg, color-mix(in srgb, var(--el) 85%, white), color-mix(in srgb, var(--el) 70%, black));
+    clip-path: polygon(0 0, 100% 0, 100% 58%, 50% 100%, 0 58%); filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
+.dm-crest i { font-style: normal; font-size: .62em; line-height: 1; margin-top: -.15em; }
+.dm-crest.is-lg { font-size: 54px; margin: 0; }
+.dm-mentor-btn { position: relative; padding: 0; cursor: pointer; }
+.dm-mentor-tag { position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); padding: 2px 8px; border-radius: 999px; background: rgba(11,16,32,.88); border: 1px solid rgba(244,204,98,.5); color: #ffe9a8; font: 800 10px/1.4 var(--sans); white-space: nowrap; }
+
+/* Character creation sheet */
+#ckModal[data-kind="create"] .ck-modal-card, #ckModal[data-kind="mentor"] .ck-modal-card { width: min(640px, 100%); }
+.dm-cc-preview { display: flex; align-items: center; gap: 14px; margin: 8px 0 4px; }
+.dm-cc-preview b { font: 800 22px/1.15 var(--fun, var(--sans)); overflow-wrap: anywhere; }
+.dm-cc-preview small { display: block; color: var(--gold-bright, #f4cc62); font: 700 12px/1.3 var(--sans); }
+.dm-cc-input { width: 100%; min-height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.18); background: rgba(0,0,0,.3); color: var(--ink); font: 700 16px/1 var(--sans); }
+.dm-cc-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.dm-cc-emblem { width: 42px; height: 42px; border-radius: 12px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); font-size: 22px; cursor: pointer; }
+.dm-cc-color { width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); background: var(--el); cursor: pointer; }
+.dm-cc-emblem.is-on, .dm-cc-color.is-on { border-color: #f4cc62; box-shadow: 0 0 0 2px rgba(244,204,98,.4); }
+.dm-cc-callings { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.dm-cc-calling { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: inherit; text-align: left; cursor: pointer; }
+.dm-cc-calling span { grid-row: span 2; font-size: 22px; }
+.dm-cc-calling b { font: 800 14px/1.2 var(--sans); }
+.dm-cc-calling small { font: 600 11px/1.3 var(--sans); opacity: .8; }
+.dm-cc-calling.is-on { border-color: #f4cc62; background: rgba(70,52,16,.45); }
+.dm-knight-pick em { font: 700 9px/1.2 var(--sans); font-style: normal; opacity: .75; }
+/* Gear names are never cut short either; only the longer blurb beneath may clamp. */
+.ck-gear-text b { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+
+/* Mentors: who has sworn, who is being won over, who waits at the gate, and who is still unmet. */
+.dm-mentor-row { display: flex; align-items: flex-start; gap: 12px; margin: 8px 0; padding: 10px 12px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--el, #c9b98a) 45%, rgba(255,255,255,.1)); background: rgba(255,255,255,.04); }
+.dm-mentor-row .dm-knight-pick-art { flex: 0 0 auto; width: 64px; height: 80px; }
+.dm-mentor-row.is-gate { border-color: rgba(111,207,139,.6); background: rgba(40,80,50,.25); }
+.dm-mentor-row .ck-pills { margin-top: 4px; }
+.dm-knight-pick-art.is-card { border-radius: 8px; overflow: hidden; }
+.dm-knight-card { width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.45); }
+.dm-knight-portrait .dm-knight-card, .dm-knight-standee .dm-knight-card { border: 2px solid rgba(244,204,98,.7); }
+.dm-mentor-unmet { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.dm-unmet { display: grid; gap: 2px; padding: 8px 10px; border-radius: 12px; border: 1px dashed rgba(255,255,255,.18); font: 700 13px/1.2 var(--sans); }
+.dm-unmet b { font: 800 18px/1 var(--fun, var(--sans)); color: #f6d77a; }
+.dm-unmet small { font: 600 11px/1.3 var(--sans); opacity: .75; }
+/* With no sworn mentor the Knight stands under their own crest. */
+.dm-crest.is-standee { font-size: 64px; margin: auto auto 0; display: grid; }
+.dm-knight-portrait .dm-crest.is-standee { font-size: 72px; }
+.dm-j-walker .dm-crest.is-standee { font-size: 44px; }

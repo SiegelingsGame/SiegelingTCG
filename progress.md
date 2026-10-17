@@ -18,6 +18,88 @@ Original prompt: Go with earth based art for endless
     - **Landscape phones.** The fight column was about 290px wide with 44px enemy cards. It now takes up to 44% of the width (400px max). The header drops its eyebrow, the banner clamps to one line, and the HP chips sit on the name row. The encounter fills the column down to the Fight button, and the enemy cards size from the height left in it (`container-type: size`, about 96px at 844x390). Desktop keeps a compact encounter with 96px enemy cards.
     - `gauntlet.css?v=10`, `gauntlet.js?v=7`.
   - **Verification.** `node --check js/gauntlet.js`. A Playwright sweep against the local app (`spring-boot:run`, with the edited statics served from source) ran a real run: start, draft, the draft tray, camp, forge offer and apply, Shop / SiegeKnight / Log. Then it injected, from the live run's data, a boss floor with a 22-card deck and a long banner, the enemy-knight tray, the remove picker, the reward, level-up and run-over screens. It ran at 390x844, 320x568, 844x390, 667x375, 768x1024 and 1920x1080. On each screen it asserted no document scroll in either axis, no vertical overflow in `.gt-main` or any other scroller, no rail taller than its box, nothing below the fold outside sideways strips, and the CTA inside the viewport. 78/78 checks passed with no page errors. Screenshots were checked by eye. Desktop draft fits all 10 cards at 221px wide, and desktop camp fits 22 cards beside the encounter. On a phone the deck is a two-row sideways strip, and the forge tray shows the face, moves, upgrades and all three forge options without scrolling.
+- October 17, 2026 **Dominion: SiegeKnight mentors must be met and won over — squires easily, knights harder, raiders tougher, lords a long effort.**
+  - **Change.**
+    - **Server.** `DominionService.art()` now sends every SiegeKnight with art, not only the overlay ones, with `knight-tier:` (SiegeSquire, SiegeKnight, Raider or SiegeLord) and `knight-full:` for full-card art. Full-card art is framed as a card, because it cannot be cut out.
+    - **Meeting.**
+      - **Squires:** one waits at the Keep gate each day (Ser Airek first on a new save) and is greeted from the Mentors sheet.
+      - **Knights:** met on returning roads (35%, preferring the road's element).
+      - **Raiders:** met on tier-2+ roads (15%) or after a held siege wave (30%).
+      - **Lords:** met on the Sunken Vault or tier-3 roads with Hall 5+ (20%), or after a siege held at Wall 6+ (10%).
+
+      A met mentor appears in the expedition report.
+    - **Winning them over.** Each met mentor has a rapport meter. You build it by:
+      - 💬 Talk: +1, once a day;
+      - 🎁 Gift: up to twice a day — squire 10 Silver for +1, knight 40 Silver for +2, raider 60 Crowns for +2, lord 150 Crowns and a Keystone for +4;
+      - shared deeds: +2 for each finished road of their element, and +1 per held siege for raiders and lords.
+    - **Swearing in.** At full rapport (squire 3, knight 10, raider 20, lord 40), and once the tier's proof is met, "Ask to train you" swears them in. The proofs are: knights want Knight Rank 5; raiders want Akhar's Wall 3 and 3 sieges held; lords want Hall 6 and the Sunken Vault cleared.
+    - **Mentor effects.** Only a sworn mentor walks the roads, stands in the scene and gives +10% affinity for their element; any sworn mentor can be set as the active one. Until then, the Knight stands under their own crest. The creation sheet no longer picks a mentor, and an existing save's unsworn pick is ignored. The mentor portrait opens the Mentors sheet, which has four sections: your mentors, the squire at the gate today, those being won over, and a count of who is still unmet per tier.
+  - **Verification.**
+    - `./mvnw -q -DskipTests compile` and the Dominion tests.
+    - Headless Chromium at 390x844 and 1920x1080, with the live trainer list (25 trainers in four tiers):
+      - **New save:** no mentor, and a crest standee.
+      - **Gate squire:** greeting Ser Airek works. A second talk the same day is refused; two gifts go through and the third is refused (rapport 3, Silver 100→80). Asking swears him in and sets the mentor.
+      - **Roads and Wall:** a road trip met Lady Verity. A held siege met the raider Aldera.
+      - **Proofs:** at full rapport, asks for a knight, a raider and a lord are refused with "Knight Rank 5", "Akhar's Wall 3 and 3 sieges held" and "Hall 6 and the Sunken Vault cleared".
+    - The smoke, round 4, inventory and journey checks still pass, with no page errors.
+- October 17, 2026 **Dominion: make your own knight with a SiegeKnight mentor, the current task inside the skill's art card, no truncated names, and only real Siegelings in the wilds.**
+  - **Change.**
+    - **Character creation.** A sheet opens on first visit, and from ✏️ Edit knight or the ⋯ menu. It sets:
+      - a name (up to 20 characters);
+      - a title (none, Ser, Dame, Lady, Lord, Sir or Knight);
+      - a crest, from 10 emblems and 10 element colours;
+      - a calling: Woodwarden, Forager, Delver, Smith, Scholar or Weaver, each making its two skills 10% faster.
+
+      A new knight's sheet cannot be dismissed by a stray tap.
+    - **Mentor.** The SiegeKnight cards are now your mentor: they appear as the standee and the road walker, and their element's affinity grows 10% faster. Choosing one no longer renames you. Tap the mentor portrait in the Knight hero to change them; the large picker section is gone. The hero shows your crest, name and calling.
+    - **Work tab.** The separate "now working" strip is gone. The current task (name, rate, Rest and live bar) sits inside the skill's art card above the skill XP line, or as a "Working: …" link when you are viewing another skill.
+    - **No truncation.**
+      - The header name wraps (up to two lines, gently shrunk) instead of ending in "…".
+      - On phones the Dominion kicker hides; its clock moves onto the +4h pill.
+      - Rank keeps its number badge only on phones.
+      - Status pills wrap.
+      - Skill tiles widen to fit "Woodcutting", "Excavation" and "Runecrafting".
+      - Gear names wrap.
+    - **Wilds.** Sightings only draw species with live card art. A saved sighting of a retired species (the reported "Gearling", which has no card) is re-rolled to a live species of the same element when the art map loads.
+  - **Verification.**
+    - `node --check js/dominion.js`.
+    - Headless Chromium at 390x844, 430x932 and 1920x1080:
+      - **Creation:** a fresh save opens the sheet, and a backdrop tap does not close it. The typed name survives tapping title, crest, calling and mentor. Saving gives "Lady Roc Stormborne-Valew" with calling Forager and mentor Morgana.
+      - **Header:** the name has no horizontal clipping, and no status pill is cut.
+      - **Work:** no now-strip; the task panel is inside the banner; no skill tile label is cut.
+      - **Knight:** the old picker section is gone, the crest shows, and tapping the portrait opens the 17-mentor sheet. Choosing Aero changes the mentor and keeps the name.
+      - **Wilds:** a saved "gearling" sighting became "newt".
+    - The smoke, inventory, favorite and round 3 checks still pass, with no page errors.
+- October 17, 2026 **Dominion: inventory tabs never need scrolling.**
+  - **Change.** The inventory's seven tabs were a sideways scroller, and Goods, Refine and Store sat off screen on a phone. They are now a wrapping grid (4 + 3 on phones, one row of 7 from 560px), sticky at the top of the sheet so the item list scrolls beneath them. First-visit tips now sit below open windows (z-index 35, under the modal's 40), so they no longer cover the inventory.
+  - **Verification.** Headless Chromium at 320x640, 390x844 and 1920x1080: the tab row has no horizontal overflow, all 7 buttons lie inside the sheet with no clipped labels, and after scrolling the list 600px the tabs stay at the top of the sheet. The inventory and store checks still pass, with no page errors.
+- October 17, 2026 **Dominion: a Keep inventory for every raw and manufactured material, and a Daily Store open from day one.**
+  - **Change.**
+    - **Keep inventory.** A sheet modelled on the Keep's own inventory panel (`keep.js` `inventoryMarkup`), with tabs All / Raw / Refined / Made / Goods / Refine / Store, Silver, Crowns and Insight at the top, and a card per item. The tabs cover:
+      - every Keep raw material with its source workshop (Timber shows its store meter);
+      - every refined material (`KeepEconomy.REFINED`);
+      - manufactured goods (crafted tools, decorations and bonuses, with display state);
+      - everything else carried, grouped by kind.
+
+      It opens from the Grounds resource row, the Base resource strip, a new 🎒 Inventory dock button, and the Upkeep section.
+    - **Daily Store.** It refreshes at local midnight and is open before the Storehouse. Each day it offers:
+      - 4 common lots;
+      - 2 tier-2 lots;
+      - 1 Crowns lot (runes, essences or tier 3);
+      - a 🔥 Deal of the day at 40% off with a double amount.
+
+      Gear is never sold. The Keep's bulk market lots join the same tab once the Storehouse stands.
+    - **Smaller changes.**
+      - The old "Stores" section is renamed Upkeep, so it isn't confused with the Store.
+      - Collect now explains a full Timber store ("The Timber store is full (300/300)…") instead of "Nothing to collect yet."
+      - Room standees keep the SVG cutout filter on the image alone, with no filter or transform animation on the parent, because iOS Safari can drop the image when both are present (a favorite with no visible art was reported).
+  - **Verification.**
+    - `node --check js/dominion.js`.
+    - Headless Chromium at 390x844 and 1920x1080:
+      - Tapping the resource row opens the inventory (18 cards; Raw, Refined, Manufactured and Goods sections).
+      - The Store lists 8 offers including a deal; buying Copper Fittings charges 8 Silver.
+      - Collect with 300/300 Timber shows the full-store message.
+    - The favorite, round 3, smoke and resting checks still pass, with no page errors.
 - October 16, 2026 **Standard (and every lower finish) can be viewed again once an account owns a higher finish of the card.**
   - **Change.** The shared showcase renderer in `game.js` treats a card's `finish` stamp as the whole truth, but without one it reads `holographic: false` as "unknown" and falls back to the signed-in account's finish lists. So the Collection's full-screen viewer and card-sheet version row drew the Standard (and Holo) face with the player's foil and SP art, and the dashboard's "Cards Menu View" Standard preview wore the designer's own holo. `versionFace` in `home-redesign.js` now stamps `finish` (`''` for Standard, else the version key) and the dashboard's `toBinderPreviewCard` stamps `finish` from its own foil checkbox (`HSP` or `''`). `home-redesign.js?v=110`, `card-dashboard.js?v=71`.
   - **Verification.** A headless-Chromium fixture loading `game.js` + `card-binder-visual.js` with an account owning HSP and SP of Firsky rendered the Standard face with foil and holo art before the stamp, and with neither after; HSP and HOLO stamps still draw their foil/sheen. `node --check` on both scripts.
