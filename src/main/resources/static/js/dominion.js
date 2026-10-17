@@ -2616,6 +2616,10 @@
     // The player's own knight: a name, an optional title, a crest and a calling. The SiegeKnight
     // cards are mentors who travel with them (the standee and road walker), chosen by tapping the portrait.
     const KNIGHT_TITLES = ['', 'Ser', 'Dame', 'Lady', 'Lord', 'Sir', 'Knight'];
+    // Default player portraits (img/dominion/knights): one die-cut figure per element.
+    const PORTRAITS = ['fire', 'water', 'earth', 'wind', 'ice', 'electric', 'light', 'shadow', 'psychic', 'metal'];
+    const portraitOf = (k) => (PORTRAITS.includes(k && k.portrait) ? k.portrait : PORTRAITS.includes(k && k.crest && k.crest.color) ? k.crest.color : 'fire');
+    const portraitSrc = (el, thumb) => '/img/dominion/knights/knight-' + el + (thumb ? '-thumb' : '') + '.webp';
     const CREST_EMBLEMS = ['🌲', '🔥', '🌊', '⛰️', '⭐', '🌙', '🦁', '🛡️', '🐉', '🌸'];
     const CREST_COLORS = ['fire', 'water', 'earth', 'wind', 'ice', 'electric', 'light', 'shadow', 'psychic', 'metal'];
     const CALLINGS = {
@@ -2703,13 +2707,14 @@
     let draft = null;
     function startDraft() {
         const k = S.knight, given = k.made ? (k.given || k.name) : '';
-        draft = { given: given, title: k.made ? (k.title || '') : 'Ser', emblem: (k.crest && k.crest.emblem) || '🛡️', color: (k.crest && k.crest.color) || 'light', calling: k.calling || 'woodwarden', mentor: k.card || DEFAULT_KNIGHT };
+        draft = { portrait: portraitOf(k), given: given, title: k.made ? (k.title || '') : 'Ser', emblem: (k.crest && k.crest.emblem) || '🛡️', color: (k.crest && k.crest.color) || 'light', calling: k.calling || 'woodwarden', mentor: k.card || DEFAULT_KNIGHT };
     }
     function createModal() {
         if (!draft) startDraft();
         const d = draft, preview = (d.title ? d.title + ' ' : '') + (d.given || 'Your name');
         return '<span class="ck-kicker">' + (S.knight.made ? 'Your knight' : 'A new knight') + '</span><h2 id="ckModalTitle">' + (S.knight.made ? 'Edit your knight' : 'Make your knight') + '</h2>' +
-            '<div class="dm-cc-preview">' + crest({ crest: { emblem: d.emblem, color: d.color } }, 'is-lg') + '<b>' + esc(preview) + '</b><small>' + esc(CALLINGS[d.calling][1]) + '</small></div>' +
+            '<div class="dm-cc-preview"><span class="dm-cc-figure"><img class="dm-paper" src="' + portraitSrc(d.portrait) + '" alt=""></span><span>' + crest({ crest: { emblem: d.emblem, color: d.color } }) + '<b>' + esc(preview) + '</b><small>' + esc(CALLINGS[d.calling][1]) + '</small></span></div>' +
+            '<h3>Portrait</h3><div class="dm-cc-portraits">' + PORTRAITS.map((el) => '<button type="button" class="dm-cc-portrait' + (d.portrait === el ? ' is-on' : '') + '" data-act="cc" data-arg="portrait:' + el + '" style="--el:var(--' + el + ')" aria-label="' + titleCase(el) + ' knight"><img class="dm-paper" src="' + portraitSrc(el, true) + '" alt="" loading="lazy"><small>' + titleCase(el) + '</small></button>').join('') + '</div>' +
             '<h3>Name</h3><input id="dmKnightGiven" class="dm-cc-input" type="text" maxlength="20" autocomplete="off" placeholder="Your knight’s name" value="' + esc(d.given) + '">' +
             '<h3>Title</h3><div class="dm-cc-row">' + KNIGHT_TITLES.map((t) => '<button type="button" class="ck-pill' + (d.title === t ? ' is-on' : '') + '" data-act="cc" data-arg="title:' + t + '">' + (t || 'No title') + '</button>').join('') + '</div>' +
             '<h3>Crest</h3><div class="dm-cc-row">' + CREST_EMBLEMS.map((e) => '<button type="button" class="dm-cc-emblem' + (d.emblem === e ? ' is-on' : '') + '" data-act="cc" data-arg="emblem:' + e + '" aria-label="Emblem ' + e + '">' + e + '</button>').join('') + '</div>' +
@@ -2755,8 +2760,11 @@
         return u || '';
     }
     function knightPaper(cls) {
+        return '<img class="dm-paper dm-self ' + (cls || '') + '" src="' + portraitSrc(portraitOf(S.knight)) + '" alt="">';
+    }
+    function mentorPaper(cls) {
         const id = knightCardId(), raw = id ? ART_URLS['knight:' + id] : '';
-        if (!raw) return crest(S.knight, 'is-standee' + (cls ? ' ' + cls : ''));
+        if (!raw) return '';
         if (ART_URLS['knight-full:' + id]) return '<img class="dm-knight-card ' + (cls || '') + '" src="' + esc(thumbOf(raw, 320)) + '" data-raw="' + esc(raw) + '" alt="" onerror="dmArtFallback(this)">';
         return '<img class="dm-paper ' + (cls || '') + '" src="' + esc(thumbOf(raw, 320)) + '" data-raw="' + esc(raw) + '" alt="" onerror="dmArtFallback(this)">';
     }
@@ -2950,8 +2958,9 @@
         let h = hero({
             cls: 'is-knight', scene: namedScene('light-shelter'), kicker: 'Rank ' + rankLvl(S) + ' · ' + esc(HALL_RANKS[S.b.hall - 1]) + (CALLINGS[k.calling] ? ' · ' + CALLINGS[k.calling][1] : ''),
             title: crest(k) + esc(k.name),
-            art: '<button type="button" class="ck-portrait is-hero dm-paper-frame dm-knight-portrait dm-mentor-btn" data-act="mentor-pick" aria-label="Change your mentor" style="--el:var(--' + elKey(ART_URLS['knight-el:' + knightCardId()] || 'WIND') + ')">' + knightPaper() +
-                '<span class="dm-mentor-tag">' + (knightCardId() ? 'Mentor · ' + esc(mentorName(knightCardId())) : gateSquire(S) ? 'A squire is at the gate' : 'Find a mentor') + ' ▸</span></button>',
+            art: '<span class="dm-hero-pair"><button type="button" class="ck-portrait is-hero dm-paper-frame dm-knight-portrait" data-act="create" aria-label="Edit your knight" style="--el:var(--' + portraitOf(k) + ')">' + knightPaper() + '</button>' +
+                '<button type="button" class="dm-mentor-btn' + (knightCardId() ? '' : ' is-empty') + '" data-act="mentor-pick" aria-label="Mentors">' + (knightCardId() ? '<span class="dm-mentor-face">' + mentorPaper() + '</span>' : '<span class="dm-mentor-face is-empty">?</span>') +
+                '<span class="dm-mentor-tag">' + (knightCardId() ? 'Mentor · ' + esc(mentorName(knightCardId())) : gateSquire(S) ? 'A squire is at the gate' : 'Find a mentor') + ' ▸</span></button></span>',
             body: barP(rp.pct, 'is-fat') + '<p class="ck-banner-line">' + esc(rp.label) + ' rank XP</p>' +
                 '<div class="ck-pills"><button type="button" class="ck-pill" data-act="create">✏️ Edit knight</button></div>' +
                 '<div class="ck-bubbles"><span class="ck-bubble">🗺️ <b>' + (S.runs || 0) + '</b> trips</span><span class="ck-bubble">🐾 <b>' + tamed + '</b> companions</span>' +
@@ -3252,7 +3261,9 @@
             '<span class="dm-j-marker" data-live="walker" data-start="' + o.start + '" data-end="' + o.end + '"></span></div>' +
             '<script type="application/json" class="dm-j-labels">' + JSON.stringify(o.areas.map((a) => a.title + (a.status === 'ok' ? ' · handled' : a.status === 'part' ? ' · a struggle' : a.status === 'miss' ? ' · unanswered' : ''))).replace(/</g, '\\u003c') + '</script></section>';
     }
-    const knightWalker = () => ({ html: knightPaper() });
+    const knightWalker = () => ({ knight: true, html: knightPaper() });
+    // A sworn mentor walks the road beside the Knight.
+    const mentorWalkers = () => (knightCardId() ? [{ html: mentorPaper() }] : []);
     const compWalker = (id) => ({ html: compArt(id, C(id).name) });
     function foeArt(seed, element) {
         const pool = Object.keys(SPECIES).filter((k) => (!element || SPECIES[k].element === element) && catalogArt(k, 240));
@@ -3271,7 +3282,7 @@
         }
         return journeyView({ biome: x.dest === 'ruins' ? 'ruins' : BIOME_OF[el] || 'forest', scene: x.trial || x.operation ? namedScene(elKey(el) + (x.operation ? '-boss' : '-journey')) : sceneUrl(x.dest),
             kicker: esc(x.trial ? 'Legendary Bond Trial' : x.operation ? 'Siege Operation' : (d.region || 'On the road')), title: expTitle(x), start: x.startAt, end: x.endAt,
-            areas: areas, walkers: (x.trial ? [] : [knightWalker()]).concat(x.party.filter((id) => S.comps[id]).map(compWalker)) });
+            areas: areas, walkers: (x.trial ? [] : [knightWalker()].concat(mentorWalkers())).concat(x.party.filter((id) => S.comps[id]).map(compWalker)) });
     }
     // Siegelings on the Explore job wander the Rootwild in a little party of their own.
     function scoutJourney() {
@@ -3907,7 +3918,7 @@
     }
     // The Knight stands at the Hall door as a paper standee (faded while away on the road).
     function sceneKnight(away) {
-        return '<span class="dm-knight-standee' + (away ? ' is-away' : '') + '">' + knightPaper() + '</span>';
+        return '<span class="dm-knight-standee' + (away ? ' is-away' : '') + '">' + knightPaper() + (knightCardId() ? '<span class="dm-mentor-standee">' + mentorPaper() + '</span>' : '') + '</span>';
     }
     // —— Akhar's Wall: the Keep's Front battle (keep.js initializeFrontCombat), fought live while the Wall is open ——
     // Raider paths in stage percent, from keep.js; the last two only march once the Wall passes the Keep's four tiers.
@@ -4543,7 +4554,7 @@
             if (given.length < 2) { toast('Give your knight a name (2–20 letters).'); return; }
             const k = s.knight;
             k.given = given; k.title = draft.title; k.name = (draft.title ? draft.title + ' ' : '') + given;
-            k.crest = { emblem: draft.emblem, color: draft.color }; k.calling = draft.calling;
+            k.crest = { emblem: draft.emblem, color: draft.color }; k.calling = draft.calling; k.portrait = draft.portrait;
             const first = !k.made; k.made = true; draft = null; s.rev++; closeModal();
             toast(first ? 'Welcome, ' + k.name + '.' : 'Your knight is updated.'); break;
         }
@@ -4709,7 +4720,12 @@
         $('ckModal').addEventListener('click', (e) => { if (e.target === $('ckModal') && !mustCreate()) closeModal(); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal && !mustCreate()) closeModal(); });
         // The name field keeps its draft as you type, so tapping a crest or calling never wipes it.
-        document.addEventListener('input', (e) => { if (e.target.id === 'dmKnightGiven' && draft) draft.given = e.target.value.slice(0, 20); });
+        document.addEventListener('input', (e) => {
+            if (e.target.id !== 'dmKnightGiven' || !draft) return;
+            draft.given = e.target.value.slice(0, 20);
+            const pv = document.querySelector('.dm-cc-preview b');
+            if (pv) pv.textContent = (draft.title ? draft.title + ' ' : '') + (draft.given.trim() || 'Your name');
+        });
         document.addEventListener('submit', (e) => {
             const f = e.target.closest('[data-form]');
             if (!f) return;
