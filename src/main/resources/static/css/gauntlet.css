@@ -847,7 +847,7 @@ body[data-screen="over"] #screenOver { display: flex; }
     min-height: 0;
   }
   .gt-camp-side > * { flex: 0 0 auto; }
-  .gt-camp-side .gt-encounter { flex: 0 1 auto; --mini-w: 74px; }
+  .gt-camp-side .gt-encounter { flex: 0 1 auto; --mini-w: 96px; }
   .gt-camp-panel { order: 0; }
   .gt-camp-side .gt-cta .gt-btn { width: 100%; min-width: 0; }
   .gt-enc-knight { display: block; }
@@ -877,10 +877,32 @@ body[data-screen="over"] #screenOver { display: flex; }
   .gt-victory-compact h2 { font-size: 18px; margin: 0; }
   .gt-victory-compact p, #screenReward > .gt-note { display: none; }
   .gt-victory-compact .gt-spoils { margin: 0; }
-  .gt-camp-side .gt-encounter { --mini-w: 44px; }
   /* The boss's abilities stay one tap away on its card. */
   .gt-camp-side .gt-enc-knight { display: none; }
   .gt-tabs button { min-height: 30px; padding: 4px 8px; }
+}
+
+/* Landscape phones: a wider fight column and a slimmer header, so the encounter has
+   room to show its cards at a readable size. */
+@media (orientation: landscape) and (max-height: 520px) and (min-width: 640px) {
+  .gt-eyebrow { display: none; }
+  .gt-title h1 { font-size: 18px; }
+  .gt-stat { padding: 3px 8px; font-size: 12px; }
+  #screenCamp { gap: 12px; }
+  .gt-camp-side { flex-basis: min(400px, 44%); gap: 6px; }
+  .gt-banner { padding: 5px 10px; font-size: 12px; }
+  .gt-banner .gt-clamp { -webkit-line-clamp: 1; }
+  .gt-stop { height: 22px; }
+  .gt-encounter { padding: 7px 10px; gap: 4px; }
+  /* Here the column is short, so the encounter fills it down to the Fight button and
+     the enemy cards are sized from the height left rather than a fixed width. */
+  .gt-camp-side .gt-encounter { flex: 1 1 0; min-height: 0; }
+  .gt-camp-side .gt-foes { flex: 1 1 0; min-height: 56px; container-type: size; align-items: flex-start; }
+  .gt-camp-side .gt-foes .gt-mini { width: clamp(44px, calc((100cqh - 22px) * 0.7), 112px); }
+  .gt-enc-head { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 3px; }
+  .gt-encounter h2 { font-size: 18px; }
+  .gt-hp { padding: 2px 7px; font-size: 11px; }
+  .gt-camp-side .gt-cta .gt-btn { min-height: 36px; padding: 6px 12px; font-size: 14px; }
 }
 
 @media (max-width: 420px) {
