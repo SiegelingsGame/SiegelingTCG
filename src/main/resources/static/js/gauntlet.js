@@ -228,6 +228,10 @@
       + '</div></' + tag + '>';
   }
 
+  function foeGroup(label, html) {
+    return '<div class="gt-foe-group"><div class="gt-mini-label">' + label + '</div><div>' + html + '</div></div>';
+  }
+
   /** A small enemy card; selecting it opens the same tray, view only. */
   function miniHtml(card) {
     state.enemyCards.push(card);
@@ -296,6 +300,88 @@
     } catch (e) { /* fitting is cosmetic */ }
   }
 
+  /**
+   * Sizes the cards in every visible .gt-fit rail so the page never scrolls vertically.
+   * A card is a face whose height scales with its width plus a fixed caption, so two
+   * measuring passes give height(w) = a*w + f. Then it picks the row count that makes
+   * the cards largest while all of them fit. If that is narrower than the rail's
+   * data-min, the cards flow into rows that scroll sideways instead, using the most
+   * rows that keep them at least data-min wide.
+   */
+  function fitRails(root) {
+    var rails = (root || document).querySelectorAll('.gt-fit');
+    for (var i = 0; i < rails.length; i++) fitRail(rails[i]);
+  }
+
+  function fitRail(rail) {
+    var items = rail.children;
+    var n = items.length;
+    if (!n || !rail.clientHeight || !rail.clientWidth) return;
+    var minW = Number(rail.getAttribute('data-min')) || 104;
+    var maxW = Number(rail.getAttribute('data-max')) || 240;
+    rail.classList.remove('is-fit', 'is-strip');
+    rail.classList.add('is-measuring');
+    rail.style.gridTemplateColumns = '';
+    function tallest(width) {
+      rail.style.setProperty('--card-w', width + 'px');
+      var h = 0;
+      for (var k = 0; k < n; k++) h = Math.max(h, items[k].offsetHeight);
+      return h;
+    }
+    var h1 = tallest(100);
+    var h2 = tallest(200);
+    rail.classList.remove('is-measuring');
+    var slope = (h2 - h1) / 100;
+    var fixed = Math.max(0, h1 - slope * 100);
+    var style = window.getComputedStyle(rail);
+    var gap = parseFloat(style.columnGap) || 10;
+    var rowGap = parseFloat(style.rowGap) || gap;
+    // A couple of pixels' slack: faces round their heights up.
+    var W = rail.clientWidth - 1;
+    var H = rail.clientHeight - 3;
+    function widthForRows(rows, height) {
+      if (slope < 0.05) return Infinity;
+      return ((height - (rows - 1) * rowGap) / rows - fixed) / slope;
+    }
+    var best = null;
+    for (var r = 1; r <= n; r++) {
+      var cols = Math.ceil(n / r);
+      var w = Math.min((W - (cols - 1) * gap) / cols, widthForRows(r, H), maxW);
+      if (!best || w > best.w) best = { rows: r, cols: cols, w: w };
+    }
+    if (best.w >= minW) {
+      rail.classList.add('is-fit');
+      rail.style.setProperty('--card-w', Math.floor(best.w) + 'px');
+      rail.style.gridTemplateColumns = 'repeat(' + best.cols + ', var(--card-w))';
+      rail.style.gridTemplateRows = '';
+      return;
+    }
+    // Strip: leave room for the scrollbar, then the most rows that stay readable.
+    var stripH = H - 8;
+    var rows = 1;
+    while (rows < n && widthForRows(rows + 1, stripH) >= minW) rows++;
+    var stripW = Math.max(Math.min(widthForRows(rows, stripH), maxW), 40);
+    rail.classList.add('is-strip');
+    rail.style.setProperty('--card-w', Math.floor(stripW) + 'px');
+    rail.style.gridTemplateRows = 'repeat(' + rows + ', auto)';
+  }
+
+  /** Fit the rails, then let the shared renderer fit text to the new card sizes. */
+  function layout(root) {
+    fitRails(root);
+    fitFaces();
+  }
+
+  var layoutFrame = 0;
+  function scheduleLayout() {
+    if (layoutFrame) return;
+    var raf = window.requestAnimationFrame || function (fn) { return setTimeout(fn, 16); };
+    layoutFrame = raf(function () {
+      layoutFrame = 0;
+      layout(document);
+    });
+  }
+
   function abilityText(label, ability) {
     if (!ability) return '';
     return '<p class="gt-ability"><b>' + esc(label) + ': ' + esc(ability.name || '') + '</b> &mdash; ' + esc(ability.description || '') + '</p>';
@@ -307,8 +393,8 @@
     var run = state.run;
     renderStats(run);
     if (!run) {
-      renderStart();
       setScreen('start');
+      renderStart();
       return;
     }
     switch (run.phase) {
@@ -320,10 +406,9 @@
       case 'OVER': renderOver(run); setScreen('over'); break;
       default: setScreen('start');
     }
-    fitFaces();
-    var main = $('gtMain');
-    if (main && render.lastPhase !== run.phase) main.scrollTop = 0;
-    render.lastPhase = run.phase;
+    layout(document);
+    var log = $('gtLog');
+    if (log) log.scrollLeft = log.scrollWidth;
   }
 
   function renderStats(run) {
@@ -374,7 +459,7 @@
         + '</button>';
     }).join('');
     $('gtStartBtn').disabled = !(state.deckId && state.knightId);
-    fitFaces();
+    layout(document);
   }
 
   function renderDraft(run) {
@@ -395,6 +480,8 @@
       banner.innerHTML = last.won
         ? '<b>Floor ' + esc(last.floor) + ' cleared.</b> +' + esc(last.gold) + ' gold, +' + esc(last.xp) + ' XP. ' + esc(last.note || '')
         : (last.encounter ? '<b>Defeated by ' + esc(last.encounter) + '.</b> ' : '') + esc(last.note || '');
+      // Clamped inside, not on the padded box, or a third line peeks into the padding.
+      banner.innerHTML = '<span class="gt-clamp">' + banner.innerHTML + '</span>';
     } else if (banner) {
       banner.hidden = true;
     }
@@ -411,26 +498,33 @@
     state.enemyCards = [];
     var box = $('gtEncounter');
     box.setAttribute('data-el', enc.element || 'NEUTRAL');
-    var knight = enc.knight
-      ? '<div class="gt-knight-panel" style="margin-top:10px">' + knightArt(enc.knight)
-        + '<div><b>' + esc(enc.knight.name) + '</b>' + abilityText('Passive', enc.knight.passive) + abilityText('Active', enc.knight.active) + '</div></div>'
-      : '';
-    box.innerHTML = '<div class="gt-encounter-kind">Floor ' + esc(enc.floor) + ' &middot; Act ' + esc(run.act) + ' &middot; ' + esc(KIND_LABEL[enc.kind] || '') + '</div>'
-      + '<h2>' + esc(enc.name || '') + '</h2>'
-      + '<p>' + esc(enc.blurb || '') + '</p>'
+    // Board, deck and boss share one sideways strip so the preview has a fixed height.
+    var groups = '';
+    if (enc.board && enc.board.length) {
+      groups += foeGroup('On the board', enc.board.map(miniHtml).join(''));
+    }
+    if (enc.roster && enc.roster.length) {
+      groups += foeGroup('In its deck (' + esc(enc.deckCount) + ')', enc.roster.map(miniHtml).join(''));
+    }
+    if (enc.knight) {
+      groups += foeGroup('SiegeKnight', '<button type="button" class="gt-mini gt-mini-knight" data-enemy-knight="1" aria-label="' + esc(enc.knight.name) + '">' + knightArt(enc.knight) + '</button>');
+    }
+    box.innerHTML = '<div class="gt-enc-head"><div>'
+      + '<div class="gt-encounter-kind">Floor ' + esc(enc.floor) + ' &middot; Act ' + esc(run.act) + ' &middot; ' + esc(KIND_LABEL[enc.kind] || '') + '</div>'
+      + '<h2>' + esc(enc.name || '') + '</h2></div>'
       + '<div class="gt-encounter-hp"><span class="gt-hp">Enemy ' + esc(enc.enemyHp) + ' HP</span>'
       + '<span class="gt-hp is-you">You ' + esc(run.maxHealth) + ' HP</span>'
-      + '<span class="gt-hp is-you">Hand ' + esc(run.openingHand) + '</span></div>'
-      + (enc.board && enc.board.length ? '<div class="gt-mini-label">Already on the board</div><div class="gt-mini-row">' + enc.board.map(miniHtml).join('') + '</div>' : '')
-      + (enc.roster && enc.roster.length ? '<div class="gt-mini-label">In its deck (' + esc(enc.deckCount) + ')</div><div class="gt-mini-row">' + enc.roster.map(miniHtml).join('') + '</div>' : '')
-      + knight;
+      + '<span class="gt-hp is-you">Hand ' + esc(run.openingHand) + '</span></div></div>'
+      + (enc.blurb ? '<p class="gt-enc-blurb">' + esc(enc.blurb) + '</p>' : '')
+      + (groups ? '<div class="gt-strip gt-foes">' + groups + '</div>' : '')
+      + (enc.knight ? '<div class="gt-enc-knight">' + abilityText('Passive', enc.knight.passive) + abilityText('Active', enc.knight.active) + '</div>' : '');
     $('gtFightBtn').textContent = (enc.kind === 'KNIGHT' ? 'Challenge ' : 'Fight ') + (enc.name || ('floor ' + run.floor));
 
     renderTabs();
-    $('gtDeckNote').textContent = run.deck.length + ' cards. Select a card to view its moves and upgrades, and to forge it'
+    $('gtDeckNote').textContent = run.deck.length + ' cards. Select one to see its moves and forge it'
       + (run.freeForges ? ' (' + run.freeForges + ' free forge' + (run.freeForges === 1 ? '' : 's') + ').' : '.');
     $('gtDeck').innerHTML = run.deck.map(function (card) {
-      return cardHtml(card, { attrs: 'data-uid="' + esc(card.uid) + '"' });
+      return cardHtml(card, { attrs: 'data-uid="' + esc(card.uid) + '"', showUpgrades: false });
     }).join('');
     renderShop(run);
     renderKnight(run);
@@ -447,6 +541,13 @@
     for (var j = 0; j < panels.length; j++) {
       panels[j].hidden = panels[j].getAttribute('data-panel') !== state.tab;
     }
+  }
+
+  function switchTab(tab) {
+    state.tab = tab;
+    renderTabs();
+    layout(document.querySelector('.gt-camp-panel'));
+    if (tab === 'log') { var log = $('gtLog'); if (log) log.scrollLeft = log.scrollWidth; }
   }
 
   function renderShop(run) {
@@ -480,13 +581,13 @@
     if (perks.TACTICS) perkBits.push('Tactics x' + perks.TACTICS);
     if (perks.PLUNDER) perkBits.push('Plunder x' + perks.PLUNDER);
     $('gtKnight').innerHTML = '<div class="gt-knight-panel">' + knightArt(k)
-      + '<div><h2 class="gt-h2" style="margin-top:0">' + esc(k.name || 'SiegeKnight') + '</h2>'
+      + '<div class="gt-knight-text"><h2 class="gt-h2">' + esc(k.name || 'SiegeKnight') + '</h2>'
       + '<div class="gt-card-meta"><span>Level <b>' + esc(k.level) + '</b> / ' + esc(k.maxLevel) + '</span>'
       + '<span>Power <b>' + esc(k.powerLevel) + '</b></span></div>'
       + '<div class="gt-xp" title="XP"><i style="width:' + xpPct + '%"></i></div>'
-      + '<p class="gt-muted" style="margin:0 0 8px">' + (k.xpToNext ? esc(k.xp) + ' / ' + esc(k.xpToNext) + ' XP to the next level. Wins give 1 XP, elites 2, SiegeKnights 4.' : 'Maximum level.') + '</p>'
+      + '<p class="gt-muted gt-note" style="margin:0 0 6px">' + (k.xpToNext ? esc(k.xp) + ' / ' + esc(k.xpToNext) + ' XP to the next level. Wins give 1 XP, elites 2, SiegeKnights 4.' : 'Maximum level.') + '</p>'
       + abilityText('Passive', k.passive) + abilityText('Active', k.active)
-      + '<p class="gt-muted">Perks: ' + esc(perkBits.length ? perkBits.join(', ') : 'none yet. Each level-up offers one.') + '</p>'
+      + '<p class="gt-muted gt-note">Perks: ' + esc(perkBits.length ? perkBits.join(', ') : 'none yet. Each level-up offers one.') + '</p>'
       + '</div></div>';
   }
 
@@ -527,10 +628,12 @@
     return null;
   }
 
-  function openSheet(html) {
+  /** kind 'picker' gives the sheet a fixed height so its card rail can fit into it. */
+  function openSheet(html, kind) {
     $('gtSheetContent').innerHTML = html;
+    $('gtSheet').querySelector('.gt-sheet-body').classList.toggle('is-picker', kind === 'picker');
     $('gtSheet').hidden = false;
-    fitFaces();
+    layout($('gtSheet'));
   }
 
   function closeSheet() {
@@ -541,8 +644,9 @@
   /**
    * The card tray: the real card, every move in full (forged numbers and added effects
    * included, since the server sends the forged copy), and the upgrades applied so far.
+   * extra (forge, take, buy) goes at the end of the body.
    */
-  function sheetHead(card) {
+  function trayHtml(card, extra) {
     var type = TYPE_LABEL[card.type] || card.type;
     var base = card.base || null;
     var stats = card.type === 'SIEGLING'
@@ -553,13 +657,27 @@
       : chip(card.element);
     // Inside the tray the face prints its own moves summary; the full list follows below.
     var face = realFace(card, true);
-    var picture = face ? '<div class="gt-sheet-face"><div class="gt-face">' + face + '</div></div>' : '<div class="gt-card-art">' + artHtml(card) + '</div>';
-    var head = '<div class="gt-sheet-head' + (face ? ' has-real-face' : '') + '" data-el="' + esc(card.element) + '">' + picture
-      + '<div><h2 id="gtSheetTitle">' + esc(card.name) + '</h2><div class="gt-card-meta">' + element
+    var picture = face ? '<div class="gt-face">' + face + '</div>' : '<div class="gt-card-art">' + artHtml(card) + '</div>';
+    var headline = '<h2 id="gtSheetTitle">' + esc(card.name) + '</h2><div class="gt-card-meta">' + element
       + '<span>' + esc(type) + '</span>' + (card.level ? '<span>Level <b>' + esc(card.level) + '</b> / ' + esc(card.maxLevel) + '</span>' : '') + stats + '</div>'
-      + (card.evolvesFromName ? '<p class="gt-muted" style="margin:6px 0 0">Evolves from ' + esc(card.evolvesFromName) + '.</p>' : '')
-      + '</div></div>';
-    return head + movesSection(card) + upgradesSection(card);
+      + (card.evolvesFromName ? '<p class="gt-muted gt-note" style="margin:6px 0 0">Evolves from ' + esc(card.evolvesFromName) + '.</p>' : '');
+    return trayLayout(card.element, picture, headline, movesSection(card) + upgradesSection(card) + (extra || ''));
+  }
+
+  function trayLayout(element, picture, headline, body) {
+    return '<div class="gt-tray" data-el="' + esc(element) + '">'
+      + '<div class="gt-tray-face">' + picture + '</div>'
+      + '<div class="gt-tray-headline">' + headline + '</div>'
+      + '<div class="gt-tray-body">' + body + '</div></div>';
+  }
+
+  /** The enemy SiegeKnight's card and abilities, view only. */
+  function showKnight(knight) {
+    if (!knight) return;
+    var headline = '<h2 id="gtSheetTitle">' + esc(knight.name) + '</h2><div class="gt-card-meta">' + chip(knight.element) + '<span>SiegeKnight</span></div>';
+    var body = '<section class="gt-tray-section"><h3>Abilities</h3>'
+      + abilityText('Passive', knight.passive) + abilityText('Active', knight.active) + '</section>';
+    openSheet(trayLayout(knight.element, knightArt(knight), headline, body));
   }
 
   /** "14" as is, or "~~14~~ 17" when an upgrade changed it. */
@@ -682,25 +800,24 @@
     var card = findDeckCard(uid);
     if (!run || !card) return;
     var offers = run.forgeOffers && run.forgeOffers[uid];
-    var html = sheetHead(card);
     if (card.level >= card.maxLevel) {
-      openSheet(html + '<p class="gt-forge-head">Fully forged</p>');
+      openSheet(trayHtml(card, '<p class="gt-forge-head">Fully forged</p>'));
       return;
     }
     var price = run.freeForges > 0 ? 'Free (' + run.freeForges + ' left)' : card.forgeCost + ' gold';
-    html += '<h3 class="gt-forge-head">Forge &middot; ' + esc(price) + '</h3>';
+    var html = '<section class="gt-tray-section"><h3 class="gt-forge-head">Forge &middot; ' + esc(price) + '</h3>';
     if (!offers) {
-      html += '<p class="gt-muted">See three upgrades for this card. Opening the forge does not spend anything.</p>'
-        + '<button type="button" class="gt-btn gt-btn-primary" data-offer="' + esc(uid) + '">Show upgrades</button>';
+      html += '<p class="gt-muted gt-note" style="margin:0 0 8px">See three upgrades for this card. Opening the forge does not spend anything.</p>'
+        + '<button type="button" class="gt-btn gt-btn-primary gt-btn-block" data-offer="' + esc(uid) + '">Show upgrades</button>';
     } else {
       var cantPay = run.freeForges <= 0 && run.gold < card.forgeCost;
       html += '<div class="gt-forge-options">' + offers.map(function (option, index) {
         return '<button type="button" class="gt-forge-option" data-apply="' + index + '" data-uid="' + esc(uid) + '"' + (cantPay ? ' disabled' : '') + '>'
           + esc(option.label) + '<small>' + esc(upgradeHint(option)) + '</small></button>';
       }).join('') + '</div>'
-        + (cantPay ? '<p class="gt-muted">You need ' + esc(card.forgeCost) + ' gold to forge this card.</p>' : '');
+        + (cantPay ? '<p class="gt-muted gt-note">You need ' + esc(card.forgeCost) + ' gold to forge this card.</p>' : '');
     }
-    openSheet(html);
+    openSheet(trayHtml(card, html + '</section>'));
   }
 
   function upgradeHint(option) {
@@ -716,7 +833,7 @@
   }
 
   function showCard(card, action) {
-    openSheet(sheetHead(card) + (action ? '<div class="gt-tray-actions">' + action + '</div>' : ''));
+    openSheet(trayHtml(card, action ? '<div class="gt-tray-actions">' + action + '</div>' : ''));
   }
 
   function showReward(cardId) {
@@ -737,11 +854,11 @@
 
   function showRemovePicker(itemId) {
     var run = state.run;
-    var html = '<h2>Remove a card</h2><p class="gt-muted">Pick the card to cut from your deck.</p><div class="gt-remove-list">'
+    var html = '<h2 id="gtSheetTitle">Remove a card</h2><p class="gt-muted gt-note">Pick the card to cut from your deck.</p><div class="gt-fit" data-min="84">'
       + run.deck.map(function (card) {
         return cardHtml(card, { attrs: 'data-remove="' + esc(card.uid) + '" data-item="' + esc(itemId) + '"', showUpgrades: false });
       }).join('') + '</div>';
-    openSheet(html);
+    openSheet(html, 'picker');
   }
 
   // ---- events ---------------------------------------------------------
@@ -761,12 +878,11 @@
       img.src = fallback;
     }, true);
     document.addEventListener('click', function (event) {
-      var t = event.target.closest ? event.target.closest('[data-deck],[data-knight],[data-uid],[data-buy],[data-reward],[data-reward-view],[data-shop-view],[data-enemy-view],[data-perk],[data-offer],[data-apply],[data-remove],[data-close],[data-tab]') : null;
+      var t = event.target.closest ? event.target.closest('[data-deck],[data-knight],[data-uid],[data-buy],[data-reward],[data-reward-view],[data-shop-view],[data-enemy-view],[data-enemy-knight],[data-perk],[data-offer],[data-apply],[data-remove],[data-close],[data-tab]') : null;
       if (!t) return;
       if (t.hasAttribute('data-close')) { closeSheet(); return; }
       if (t.hasAttribute('data-tab')) {
-        state.tab = t.getAttribute('data-tab');
-        renderTabs();
+        switchTab(t.getAttribute('data-tab'));
         return;
       }
       if (t.hasAttribute('data-deck')) {
@@ -807,6 +923,10 @@
       }
       if (t.hasAttribute('data-reward-view')) { showReward(t.getAttribute('data-reward-view')); return; }
       if (t.hasAttribute('data-shop-view')) { showShopItem(t.getAttribute('data-shop-view')); return; }
+      if (t.hasAttribute('data-enemy-knight')) {
+        showKnight(state.run && state.run.nextEncounter && state.run.nextEncounter.knight);
+        return;
+      }
       if (t.hasAttribute('data-enemy-view')) {
         var foe = state.enemyCards[Number(t.getAttribute('data-enemy-view'))];
         if (foe) showCard(foe);
@@ -856,6 +976,8 @@
       state.run = null;
       loadOptions();
     };
+    window.addEventListener('resize', scheduleLayout);
+    window.addEventListener('orientationchange', scheduleLayout);
     document.addEventListener('keydown', function (event) {
       if (event.key === 'Escape' && !$('gtSheet').hidden) closeSheet();
     });
