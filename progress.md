@@ -18,6 +18,23 @@ Original prompt: Go with earth based art for endless
     - **Landscape phones.** The fight column was about 290px wide with 44px enemy cards. It now takes up to 44% of the width (400px max). The header drops its eyebrow, the banner clamps to one line, and the HP chips sit on the name row. The encounter fills the column down to the Fight button, and the enemy cards size from the height left in it (`container-type: size`, about 96px at 844x390). Desktop keeps a compact encounter with 96px enemy cards.
     - `gauntlet.css?v=10`, `gauntlet.js?v=7`.
   - **Verification.** `node --check js/gauntlet.js`. A Playwright sweep against the local app (`spring-boot:run`, with the edited statics served from source) ran a real run: start, draft, the draft tray, camp, forge offer and apply, Shop / SiegeKnight / Log. Then it injected, from the live run's data, a boss floor with a 22-card deck and a long banner, the enemy-knight tray, the remove picker, the reward, level-up and run-over screens. It ran at 390x844, 320x568, 844x390, 667x375, 768x1024 and 1920x1080. On each screen it asserted no document scroll in either axis, no vertical overflow in `.gt-main` or any other scroller, no rail taller than its box, nothing below the fold outside sideways strips, and the CTA inside the viewport. 78/78 checks passed with no page errors. Screenshots were checked by eye. Desktop draft fits all 10 cards at 221px wide, and desktop camp fits 22 cards beside the encounter. On a phone the deck is a two-row sideways strip, and the forge tray shows the face, moves, upgrades and all three forge options without scrolling.
+- October 17, 2026 **Dominion: ten default knight portraits; your knight stands as their own figure, with the mentor beside them.**
+  - **Change.**
+    - **Art.** Ten player portraits, one per element (fire, water, earth, wind, ice, electric, light, shadow, psychic and metal), are shipped as `img/dominion/knights/knight-<element>.webp` at 512×768, plus `-thumb.webp` at 200×300 for the picker. They were made from the generated 1024×1536 transparent PNGs; alpha below 70 was dropped first, so faint glows and vignettes don't pick up a paper rim from the cutout filter.
+    - **Picker.** "Make your knight" opens with a Portrait picker (5 + 5 on phones, one row of 10 when wide) and a live preview figure. The name preview updates as you type. Existing knights default to the portrait matching their crest colour.
+    - **Where your figure appears.** `knightPaper()` is now your own die-cut portrait, used for:
+      - the Knight hero (tap it to edit your knight);
+      - the Keep scene standee;
+      - the road walker.
+
+      A sworn mentor (`mentorPaper()`) stands just behind you in the scene, walks the road beside you, and appears as a round badge on the hero portrait that opens the Mentors sheet.
+  - **Verification.**
+    - `node --check js/dominion.js`.
+    - Headless Chromium at 390x844 and 1920x1080:
+      - **Picker:** shows 10 portraits; picking Water saves `portrait: water`.
+      - **Hero:** loads `knight-water.webp` (naturalWidth 512); with Ser Airek sworn, the badge shows.
+      - **Scene and road:** the scene standee holds both your figure and the mentor; the road shows your walker, the mentor and the party.
+    - The mentor, smoke and journey checks still pass, with no page errors.
 - October 17, 2026 **Dominion: SiegeKnight mentors must be met and won over — squires easily, knights harder, raiders tougher, lords a long effort.**
   - **Change.**
     - **Server.** `DominionService.art()` now sends every SiegeKnight with art, not only the overlay ones, with `knight-tier:` (SiegeSquire, SiegeKnight, Raider or SiegeLord) and `knight-full:` for full-card art. Full-card art is framed as a card, because it cannot be cut out.
