@@ -1,4 +1,32 @@
 Original prompt: Go with earth based art for endless
+- October 17, 2026 **Dominion: make your own knight with a SiegeKnight mentor, the current task inside the skill's art card, no truncated names, and only real Siegelings in the wilds.**
+  - **Change.**
+    - **Character creation.** A sheet opens on first visit, and from ✏️ Edit knight or the ⋯ menu. It sets:
+      - a name (up to 20 characters);
+      - a title (none, Ser, Dame, Lady, Lord, Sir or Knight);
+      - a crest, from 10 emblems and 10 element colours;
+      - a calling: Woodwarden, Forager, Delver, Smith, Scholar or Weaver, each making its two skills 10% faster.
+
+      A new knight's sheet cannot be dismissed by a stray tap.
+    - **Mentor.** The SiegeKnight cards are now your mentor: they appear as the standee and the road walker, and their element's affinity grows 10% faster. Choosing one no longer renames you. Tap the mentor portrait in the Knight hero to change them; the large picker section is gone. The hero shows your crest, name and calling.
+    - **Work tab.** The separate "now working" strip is gone. The current task (name, rate, Rest and live bar) sits inside the skill's art card above the skill XP line, or as a "Working: …" link when you are viewing another skill.
+    - **No truncation.**
+      - The header name wraps (up to two lines, gently shrunk) instead of ending in "…".
+      - On phones the Dominion kicker hides; its clock moves onto the +4h pill.
+      - Rank keeps its number badge only on phones.
+      - Status pills wrap.
+      - Skill tiles widen to fit "Woodcutting", "Excavation" and "Runecrafting".
+      - Gear names wrap.
+    - **Wilds.** Sightings only draw species with live card art. A saved sighting of a retired species (the reported "Gearling", which has no card) is re-rolled to a live species of the same element when the art map loads.
+  - **Verification.**
+    - `node --check js/dominion.js`.
+    - Headless Chromium at 390x844, 430x932 and 1920x1080:
+      - **Creation:** a fresh save opens the sheet, and a backdrop tap does not close it. The typed name survives tapping title, crest, calling and mentor. Saving gives "Lady Roc Stormborne-Valew" with calling Forager and mentor Morgana.
+      - **Header:** the name has no horizontal clipping, and no status pill is cut.
+      - **Work:** no now-strip; the task panel is inside the banner; no skill tile label is cut.
+      - **Knight:** the old picker section is gone, the crest shows, and tapping the portrait opens the 17-mentor sheet. Choosing Aero changes the mentor and keeps the name.
+      - **Wilds:** a saved "gearling" sighting became "newt".
+    - The smoke, inventory, favorite and round 3 checks still pass, with no page errors.
 - October 17, 2026 **Dominion: inventory tabs never need scrolling.**
   - **Change.** The inventory's seven tabs were a sideways scroller, and Goods, Refine and Store sat off screen on a phone. They are now a wrapping grid (4 + 3 on phones, one row of 7 from 560px), sticky at the top of the sheet so the item list scrolls beneath them. First-visit tips now sit below open windows (z-index 35, under the modal's 40), so they no longer cover the inventory.
   - **Verification.** Headless Chromium at 320x640, 390x844 and 1920x1080: the tab row has no horizontal overflow, all 7 buttons lie inside the sheet with no clipped labels, and after scrolling the list 600px the tabs stay at the top of the sheet. The inventory and store checks still pass, with no page errors.
