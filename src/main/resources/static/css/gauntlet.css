@@ -69,7 +69,7 @@ button { font-family: inherit; touch-action: manipulation; }
   /* style.css makes body a flex column; with auto side margins the shell would
      otherwise shrink to its content instead of filling up to max-width. */
   width: 100%;
-  height: 100dvh;
+  height: max(100dvh, var(--sg-vh, 0px));
   display: flex;
   flex-direction: column;
   max-width: 1180px;
@@ -948,6 +948,13 @@ body[data-screen="over"] #screenOver { display: flex; }
   .gt-encounter h2 { font-size: 18px; }
   .gt-hp { padding: 2px 7px; font-size: 11px; }
   .gt-camp-side .gt-cta .gt-btn { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+}
+
+/* In portrait, give the camp deck more room and put Fight near the home indicator,
+   while retaining the device's safe inset for the button's touch target. */
+@media (orientation: portrait) and (max-width: 599px) {
+  body[data-screen="camp"] .gt-main { padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+  #screenCamp .gt-encounter { height: clamp(150px, 20dvh, 180px); }
 }
 
 /* Phones in portrait: no room beside the title, so the result takes a second header row. */

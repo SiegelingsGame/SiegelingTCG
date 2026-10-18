@@ -1,4 +1,5 @@
 Original prompt: Go with earth based art for endless
+- October 18, 2026 **Gauntlet portrait camp:** use the shared visual viewport height, leave the home-indicator inset for the fight button, and fit the deck into two smaller sideways-scrolling rows when space permits. Short screens fall back to a readable single row. Refit on visual viewport resize; cache pins updated.
 - October 18, 2026 **Dominion: after founding your knight, land on the Knight page (not Base).**
   - **Change.** First-time `cc-save` (Begin Dominion) now calls `setTab('knight')` so the post-creation screen is the Knight profile with the knight hint, instead of the default Base grounds tab (`keep` → `base`). Editing an existing knight still leaves the current tab alone. `dominion.js?v=24`.
   - **Verification.** `node --check js/dominion.js`. Headless Chromium at 390x844: cleared save, completed founding through Begin Dominion, asserted `ui.tab === 'knight'`, Knight tab `aria-current="page"`, and the knight hint visible.
