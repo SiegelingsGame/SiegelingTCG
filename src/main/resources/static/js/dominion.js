@@ -6,7 +6,7 @@
     'use strict';
 
     const SAVE_KEY = 'siegelingsDominionPrototype';
-    const SCHEMA = 3;
+    const SCHEMA = 4;
     const MIN = 60000;
     const HOUR = 60 * MIN;
     // Five-minute slices keep refining batches (30-60 min) accurate without a heavy loop.
@@ -245,10 +245,12 @@
             traitText: 'Stands over the supplies when raiders come and walks through ember vents unharmed.', likes: ['forge', 'kitchen'] },
         fawny: { name: 'Fawny', el: 'ice', cls: 'Mage', role: 'Ice Mage', trait: 'Frost Sight',
             traitText: 'Calms frost mist and notices hidden doors.', likes: ['fridge'],
-            findText: 'Scout the Rootwild Trail with a Bow to find Fawny’s tracks.' }
+            findText: 'Scout the Rootwild Trail with a Bow to find Fawny’s tracks.' },
+        pursula: { name: 'Pursula', el: 'wind', cls: 'Assassin', role: 'Wind Assassin', trait: 'Windscout',
+            traitText: 'Ranges ahead on game trails, so even without a bow the hunt yields something.', likes: ['garden'] }
     };
     const EXPLORE_HOURS = 3;
-    const EXPLORE_CACHE = { earth: { timber: 20, fiber: 6 }, fire: { stone: 8, ember: 1 }, ice: { stone: 6, frost: 1 } };
+    const EXPLORE_CACHE = { earth: { timber: 20, fiber: 6 }, fire: { stone: 8, ember: 1 }, ice: { stone: 6, frost: 1 }, wind: { fiber: 8, provisions: 4 } };
     const DAILY_TREATS = 5;
 
     // —— Roster: any Siegeling from the creature registry, tamed on the road ——
@@ -573,7 +575,7 @@
             wsl: { forge: 0, fridge: 0, generator: 0, garden: 0, kitchen: 0, quarry: 0 }, annex: {},
             wings: { sanctuary: 0, forge: 0, garden: 0, war_room: 0, stable: 0, library: 0 },
             stored: {}, loreOpen: { charter_three_promises: true }, visitors: { active: [], npc: {}, nextAt: t + 10 * MIN }, requests: [], tasks: {}, rapport: {}, placed: {}, placedEver: {},
-            builds: [], rebirths: 0, events: [], nextEventAt: t + 12 * HOUR, market: null, crafted: {}, theme: 'covenant',
+            builds: [], rebirths: 0, events: [], nextEventAt: t + 12 * HOUR, market: null, crafted: {}, theme: 'covenant', biome: 'woodland', starter: '',
             sync: { version: 0 }, applied: [], opReports: [],
             lore: {}, voices: { done: {}, flags: {}, rapport: {}, nextAt: 0, log: [] }, claims: {}, steward: '', loadouts: [],
             // 3x3 Quarter: index = row*3+col; rot 0=N 1=E 2=S 3=W. Empty until workshops are built.
@@ -585,17 +587,13 @@
                 equip: { weapon: 'wooden_sword', armor: null, helmet: null, boots: null, accessory: null, relic: null }, tool: 'woodaxe',
                 skills: skills, prof: prof, affinity: affinity, mastery: mastery, rankXp: 0
             },
-            comps: {
-                cacty: { species: 'cacty', nick: '', joined: true, bond: 30, job: { kind: 'help', target: 'woodlot' }, explore: 0, treats: { day: '', n: 0 }, xp: 0, legend: false },
-                sundile: { species: 'sundile', nick: '', joined: true, bond: 20, job: { kind: 'rest' }, explore: 0, treats: { day: '', n: 0 }, xp: 0, legend: false },
-                fawny: { species: 'fawny', nick: '', joined: false, bond: 0, job: { kind: 'rest' }, explore: 0, treats: { day: '', n: 0 }, xp: 0, legend: false }
-            },
+            comps: {},
             exp: null,
             done: {},
             reports: [],
             disc: { fawny: false, vaultMap: false },
             obj: {},
-            prep: { dest: 'rootwild', party: ['cacty'], useRations: false, rune: '', potions: {}, food: '' },
+            prep: { dest: 'rootwild', party: [], useRations: false, rune: '', potions: {}, food: '' },
             sightings: [],
             log: [],
             ui: { tab: 'keep', knight: 'work', act: 'expedition', group: 'Gathering', prof: 'woodcutting', slot: '' }
@@ -621,7 +619,7 @@
             saved.schema = 3;
             return saved;
         }
-        if ((saved.schema || 1) >= 3) return saved;
+        if ((saved.schema || 1) >= 3) { saved.schema = 4; return saved; }
         const k = saved.knight || {};
         const sk = k.skills || {};
         saved.knight = {
@@ -648,6 +646,8 @@
             if (c.job.kind === 'help' && !HELP_TARGETS.includes(c.job.target)) c.job = { kind: 'rest' };
         });
         const k = s.knight, t = k.task || {};
+        if (!k.crest || typeof k.crest !== 'object') k.crest = { emblem: '🛡️', color: 'light', shape: 'shield' };
+        if (!['shield', 'kite', 'round', 'diamond', 'banner'].includes(k.crest.shape)) k.crest.shape = 'shield';
         if (!(t.kind === 'idle' || (t.kind === 'gather' && ACTIVITIES[t.id]) || (t.kind === 'craft' && CRAFTS[t.id] && CRAFTS[t.id].repeatable))) k.task = { kind: 'idle' };
         SLOTS.forEach((sl) => { const id = k.equip[sl[0]]; if (id && (!RES[id] || RES[id].kind !== sl[1] || fl(s.inv[id]) < 1)) k.equip[sl[0]] = null; });
         if (!k.equip.weapon) k.equip.weapon = ['wooden_sword', 'squires_sword'].find((w) => fl(s.inv[w]) >= 1) || null;
@@ -658,6 +658,8 @@
         // Saves from before the Favor honored the first companion in the Hall; keep that one honored.
         if (s.favorite === undefined) s.favorite = Object.keys(s.comps).find((id) => s.comps[id].joined) || '';
         Object.keys(s.comps).forEach((id) => { const c = s.comps[id]; if (!c.species) c.species = id; if (c.xp == null) c.xp = 0; if (!c.treats) c.treats = { day: '', n: 0 }; });
+        if (!['hotland', 'coldland', 'woodland', 'highmountain'].includes(s.biome)) s.biome = 'woodland';
+        if (!s.starter) s.starter = ['sundile', 'fawny', 'pursula', 'cacty'].find((id) => s.comps[id] && s.comps[id].joined) || '';
         return s;
     }
     function load() {
@@ -680,6 +682,17 @@
     // —— Rules ——
     const onExpedition = (s, compId) => !!(s.exp && s.exp.party.includes(compId));
     const knightBusy = (s) => !!s.exp;
+    const BIOMES = {
+        hotland: { name: 'Hot Lands', element: 'fire', icon: '🌋', blurb: 'Sun-baked flats around a warm forge road.', good: ['forge', 'kitchen'], bad: 'fridge', boosts: 'Forge +25% · Kitchen +15%', penalty: 'Fridge −20%' },
+        coldland: { name: 'Cold Lands', element: 'ice', icon: '❄️', blurb: 'A frost basin beneath pale northern light.', good: ['fridge', 'generator'], bad: 'garden', boosts: 'Fridge +25% · Generator +15%', penalty: 'Garden −20%' },
+        woodland: { name: 'Woodlands', element: 'wind', icon: '🌲', blurb: 'A sheltered clearing under a restless canopy.', good: ['woodlot', 'garden'], bad: 'quarry', boosts: 'Woodlot +25% · Garden +15%', penalty: 'Quarry −20%' },
+        highmountain: { name: 'Cloudtop Mountains', element: 'earth', icon: '⛰️', blurb: 'An Earth-aligned sky zone above a sea of cloud tops.', good: ['quarry', 'woodlot'], bad: 'kitchen', boosts: 'Quarry +25% · Woodlot +15%', penalty: 'Kitchen −20%' }
+    };
+    const biomeOf = (s) => BIOMES[s.biome] || BIOMES.woodland;
+    function biomeMul(s, target) {
+        const b = biomeOf(s), i = b.good.indexOf(target);
+        return target === b.bad ? 0.8 : i === 0 ? 1.25 : i === 1 ? 1.15 : 1;
+    }
     function helperOf(s, target) {
         return Object.keys(s.comps).find((id) => {
             const c = s.comps[id];
@@ -698,10 +711,10 @@
     function woodlotRate(s) {
         if (damaged(s, 'woodlot') || s.b.woodlot < 1) return 0;
         const base = WOODLOT_RATE[Math.min(6, s.b.woodlot)] + (skillLvl(s, 'woodcutting') >= 20 ? 20 : 0);
-        return base * helperMul(s, 'woodlot') * prodMul(s) * toolMul(s, 'woodlot') * setMul(s, 'woodlot');
+        return base * helperMul(s, 'woodlot') * biomeMul(s, 'woodlot') * prodMul(s) * toolMul(s, 'woodlot') * setMul(s, 'woodlot');
     }
     function workshopRates(s, id) {
-        const mul = damaged(s, id) || !wsBuilt(s, id) ? 0 : helperMul(s, id) * prodMul(s) * toolMul(s, id) * setMul(s, id) * ((s.wsl[id] || 0) >= 2 ? 2 + 0.5 * Math.max(0, (s.wsl[id] || 0) - 2) : 1) * (s.annex[id] ? 1.25 : 1), out = {};
+        const mul = damaged(s, id) || !wsBuilt(s, id) ? 0 : helperMul(s, id) * biomeMul(s, id) * prodMul(s) * toolMul(s, id) * setMul(s, id) * ((s.wsl[id] || 0) >= 2 ? 2 + 0.5 * Math.max(0, (s.wsl[id] || 0) - 2) : 1) * (s.annex[id] ? 1.25 : 1), out = {};
         Object.keys(WS[id].makes).forEach((k) => { out[k] = WS[id].makes[k] * mul; });
         return out;
     }
@@ -2623,6 +2636,9 @@
     const portraitSrc = (el, thumb) => '/img/dominion/knights/knight-' + el + (thumb ? '-thumb' : '') + '.webp';
     const CREST_EMBLEMS = ['🌲', '🔥', '🌊', '⛰️', '⭐', '🌙', '🦁', '🛡️', '🐉', '🌸'];
     const CREST_COLORS = PORTRAITS;
+    const CREST_SHAPES = { shield: 'Shield', kite: 'Kite', round: 'Round', diamond: 'Diamond', banner: 'Banner' };
+    const STARTER_IDS = ['sundile', 'fawny', 'pursula', 'cacty'];
+    const CREATE_PAGES = ['identity', 'crest', 'biome', 'starter', 'sprite', 'summary'];
     const knightSpriteSrc = (el, pose) => '/img/dominion/knights/sprites/knight-' + el + '-' + (pose || 'idle') + '.webp';
     function knightFigure(el, pose, thumb) {
         pose = pose || 'idle';
@@ -2714,34 +2730,69 @@
     const mentorEl = (s) => (knightCardId() ? String(ART_URLS['knight-el:' + knightCardId()] || '').toUpperCase() : '');
     function crest(k, cls) {
         const c = (k && k.crest) || {};
-        return '<span class="dm-crest' + (cls ? ' ' + cls : '') + '" style="--el:var(--' + (c.color || 'light') + ')" aria-hidden="true"><i>' + (c.emblem || '🛡️') + '</i></span>';
+        return '<span class="dm-crest' + (cls ? ' ' + cls : '') + '" data-shape="' + (CREST_SHAPES[c.shape] ? c.shape : 'shield') + '" style="--el:var(--' + (c.color || 'light') + ')" aria-hidden="true"><i>' + (c.emblem || '🛡️') + '</i></span>';
     }
     let draft = null;
     function startDraft() {
         const k = S.knight, given = k.made ? (k.given || k.name) : '';
-        draft = { portrait: portraitOf(k), given: given, title: k.made ? (k.title || '') : 'Ser', emblem: (k.crest && k.crest.emblem) || '🛡️', color: (k.crest && k.crest.color) || 'light', calling: k.calling || 'woodwarden', mentor: k.card || DEFAULT_KNIGHT };
+        draft = { page: 'identity', portrait: portraitOf(k), given: given, title: k.made ? (k.title || '') : 'Ser',
+            emblem: (k.crest && k.crest.emblem) || '🛡️', color: (k.crest && k.crest.color) || 'light', shape: (k.crest && k.crest.shape) || 'shield',
+            calling: k.calling || 'woodwarden', biome: k.made ? (S.biome || 'woodland') : '', starter: k.made ? (S.starter || joinedIds(S).find((id) => STARTER_IDS.includes(id)) || '') : '', mentor: k.card || DEFAULT_KNIGHT };
+    }
+    function creationPages() { return S.knight.made ? CREATE_PAGES.filter((p) => p !== 'starter') : CREATE_PAGES; }
+    function creationPreview(d, sprite) {
+        const name = (d.title ? d.title + ' ' : '') + (d.given.trim() || 'Your name');
+        return '<div class="dm-cc-preview' + (sprite ? ' dm-cc-sprite-preview' : '') + '"><span class="dm-cc-figure">' + knightFigure(d.portrait) + '</span><span>' +
+            crest({ crest: { emblem: d.emblem, color: d.color, shape: d.shape } }) + '<b>' + esc(name) + '</b><small>' + esc(CALLINGS[d.calling][1]) + '</small></span></div>';
+    }
+    function identityPage(d) {
+        return creationPreview(d) + '<label class="dm-cc-label" for="dmKnightGiven">Name</label><input id="dmKnightGiven" class="dm-cc-input" type="text" maxlength="20" autocomplete="off" placeholder="Your knight’s name" value="' + esc(d.given) + '">' +
+            '<h3>Title</h3><div class="dm-cc-row dm-cc-titles">' + KNIGHT_TITLES.map((t) => '<button type="button" class="ck-pill' + (d.title === t ? ' is-on' : '') + '" data-act="cc" data-arg="title:' + t + '">' + (t || 'No title') + '</button>').join('') + '</div>' +
+            '<h3>Calling</h3><div class="dm-cc-callings">' + Object.keys(CALLINGS).map((id) => { const c = CALLINGS[id]; return '<button type="button" class="dm-cc-calling' + (d.calling === id ? ' is-on' : '') + '" data-act="cc" data-arg="calling:' + id + '"><span>' + c[0] + '</span><b>' + c[1] + '</b><small>' + c[2].map((x) => (SKILLS[x] ? SKILLS[x].name : titleCase(x))).join(' & ') + ' +10%</small></button>'; }).join('') + '</div>';
+    }
+    function crestPage(d) {
+        return '<div class="dm-cc-crest-preview">' + crest({ crest: { emblem: d.emblem, color: d.color, shape: d.shape } }, 'is-lg') + '<div><b>Your crest</b><small>Shape, color and insignia travel with your knight.</small></div></div>' +
+            '<h3>Shape</h3><div class="dm-cc-shapes">' + Object.keys(CREST_SHAPES).map((id) => '<button type="button" class="dm-cc-shape' + (d.shape === id ? ' is-on' : '') + '" data-act="cc" data-arg="shape:' + id + '">' + crest({ crest: { emblem: '', color: d.color, shape: id } }) + '<small>' + CREST_SHAPES[id] + '</small></button>').join('') + '</div>' +
+            '<h3>Color</h3><div class="dm-cc-row dm-cc-colors">' + CREST_COLORS.map((c) => '<button type="button" class="dm-cc-color' + (d.color === c ? ' is-on' : '') + '" data-act="cc" data-arg="color:' + c + '" style="--el:var(--' + c + ')" aria-label="' + titleCase(c) + '"></button>').join('') + '</div>' +
+            '<h3>Insignia</h3><div class="dm-cc-row dm-cc-insignias">' + CREST_EMBLEMS.map((e) => '<button type="button" class="dm-cc-emblem' + (d.emblem === e ? ' is-on' : '') + '" data-act="cc" data-arg="emblem:' + e + '" aria-label="Insignia ' + e + '">' + e + '</button>').join('') + '</div>';
+    }
+    function biomePage(d) {
+        return '<p class="dm-cc-intro">Choose where your Keep stands. Its elemental affinity changes the land and the output of its buildings.</p><div class="dm-cc-biomes">' + Object.keys(BIOMES).map((id) => { const b = BIOMES[id]; return '<button type="button" class="dm-cc-biome is-' + id + (d.biome === id ? ' is-on' : '') + '" data-act="cc" data-arg="biome:' + id + '"><span class="dm-biome-art"><i></i><i></i><i></i></span><b>' + b.icon + ' ' + b.name + '</b><small>' + esc(b.blurb) + '</small><em class="is-good">' + esc(b.boosts) + '</em><em class="is-bad">' + esc(b.penalty) + '</em></button>'; }).join('') + '</div>';
+    }
+    function starterPage(d) {
+        return '<p class="dm-cc-intro">One Siegling answers your banner. You will discover and befriend the others on your journeys.</p><div class="dm-cc-starters">' + STARTER_IDS.map((id) => { const c = C(id); return '<button type="button" class="dm-cc-starter' + (d.starter === id ? ' is-on' : '') + '" data-act="cc" data-arg="starter:' + id + '" style="--el:var(--' + c.el + ')"><span class="dm-cc-starter-art">' + speciesArt(id, c.name, c.el.toUpperCase()) + '</span><b>' + esc(c.name) + '</b><small>' + esc(c.role) + '</small><em>' + esc(c.trait) + '</em></button>'; }).join('') + '</div>';
+    }
+    function spritePage(d) {
+        return creationPreview(d, true) + '<p class="dm-cc-intro">Choose the sprite that represents your knight at the Keep and on the road.</p><div class="dm-cc-portraits">' + PORTRAITS.map((el) => '<button type="button" class="dm-cc-portrait' + (d.portrait === el ? ' is-on' : '') + '" data-act="cc" data-arg="portrait:' + el + '" style="--el:var(--' + el + ')" aria-label="' + titleCase(el) + ' knight">' + knightFigure(el, 'idle', true) + '<small>' + titleCase(el) + '</small></button>').join('') + '</div>';
+    }
+    function summaryPage(d) {
+        const b = BIOMES[d.biome], sid = S.knight.made ? (S.starter || joinedIds(S)[0] || d.starter) : d.starter, c = sid ? C(sid) : null;
+        return '<div class="dm-cc-summary-hero">' + knightFigure(d.portrait) + '<div>' + crest({ crest: { emblem: d.emblem, color: d.color, shape: d.shape } }, 'is-lg') + '<h3>' + esc((d.title ? d.title + ' ' : '') + (d.given.trim() || 'Your name')) + '</h3><p>' + esc(CALLINGS[d.calling][1]) + '</p></div></div>' +
+            '<div class="dm-cc-summary-grid"><div><small>Keep</small>' + (b ? '<b>' + b.icon + ' ' + esc(b.name) + '</b><span>' + esc(b.boosts) + '<br>' + esc(b.penalty) + '</span>' : '<b>Choose a land</b><span>Return to the Land step.</span>') + '</div>' +
+            '<div><small>' + (S.knight.made ? 'First companion' : 'Starter') + '</small>' + (c ? '<span class="dm-cc-summary-starter">' + speciesArt(sid, c.name, c.el.toUpperCase()) + '</span><b>' + esc(c.name) + '</b><span>' + esc(c.role) + '</span>' : '<b>Choose a starter</b><span>Return to the Starter step.</span>') + '</div></div>' +
+            '<p class="dm-cc-mentor-note">SiegeKnight mentors are earned later by meeting them at the gate, on the roads and at Akhar’s Wall.</p>';
     }
     function createModal() {
         if (!draft) startDraft();
-        const d = draft, preview = (d.title ? d.title + ' ' : '') + (d.given || 'Your name');
-        return '<span class="ck-kicker">' + (S.knight.made ? 'Your knight' : 'A new knight') + '</span><h2 id="ckModalTitle">' + (S.knight.made ? 'Edit your knight' : 'Make your knight') + '</h2>' +
-            '<div class="dm-cc-preview"><span class="dm-cc-figure">' + knightFigure(d.portrait) + '</span><span>' + crest({ crest: { emblem: d.emblem, color: d.color } }) + '<b>' + esc(preview) + '</b><small>' + esc(CALLINGS[d.calling][1]) + '</small></span></div>' +
-            '<h3>Portrait</h3><div class="dm-cc-portraits">' + PORTRAITS.map((el) => '<button type="button" class="dm-cc-portrait' + (d.portrait === el ? ' is-on' : '') + '" data-act="cc" data-arg="portrait:' + el + '" style="--el:var(--' + el + ')" aria-label="' + titleCase(el) + ' knight">' + knightFigure(el, 'idle', true) + '<small>' + titleCase(el) + '</small></button>').join('') + '</div>' +
-            '<h3>Name</h3><input id="dmKnightGiven" class="dm-cc-input" type="text" maxlength="20" autocomplete="off" placeholder="Your knight’s name" value="' + esc(d.given) + '">' +
-            '<h3>Title</h3><div class="dm-cc-row">' + KNIGHT_TITLES.map((t) => '<button type="button" class="ck-pill' + (d.title === t ? ' is-on' : '') + '" data-act="cc" data-arg="title:' + t + '">' + (t || 'No title') + '</button>').join('') + '</div>' +
-            '<h3>Crest</h3><div class="dm-cc-row">' + CREST_EMBLEMS.map((e) => '<button type="button" class="dm-cc-emblem' + (d.emblem === e ? ' is-on' : '') + '" data-act="cc" data-arg="emblem:' + e + '" aria-label="Emblem ' + e + '">' + e + '</button>').join('') + '</div>' +
-            '<div class="dm-cc-row">' + CREST_COLORS.map((c) => '<button type="button" class="dm-cc-color' + (d.color === c ? ' is-on' : '') + '" data-act="cc" data-arg="color:' + c + '" style="--el:var(--' + c + ')" aria-label="' + titleCase(c) + '"></button>').join('') + '</div>' +
-            '<h3>Calling</h3><div class="dm-cc-callings">' + Object.keys(CALLINGS).map((id) => { const c = CALLINGS[id]; return '<button type="button" class="dm-cc-calling' + (d.calling === id ? ' is-on' : '') + '" data-act="cc" data-arg="calling:' + id + '"><span>' + c[0] + '</span><b>' + c[1] + '</b><small>' + c[2].map((x) => (SKILLS[x] ? SKILLS[x].name : titleCase(x))).join(' & ') + ' +10% faster</small></button>'; }).join('') + '</div>' +
-            '<h3>Mentor</h3><p class="ck-small ck-muted">SiegeKnights must be met and convinced to train you. A squire waits at the gate; knights, raiders and lords are met on the roads and at the Wall. Tap the portrait on the Knight tab to win them over.</p>' +
-            '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="cc-save">' + (S.knight.made ? 'Save' : 'Begin') + '</button>' + (S.knight.made ? '<button type="button" class="ck-btn" data-act="close-modal">Cancel</button>' : '') + '</div>';
+        const d = draft, pages = creationPages();
+        if (!pages.includes(d.page)) d.page = pages[0];
+        const i = pages.indexOf(d.page), labels = { identity: 'Knight', crest: 'Crest', biome: 'Land', starter: 'Starter', sprite: 'Sprite', summary: 'Summary' };
+        const content = ({ identity: identityPage, crest: crestPage, biome: biomePage, starter: starterPage, sprite: spritePage, summary: summaryPage })[d.page](d);
+        return '<div class="dm-cc-sheet" data-page="' + d.page + '"><header><span class="ck-kicker">' + (S.knight.made ? 'Edit your Dominion' : 'Found your Dominion') + '</span><h2 id="ckModalTitle">' + labels[d.page] + '</h2>' +
+            '<nav class="dm-cc-steps" aria-label="Creation steps">' + pages.map((p, n) => '<button type="button" data-act="cc-page" data-arg="' + p + '" class="' + (p === d.page ? 'is-on' : n < i ? 'is-done' : '') + '" aria-current="' + (p === d.page ? 'step' : 'false') + '"><i>' + (n + 1) + '</i><span>' + labels[p] + '</span></button>').join('') + '</nav></header>' +
+            '<section class="dm-cc-page">' + content + '</section><footer>' + (i ? '<button type="button" class="ck-btn" data-act="cc-prev">Back</button>' : (S.knight.made ? '<button type="button" class="ck-btn" data-act="close-modal">Cancel</button>' : '<span></span>')) +
+            '<span>' + (i + 1) + ' / ' + pages.length + '</span><button type="button" class="ck-btn is-primary" data-act="' + (i === pages.length - 1 ? 'cc-save' : 'cc-next') + '">' + (i === pages.length - 1 ? (S.knight.made ? 'Save changes' : 'Begin Dominion') : 'Next') + '</button></footer></div>';
     }
     function updateCreateModal(body) {
         const d = draft, preview = body.querySelector('.dm-cc-preview');
-        preview.querySelector('b').textContent = (d.title ? d.title + ' ' : '') + (d.given.trim() || 'Your name');
-        preview.querySelector('small').textContent = CALLINGS[d.calling][1];
-        const badge = preview.querySelector('.dm-crest');
-        badge.style.setProperty('--el', 'var(--' + d.color + ')');
-        badge.querySelector('i').textContent = d.emblem;
+        if (preview) {
+            preview.querySelector('b').textContent = (d.title ? d.title + ' ' : '') + (d.given.trim() || 'Your name');
+            preview.querySelector('small').textContent = CALLINGS[d.calling][1];
+        }
+        body.querySelectorAll('.dm-crest').forEach((badge) => {
+            badge.style.setProperty('--el', 'var(--' + d.color + ')');
+            if (!badge.closest('.dm-cc-shape')) { badge.dataset.shape = d.shape; if (badge.querySelector('i')) badge.querySelector('i').textContent = d.emblem; }
+        });
         body.querySelectorAll('[data-act="cc"]').forEach((button) => {
             const arg = button.dataset.arg, i = arg.indexOf(':');
             const selected = d[arg.slice(0, i)] === arg.slice(i + 1);
@@ -2752,7 +2803,8 @@
         });
         // Keep the picker, focus and decoded art mounted. Only swap the preview once the
         // new portrait is ready, and ignore loads superseded by another choice or sheet.
-        const current = preview.querySelector('.dm-knight-figure'), src = knightSpriteSrc(d.portrait);
+        const current = preview && preview.querySelector('.dm-knight-figure'), src = knightSpriteSrc(d.portrait);
+        if (!current) return;
         if (current.dataset.requested === src) return;
         current.dataset.requested = src;
         if (current.dataset.knight === d.portrait) return;
@@ -2775,6 +2827,22 @@
             }).catch(retry);
         };
         next.src = src;
+    }
+    function showCreationPage(page) {
+        if (!draft || !creationPages().includes(page)) return;
+        draft.page = page;
+        const body = $('ckModalBody');
+        $('ckModal').dataset.kind = '';
+        body.scrollTop = 0;
+        renderModal();
+        body.scrollTop = 0;
+    }
+    function seedStarter(s, id) {
+        id = STARTER_IDS.includes(id) ? id : 'sundile';
+        s.comps = { [id]: { species: id, nick: '', joined: true, bond: 30, job: { kind: 'rest' }, explore: 0, treats: { day: '', n: 0 }, xp: 0, legend: false } };
+        s.starter = id;
+        s.favorite = id;
+        s.prep.party = [id];
     }
     function mentorArt(id) {
         const raw = ART_URLS['knight:' + id], full = !!ART_URLS['knight-full:' + id];
@@ -2850,7 +2918,7 @@
     function renderModal() {
         if (!modal) return;
         const m = $('ckModal'), body = $('ckModalBody');
-        if (modal.kind === 'create' && m.dataset.kind === 'create' && body.querySelector('#dmKnightGiven') && draft) {
+        if (modal.kind === 'create' && m.dataset.kind === 'create' && body.querySelector('.dm-cc-sheet') && draft) {
             updateCreateModal(body);
             return;
         }
@@ -3702,6 +3770,7 @@
     }
     function renderScene() {
         const sc = $('dmScene');
+        sc.dataset.biome = S.biome || 'woodland';
         sc.dataset.hall = String(S.b.hall);
         sc.dataset.woodlot = String(S.b.woodlot);
         sc.dataset.archive = S.b.archive >= 1 ? '1' : '0';
@@ -4282,10 +4351,11 @@
     }
     const projects = (re) => underway((id) => re.test(id)) + projectList(S).filter((p) => re.test(p.id)).map(projectCard).join('');
     function produceCard(id) {
-        const rates = id === 'woodlot' ? { timber: woodlotRate(S) } : workshopRates(S, id), st = storedOf(S, id), helper = helperOf(S, id), n = storedCount(S, id);
+        const rates = id === 'woodlot' ? { timber: woodlotRate(S) } : workshopRates(S, id), st = storedOf(S, id), helper = helperOf(S, id), n = storedCount(S, id), bm = biomeMul(S, id), bio = biomeOf(S);
         const keys = Object.keys(rates).filter((k) => rates[k] > 0);
         return '<section class="ck-card"><div class="ck-row"><h3>🧺 Stores</h3>' + chip(Math.round(storeFill(S, id) * 100) + '% full') + '</div>' +
             barP(storeFill(S, id) * 100, 'is-fat') + '<p class="ck-small">' + (keys.length ? keys.map((k) => fmtRate(rates[k]) + ' ' + esc(itemName(k)) + '/h').join(' · ') : 'Not producing.') + (damaged(S, id === 'hall' ? 'great_hall' : id) ? ' <span class="ck-warn">Damaged: repair it in Upkeep.</span>' : '') + '</p>' +
+            '<p class="ck-small ' + (bm > 1 ? 'ck-good' : bm < 1 ? 'ck-warn' : 'ck-muted') + '">' + bio.icon + ' ' + esc(bio.name) + ': ' + (bm === 1 ? 'no location modifier' : (bm > 1 ? '+' : '−') + Math.round(Math.abs(bm - 1) * 100) + '% output') + '.</p>' +
             (Object.keys(st).length ? lootRow(Object.fromEntries(Object.keys(st).map((k) => [k, fl(st[k])]))) : '') +
             '<div class="ck-actions"><button type="button" class="ck-btn' + (n ? ' is-primary' : '') + '" data-act="collect" data-arg="' + id + '"' + (n ? '' : ' disabled') + '>Collect' + (n ? ' ' + n : '') + '</button></div>' +
             '<h4>Resident</h4><div class="ck-pills">' + (helper ? '<span class="ck-chip is-help">' + esc(C(helper).name) + ' +' + Math.round((helperMul(S, id) - 1) * 100) + '%' + (onExpedition(S, helper) ? ' (away)' : '') + '</span><button type="button" class="ck-pill" data-act="cjob" data-arg="' + helper + ':rest">Send to rest</button>' : '') +
@@ -4725,13 +4795,30 @@
         case 'mentor-pick': openModal('mentor'); return;
         case 'create': startDraft(); openModal('create'); return;
         case 'cc': { const i = arg.indexOf(':'), key = arg.slice(0, i), v = arg.slice(i + 1); if (!draft) startDraft(); draft[key] = v; renderModal(); return; }
+        case 'cc-page':
+            if (!draft) startDraft();
+            if (draft.page === 'identity' && String(draft.given || '').replace(/\s+/g, ' ').trim().length < 2 && arg !== 'identity') { toast('Give your knight a name first.'); return; }
+            showCreationPage(arg); return;
+        case 'cc-next': {
+            const pages = creationPages(), i = pages.indexOf(draft.page);
+            if (draft.page === 'identity' && String(draft.given || '').replace(/\s+/g, ' ').trim().length < 2) { toast('Give your knight a name (2–20 letters).'); return; }
+            if (draft.page === 'biome' && !BIOMES[draft.biome]) { toast('Choose where your Keep stands.'); return; }
+            if (draft.page === 'starter' && !STARTER_IDS.includes(draft.starter)) { toast('Choose your first Siegling.'); return; }
+            showCreationPage(pages[Math.min(pages.length - 1, i + 1)]); return;
+        }
+        case 'cc-prev': { const pages = creationPages(), i = pages.indexOf(draft.page); showCreationPage(pages[Math.max(0, i - 1)]); return; }
         case 'cc-save': {
             const given = String((draft && draft.given) || '').replace(/\s+/g, ' ').trim();
             if (given.length < 2) { toast('Give your knight a name (2–20 letters).'); return; }
             const k = s.knight;
+            const first = !k.made;
+            if (first && !BIOMES[draft.biome]) { toast('Choose where your Keep stands.'); showCreationPage('biome'); return; }
+            if (first && !STARTER_IDS.includes(draft.starter)) { toast('Choose your first Siegling.'); showCreationPage('starter'); return; }
             k.given = given; k.title = draft.title; k.name = (draft.title ? draft.title + ' ' : '') + given;
-            k.crest = { emblem: draft.emblem, color: draft.color }; k.calling = draft.calling; k.portrait = draft.portrait;
-            const first = !k.made; k.made = true; draft = null; s.rev++; closeModal();
+            k.crest = { emblem: draft.emblem, color: draft.color, shape: draft.shape }; k.calling = draft.calling; k.portrait = draft.portrait;
+            s.biome = BIOMES[draft.biome] ? draft.biome : 'woodland';
+            if (first) seedStarter(s, draft.starter);
+            k.made = true; draft = null; s.rev++; closeModal();
             toast(first ? 'Welcome, ' + k.name + '.' : 'Your knight is updated.'); break;
         }
         case 'tool': if (knightBusy(s) || fl(s.inv[arg]) < 1) return; s.knight.tool = arg; s.rev++; break;
@@ -4932,6 +5019,8 @@
     window.render_game_to_text = () => JSON.stringify({
         mode: 'dominion', tab: S?.ui.tab, modal: modal?.kind || null,
         knight: S ? { name: S.knight.name, portrait: portraitOf(S.knight), made: !!S.knight.made } : null,
+        creation: modal?.kind === 'create' && draft ? { page: draft.page, pages: creationPages(), name: draft.given, crest: { shape: draft.shape, color: draft.color, insignia: draft.emblem }, biome: draft.biome, starter: draft.starter, sprite: draft.portrait } : null,
+        dominion: S ? { biome: S.biome, starter: S.starter, companions: joinedIds(S), biomeOutput: Object.fromEntries(['woodlot', 'forge', 'fridge', 'generator', 'garden', 'kitchen', 'quarry'].map((id) => [id, biomeMul(S, id)])) } : null,
         report: modal?.kind === 'report' ? { id: modal.arg, tab: modal.reportTab, page: (modal.reportPage || 0) + 1, pages: modal.reportPages, visible: Array.from(document.querySelectorAll('[data-report-cell]:not([hidden])')).map((cell) => cell.innerText) } : null
     });
 
@@ -4944,8 +5033,9 @@
         timberCap: () => timberCap(S), workshopRates: (id) => workshopRates(S, id), woodlotRate: () => woodlotRate(S), marketOffers: () => marketOffers(S),
         sync: () => syncNow(true), visitors: () => visitorsHere(S), residentTasks: (u) => residentTasks(u),
         voicesReady: () => voicesReady(S), rebirthBlock: () => rebirthBlock(S), rebirth: () => { const r = rebirth(S); save(); renderAll(); return r; }, prodMul: () => prodMul(S),
-        toolSpeed: (k) => toolSpeed(S, k), storeHours: (id) => storeHours(S, id), knightRates: () => knightRates(S), fight: () => fight
+        toolSpeed: (k) => toolSpeed(S, k), storeHours: (id) => storeHours(S, id), knightRates: () => knightRates(S), biomeMul: (id) => biomeMul(S, id), fight: () => fight
     };
+    window.advanceTime = (ms) => window.dominionDebug.advance(ms);
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
