@@ -14292,6 +14292,31 @@ function applyArenaElementTheme() {
     boardArea.style.setProperty('--arena-glow-d', hexToRgba(colors[3] || colors[1] || colors[0], gameState?.currentPhase === 'BATTLE' ? 0.2 : 0.12));
     boardArea.style.setProperty('--arena-rim', hexToRgba(colors[0], gameState?.currentPhase === 'BATTLE' ? 0.34 : 0.18));
     boardArea.style.setProperty('--arena-sheen', hexToRgba(colors[1] || colors[0], gameState?.currentPhase === 'BATTLE' ? 0.2 : 0.1));
+
+    const skins = {
+        FIRE: 'fire', ICE: 'ice', WIND: 'wind', EARTH: 'earth', ELECTRIC: 'electric',
+        WATER: 'water', METAL: 'metal', POISON: 'poison', PSYCHIC: 'psychic',
+        UNDEAD: 'undead', SHADOW: 'shadow', LIGHT: 'light', NEUTRAL: 'neutral'
+    };
+    const applySide = (selector, player) => {
+        const half = boardArea.querySelector(selector);
+        if (!half) return;
+        const element = String(player?.trainer?.element || 'NEUTRAL').toUpperCase();
+        const skin = skins[element] || 'neutral';
+        half.style.setProperty('--side-accent', getElementHex(element));
+        half.style.setProperty('--side-skin-image', `url("/img/board-skins/board-${skin}.webp")`);
+        const layer = half.querySelector('.bf-skin-layer');
+        if (layer) {
+            const probe = new Image();
+            probe.onerror = () => {
+                layer.style.backgroundImage = 'linear-gradient(135deg,#1b2940,#25344a)';
+                half.style.setProperty('--side-accent', '#95a5a6');
+            };
+            probe.src = `/img/board-skins/board-${skin}.webp`;
+        }
+    };
+    applySide('.bf-player', gameState?.player);
+    applySide('.bf-enemy', gameState?.enemy);
 }
 
 function getElementSigil(element, variant = 'soft') {

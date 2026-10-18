@@ -2422,7 +2422,7 @@ class GameJavaScriptRegressionTest {
     @Test
     void overchargedEnergyIsAnnouncedInTheEnergyViewAndThePortraitHud() throws IOException {
         String gameScript = Files.readString(GAME_JS);
-        String styleCss = Files.readString(STYLE_CSS);
+        String styleCss = Files.readString(STYLE_CSS).replace("\r\n", "\n");
         String playMarkup = Files.readString(PLAY_HTML);
 
         String panel = extractFunction(gameScript, "function renderEnergyDetailPanel()");
