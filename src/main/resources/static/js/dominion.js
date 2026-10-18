@@ -660,7 +660,33 @@
         Object.keys(s.comps).forEach((id) => { const c = s.comps[id]; if (!c.species) c.species = id; if (c.xp == null) c.xp = 0; if (!c.treats) c.treats = { day: '', n: 0 }; });
         if (!['hotland', 'coldland', 'woodland', 'highmountain'].includes(s.biome)) s.biome = 'woodland';
         if (!s.starter) s.starter = ['sundile', 'fawny', 'pursula', 'cacty'].find((id) => s.comps[id] && s.comps[id].joined) || '';
+        // `knight.made` arrived with character creation. Older saves omit it, and Begin
+        // Dominion treats that as a first founding: seedStarter replaces s.comps, so every
+        // tamed Siegeling, bond and job is deleted. A Keep that has already been lived in
+        // is theirs. A fresh save, including one boot() wrote while the sheet was open,
+        // still has an empty company and still has to be named.
+        if (!s.knight.made && keepAlreadyPlayed(s)) {
+            s.knight.made = true;
+            if (!s.knight.given && s.knight.name) s.knight.given = s.knight.name;
+        }
         return s;
+    }
+    function keepAlreadyPlayed(s) {
+        const b = s.b || {};
+        if ((b.woodlot || 0) > 0 || (b.hall || 1) > 1 || (b.archive || 0) > 0
+            || (b.storehouse || 0) > 0 || (b.yard || 0) > 0 || (b.front || 0) > 0 || (b.crews || 0) > 0) return true;
+        if (Object.keys(s.wsl || {}).some((id) => (s.wsl[id] || 0) > 0)) return true;
+        if (Object.keys(s.wings || {}).some((id) => (s.wings[id] || 0) > 0)) return true;
+        if ((s.runs || 0) > 0 || (s.rebirths || 0) > 0) return true;
+        if ((s.reports && s.reports.length) || (s.sightings && s.sightings.length) || (s.log && s.log.length)) return true;
+        if (s.grid && s.grid.some((c) => c && c.id)) return true;
+        if (s.knight && s.knight.card) return true;
+        if (s.disc && (s.disc.fawny || s.disc.vaultMap || s.disc.vaultCleared)) return true;
+        if (s.crafted && Object.keys(s.crafted).some((id) => s.crafted[id])) return true;
+        // The pre-founding company (Cacty, Sundile, anyone tamed) is itself a played Keep,
+        // even when the Woodlot was never raised and the log is empty.
+        if (Object.keys(s.comps || {}).some((id) => s.comps[id] && s.comps[id].joined)) return true;
+        return false;
     }
     function load() {
         let saved = null;
@@ -2406,11 +2432,29 @@
             NET.signedIn = true;
             if (d.name && S.knight.name === 'Ser Airek') S.knight.name = d.name;
             const v = Number(d.version) || 0;
-            if (d.state && v > (S.sync.version || 0)) { if (adoptServer(d.state, v)) toast('Loaded your synced Dominion progress.'); }
+            let adoptedPlayedKnight = false;
+            if (d.state && v > (S.sync.version || 0)) {
+                if (adoptServer(d.state, v)) {
+                    toast('Loaded your synced Dominion progress.');
+                    // Boot opened the founding sheet on the empty local save. Begin Dominion
+                    // would rename this knight and seedStarter would delete the company.
+                    // A cloud keep that is still unmade keeps the sheet.
+                    if (S.knight.made && modal && modal.kind === 'create') {
+                        draft = null;
+                        modal = null;
+                        const box = $('ckModal');
+                        if (box) { box.hidden = true; box.dataset.kind = ''; }
+                        const body = $('ckModalBody');
+                        if (body) body.innerHTML = '';
+                        adoptedPlayedKnight = true;
+                    }
+                }
+            }
             applyInbox(S, d.inbox);
             advance(S, now());
             save();
             renderAll();
+            if (adoptedPlayedKnight) maybeShowReport();
             return syncNow(true);
         });
     }
@@ -2838,6 +2882,9 @@
         body.scrollTop = 0;
     }
     function seedStarter(s, id) {
+        // Replacing comps is only safe for an empty company. An older Keep that reached
+        // Begin Dominion without knight.made still has its roster in hand.
+        if (joinedIds(s).length) return;
         id = STARTER_IDS.includes(id) ? id : 'sundile';
         s.comps = { [id]: { species: id, nick: '', joined: true, bond: 30, job: { kind: 'rest' }, explore: 0, treats: { day: '', n: 0 }, xp: 0, legend: false } };
         s.starter = id;
@@ -4812,16 +4859,22 @@
             if (given.length < 2) { toast('Give your knight a name (2–20 letters).'); return; }
             const k = s.knight;
             const first = !k.made;
-            if (first && !BIOMES[draft.biome]) { toast('Choose where your Keep stands.'); showCreationPage('biome'); return; }
-            if (first && !STARTER_IDS.includes(draft.starter)) { toast('Choose your first Siegling.'); showCreationPage('starter'); return; }
-            k.given = given; k.title = draft.title; k.name = (draft.title ? draft.title + ' ' : '') + given;
-            k.crest = { emblem: draft.emblem, color: draft.color, shape: draft.shape }; k.calling = draft.calling; k.portrait = draft.portrait;
-            s.biome = BIOMES[draft.biome] ? draft.biome : 'woodland';
-            if (first) seedStarter(s, draft.starter);
+            // Joined companions mean this sheet was opened over a Keep that already
+            // existed. Writing the draft would rename the knight and, before seedStarter
+            // refused, delete the roster.
+            const established = first && joinedIds(s).length > 0;
+            if (first && !established && !BIOMES[draft.biome]) { toast('Choose where your Keep stands.'); showCreationPage('biome'); return; }
+            if (first && !established && !STARTER_IDS.includes(draft.starter)) { toast('Choose your first Siegling.'); showCreationPage('starter'); return; }
+            if (!established) {
+                k.given = given; k.title = draft.title; k.name = (draft.title ? draft.title + ' ' : '') + given;
+                k.crest = { emblem: draft.emblem, color: draft.color, shape: draft.shape }; k.calling = draft.calling; k.portrait = draft.portrait;
+                s.biome = BIOMES[draft.biome] ? draft.biome : 'woodland';
+                if (first) seedStarter(s, draft.starter);
+            }
             k.made = true; draft = null; s.rev++; closeModal();
             // First founding should open on the Knight page, not the default Base grounds.
-            if (first) setTab('knight');
-            toast(first ? 'Welcome, ' + k.name + '.' : 'Your knight is updated.'); break;
+            if (first && !established) setTab('knight');
+            toast(established ? 'Your company is unchanged.' : (first ? 'Welcome, ' + k.name + '.' : 'Your knight is updated.')); break;
         }
         case 'tool': if (knightBusy(s) || fl(s.inv[arg]) < 1) return; s.knight.tool = arg; s.rev++; break;
         case 'comp-toggle': openComp = openComp === arg ? '' : arg; if (s.ui.tab !== 'company') setTab('company'); break;
