@@ -4819,6 +4819,8 @@
             s.biome = BIOMES[draft.biome] ? draft.biome : 'woodland';
             if (first) seedStarter(s, draft.starter);
             k.made = true; draft = null; s.rev++; closeModal();
+            // First founding should open on the Knight page, not the default Base grounds.
+            if (first) setTab('knight');
             toast(first ? 'Welcome, ' + k.name + '.' : 'Your knight is updated.'); break;
         }
         case 'tool': if (knightBusy(s) || fl(s.inv[arg]) < 1) return; s.knight.tool = arg; s.rev++; break;

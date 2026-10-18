@@ -1,4 +1,7 @@
 Original prompt: Go with earth based art for endless
+- October 18, 2026 **Dominion: after founding your knight, land on the Knight page (not Base).**
+  - **Change.** First-time `cc-save` (Begin Dominion) now calls `setTab('knight')` so the post-creation screen is the Knight profile with the knight hint, instead of the default Base grounds tab (`keep` → `base`). Editing an existing knight still leaves the current tab alone. `dominion.js?v=24`.
+  - **Verification.** `node --check js/dominion.js`. Headless Chromium at 390x844: cleared save, completed founding through Begin Dominion, asserted `ui.tab === 'knight'`, Knight tab `aria-current="page"`, and the knight hint visible.
 - October 17, 2026 **Gauntlet camp: the next-floor box has Details and Cards tabs, and the last fight's result moves into the header.**
   - **Change.** The next-floor box (`#gtEncounter`) is now a fixed-height box with two pages, switched by a small tab control on its top row (`state.encTab`, `renderEncTabs`). The floor line and the name stay above both pages.
     - **Details** holds the HP chips, the blurb and the boss's passive and active. Long text flows into sideways columns.
