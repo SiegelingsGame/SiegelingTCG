@@ -880,7 +880,7 @@ public class EffectService {
     }
 
     private int getBoardRowDelta(Notch notch, boolean isPlayer) {
-        return isPlayer ? -notch.direction().getDy() : notch.direction().getDy();
+        return -notch.direction().getDy();
     }
 
     private String rowName(int row) {

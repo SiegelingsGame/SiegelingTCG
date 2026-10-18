@@ -261,6 +261,24 @@ class PlacementServiceTest {
         assertFalse(directAllies.contains(chained));
     }
 
+    @Test
+    void enemyNotchesFaceTheirOwnRearAndConnectSideways() {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Player", true));
+        state.setEnemy(new Player("AI", false));
+        CardInstance enemy = new CardInstance(siegling("enemy", Element.FIRE, List.of(
+                new Notch(NotchDirection.BOTTOM, Element.FIRE),
+                new Notch(NotchDirection.LEFT, Element.FIRE))), 0, 1, false);
+        state.setAt(false, 0, 1, enemy);
+        assertTrue(placementService.hasExternalSocketAnchor(enemy, false));
+        assertEquals("outer-1", placementService.resolveExternalSocketKey(0, 1, false, NotchDirection.BOTTOM));
+        assertEquals("left-1", placementService.resolveExternalSocketKey(1, 0, false, NotchDirection.LEFT));
+        CardInstance left = new CardInstance(siegling("left", Element.FIRE,
+                List.of(new Notch(NotchDirection.RIGHT, Element.FIRE))), 0, 0, false);
+        state.setAt(false, 0, 0, left);
+        assertTrue(placementService.getDirectlyConnectedAllies(state, enemy).contains(left));
+    }
+
     private SieglingCard siegling(String id, Element element, List<Notch> notches) {
         return new SieglingCard(
                 id,

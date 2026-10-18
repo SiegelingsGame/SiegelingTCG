@@ -1165,7 +1165,7 @@ function cardTypeClass(card) {
 function renderArenaBoardFrameNotches(notches, options) {
     const notchMap = {};
     for (const n of (notches || [])) {
-        notchMap[n.direction] = n;
+        notchMap[options && !options.isPlayer ? mirrorNotchVertically(n.direction) : n.direction] = n;
     }
     let html = `<div class="hand-notches arena-board-notches"><div class="notch-center"></div>`;
     for (const dir of ARENA_BOARD_NOTCH_DIRECTIONS) {
@@ -14847,7 +14847,7 @@ const NOTCH_LATTICE_LOCAL = {
 function notchLatticeKey(boardRow, boardCol, direction, isPlayer) {
     const loc = NOTCH_LATTICE_LOCAL[direction];
     if (!loc) return null;
-    const localY = isPlayer ? 2 - loc[1] : loc[1];
+    const localY = 2 - loc[1];
     const x = boardCol * 2 + loc[0];
     const y = boardRow * 2 + localY;
     return `${x}:${y}`;
@@ -14916,7 +14916,8 @@ function isInteriorLatticeKey(key) {
     return x > 0 && x < 6 && y > 0 && y < 6;
 }
 
-function getNotchOutgoingAnchor(grid, cellRefs, r, c, direction, _isPlayer) {
+function getNotchOutgoingAnchor(grid, cellRefs, r, c, direction, isPlayer) {
+    if (!isPlayer) direction = mirrorNotchVertically(direction);
     const fromCell = cellRefs.get(`${r}:${c}`);
     if (!fromCell) return null;
     const fromLocal = getBoardCellLocalRect(grid, fromCell);
@@ -15365,6 +15366,7 @@ function getAllExternalSockets(isPlayer) {
 }
 
 function getExternalSocketForNotch(row, col, isPlayer, direction) {
+    direction = isPlayer ? direction : mirrorNotchVertically(direction);
     if (direction === 'LEFT' && col === 0) {
         return { key: `left-${row}`, row, col, side: 'left', direction };
     }
@@ -15461,6 +15463,11 @@ function appendExternalEnergyPoint(out, point, element, isCallWell = false) {
         node.title = `Call well: 1 ${formatElementLabel(element)} baseline energy for this battle`;
     }
     out.push(node);
+}
+
+function mirrorNotchVertically(dir) {
+    return { TOP:'BOTTOM', TOP_RIGHT:'BOTTOM_RIGHT', RIGHT:'RIGHT', BOTTOM_RIGHT:'TOP_RIGHT',
+             BOTTOM:'TOP', BOTTOM_LEFT:'TOP_LEFT', LEFT:'LEFT', TOP_LEFT:'BOTTOM_LEFT' }[dir];
 }
 
 function getOppositeDirection(dir) {
@@ -15560,7 +15567,7 @@ function notchIconStyle(element) {
 function getNotchStateClass(notch, options) {
     const delta = directionDelta(notch.direction, options.isPlayer);
     const row = options.row + delta.dy;
-    const col = options.col + directionDelta(notch.direction).dx;
+    const col = options.col + delta.dx;
     const socket = getExternalSocketForNotch(options.row, options.col, options.isPlayer, notch.direction);
 
     if (row < 0 || row > 2 || col < 0 || col > 2) {
@@ -15582,14 +15589,14 @@ function getNotchStateClass(notch, options) {
 
 function directionDelta(direction, isPlayer = false) {
     switch (direction) {
-        case 'TOP': return { dx: 0, dy: isPlayer ? 1 : -1 };
-        case 'TOP_RIGHT': return { dx: 1, dy: isPlayer ? 1 : -1 };
+        case 'TOP': return { dx: 0, dy: 1 };
+        case 'TOP_RIGHT': return { dx: 1, dy: 1 };
         case 'RIGHT': return { dx: 1, dy: 0 };
-        case 'BOTTOM_RIGHT': return { dx: 1, dy: isPlayer ? -1 : 1 };
-        case 'BOTTOM': return { dx: 0, dy: isPlayer ? -1 : 1 };
-        case 'BOTTOM_LEFT': return { dx: -1, dy: isPlayer ? -1 : 1 };
+        case 'BOTTOM_RIGHT': return { dx: 1, dy: -1 };
+        case 'BOTTOM': return { dx: 0, dy: -1 };
+        case 'BOTTOM_LEFT': return { dx: -1, dy: -1 };
         case 'LEFT': return { dx: -1, dy: 0 };
-        case 'TOP_LEFT': return { dx: -1, dy: isPlayer ? 1 : -1 };
+        case 'TOP_LEFT': return { dx: -1, dy: 1 };
         default: return { dx: 0, dy: 0 };
     }
 }
