@@ -61,6 +61,14 @@ class EnergyServiceTest {
     }
 
     @Test
+    void enemyBottomNotchActivatesItsRearSocket() {
+        SieglingCard card = new SieglingCard("enemy-rear", "Enemy Rear", Element.FIRE,
+                Rarity.COMMON, 10, 1, List.of(new Notch(NotchDirection.BOTTOM, Element.FIRE)), Row.BACK);
+        GameState state = enemyStateWithCard(card, 0, 1);
+        assertEquals(1, energyService.getBreakdown(state, false).fireExternal());
+    }
+
+    @Test
     void playerBackRowOuterNotchActivatesExternalSocket() {
         SieglingCard outerFire = new SieglingCard(
                 "outer-fire",

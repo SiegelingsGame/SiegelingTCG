@@ -837,17 +837,17 @@ class EffectServiceTest {
         ), 1, 1);
         CardInstance linkedLeft = enemyInstance("linked-left", List.of(
                 new Notch(NotchDirection.RIGHT, Element.EARTH),
-                new Notch(NotchDirection.TOP, Element.EARTH)
+                new Notch(NotchDirection.BOTTOM, Element.EARTH)
         ), 1, 0);
         CardInstance linkedRight = enemyInstance("linked-right", List.of(
                 new Notch(NotchDirection.LEFT, Element.EARTH)
         ), 1, 2);
         // Two hops out from the hub — chain damage stops at the first ring.
         CardInstance secondHop = enemyInstance("second-hop", List.of(
-                new Notch(NotchDirection.BOTTOM, Element.EARTH)
+                new Notch(NotchDirection.TOP, Element.EARTH)
         ), 0, 0);
         CardInstance isolated = enemyInstance("isolated", List.of(
-                new Notch(NotchDirection.TOP, Element.EARTH)
+                new Notch(NotchDirection.BOTTOM, Element.EARTH)
         ), 0, 2);
         state.setAt(false, 1, 1, hub);
         state.setAt(false, 1, 0, linkedLeft);

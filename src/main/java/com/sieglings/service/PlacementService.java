@@ -160,7 +160,7 @@ public class PlacementService {
     }
 
     private int getBoardRowDelta(Notch notch, boolean isPlayer) {
-        return isPlayer ? -notch.direction().getDy() : notch.direction().getDy();
+        return -notch.direction().getDy();
     }
 
     private boolean candidateCanLink(SieglingCard candidate, NotchDirection existingDirection) {
@@ -240,8 +240,7 @@ public class PlacementService {
         return switch (direction) {
             case LEFT -> col == 0 ? "left-" + row : null;
             case RIGHT -> col == 2 ? "right-" + row : null;
-            case BOTTOM -> isPlayer && row == 0 ? "outer-" + col : null;
-            case TOP -> !isPlayer && row == 0 ? "outer-" + col : null;
+            case BOTTOM -> row == 0 ? "outer-" + col : null;
             default -> null;
         };
     }
@@ -255,7 +254,7 @@ public class PlacementService {
             directions.add(NotchDirection.RIGHT);
         }
         if (row == 0) {
-            directions.add(isPlayer ? NotchDirection.BOTTOM : NotchDirection.TOP);
+            directions.add(NotchDirection.BOTTOM);
         }
         return directions;
     }

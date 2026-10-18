@@ -666,7 +666,7 @@ public class EnergyService {
     }
 
     private int getBoardRowDelta(Notch notch, boolean isPlayer) {
-        return isPlayer ? -notch.direction().getDy() : notch.direction().getDy();
+        return -notch.direction().getDy();
     }
 
     private boolean hasComboRequirement(EnergyBreakdown breakdown, int requiredComboSize, String requiredSignature) {
@@ -718,7 +718,7 @@ public class EnergyService {
         };
 
         int localX = local[0];
-        int localY = isPlayer ? 2 - local[1] : local[1];
+        int localY = 2 - local[1];
         int x = (card.getBoardCol() * 2) + localX;
         int y = (card.getBoardRow() * 2) + localY;
         return new BoardPoint(x, y);
