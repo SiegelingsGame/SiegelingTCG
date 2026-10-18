@@ -5222,25 +5222,15 @@ function syncMobileTargetingArenaScale() {
         document.documentElement.style.removeProperty('--mobile-targeting-hud-stack');
         return;
     }
-    const board = document.getElementById('boardArea');
-    if (!board) {
-        return;
-    }
-    const run = () => {
+    document.documentElement.style.removeProperty('--mobile-targeting-arena-scale');
+    const refresh = () => {
         if (!isMobileBattleTargetingCameraActive()) {
             return;
         }
-        const available = board.clientHeight;
-        const content = board.scrollHeight;
-        if (available <= 0 || content <= 0) {
-            return;
-        }
-        const scale = Math.min(1, (available - 4) / content);
-        document.documentElement.style.setProperty('--mobile-targeting-arena-scale', scale.toFixed(3));
         scheduleBoardLinkConnectorRefresh();
         refreshTargetingPreviewOnLayoutChange();
     };
-    window.requestAnimationFrame(() => window.requestAnimationFrame(run));
+    window.requestAnimationFrame(() => window.requestAnimationFrame(refresh));
 }
 
 function shouldUseDesktopBattleDrawer() {
@@ -17047,6 +17037,7 @@ function renderBattlePanel() {
         const shellClass = [
             'battle-queue-shell',
             'battle-queue-flat',
+            options.modifier || '',
             compact ? 'battle-queue-compact' : '',
             expanded ? 'battle-queue-expanded' : '',
             options.statsCell ? finishTextClass(options.statsCell) : ''
@@ -17072,6 +17063,12 @@ function renderBattlePanel() {
     // Targeting is exempt: it is player-driven, so playback is never mid-flight.
     const presentationBusy = Boolean(window.SieglingsActionQueue?.isPresentationBusy?.())
         && !isBattleTargetSelectionActive();
+    const resolvingBodyHtml = '<div class="battle-queue-resolving-content">'
+        + '<div class="battle-queue-resolving-copy"><strong>Queue is resolving</strong>'
+        + '<span class="battle-queue-resolving-detail">Next available Siegeling surfaces here in speed order.</span></div>'
+        + '<div class="battle-queue-resolving-track" aria-hidden="true"><i></i><i></i><i></i><i></i></div>'
+        + '<div class="battle-queue-resolving-footer">Battle resumes automatically when the next actor is ready.</div>'
+        + '</div>';
 
     // Hold the actionable panels in standby while playback runs. Scoped to the
     // drawer and hand docks on purpose: the left inspector is only rewritten
@@ -17081,7 +17078,8 @@ function renderBattlePanel() {
         const holdHtml = buildQueueShell(
             'Resolving',
             'waiting',
-            '<div class="battle-attacker"><strong>Queue is resolving.</strong> The next available Siegeling will surface here in speed order.</div><div class="battle-hint">Stay ready. When your next acting Siegeling arrives, this panel flips into queue mode automatically.</div>'
+            resolvingBodyHtml,
+            { modifier: 'battle-queue-resolving' }
         );
         setPanelHtml([...drawerPanels, handPanel].filter(Boolean), holdHtml);
         return;
@@ -17099,7 +17097,8 @@ function renderBattlePanel() {
             standbyHtml = buildQueueShell(
                 'Resolving',
                 'waiting',
-                '<div class="battle-attacker"><strong>Queue is resolving.</strong> The next available Siegeling will surface here in speed order.</div><div class="battle-hint">Stay ready. When your next acting Siegeling arrives, this panel flips into queue mode automatically.</div>'
+                resolvingBodyHtml,
+                { modifier: 'battle-queue-resolving' }
             );
         } else {
             standbyHtml = buildQueueShell(

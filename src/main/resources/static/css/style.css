@@ -4296,6 +4296,158 @@ body.battle-inline-dock .battle-queue-actions {
     color: #cfe4ff;
 }
 
+.battle-queue-resolving {
+    position: relative;
+    isolation: isolate;
+    width: 100%;
+    box-sizing: border-box;
+    display: block;
+    padding: 11px 14px 12px;
+    overflow: hidden;
+    border: 1px solid rgba(226, 183, 20, 0.4);
+    border-radius: 14px;
+    background:
+        radial-gradient(ellipse at 14% 0%, rgba(255, 196, 66, 0.16), transparent 54%),
+        linear-gradient(105deg, rgba(20, 28, 49, 0.98), rgba(8, 14, 29, 0.98) 58%, rgba(29, 24, 36, 0.98));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 22px rgba(0, 0, 0, 0.3);
+}
+
+.battle-queue-resolving::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, #fff0a0, #e2b714 58%, #ff713c);
+    box-shadow: 0 0 15px rgba(255, 192, 57, 0.52);
+}
+
+.battle-queue-resolving .battle-queue-header {
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.battle-queue-resolving .battle-queue-header::before {
+    content: "✦  SPEED ORDER";
+    color: #f1cd62;
+    font-size: 0.62em;
+    font-weight: 900;
+    letter-spacing: 0.16em;
+}
+
+.battle-queue-resolving .battle-queue-state.waiting {
+    min-height: 22px;
+    padding: 3px 8px;
+    border-color: rgba(255, 203, 83, 0.4);
+    background: rgba(255, 190, 55, 0.12);
+    color: #ffe49b;
+    font-size: 0.58em;
+}
+
+.battle-queue-resolving-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 14px;
+    row-gap: 5px;
+}
+
+.battle-queue-resolving-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.battle-queue-resolving-copy strong {
+    overflow: hidden;
+    color: #fff7dc;
+    font-size: 0.91em;
+    font-weight: 900;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+}
+
+.battle-queue-resolving-detail {
+    color: rgba(228, 235, 250, 0.76);
+    font-size: 0.68em;
+    line-height: 1.25;
+}
+
+.battle-queue-resolving-track {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, 10px);
+    align-items: center;
+    justify-content: end;
+    gap: 7px;
+    padding: 0 2px;
+}
+
+.battle-queue-resolving-track::before {
+    content: "";
+    position: absolute;
+    left: 7px;
+    right: 7px;
+    top: 50%;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(255, 198, 69, 0.85), rgba(255, 198, 69, 0.2));
+    transform: translateY(-50%);
+}
+
+.battle-queue-resolving-track i {
+    position: relative;
+    width: 9px;
+    height: 9px;
+    border: 1px solid rgba(255, 213, 111, 0.55);
+    border-radius: 50%;
+    background: #20263a;
+    box-shadow: 0 0 0 2px rgba(10, 16, 30, 0.86);
+}
+
+.battle-queue-resolving-track i:first-child {
+    border-color: #fff1ae;
+    background: #ffc943;
+    box-shadow: 0 0 10px rgba(255, 201, 67, 0.88), 0 0 0 2px rgba(10, 16, 30, 0.86);
+    animation: battle-queue-pulse 1.35s ease-in-out infinite;
+}
+
+.battle-queue-resolving-footer {
+    grid-column: 1 / -1;
+    color: rgba(222, 231, 250, 0.58);
+    font-size: 0.59em;
+    line-height: 1.2;
+}
+
+@keyframes battle-queue-pulse {
+    0%, 100% { transform: scale(0.9); }
+    50% { transform: scale(1.2); }
+}
+
+@media (max-width: 767px) {
+    .battle-queue-resolving {
+        width: 100vw;
+        margin-left: calc(50% - 50vw);
+        padding: 10px 16px 11px;
+        border-right: 0;
+        border-left: 0;
+        border-radius: 0;
+    }
+
+    .battle-queue-resolving-content {
+        column-gap: 10px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .battle-queue-resolving-track i:first-child {
+        animation: none;
+    }
+}
+
 .battle-standby-preview {
     display: grid;
     gap: 9px;
@@ -11115,19 +11267,21 @@ body.placement-active .board-cell.legal {
         z-index: 50;
         justify-content: center;
         gap: 2px;
-        transform: scale(var(--mobile-targeting-arena-scale, 1));
-        transform-origin: center center;
+        /* Keep the arena at its native responsive size so card centers and
+           targeting arrows remain easy to read while the art reaches edge to edge. */
+        transform: none;
     }
 
     body.mobile-battle-targeting-camera .battlefield.mobile-targeting-camera-board .bf-half {
         flex: 1 1 0;
         min-height: 0;
-        max-width: min(96vw, 300px);
+        width: 100%;
+        max-width: none;
         justify-content: center;
     }
 
     body.mobile-battle-targeting-camera .battlefield.mobile-targeting-camera-board .board-grid {
-        width: min(100%, 268px);
+        width: min(100%, 268px, calc((100dvh - var(--mobile-targeting-bar-height) - var(--mobile-targeting-hud-stack, 72px) - var(--device-safe-top) - var(--device-safe-bottom) - 20px) / 2.15));
         gap: 2px;
         padding: 2px 4px;
     }
