@@ -357,6 +357,18 @@
       if (slope < 0.05) return Infinity;
       return ((height - (rows - 1) * rowGap) / rows - fixed) / slope;
     }
+    // A portrait camp deck is easier to scan in two compact rows than one large
+    // strip. Keep a single row as a fallback on unusually short viewports.
+    var portraitDeck = rail.id === 'gtDeck' && window.matchMedia('(orientation: portrait) and (max-width: 599px)').matches;
+    if (portraitDeck && n > 2) {
+      var twoRowW = Math.min(widthForRows(2, H - 8), (W - 2 * gap) / 3, maxW);
+      if (twoRowW >= 64) {
+        rail.classList.add('is-strip');
+        rail.style.setProperty('--card-w', Math.floor(twoRowW) + 'px');
+        rail.style.gridTemplateRows = 'repeat(2, auto)';
+        return;
+      }
+    }
     var best = null;
     for (var r = 1; r <= n; r++) {
       var cols = Math.ceil(n / r);
@@ -1012,6 +1024,7 @@
     };
     window.addEventListener('resize', scheduleLayout);
     window.addEventListener('orientationchange', scheduleLayout);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleLayout);
     document.addEventListener('keydown', function (event) {
       if (event.key === 'Escape' && !$('gtSheet').hidden) closeSheet();
     });
