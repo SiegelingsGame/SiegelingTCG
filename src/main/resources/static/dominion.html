@@ -15,7 +15,7 @@
      interiors come from keep.css via dominion-keep.css. -->
 <link rel="stylesheet" href="/css/chronicles.css?v=9">
 <link rel="stylesheet" href="/css/dominion-keep.css?v=1">
-<link rel="stylesheet" href="/css/dominion.css?v=18">
+<link rel="stylesheet" href="/css/dominion.css?v=19">
 <script src="/js/viewport-unit.js?v=3"></script>
 </head>
 <body data-screen="loading">
@@ -125,12 +125,13 @@
 <div class="ck-toasts" id="ckToasts" aria-live="polite"></div>
 <!-- The Keep scene is one persistent node that Base mounts; it waits here when off screen. -->
 <div id="dmKeepHost" hidden>
-            <div class="dm-scene" id="dmScene" data-hall="1" data-woodlot="1" data-archive="0" data-front="0" data-heal="0">
+            <div class="dm-scene" id="dmScene" data-biome="woodland" data-hall="1" data-woodlot="1" data-archive="0" data-front="0" data-heal="0">
                 <div class="sky-glow"></div>
                 <div class="cloud cloud-one"></div>
                 <div class="cloud cloud-two"></div>
                 <div class="mountain mountain-back"></div>
                 <div class="mountain mountain-front"></div>
+                <div class="cloud-sea" aria-hidden="true"><i></i><i></i><i></i></div>
                 <div class="ground-layer"></div>
                 <div class="wounded-earth"></div>
                 <div class="restored-meadow"></div>
@@ -269,6 +270,6 @@
 <script>window.DOMINION_ONLINE = true;</script>
 <script src="/js/dominion-data.js?v=4"></script>
 <script src="/js/dominion-keep-data.js?v=3"></script>
-<script src="/js/dominion.js?v=22"></script>
+<script src="/js/dominion.js?v=23"></script>
 </body>
 </html>
