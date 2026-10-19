@@ -426,6 +426,7 @@
         dailyOffers: [],
         dailyTitleOffers: [],
         titleCatalog: [],
+        battlefieldSkins: [],
         shopPacksError: '',
         // The pack catalog is fetched on boot, so the shop starts out loading.
         // Cleared by applyShopPacksPayload once an attempt resolves either way.
@@ -5069,6 +5070,7 @@
         const packs = starterMode ? starterPacks : state.packs;
         const dailyOffers = starterMode ? [] : state.dailyOffers;
         const shopTitles = shopTitleOffers();
+        const battlefieldSkins = state.battlefieldSkins || [];
         // An open preview can be walked to an evolution relative that is not on
         // offer today; only snap back to the first offer when nothing resolves.
         if (dailyOffers.length
@@ -5079,12 +5081,54 @@
         grid.innerHTML = `
             ${dailyOffers.length ? `<div class="shop-row-head"><div><span class="eyebrow">Daily Rotation</span><h2>Five cards today</h2></div><span>Refreshes daily</span></div><div class="daily-offer-grid">${dailyOffers.map(renderDailyOfferTile).join('')}</div>` : ''}
             ${shopTitles.length && !starterMode ? `<div class="shop-row-head"><div><span class="eyebrow">Profile Flair</span><h2>Player titles</h2></div><span>Four titles today · Refreshes daily</span></div><div class="shop-title-grid">${shopTitles.map(renderShopTitleTile).join('')}</div>` : ''}
+            ${!starterMode && battlefieldSkins.length ? `<div class="shop-row-head battlefield-shop-heading"><div><span class="eyebrow">Battlefield Collection</span><h2>Make the arena yours</h2></div><span>Seasonal, premium, and achievement rewards</span></div><div class="battlefield-skin-grid">${battlefieldSkins.map(renderBattlefieldSkinTile).join('')}</div>` : ''}
             <div class="shop-row-head"><div><span class="eyebrow">${starterMode ? 'Starter Pack' : 'Packs'}</span><h2>${starterMode ? 'Choose your first pack' : 'Elemental and type pulls'}</h2></div></div>
             ${packs.length ? packs.map(renderPackTile).join('') : renderShopPacksEmptyState()}
         `;
         if (goldLabel) goldLabel.innerHTML = renderCoinAmount(state.progression?.gold || 0);
         renderShopCardPreviewModal();
         renderHudTools();
+    }
+
+    function renderBattlefieldSkinTile(skin) {
+        const progressionSkins = new Map((state.progression?.battlefieldSkins || []).map(item => [item.id, item]));
+        const stateSkin = progressionSkins.get(skin.id) || {};
+        const owned = Boolean(stateSkin.owned || (state.progression?.purchasedBattlefieldSkinIds || []).includes(skin.id));
+        const equipped = Boolean(stateSkin.equipped || state.progression?.equippedBattlefieldSkinId === skin.id);
+        const prestige = skin.collection === 'prestige';
+        const palette = Array.isArray(skin.palette) ? skin.palette : ['#5389d8', '#8b6bc2', '#39afbd', '#d29e58'];
+        const style = `--skin-a:${escapeAttr(palette[0] || '#5389d8')};--skin-b:${escapeAttr(palette[1] || palette[0] || '#8b6bc2')};--skin-c:${escapeAttr(palette[2] || palette[0] || '#39afbd')};--skin-d:${escapeAttr(palette[3] || palette[1] || '#d29e58')}`;
+        const kicker = prestige ? 'PRESTIGE · ACHIEVEMENT' : skin.collection === 'holiday' ? `${String(skin.event || 'SEASONAL').toUpperCase()} EVENT` : 'PREMIUM · PERMANENT';
+        const action = owned
+            ? `<button class="primary-btn" type="button" data-equip-battlefield-id="${escapeAttr(skin.id)}"${equipped ? ' disabled' : ''}>${equipped ? 'Equipped' : 'Equip'}</button>`
+            : prestige
+                ? `<span class="battlefield-skin-lock">Earn: ${escapeHtml(stateSkin.requirement || skin.requirement || skin.achievementId || 'achievement')}</span>`
+                : `<button class="primary-btn" type="button" data-purchase-battlefield-id="${escapeAttr(skin.id)}">${renderCoinAmount(skin.price || 0, '')}</button>`;
+        return `<article class="battlefield-skin-tile${equipped ? ' is-equipped' : ''}" style="${style}">
+            <div class="battlefield-skin-preview" aria-hidden="true"><span class="battlefield-skin-side battlefield-skin-side-left"></span><span class="battlefield-skin-plate"></span><span class="battlefield-skin-side battlefield-skin-side-right"></span></div>
+            <div class="battlefield-skin-copy"><span class="battlefield-skin-kicker">${escapeHtml(kicker)}</span><strong>${escapeHtml(skin.name || 'Battlefield')}</strong><p>${escapeHtml(skin.description || '')}</p><div class="battlefield-skin-footer">${action}</div></div>
+        </article>`;
+    }
+
+    async function purchaseBattlefieldSkin(skinId) {
+        if (!state.profile?.authenticated) return openAuth();
+        const data = await fetchJson('/api/shop/purchase-battlefield', { method: 'POST', body: JSON.stringify({ skinId }) });
+        if (data?.error) return alert(data.error);
+        state.progression = data.progression;
+        if (state.profile) state.profile.progression = data.progression;
+        saveCachedAuthProfile(state.profile);
+        renderShop();
+        renderGold();
+    }
+
+    async function equipBattlefieldSkin(skinId) {
+        if (!state.profile?.authenticated) return openAuth();
+        const data = await fetchJson('/api/shop/equip-battlefield', { method: 'POST', body: JSON.stringify({ skinId }) });
+        if (data?.error) return alert(data.error);
+        state.progression = data.progression;
+        if (state.profile) state.profile.progression = data.progression;
+        saveCachedAuthProfile(state.profile);
+        renderShop();
     }
 
     // Heraldic banner + star — the shared "profile flair / player title" emblem.
@@ -9228,7 +9272,8 @@
     }
 
     function isValidShopPacksPayload(data) {
-        return Array.isArray(data?.packs) && data.packs.length > 0;
+        return Array.isArray(data?.packs) && data.packs.length > 0
+            && Array.isArray(data?.battlefieldSkins);
     }
 
     function applyShopPacksPayload(data) {
@@ -9243,6 +9288,7 @@
         state.dailyOffers = data.dailyOffers || [];
         state.titleCatalog = data.titleCatalog || state.titleCatalog || [];
         state.dailyTitleOffers = data.dailyTitleOffers || [];
+        state.battlefieldSkins = data.battlefieldSkins || state.battlefieldSkins || [];
         return true;
     }
 
@@ -11672,6 +11718,10 @@
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
         const titleButton = event.target.closest('[data-purchase-title-id]');
         if (titleButton) purchasePlayerTitle(titleButton.dataset.purchaseTitleId);
+        const battlefieldPurchaseButton = event.target.closest('[data-purchase-battlefield-id]');
+        if (battlefieldPurchaseButton) purchaseBattlefieldSkin(battlefieldPurchaseButton.dataset.purchaseBattlefieldId);
+        const battlefieldEquipButton = event.target.closest('[data-equip-battlefield-id]');
+        if (battlefieldEquipButton) equipBattlefieldSkin(battlefieldEquipButton.dataset.equipBattlefieldId);
         if (event.target.closest('[data-close-preview]') || event.target.matches('[data-preview-backdrop]')) {
             closePackPreview();
             return;

@@ -70,6 +70,8 @@ public class PlayerProgressionStore {
         payload.put("claimedTournamentIds", progression.getClaimedTournamentIds());
         payload.put("completedPackOpenRequestIds", progression.getCompletedPackOpenRequestIds());
         payload.put("purchasedTitleIds", progression.getPurchasedTitleIds());
+        payload.put("purchasedBattlefieldSkinIds", progression.getPurchasedBattlefieldSkinIds());
+        payload.put("equippedBattlefieldSkinId", progression.getEquippedBattlefieldSkinId());
         payload.put("craftCount", progression.getCraftCount());
         payload.put("holographicCardIds", progression.getHolographicCardIds());
         payload.put("holoArtCardIds", progression.getHoloArtCardIds());
@@ -138,6 +140,8 @@ public class PlayerProgressionStore {
         progression.setPurchasedDailyOfferIds(readStringList(snapshot.get("purchasedDailyOfferIds")));
         progression.setClaimedTournamentIds(readStringList(snapshot.get("claimedTournamentIds")));
         progression.setPurchasedTitleIds(readStringList(snapshot.get("purchasedTitleIds")));
+        progression.setPurchasedBattlefieldSkinIds(readStringList(snapshot.get("purchasedBattlefieldSkinIds")));
+        progression.setEquippedBattlefieldSkinId(snapshot.getString("equippedBattlefieldSkinId"));
         Long craftCount = snapshot.getLong("craftCount");
         progression.setCraftCount(craftCount == null ? 0 : craftCount.intValue());
         progression.setHolographicCardIds(readStringList(snapshot.get("holographicCardIds")));

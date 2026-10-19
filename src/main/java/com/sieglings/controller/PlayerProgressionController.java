@@ -4,6 +4,7 @@ import com.sieglings.model.Card;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
 import com.sieglings.service.AccountService;
+import com.sieglings.service.BattlefieldSkinCatalogService;
 import com.sieglings.service.CardDefinitionService;
 import com.sieglings.service.PackCatalogService;
 import com.sieglings.service.PlayerTitleCatalogService;
@@ -38,6 +39,9 @@ public class PlayerProgressionController {
 
     @Autowired
     private PlayerTitleCatalogService playerTitleCatalogService;
+
+    @Autowired
+    private BattlefieldSkinCatalogService battlefieldSkinCatalogService;
 
     @GetMapping("/api/player/progression")
     public Map<String, Object> progression(@RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
@@ -202,6 +206,30 @@ public class PlayerProgressionController {
         }
     }
 
+    @PostMapping("/api/shop/purchase-battlefield")
+    public Map<String, Object> purchaseBattlefield(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                                   @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            PlayerProgressionEntity progression = progressionService.purchaseBattlefieldSkin(user, string(req, "skinId"));
+            return buildResponse(user, progression);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
+    @PostMapping("/api/shop/equip-battlefield")
+    public Map<String, Object> equipBattlefield(@RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+                                                @RequestBody Map<String, Object> req) {
+        try {
+            AccountUser user = accountService.requireUser(authorizationHeader);
+            PlayerProgressionEntity progression = progressionService.equipBattlefieldSkin(user, string(req, "skinId"));
+            return buildResponse(user, progression);
+        } catch (IllegalArgumentException ex) {
+            return Map.of("error", ex.getMessage());
+        }
+    }
+
     @GetMapping("/api/shop/packs")
     public Map<String, Object> packs() {
         Map<String, Object> out = new LinkedHashMap<>();
@@ -209,6 +237,7 @@ public class PlayerProgressionController {
         out.put("dailyOffers", packCatalogService.serializeDailyOffers());
         out.put("titleCatalog", playerTitleCatalogService.serializeCatalog());
         out.put("dailyTitleOffers", playerTitleCatalogService.serializeDailyShopTitles());
+        out.put("battlefieldSkins", battlefieldSkinCatalogService.all());
         return out;
     }
 
