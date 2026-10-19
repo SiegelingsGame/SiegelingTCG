@@ -2488,6 +2488,23 @@ body.concept-board {
 .sg-switch.on i { transform:translateX(19px); background:var(--acc-emerald); box-shadow:0 0 12px var(--acc-emerald); }
 
 /* help */
+.sg-help-jump {
+  display:flex; gap:8px; overflow-x:auto; padding:12px 18px 2px;
+  -webkit-overflow-scrolling:touch; scrollbar-width:none; touch-action:pan-x;
+}
+.sg-help-jump::-webkit-scrollbar { display:none; }
+.sg-help-jump-chip {
+  flex:0 0 auto; padding:7px 12px; border-radius:999px;
+  border:1px solid rgba(180,140,255,.28); background:rgba(13,10,38,.45);
+  color:var(--muted); text-decoration:none; font-size:11px; font-weight:600;
+  letter-spacing:.04em;
+}
+.sg-help-jump-chip:hover, .sg-help-jump-chip:focus-visible {
+  color:#fff; border-color:rgba(230,205,140,.55); outline:none;
+}
+.sg-help-section { padding:8px 0 2px; }
+.sg-help-section .sg-section-head { padding-top:12px; padding-bottom:4px; }
+.sg-help-section .sg-help-grid { padding-top:8px; padding-bottom:4px; }
 .sg-help-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; padding:14px 18px 0; }
 .sg-help-card { position:relative; height:132px; border-radius:18px; overflow:hidden; display:block;
   box-shadow:0 14px 28px rgba(6,3,24,.5), inset 0 0 0 1px color-mix(in srgb, var(--el,#b45cff) 40%, transparent); }

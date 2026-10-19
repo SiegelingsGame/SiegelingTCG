@@ -9909,6 +9909,7 @@
     var guide = app.querySelector('[data-guide]');
     if (!guide) return;
     var panel = guide.querySelector('[data-guide-panel]');
+    var scroll = app.querySelector('.sg-scroll');
     var opener = null;
 
     function close() {
@@ -9932,6 +9933,20 @@
     }
 
     app.addEventListener('click', function (e) {
+      var jump = e.target.closest ? e.target.closest('.sg-help-jump-chip') : null;
+      if (jump) {
+        var id = (jump.getAttribute('href') || '').replace(/^#/, '');
+        var target = id && app.querySelector('#' + id);
+        if (target && scroll) {
+          e.preventDefault();
+          // Scroll inside the help column — window.scrollTo would miss the
+          // fixed hub shell and leave the section under the top bar.
+          var top = target.offsetTop - 8;
+          if (typeof scroll.scrollTo === 'function') scroll.scrollTo({ top: top, behavior: 'smooth' });
+          else scroll.scrollTop = top;
+        }
+        return;
+      }
       var card = e.target.closest ? e.target.closest('[data-help-chapter]') : null;
       if (!card) return;
       e.preventDefault();
@@ -9945,19 +9960,81 @@
     });
   }
 
+  // Section the flat HELP list so the How to Play screen reads as Modes,
+  // Battle, Advanced, Menus and Reference instead of one undivided grid.
+  // Titles are looked up so reordering a chapter inside HELP does not require
+  // rewriting index numbers here.
+  var HELP_SECTIONS = [
+    { id: 'modes', title: 'Modes', note: 'Every way to play',
+      chapters: ['Game modes', 'Arena & multiplayer', 'Siege mode', 'Gauntlet', 'The Keep', 'Chronicles', 'Dominion'] },
+    { id: 'battle', title: 'Battle basics', note: 'How a match works',
+      chapters: ['Getting started', 'Basics', 'Turn loop', 'Card types', 'Board, notches & energy'] },
+    { id: 'advanced', title: 'Advanced', note: 'Finishes, statuses and matchups',
+      chapters: ['Evolution', 'SiegeKnight', 'Buffs & afflictions', 'Element chart', 'Card finishes'] },
+    { id: 'menus', title: 'Menus', note: 'Collection, shop, social and settings',
+      chapters: ['Collection, decks & shop', 'Social, rooms & tournaments', 'Progression & rewards', 'Saving, tutorials & settings'] },
+    { id: 'reference', title: 'Reference', note: 'Quick look-ups',
+      chapters: ['Glossary'] }
+  ];
+
+  function helpChapterIndex(title) {
+    for (var i = 0; i < HELP.length; i++) {
+      if (HELP[i][0] === title) return i;
+    }
+    return -1;
+  }
+
+  function helpCardMarkup(index) {
+    var h = HELP[index];
+    if (!h) return '';
+    return '<button class="sg-help-card" type="button" data-help-chapter="' + index + '" ' +
+      'style="--el:' + color(h[3]) + '">' +
+      '<img src="' + esc(h[2]) + '" alt="" loading="lazy">' +
+      '<div class="sg-help-veil"></div>' +
+      '<div class="sg-help-body"><strong>' + esc(h[0]) + '</strong><span>' + esc(h[1]) + '</span></div>' +
+    '</button>';
+  }
+
   function helpScreen(opts) {
     opts = opts || {};
+    var covered = {};
+    var sectionsHtml = HELP_SECTIONS.map(function (sec) {
+      var cards = sec.chapters.map(function (title) {
+        var idx = helpChapterIndex(title);
+        if (idx < 0) return '';
+        covered[idx] = true;
+        return helpCardMarkup(idx);
+      }).join('');
+      if (!cards) return '';
+      return '<section class="sg-section sg-help-section" id="help-' + esc(sec.id) + '">' +
+        '<div class="sg-section-head">' +
+          '<h3>' + esc(sec.title) + '</h3>' +
+          '<span class="sg-section-note">' + esc(sec.note) + '</span>' +
+        '</div>' +
+        '<div class="sg-help-grid">' + cards + '</div>' +
+      '</section>';
+    }).join('');
+    // Any chapter left out of HELP_SECTIONS still appears, so a new chapter
+    // cannot vanish just because the section map was not updated.
+    var orphans = [];
+    for (var i = 0; i < HELP.length; i++) {
+      if (!covered[i]) orphans.push(helpCardMarkup(i));
+    }
+    if (orphans.length) {
+      sectionsHtml += '<section class="sg-section sg-help-section" id="help-more">' +
+        '<div class="sg-section-head"><h3>More</h3><span class="sg-section-note">Additional chapters</span></div>' +
+        '<div class="sg-help-grid">' + orphans.join('') + '</div></section>';
+    }
+    var jump = '<nav class="sg-help-jump" aria-label="Help sections">' +
+      HELP_SECTIONS.map(function (sec) {
+        return '<a class="sg-help-jump-chip" href="#help-' + esc(sec.id) + '">' + esc(sec.title) + '</a>';
+      }).join('') +
+    '</nav>';
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
-        '<div class="sg-page-head"><h2>How to Play</h2><p>' + HELP.length + ' chapters</p></div>' +
-        '<div class="sg-help-grid">' + HELP.map(function (h, i) {
-          return '<button class="sg-help-card" type="button" data-help-chapter="' + i + '" ' +
-            'style="--el:' + color(h[3]) + '">' +
-            '<img src="' + esc(h[2]) + '" alt="" loading="lazy">' +
-            '<div class="sg-help-veil"></div>' +
-            '<div class="sg-help-body"><strong>' + esc(h[0]) + '</strong><span>' + esc(h[1]) + '</span></div>' +
-          '</button>';
-        }).join('') + '</div>' +
+        '<div class="sg-page-head"><h2>How to Play</h2><p>' + HELP.length + ' chapters · ' + HELP_SECTIONS.length + ' sections</p></div>' +
+        jump +
+        sectionsHtml +
         '<div style="height:96px"></div>' +
       '</div>' +
       '<div class="sg-guide" data-guide hidden>' +
