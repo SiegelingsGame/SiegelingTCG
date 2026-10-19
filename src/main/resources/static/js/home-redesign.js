@@ -3695,7 +3695,8 @@
   // than a banner; the same scene backs that element's packs and cards.
   var SUMMON_SCENE = {
     ELECTRIC: 'electric', METAL: 'metal',
-    PSYCHIC: 'psychic', UNDEAD: 'undead', POISON: 'poison', SHADOW: 'shadow'
+    PSYCHIC: 'psychic', UNDEAD: 'undead', POISON: 'poison', SHADOW: 'shadow',
+    LIGHT: 'light'
   };
 
   // The backdrop behind a pack or a daily card is its element: a scene of that
@@ -3718,7 +3719,8 @@
     PSYCHIC: { src: '/img/shop/scene-psychic.webp', pos: '52% 48%' }, // Luvyduvy huddle + reader
     UNDEAD:  { src: '/img/shop/scene-undead.webp',  pos: '50% 38%' }, // Ragguette in the graveyard
     POISON:  { src: '/img/shop/scene-poison.webp',  pos: '50% 22%' }, // Slandy skull burst
-    SHADOW:  { src: '/img/shop/scene-shadow.webp',  pos: '50% 20%' }  // Voidmaw over the planet
+    SHADOW:  { src: '/img/shop/scene-shadow.webp',  pos: '50% 20%' }, // Voidmaw over the planet
+    LIGHT:   { src: '/img/shop/scene-light.webp',   pos: '50% 28%' }  // radiant light spirit
   };
   // Molten Forge leads with Fire too; it gets the other Fire scene so it does
   // not look like the Fire starter.
