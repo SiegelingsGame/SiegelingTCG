@@ -4139,47 +4139,47 @@
       '</button>';
     }
     return '<section class="sg-arena-vault" aria-label="Arena Vault">' +
-      '<div class="sg-av-scroll">' +
+      '<div class="sg-av-stage">' +
+        '<div class="sg-av-faceoff" aria-label="Arena preview face-off">' +
+          '<div class="sg-av-half is-ai">' +
+            '<img src="/img/board-skins/board-neutral.webp" alt="AI side with neutral arena artwork" loading="eager" decoding="async">' +
+            '<span>AI <i>NEUTRAL ARENA</i></span>' +
+          '</div>' +
+          '<div class="sg-av-vs" aria-hidden="true"><b>VS</b></div>' +
+          '<div class="sg-av-half is-player">' +
+            '<img src="' + esc(playerArt) + '" alt="' + esc(selected.name || 'Arena') + ' artwork on your side" loading="eager" decoding="async" onerror="this.onerror=null;this.src=\'/img/board-skins/board-neutral.webp\'">' +
+            '<span>YOU <i>' + esc(selected.name || 'ARENA') + '</i></span>' +
+          '</div>' +
+        '</div>' +
         '<header class="sg-av-heading">' +
-          '<div><span class="sg-gplaque-kicker">ARENA VAULT</span><h2>Set the stage.</h2>' +
-          '<p>Preview real battlefield art, unlock skins, and equip the arena that faces the AI’s neutral board.</p></div>' +
-          '<div class="sg-av-stat"><b>' + esc(ownedCount) + ' / ' + esc(skins.length) + '</b> skins unlocked</div>' +
+          '<span class="sg-gplaque-kicker">ARENA VAULT</span>' +
+          '<h2>Set the stage.</h2>' +
+          '<p>Your arena faces the AI’s neutral board. Artwork is only a backdrop; battle cards and hit areas stay separate.</p>' +
+          '<div class="sg-av-stat"><b>' + esc(ownedCount) + ' / ' + esc(skins.length) + '</b> unlocked</div>' +
         '</header>' +
-        '<div class="sg-av-layout">' +
-          '<section class="sg-av-preview">' +
-            '<div class="sg-av-faceoff" aria-hidden="true">' +
-              '<div class="sg-av-half is-ai"><img src="/img/board-skins/board-neutral.webp" alt=""><span>AI</span></div>' +
-              '<div class="sg-av-vs"><b>VS</b></div>' +
-              '<div class="sg-av-half is-player"><img src="' + esc(playerArt) + '" alt="" onerror="this.onerror=null;this.src=\'/img/board-skins/board-neutral.webp\'"><span>YOU</span></div>' +
-            '</div>' +
-            '<div class="sg-av-hero">' +
-              '<img src="' + esc(playerArt) + '" alt="' + esc(selected.name || 'Arena') + ' artwork" loading="eager" decoding="async" onerror="this.onerror=null;this.src=\'/img/board-skins/board-neutral.webp\'">' +
-              '<span class="sg-av-badge">Arena preview</span>' +
-            '</div>' +
-            '<div class="sg-av-preview-info">' +
-              '<div><small>' + esc(arenaSkinKicker(selected)) + '</small><h3>' + esc(selected.name || 'Battlefield') + '</h3>' +
-              '<p>' + esc(selected.description || '') + '</p></div>' +
-              '<div class="sg-av-preview-action">' + action + '</div>' +
-            '</div>' +
-          '</section>' +
+        '<div class="sg-av-dock">' +
+          '<div class="sg-av-selected">' +
+            '<div class="sg-av-copy"><small>' + esc(arenaSkinKicker(selected)) + '</small>' +
+            '<h3>' + esc(selected.name || 'Battlefield') + '</h3>' +
+            '<p>' + esc(selected.description || '') + '</p></div>' +
+            '<div class="sg-av-preview-action">' + action + '</div>' +
+          '</div>' +
           (next
-            ? '<aside class="sg-av-side">' +
-                '<span class="sg-gplaque-kicker">UP NEXT</span><h3>Your next arena awaits.</h3>' +
-                '<p>Progress toward the next unlock, then bring its art to your half of the table.</p>' +
-                '<button type="button" class="sg-av-next" data-arena-skin="' + esc(next.id) + '" aria-label="Preview ' + esc(next.name || 'next arena') + '">' +
-                  '<img src="' + esc(next.thumbnailUrl || next.thumbnail || next.artwork || '') + '" alt="" loading="lazy" decoding="async">' +
-                  '<span><small>' + esc(arenaSkinKicker(next)) + '</small><strong>' + esc(next.name || 'Arena') + '</strong>' +
-                  '<em>' + esc(next.requirement || next.event || 'Locked') + '</em></span>' +
-                '</button>' +
+            ? '<button type="button" class="sg-av-next" data-arena-skin="' + esc(next.id) + '" aria-label="Preview ' + esc(next.name || 'next arena') + '">' +
+                '<img src="' + esc(next.thumbnailUrl || next.thumbnail || next.artwork || '') + '" alt="" loading="lazy" decoding="async">' +
+                '<span><small>UP NEXT</small><strong>' + esc(next.name || 'Arena') + '</strong>' +
+                '<em>' + esc(next.requirement || next.event || 'Locked') + '</em></span>' +
                 (next.collection === 'prestige'
-                  ? '<button type="button" class="sg-av-link" data-arena-jump="prestige">View prestige rewards</button>'
+                  ? '<i class="sg-av-next-jump" data-arena-jump="prestige" role="presentation">Prestige ↗</i>'
                   : '') +
-              '</aside>'
+              '</button>'
             : '') +
         '</div>' +
+      '</div>' +
+      '<div class="sg-av-scroll">' +
         '<section class="sg-av-collection" aria-label="Arena collection">' +
           '<div class="sg-av-collection-head"><h3>The collection <span>' + esc(String(skins.length).padStart(2, '0')) + ' ARENAS</span></h3>' +
-          '<p>A new perspective on every battle.</p></div>' +
+          '<p>Browse, filter, and preview every battlefield skin.</p></div>' +
           '<div class="sg-av-tools">' +
             '<div class="sg-av-filters" role="tablist" aria-label="Filter arenas">' +
               [['all', 'All arenas'], ['owned', 'Unlocked'], ['locked', 'Locked'], ['prestige', 'Prestige']].map(function (pair) {
