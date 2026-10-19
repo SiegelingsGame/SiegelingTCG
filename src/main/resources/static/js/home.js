@@ -5099,15 +5099,41 @@
         const palette = Array.isArray(skin.palette) ? skin.palette : ['#5389d8', '#8b6bc2', '#39afbd', '#d29e58'];
         const style = `--skin-a:${escapeAttr(palette[0] || '#5389d8')};--skin-b:${escapeAttr(palette[1] || palette[0] || '#8b6bc2')};--skin-c:${escapeAttr(palette[2] || palette[0] || '#39afbd')};--skin-d:${escapeAttr(palette[3] || palette[1] || '#d29e58')}`;
         const kicker = prestige ? 'PRESTIGE · ACHIEVEMENT' : skin.collection === 'holiday' ? `${String(skin.event || 'SEASONAL').toUpperCase()} EVENT` : 'PREMIUM · PERMANENT';
+        const eventClosed = skin.collection === 'holiday' && skin.availableForPurchase === false;
         const action = owned
             ? `<button class="primary-btn" type="button" data-equip-battlefield-id="${escapeAttr(skin.id)}"${equipped ? ' disabled' : ''}>${equipped ? 'Equipped' : 'Equip'}</button>`
             : prestige
                 ? `<span class="battlefield-skin-lock">Earn: ${escapeHtml(stateSkin.requirement || skin.requirement || skin.achievementId || 'achievement')}</span>`
-                : `<button class="primary-btn" type="button" data-purchase-battlefield-id="${escapeAttr(skin.id)}">${renderCoinAmount(skin.price || 0, '')}</button>`;
+                : eventClosed
+                    ? `<span class="battlefield-skin-lock">Available during ${escapeHtml(skin.event || 'the seasonal event')}</span>`
+                    : `<button class="primary-btn" type="button" data-purchase-battlefield-id="${escapeAttr(skin.id)}">${renderCoinAmount(skin.price || 0, '')}</button>`;
         return `<article class="battlefield-skin-tile${equipped ? ' is-equipped' : ''}" style="${style}">
-            <div class="battlefield-skin-preview" aria-hidden="true"><span class="battlefield-skin-side battlefield-skin-side-left"></span><span class="battlefield-skin-plate"></span><span class="battlefield-skin-side battlefield-skin-side-right"></span></div>
+            <button class="battlefield-skin-preview" type="button" data-battlefield-preview-id="${escapeAttr(skin.id)}" aria-label="Preview ${escapeAttr(skin.name || 'battlefield')}"><img src="${escapeAttr(skin.thumbnail || skin.thumbnailUrl || '')}" alt="" loading="lazy" decoding="async"><span class="battlefield-preview-label">Preview</span></button>
             <div class="battlefield-skin-copy"><span class="battlefield-skin-kicker">${escapeHtml(kicker)}</span><strong>${escapeHtml(skin.name || 'Battlefield')}</strong><p>${escapeHtml(skin.description || '')}</p><div class="battlefield-skin-footer">${action}</div></div>
         </article>`;
+    }
+
+    function showBattlefieldSkinPreview(skinId) {
+        const skin = state.battlefieldSkins.find(item => item.id === skinId);
+        if (!skin) return;
+        let dialog = document.getElementById('battlefieldSkinPreviewDialog');
+        if (!dialog) {
+            dialog = document.createElement('dialog');
+            dialog.id = 'battlefieldSkinPreviewDialog';
+            dialog.className = 'battlefield-skin-dialog';
+            dialog.innerHTML = '<form method="dialog"><button class="battlefield-preview-close" aria-label="Close preview">×</button></form><h2></h2><img alt=""><p></p>';
+            document.body.append(dialog);
+            dialog.addEventListener('click', event => {
+                if (event.target === dialog) dialog.close();
+            });
+        }
+        dialog.querySelector('h2').textContent = skin.name || 'Battlefield preview';
+        const image = dialog.querySelector('img');
+        image.src = skin.artwork || skin.assetUrl || '';
+        image.alt = `${skin.name || 'Battlefield'} full artwork`;
+        image.onerror = () => { image.removeAttribute('src'); image.alt = 'Battlefield artwork is unavailable'; };
+        dialog.querySelector('p').textContent = skin.description || '';
+        if (!dialog.open) dialog.showModal();
     }
 
     async function purchaseBattlefieldSkin(skinId) {
@@ -9273,7 +9299,8 @@
 
     function isValidShopPacksPayload(data) {
         return Array.isArray(data?.packs) && data.packs.length > 0
-            && Array.isArray(data?.battlefieldSkins);
+            && Array.isArray(data?.battlefieldSkins)
+            && data.battlefieldSkins.some(skin => skin?.id === 'board-haunted-harvest');
     }
 
     function applyShopPacksPayload(data) {
@@ -11718,6 +11745,8 @@
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
         const titleButton = event.target.closest('[data-purchase-title-id]');
         if (titleButton) purchasePlayerTitle(titleButton.dataset.purchaseTitleId);
+        const battlefieldPreviewButton = event.target.closest('[data-battlefield-preview-id]');
+        if (battlefieldPreviewButton) showBattlefieldSkinPreview(battlefieldPreviewButton.dataset.battlefieldPreviewId);
         const battlefieldPurchaseButton = event.target.closest('[data-purchase-battlefield-id]');
         if (battlefieldPurchaseButton) purchaseBattlefieldSkin(battlefieldPurchaseButton.dataset.purchaseBattlefieldId);
         const battlefieldEquipButton = event.target.closest('[data-equip-battlefield-id]');

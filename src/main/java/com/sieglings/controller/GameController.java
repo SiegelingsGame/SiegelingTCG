@@ -903,6 +903,7 @@ public class GameController {
                 return;
             }
             player.setAccountUserId(user.getId());
+            player.setBattlefieldSkinId(playerProgressionService.getOrCreate(user).getEquippedBattlefieldSkinId());
         }
         if (state.isGameOver()) {
             matchHistoryService.recordCompletedGame(state);
@@ -1323,6 +1324,7 @@ public class GameController {
             return row;
         }).toList());
         info.put("deckSize", player.getDeck().size());
+        info.put("battlefieldSkinId", player.getBattlefieldSkinId());
         info.put("trainer", serializeTrainer(player.getActiveTrainer()));
 
         if (includeHand) {
