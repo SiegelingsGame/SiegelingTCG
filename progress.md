@@ -1,3 +1,7 @@
+- October 19, 2026 **Arena Art purchase plate compact, bottom-right.**
+  - **Change.** `.sg-arena-selected` shrinks to content (`width:max-content`, `align-self:flex-end`), tighter padding/type, description hidden on phone; dock hugs the right/bottom above the skin tray. Cache pin `home-redesign.css?v=129`.
+  - **Verification.** Headless Chrome: mobile plate ~128×99 flush to dock right; desktop ~277×74 flush right; `align-self:flex-end`. Screenshots under `/opt/cursor/artifacts/arena-plate-compact-*.png`.
+
 - October 19, 2026 **Arena Art purchase plate barely-there glass.**
   - **Change.** Plate is a whisper: `rgba(255,255,255,.02)` fill, faint border, `blur(6px)`, no sheen/drop shadow; title/CTA keep strong text shadows. Cache pin `home-redesign.css?v=128`.
   - **Verification.** Headless Chrome at 390×844 and 1920×1080: fill `0.02`, blur `6px`, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-barely-*.png`.
