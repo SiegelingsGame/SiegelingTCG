@@ -1,3 +1,7 @@
+- October 19, 2026 **Arena Art glass plate at 30% tint.**
+  - **Change.** `.sg-arena-selected` base fill set to `rgba(14,20,34,.30)` with a lighter specular wash so stacked layers do not darken past the requested 30%. Cache pin `home-redesign.css?v=122`.
+  - **Verification.** Headless Chrome at 390×844 and 1920×1080: computed `background-color` is `rgba(14, 20, 34, 0.3)`, blur still `32px`/`1.85`, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-30-*.png`.
+
 - October 19, 2026 **Arena Art purchase plate gets liquid glass.**
   - **Change.** Shop › Arena Art `.sg-arena-selected` now uses the same liquid-glass recipe as collection filters: specular highlight gradient, translucent tint (~`.28`), inset rim light, and `backdrop-filter: blur(32px) saturate(1.85)`. Player-half bottom vignette lightened so the plate frosts the arena art instead of a near-black scrim; desktop faceoff extends under the dock for the same reason. Cache pin `home-redesign.css?v=121`.
   - **Verification.** Headless Chrome at 390×844 and 1920×1080: computed glass fills translucent, blur/saturate present, player vignette max alpha `< .5`, specular `::before` present, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-*.png`.
