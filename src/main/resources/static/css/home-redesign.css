@@ -2838,11 +2838,37 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); gap:12px 10px;
 }
 /* The unopened pack breathes while the purchase is in flight. */
-.sg-gacha-pack { width:150px; aspect-ratio:var(--card-back-ratio); border-radius:16px; overflow:hidden;
-  box-shadow:0 22px 46px rgba(0,0,0,.6), inset 0 0 0 1px color-mix(in srgb, var(--el,#f2a03d) 42%, transparent);
-  animation:sgPackBreathe 1.8s ease-in-out infinite; }
+.sg-gacha-pack { position:absolute; z-index:20; left:50%; top:50%; width:150px; aspect-ratio:var(--card-back-ratio);
+  padding:0; border:0; border-radius:16px; overflow:visible; background:transparent; color:inherit; cursor:grab;
+  transform:translate(-50%,-50%); touch-action:none; filter:drop-shadow(0 22px 18px rgba(0,0,0,.45)); }
+.sg-gacha-pack.is-sealed { animation:sgPackBreathe 1.8s ease-in-out infinite; }
+.sg-gacha-pack.is-loading .sg-pack-prompt { display:none; }
+.sg-pack-body,.sg-pack-top { position:absolute; inset:0; overflow:hidden; border-radius:16px; }
+.sg-pack-body { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--el,#f2a03d) 50%, transparent); }
 .sg-gacha-pack img { width:100%; height:100%; object-fit:contain; display:block; }
-@keyframes sgPackBreathe { 0%,100%{transform:scale(1);} 50%{transform:scale(1.045);} }
+.sg-pack-top { clip-path:inset(0 0 77% 0); transform:translate3d(var(--rip-x,0px),var(--rip-y,0px),0) rotate(var(--rip-angle,0deg));
+  transform-origin:20% 100%; transition:transform .12s ease-out; }
+.sg-pack-seam { position:absolute; top:22.5%; left:0; right:0; height:2px; z-index:2;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--el,#f2a03d) 82%,white),transparent);
+  filter:drop-shadow(0 0 8px var(--el,#f2a03d)); opacity:.9; }
+.sg-pack-prompt { position:absolute; top:calc(100% + 22px); left:50%; width:max-content; max-width:80vw;
+  transform:translateX(-50%); padding:7px 12px; border:1px solid rgba(255,255,255,.2); border-radius:999px;
+  background:rgba(12,9,35,.84); color:#f8e8b6; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+.sg-gacha-stage.is-pack-ready { display:block; position:relative; width:100%; max-width:430px;
+  height:min(58dvh,460px); flex:1 1 auto; perspective:1400px; }
+.sg-gacha-stage.is-pack-ready .sg-flip { position:absolute; top:50%; left:50%; width:min(52%,210px);
+  opacity:0; pointer-events:none; transform:translate(-50%,-50%) translateY(90px) scale(.3); }
+.sg-gacha-stage.is-ripping .sg-pack-top { transform:translate3d(72%,-115%,70px) rotate(24deg); transition:transform .55s cubic-bezier(.2,.8,.2,1); }
+.sg-gacha-stage.is-ripping .sg-pack-seam { opacity:0; transition:opacity .16s; }
+.sg-gacha-stage.is-ripping .sg-pack-prompt { opacity:0; }
+.sg-gacha-stage.is-dealing .sg-flip { animation:sgCardSlideOut .48s cubic-bezier(.2,.8,.2,1) both;
+  animation-delay:var(--deal-delay,0ms); pointer-events:none; }
+@keyframes sgCardSlideOut {
+  0% { opacity:0; transform:translate(-50%,-50%) translateY(105px) scale(.28) rotate(-4deg); }
+  65% { opacity:1; transform:translate(-50%,-50%) translateY(-10px) scale(1.04) rotate(1deg); }
+  100% { opacity:1; transform:translate(-50%,-50%) translateY(0) scale(1) rotate(0); }
+}
+@keyframes sgPackBreathe { 0%,100%{transform:translate(-50%,-50%) scale(1);} 50%{transform:translate(-50%,-50%) scale(1.045);} }
 .sg-gacha-note { margin:0; font-size:12.5px; color:var(--muted); letter-spacing:.06em; text-align:center; }
 .sg-gacha-actions { display:flex; gap:10px; width:100%; max-width:420px; }
 .sg-gacha-actions > * { flex:1 1 0; }
@@ -4002,6 +4028,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 @media (prefers-reduced-motion:reduce) {
   .sg-gacha-stage.is-stack .sg-flip { transition:none; }
+  .sg-gacha-pack.is-sealed { animation:none; }
+  .sg-gacha-stage.is-ripping .sg-pack-top { transition:none; }
+  .sg-gacha-stage.is-dealing .sg-flip { animation-duration:.01ms; animation-delay:0ms; }
   .sg-flip-sparks i, .sg-flip.is-flaring .sg-flip-front::before { animation:none; display:none; }
 }
 
