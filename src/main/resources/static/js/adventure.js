@@ -1504,10 +1504,21 @@
         (mode ? '' : '<div class="kart-sigil" aria-hidden="true">' + icon(k.element) + '</div>');
     }
     var tplClass = mode === 'OVERLAY' && String(k.cardTemplate || '').toUpperCase() === 'CORNER_CREST' ? ' knight-tpl-corner-crest' : '';
+    // Class chip sits on the Ultimate name row so the box keeps a short
+    // name → class+ult → desc stack and leaves more room for the description.
+    var ultHead = '';
+    if (passiveChip || k.ultimateName || k.ultimateDesc) {
+      ultHead = '<div class="kart-ult-head">' +
+        (passiveChip || '') +
+        ((k.ultimateName || k.ultimateDesc)
+          ? '<span class="kart-ult-name">⚡ ' + esc(k.ultimateName || 'Ultimate') + '</span>'
+          : '') +
+        '</div>';
+    }
     var ultBlock = '';
-    if (k.ultimateName || k.ultimateDesc) {
+    if (ultHead || k.ultimateDesc) {
       ultBlock = '<div class="kart-ult-block">' +
-        '<div class="kart-ult-name">⚡ ' + esc(k.ultimateName || 'Ultimate') + '</div>' +
+        ultHead +
         (k.ultimateDesc ? '<div class="kart-ult-desc">' + esc(k.ultimateDesc) + '</div>' : '') +
         '</div>';
     }
@@ -1518,17 +1529,17 @@
       (lockNote ? '<div class="kart-unlock">' + lockNote + '</div>' : '') +
       '<div class="kart-box">' +
         '<div class="kart-name">' + esc(k.name) + knightLevelHtml(k) + '</div>' +
-        (passiveChip ? '<div class="kart-line kart-class">' + passiveChip + '</div>' : '') +
         ultBlock +
       '</div>' +
     '</div>';
   }
 
-  /* Shrink Ultimate name+desc until both the Ultimate block and the kart-box
-   * fit. Name/level/class stay at their printed size. The Ultimate block is
-   * flex-shrunk with overflow:hidden, so measuring only the box misses clipping
-   * inside the block — check both scrollHeights (same idea as the binder
-   * description fitter). */
+  /* Shrink Ultimate head+desc until both the Ultimate block and the kart-box
+   * fit. Name/level stay at their printed size; class rides on the Ultimate
+   * name row and scales with it. The Ultimate block is flex-shrunk with
+   * overflow:hidden, so measuring only the box misses clipping inside the
+   * block — check both scrollHeights (same idea as the binder description
+   * fitter). */
   function fitKartBoxes() {
     var boxes = document.querySelectorAll('#knightGrid .kart-box');
     for (var i = 0; i < boxes.length; i++) {
@@ -1540,10 +1551,15 @@
       ult.style.fontSize = '';
       ult.style.lineHeight = '';
       var desc = ult.querySelector('.kart-ult-desc');
+      var head = ult.querySelector('.kart-ult-head');
+      var ultName = ult.querySelector('.kart-ult-name');
       var overflows = function () {
         return ult.scrollHeight > ult.clientHeight + 1
           || box.scrollHeight > box.clientHeight + 1
-          || (desc && desc.scrollHeight > desc.clientHeight + 1);
+          || (desc && desc.scrollHeight > desc.clientHeight + 1)
+          // Class + Ultimate name share one row; shrink before the name ellipsizes.
+          || (head && head.scrollWidth > head.clientWidth + 1)
+          || (ultName && ultName.scrollWidth > ultName.clientWidth + 1);
       };
       if (!overflows()) continue;
       var size = parseFloat(window.getComputedStyle(ult).fontSize) || 10;

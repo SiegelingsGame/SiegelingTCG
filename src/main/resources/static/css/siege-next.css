@@ -101,9 +101,6 @@ body {
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .kart-name .klevel { font-size:.62em; margin-left:.35em; padding:0 .45em; text-shadow:none; }
-.kart-line { flex:0 0 auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.kart-class { flex:0 0 auto; }
-.kart-line .kpassive-chip { font-size:.9em; padding:0 .6em; margin:0; background:rgba(10,8,30,.55); text-shadow:none; }
 /* Ultimate block is the only flexible text: JS scales its font until the box fits.
    Name/desc must not flex-shrink — a shrunk desc clips with scrollHeight==clientHeight
    and the fitter wrongly thinks it already fits. */
@@ -111,9 +108,20 @@ body {
     flex:1 1 auto; min-height:0; overflow:hidden;
     display:flex; flex-direction:column; justify-content:center; gap:.12em;
 }
+/* Class chip + Ultimate name share one row. */
+.kart-ult-head {
+    flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    gap:.35em; min-width:0; white-space:nowrap; overflow:hidden;
+}
+.kart-ult-head .kpassive-chip {
+    flex:0 0 auto; font-size:.85em; padding:0 .55em; margin:0;
+    background:rgba(10,8,30,.55); text-shadow:none;
+}
 .kart-ult-name {
-    flex:0 0 auto; color:#ffd066; font-weight:800;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    /* Prefer scaling the whole Ultimate block over ellipsis — fitKartBoxes
+       shrinks until scrollWidth fits; ellipsis is only a last-resort floor. */
+    flex:0 1 auto; min-width:0; color:#ffd066; font-weight:800;
+    overflow:hidden; text-overflow:ellipsis;
 }
 .kart-ult-desc {
     flex:0 0 auto; color:#e8ecf8; font-weight:550; font-size:.92em; line-height:1.15;
