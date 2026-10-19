@@ -321,6 +321,13 @@
             '<p><strong>Decorations &amp; Tools</strong> retitles blueprints, rewrites their effect label, and re-costs them (<code>verdant_fiber 12, stone 4</code>). <strong>Enclave Tasks</strong> defines the rapport tasks residents offer: each Siegeling gets its element ladder plus one personal bond task chosen from its card id. Override an element to change every Siegeling of that element, or add a card id to replace one Siegeling\'s ladder outright. <code>{name}</code> in task copy is replaced with the Siegeling\'s name.</p>'
     };
 
+    topics['players-admin'] = {
+        title: 'Player Accounts',
+        html: '<p>The Players section lists every registered account from Firestore. Select a row to load that player\'s progression and edit balances, owned cards, unlocks, and cosmetics.</p>' +
+            '<p><strong>Owned cards</strong> use one <code>cardId count</code> line each. Id lists (decks, titles, skins, siege unlocks, holo finishes) accept one id per line or comma-separated ids. Saving overwrites those fields on the live progression document — it does not replay shop purchases or grant rewards.</p>' +
+            '<p>Editor sign-in is required to list or change player data. Password hashes are never shown or editable here.</p>'
+    };
+
     topics['siege-events'] = {
         title: 'Event Choice Outcomes',
         html: '<p class="dash-info-loading">Loading outcome reference…</p>',
