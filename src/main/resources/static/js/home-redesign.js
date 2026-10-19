@@ -3392,26 +3392,17 @@
   // the only one left in that position now that the Strategy, Deception and
   // SiegeKnight packs are retired; its back is the one the shipping shop uses,
   // keyed the same way, so the art matches what opening it actually shows.
+  // Pack faces stay on the elemental card-backs; shop stage art for these packs
+  // comes from ELEMENT_STAGE / SUMMON_SCENE (same path as Electric).
   var PACK_BACK = {
     pack_siegeling_random: '/img/packs/siegeling-back.webp'
-  };
-  // Scene-backed elements get a 520×760 crop of their shop scene as the pack
-  // face (selector tile + gacha), so the pack matches the summon art rather
-  // than the ornate elemental card-back.
-  var PACK_FACE = {
-    PSYCHIC: '/img/packs/pack-psychic.webp',
-    UNDEAD: '/img/packs/pack-undead.webp',
-    POISON: '/img/packs/pack-poison.webp',
-    SHADOW: '/img/packs/pack-shadow.webp',
-    LIGHT: '/img/packs/pack-light.webp'
   };
 
   function packBack(pk) {
     if (PACK_BACK[pk.id]) return PACK_BACK[pk.id];
-    var el = String(packElement(pk)).toUpperCase();
-    if (PACK_FACE[el]) return PACK_FACE[el];
     if (pk.id.indexOf('pack_siegeling_') === 0) return PACK_BACK.pack_siegeling_random;
-    return '/img/decks/card-back-' + el.toLowerCase() + '.webp';
+    var el = String(packElement(pk)).toLowerCase();
+    return '/img/decks/card-back-' + el + '.webp';
   }
 
   // Starters lead (a new player's first choice), cheapest first within each
