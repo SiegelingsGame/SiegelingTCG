@@ -3,12 +3,17 @@ package com.sieglings.persistence.firestore;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.QueryDocumentSnapshot;
+import com.google.cloud.firestore.QuerySnapshot;
 import com.sieglings.persistence.entity.AccountUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -35,6 +40,31 @@ public class AccountUserStore {
 
     public Optional<AccountUser> findByEmail(String email) {
         return findById(email);
+    }
+
+    /**
+     * Every registered account. Used by the dashboard Players admin — fine at current
+     * scale; if the user collection grows large, page with a cursor instead.
+     */
+    public List<AccountUser> findAll() {
+        try {
+            QuerySnapshot snapshot = client.requireFirestore()
+                    .collection(client.usersCollection())
+                    .get()
+                    .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            List<AccountUser> out = new ArrayList<>();
+            for (QueryDocumentSnapshot doc : snapshot.getDocuments()) {
+                out.add(toUser(doc.getId(), doc));
+            }
+            out.sort(Comparator
+                    .comparing((AccountUser user) -> user.getDisplayName() == null ? "" : user.getDisplayName(),
+                            String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(user -> user.getEmail() == null ? "" : user.getEmail(),
+                            String.CASE_INSENSITIVE_ORDER));
+            return out;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to list accounts from Firestore.", ex);
+        }
     }
 
     public AccountUser save(AccountUser user) {

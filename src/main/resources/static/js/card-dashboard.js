@@ -92,6 +92,7 @@
         moveDraftEditingOriginalId: null,
         selectedAbilityIndex: 0,
         editorPage: "SIEGLING",
+        dashboardSection: "CARDS",
         actionTypeFilter: "ALL",
         search: "",
         elementFilter: "ALL",
@@ -235,11 +236,15 @@
             "showLoadingArtBtn",
             "showShopBtn",
             "showKeepBtn",
+            "showCardsSectionBtn",
+            "showPlayersSectionBtn",
+            "cardsPageTabs",
             "cardWorkspace",
             "movesPoolWorkspace",
             "loadingArtWorkspace",
             "shopWorkspace",
             "keepWorkspace",
+            "playersWorkspace",
             "siegeWorkspace",
             "deckWorkspace",
             "trainerWorkspace",
@@ -511,6 +516,12 @@
         refs.showLoadingArtBtn.addEventListener("click", () => setEditorPage("LOADING_ART"));
         refs.showShopBtn.addEventListener("click", () => setEditorPage("SHOP"));
         refs.showKeepBtn.addEventListener("click", () => setEditorPage("KEEP"));
+        if (refs.showCardsSectionBtn) {
+            refs.showCardsSectionBtn.addEventListener("click", () => setDashboardSection("CARDS"));
+        }
+        if (refs.showPlayersSectionBtn) {
+            refs.showPlayersSectionBtn.addEventListener("click", () => setDashboardSection("PLAYERS"));
+        }
         refs.liveElementsWorkspace.addEventListener("change", (event) => {
             const input = event.target.closest("input[data-live-element-index]");
             if (!input || input.type !== "checkbox") {
@@ -2926,7 +2937,18 @@
         return normalizeCardType(cardType) === "SIEGLING" ? "SIEGLING" : "ACTION";
     }
 
+    function setDashboardSection(section) {
+        state.dashboardSection = section === "PLAYERS" ? "PLAYERS" : "CARDS";
+        if (state.dashboardSection === "PLAYERS"
+            && window.SiegelingsPlayerAdmin
+            && typeof window.SiegelingsPlayerAdmin.refresh === "function") {
+            window.SiegelingsPlayerAdmin.refresh();
+        }
+        renderAll();
+    }
+
     function setEditorPage(page) {
+        state.dashboardSection = "CARDS";
         if (page === "ACTION") {
             state.editorPage = "ACTION";
         } else if (page === "DECKS") {
@@ -3165,42 +3187,66 @@
         renderAuth();
         renderStatus();
         renderFilterOptions();
-        refs.cardWorkspace.classList.toggle("hidden", state.editorPage === "DECKS" || state.editorPage === "SIEGE" || state.editorPage === "TRAINERS" || state.editorPage === "LIVE_ELEMENTS" || state.editorPage === "MOVES_POOL" || state.editorPage === "LOADING_ART" || state.editorPage === "SHOP" || state.editorPage === "KEEP");
-        refs.movesPoolWorkspace.classList.toggle("hidden", state.editorPage !== "MOVES_POOL");
-        refs.deckWorkspace.classList.toggle("hidden", state.editorPage !== "DECKS");
-        refs.siegeWorkspace.classList.toggle("hidden", state.editorPage !== "SIEGE");
-        refs.trainerWorkspace.classList.toggle("hidden", state.editorPage !== "TRAINERS");
-        refs.liveElementsWorkspace.classList.toggle("hidden", state.editorPage !== "LIVE_ELEMENTS");
-        refs.loadingArtWorkspace.classList.toggle("hidden", state.editorPage !== "LOADING_ART");
-        refs.shopWorkspace.classList.toggle("hidden", state.editorPage !== "SHOP");
-        refs.keepWorkspace.classList.toggle("hidden", state.editorPage !== "KEEP");
-        if (state.editorPage === "MOVES_POOL") {
+        const onPlayers = state.dashboardSection === "PLAYERS";
+        const hideCardChrome = onPlayers
+            || state.editorPage === "DECKS"
+            || state.editorPage === "SIEGE"
+            || state.editorPage === "TRAINERS"
+            || state.editorPage === "LIVE_ELEMENTS"
+            || state.editorPage === "MOVES_POOL"
+            || state.editorPage === "LOADING_ART"
+            || state.editorPage === "SHOP"
+            || state.editorPage === "KEEP";
+        if (refs.cardsPageTabs) {
+            refs.cardsPageTabs.classList.toggle("hidden", onPlayers);
+        }
+        if (refs.showCardsSectionBtn) {
+            refs.showCardsSectionBtn.classList.toggle("active", !onPlayers);
+        }
+        if (refs.showPlayersSectionBtn) {
+            refs.showPlayersSectionBtn.classList.toggle("active", onPlayers);
+        }
+        refs.cardWorkspace.classList.toggle("hidden", hideCardChrome);
+        refs.movesPoolWorkspace.classList.toggle("hidden", onPlayers || state.editorPage !== "MOVES_POOL");
+        refs.deckWorkspace.classList.toggle("hidden", onPlayers || state.editorPage !== "DECKS");
+        refs.siegeWorkspace.classList.toggle("hidden", onPlayers || state.editorPage !== "SIEGE");
+        refs.trainerWorkspace.classList.toggle("hidden", onPlayers || state.editorPage !== "TRAINERS");
+        refs.liveElementsWorkspace.classList.toggle("hidden", onPlayers || state.editorPage !== "LIVE_ELEMENTS");
+        refs.loadingArtWorkspace.classList.toggle("hidden", onPlayers || state.editorPage !== "LOADING_ART");
+        refs.shopWorkspace.classList.toggle("hidden", onPlayers || state.editorPage !== "SHOP");
+        refs.keepWorkspace.classList.toggle("hidden", onPlayers || state.editorPage !== "KEEP");
+        if (refs.playersWorkspace) {
+            refs.playersWorkspace.classList.toggle("hidden", !onPlayers);
+        }
+        if (!onPlayers && state.editorPage === "MOVES_POOL") {
             mountMoveDraftPanel(refs.moveDraftPanelHostPool);
             renderMovesPoolBrowser();
             renderMovesPoolEditorShell();
         } else {
             mountMoveDraftPanel(refs.moveDraftPanelHostSiegling);
         }
-        renderCardList();
-        renderEditor();
-        renderCardVisual();
-        renderSummary();
-        renderPreview();
-        renderDeckList();
-        renderDeckEditor();
-        renderDeckSummary();
-        renderDeckCatalog();
-        renderDeckPreview();
-        renderTrainerList();
-        renderTrainerEditor();
-        renderTrainerSummary();
-        renderTrainerPreview();
-        renderLiveElementsPanel();
-        renderValidation();
-        renderButtons();
-        renderCardIdOptions();
-        if (state.editorPage === "MOVES_POOL") {
-            renderMovesPoolSidePanels();
+        if (!onPlayers) {
+            renderCardList();
+            renderEditor();
+            renderCardVisual();
+            renderSummary();
+            renderPreview();
+            renderDeckList();
+            renderDeckEditor();
+            renderDeckSummary();
+            renderDeckCatalog();
+            renderDeckPreview();
+            renderTrainerList();
+            renderTrainerEditor();
+            renderTrainerSummary();
+            renderTrainerPreview();
+            renderLiveElementsPanel();
+            renderValidation();
+            renderButtons();
+            renderCardIdOptions();
+            if (state.editorPage === "MOVES_POOL") {
+                renderMovesPoolSidePanels();
+            }
         }
     }
 
@@ -3246,7 +3292,9 @@
 
     function renderStatus() {
         refs.dirtyPill.textContent = state.dirty ? "Unsaved changes" : "Saved";
-        refs.cardCountPill.textContent = state.editorPage === "DECKS"
+        refs.cardCountPill.textContent = state.dashboardSection === "PLAYERS"
+            ? "Player accounts"
+            : (state.editorPage === "DECKS"
             ? `${state.decks.length} preset deck${state.decks.length === 1 ? "" : "s"}`
             : (state.editorPage === "SIEGE"
                 ? "Siege mode content"
@@ -3262,7 +3310,7 @@
                         ? "Shop prices"
                     : (state.editorPage === "KEEP"
                         ? "Keep tuning"
-                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`)))))));
+                        : `${state.cards.length} card${state.cards.length === 1 ? "" : "s"}`))))))));
         refs.statusMessage.textContent = state.status.message;
 
         refs.dirtyPill.className = `status-pill ${state.dirty ? "is-dirty" : "is-success"}`;
