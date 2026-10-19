@@ -582,8 +582,9 @@
             grid: [null, null, null, null, null, null, null, null, null],
             refine: { glass: 0, alloy: 0, rations: 0, mortar: 0, preserves: 0, smelt: 0 },
             made: { glass: 0, alloy: 0, rations: 0, mortar: 0, preserves: 0, smelt: 0 },
+            // Idle until "Begin Dominion" — no gathering/crafting before the knight is founded.
             knight: {
-                name: 'Ser Airek', task: { kind: 'gather', id: 'chop_pine' }, prog: 0, stall: '', counts: {},
+                name: 'Ser Airek', made: false, task: { kind: 'idle' }, prog: 0, stall: '', counts: {},
                 equip: { weapon: 'wooden_sword', armor: null, helmet: null, boots: null, accessory: null, relic: null }, tool: 'woodaxe',
                 skills: skills, prof: prof, affinity: affinity, mastery: mastery, rankXp: 0
             },
@@ -611,6 +612,17 @@
     // Schema 1 had three hand-made professions and free weapon choice. Schema 2 started with a
     // standing Woodlot and all six workshops; those Keeps keep what they had.
     function migrate(saved) {
+        // Older saves omit knight.made. Infer it so merge(defaults) does not treat a real Keep as unfounded.
+        // Mid-create saves (name still default, no starter/buildings) stay unfounded and get idled.
+        if (saved.knight && !Object.prototype.hasOwnProperty.call(saved.knight, 'made')) {
+            const k = saved.knight, b = saved.b || {}, wsl = saved.wsl || {};
+            const played = !!(k.given || k.calling || k.portrait || saved.starter
+                || Object.keys(saved.comps || {}).some((id) => saved.comps[id] && saved.comps[id].joined)
+                || (b.woodlot || 0) > 0 || (b.hall || 1) > 1 || (b.archive || 0) > 0 || (b.storehouse || 0) > 0 || (b.yard || 0) > 0
+                || Object.keys(wsl).some((w) => (wsl[w] || 0) > 0)
+                || (saved.runs || 0) > 0 || (saved.rebirths || 0) > 0);
+            saved.knight.made = played;
+        }
         if ((saved.schema || 1) === 2) {
             saved.b = Object.assign({ woodlot: 1 }, saved.b);
             saved.wsl = saved.wsl || {};
@@ -648,7 +660,16 @@
         const k = s.knight, t = k.task || {};
         if (!k.crest || typeof k.crest !== 'object') k.crest = { emblem: '🛡️', color: 'light', shape: 'shield' };
         if (!['shield', 'kite', 'round', 'diamond', 'banner'].includes(k.crest.shape)) k.crest.shape = 'shield';
-        if (!(t.kind === 'idle' || (t.kind === 'gather' && ACTIVITIES[t.id]) || (t.kind === 'craft' && CRAFTS[t.id] && CRAFTS[t.id].repeatable))) k.task = { kind: 'idle' };
+        // Unfounded knights never work: wipe any task/XP that accumulated while the create sheet was open.
+        if (!k.made) {
+            k.task = { kind: 'idle' };
+            k.prog = 0;
+            k.stall = '';
+            k.counts = {};
+            Object.keys(k.skills || {}).forEach((id) => { k.skills[id] = 0; });
+        } else if (!(t.kind === 'idle' || (t.kind === 'gather' && ACTIVITIES[t.id]) || (t.kind === 'craft' && CRAFTS[t.id] && CRAFTS[t.id].repeatable))) {
+            k.task = { kind: 'idle' };
+        }
         SLOTS.forEach((sl) => { const id = k.equip[sl[0]]; if (id && (!RES[id] || RES[id].kind !== sl[1] || fl(s.inv[id]) < 1)) k.equip[sl[0]] = null; });
         if (!k.equip.weapon) k.equip.weapon = ['wooden_sword', 'squires_sword'].find((w) => fl(s.inv[w]) >= 1) || null;
         if (!RES[k.tool] || fl(s.inv[k.tool]) < 1) k.tool = fl(s.inv.woodaxe) ? 'woodaxe' : fl(s.inv.pickaxe) ? 'pickaxe' : '';
@@ -853,7 +874,8 @@
     }
     function tickKnight(s, ms) {
         const k = s.knight;
-        if (knightBusy(s) || k.task.kind === 'idle') return;
+        // No idle work until the player finishes Found your Dominion.
+        if (!k.made || knightBusy(s) || k.task.kind === 'idle') return;
         const def = taskDef(k.task), block = taskBlock(s, def);
         if (block) { k.stall = block; return; }
         k.prog += ms / actionMs(s, def);
@@ -898,6 +920,7 @@
         return true;
     }
     function setTask(s, kind, id) {
+        if (!s.knight.made) return 'Found your knight first.';
         if (knightBusy(s)) return 'The Knight is on an expedition.';
         if (kind === 'idle') { s.knight.task = { kind: 'idle' }; s.knight.prog = 0; s.rev++; return ''; }
         const def = kind === 'gather' ? ACTIVITIES[id] : CRAFTS[id];
@@ -1018,6 +1041,8 @@
 
     function advance(s, target) {
         if (!(target > s.t)) return;
+        // Hold the shared clock with no production until the knight is founded.
+        if (!s.knight.made) { s.t = target; return; }
         if (target - s.t > OFFLINE_CAP) s.t = target - OFFLINE_CAP;
         let guard = 0;
         while (s.t < target && guard++ < 100000) {
@@ -4817,7 +4842,14 @@
             k.given = given; k.title = draft.title; k.name = (draft.title ? draft.title + ' ' : '') + given;
             k.crest = { emblem: draft.emblem, color: draft.color, shape: draft.shape }; k.calling = draft.calling; k.portrait = draft.portrait;
             s.biome = BIOMES[draft.biome] ? draft.biome : 'woodland';
-            if (first) seedStarter(s, draft.starter);
+            if (first) {
+                seedStarter(s, draft.starter);
+                // Player chooses work after founding (Work tip: "Choose what the Knight works on").
+                k.task = { kind: 'idle' };
+                k.prog = 0;
+                k.stall = '';
+                s.t = now();
+            }
             k.made = true; draft = null; s.rev++; closeModal();
             // First founding should open on the Knight page, not the default Base grounds.
             if (first) setTab('knight');
@@ -4966,10 +4998,13 @@
         S.ui.tab = OLD_TAB[S.ui.tab] || (TABS.includes(S.ui.tab) ? S.ui.tab : 'base');
         const before = snapshot(), logLen = S.log.length, gap = now() - S.t;
         advance(S, now());
-        if (gap > 2 * MIN) {
+        // Away report only after founding — leaving the create sheet open is not "time away".
+        if (gap > 2 * MIN && S.knight.made) {
             const notes = S.log.slice(0, Math.max(0, S.log.length - logLen)).map((l) => l.text).slice(0, 8);
             S.away = { ms: Math.min(gap, OFFLINE_CAP), gains: diffGains(before), notes: notes };
             FRESH.length = 0;
+        } else if (!S.knight.made) {
+            S.away = null;
         }
         save();
         document.addEventListener('click', (e) => {
