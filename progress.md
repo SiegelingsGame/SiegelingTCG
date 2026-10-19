@@ -1,3 +1,7 @@
+- October 19, 2026 **Arena Art purchase plate barely-there glass.**
+  - **Change.** `.sg-arena-selected` fill dropped to `rgba(255,255,255,.04)`, sheen removed, blur softened to `14px`; text shadows strengthened so title/CTA stay readable over arena art. Cache pin `home-redesign.css?v=127`.
+  - **Verification.** Headless Chrome at 390×844 and 1920×1080: fill `0.04`, `::before` none, blur `14px`, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-barely-*.png`.
+
 - October 19, 2026 **Arena Art glass plate: clear light glass.**
   - **Change.** 70% navy was too opaque; switched `.sg-arena-selected` to clear liquid glass — `rgba(255,255,255,.12)` fill, lighter specular wash, `blur(22px) saturate(1.7)` — so haunted-harvest color (pumpkins/purple) reads through. Cache pin `home-redesign.css?v=126`.
   - **Verification.** Headless Chrome at 390×844 and 1920×1080: computed fill `rgba(255, 255, 255, 0.12)`, blur `22px`, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-clear-*.png`.
