@@ -14294,7 +14294,8 @@ function applyArenaElementTheme() {
         const element = String(player?.trainer?.element || 'NEUTRAL').toUpperCase();
         const skin = skins[element] || 'neutral';
         half.style.setProperty('--side-accent', getElementHex(element));
-        half.style.setProperty('--side-skin-image', `url("/img/board-skins/board-${skin}.webp")`);
+        const skinUrl = `/img/board-skins/board-${skin}.webp?v=2`;
+        half.style.setProperty('--side-skin-image', `url("${skinUrl}")`);
         const layer = half.querySelector('.bf-skin-layer');
         if (layer) {
             const probe = new Image();
@@ -14302,7 +14303,7 @@ function applyArenaElementTheme() {
                 layer.style.backgroundImage = 'linear-gradient(135deg,#1b2940,#25344a)';
                 half.style.setProperty('--side-accent', '#95a5a6');
             };
-            probe.src = `/img/board-skins/board-${skin}.webp`;
+            probe.src = skinUrl;
         }
     };
     applySide('.bf-player', gameState?.player);
