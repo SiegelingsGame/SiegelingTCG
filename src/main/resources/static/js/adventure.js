@@ -1432,11 +1432,12 @@
   }
 
   /* SiegeKnight cards: the knight's own dashboard card (same frame the Battle
-   * Table shows), but the description box carries the Siege kit — active,
-   * passive and Ultimate — instead of the arena passive/active text. */
+   * Table shows). The description box prints name, level, class, and Ultimate
+   * name + description; Active/Passive/Ultimate prose stays under Details. */
   var KNIGHT_ART_WIDTH = 480;
   var KNIGHT_TEMPLATE_URL = '/img/knights/siegeknight-card-template.webp';
   var KNIGHT_BACK_URL = '/img/knights/card-back-siegeknight.webp';
+  var kartFitFrame = null;
 
   function knightArtMode(k) {
     var mode = String((k && k.artMode) || '').toUpperCase();
@@ -1488,7 +1489,7 @@
     return (k.flavor && String(k.flavor).trim()) || KNIGHT_FLAVOR[k.id] || PASSIVE_FLAVOR[k.passiveKind] || 'Sworn to the Siege.';
   }
 
-  function knightCardArtHtml(k, summary, passiveChip, lockNote) {
+  function knightCardArtHtml(k, passiveChip, lockNote) {
     var mode = knightArtMode(k);
     var layers;
     if (mode === 'FULL_CARD') {
@@ -1503,6 +1504,24 @@
         (mode ? '' : '<div class="kart-sigil" aria-hidden="true">' + icon(k.element) + '</div>');
     }
     var tplClass = mode === 'OVERLAY' && String(k.cardTemplate || '').toUpperCase() === 'CORNER_CREST' ? ' knight-tpl-corner-crest' : '';
+    // Class chip sits on the Ultimate name row so the box keeps a short
+    // name → class+ult → desc stack and leaves more room for the description.
+    var ultHead = '';
+    if (passiveChip || k.ultimateName || k.ultimateDesc) {
+      ultHead = '<div class="kart-ult-head">' +
+        (passiveChip || '') +
+        ((k.ultimateName || k.ultimateDesc)
+          ? '<span class="kart-ult-name">⚡ ' + esc(k.ultimateName || 'Ultimate') + '</span>'
+          : '') +
+        '</div>';
+    }
+    var ultBlock = '';
+    if (ultHead || k.ultimateDesc) {
+      ultBlock = '<div class="kart-ult-block">' +
+        ultHead +
+        (k.ultimateDesc ? '<div class="kart-ult-desc">' + esc(k.ultimateDesc) + '</div>' : '') +
+        '</div>';
+    }
     return '<div class="kart kart-' + (mode ? mode.toLowerCase().replace('_', '-') : 'back') + tplClass + '">' + layers +
       '<div class="kspine" aria-hidden="true"><span class="kspine-icon">' + icon(k.element) + '</span>' +
         '<span class="kspine-name">' + esc(k.name) + '</span>' +
@@ -1510,12 +1529,63 @@
       (lockNote ? '<div class="kart-unlock">' + lockNote + '</div>' : '') +
       '<div class="kart-box">' +
         '<div class="kart-name">' + esc(k.name) + knightLevelHtml(k) + '</div>' +
-        '<div class="kart-line"><span class="kart-act">' + esc(k.activeName) + '</span>' +
-          (summary ? ' <span class="kart-sum">' + summary + '</span>' : '') + '</div>' +
-        (passiveChip ? '<div class="kart-line">' + passiveChip + '</div>' : '') +
-        (k.ultimateDesc ? '<div class="kart-line kart-ult">⚡ ' + esc(k.ultimateName || 'Ultimate') + '</div>' : '') +
+        ultBlock +
       '</div>' +
     '</div>';
+  }
+
+  /* Shrink Ultimate head+desc until both the Ultimate block and the kart-box
+   * fit. Name/level stay at their printed size; class rides on the Ultimate
+   * name row and scales with it. The Ultimate block is flex-shrunk with
+   * overflow:hidden, so measuring only the box misses clipping inside the
+   * block — check both scrollHeights (same idea as the binder description
+   * fitter). */
+  function fitKartBoxes() {
+    var boxes = document.querySelectorAll('#knightGrid .kart-box');
+    for (var i = 0; i < boxes.length; i++) {
+      var box = boxes[i];
+      var ult = box.querySelector('.kart-ult-block');
+      if (!ult) continue;
+      if (getComputedStyle(box).display === 'none') continue;
+      if (!box.offsetParent && box.getClientRects().length === 0) continue;
+      ult.style.fontSize = '';
+      ult.style.lineHeight = '';
+      var desc = ult.querySelector('.kart-ult-desc');
+      var head = ult.querySelector('.kart-ult-head');
+      var ultName = ult.querySelector('.kart-ult-name');
+      var overflows = function () {
+        return ult.scrollHeight > ult.clientHeight + 1
+          || box.scrollHeight > box.clientHeight + 1
+          || (desc && desc.scrollHeight > desc.clientHeight + 1)
+          // Class + Ultimate name share one row; shrink before the name ellipsizes.
+          || (head && head.scrollWidth > head.clientWidth + 1)
+          || (ultName && ultName.scrollWidth > ultName.clientWidth + 1);
+      };
+      if (!overflows()) continue;
+      var size = parseFloat(window.getComputedStyle(ult).fontSize) || 10;
+      var floor = Math.max(4.2, size * 0.4);
+      var guard = 40;
+      ult.style.lineHeight = '1.08';
+      while (overflows() && size > floor && guard-- > 0) {
+        size = Math.max(floor, size * 0.9);
+        ult.style.fontSize = size.toFixed(2) + 'px';
+      }
+    }
+  }
+
+  function scheduleFitKartBoxes(delayMs) {
+    if (kartFitFrame) cancelAnimationFrame(kartFitFrame);
+    var run = function () {
+      kartFitFrame = null;
+      fitKartBoxes();
+    };
+    if (delayMs) {
+      setTimeout(function () {
+        kartFitFrame = requestAnimationFrame(run);
+      }, delayMs);
+    } else {
+      kartFitFrame = requestAnimationFrame(run);
+    }
   }
 
   function renderKnightStep() {
@@ -1544,7 +1614,6 @@
       }
       var canAffordUnlock = locked && k.canUnlock && gold >= (k.unlockCost || 0);
       var c = el('div', 'knight-card ' + elClass(k.element) + (k.id === state.knightId ? ' sel' : '') + (locked ? ' locked' : ''));
-      var summary = specSummary(k.active);
       var pm = PASSIVE_META[k.passiveKind];
       var passiveChip = pm
         ? '<span class="kpassive-chip pk-' + k.passiveKind + '">' + pm.icon + ' ' + esc(k.passiveName || pm.name) + '</span>'
@@ -1566,7 +1635,7 @@
       c.className += ' has-kart';
       c.innerHTML =
         (locked ? '<div class="knight-lock">🔒</div>' : '') +
-        knightCardArtHtml(k, summary, passiveChip, lockNote) +
+        knightCardArtHtml(k, passiveChip, lockNote) +
         '<div class="knotes">' +
           knightXpHtml(k) +
           '<button class="kmore" type="button" aria-expanded="false">Details</button>' +
@@ -1611,6 +1680,7 @@
     });
     kg.scrollLeft = keepX;
     refreshKnightFooter();
+    scheduleFitKartBoxes();
   }
 
   function refreshKnightFooter() {
@@ -1654,6 +1724,8 @@
       var btn = n.querySelector('.kmore');
       if (btn) btn.setAttribute('aria-expanded', String(open));
     });
+    // Landscape rail resizes the card after the width transition; re-fit then.
+    scheduleFitKartBoxes(300);
   }
 
   function closeKnightLockModal() {
@@ -5331,8 +5403,15 @@
     });
     if (overflows) ap.classList.add('ap-tight');
   }
+  function onKnightPickScreen() {
+    return document.body.dataset.screen === 'setupScreen' && state.setupStep === 'knight';
+  }
   window.addEventListener('resize', function () {
     if (document.body.dataset.screen === 'battleScreen') syncApFit();
+    if (onKnightPickScreen()) scheduleFitKartBoxes(80);
+  });
+  window.addEventListener('orientationchange', function () {
+    if (onKnightPickScreen()) scheduleFitKartBoxes(200);
   });
 
   /** Leftover AP pips fly from the HUD into the Knight's charge bar — the
