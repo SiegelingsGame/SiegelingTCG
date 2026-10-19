@@ -5824,9 +5824,7 @@
           '<h3 data-gacha-title>' + esc(pk.name || 'Pack') + (count > 1 ? ' &times;' + esc(count) : '') + '</h3>' +
         '</div>' +
         '<div class="sg-gacha-stage" data-gacha-stage>' +
-          '<div class="sg-gacha-pack" style="--el:' + color(packElement(pk)) + '">' +
-            '<img src="' + esc(packBack(pk)) + '" alt="">' +
-          '</div>' +
+          packShell(pk, 'is-sealed is-loading') +
         '</div>' +
         '<p class="sg-gacha-note" data-gacha-note>Tearing the seal\u2026</p>' +
         // The shards a duplicate crumbles into need somewhere to land, or the
@@ -5842,6 +5840,18 @@
         '</div>' +
       '</div>' +
     '</div>';
+  }
+
+  function packShell(pk, state) {
+    var art = esc(packBack(pk));
+    return '<button class="sg-gacha-pack ' + (state || '') + '" type="button" data-rip-pack ' +
+      ((state || '').indexOf('is-loading') >= 0 ? 'disabled ' : '') + 'aria-label="Rip open ' +
+      esc(pk.name || 'pack') + '">' +
+      '<span class="sg-pack-body"><img src="' + art + '" alt=""></span>' +
+      '<span class="sg-pack-top"><img src="' + art + '" alt=""></span>' +
+      '<span class="sg-pack-seam" aria-hidden="true"></span>' +
+      '<span class="sg-pack-prompt">Drag across the seal to rip</span>' +
+    '</button>';
   }
 
   // The face-down card carries the pack's own back, so the thing the player
@@ -6005,8 +6015,8 @@
 
     function reveal(cards) {
       var back = packBack(pk);
-      kicker.textContent = 'Tap to reveal';
-      note.textContent = cards.length + ' card' + (cards.length === 1 ? '' : 's');
+      kicker.textContent = 'Pack ready';
+      note.textContent = 'Drag across the seal to rip the pack open';
 
       // Best first: the stack is dealt best-on-top, so the pull's headline card
       // is the one the player turns over first. A finish outranks rarity - a GSP
@@ -6016,17 +6026,21 @@
           (rarityRank(cards[b]) - rarityRank(cards[a])) || (a - b);
       });
       var stackMode = cards.length > 1;
-      stage.className = 'sg-gacha-stage ' + (stackMode ? 'is-stack' : 'is-grid');
-      stage.innerHTML = order.map(function (idx, pos) {
+      stage.className = 'sg-gacha-stage ' + (stackMode ? 'is-stack' : 'is-grid') + ' is-pack-ready';
+      stage.innerHTML = packShell(pk, '') + order.map(function (idx, pos) {
         return gachaSlot(cards[idx], back, idx, stackMode ? pos : idx);
       }).join('');
 
       var slots = [].slice.call(stage.querySelectorAll('[data-flip]'));
+      slots.forEach(function (btn, pos) {
+        btn.style.setProperty('--deal-delay', Math.min(pos * 40, 720) + 'ms');
+      });
       var all = gacha.querySelector('[data-gacha-all]');
       var bucket = gacha.querySelector('[data-gacha-bucket]');
       var bucketCount = gacha.querySelector('[data-gacha-bucket-count]');
       var banked = 0;
       var left = slots.length;
+      var stackLocked = true;
       // Duplicates turned to remnants while they were still the face-up top of
       // the stack, so the card the player had just unsealed crumbled out from
       // under them and left them looking at the back of the next one. A pull is
@@ -6039,8 +6053,7 @@
       // The controls stay out until every card has actually been dealt onto the
       // stage. Offering "Reveal all" while the pack is still tearing open asks
       // the player to act on something they cannot see yet.
-      var dealt = (slots.length - 1) * 60 + 420;
-      setTimeout(function () { actions.hidden = false; }, dealt);
+      var dealt = reducedMotion() ? 0 : Math.min((slots.length - 1) * 40, 720) + 520;
 
       // A duplicate is worth remnants, so it does not just sit there wearing a
       // label: the card crumbles and its shards fly to the bucket, which counts
@@ -6178,6 +6191,75 @@
         }
       }
 
+      function bindPackRip() {
+        var pack = stage.querySelector('[data-rip-pack]');
+        if (!pack) return;
+        var startX = 0, startY = 0, dragged = false, tearing = false, suppressClick = false;
+        function tear() {
+          if (tearing) return;
+          tearing = true;
+          pack.disabled = true;
+          stage.classList.add('is-ripping');
+          kicker.textContent = 'Seal broken';
+          note.textContent = 'Your cards are sliding out…';
+          window.setTimeout(function () {
+            if (pack.parentNode) pack.remove();
+            stage.classList.remove('is-pack-ready', 'is-ripping');
+            stage.classList.add('is-dealing');
+            window.setTimeout(function () {
+              stage.classList.remove('is-dealing');
+              stackLocked = false;
+              if (stackMode) {
+                layoutStack();
+                if (stackBar) stackBar.hidden = false;
+              }
+              kicker.textContent = 'Tap to reveal';
+              note.textContent = cards.length + ' card' + (cards.length === 1 ? '' : 's');
+              actions.hidden = false;
+            }, dealt);
+          }, reducedMotion() ? 0 : 620);
+        }
+        pack.addEventListener('pointerdown', function (e) {
+          if (tearing) return;
+          startX = e.clientX;
+          startY = e.clientY;
+          dragged = false;
+          if (pack.setPointerCapture) pack.setPointerCapture(e.pointerId);
+        });
+        pack.addEventListener('pointermove', function (e) {
+          if (tearing || !pack.hasPointerCapture || !pack.hasPointerCapture(e.pointerId)) return;
+          var dx = e.clientX - startX;
+          var dy = e.clientY - startY;
+          if (Math.abs(dx) > 8 || Math.abs(dy) > 8) dragged = true;
+          if (dx > 0 && Math.abs(dx) > Math.abs(dy)) {
+            var progress = Math.min(1, dx / Math.max(90, pack.offsetWidth * .55));
+            pack.style.setProperty('--rip-x', (progress * 12) + 'px');
+            pack.style.setProperty('--rip-y', (progress * -6) + 'px');
+            pack.style.setProperty('--rip-angle', (progress * 3) + 'deg');
+          }
+        });
+        pack.addEventListener('pointerup', function (e) {
+          if (!dragged || tearing) return;
+          suppressClick = true;
+          window.setTimeout(function () { suppressClick = false; }, 0);
+          var dx = e.clientX - startX;
+          var dy = e.clientY - startY;
+          if (dx > Math.max(48, pack.offsetWidth * .28) && dx > Math.abs(dy)) {
+            e.preventDefault();
+            tear();
+          } else {
+            pack.style.removeProperty('--rip-x');
+            pack.style.removeProperty('--rip-y');
+            pack.style.removeProperty('--rip-angle');
+          }
+        });
+        pack.addEventListener('click', function () {
+          if (suppressClick) return;
+          tear();
+        });
+      }
+      bindPackRip();
+
       // Every duplicate the stack held back, paid out one after another so the
       // shard flights read as a sequence instead of one indistinct shower.
       function drainRemnants() {
@@ -6225,6 +6307,7 @@
           '<span class="sg-gacha-stackhint" data-stack-hint></span>';
         stage.parentNode.insertBefore(bar, note);
         stackBar = bar;
+        stackBar.hidden = true;
         stackCounter = bar.querySelector('[data-stack-count]');
         stackHint = bar.querySelector('[data-stack-hint]');
 
@@ -6245,7 +6328,7 @@
         }
 
         stage.addEventListener('pointerdown', function (e) {
-          if (!stackMode || active !== null) return;
+          if (!stackMode || stackLocked || active !== null) return;
           active = e.pointerId; sx = e.clientX; sy = e.clientY; moved = 0; startedAt = Date.now();
           stage.classList.add('is-dragging');
           if (stage.setPointerCapture) stage.setPointerCapture(e.pointerId);
@@ -6286,10 +6369,11 @@
       // In the grid every back is its own button; in the stack only the top card
       // is live and the stage owns the gesture, so a drag is never read as a tap.
       slots.forEach(function (btn) {
-        btn.addEventListener('click', function () { if (!stackMode) flip(btn); });
+        btn.addEventListener('click', function () { if (!stackLocked && !stackMode) flip(btn); });
       });
       if (stackMode) bindStack();
       all.addEventListener('click', function () {
+        if (stackLocked) return;
         if (stackMode) toGrid();
         slots.forEach(function (btn, i) { setTimeout(function () { flip(btn); }, i * 150); });
       });
