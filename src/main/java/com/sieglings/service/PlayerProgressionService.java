@@ -457,15 +457,13 @@ public class PlayerProgressionService {
                 throw new IllegalArgumentException("Choose a starter pack before buying a battlefield.");
             }
             if (progression.getPurchasedBattlefieldSkinIds().contains(skinId)) return progression;
+            if (!battlefieldSkinCatalog.isAvailableForPurchase(skinId,
+                    java.time.LocalDate.now(java.time.ZoneId.of("America/New_York")))) {
+                throw new IllegalArgumentException("That holiday battlefield is only available during its event.");
+            }
             int price = ((Number) skin.get("price")).intValue();
-            if (progression.getGold() < price) throw new IllegalArgumentException("Not enough Siegecoins for that battlefield.");
-            progression.setGold(progression.getGold() - price);
-            List<String> owned = new ArrayList<>(progression.getPurchasedBattlefieldSkinIds());
-            owned.add(skinId);
-            progression.setPurchasedBattlefieldSkinIds(owned);
-            progression.setEquippedBattlefieldSkinId(skinId);
-            progression.setUpdatedAt(Instant.now());
-            return store.save(progression);
+            store.purchaseBattlefieldSkin(user.getId(), skinId, price);
+            return store.findByUserId(user.getId()).orElse(progression);
         }
     }
 
@@ -480,6 +478,12 @@ public class PlayerProgressionService {
                 if (!progression.getPurchasedBattlefieldSkinIds().contains(skinId)
                         && !earnedBattlefieldSkinIds(user, progression).contains(skinId)) {
                     throw new IllegalArgumentException("You do not own that battlefield.");
+                }
+                if ("prestige".equals(battlefieldSkinCatalog.find(skinId).orElseThrow().get("collection"))
+                        && !progression.getPurchasedBattlefieldSkinIds().contains(skinId)) {
+                    List<String> earned = new ArrayList<>(progression.getPurchasedBattlefieldSkinIds());
+                    earned.add(skinId);
+                    progression.setPurchasedBattlefieldSkinIds(earned);
                 }
                 progression.setEquippedBattlefieldSkinId(skinId);
             }
@@ -832,11 +836,19 @@ public class PlayerProgressionService {
 
     private List<Map<String, Object>> serializeBattlefieldSkins(AccountUser user, PlayerProgressionEntity progression) {
         Set<String> earned = earnedBattlefieldSkinIds(user, progression);
+        List<String> newAchievementSkins = earned.stream()
+                .filter(id -> !progression.getPurchasedBattlefieldSkinIds().contains(id)).toList();
+        if (!newAchievementSkins.isEmpty() && user != null) {
+            store.grantBattlefieldAchievementSkins(user.getId(), newAchievementSkins);
+            List<String> owned = new ArrayList<>(progression.getPurchasedBattlefieldSkinIds());
+            owned.addAll(newAchievementSkins);
+            progression.setPurchasedBattlefieldSkinIds(owned);
+        }
         return battlefieldSkinCatalog.all().stream().map(skin -> {
             Map<String, Object> row = new LinkedHashMap<>(skin);
             String id = String.valueOf(skin.get("id"));
             boolean unlocked = earned.contains(id);
-            boolean owned = progression.getPurchasedBattlefieldSkinIds().contains(id) || unlocked;
+            boolean owned = progression.getPurchasedBattlefieldSkinIds().contains(id);
             row.put("owned", owned);
             row.put("unlocked", unlocked);
             row.put("equipped", id.equals(progression.getEquippedBattlefieldSkinId()));

@@ -14270,8 +14270,9 @@ function applyArenaElementTheme() {
     }
 
     const [primary, secondary, tertiary, quaternary] = collectArenaThemeElements();
+    const skinCatalog = authState.profile?.progression?.battlefieldSkins || [];
     const equippedSkinId = authState.profile?.progression?.equippedBattlefieldSkinId;
-    const equippedSkin = authState.profile?.progression?.battlefieldSkins?.find(skin => skin.id === equippedSkinId);
+    const equippedSkin = skinCatalog.find(skin => skin.id === equippedSkinId);
     const skinPalette = Array.isArray(equippedSkin?.palette) ? equippedSkin.palette : null;
     const colors = skinPalette?.length
         ? [skinPalette[0], skinPalette[1] || skinPalette[0], skinPalette[2] || skinPalette[0], skinPalette[3] || skinPalette[1] || skinPalette[0]]
@@ -14296,23 +14297,49 @@ function applyArenaElementTheme() {
     const applySide = (selector, player, sideColor) => {
         const half = boardArea.querySelector(selector);
         if (!half) return;
-        const element = String(player?.trainer?.element || 'NEUTRAL').toUpperCase();
+        const isAiOpponent = selector === '.bf-enemy' && !gameState?.multiplayer;
+        const sideSkinId = isAiOpponent
+            ? 'elemental-confluence'
+            : player?.battlefieldSkinId || (selector === '.bf-player' ? equippedSkinId : 'elemental-confluence');
+        const sideSkin = skinCatalog.find(skin => skin.id === sideSkinId);
+        const directSkinArtwork = typeof sideSkinId === 'string' && /^board-[a-z0-9-]+$/.test(sideSkinId)
+            ? `/img/board-skins/${sideSkinId}.webp` : null;
+        const element = isAiOpponent || sideSkinId === 'elemental-confluence'
+            ? String(isAiOpponent ? 'NEUTRAL' : player?.trainer?.element || 'NEUTRAL').toUpperCase()
+            : 'NEUTRAL';
         const skin = skins[element] || 'neutral';
         half.style.setProperty('--side-accent', sideColor || getElementHex(element));
-        const skinUrl = equippedSkin?.artwork || `/img/board-skins/board-${skin}.webp?v=2`;
+        const skinUrl = sideSkin?.artwork || directSkinArtwork || `/img/board-skins/board-${skin}.webp?v=2`;
         half.style.setProperty('--side-skin-image', `url("${skinUrl}")`);
         const layer = half.querySelector('.bf-skin-layer');
         if (layer) {
             const probe = new Image();
+            const fallbackUrl = `/img/board-skins/board-${skin}.webp?v=2`;
+            const requestedUrl = skinUrl;
+            layer.dataset.requestedSkinUrl = requestedUrl;
             probe.onerror = () => {
-                layer.style.backgroundImage = 'linear-gradient(135deg,#1b2940,#25344a)';
-                half.style.setProperty('--side-accent', '#95a5a6');
+                if (layer.dataset.requestedSkinUrl !== requestedUrl) return;
+                if (requestedUrl !== fallbackUrl) {
+                    layer.style.backgroundImage = `url("${fallbackUrl}")`;
+                    const fallbackProbe = new Image();
+                    fallbackProbe.onerror = () => {
+                        if (layer.dataset.requestedSkinUrl === requestedUrl) {
+                            layer.style.backgroundImage = 'linear-gradient(135deg,#1b2940,#25344a)';
+                            half.style.setProperty('--side-accent', '#95a5a6');
+                        }
+                    };
+                    fallbackProbe.src = fallbackUrl;
+                } else {
+                    layer.style.backgroundImage = 'linear-gradient(135deg,#1b2940,#25344a)';
+                    half.style.setProperty('--side-accent', '#95a5a6');
+                }
             };
             probe.src = skinUrl;
         }
     };
-    applySide('.bf-player', gameState?.player, skinPalette?.[0]);
-    applySide('.bf-enemy', gameState?.enemy, skinPalette?.[1] || skinPalette?.[0]);
+    const enemySkin = skinCatalog.find(skin => skin.id === gameState?.enemy?.battlefieldSkinId);
+    applySide('.bf-player', gameState?.player, equippedSkin?.palette?.[0] || skinPalette?.[0]);
+    applySide('.bf-enemy', gameState?.enemy, enemySkin?.palette?.[0] || skinPalette?.[1] || skinPalette?.[0]);
 }
 
 function getElementSigil(element, variant = 'soft') {

@@ -26,6 +26,8 @@ public class Player {
     private int maxHealth = STARTING_HEALTH;
     private String accountUserId;
     private String loadoutLabel;
+    /** Cosmetic selected by this account; the default is neutral and never comes from the trainer element. */
+    private String battlefieldSkinId = "elemental-confluence";
 
     private int fireEnergy;
     private int earthEnergy;
@@ -308,6 +310,11 @@ public class Player {
     public java.util.Map<String, String> getCardFinishes() { return cardFinishes; }
     public void setCardFinishes(java.util.Map<String, String> cardFinishes) { this.cardFinishes = cardFinishes; }
     public void setAccountUserId(String accountUserId) { this.accountUserId = accountUserId; }
+    public String getBattlefieldSkinId() { return battlefieldSkinId; }
+    public void setBattlefieldSkinId(String battlefieldSkinId) {
+        this.battlefieldSkinId = battlefieldSkinId == null || battlefieldSkinId.isBlank()
+                ? "elemental-confluence" : battlefieldSkinId;
+    }
     public String getLoadoutLabel() { return loadoutLabel; }
     public void setLoadoutLabel(String loadoutLabel) { this.loadoutLabel = loadoutLabel; }
 }
