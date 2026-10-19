@@ -3540,6 +3540,9 @@
         return;
       }
       var tab = e.target.closest('[data-shop-tab]');
+      var arenaPick = e.target.closest('[data-arena-skin]');
+      var arenaBuy = e.target.closest('[data-arena-buy]');
+      var arenaEquip = e.target.closest('[data-arena-equip]');
       var el = e.target.closest('[data-shop-element]');
       var pick = e.target.closest('[data-shop-pack]');
       var offer = e.target.closest('[data-shop-offer]');
@@ -3549,6 +3552,25 @@
       if (tab) {
         opts.shopTab = shopPref('tab', tab.getAttribute('data-shop-tab'));
         refreshShop(opts);
+      } else if (arenaPick) {
+        opts.arenaSkinPreview = arenaPick.getAttribute('data-arena-skin');
+        refreshShop(opts);
+      } else if (arenaBuy || arenaEquip) {
+        if (opts.guest) { window.location.href = '/login'; return; }
+        var skinId = (arenaBuy || arenaEquip).getAttribute(arenaBuy ? 'data-arena-buy' : 'data-arena-equip');
+        (arenaBuy ? window.SiegelingsHomeLive.post('/api/shop/purchase-battlefield', { skinId: skinId })
+          : window.SiegelingsHomeLive.post('/api/shop/equip-battlefield', { skinId: skinId }))
+          .then(function (result) {
+            if (!result || result.error || !result.progression) throw new Error((result && result.error) || 'Arena update failed.');
+            opts.live.progression = result.progression;
+            opts.live.gold = result.progression.gold;
+            opts.live.battlefieldSkins = (result.battlefieldSkins || opts.live.battlefieldSkins || []).map(function (skin) {
+              var owned = (result.progression.battlefieldSkins || []).filter(function (item) { return item.id === skin.id; })[0];
+              return Object.assign({}, skin, owned || {});
+            });
+            if (!opts.live.battlefieldSkins.length) opts.live.battlefieldSkins = result.progression.battlefieldSkins || [];
+            refreshShop(opts, arenaBuy ? 'Arena added to your collection.' : 'Arena equipped.');
+          }).catch(function (error) { refreshShop(opts, error.message || 'Arena update failed.', true); });
       } else if (el) {
         opts.shopElement = shopPref('element', el.getAttribute('data-shop-element'));
         refreshShop(opts);
@@ -3768,6 +3790,7 @@
     var packs = featuredPacks(all.filter(function (pk) { return !isSummonPack(pk); }));
     var offers = live.dailyOffers || [];
     var titles = live.dailyTitleOffers || [];
+    var arenas = live.battlefieldSkins || [];
     var wanted = String(opts.shopElement || shopPref('element') || '').toUpperCase();
     var summon = summons.filter(function (pk) { return packElement(pk) === wanted; })[0] || summons[0] || null;
     var pack = packs.filter(function (pk) { return pk.id === opts.shopPack; })[0] || packs[0] || null;
@@ -3777,9 +3800,10 @@
     if (pack) tabs.push({ id: 'packs', label: 'Pack Market', art: sceneArt('market', true), face: SHOP_SCENE.market.face, el: 'EARTH' });
     if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: sceneArt('cards', true), face: SHOP_SCENE.cards.face, el: 'LIGHT' });
     if (titles.length) tabs.push({ id: 'titles', label: 'Title Hall', art: sceneArt('throne', true), face: SHOP_SCENE.throne.face, el: 'WATER' });
+    if (arenas.length) tabs.push({ id: 'arenas', label: 'Arena Art', art: '/img/board-skins/board-haunted-harvest-thumb.webp', face: '50% 50%', el: 'FIRE' });
     var want = opts.shopTab || shopPref('tab');
     var tab = tabs.filter(function (t) { return t.id === want; })[0] || tabs[0] || null;
-    return { live: live, summons: summons, summon: summon, packs: packs, pack: pack, offers: offers, titles: titles, tabs: tabs, tab: tab };
+    return { live: live, summons: summons, summon: summon, packs: packs, pack: pack, offers: offers, titles: titles, arenas: arenas, tabs: tabs, tab: tab };
   }
 
   function shopTabsMarkup(m) {
@@ -3998,6 +4022,44 @@
       });
   }
 
+  function arenaArtPanel(m, opts) {
+    var skins = m.arenas || [];
+    var progression = m.live.progression || {};
+    var equippedId = progression.equippedBattlefieldSkinId || '';
+    var ownedIds = progression.purchasedBattlefieldSkinIds || [];
+    var selected = skins.filter(function (s) { return s.id === opts.arenaSkinPreview; })[0]
+      || skins.filter(function (s) { return s.id === equippedId; })[0] || skins[0];
+    if (!selected) return '';
+    opts.arenaSkinPreview = selected.id;
+    var saved = (progression.battlefieldSkins || []).filter(function (s) { return s.id === selected.id; })[0] || {};
+    var owned = Boolean(saved.owned || ownedIds.indexOf(selected.id) !== -1);
+    var equipped = Boolean(saved.equipped || equippedId === selected.id);
+    var locked = selected.collection === 'prestige';
+    var eventClosed = selected.collection === 'holiday' && selected.availableForPurchase === false;
+    var action = opts.guest
+      ? '<button class="sg-guest-primary" type="button" data-arena-buy="' + esc(selected.id) + '">Sign in to collect</button>'
+      : owned
+        ? '<button class="sg-guest-primary" type="button" data-arena-equip="' + esc(selected.id) + '"' + (equipped ? ' disabled' : '') + '>' + (equipped ? 'Equipped' : 'Equip arena') + '</button>'
+        : locked
+          ? '<span class="sg-arena-lock">Earn through ' + esc(selected.requirement || selected.achievementId || 'an achievement') + '</span>'
+          : eventClosed
+            ? '<span class="sg-arena-lock">Available during ' + esc(selected.event || 'the seasonal event') + '</span>'
+            : '<button class="sg-guest-primary" type="button" data-arena-buy="' + esc(selected.id) + '"><img src="/img/ui/home-stats/siegecoin.png" alt=""> ' + esc(selected.price || 0) + '</button>';
+    var playerArt = selected.artwork || selected.assetUrl || '/img/board-skins/board-neutral.webp';
+    return '<section class="sg-arena-gallery" aria-label="Arena art showroom">' +
+      '<header class="sg-arena-heading"><span class="sg-gplaque-kicker">BATTLEFIELD COLLECTION</span><h2>Choose your arena</h2><p>Your arena faces the AI’s neutral board. The artwork is only a backdrop; battle cards and hit areas remain separate.</p></header>' +
+      '<div class="sg-arena-faceoff">' +
+        '<div class="sg-arena-half is-ai"><img src="/img/board-skins/board-neutral.webp" alt="AI side with neutral arena artwork" loading="eager" decoding="async"><span>AI <i>NEUTRAL ARENA</i></span></div>' +
+        '<div class="sg-arena-vs" aria-hidden="true"><b>VS</b></div>' +
+        '<div class="sg-arena-half is-player"><img src="' + esc(playerArt) + '" alt="' + esc(selected.name || 'Arena') + ' artwork on your side" loading="eager" decoding="async" onerror="this.onerror=null;this.src=\'/img/board-skins/board-neutral.webp\'"><span>YOU <i>' + esc(selected.name || 'ARENA') + '</i></span></div>' +
+      '</div>' +
+      '<div class="sg-arena-selected"><div><small>' + esc(selected.collection === 'prestige' ? 'PRESTIGE · ACHIEVEMENT' : selected.collection === 'holiday' ? (selected.event || 'SEASONAL').toUpperCase() + ' EVENT' : 'PREMIUM ARENA') + '</small><h3>' + esc(selected.name || 'Battlefield') + '</h3><p>' + esc(selected.description || '') + '</p></div><div class="sg-arena-action">' + action + '</div></div>' +
+      '<div class="sg-arena-skins" role="list" aria-label="Arena artworks">' + skins.map(function (skin) {
+        return '<button type="button" role="listitem" class="sg-arena-skin' + (skin.id === selected.id ? ' on' : '') + '" data-arena-skin="' + esc(skin.id) + '" aria-pressed="' + (skin.id === selected.id ? 'true' : 'false') + '"><img src="' + esc(skin.thumbnailUrl || skin.thumbnail || '') + '" alt="" loading="lazy" decoding="async"><span>' + esc(skin.name || 'Arena') + '</span></button>';
+      }).join('') + '</div>' +
+    '</section>';
+  }
+
   // Published odds, read straight off the pack payload - the same numbers the
   // server rolls with, never a restatement of them.
   function showOdds(app, pk) {
@@ -4082,6 +4144,7 @@
       : m.tab.id === 'summon' ? summonPanel(m)
       : m.tab.id === 'packs' ? packsPanel(m)
       : m.tab.id === 'daily' ? dailyPanel(m, opts)
+      : m.tab.id === 'arenas' ? arenaArtPanel(m, opts)
       : titlesPanel(m, opts);
     var notice = opts.shopNotice
       ? '<p class="sg-shop-notice' + (opts.shopNoticeError ? ' is-error' : '') + '" role="status">' + esc(opts.shopNotice) + '</p>'
