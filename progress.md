@@ -1,3 +1,7 @@
+- October 19, 2026 **Arena Art glass plate at 70% tint.**
+  - **Change.** `.sg-arena-selected` base fill raised to `rgba(14,20,34,.70)`. Cache pin `home-redesign.css?v=123`.
+  - **Verification.** Headless Chrome at 390×844 and 1920×1080: computed `background-color` is `rgba(14, 20, 34, 0.7)`, blur still present, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-70-*.png`.
+
 - October 19, 2026 **Arena Art glass plate at 30% tint.**
   - **Change.** `.sg-arena-selected` base fill set to `rgba(14,20,34,.30)` with a lighter specular wash so stacked layers do not darken past the requested 30%. Cache pin `home-redesign.css?v=122`.
   - **Verification.** Headless Chrome at 390×844 and 1920×1080: computed `background-color` is `rgba(14, 20, 34, 0.3)`, blur still `32px`/`1.85`, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-30-*.png`.
