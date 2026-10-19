@@ -1,6 +1,6 @@
-- October 19, 2026 **Arena Art glass plate at 25% tint.**
-  - **Change.** After 70% read too opaque, dropped `.sg-arena-selected` to `rgba(14,20,34,.25)` with a lighter specular wash so arena art shows through the liquid-glass frost. Cache pin `home-redesign.css?v=125`.
-  - **Verification.** Headless Chrome at 390×844 and 1920×1080: computed `background-color` is `rgba(14, 20, 34, 0.25)`, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-25-*.png`.
+- October 19, 2026 **Arena Art glass plate: clear light glass.**
+  - **Change.** 70% navy was too opaque; switched `.sg-arena-selected` to clear liquid glass — `rgba(255,255,255,.12)` fill, lighter specular wash, `blur(22px) saturate(1.7)` — so haunted-harvest color (pumpkins/purple) reads through. Cache pin `home-redesign.css?v=126`.
+  - **Verification.** Headless Chrome at 390×844 and 1920×1080: computed fill `rgba(255, 255, 255, 0.12)`, blur `22px`, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-clear-*.png`.
 
 - October 19, 2026 **Arena Art glass plate at 70% tint.**
   - **Change.** `.sg-arena-selected` base fill raised to `rgba(14,20,34,.70)`. Cache pin `home-redesign.css?v=123`.
