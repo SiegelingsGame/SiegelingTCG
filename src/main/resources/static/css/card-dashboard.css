@@ -2359,11 +2359,28 @@ button.player-row {
     height: 18px;
 }
 
-.player-admin-actions {
+.player-admin-actions,
+.player-admin-section-tools {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 10px;
+}
+
+.player-admin-section-tools {
+    margin: 0 0 8px;
+}
+
+.player-admin-sections .player-admin-section:first-child {
+    margin-top: 0;
+}
+
+.player-admin-sections .player-admin-form {
+    margin-bottom: 0;
+}
+
+.player-admin-actions {
+    margin-top: 16px;
 }
 
 @media (max-width: 1080px) {

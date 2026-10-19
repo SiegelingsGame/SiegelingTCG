@@ -324,6 +324,7 @@
     topics['players-admin'] = {
         title: 'Player Accounts',
         html: '<p>The Players section lists every registered account from Firestore. Select a row to load that player\'s progression and edit balances, owned cards, unlocks, and cosmetics.</p>' +
+            '<p>Fields are grouped into collapsible sections (Account, Currency, Collection, Siegeknights, Shop, Siege, Finishes, Battlegrounds). Expand/Collapse All and individual toggles remember their state in this browser. Saving still writes every field, including those in collapsed sections.</p>' +
             '<p><strong>Owned cards</strong> use one <code>cardId count</code> line each. Id lists (decks, titles, skins, siege unlocks, holo finishes) accept one id per line or comma-separated ids. Saving overwrites those fields on the live progression document — it does not replay shop purchases or grant rewards.</p>' +
             '<p>Editor sign-in is required to list or change player data. Password hashes are never shown or editable here.</p>'
     };
