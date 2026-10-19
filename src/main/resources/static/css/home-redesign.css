@@ -5886,7 +5886,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-arena-action .sg-guest-primary { min-width:112px; min-height:43px; display:flex; align-items:center; justify-content:center; gap:7px; }
 .sg-arena-action img { width:18px; height:18px; object-fit:contain; }
 .sg-arena-lock { display:block; max-width:100%; color:#ffe39a; font-size:11px; font-weight:800; line-height:1.25; overflow-wrap:anywhere; }
-.sg-arena-skins { position:relative; z-index:auto; left:auto; right:auto; bottom:auto; display:flex; gap:8px; overflow-x:auto; padding:3px 2px 8px; scrollbar-width:thin; }
+.sg-arena-skins { position:relative; z-index:auto; left:auto; right:auto; bottom:auto; display:flex; gap:8px; overflow-x:auto; margin-left:calc(-1 * (var(--gtabs-w) + 22px)); width:calc(100% + var(--gtabs-w) + 40px); box-sizing:border-box; padding:3px 12px 8px; scroll-padding-inline:12px; scrollbar-width:thin; overscroll-behavior-x:contain; }
 .sg-arena-skin { flex:0 0 92px; padding:4px; border:1px solid rgba(255,255,255,.24); border-radius:9px; color:#f8efd9; background:rgba(17,15,42,.86); text-align:left; cursor:pointer; }
 .sg-arena-skin.on { border-color:#ffe39a; box-shadow:0 0 0 1px rgba(255,227,154,.6),0 0 14px rgba(255,200,90,.32); }
 .sg-arena-skin img { display:block; width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:5px; }
@@ -5901,6 +5901,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-arena-selected p { display:-webkit-box; max-width:none; font-size:10px; -webkit-line-clamp:1; }
   .sg-arena-action .sg-guest-primary { min-width:86px; min-height:38px; padding:7px 9px; font-size:11px; }
   .sg-arena-action { justify-self:start; }
+  .sg-arena-skins { margin-left:calc(-1 * (var(--gtabs-w) + 8px)); width:calc(100% + var(--gtabs-w) + 16px); }
   .sg-arena-skin { flex-basis:78px; }
 }
 
