@@ -399,7 +399,16 @@
     var clean = String(pathname || '/home').replace(/\/+$/, '') || '/home';
     // A table's room carries its code in the path: /room/AB12CD.
     if (clean === '/room' || /^\/room\/[A-Za-z0-9]+$/.test(clean)) return 'room';
+    // Shop deep-links keep the player on the shop screen; the tab is read
+    // separately (see shopTabForPath) so /shop/arenas opens Arena Vault.
+    if (clean === '/shop/arenas' || clean === '/shop/cardpack') return 'shop';
     return PATH_SCREEN[clean] || null;
+  }
+  function shopTabForPath(pathname) {
+    var clean = String(pathname || '').replace(/\/+$/, '');
+    if (clean === '/shop/arenas') return 'arenas';
+    if (clean === '/shop/cardpack') return 'packs';
+    return '';
   }
   function pathForScreen(screen) {
     // The room's path is its table, so it is never rebuilt from the screen name.
@@ -3455,6 +3464,11 @@
     // back to the first. Rows are matched by their label, so a row that only
     // exists on another tab starts at its beginning.
     var scrollTop = current.scrollTop;
+    var vault = app.querySelector('.sg-av-scroll');
+    var vaultTop = vault ? vault.scrollTop : 0;
+    var search = app.querySelector('[data-arena-search]');
+    var keepSearch = search && document.activeElement === search;
+    var searchPos = keepSearch ? search.selectionStart : null;
     var rows = {};
     app.querySelectorAll('.sg-gselect').forEach(function (row) {
       rows[row.getAttribute('aria-label')] = row.scrollLeft;
@@ -3462,6 +3476,15 @@
     var next = render(document.createElement('div'), 'shop', Object.assign({}, opts, { freeze: true }));
     app.replaceWith(next);
     next.querySelector('.sg-scroll').scrollTop = scrollTop;
+    var nextVault = next.querySelector('.sg-av-scroll');
+    if (nextVault) nextVault.scrollTop = vaultTop;
+    if (keepSearch) {
+      var nextSearch = next.querySelector('[data-arena-search]');
+      if (nextSearch) {
+        nextSearch.focus();
+        try { nextSearch.setSelectionRange(searchPos, searchPos); } catch (e) { /* ignore */ }
+      }
+    }
     next.querySelectorAll('.sg-gselect').forEach(function (row) {
       var label = row.getAttribute('aria-label');
       if (Object.prototype.hasOwnProperty.call(rows, label)) row.scrollLeft = rows[label];
@@ -3529,6 +3552,12 @@
       if (drag && drag.moved) app._sgSwiped = Date.now();
       drag = null;
     }, { passive: true });
+    app.addEventListener('input', function (e) {
+      if (!e.target || !e.target.getAttribute) return;
+      if (e.target.getAttribute('data-arena-search') == null) return;
+      opts.arenaVaultQuery = e.target.value || '';
+      refreshShop(opts);
+    });
     app.addEventListener('click', function (e) {
       if (!e.target.closest) return;
       var more = e.target.closest('[data-shop-more]');
@@ -3543,6 +3572,8 @@
       var arenaPick = e.target.closest('[data-arena-skin]');
       var arenaBuy = e.target.closest('[data-arena-buy]');
       var arenaEquip = e.target.closest('[data-arena-equip]');
+      var arenaFilter = e.target.closest('[data-arena-filter]');
+      var arenaJump = e.target.closest('[data-arena-jump]');
       var el = e.target.closest('[data-shop-element]');
       var pick = e.target.closest('[data-shop-pack]');
       var offer = e.target.closest('[data-shop-offer]');
@@ -3551,10 +3582,23 @@
       var preview = e.target.closest('[data-title-preview]');
       if (tab) {
         opts.shopTab = shopPref('tab', tab.getAttribute('data-shop-tab'));
+        try {
+          var shopPath = opts.shopTab === 'arenas' ? '/shop/arenas' : '/shop';
+          if (location.pathname !== shopPath) history.replaceState({ screen: 'shop', shopTab: opts.shopTab }, '', shopPath);
+        } catch (err) { /* history is optional */ }
         refreshShop(opts);
+      } else if (arenaFilter) {
+        opts.arenaVaultFilter = arenaFilter.getAttribute('data-arena-filter') || 'all';
+        refreshShop(opts);
+      } else if (arenaJump) {
+        var jumpTarget = app.querySelector('#sg-av-prestige');
+        var jumpScroll = app.querySelector('.sg-av-scroll');
+        if (jumpTarget && jumpScroll) jumpScroll.scrollTo({ top: Math.max(0, jumpTarget.offsetTop - 12), behavior: 'smooth' });
       } else if (arenaPick) {
         opts.arenaSkinPreview = arenaPick.getAttribute('data-arena-skin');
         refreshShop(opts);
+        var focusCard = document.querySelector('.sg-app [data-arena-skin="' + opts.arenaSkinPreview + '"].sg-av-card');
+        if (focusCard) focusCard.focus();
       } else if (arenaBuy || arenaEquip) {
         if (opts.guest) { window.location.href = '/login'; return; }
         var skinId = (arenaBuy || arenaEquip).getAttribute(arenaBuy ? 'data-arena-buy' : 'data-arena-equip');
@@ -3800,8 +3844,8 @@
     if (pack) tabs.push({ id: 'packs', label: 'Pack Market', art: sceneArt('market', true), face: SHOP_SCENE.market.face, el: 'EARTH' });
     if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: sceneArt('cards', true), face: SHOP_SCENE.cards.face, el: 'LIGHT' });
     if (titles.length) tabs.push({ id: 'titles', label: 'Title Hall', art: sceneArt('throne', true), face: SHOP_SCENE.throne.face, el: 'WATER' });
-    if (arenas.length) tabs.push({ id: 'arenas', label: 'Arena Art', art: '/img/board-skins/board-haunted-harvest-thumb.webp', face: '50% 50%', el: 'FIRE' });
-    var want = opts.shopTab || shopPref('tab');
+    if (arenas.length) tabs.push({ id: 'arenas', label: 'Arena Vault', art: '/img/board-skins/board-haunted-harvest-thumb.webp', face: '50% 50%', el: 'FIRE' });
+    var want = opts.shopTab || shopTabForPath(location.pathname) || shopPref('tab');
     var tab = tabs.filter(function (t) { return t.id === want; })[0] || tabs[0] || null;
     return { live: live, summons: summons, summon: summon, packs: packs, pack: pack, offers: offers, titles: titles, arenas: arenas, tabs: tabs, tab: tab };
   }
@@ -4022,6 +4066,37 @@
       });
   }
 
+  function arenaSkinOwned(skin, progression, ownedIds) {
+    var saved = (progression.battlefieldSkins || []).filter(function (s) { return s.id === skin.id; })[0] || {};
+    return Boolean(saved.owned || (ownedIds || []).indexOf(skin.id) !== -1);
+  }
+
+  function arenaSkinKicker(skin) {
+    if (skin.collection === 'prestige') return 'PRESTIGE · ACHIEVEMENT';
+    if (skin.collection === 'holiday') return ((skin.event || 'SEASONAL') + ' EVENT').toUpperCase();
+    return 'PREMIUM ARENA';
+  }
+
+  function arenaSkinAction(skin, opts, owned, equipped) {
+    var locked = skin.collection === 'prestige';
+    var eventClosed = skin.collection === 'holiday' && skin.availableForPurchase === false;
+    if (opts.guest) {
+      return '<button class="sg-guest-primary" type="button" data-arena-buy="' + esc(skin.id) + '">Sign in to collect</button>';
+    }
+    if (owned) {
+      return '<button class="sg-guest-primary" type="button" data-arena-equip="' + esc(skin.id) + '"' +
+        (equipped ? ' disabled' : '') + '>' + (equipped ? 'Equipped' : 'Equip arena') + '</button>';
+    }
+    if (locked) {
+      return '<span class="sg-arena-lock">Earn through ' + esc(skin.requirement || skin.achievementId || 'an achievement') + '</span>';
+    }
+    if (eventClosed) {
+      return '<span class="sg-arena-lock">Available during ' + esc(skin.event || 'the seasonal event') + '</span>';
+    }
+    return '<button class="sg-guest-primary" type="button" data-arena-buy="' + esc(skin.id) + '">' +
+      '<img src="/img/ui/home-stats/siegecoin.png" alt=""> ' + esc(skin.price || 0) + '</button>';
+  }
+
   function arenaArtPanel(m, opts) {
     var skins = m.arenas || [];
     var progression = m.live.progression || {};
@@ -4031,32 +4106,113 @@
       || skins.filter(function (s) { return s.id === equippedId; })[0] || skins[0];
     if (!selected) return '';
     opts.arenaSkinPreview = selected.id;
-    var saved = (progression.battlefieldSkins || []).filter(function (s) { return s.id === selected.id; })[0] || {};
-    var owned = Boolean(saved.owned || ownedIds.indexOf(selected.id) !== -1);
-    var equipped = Boolean(saved.equipped || equippedId === selected.id);
-    var locked = selected.collection === 'prestige';
-    var eventClosed = selected.collection === 'holiday' && selected.availableForPurchase === false;
-    var action = opts.guest
-      ? '<button class="sg-guest-primary" type="button" data-arena-buy="' + esc(selected.id) + '">Sign in to collect</button>'
-      : owned
-        ? '<button class="sg-guest-primary" type="button" data-arena-equip="' + esc(selected.id) + '"' + (equipped ? ' disabled' : '') + '>' + (equipped ? 'Equipped' : 'Equip arena') + '</button>'
-        : locked
-          ? '<span class="sg-arena-lock">Earn through ' + esc(selected.requirement || selected.achievementId || 'an achievement') + '</span>'
-          : eventClosed
-            ? '<span class="sg-arena-lock">Available during ' + esc(selected.event || 'the seasonal event') + '</span>'
-            : '<button class="sg-guest-primary" type="button" data-arena-buy="' + esc(selected.id) + '"><img src="/img/ui/home-stats/siegecoin.png" alt=""> ' + esc(selected.price || 0) + '</button>';
+    var owned = arenaSkinOwned(selected, progression, ownedIds);
+    var equipped = Boolean(equippedId === selected.id);
+    var filter = opts.arenaVaultFilter || 'all';
+    var query = String(opts.arenaVaultQuery || '').toLowerCase();
+    var ownedCount = skins.filter(function (s) { return arenaSkinOwned(s, progression, ownedIds); }).length;
+    var list = skins.filter(function (skin) {
+      var isOwned = arenaSkinOwned(skin, progression, ownedIds);
+      if (filter === 'owned' && !isOwned) return false;
+      if (filter === 'locked' && isOwned) return false;
+      if (filter === 'prestige' && skin.collection !== 'prestige') return false;
+      if (query && String(skin.name || '').toLowerCase().indexOf(query) === -1) return false;
+      return true;
+    });
+    var next = skins.filter(function (s) {
+      return s.collection === 'prestige' && !arenaSkinOwned(s, progression, ownedIds);
+    })[0] || skins.filter(function (s) { return !arenaSkinOwned(s, progression, ownedIds); })[0] || null;
+    var prestige = skins.filter(function (s) { return s.collection === 'prestige'; });
     var playerArt = selected.artwork || selected.assetUrl || '/img/board-skins/board-neutral.webp';
-    return '<section class="sg-arena-gallery" aria-label="Arena art showroom">' +
-      '<header class="sg-arena-heading"><span class="sg-gplaque-kicker">BATTLEFIELD COLLECTION</span><h2>Choose your arena</h2><p>Your arena faces the AI’s neutral board. The artwork is only a backdrop; battle cards and hit areas remain separate.</p></header>' +
-      '<div class="sg-arena-faceoff">' +
-        '<div class="sg-arena-half is-ai"><img src="/img/board-skins/board-neutral.webp" alt="AI side with neutral arena artwork" loading="eager" decoding="async"><span>AI <i>NEUTRAL ARENA</i></span></div>' +
-        '<div class="sg-arena-vs" aria-hidden="true"><b>VS</b></div>' +
-        '<div class="sg-arena-half is-player"><img src="' + esc(playerArt) + '" alt="' + esc(selected.name || 'Arena') + ' artwork on your side" loading="eager" decoding="async" onerror="this.onerror=null;this.src=\'/img/board-skins/board-neutral.webp\'"><span>YOU <i>' + esc(selected.name || 'ARENA') + '</i></span></div>' +
-      '</div>' +
-      '<div class="sg-arena-dock"><div class="sg-arena-selected"><div class="sg-arena-copy"><small>' + esc(selected.collection === 'prestige' ? 'PRESTIGE · ACHIEVEMENT' : selected.collection === 'holiday' ? (selected.event || 'SEASONAL').toUpperCase() + ' EVENT' : 'PREMIUM ARENA') + '</small><h3>' + esc(selected.name || 'Battlefield') + '</h3><p>' + esc(selected.description || '') + '</p></div><div class="sg-arena-action">' + action + '</div></div>' +
-      '<div class="sg-arena-skins" role="list" aria-label="Arena artworks">' + skins.map(function (skin) {
-        return '<button type="button" role="listitem" class="sg-arena-skin' + (skin.id === selected.id ? ' on' : '') + '" data-arena-skin="' + esc(skin.id) + '" aria-pressed="' + (skin.id === selected.id ? 'true' : 'false') + '"><img src="' + esc(skin.thumbnailUrl || skin.thumbnail || '') + '" alt="" loading="lazy" decoding="async"><span>' + esc(skin.name || 'Arena') + '</span></button>';
-      }).join('') + '</div>' +
+    var action = arenaSkinAction(selected, opts, owned, equipped);
+    function thumb(skin, attrs) {
+      var isOwned = arenaSkinOwned(skin, progression, ownedIds);
+      var isEquipped = equippedId === skin.id;
+      var label = isOwned ? (isEquipped ? 'Equipped' : 'Unlocked') : 'Locked';
+      return '<button type="button" class="sg-av-card' + (skin.id === selected.id ? ' on' : '') + (isOwned ? '' : ' is-locked') + '"' +
+        ' data-arena-skin="' + esc(skin.id) + '" ' + attrs + ' aria-pressed="' + (skin.id === selected.id ? 'true' : 'false') + '"' +
+        ' aria-label="Preview ' + esc(skin.name || 'arena') + '">' +
+        '<span class="sg-av-card-art"><img src="' + esc(skin.thumbnailUrl || skin.thumbnail || skin.artwork || '') + '" alt="" loading="lazy" decoding="async">' +
+        '<i>' + esc(label) + '</i></span>' +
+        '<span class="sg-av-card-copy"><small>' + esc(arenaSkinKicker(skin)) + '</small><strong>' + esc(skin.name || 'Arena') + '</strong>' +
+        '<em>' + esc(isOwned ? 'Ready for the arena' : (skin.requirement || skin.unlock || skin.event || 'In the vault')) + '</em></span>' +
+      '</button>';
+    }
+    return '<section class="sg-arena-vault" aria-label="Arena Vault">' +
+      '<div class="sg-av-scroll">' +
+        '<header class="sg-av-heading">' +
+          '<div><span class="sg-gplaque-kicker">ARENA VAULT</span><h2>Set the stage.</h2>' +
+          '<p>Preview real battlefield art, unlock skins, and equip the arena that faces the AI’s neutral board.</p></div>' +
+          '<div class="sg-av-stat"><b>' + esc(ownedCount) + ' / ' + esc(skins.length) + '</b> skins unlocked</div>' +
+        '</header>' +
+        '<div class="sg-av-layout">' +
+          '<section class="sg-av-preview">' +
+            '<div class="sg-av-faceoff" aria-hidden="true">' +
+              '<div class="sg-av-half is-ai"><img src="/img/board-skins/board-neutral.webp" alt=""><span>AI</span></div>' +
+              '<div class="sg-av-vs"><b>VS</b></div>' +
+              '<div class="sg-av-half is-player"><img src="' + esc(playerArt) + '" alt="" onerror="this.onerror=null;this.src=\'/img/board-skins/board-neutral.webp\'"><span>YOU</span></div>' +
+            '</div>' +
+            '<div class="sg-av-hero">' +
+              '<img src="' + esc(playerArt) + '" alt="' + esc(selected.name || 'Arena') + ' artwork" loading="eager" decoding="async" onerror="this.onerror=null;this.src=\'/img/board-skins/board-neutral.webp\'">' +
+              '<span class="sg-av-badge">Arena preview</span>' +
+            '</div>' +
+            '<div class="sg-av-preview-info">' +
+              '<div><small>' + esc(arenaSkinKicker(selected)) + '</small><h3>' + esc(selected.name || 'Battlefield') + '</h3>' +
+              '<p>' + esc(selected.description || '') + '</p></div>' +
+              '<div class="sg-av-preview-action">' + action + '</div>' +
+            '</div>' +
+          '</section>' +
+          (next
+            ? '<aside class="sg-av-side">' +
+                '<span class="sg-gplaque-kicker">UP NEXT</span><h3>Your next arena awaits.</h3>' +
+                '<p>Progress toward the next unlock, then bring its art to your half of the table.</p>' +
+                '<button type="button" class="sg-av-next" data-arena-skin="' + esc(next.id) + '" aria-label="Preview ' + esc(next.name || 'next arena') + '">' +
+                  '<img src="' + esc(next.thumbnailUrl || next.thumbnail || next.artwork || '') + '" alt="" loading="lazy" decoding="async">' +
+                  '<span><small>' + esc(arenaSkinKicker(next)) + '</small><strong>' + esc(next.name || 'Arena') + '</strong>' +
+                  '<em>' + esc(next.requirement || next.event || 'Locked') + '</em></span>' +
+                '</button>' +
+                (next.collection === 'prestige'
+                  ? '<button type="button" class="sg-av-link" data-arena-jump="prestige">View prestige rewards</button>'
+                  : '') +
+              '</aside>'
+            : '') +
+        '</div>' +
+        '<section class="sg-av-collection" aria-label="Arena collection">' +
+          '<div class="sg-av-collection-head"><h3>The collection <span>' + esc(String(skins.length).padStart(2, '0')) + ' ARENAS</span></h3>' +
+          '<p>A new perspective on every battle.</p></div>' +
+          '<div class="sg-av-tools">' +
+            '<div class="sg-av-filters" role="tablist" aria-label="Filter arenas">' +
+              [['all', 'All arenas'], ['owned', 'Unlocked'], ['locked', 'Locked'], ['prestige', 'Prestige']].map(function (pair) {
+                return '<button type="button" role="tab" class="' + (filter === pair[0] ? 'on' : '') + '" data-arena-filter="' + pair[0] + '" aria-selected="' + (filter === pair[0] ? 'true' : 'false') + '">' + pair[1] + '</button>';
+              }).join('') +
+            '</div>' +
+            '<label class="sg-av-search"><span class="sg-sr-only">Search arenas</span>' +
+              '<input type="search" data-arena-search placeholder="Search arenas" value="' + esc(opts.arenaVaultQuery || '') + '" autocomplete="off">' +
+            '</label>' +
+          '</div>' +
+          '<div class="sg-av-grid" role="list">' +
+            (list.length ? list.map(function (skin) { return thumb(skin, 'role="listitem"'); }).join('')
+              : '<p class="sg-av-empty">No arenas match that search.</p>') +
+          '</div>' +
+        '</section>' +
+        (prestige.length
+          ? '<section class="sg-av-prestige" id="sg-av-prestige" aria-label="Prestige arena rewards">' +
+              '<div class="sg-av-collection-head"><h3>Prestige rewards</h3><p>Achievement-only arenas earned through play.</p></div>' +
+              '<div class="sg-av-ach-grid">' + prestige.map(function (skin) {
+                var done = arenaSkinOwned(skin, progression, ownedIds);
+                return '<article class="sg-av-ach">' +
+                  '<div class="sg-av-ach-top"><span class="sg-av-medal" aria-hidden="true">' + (done ? '✧' : '♜') + '</span>' +
+                  '<small>' + (done ? 'COMPLETED' : 'IN PROGRESS') + '</small></div>' +
+                  '<h4>' + esc(skin.name || 'Arena') + '</h4>' +
+                  '<p>' + esc(skin.description || skin.requirement || '') + '</p>' +
+                  '<button type="button" class="sg-av-ach-art" data-arena-skin="' + esc(skin.id) + '" aria-label="Preview reward ' + esc(skin.name || '') + '">' +
+                    '<img src="' + esc(skin.thumbnailUrl || skin.thumbnail || skin.artwork || '') + '" alt="" loading="lazy" decoding="async">' +
+                  '</button>' +
+                  '<small class="sg-av-ach-req">' + esc(skin.requirement || 'Achievement reward') + '</small>' +
+                  '<button type="button" class="sg-av-link" data-arena-skin="' + esc(skin.id) + '">Preview reward</button>' +
+                '</article>';
+              }).join('') + '</div></section>'
+          : '') +
       '</div>' +
     '</section>';
   }
@@ -9778,7 +9934,7 @@
         ["Decks", "Use a preset or save your own deck from owned cards in Deck Builder. Standard presets are 40 cards: 20 Siegelings, 10 Strategies and 10 Deceptions; at most three copies of a card and complete evolution lines. Follow the builder’s validation before saving."],
         ["Summons & packs", "Spend Siegecoins in the Shop on the available summons, packs, decks or daily card offers. Check Odds for current drop rates and the displayed price before buying. Daily Offerings refresh at midnight UTC."],
         ["Crafting", "Use Remnants from a card’s Collection sheet to craft copies or upgrade finishes. Extra copies past the three-copy cap become Remnants."],
-        ["Battlefields", "Shop battlefield skins include premium, seasonal and achievement-exclusive designs. Purchase available skins with Siegecoins, earn prestige skins through their listed achievements, and equip an owned skin. These change your board’s appearance."]
+        ["Battlefields", "Shop → Arena Vault shows premium, seasonal and achievement-exclusive battlefield skins. Purchase available skins with Siegecoins, earn prestige skins through their listed achievements, and equip an owned skin. These change your board’s appearance."]
       ]],
       ["link", ["/cards", "Open your Collection"]]
     ]],
@@ -10370,7 +10526,7 @@
   }
 
   window.SiegelingsHomeConcept = { render: render, mountApp: mountApp, applyLive: applyLive,
-    screenForPath: screenForPath, pathForScreen: pathForScreen,
+    screenForPath: screenForPath, shopTabForPath: shopTabForPath, pathForScreen: pathForScreen,
     fitCardDescriptions: fitCardDescriptions, cards: CARDS, coverageMarkup: coverageMarkup, coverage: COVERAGE,
     // Exposed so the daily rail can be driven at an arbitrary day without
     // waiting for midnight - the only way to check the rotation honestly.

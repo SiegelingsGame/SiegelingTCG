@@ -117,6 +117,10 @@
         "destination": "/home-next.html"
       },
       {
+        "source": "/shop/arenas",
+        "destination": "/home-next.html"
+      },
+      {
         "source": "/profile",
         "destination": "/home-next.html"
       },
