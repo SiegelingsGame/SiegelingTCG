@@ -4053,10 +4053,11 @@
         '<div class="sg-arena-vs" aria-hidden="true"><b>VS</b></div>' +
         '<div class="sg-arena-half is-player"><img src="' + esc(playerArt) + '" alt="' + esc(selected.name || 'Arena') + ' artwork on your side" loading="eager" decoding="async" onerror="this.onerror=null;this.src=\'/img/board-skins/board-neutral.webp\'"><span>YOU <i>' + esc(selected.name || 'ARENA') + '</i></span></div>' +
       '</div>' +
-      '<div class="sg-arena-selected"><div><small>' + esc(selected.collection === 'prestige' ? 'PRESTIGE · ACHIEVEMENT' : selected.collection === 'holiday' ? (selected.event || 'SEASONAL').toUpperCase() + ' EVENT' : 'PREMIUM ARENA') + '</small><h3>' + esc(selected.name || 'Battlefield') + '</h3><p>' + esc(selected.description || '') + '</p></div><div class="sg-arena-action">' + action + '</div></div>' +
+      '<div class="sg-arena-dock"><div class="sg-arena-selected"><div class="sg-arena-copy"><small>' + esc(selected.collection === 'prestige' ? 'PRESTIGE · ACHIEVEMENT' : selected.collection === 'holiday' ? (selected.event || 'SEASONAL').toUpperCase() + ' EVENT' : 'PREMIUM ARENA') + '</small><h3>' + esc(selected.name || 'Battlefield') + '</h3><p>' + esc(selected.description || '') + '</p></div><div class="sg-arena-action">' + action + '</div></div>' +
       '<div class="sg-arena-skins" role="list" aria-label="Arena artworks">' + skins.map(function (skin) {
         return '<button type="button" role="listitem" class="sg-arena-skin' + (skin.id === selected.id ? ' on' : '') + '" data-arena-skin="' + esc(skin.id) + '" aria-pressed="' + (skin.id === selected.id ? 'true' : 'false') + '"><img src="' + esc(skin.thumbnailUrl || skin.thumbnail || '') + '" alt="" loading="lazy" decoding="async"><span>' + esc(skin.name || 'Arena') + '</span></button>';
       }).join('') + '</div>' +
+      '</div>' +
     '</section>';
   }
 
