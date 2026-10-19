@@ -9721,6 +9721,7 @@
         ['Solo', 'Play › Arena. Pick a deck and a SiegeKnight and fight the AI. Wins pay Siegecoins and Remnants.'],
         ['Rooms', 'Host a table and share its code or invite link; your opponent joins it from the Room screen.'],
         ['Tournaments', 'A daily tournament sets an element rule for the day. Every day has a free-element entry.'],
+        ['Arena art', 'Your board half shows your equipped battlefield skin from Shop › Arena Art. In solo play the AI keeps the Neutral arena; in live play each side shows that player’s equipped skin. Skins are cosmetic only.'],
         ['History', 'Finished matches appear under Profile › Recent, with replays where they were recorded.']
       ]]
     ]],
@@ -9754,10 +9755,12 @@
       ['p', 'Dominion is a temporary test mode that runs every Keep and Chronicles system as one idle game. It may change or reset while it is being tested.'],
       ['defs', [
         ['Base', 'The Keep scene: hall ranks, building interiors, visitors with requests and trust, the Storehouse, Builder’s Yard crews, workshops and Akhar’s Wall.'],
-        ['Knight & companions', 'Create your own knight: name, title, portrait, crest and calling. Craft weapons and garments through Work. Tame Siegelings on journeys, give them jobs, build bonds, and level, evolve or rename them.'],
+        ['Knight & companions', 'Create your own knight: name, title, elemental portrait, crest and calling. After founding, you land on the Knight page. Craft weapons and garments through Work. Tame Siegelings on journeys, give them jobs, build bonds, and level, evolve or rename them.'],
+        ['Keeper’s Favor', 'Honor one companion in the Great Hall to lift whole-Keep output by rarity (and rapport). A damaged Hall suspends the bonus; clear the favorite to free the pedestal.'],
+        ['Inventory & Daily Store', 'Open Keep inventory from the resource strip or 🎒. Tabs cover raw, refined, made goods, refining and the Daily Store (refreshes at local midnight, open from day one). The Keep’s bulk market lots join the Store tab once the Storehouse stands.'],
         ['Expeditions', 'Every Chronicles route as a destination, with provisions and cooked meals that buff the squad.'],
         ['Wall & sieges', 'Post defenders on Akhar’s Wall, drill them, and hold the siege waves for Crowns and Silver.'],
-        ['Mentors', 'Meet SiegeSquires, SiegeKnights, Raiders and Lords at the gate, on roads or after sieges. Talk, give gifts and complete shared deeds to build rapport; meet their proof requirement before asking them to train you. A sworn active mentor improves their element’s affinity gain.'],
+        ['Mentors', 'Meet SiegeSquires, SiegeKnights, Raiders and Lords at the gate, on roads or after sieges. Talk, give gifts and complete shared deeds to build rapport; meet their proof requirement before asking them to train you. A sworn active mentor walks with you and improves their element’s affinity gain.'],
         ['Realm', 'Account sync, guilds, Siege Operations and a Crowns market.'],
         ['Test controls & saves', 'The +4h control advances the shared clock. The ⋯ menu reopens the guide or resets Dominion. Signed-in play syncs to your account; a local preview saves only in this browser. Resetting also replaces a synced save.']
       ]],
@@ -9778,9 +9781,9 @@
         ["Decks", "Use a preset or save your own deck from owned cards in Deck Builder. Standard presets are 40 cards: 20 Siegelings, 10 Strategies and 10 Deceptions; at most three copies of a card and complete evolution lines. Follow the builder’s validation before saving."],
         ["Summons & packs", "Spend Siegecoins in the Shop on the available summons, packs, decks or daily card offers. Check Odds for current drop rates and the displayed price before buying. Daily Offerings refresh at midnight UTC."],
         ["Crafting", "Use Remnants from a card’s Collection sheet to craft copies or upgrade finishes. Extra copies past the three-copy cap become Remnants."],
-        ["Battlefields", "Shop battlefield skins include premium, seasonal and achievement-exclusive designs. Purchase available skins with Siegecoins, earn prestige skins through their listed achievements, and equip an owned skin. These change your board’s appearance."]
+        ["Arena Art", "Shop › Arena Art is the battlefield collection showroom. Browse premium, seasonal holiday and prestige (achievement) arenas. Buy with Siegecoins when available, then Equip. Your Battle Table half shows the equipped arena; the AI’s solo side stays Neutral. With default Elemental Confluence, each half follows that side’s SiegeKnight element art. Cosmetic only."]
       ]],
-      ["link", ["/cards", "Open your Collection"]]
+      ["link", ["/shop", "Open the Shop"]]
     ]],
     ["Social, rooms & tournaments", "Find another player", "/img/lands/water.webp", "WATER", [
       ["defs", [
@@ -9797,7 +9800,7 @@
         ["Achievements & titles", "Open Achievements to see goals and unlocks. Profile holds your level, titles, match history and showcase settings."],
         ["Leaderboards", "Compare the current leaderboard categories, including run-specific scores where available. Endless records include best score and floor."],
         ["Gallery & profile", "Visit the Gallery for unlocked art. Customize your public profile with your favourite cards, element, avatar, title and available profile art."],
-        ["Separate progression", "Siege levels, veteran teams, Gauntlet upgrades, Keep resources and idle-RPG progress follow their own mode rules. A cosmetic finish or battlefield skin does not increase Standard Battle stats."]
+        ["Separate progression", "Siege levels, veteran teams, Gauntlet upgrades, Keep resources and idle-RPG progress follow their own mode rules. A cosmetic finish or Arena Art skin does not increase Standard Battle stats."]
       ]],
       ["link", ["/achievements", "View achievements"]]
     ]],
@@ -9828,6 +9831,7 @@
         ['Remnants', 'Earned from duplicates past the 3-copy cap, wins and pack openings. Spent on crafting cards and upgrading finishes.'],
         ['Crowns', 'The Chronicles and Dominion currency.'],
         ['Finish', 'A card’s look: Standard, Holographic (Holo), Special (SP), Holographic Special (HSP), Gold (GOLD) or Gold Special (GSP). See Card finishes.'],
+        ['Arena Art', 'A cosmetic battlefield skin for your board half, bought or earned in Shop › Arena Art and equipped from there.'],
         ['Veteran', 'A Siegeling banked from a won Siege run, used again in Endless and Battlegrounds.']
       ]]
     ]]
