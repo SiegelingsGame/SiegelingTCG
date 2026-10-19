@@ -5301,3 +5301,7 @@ Original prompt: Add the 17 supplied battlefield cosmetics as Shop-purchased pre
 - October 19, 2026 **Arena showroom center seam and option tray.** Anchored the full AI and player artwork toward their shared center seam and removed the divider's reserved gap; the VS badge remains over the join. Added an opaque textured navy hand-area stand-in with a gold top edge behind the arena option buttons. Both HTML CSS pins advanced to `home-redesign.css?v=118`.
 
   Verification: focused headless Chromium checks at 390x844, 320x568, and 1920x1080 passed: zero gap between halves, seam-facing full-image alignment, visible tray background and border, retained picker scroll after selection/art refresh, decoded art, and no page errors. Phone screenshot reviewed; `git diff --check` passed.
+
+- October 19, 2026 **Desktop Arena Art selection priority.** At desktop widths of at least 1024px and heights of at least 600px, the selected arena receives four times the neutral comparison's height. Reserved the lower area for details and the option tray, centered the neutral label, and reduced the selected artwork's shading. Phone layout retains the equal face-off. Both HTML CSS pins advanced to `home-redesign.css?v=119`.
+
+  Verification: full shop rendered at 390x844 and 1920x1080 with all five navigation tabs and the real arena catalog. Desktop selected/neutral height ratio asserted at 4.007; desktop screenshot reviewed. Existing scroll, seam, full-image fit, and tray checks passed at 390x844, 320x568, and 1920x1080; `git diff --check` passed.

@@ -5924,6 +5924,14 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-arena-skin { flex-basis:78px; }
 }
 
+/* Desktop gives the chosen artwork the showcase; neutral is only a comparison. */
+@media (min-width:1024px) and (min-height:600px) {
+  .sg-arena-faceoff { top:var(--gtop); bottom:calc(var(--gnav) + 205px); grid-template-rows:minmax(0,1fr) 0 minmax(0,4fr); }
+  .sg-arena-half.is-ai > span { top:10px; left:50%; transform:translateX(-50%); }
+  .sg-arena-half.is-player > span { display:none; }
+  .sg-arena-half.is-player::after { background:linear-gradient(0deg,rgba(10,8,30,.25),transparent 45%); }
+}
+
 /* Short portrait phones (iPhone SE class): the tabs and the copy share the
    height, so both tighten and the pitch line steps aside. */
 @media (orientation:portrait) and (max-height:740px) {
