@@ -70,6 +70,7 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addViewController("/deck-builder").setViewName("forward:/home-next.html");
         registry.addViewController("/shop").setViewName("forward:/home-next.html");
         registry.addViewController("/shop/cardpack").setViewName("forward:/home-next.html");
+        registry.addViewController("/shop/arenas").setViewName("forward:/home-next.html");
         registry.addViewController("/profile").setViewName("forward:/home-next.html");
         registry.addViewController("/profile/**").setViewName("forward:/home-next.html");
         registry.addViewController("/achievements").setViewName("forward:/home-next.html");
