@@ -1,3 +1,27 @@
+- October 19, 2026 **Arena Art purchase plate barely-there glass.**
+  - **Change.** Plate is a whisper: `rgba(255,255,255,.02)` fill, faint border, `blur(6px)`, no sheen/drop shadow; title/CTA keep strong text shadows. Cache pin `home-redesign.css?v=128`.
+  - **Verification.** Headless Chrome at 390×844 and 1920×1080: fill `0.02`, blur `6px`, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-barely-*.png`.
+
+- October 19, 2026 **Arena Art glass plate: clear light glass.**
+  - **Change.** 70% navy was too opaque; switched `.sg-arena-selected` to clear liquid glass — `rgba(255,255,255,.12)` fill, lighter specular wash, `blur(22px) saturate(1.7)` — so haunted-harvest color (pumpkins/purple) reads through. Cache pin `home-redesign.css?v=126`.
+  - **Verification.** Headless Chrome at 390×844 and 1920×1080: computed fill `rgba(255, 255, 255, 0.12)`, blur `22px`, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-clear-*.png`.
+
+- October 19, 2026 **Arena Art glass plate at 70% tint.**
+  - **Change.** `.sg-arena-selected` base fill raised to `rgba(14,20,34,.70)`. Cache pin `home-redesign.css?v=123`.
+  - **Verification.** Headless Chrome at 390×844 and 1920×1080: computed `background-color` is `rgba(14, 20, 34, 0.7)`, blur still present, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-70-*.png`.
+
+- October 19, 2026 **Arena Art glass plate at 30% tint.**
+  - **Change.** `.sg-arena-selected` base fill set to `rgba(14,20,34,.30)` with a lighter specular wash so stacked layers do not darken past the requested 30%. Cache pin `home-redesign.css?v=122`.
+  - **Verification.** Headless Chrome at 390×844 and 1920×1080: computed `background-color` is `rgba(14, 20, 34, 0.3)`, blur still `32px`/`1.85`, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-30-*.png`.
+
+- October 19, 2026 **Arena Art purchase plate gets liquid glass.**
+  - **Change.** Shop › Arena Art `.sg-arena-selected` now uses the same liquid-glass recipe as collection filters: specular highlight gradient, translucent tint (~`.28`), inset rim light, and `backdrop-filter: blur(32px) saturate(1.85)`. Player-half bottom vignette lightened so the plate frosts the arena art instead of a near-black scrim; desktop faceoff extends under the dock for the same reason. Cache pin `home-redesign.css?v=121`.
+  - **Verification.** Headless Chrome at 390×844 and 1920×1080: computed glass fills translucent, blur/saturate present, player vignette max alpha `< .5`, specular `::before` present, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-*.png`.
+
+- October 19, 2026 **Arena Art purchase plate is semi-transparent.**
+  - **Change.** Shop › Arena Art `.sg-arena-selected` (title + buy/equip row) used near-opaque navy fills (`.94` / `.83`). Background alphas are now `.52` / `.36` with a slightly stronger backdrop blur so the selected arena artwork reads through the purchase space. Cache pin `home-redesign.css?v=120` on `home-next.html` and `home-redesign-preview.html`.
+  - **Verification.** Headless Chrome at 390×844 and 1920×1080 against a local Arena Art gallery mount: computed gradient alphas are `0.52` / `0.36`, `backdrop-filter: blur(10px)`, no page errors. Screenshots under `/opt/cursor/artifacts/arena-purchase-*.png`.
+
 - October 19, 2026 Dominion no-work-before-knight release verification: PR #1143 merged as `18242abb`; Deploy workflow `39296079634` completed successfully (Cloud Run + Firebase Hosting/Functions). Live `/dominion` serves `dominion.js?v=25` with idle-until-founding guards (`made: false`, advance hold, Found your knight first). Hosting and Cloud Run `/api/cards/editor` remain `FIRESTORE` with editing enabled; `/api/game/options` returns 7 decks; `config.js` keeps `apiBaseUrl: ''`.
 
 - October 19, 2026 **Dominion: no work until you found your knight.**

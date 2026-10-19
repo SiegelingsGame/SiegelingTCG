@@ -5883,7 +5883,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-arena-half img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; object-position:center top; }
 .sg-arena-half.is-ai img { transform:rotate(180deg); }
 .sg-arena-half::after { content:""; position:absolute; inset:0; z-index:1; pointer-events:none; background:linear-gradient(180deg,rgba(10,8,30,.53),transparent 48%,rgba(10,8,30,.1)); }
-.sg-arena-half.is-player::after { background:linear-gradient(0deg,rgba(10,8,30,.9),transparent 72%); }
+/* Keep the bottom vignette light — the liquid-glass purchase plate frosts the art itself. */
+.sg-arena-half.is-player::after { background:linear-gradient(0deg,rgba(10,8,30,.28),transparent 58%); }
 .sg-arena-half > span { position:absolute; z-index:2; top:calc(var(--gtop) + 48px); left:calc(var(--gtabs-w) + 25px); display:flex; align-items:baseline; gap:8px; max-width:calc(100% - var(--gtabs-w) - 38px); padding:8px 12px; border:1px solid rgba(255,226,154,.55); border-radius:10px; color:#fff4d5; background:rgba(12,10,35,.78); box-shadow:0 4px 16px rgba(0,0,0,.35); font-weight:900; letter-spacing:.08em; }
 .sg-arena-half > span i { overflow:hidden; color:#e9d7a5; font-size:.68em; font-style:normal; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
 .sg-arena-half.is-player > span { top:auto; bottom:calc(var(--gnav) + 150px); }
@@ -5894,14 +5895,27 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-arena-heading .sg-gplaque-kicker { justify-content:flex-end; }
 .sg-arena-heading h2 { margin:3px 0; color:#fff7e0; font:700 clamp(20px,4vw,38px)/1.02 var(--serif); text-shadow:0 2px 12px #0b0926; }
 .sg-arena-heading p { margin:0; color:#f0e7d0; font-size:11px; text-shadow:0 1px 6px #090821; }
-.sg-arena-dock { position:absolute; z-index:4; left:calc(var(--gtabs-w) + 22px); right:18px; bottom:calc(var(--gnav) + 8px); display:flex; flex-direction:column; gap:8px; }
-.sg-arena-selected { position:relative; z-index:auto; left:auto; right:auto; bottom:auto; display:flex; justify-content:space-between; align-items:center; gap:14px; min-height:86px; padding:11px 14px; border:1px solid rgba(217,180,95,.55); border-radius:14px; background:linear-gradient(100deg,rgba(19,16,46,.94),rgba(19,16,46,.83)); box-shadow:0 8px 24px rgba(0,0,0,.35); backdrop-filter:blur(8px); }
-.sg-arena-copy { min-width:0; }
-.sg-arena-selected small { color:#ffe39a; font-size:9px; font-weight:850; letter-spacing:.16em; }
-.sg-arena-selected h3 { margin:3px 0; color:#fff7e0; font:700 clamp(17px,3vw,25px)/1.05 var(--serif); }
-.sg-arena-selected p { display:-webkit-box; max-width:620px; margin:0; overflow:hidden; color:#ded6c5; font-size:11px; line-height:1.35; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
-.sg-arena-action { flex:0 0 auto; max-width:100%; }
-.sg-arena-action .sg-guest-primary { min-width:112px; min-height:43px; display:flex; align-items:center; justify-content:center; gap:7px; }
+.sg-arena-dock { position:absolute; z-index:4; left:calc(var(--gtabs-w) + 22px); right:12px; bottom:calc(var(--gnav) + 6px); display:flex; flex-direction:column; align-items:stretch; gap:6px; }
+/* Compact barely-there plate — hugs content, sits bottom-right above the skin tray. */
+.sg-arena-selected {
+  position:relative; z-index:auto; left:auto; right:auto; bottom:auto;
+  align-self:flex-end;
+  display:flex; justify-content:flex-start; align-items:center; gap:12px;
+  width:max-content; max-width:min(340px, 100%);
+  min-height:0; padding:8px 10px; border-radius:14px;
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.02);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16);
+  backdrop-filter:blur(6px) saturate(1.2);
+  -webkit-backdrop-filter:blur(6px) saturate(1.2);
+}
+.sg-arena-selected::before { content:none; }
+.sg-arena-copy { position:relative; z-index:1; min-width:0; max-width:200px; }
+.sg-arena-selected small { color:#ffe39a; font-size:8px; font-weight:850; letter-spacing:.14em; text-shadow:0 1px 10px rgba(8,6,24,.85),0 0 18px rgba(8,6,24,.55); }
+.sg-arena-selected h3 { margin:2px 0; color:#fff7e0; font:700 clamp(15px,2.6vw,20px)/1.05 var(--serif); text-shadow:0 1px 12px rgba(8,6,24,.9),0 0 20px rgba(8,6,24,.55); }
+.sg-arena-selected p { display:-webkit-box; max-width:200px; margin:0; overflow:hidden; color:#f0e8d6; font-size:10px; line-height:1.3; -webkit-line-clamp:1; -webkit-box-orient:vertical; text-shadow:0 1px 10px rgba(8,6,24,.85),0 0 16px rgba(8,6,24,.5); }
+.sg-arena-action { position:relative; z-index:1; flex:0 0 auto; max-width:100%; }
+.sg-arena-action .sg-guest-primary { min-width:96px; min-height:38px; padding:7px 12px; display:flex; align-items:center; justify-content:center; gap:6px; font-size:12px; }
 .sg-arena-action img { width:18px; height:18px; object-fit:contain; }
 .sg-arena-lock { display:block; max-width:100%; color:#ffe39a; font-size:11px; font-weight:800; line-height:1.25; overflow-wrap:anywhere; }
 /* Stand-in hand tray gives the choices their own surface below the battlefield. */
@@ -5915,21 +5929,24 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-arena-heading p { display:none; }
   .sg-arena-half > span { left:calc(var(--gtabs-w) + 13px); top:calc(var(--gtop) + 58px); max-width:calc(100% - var(--gtabs-w) - 25px); padding:6px 9px; font-size:10px; }
   .sg-arena-half.is-player > span { display:none; }
-  .sg-arena-dock { left:calc(var(--gtabs-w) + 8px); right:8px; bottom:calc(var(--gnav) + 5px); gap:5px; }
-  .sg-arena-selected { display:grid; grid-template-columns:minmax(0,1fr); gap:6px; min-height:0; padding:8px 9px; }
-  .sg-arena-selected p { display:-webkit-box; max-width:none; font-size:10px; -webkit-line-clamp:1; }
-  .sg-arena-action .sg-guest-primary { min-width:86px; min-height:38px; padding:7px 9px; font-size:11px; }
-  .sg-arena-action { justify-self:start; }
+  .sg-arena-dock { left:calc(var(--gtabs-w) + 8px); right:6px; bottom:calc(var(--gnav) + 4px); gap:4px; }
+  .sg-arena-selected { display:grid; grid-template-columns:minmax(0,max-content); justify-items:stretch; gap:5px; max-width:min(220px, calc(100% - 4px)); padding:7px 8px; border-radius:12px; }
+  .sg-arena-copy { max-width:100%; }
+  .sg-arena-selected h3 { font-size:15px; }
+  .sg-arena-selected p { display:none; }
+  .sg-arena-action .sg-guest-primary { min-width:0; width:100%; min-height:34px; padding:6px 8px; font-size:11px; }
+  .sg-arena-action { justify-self:stretch; }
   .sg-arena-skins { margin-left:calc(-1 * (var(--gtabs-w) + 8px)); width:calc(100% + var(--gtabs-w) + 16px); }
   .sg-arena-skin { flex-basis:78px; }
 }
 
-/* Desktop gives the chosen artwork the showcase; neutral is only a comparison. */
+/* Desktop gives the chosen artwork the showcase; neutral is only a comparison.
+   Faceoff runs under the dock so the liquid-glass purchase plate has art to frost. */
 @media (min-width:1024px) and (min-height:600px) {
-  .sg-arena-faceoff { top:var(--gtop); bottom:calc(var(--gnav) + 205px); grid-template-rows:minmax(0,1fr) 0 minmax(0,4fr); }
+  .sg-arena-faceoff { top:var(--gtop); bottom:0; grid-template-rows:minmax(0,1fr) 0 minmax(0,4fr); }
   .sg-arena-half.is-ai > span { top:10px; left:50%; transform:translateX(-50%); }
   .sg-arena-half.is-player > span { display:none; }
-  .sg-arena-half.is-player::after { background:linear-gradient(0deg,rgba(10,8,30,.25),transparent 45%); }
+  .sg-arena-half.is-player::after { background:linear-gradient(0deg,rgba(10,8,30,.18),transparent 52%); }
 }
 
 /* Short portrait phones (iPhone SE class): the tabs and the copy share the
