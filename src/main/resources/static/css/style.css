@@ -4440,6 +4440,35 @@ body.battle-inline-dock .battle-queue-actions {
     .battle-queue-resolving-content {
         column-gap: 10px;
     }
+
+    /* The resolving strip lives inside the padded hand tray and battle
+       inspector. Break those two containers out as well, so their clipping
+       and horizontal gutters cannot leave a band of page background beside
+       the full-bleed status surface. This selector only applies during the
+       short resolving state; the regular hand and queue inspector retain
+       their normal dock spacing. */
+    body.battle-inline-dock .hand-tray.battle-queue-mode:has(.battle-queue-resolving) {
+        padding-left: 0;
+        padding-right: 0;
+        overflow-x: visible;
+    }
+
+    body.battle-inline-dock .hand-tray.battle-queue-mode:has(.battle-queue-resolving) .desktop-hand-battle-panel {
+        width: 100vw;
+        max-width: 100vw;
+        margin-left: calc(50% - 50vw);
+        padding-left: 0;
+        padding-right: 0;
+        border: 0;
+        border-radius: 0;
+        overflow: visible;
+        box-sizing: border-box;
+    }
+
+    body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-resolving {
+        width: 100%;
+        margin-left: 0;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
