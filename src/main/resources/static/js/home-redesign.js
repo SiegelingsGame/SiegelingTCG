@@ -3392,6 +3392,8 @@
   // the only one left in that position now that the Strategy, Deception and
   // SiegeKnight packs are retired; its back is the one the shipping shop uses,
   // keyed the same way, so the art matches what opening it actually shows.
+  // Pack faces stay on the elemental card-backs; shop stage art for these packs
+  // comes from ELEMENT_STAGE / SUMMON_SCENE (same path as Electric).
   var PACK_BACK = {
     pack_siegeling_random: '/img/packs/siegeling-back.webp'
   };
@@ -3538,6 +3540,9 @@
         return;
       }
       var tab = e.target.closest('[data-shop-tab]');
+      var arenaPick = e.target.closest('[data-arena-skin]');
+      var arenaBuy = e.target.closest('[data-arena-buy]');
+      var arenaEquip = e.target.closest('[data-arena-equip]');
       var el = e.target.closest('[data-shop-element]');
       var pick = e.target.closest('[data-shop-pack]');
       var offer = e.target.closest('[data-shop-offer]');
@@ -3547,6 +3552,25 @@
       if (tab) {
         opts.shopTab = shopPref('tab', tab.getAttribute('data-shop-tab'));
         refreshShop(opts);
+      } else if (arenaPick) {
+        opts.arenaSkinPreview = arenaPick.getAttribute('data-arena-skin');
+        refreshShop(opts);
+      } else if (arenaBuy || arenaEquip) {
+        if (opts.guest) { window.location.href = '/login'; return; }
+        var skinId = (arenaBuy || arenaEquip).getAttribute(arenaBuy ? 'data-arena-buy' : 'data-arena-equip');
+        (arenaBuy ? window.SiegelingsHomeLive.post('/api/shop/purchase-battlefield', { skinId: skinId })
+          : window.SiegelingsHomeLive.post('/api/shop/equip-battlefield', { skinId: skinId }))
+          .then(function (result) {
+            if (!result || result.error || !result.progression) throw new Error((result && result.error) || 'Arena update failed.');
+            opts.live.progression = result.progression;
+            opts.live.gold = result.progression.gold;
+            opts.live.battlefieldSkins = (result.battlefieldSkins || opts.live.battlefieldSkins || []).map(function (skin) {
+              var owned = (result.progression.battlefieldSkins || []).filter(function (item) { return item.id === skin.id; })[0];
+              return Object.assign({}, skin, owned || {});
+            });
+            if (!opts.live.battlefieldSkins.length) opts.live.battlefieldSkins = result.progression.battlefieldSkins || [];
+            refreshShop(opts, arenaBuy ? 'Arena added to your collection.' : 'Arena equipped.');
+          }).catch(function (error) { refreshShop(opts, error.message || 'Arena update failed.', true); });
       } else if (el) {
         opts.shopElement = shopPref('element', el.getAttribute('data-shop-element'));
         refreshShop(opts);
@@ -3693,7 +3717,11 @@
   }
   // Elements whose summon stands on a shop scene (`scene-<id>.webp`) rather
   // than a banner; the same scene backs that element's packs and cards.
-  var SUMMON_SCENE = { ELECTRIC: 'electric', METAL: 'metal' };
+  var SUMMON_SCENE = {
+    ELECTRIC: 'electric', METAL: 'metal',
+    PSYCHIC: 'psychic', UNDEAD: 'undead', POISON: 'poison', SHADOW: 'shadow',
+    LIGHT: 'light'
+  };
 
   // The backdrop behind a pack or a daily card is its element: a scene of that
   // element's Siegelings where one exists (a gallery plate, or a shop scene
@@ -3710,7 +3738,13 @@
     // Portrait-only plate: a wide screen shows the band with the big ape.
     ELECTRIC: { src: '/img/shop/scene-electric.webp', pos: '50% 18%' },
     // 16:9: a portrait crop centres on the spiked armoured lizard.
-    METAL: { src: '/img/shop/scene-metal.webp', pos: '66% 50%' }
+    METAL: { src: '/img/shop/scene-metal.webp', pos: '66% 50%' },
+    // Portrait plates (941x1672): wide screens keep the named Siegeling in band.
+    PSYCHIC: { src: '/img/shop/scene-psychic.webp', pos: '52% 48%' }, // Luvyduvy huddle + reader
+    UNDEAD:  { src: '/img/shop/scene-undead.webp',  pos: '50% 38%' }, // Ragguette in the graveyard
+    POISON:  { src: '/img/shop/scene-poison.webp',  pos: '50% 22%' }, // Slandy skull burst
+    SHADOW:  { src: '/img/shop/scene-shadow.webp',  pos: '50% 20%' }, // Voidmaw over the planet
+    LIGHT:   { src: '/img/shop/scene-light.webp',   pos: '50% 28%' }  // radiant light spirit
   };
   // Molten Forge leads with Fire too; it gets the other Fire scene so it does
   // not look like the Fire starter.
@@ -3756,6 +3790,7 @@
     var packs = featuredPacks(all.filter(function (pk) { return !isSummonPack(pk); }));
     var offers = live.dailyOffers || [];
     var titles = live.dailyTitleOffers || [];
+    var arenas = live.battlefieldSkins || [];
     var wanted = String(opts.shopElement || shopPref('element') || '').toUpperCase();
     var summon = summons.filter(function (pk) { return packElement(pk) === wanted; })[0] || summons[0] || null;
     var pack = packs.filter(function (pk) { return pk.id === opts.shopPack; })[0] || packs[0] || null;
@@ -3765,9 +3800,10 @@
     if (pack) tabs.push({ id: 'packs', label: 'Pack Market', art: sceneArt('market', true), face: SHOP_SCENE.market.face, el: 'EARTH' });
     if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: sceneArt('cards', true), face: SHOP_SCENE.cards.face, el: 'LIGHT' });
     if (titles.length) tabs.push({ id: 'titles', label: 'Title Hall', art: sceneArt('throne', true), face: SHOP_SCENE.throne.face, el: 'WATER' });
+    if (arenas.length) tabs.push({ id: 'arenas', label: 'Arena Art', art: '/img/board-skins/board-haunted-harvest-thumb.webp', face: '50% 50%', el: 'FIRE' });
     var want = opts.shopTab || shopPref('tab');
     var tab = tabs.filter(function (t) { return t.id === want; })[0] || tabs[0] || null;
-    return { live: live, summons: summons, summon: summon, packs: packs, pack: pack, offers: offers, titles: titles, tabs: tabs, tab: tab };
+    return { live: live, summons: summons, summon: summon, packs: packs, pack: pack, offers: offers, titles: titles, arenas: arenas, tabs: tabs, tab: tab };
   }
 
   function shopTabsMarkup(m) {
@@ -3986,6 +4022,45 @@
       });
   }
 
+  function arenaArtPanel(m, opts) {
+    var skins = m.arenas || [];
+    var progression = m.live.progression || {};
+    var equippedId = progression.equippedBattlefieldSkinId || '';
+    var ownedIds = progression.purchasedBattlefieldSkinIds || [];
+    var selected = skins.filter(function (s) { return s.id === opts.arenaSkinPreview; })[0]
+      || skins.filter(function (s) { return s.id === equippedId; })[0] || skins[0];
+    if (!selected) return '';
+    opts.arenaSkinPreview = selected.id;
+    var saved = (progression.battlefieldSkins || []).filter(function (s) { return s.id === selected.id; })[0] || {};
+    var owned = Boolean(saved.owned || ownedIds.indexOf(selected.id) !== -1);
+    var equipped = Boolean(saved.equipped || equippedId === selected.id);
+    var locked = selected.collection === 'prestige';
+    var eventClosed = selected.collection === 'holiday' && selected.availableForPurchase === false;
+    var action = opts.guest
+      ? '<button class="sg-guest-primary" type="button" data-arena-buy="' + esc(selected.id) + '">Sign in to collect</button>'
+      : owned
+        ? '<button class="sg-guest-primary" type="button" data-arena-equip="' + esc(selected.id) + '"' + (equipped ? ' disabled' : '') + '>' + (equipped ? 'Equipped' : 'Equip arena') + '</button>'
+        : locked
+          ? '<span class="sg-arena-lock">Earn through ' + esc(selected.requirement || selected.achievementId || 'an achievement') + '</span>'
+          : eventClosed
+            ? '<span class="sg-arena-lock">Available during ' + esc(selected.event || 'the seasonal event') + '</span>'
+            : '<button class="sg-guest-primary" type="button" data-arena-buy="' + esc(selected.id) + '"><img src="/img/ui/home-stats/siegecoin.png" alt=""> ' + esc(selected.price || 0) + '</button>';
+    var playerArt = selected.artwork || selected.assetUrl || '/img/board-skins/board-neutral.webp';
+    return '<section class="sg-arena-gallery" aria-label="Arena art showroom">' +
+      '<header class="sg-arena-heading"><span class="sg-gplaque-kicker">BATTLEFIELD COLLECTION</span><h2>Choose your arena</h2><p>Your arena faces the AI’s neutral board. The artwork is only a backdrop; battle cards and hit areas remain separate.</p></header>' +
+      '<div class="sg-arena-faceoff">' +
+        '<div class="sg-arena-half is-ai"><img src="/img/board-skins/board-neutral.webp" alt="AI side with neutral arena artwork" loading="eager" decoding="async"><span>AI <i>NEUTRAL ARENA</i></span></div>' +
+        '<div class="sg-arena-vs" aria-hidden="true"><b>VS</b></div>' +
+        '<div class="sg-arena-half is-player"><img src="' + esc(playerArt) + '" alt="' + esc(selected.name || 'Arena') + ' artwork on your side" loading="eager" decoding="async" onerror="this.onerror=null;this.src=\'/img/board-skins/board-neutral.webp\'"><span>YOU <i>' + esc(selected.name || 'ARENA') + '</i></span></div>' +
+      '</div>' +
+      '<div class="sg-arena-dock"><div class="sg-arena-selected"><div class="sg-arena-copy"><small>' + esc(selected.collection === 'prestige' ? 'PRESTIGE · ACHIEVEMENT' : selected.collection === 'holiday' ? (selected.event || 'SEASONAL').toUpperCase() + ' EVENT' : 'PREMIUM ARENA') + '</small><h3>' + esc(selected.name || 'Battlefield') + '</h3><p>' + esc(selected.description || '') + '</p></div><div class="sg-arena-action">' + action + '</div></div>' +
+      '<div class="sg-arena-skins" role="list" aria-label="Arena artworks">' + skins.map(function (skin) {
+        return '<button type="button" role="listitem" class="sg-arena-skin' + (skin.id === selected.id ? ' on' : '') + '" data-arena-skin="' + esc(skin.id) + '" aria-pressed="' + (skin.id === selected.id ? 'true' : 'false') + '"><img src="' + esc(skin.thumbnailUrl || skin.thumbnail || '') + '" alt="" loading="lazy" decoding="async"><span>' + esc(skin.name || 'Arena') + '</span></button>';
+      }).join('') + '</div>' +
+      '</div>' +
+    '</section>';
+  }
+
   // Published odds, read straight off the pack payload - the same numbers the
   // server rolls with, never a restatement of them.
   function showOdds(app, pk) {
@@ -4070,6 +4145,7 @@
       : m.tab.id === 'summon' ? summonPanel(m)
       : m.tab.id === 'packs' ? packsPanel(m)
       : m.tab.id === 'daily' ? dailyPanel(m, opts)
+      : m.tab.id === 'arenas' ? arenaArtPanel(m, opts)
       : titlesPanel(m, opts);
     var notice = opts.shopNotice
       ? '<p class="sg-shop-notice' + (opts.shopNoticeError ? ' is-error' : '') + '" role="status">' + esc(opts.shopNotice) + '</p>'
@@ -9470,13 +9546,21 @@
 
   /* ---------- help ---------- */
 
-  // The real help page's own topic list, kept verbatim so the redesign does not
-  // quietly drop a rules chapter. Art per topic comes from the element or Land
-  // the chapter is about. The fifth slot is the chapter body, rendered into the
-  // popup below: these tiles used to link back to /help, which reloaded the very
-  // screen the player was already on, so every tap read as a loading flash and
-  // nothing else.
+  // Player-facing chapters for the hub's /help route. Keep mode and feature
+  // guidance aligned with help.html, which still serves legacy and embedded
+  // readers. The fifth slot holds escaped blocks for the chapter popup.
   var HELP = [
+    ["Game modes", "Choose your next adventure", "/img/lands/earth.webp", "EARTH", [
+      ["defs", [
+        ["Battle Table / Arena", "Solo against AI or live 1v1 with a deck and SiegeKnight. Standard Battle starts at 50 HP; Siege leveling bonuses do not apply."],
+        ["Siege, Endless & Battlegrounds", "AP-based expedition combat. Siege banks veterans; Endless chases a score; Battlegrounds fields an extracted squad. Open /siege to choose a mode or its simulated Tutorial."],
+        ["Gauntlet", "Draft ten cards and climb floors using Battle Table combat, with 25 HP each fight and three losses per run."],
+        ["My Keep", "Rebuild an elemental sanctuary, collect workshop materials and invite residents."],
+        ["Chronicles", "An account-saved idle RPG of professions, company bonds and expeditions."],
+        ["Dominion · test mode", "Build the Keep and train your own knight in a combined idle game with its own save."]
+      ]],
+      ["link", ["/battle", "Choose a Battle mode"]]
+    ]],
     ['Basics', 'How a match runs end to end', '/img/lands/relic.webp', 'NEUTRAL', [
       ['p', 'Siegelings is a tactical elemental card game. Each player builds a 3×3 board half. Creature cards — Sieglings — fight with abilities paid for by elemental energy. There is no printed ATK or DEF: all damage comes from abilities.'],
       ['facts', [['50', 'Player Health'], ['3×3', 'Board half'], ['5', 'Sieglings max'], ['+1 / -1', 'Weak / resist']]],
@@ -9580,9 +9664,9 @@
       ['sub', 'Modes'],
       ['defs', [
         ['Expedition', 'The standard run: map, battles, boss. Win to bank your Siegelings as veterans.'],
-        ['Endless', 'Floor after floor of compounding difficulty with a mix of fresh picks and banked veterans. Your best score and floor are kept.'],
-        ['Battlegrounds', 'Field three banked veterans and a veteran knight, buy boons in its shop, and climb the tiers and the leaderboard.'],
-        ['Tutorial', 'A guided first battle that teaches AP, cards and targeting.']
+        ['Endless', 'Climb with fresh picks or rested banked veterans. Finish a battle before ending the run to bank your score. Your team is extracted only after at least one boss kill; defeat records the score but extracts no team.'],
+        ['Battlegrounds', 'Requires three banked veteran Siegelings. Select three veterans and an extracted knight, choose an unlocked tier and march. Pick boons when offered and spend earned Warmarks in the Battlegrounds shop.'],
+        ['Tutorial', 'A simulated expedition covering map nodes, shops, equipment, recruitment, leveling and combat, including targeting, passives and Ultimates. Nothing is saved.']
       ]],
       ['sub', 'Skins'],
       ['p', 'Tap one of your Siegelings in battle to open its sheet, then pick a skin under Look. There is one skin per card finish, and each unlocks when you own that version of the card (or a higher one) in your Collection. Skins are cosmetic only.'],
@@ -9645,7 +9729,9 @@
       ['defs', [
         ['Residents & stations', 'Post Siegelings to stations. A station grows faster with residents of its favoured elements, and the card sheet’s Keep tab shows each card’s bonus.'],
         ['Rapport', 'Residents bond over time, raising their station bonus.'],
-        ['Building', 'Upgrade the hall and its rooms, refit tools and set decorations.'],
+        ['Building', 'Start timed projects from Projects, then enter restored buildings to craft tools, decorations and interior upgrades. Construction and workshop production continue while away; collect waiting output into storage.'],
+        ['Enclave & Akhar’s Front', 'House residents in the Enclave for rapport tasks or post volunteers on Akhar’s Front. Assigned Siegelings remain available for decks and expeditions.'],
+        ['Visitors & lore', 'Handle Keep events and repairs, read recovered records, and choose dialogue with visitors. Reopen the Keep Guide using ?.'],
         ['Market', 'Refreshes daily. Its rarest offers cost Siegecoins.'],
         ['Rebirth', 'Once the hall has evolved, reset the Keep for permanent stacking bonuses plus Siegecoins and Remnants.']
       ]],
@@ -9656,7 +9742,10 @@
       ['defs', [
         ['Professions', 'Twenty-one gathering, crafting and support professions, each with a real effect.'],
         ['Regions & expeditions', 'Send expeditions through tiered regions with hidden routes, twists and Grand Expeditions.'],
-        ['Home base', 'Six buildings and War Room loadouts.'],
+        ['Company & equipment', 'Build your party, equip crafted gear and potions, and use elemental or class synergies. Save loadouts in the War Room.'],
+        ['Home base', 'Upgrade six buildings, including the Research Library for longer offline progress.'],
+        ['Wilds & bonds', 'Follow sightings in Wilds to grow your company. Improve bonds, elemental affinity and class mastery through work and journeys.'],
+        ['Saving', 'Sign in: your chronicle is saved to your account. Work and expeditions advance while away, up to your current offline-progress cap.'],
         ['Crowns & guilds', 'Earn Crowns, join a guild, fight weekly Siege Operations and trade on the marketplace.']
       ]],
       ['link', ['/chronicles', 'Open Chronicles']]
@@ -9665,12 +9754,62 @@
       ['p', 'Dominion is a temporary test mode that runs every Keep and Chronicles system as one idle game. It may change or reset while it is being tested.'],
       ['defs', [
         ['Base', 'The Keep scene: hall ranks, building interiors, visitors with requests and trust, the Storehouse, Builder’s Yard crews, workshops and Akhar’s Wall.'],
-        ['Knight & companions', 'Your knight works every profession. Tame Siegelings on journeys and level, evolve and rename them.'],
+        ['Knight & companions', 'Create your own knight: name, title, portrait, crest and calling. Craft weapons and garments through Work. Tame Siegelings on journeys, give them jobs, build bonds, and level, evolve or rename them.'],
         ['Expeditions', 'Every Chronicles route as a destination, with provisions and cooked meals that buff the squad.'],
         ['Wall & sieges', 'Post defenders on Akhar’s Wall, drill them, and hold the siege waves for Crowns and Silver.'],
-        ['Realm', 'Account sync, guilds, Siege Operations and a Crowns market.']
+        ['Mentors', 'Meet SiegeSquires, SiegeKnights, Raiders and Lords at the gate, on roads or after sieges. Talk, give gifts and complete shared deeds to build rapport; meet their proof requirement before asking them to train you. A sworn active mentor improves their element’s affinity gain.'],
+        ['Realm', 'Account sync, guilds, Siege Operations and a Crowns market.'],
+        ['Test controls & saves', 'The +4h control advances the shared clock. The ⋯ menu reopens the guide or resets Dominion. Signed-in play syncs to your account; a local preview saves only in this browser. Resetting also replaces a synced save.']
       ]],
       ['link', ['/dominion', 'Try Dominion']]
+    ]],
+    ["Gauntlet", "Draft, forge and climb", "/img/lands/earth.webp", "EARTH", [
+      ["defs", [
+        ["Draft", "Choose a source deck and SiegeKnight. Draft 10 cards, with one redraw before beginning the climb."],
+        ["Fight", "Each fight opens on the Battle Table with 25 player HP. Preview the next floor using Details and Cards; tap cards or the boss knight to inspect them. Floor 10 brings a SiegeKnight boss."],
+        ["Improve", "After a win, choose a reward card or skip it. At camp, spend gold in the Shop or use Deck & Forge to improve cards. Choose SiegeKnight perks when offered."],
+        ["Lives & returning", "Three losses end the run. Return to Gauntlet to resume; if a floor fight is still open, use Return to the fight. End this run is in Log."]
+      ]],
+      ["link", ["/gauntlet", "Enter the Gauntlet"]]
+    ]],
+    ["Collection, decks & shop", "Find cards and build a loadout", "/img/lands/fire.webp", "FIRE", [
+      ["defs", [
+        ["Collection", "Search and filter your binder, then tap a card for its abilities, evolution line and finishes. Its Arena, Siege and Keep views explain its role in each mode."],
+        ["Decks", "Use a preset or save your own deck from owned cards in Deck Builder. Standard presets are 40 cards: 20 Siegelings, 10 Strategies and 10 Deceptions; at most three copies of a card and complete evolution lines. Follow the builder’s validation before saving."],
+        ["Summons & packs", "Spend Siegecoins in the Shop on the available summons, packs, decks or daily card offers. Check Odds for current drop rates and the displayed price before buying. Daily Offerings refresh at midnight UTC."],
+        ["Crafting", "Use Remnants from a card’s Collection sheet to craft copies or upgrade finishes. Extra copies past the three-copy cap become Remnants."],
+        ["Battlefields", "Shop battlefield skins include premium, seasonal and achievement-exclusive designs. Purchase available skins with Siegecoins, earn prestige skins through their listed achievements, and equip an owned skin. These change your board’s appearance."]
+      ]],
+      ["link", ["/cards", "Open your Collection"]]
+    ]],
+    ["Social, rooms & tournaments", "Find another player", "/img/lands/water.webp", "WATER", [
+      ["defs", [
+        ["Friends & messages", "Use Social for friend requests, direct messages and online presence. Open a public profile to view another player’s showcase."],
+        ["Host or join", "Host a multiplayer table and share its room code or invite link. Join using the supplied code or link; wait for both players to be ready before the match."],
+        ["Lobbies & tournaments", "Browse Lobbies for open tables and the current tournament. Read the event’s element and preset-deck restrictions before choosing a deck; an expired event requires a current table."],
+        ["Match records", "Profile › Recent lists finished matches, with replays where a recording is available."]
+      ]],
+      ["link", ["/lobbies", "Browse Lobbies"]]
+    ]],
+    ["Progression & rewards", "Missions, titles and cosmetics", "/img/lands/light.webp", "LIGHT", [
+      ["defs", [
+        ["Daily objectives", "Check Home’s Daily Objectives for current missions and reward progress. Missions refresh daily; use the displayed requirements and claim controls."],
+        ["Achievements & titles", "Open Achievements to see goals and unlocks. Profile holds your level, titles, match history and showcase settings."],
+        ["Leaderboards", "Compare the current leaderboard categories, including run-specific scores where available. Endless records include best score and floor."],
+        ["Gallery & profile", "Visit the Gallery for unlocked art. Customize your public profile with your favourite cards, element, avatar, title and available profile art."],
+        ["Separate progression", "Siege levels, veteran teams, Gauntlet upgrades, Keep resources and idle-RPG progress follow their own mode rules. A cosmetic finish or battlefield skin does not increase Standard Battle stats."]
+      ]],
+      ["link", ["/achievements", "View achievements"]]
+    ]],
+    ["Saving, tutorials & settings", "Resume safely and adjust your experience", "/img/lands/ice.webp", "ICE", [
+      ["defs", [
+        ["Account progress", "Sign in for account-backed collections, decks, progression and persistent modes. Some guest or test experiences keep state in this browser; read that mode’s save notice."],
+        ["Siege saves", "Return to /siege to resume an available expedition or Battlegrounds checkpoint. Use the run menu’s save option when needed; finish claiming a battle result before saving. Starting over discards that run."],
+        ["Tutorials", "Battle has a guided tutorial. Siege’s Tutorial simulates the expedition nodes and combat without saving progress. My Keep’s ? reopens its Keep Guide; Dominion’s ⋯ menu reopens its guide."],
+        ["Settings", "Adjust music, sound effects, battle voice, card animations, reduced motion, background parallax and notifications in Settings. Reduced motion follows your device preference until overridden."],
+        ["Connection & offline", "The installable web app can show an offline shell and cached assets, but online battles, purchases and account actions need a connection. Reconnect before retrying an action and check the resulting state."]
+      ]],
+      ["link", ["/settings", "Open Settings"]]
     ]],
     ['Glossary', 'Terms used across the game', '/img/lands/psychic.webp', 'PSYCHIC', [
       ['defs', [

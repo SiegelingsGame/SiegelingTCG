@@ -1,6 +1,8 @@
 package com.sieglings.service;
 
 import com.sieglings.model.GameState;
+import com.sieglings.persistence.entity.PlayerProgressionEntity;
+import com.sieglings.persistence.firestore.PlayerProgressionStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -29,6 +31,9 @@ public class MultiplayerService {
 
     @Autowired(required = false)
     private LobbyPersistenceService lobbyPersistenceService;
+
+    @Autowired(required = false)
+    private PlayerProgressionStore playerProgressionStore;
 
     public synchronized RoomSession createRoom(String playerName, GameService.StartOptions options, String accountUserId) {
         return createRoom(playerName, options, accountUserId, null);
@@ -178,6 +183,7 @@ public class MultiplayerService {
         if (room.getGuestUserId() != null) {
             gameState.getEnemy().setAccountUserId(room.getGuestUserId());
         }
+        attachBattlefieldSkins(gameState, room);
         gameState.setTournamentId(room.getTournamentId());
         room.setGameState(gameState);
         if (lobbyPersistenceService != null) {
@@ -439,6 +445,7 @@ public class MultiplayerService {
         if (room.getGuestUserId() != null) {
             gameState.getEnemy().setAccountUserId(room.getGuestUserId());
         }
+        attachBattlefieldSkins(gameState, room);
         gameState.setTournamentId(room.getTournamentId());
         room.setGameState(gameState);
         room.clearEndGameSession();
@@ -455,6 +462,23 @@ public class MultiplayerService {
             }
         } while (rooms.containsKey(builder.toString()));
         return builder.toString();
+    }
+
+    private void attachBattlefieldSkins(GameState state, MultiplayerRoom room) {
+        state.getPlayer().setBattlefieldSkinId(equippedBattlefieldSkin(room.getHostUserId()));
+        state.getEnemy().setBattlefieldSkinId(equippedBattlefieldSkin(room.getGuestUserId()));
+    }
+
+    private String equippedBattlefieldSkin(String userId) {
+        if (userId == null || playerProgressionStore == null) return "elemental-confluence";
+        try {
+            return playerProgressionStore.findByUserId(userId)
+                    .map(PlayerProgressionEntity::getEquippedBattlefieldSkinId)
+                    .filter(id -> id != null && !id.isBlank())
+                    .orElse("elemental-confluence");
+        } catch (RuntimeException unavailable) {
+            return "elemental-confluence";
+        }
     }
 
     private String generateToken() {

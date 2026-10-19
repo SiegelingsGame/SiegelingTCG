@@ -15,7 +15,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="stylesheet" href="/css/style.css?v=283">
+    <link rel="stylesheet" href="/css/style.css?v=291">
     <!-- Art-first re-skin of the loadout overlay. After style.css on purpose:
          equal-specificity rules in it are meant to win. -->
     <link rel="stylesheet" href="/css/play-next.css?v=15">
@@ -216,6 +216,7 @@
         <div class="battle-row-confirm-overlay hidden" id="battleRowConfirmOverlay"></div>
 
         <div class="bf-half bf-enemy">
+            <div class="bf-skin-layer" aria-hidden="true"></div>
             <div class="board-label">ENEMY</div>
             <div class="board-grid" id="enemyGrid"></div>
             <!-- Floating card preview overlaid on enemy half -->
@@ -223,6 +224,7 @@
         </div>
 
         <div class="bf-half bf-player">
+            <div class="bf-skin-layer" aria-hidden="true"></div>
             <div class="board-label">YOU</div>
             <div class="board-grid" id="playerGrid"></div>
         </div>
@@ -959,7 +961,7 @@
     <script src="/js/coach.js?v=11"></script>
     <script src="/js/arena-tutorial.js?v=51"></script>
     <script src="/js/knight-tutorial.js?v=2"></script>
-<script src="/js/game.js?v=327"></script>
+<script src="/js/game.js?v=333"></script>
     <script src="/js/play-mode-picker.js?v=4"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,

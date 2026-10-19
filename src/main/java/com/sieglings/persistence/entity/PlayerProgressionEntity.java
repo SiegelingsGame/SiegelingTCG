@@ -33,6 +33,8 @@ public class PlayerProgressionEntity {
     private int soloWinStreak;
     private int onlineWinStreak;
     private List<String> purchasedTitleIds = new ArrayList<>();
+    private List<String> purchasedBattlefieldSkinIds = new ArrayList<>();
+    private String equippedBattlefieldSkinId = "elemental-confluence";
     private int craftCount;
     /** Card or SiegeKnight ids the player upgraded to a holographic foil finish. */
     private List<String> holographicCardIds = new ArrayList<>();
@@ -144,6 +146,10 @@ public class PlayerProgressionEntity {
     public void setPurchasedTitleIds(List<String> purchasedTitleIds) {
         this.purchasedTitleIds = purchasedTitleIds == null ? new ArrayList<>() : new ArrayList<>(purchasedTitleIds);
     }
+    public List<String> getPurchasedBattlefieldSkinIds() { return purchasedBattlefieldSkinIds; }
+    public void setPurchasedBattlefieldSkinIds(List<String> ids) { this.purchasedBattlefieldSkinIds = ids == null ? new ArrayList<>() : new ArrayList<>(ids); }
+    public String getEquippedBattlefieldSkinId() { return equippedBattlefieldSkinId; }
+    public void setEquippedBattlefieldSkinId(String id) { this.equippedBattlefieldSkinId = id == null || id.isBlank() ? "elemental-confluence" : id; }
     public int getCraftCount() { return craftCount; }
     public void setCraftCount(int craftCount) { this.craftCount = Math.max(0, craftCount); }
     public List<String> getHolographicCardIds() { return holographicCardIds; }

@@ -5222,25 +5222,15 @@ function syncMobileTargetingArenaScale() {
         document.documentElement.style.removeProperty('--mobile-targeting-hud-stack');
         return;
     }
-    const board = document.getElementById('boardArea');
-    if (!board) {
-        return;
-    }
-    const run = () => {
+    document.documentElement.style.removeProperty('--mobile-targeting-arena-scale');
+    const refresh = () => {
         if (!isMobileBattleTargetingCameraActive()) {
             return;
         }
-        const available = board.clientHeight;
-        const content = board.scrollHeight;
-        if (available <= 0 || content <= 0) {
-            return;
-        }
-        const scale = Math.min(1, (available - 4) / content);
-        document.documentElement.style.setProperty('--mobile-targeting-arena-scale', scale.toFixed(3));
         scheduleBoardLinkConnectorRefresh();
         refreshTargetingPreviewOnLayoutChange();
     };
-    window.requestAnimationFrame(() => window.requestAnimationFrame(run));
+    window.requestAnimationFrame(() => window.requestAnimationFrame(refresh));
 }
 
 function shouldUseDesktopBattleDrawer() {
@@ -14280,7 +14270,13 @@ function applyArenaElementTheme() {
     }
 
     const [primary, secondary, tertiary, quaternary] = collectArenaThemeElements();
-    const colors = [primary, secondary, tertiary, quaternary].map(getElementHex);
+    const skinCatalog = authState.profile?.progression?.battlefieldSkins || [];
+    const equippedSkinId = authState.profile?.progression?.equippedBattlefieldSkinId;
+    const equippedSkin = skinCatalog.find(skin => skin.id === equippedSkinId);
+    const skinPalette = Array.isArray(equippedSkin?.palette) ? equippedSkin.palette : null;
+    const colors = skinPalette?.length
+        ? [skinPalette[0], skinPalette[1] || skinPalette[0], skinPalette[2] || skinPalette[0], skinPalette[3] || skinPalette[1] || skinPalette[0]]
+        : [primary, secondary, tertiary, quaternary].map(getElementHex);
 
     boardArea.style.setProperty('--arena-color-a', colors[0]);
     boardArea.style.setProperty('--arena-color-b', colors[1] || colors[0]);
@@ -14292,6 +14288,58 @@ function applyArenaElementTheme() {
     boardArea.style.setProperty('--arena-glow-d', hexToRgba(colors[3] || colors[1] || colors[0], gameState?.currentPhase === 'BATTLE' ? 0.2 : 0.12));
     boardArea.style.setProperty('--arena-rim', hexToRgba(colors[0], gameState?.currentPhase === 'BATTLE' ? 0.34 : 0.18));
     boardArea.style.setProperty('--arena-sheen', hexToRgba(colors[1] || colors[0], gameState?.currentPhase === 'BATTLE' ? 0.2 : 0.1));
+
+    const skins = {
+        FIRE: 'fire', ICE: 'ice', WIND: 'wind', EARTH: 'earth', ELECTRIC: 'electric',
+        WATER: 'water', METAL: 'metal', POISON: 'poison', PSYCHIC: 'psychic',
+        UNDEAD: 'undead', SHADOW: 'shadow', LIGHT: 'light', NEUTRAL: 'neutral'
+    };
+    const applySide = (selector, player, sideColor) => {
+        const half = boardArea.querySelector(selector);
+        if (!half) return;
+        const isAiOpponent = selector === '.bf-enemy' && !gameState?.multiplayer;
+        const sideSkinId = isAiOpponent
+            ? 'elemental-confluence'
+            : player?.battlefieldSkinId || (selector === '.bf-player' ? equippedSkinId : 'elemental-confluence');
+        const sideSkin = skinCatalog.find(skin => skin.id === sideSkinId);
+        const directSkinArtwork = typeof sideSkinId === 'string' && /^board-[a-z0-9-]+$/.test(sideSkinId)
+            ? `/img/board-skins/${sideSkinId}.webp` : null;
+        const element = isAiOpponent || sideSkinId === 'elemental-confluence'
+            ? String(isAiOpponent ? 'NEUTRAL' : player?.trainer?.element || 'NEUTRAL').toUpperCase()
+            : 'NEUTRAL';
+        const skin = skins[element] || 'neutral';
+        half.style.setProperty('--side-accent', sideColor || getElementHex(element));
+        const skinUrl = sideSkin?.artwork || directSkinArtwork || `/img/board-skins/board-${skin}.webp?v=2`;
+        half.style.setProperty('--side-skin-image', `url("${skinUrl}")`);
+        const layer = half.querySelector('.bf-skin-layer');
+        if (layer) {
+            const probe = new Image();
+            const fallbackUrl = `/img/board-skins/board-${skin}.webp?v=2`;
+            const requestedUrl = skinUrl;
+            layer.dataset.requestedSkinUrl = requestedUrl;
+            probe.onerror = () => {
+                if (layer.dataset.requestedSkinUrl !== requestedUrl) return;
+                if (requestedUrl !== fallbackUrl) {
+                    layer.style.backgroundImage = `url("${fallbackUrl}")`;
+                    const fallbackProbe = new Image();
+                    fallbackProbe.onerror = () => {
+                        if (layer.dataset.requestedSkinUrl === requestedUrl) {
+                            layer.style.backgroundImage = 'linear-gradient(135deg,#1b2940,#25344a)';
+                            half.style.setProperty('--side-accent', '#95a5a6');
+                        }
+                    };
+                    fallbackProbe.src = fallbackUrl;
+                } else {
+                    layer.style.backgroundImage = 'linear-gradient(135deg,#1b2940,#25344a)';
+                    half.style.setProperty('--side-accent', '#95a5a6');
+                }
+            };
+            probe.src = skinUrl;
+        }
+    };
+    const enemySkin = skinCatalog.find(skin => skin.id === gameState?.enemy?.battlefieldSkinId);
+    applySide('.bf-player', gameState?.player, equippedSkin?.palette?.[0] || skinPalette?.[0]);
+    applySide('.bf-enemy', gameState?.enemy, enemySkin?.palette?.[0] || skinPalette?.[1] || skinPalette?.[0]);
 }
 
 function getElementSigil(element, variant = 'soft') {
@@ -17022,6 +17070,7 @@ function renderBattlePanel() {
         const shellClass = [
             'battle-queue-shell',
             'battle-queue-flat',
+            options.modifier || '',
             compact ? 'battle-queue-compact' : '',
             expanded ? 'battle-queue-expanded' : '',
             options.statsCell ? finishTextClass(options.statsCell) : ''
@@ -17047,6 +17096,12 @@ function renderBattlePanel() {
     // Targeting is exempt: it is player-driven, so playback is never mid-flight.
     const presentationBusy = Boolean(window.SieglingsActionQueue?.isPresentationBusy?.())
         && !isBattleTargetSelectionActive();
+    const resolvingBodyHtml = '<div class="battle-queue-resolving-content">'
+        + '<div class="battle-queue-resolving-copy"><strong>Queue is resolving</strong>'
+        + '<span class="battle-queue-resolving-detail">Next available Siegeling surfaces here in speed order.</span></div>'
+        + '<div class="battle-queue-resolving-track" aria-hidden="true"><i></i><i></i><i></i><i></i></div>'
+        + '<div class="battle-queue-resolving-footer">Battle resumes automatically when the next actor is ready.</div>'
+        + '</div>';
 
     // Hold the actionable panels in standby while playback runs. Scoped to the
     // drawer and hand docks on purpose: the left inspector is only rewritten
@@ -17056,7 +17111,8 @@ function renderBattlePanel() {
         const holdHtml = buildQueueShell(
             'Resolving',
             'waiting',
-            '<div class="battle-attacker"><strong>Queue is resolving.</strong> The next available Siegeling will surface here in speed order.</div><div class="battle-hint">Stay ready. When your next acting Siegeling arrives, this panel flips into queue mode automatically.</div>'
+            resolvingBodyHtml,
+            { modifier: 'battle-queue-resolving' }
         );
         setPanelHtml([...drawerPanels, handPanel].filter(Boolean), holdHtml);
         return;
@@ -17074,7 +17130,8 @@ function renderBattlePanel() {
             standbyHtml = buildQueueShell(
                 'Resolving',
                 'waiting',
-                '<div class="battle-attacker"><strong>Queue is resolving.</strong> The next available Siegeling will surface here in speed order.</div><div class="battle-hint">Stay ready. When your next acting Siegeling arrives, this panel flips into queue mode automatically.</div>'
+                resolvingBodyHtml,
+                { modifier: 'battle-queue-resolving' }
             );
         } else {
             standbyHtml = buildQueueShell(

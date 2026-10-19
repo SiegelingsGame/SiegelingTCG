@@ -2256,6 +2256,89 @@ select.search-input { color-scheme: dark; }
     flex: 0 0 auto;
 }
 
+/* Battlefield cosmetic cards use the same compact collectible treatment as the Shop tiles. */
+.battlefield-skin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 14px; margin: 0 0 28px; }
+.battlefield-skin-tile {
+    --skin-a: #5389d8; --skin-b: #8b6bc2; --skin-c: #39afbd; --skin-d: #d29e58;
+    display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 150px minmax(118px, 1fr); gap: 12px; min-height: 310px; padding: 12px;
+    border: 1px solid rgba(181, 198, 235, 0.13); border-radius: 18px;
+    background: linear-gradient(145deg, rgba(30, 42, 67, 0.94), rgba(13, 20, 36, 0.96));
+    box-shadow: 0 12px 28px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.035); overflow: hidden;
+}
+.battlefield-skin-tile.is-equipped { border-color: color-mix(in srgb, var(--skin-a), white 20%); box-shadow: 0 0 0 1px color-mix(in srgb, var(--skin-a), transparent 68%), 0 12px 28px rgba(0,0,0,.2); }
+.battlefield-skin-preview { position: relative; display: block; width: 100%; height: 100%; min-height: 118px; overflow: hidden; padding: 0; border: 1px solid color-mix(in srgb, var(--skin-a), transparent 45%); border-radius: 12px; background: linear-gradient(150deg, color-mix(in srgb, var(--skin-a), #121a2e 48%), #111827); cursor: zoom-in; }
+.battlefield-skin-preview img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.battlefield-preview-label { position: absolute; right: 8px; bottom: 8px; padding: 5px 8px; border: 1px solid rgba(255,255,255,.2); border-radius: 99px; color: white; background: rgba(5,10,20,.76); font-size: .65rem; font-weight: 800; }
+.battlefield-skin-side, .battlefield-skin-plate { border-radius: 5px; }
+.battlefield-skin-side-left { background: linear-gradient(165deg, var(--skin-a), color-mix(in srgb, var(--skin-c), #172033 40%)); }
+.battlefield-skin-side-right { background: linear-gradient(195deg, var(--skin-b), color-mix(in srgb, var(--skin-d), #172033 42%)); }
+.battlefield-skin-plate { background: radial-gradient(ellipse at 50% 20%, color-mix(in srgb, var(--skin-a), transparent 60%), transparent 70%), linear-gradient(145deg, #252b36, #171e2a); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--skin-d), transparent 48%), inset 0 0 14px rgba(0,0,0,.45); }
+.battlefield-skin-copy { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.battlefield-skin-kicker { color: var(--skin-a); font-size: .61rem; font-weight: 850; letter-spacing: .12em; }
+.battlefield-skin-copy > strong { color: #f5f7ff; font-size: .98rem; line-height: 1.2; }
+.battlefield-skin-copy p { margin: 0; color: #aeb9d0; font-size: .73rem; line-height: 1.38; }
+.battlefield-skin-footer { margin-top: auto; padding-top: 7px; }
+.battlefield-skin-lock { color: #e7cc8c; font-size: .7rem; font-weight: 750; line-height: 1.3; }
+.battlefield-skin-footer .primary-btn { min-height: 34px; padding: 7px 12px; font-size: .72rem; }
+@media (max-width: 420px) { .battlefield-skin-grid { grid-template-columns: 1fr; } .battlefield-skin-tile { grid-template-rows: 180px minmax(118px, 1fr); } }
+
+.battlefield-skin-dialog { width: min(94vw, 1120px); max-width: 1120px; max-height: 92dvh; padding: 18px; border: 1px solid rgba(181,198,235,.28); border-radius: 18px; color: #f5f7ff; background: #101828; box-shadow: 0 25px 90px rgba(0,0,0,.7); }
+.battlefield-skin-dialog::backdrop { background: rgba(3,7,14,.82); }
+.battlefield-skin-dialog form { position: absolute; top: 8px; right: 8px; }
+.battlefield-preview-close { width: 38px; height: 38px; border: 1px solid rgba(255,255,255,.25); border-radius: 50%; color: #fff; background: rgba(8,12,20,.82); font-size: 1.5rem; }
+.battlefield-skin-dialog h2 { margin: 0 48px 12px 0; }
+.battlefield-skin-dialog img { display: block; width: 100%; max-height: 72dvh; object-fit: contain; border-radius: 12px; background: #080c14; }
+.battlefield-skin-dialog p { margin: 10px 0 0; color: #c2cce0; }
+
+/* Dedicated arena art showroom. The preview keeps both board artworks legible at once. */
+.shop-view-tabs { display:flex; gap:8px; margin:0 0 18px; padding:5px; width:max-content; max-width:100%; border:1px solid rgba(228,194,118,.2); border-radius:999px; background:rgba(9,14,27,.78); }
+.shop-view-tabs button { min-height:38px; padding:8px 18px; border:0; border-radius:999px; color:#bfc7d9; background:transparent; font:inherit; font-size:.78rem; font-weight:800; cursor:pointer; }
+.shop-view-tabs button.is-active { color:#211a12; background:linear-gradient(135deg,#ffe7a3,#d6a84e); box-shadow:0 3px 14px rgba(226,183,91,.25); }
+.arena-gallery { --arena-gold:#edcf85; max-width:1200px; margin:0 auto; }
+.arena-gallery-heading { display:flex; justify-content:space-between; align-items:end; gap:16px; margin:4px 0 14px; }
+.arena-gallery-heading h2 { margin:3px 0 5px; color:#fff3d3; font:800 clamp(1.25rem,3vw,1.9rem)/1.1 Georgia,serif; }
+.arena-gallery-heading p { max-width:680px; margin:0; color:#b8bfd0; font-size:.83rem; }
+.arena-gallery-count { flex:0 0 auto; padding:7px 12px; border:1px solid rgba(237,207,133,.28); border-radius:999px; color:#f6dc9b; background:rgba(22,25,40,.7); font-size:.7rem; font-weight:850; letter-spacing:.06em; text-transform:uppercase; }
+.arena-faceoff { position:relative; display:grid; grid-template-rows:minmax(210px,1fr) 20px minmax(210px,1fr); height:min(66vh,720px); min-height:460px; overflow:hidden; border:1px solid rgba(237,207,133,.42); border-radius:20px; background:#111827; box-shadow:0 18px 55px rgba(0,0,0,.42),0 0 35px color-mix(in srgb,var(--skin-a),transparent 86%); }
+.arena-faceoff-side { position:relative; min-height:0; overflow:hidden; isolation:isolate; background:linear-gradient(145deg,#1a2438,#0e1421); }
+.arena-faceoff-side img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 48%; }
+.arena-faceoff-ai img { transform:rotate(180deg) scale(1.02); }
+.arena-faceoff-side::after { content:""; position:absolute; inset:0; z-index:1; background:linear-gradient(180deg,rgba(8,12,22,.55),transparent 38%,rgba(8,12,22,.08)); pointer-events:none; }
+.arena-faceoff-player::after { background:linear-gradient(0deg,rgba(8,12,22,.58),transparent 42%,rgba(8,12,22,.06)); }
+.arena-side-label { position:absolute; z-index:2; top:14px; left:16px; display:flex; align-items:center; gap:8px; padding:9px 13px; border:1px solid rgba(255,255,255,.24); border-radius:999px; color:#fff7e2; background:rgba(9,13,23,.74); backdrop-filter:blur(8px); font-size:.73rem; font-weight:850; letter-spacing:.04em; text-transform:uppercase; }
+.arena-faceoff-player .arena-side-label { top:auto; bottom:14px; }
+.arena-side-label i { width:8px; height:8px; border-radius:50%; background:var(--skin-a,#eacb7e); box-shadow:0 0 12px currentColor; }
+.arena-faceoff-divider { position:relative; z-index:3; display:grid; place-items:center; background:linear-gradient(90deg,transparent,rgba(9,13,23,.92) 20%,rgba(9,13,23,.92) 80%,transparent); }
+.arena-faceoff-divider::before { content:""; position:absolute; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,#e9ca7e 20%,#fff0c2 50%,#e9ca7e 80%,transparent); }
+.arena-faceoff-divider span { display:grid; place-items:center; width:38px; height:38px; border:1px solid #edcf85; border-radius:50%; color:#fff0c2; background:#191b29; box-shadow:0 0 20px rgba(237,207,133,.32); font:900 .68rem Georgia,serif; }
+.arena-art-details { display:flex; justify-content:space-between; align-items:center; gap:20px; margin:14px 0 18px; padding:16px 18px; border:1px solid rgba(237,207,133,.2); border-radius:16px; background:linear-gradient(125deg,rgba(31,38,57,.95),rgba(13,19,32,.96)); }
+.arena-art-details h3 { margin:4px 0; color:#fff1cf; font:800 1.35rem/1.1 Georgia,serif; }
+.arena-art-details p { margin:0; color:#b9c2d3; font-size:.8rem; }
+.arena-art-action { flex:0 0 auto; display:flex; align-items:center; justify-content:flex-end; }
+.arena-art-action .primary-btn { min-height:42px; padding:10px 18px; }
+.arena-art-picker { display:grid; grid-template-columns:repeat(auto-fill,minmax(118px,1fr)); gap:10px; padding:2px 1px 10px; }
+.arena-art-option { min-width:0; padding:5px; overflow:hidden; border:1px solid rgba(200,210,230,.13); border-radius:12px; color:#dce3ef; background:rgba(19,27,43,.88); text-align:left; cursor:pointer; transition:border-color .16s,transform .16s,box-shadow .16s; }
+.arena-art-option:hover { transform:translateY(-2px); border-color:rgba(237,207,133,.48); }
+.arena-art-option.is-selected { border-color:#edcf85; box-shadow:0 0 0 1px rgba(237,207,133,.4),0 0 16px rgba(237,207,133,.12); }
+.arena-art-option img { display:block; width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:8px; background:#0c1320; }
+.arena-art-option span { display:block; overflow:hidden; padding:7px 3px 3px; font-size:.68rem; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
+@media(max-width:620px) {
+  .shop-view-tabs { width:100%; }
+  .shop-view-tabs button { flex:1; }
+  .arena-gallery-heading { align-items:start; }
+  .arena-gallery-count { display:none; }
+  .arena-faceoff { height:54dvh; min-height:390px; max-height:600px; grid-template-rows:minmax(170px,1fr) 18px minmax(170px,1fr); border-radius:14px; }
+  .arena-faceoff-side img { object-position:center; }
+  .arena-side-label { top:9px; left:9px; padding:7px 10px; font-size:.61rem; }
+  .arena-faceoff-player .arena-side-label { top:auto; bottom:9px; }
+  .arena-art-details { align-items:stretch; flex-direction:column; gap:12px; padding:13px; }
+  .arena-art-action { justify-content:stretch; }
+  .arena-art-action .primary-btn { width:100%; }
+  .arena-art-picker { grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+  .arena-art-option { padding:4px; }
+  .arena-art-option span { font-size:.6rem; }
+}
+
 .shop-title-copy {
     flex: 1 1 auto;
     display: grid;

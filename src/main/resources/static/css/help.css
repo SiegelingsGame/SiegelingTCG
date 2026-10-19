@@ -656,6 +656,9 @@ body {
 .help-fab:active { transform: scale(0.96); }
 
 .help-fab-menu {
+    max-height: calc(100dvh - 160px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     display: flex;
     flex-direction: column;
     gap: 4px;

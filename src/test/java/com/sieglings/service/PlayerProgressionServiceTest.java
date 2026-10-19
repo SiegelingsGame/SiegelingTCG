@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -30,6 +31,80 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlayerProgressionServiceTest {
+
+    @Test
+    void premiumBattlefieldPurchaseIsIdempotentAndGrantsOwnershipWithTheDebit() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(2500);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.purchaseBattlefieldSkin(user(), "board-dragons-hoard");
+        service.purchaseBattlefieldSkin(user(), "board-dragons-hoard");
+
+        assertEquals(500, store.saved.getGold());
+        assertEquals(List.of("board-dragons-hoard"), store.saved.getPurchasedBattlefieldSkinIds());
+        assertEquals("board-dragons-hoard", store.saved.getEquippedBattlefieldSkinId());
+    }
+
+    @Test
+    void prestigeBattlefieldCannotBePurchased() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(10000);
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.purchaseBattlefieldSkin(user(), "board-unstoppable-inferno"));
+        assertEquals(10000, store.saved.getGold());
+        assertTrue(store.saved.getPurchasedBattlefieldSkinIds().isEmpty());
+    }
+
+    @Test
+    void equippingAnUnownedPremiumBattlefieldIsRejected() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.equipBattlefieldSkin(user(), "board-dragons-hoard"));
+        assertTrue(store.saved.getPurchasedBattlefieldSkinIds().isEmpty());
+    }
+
+    @Test
+    void verifiedAchievementPermanentlyGrantsItsPrestigeBattlefield() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+        setField(service, "achievementEvaluationService", new AchievementEvaluationService() {
+            @Override
+            public Set<String> unlockedAmong(AccountUser account, java.util.Collection<String> ids,
+                                             PlayerProgressionEntity current, com.sieglings.persistence.entity.ProfileSettingsEntity settings) {
+                return Set.of("win_streak_10");
+            }
+        });
+
+        Map<String, Object> serialized = service.serialize(progression, user());
+
+        assertTrue(store.saved.getPurchasedBattlefieldSkinIds().contains("board-unstoppable-inferno"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> skins = (List<Map<String, Object>>) serialized.get("battlefieldSkins");
+        Map<String, Object> inferno = skins.stream()
+                .filter(skin -> "board-unstoppable-inferno".equals(skin.get("id"))).findFirst().orElseThrow();
+        assertEquals(true, inferno.get("owned"));
+        assertEquals(true, inferno.get("unlocked"));
+    }
 
     @Test
     void bulkPackCostAppliesFivePercentDiscountForMultiBuys() {
@@ -679,6 +754,7 @@ class PlayerProgressionServiceTest {
         setField(service, "store", store);
         setField(service, "packCatalogService", packCatalogService);
         setField(service, "cardDefinitionService", cardDefinitionService);
+        setField(service, "battlefieldSkinCatalog", new BattlefieldSkinCatalogService(new com.fasterxml.jackson.databind.ObjectMapper()));
         return service;
     }
 
@@ -719,6 +795,24 @@ class PlayerProgressionServiceTest {
             saveCount++;
             saved = progression;
             return progression;
+        }
+
+        @Override
+        public boolean purchaseBattlefieldSkin(String userId, String skinId, int price) {
+            if (saved.getPurchasedBattlefieldSkinIds().contains(skinId)) return false;
+            saved.setGold(saved.getGold() - price);
+            List<String> owned = new java.util.ArrayList<>(saved.getPurchasedBattlefieldSkinIds());
+            owned.add(skinId);
+            saved.setPurchasedBattlefieldSkinIds(owned);
+            saved.setEquippedBattlefieldSkinId(skinId);
+            return true;
+        }
+
+        @Override
+        public void grantBattlefieldAchievementSkins(String userId, List<String> skinIds) {
+            List<String> owned = new java.util.ArrayList<>(saved.getPurchasedBattlefieldSkinIds());
+            for (String skinId : skinIds) if (!owned.contains(skinId)) owned.add(skinId);
+            saved.setPurchasedBattlefieldSkinIds(owned);
         }
     }
 
