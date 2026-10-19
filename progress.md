@@ -1,3 +1,7 @@
+- October 19, 2026 **Arena Art purchase plate gets liquid glass.**
+  - **Change.** Shop › Arena Art `.sg-arena-selected` now uses the same liquid-glass recipe as collection filters: specular highlight gradient, translucent tint (~`.28`), inset rim light, and `backdrop-filter: blur(32px) saturate(1.85)`. Player-half bottom vignette lightened so the plate frosts the arena art instead of a near-black scrim; desktop faceoff extends under the dock for the same reason. Cache pin `home-redesign.css?v=121`.
+  - **Verification.** Headless Chrome at 390×844 and 1920×1080: computed glass fills translucent, blur/saturate present, player vignette max alpha `< .5`, specular `::before` present, no page errors. Screenshots under `/opt/cursor/artifacts/arena-glass-*.png`.
+
 - October 19, 2026 **Arena Art purchase plate is semi-transparent.**
   - **Change.** Shop › Arena Art `.sg-arena-selected` (title + buy/equip row) used near-opaque navy fills (`.94` / `.83`). Background alphas are now `.52` / `.36` with a slightly stronger backdrop blur so the selected arena artwork reads through the purchase space. Cache pin `home-redesign.css?v=120` on `home-next.html` and `home-redesign-preview.html`.
   - **Verification.** Headless Chrome at 390×844 and 1920×1080 against a local Arena Art gallery mount: computed gradient alphas are `0.52` / `0.36`, `backdrop-filter: blur(10px)`, no page errors. Screenshots under `/opt/cursor/artifacts/arena-purchase-*.png`.
