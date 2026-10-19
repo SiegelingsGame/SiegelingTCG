@@ -51,6 +51,10 @@
     function jumpTo(id) {
         var target = document.getElementById(id) || (id === 'top' ? document.getElementById('top') : null);
         if (!target) return;
+        if (searchInput && searchInput.value) {
+            searchInput.value = '';
+            filterSections('');
+        }
         target.scrollIntoView({ block: 'start', behavior: 'smooth' });
         setActive(id === 'top' ? (sections[0] && sections[0].id) : id);
         setFabOpen(false);
@@ -180,9 +184,13 @@
     }
 
     chipLinks.concat(tocLinks).forEach(function (link) {
-        link.addEventListener('click', function () {
+        link.addEventListener('click', function (event) {
             var id = (link.getAttribute('href') || '').replace('#', '');
-            if (id) setActive(id);
+            if (id) {
+                event.preventDefault();
+                history.replaceState(null, '', '#' + id);
+                jumpTo(id);
+            }
         });
     });
 }());

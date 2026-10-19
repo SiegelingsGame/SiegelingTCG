@@ -9546,13 +9546,21 @@
 
   /* ---------- help ---------- */
 
-  // The real help page's own topic list, kept verbatim so the redesign does not
-  // quietly drop a rules chapter. Art per topic comes from the element or Land
-  // the chapter is about. The fifth slot is the chapter body, rendered into the
-  // popup below: these tiles used to link back to /help, which reloaded the very
-  // screen the player was already on, so every tap read as a loading flash and
-  // nothing else.
+  // Player-facing chapters for the hub's /help route. Keep mode and feature
+  // guidance aligned with help.html, which still serves legacy and embedded
+  // readers. The fifth slot holds escaped blocks for the chapter popup.
   var HELP = [
+    ["Game modes", "Choose your next adventure", "/img/lands/earth.webp", "EARTH", [
+      ["defs", [
+        ["Battle Table / Arena", "Solo against AI or live 1v1 with a deck and SiegeKnight. Standard Battle starts at 50 HP; Siege leveling bonuses do not apply."],
+        ["Siege, Endless & Battlegrounds", "AP-based expedition combat. Siege banks veterans; Endless chases a score; Battlegrounds fields an extracted squad. Open /siege to choose a mode or its simulated Tutorial."],
+        ["Gauntlet", "Draft ten cards and climb floors using Battle Table combat, with 25 HP each fight and three losses per run."],
+        ["My Keep", "Rebuild an elemental sanctuary, collect workshop materials and invite residents."],
+        ["Chronicles", "An account-saved idle RPG of professions, company bonds and expeditions."],
+        ["Dominion · test mode", "Build the Keep and train your own knight in a combined idle game with its own save."]
+      ]],
+      ["link", ["/battle", "Choose a Battle mode"]]
+    ]],
     ['Basics', 'How a match runs end to end', '/img/lands/relic.webp', 'NEUTRAL', [
       ['p', 'Siegelings is a tactical elemental card game. Each player builds a 3×3 board half. Creature cards — Sieglings — fight with abilities paid for by elemental energy. There is no printed ATK or DEF: all damage comes from abilities.'],
       ['facts', [['50', 'Player Health'], ['3×3', 'Board half'], ['5', 'Sieglings max'], ['+1 / -1', 'Weak / resist']]],
@@ -9656,9 +9664,9 @@
       ['sub', 'Modes'],
       ['defs', [
         ['Expedition', 'The standard run: map, battles, boss. Win to bank your Siegelings as veterans.'],
-        ['Endless', 'Floor after floor of compounding difficulty with a mix of fresh picks and banked veterans. Your best score and floor are kept.'],
-        ['Battlegrounds', 'Field three banked veterans and a veteran knight, buy boons in its shop, and climb the tiers and the leaderboard.'],
-        ['Tutorial', 'A guided first battle that teaches AP, cards and targeting.']
+        ['Endless', 'Climb with fresh picks or rested banked veterans. Finish a battle before ending the run to bank your score. Your team is extracted only after at least one boss kill; defeat records the score but extracts no team.'],
+        ['Battlegrounds', 'Requires three banked veteran Siegelings. Select three veterans and an extracted knight, choose an unlocked tier and march. Pick boons when offered and spend earned Warmarks in the Battlegrounds shop.'],
+        ['Tutorial', 'A simulated expedition covering map nodes, shops, equipment, recruitment, leveling and combat, including targeting, passives and Ultimates. Nothing is saved.']
       ]],
       ['sub', 'Skins'],
       ['p', 'Tap one of your Siegelings in battle to open its sheet, then pick a skin under Look. There is one skin per card finish, and each unlocks when you own that version of the card (or a higher one) in your Collection. Skins are cosmetic only.'],
@@ -9721,7 +9729,9 @@
       ['defs', [
         ['Residents & stations', 'Post Siegelings to stations. A station grows faster with residents of its favoured elements, and the card sheet’s Keep tab shows each card’s bonus.'],
         ['Rapport', 'Residents bond over time, raising their station bonus.'],
-        ['Building', 'Upgrade the hall and its rooms, refit tools and set decorations.'],
+        ['Building', 'Start timed projects from Projects, then enter restored buildings to craft tools, decorations and interior upgrades. Construction and workshop production continue while away; collect waiting output into storage.'],
+        ['Enclave & Akhar’s Front', 'House residents in the Enclave for rapport tasks or post volunteers on Akhar’s Front. Assigned Siegelings remain available for decks and expeditions.'],
+        ['Visitors & lore', 'Handle Keep events and repairs, read recovered records, and choose dialogue with visitors. Reopen the Keep Guide using ?.'],
         ['Market', 'Refreshes daily. Its rarest offers cost Siegecoins.'],
         ['Rebirth', 'Once the hall has evolved, reset the Keep for permanent stacking bonuses plus Siegecoins and Remnants.']
       ]],
@@ -9732,7 +9742,10 @@
       ['defs', [
         ['Professions', 'Twenty-one gathering, crafting and support professions, each with a real effect.'],
         ['Regions & expeditions', 'Send expeditions through tiered regions with hidden routes, twists and Grand Expeditions.'],
-        ['Home base', 'Six buildings and War Room loadouts.'],
+        ['Company & equipment', 'Build your party, equip crafted gear and potions, and use elemental or class synergies. Save loadouts in the War Room.'],
+        ['Home base', 'Upgrade six buildings, including the Research Library for longer offline progress.'],
+        ['Wilds & bonds', 'Follow sightings in Wilds to grow your company. Improve bonds, elemental affinity and class mastery through work and journeys.'],
+        ['Saving', 'Sign in: your chronicle is saved to your account. Work and expeditions advance while away, up to your current offline-progress cap.'],
         ['Crowns & guilds', 'Earn Crowns, join a guild, fight weekly Siege Operations and trade on the marketplace.']
       ]],
       ['link', ['/chronicles', 'Open Chronicles']]
@@ -9741,12 +9754,62 @@
       ['p', 'Dominion is a temporary test mode that runs every Keep and Chronicles system as one idle game. It may change or reset while it is being tested.'],
       ['defs', [
         ['Base', 'The Keep scene: hall ranks, building interiors, visitors with requests and trust, the Storehouse, Builder’s Yard crews, workshops and Akhar’s Wall.'],
-        ['Knight & companions', 'Your knight works every profession. Tame Siegelings on journeys and level, evolve and rename them.'],
+        ['Knight & companions', 'Create your own knight: name, title, portrait, crest and calling. Craft weapons and garments through Work. Tame Siegelings on journeys, give them jobs, build bonds, and level, evolve or rename them.'],
         ['Expeditions', 'Every Chronicles route as a destination, with provisions and cooked meals that buff the squad.'],
         ['Wall & sieges', 'Post defenders on Akhar’s Wall, drill them, and hold the siege waves for Crowns and Silver.'],
-        ['Realm', 'Account sync, guilds, Siege Operations and a Crowns market.']
+        ['Mentors', 'Meet SiegeSquires, SiegeKnights, Raiders and Lords at the gate, on roads or after sieges. Talk, give gifts and complete shared deeds to build rapport; meet their proof requirement before asking them to train you. A sworn active mentor improves their element’s affinity gain.'],
+        ['Realm', 'Account sync, guilds, Siege Operations and a Crowns market.'],
+        ['Test controls & saves', 'The +4h control advances the shared clock. The ⋯ menu reopens the guide or resets Dominion. Signed-in play syncs to your account; a local preview saves only in this browser. Resetting also replaces a synced save.']
       ]],
       ['link', ['/dominion', 'Try Dominion']]
+    ]],
+    ["Gauntlet", "Draft, forge and climb", "/img/lands/earth.webp", "EARTH", [
+      ["defs", [
+        ["Draft", "Choose a source deck and SiegeKnight. Draft 10 cards, with one redraw before beginning the climb."],
+        ["Fight", "Each fight opens on the Battle Table with 25 player HP. Preview the next floor using Details and Cards; tap cards or the boss knight to inspect them. Floor 10 brings a SiegeKnight boss."],
+        ["Improve", "After a win, choose a reward card or skip it. At camp, spend gold in the Shop or use Deck & Forge to improve cards. Choose SiegeKnight perks when offered."],
+        ["Lives & returning", "Three losses end the run. Return to Gauntlet to resume; if a floor fight is still open, use Return to the fight. End this run is in Log."]
+      ]],
+      ["link", ["/gauntlet", "Enter the Gauntlet"]]
+    ]],
+    ["Collection, decks & shop", "Find cards and build a loadout", "/img/lands/fire.webp", "FIRE", [
+      ["defs", [
+        ["Collection", "Search and filter your binder, then tap a card for its abilities, evolution line and finishes. Its Arena, Siege and Keep views explain its role in each mode."],
+        ["Decks", "Use a preset or save your own deck from owned cards in Deck Builder. Standard presets are 40 cards: 20 Siegelings, 10 Strategies and 10 Deceptions; at most three copies of a card and complete evolution lines. Follow the builder’s validation before saving."],
+        ["Summons & packs", "Spend Siegecoins in the Shop on the available summons, packs, decks or daily card offers. Check Odds for current drop rates and the displayed price before buying. Daily Offerings refresh at midnight UTC."],
+        ["Crafting", "Use Remnants from a card’s Collection sheet to craft copies or upgrade finishes. Extra copies past the three-copy cap become Remnants."],
+        ["Battlefields", "Shop battlefield skins include premium, seasonal and achievement-exclusive designs. Purchase available skins with Siegecoins, earn prestige skins through their listed achievements, and equip an owned skin. These change your board’s appearance."]
+      ]],
+      ["link", ["/cards", "Open your Collection"]]
+    ]],
+    ["Social, rooms & tournaments", "Find another player", "/img/lands/water.webp", "WATER", [
+      ["defs", [
+        ["Friends & messages", "Use Social for friend requests, direct messages and online presence. Open a public profile to view another player’s showcase."],
+        ["Host or join", "Host a multiplayer table and share its room code or invite link. Join using the supplied code or link; wait for both players to be ready before the match."],
+        ["Lobbies & tournaments", "Browse Lobbies for open tables and the current tournament. Read the event’s element and preset-deck restrictions before choosing a deck; an expired event requires a current table."],
+        ["Match records", "Profile › Recent lists finished matches, with replays where a recording is available."]
+      ]],
+      ["link", ["/lobbies", "Browse Lobbies"]]
+    ]],
+    ["Progression & rewards", "Missions, titles and cosmetics", "/img/lands/light.webp", "LIGHT", [
+      ["defs", [
+        ["Daily objectives", "Check Home’s Daily Objectives for current missions and reward progress. Missions refresh daily; use the displayed requirements and claim controls."],
+        ["Achievements & titles", "Open Achievements to see goals and unlocks. Profile holds your level, titles, match history and showcase settings."],
+        ["Leaderboards", "Compare the current leaderboard categories, including run-specific scores where available. Endless records include best score and floor."],
+        ["Gallery & profile", "Visit the Gallery for unlocked art. Customize your public profile with your favourite cards, element, avatar, title and available profile art."],
+        ["Separate progression", "Siege levels, veteran teams, Gauntlet upgrades, Keep resources and idle-RPG progress follow their own mode rules. A cosmetic finish or battlefield skin does not increase Standard Battle stats."]
+      ]],
+      ["link", ["/achievements", "View achievements"]]
+    ]],
+    ["Saving, tutorials & settings", "Resume safely and adjust your experience", "/img/lands/ice.webp", "ICE", [
+      ["defs", [
+        ["Account progress", "Sign in for account-backed collections, decks, progression and persistent modes. Some guest or test experiences keep state in this browser; read that mode’s save notice."],
+        ["Siege saves", "Return to /siege to resume an available expedition or Battlegrounds checkpoint. Use the run menu’s save option when needed; finish claiming a battle result before saving. Starting over discards that run."],
+        ["Tutorials", "Battle has a guided tutorial. Siege’s Tutorial simulates the expedition nodes and combat without saving progress. My Keep’s ? reopens its Keep Guide; Dominion’s ⋯ menu reopens its guide."],
+        ["Settings", "Adjust music, sound effects, battle voice, card animations, reduced motion, background parallax and notifications in Settings. Reduced motion follows your device preference until overridden."],
+        ["Connection & offline", "The installable web app can show an offline shell and cached assets, but online battles, purchases and account actions need a connection. Reconnect before retrying an action and check the resulting state."]
+      ]],
+      ["link", ["/settings", "Open Settings"]]
     ]],
     ['Glossary', 'Terms used across the game', '/img/lands/psychic.webp', 'PSYCHIC', [
       ['defs', [
