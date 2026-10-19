@@ -1,3 +1,7 @@
+- October 19, 2026 **Help drops separate Keep and Chronicles chapters; Dominion is the kingdom mode.**
+  - **Change.** Keep and Chronicles are no longer playable separately (Play tray is Battle / Siege / Dominion). Removed their Field Guide sections and hub HELP chapters. Game modes, Getting started, tutorials, glossary, footer and Modes section now point at Dominion only. Dominion copy is the kingdom & idle RPG (not a temporary test band). `home-redesign.js?v=121` (20 chapters).
+  - **Verification.** `node --check`. Headless Chrome: hub How to Play shows “20 chapters · 5 sections”, Modes lists Gauntlet + Dominion only (no Keep/Chronicles tiles); `help.html` TOC/sections/footer have no Keep or Chronicles routes. No page errors.
+
 - October 19, 2026 **How to Play is sectioned: Modes, Battle basics, Advanced, Menus, Reference.**
   - **Change.** The hub Help screen was one flat 22-card grid. It now groups chapters under five section heads with a chip jump row (Modes · Battle basics · Advanced · Menus · Reference). Chapter indices stay stable for the popup; any chapter missing from the section map still falls into a More bucket. `home-redesign.js?v=120`, `home-redesign.css?v=116`.
   - **Verification.** `node --check`. Coverage check: all 22 HELP titles appear once across the five sections. Headless Chrome at 390×844 and 1920×1080: page head reads “22 chapters · 5 sections”, Modes lists Gauntlet/Dominion, jump chip scrolls to Advanced, no orphan section, no page errors.
