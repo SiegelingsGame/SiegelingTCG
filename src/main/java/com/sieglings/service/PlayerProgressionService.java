@@ -108,6 +108,13 @@ public class PlayerProgressionService {
     @Autowired(required = false)
     private ProfileSettingsStore profileSettingsStore;
 
+    @Autowired
+    private BattlefieldSkinCatalogService battlefieldSkinCatalog;
+
+    @Autowired(required = false)
+    @Lazy
+    private AchievementEvaluationService achievementEvaluationService;
+
     private static Object[] createLockStripes() {
         Object[] locks = new Object[PACK_OPEN_LOCK_STRIPES];
         for (int i = 0; i < locks.length; i++) {
@@ -435,6 +442,64 @@ public class PlayerProgressionService {
             progression.setUpdatedAt(Instant.now());
             return store.save(progression);
         }
+    }
+
+    public PlayerProgressionEntity purchaseBattlefieldSkin(AccountUser user, String skinId) {
+        synchronized (progressionWriteLock(user)) {
+            PlayerProgressionEntity progression = getOrCreate(user);
+            Map<String, Object> skin = battlefieldSkinCatalog.find(skinId)
+                    .orElseThrow(() -> new IllegalArgumentException("Battlefield skin not found."));
+            String collection = String.valueOf(skin.get("collection"));
+            if (!"holiday".equals(collection) && !"premium".equals(collection)) {
+                throw new IllegalArgumentException("Prestige battlefields are earned through achievements and cannot be purchased.");
+            }
+            if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+                throw new IllegalArgumentException("Choose a starter pack before buying a battlefield.");
+            }
+            if (progression.getPurchasedBattlefieldSkinIds().contains(skinId)) return progression;
+            int price = ((Number) skin.get("price")).intValue();
+            if (progression.getGold() < price) throw new IllegalArgumentException("Not enough Siegecoins for that battlefield.");
+            progression.setGold(progression.getGold() - price);
+            List<String> owned = new ArrayList<>(progression.getPurchasedBattlefieldSkinIds());
+            owned.add(skinId);
+            progression.setPurchasedBattlefieldSkinIds(owned);
+            progression.setEquippedBattlefieldSkinId(skinId);
+            progression.setUpdatedAt(Instant.now());
+            return store.save(progression);
+        }
+    }
+
+    public PlayerProgressionEntity equipBattlefieldSkin(AccountUser user, String skinId) {
+        synchronized (progressionWriteLock(user)) {
+            PlayerProgressionEntity progression = getOrCreate(user);
+            if ("elemental-confluence".equals(skinId)) {
+                progression.setEquippedBattlefieldSkinId(skinId);
+            } else {
+                battlefieldSkinCatalog.find(skinId)
+                        .orElseThrow(() -> new IllegalArgumentException("Battlefield skin not found."));
+                if (!progression.getPurchasedBattlefieldSkinIds().contains(skinId)
+                        && !earnedBattlefieldSkinIds(user, progression).contains(skinId)) {
+                    throw new IllegalArgumentException("You do not own that battlefield.");
+                }
+                progression.setEquippedBattlefieldSkinId(skinId);
+            }
+            progression.setUpdatedAt(Instant.now());
+            return store.save(progression);
+        }
+    }
+
+    private Set<String> earnedBattlefieldSkinIds(AccountUser user, PlayerProgressionEntity progression) {
+        if (achievementEvaluationService == null || user == null) return Set.of();
+        List<String> achievementIds = battlefieldSkinCatalog.all().stream()
+                .filter(skin -> "prestige".equals(skin.get("collection")))
+                .map(skin -> String.valueOf(skin.get("achievementId"))).toList();
+        ProfileSettingsEntity settings = profileSettingsStore == null ? null
+                : profileSettingsStore.findByUserId(user.getId()).orElse(null);
+        Set<String> unlocked = achievementEvaluationService.unlockedAmong(user, achievementIds, progression, settings);
+        return battlefieldSkinCatalog.all().stream()
+                .filter(skin -> "prestige".equals(skin.get("collection"))
+                        && unlocked.contains(String.valueOf(skin.get("achievementId"))))
+                .map(skin -> String.valueOf(skin.get("id"))).collect(Collectors.toSet());
     }
 
     /**
@@ -765,6 +830,20 @@ public class PlayerProgressionService {
         return serialize(progression, null);
     }
 
+    private List<Map<String, Object>> serializeBattlefieldSkins(AccountUser user, PlayerProgressionEntity progression) {
+        Set<String> earned = earnedBattlefieldSkinIds(user, progression);
+        return battlefieldSkinCatalog.all().stream().map(skin -> {
+            Map<String, Object> row = new LinkedHashMap<>(skin);
+            String id = String.valueOf(skin.get("id"));
+            boolean unlocked = earned.contains(id);
+            boolean owned = progression.getPurchasedBattlefieldSkinIds().contains(id) || unlocked;
+            row.put("owned", owned);
+            row.put("unlocked", unlocked);
+            row.put("equipped", id.equals(progression.getEquippedBattlefieldSkinId()));
+            return row;
+        }).toList();
+    }
+
     public Map<String, Object> serialize(PlayerProgressionEntity progression, AccountUser user) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("gold", progression.getGold());
@@ -842,6 +921,9 @@ public class PlayerProgressionService {
             out.put("playerTitles", List.of());
         }
         out.put("purchasedTitleIds", progression.getPurchasedTitleIds());
+        out.put("purchasedBattlefieldSkinIds", progression.getPurchasedBattlefieldSkinIds());
+        out.put("equippedBattlefieldSkinId", progression.getEquippedBattlefieldSkinId());
+        out.put("battlefieldSkins", serializeBattlefieldSkins(user, progression));
         // Gallery art this player has earned (catalog/gallery-rewards.json); the
         // table of what each locked piece needs is public at /api/art/rewards.
         out.put("galleryUnlockedIds", galleryUnlockedIds(user, progression));

@@ -1,0 +1,358 @@
+{
+  "version": 1,
+  "defaultId": "elemental-confluence",
+  "skins": [
+    {
+      "id": "haunted-harvest",
+      "name": "Haunted Harvest",
+      "collection": "holiday",
+      "availability": "seasonal",
+      "price": 900,
+      "event": "October",
+      "artwork": null,
+      "achievementId": null,
+      "palette": [
+        "#7652a8",
+        "#85dd70",
+        "#20182e",
+        "#b38ad9"
+      ],
+      "description": "Black cobblestone, purple runes, haunted graveyards, jack-o'-lanterns, skeletal trees and green ghostfire."
+    },
+    {
+      "id": "winterfest-sanctuary",
+      "name": "Winterfest Sanctuary",
+      "collection": "holiday",
+      "availability": "seasonal",
+      "price": 900,
+      "event": "December",
+      "artwork": null,
+      "achievementId": null,
+      "palette": [
+        "#8ed8ee",
+        "#dfbf6c",
+        "#d9eff4",
+        "#71a7b9"
+      ],
+      "description": "Frosted oak, gold trim, snowy pines, lanterns, presents and warm cottages."
+    },
+    {
+      "id": "midnight-ascension",
+      "name": "Midnight Ascension",
+      "collection": "holiday",
+      "availability": "seasonal",
+      "price": 1100,
+      "event": "New Year",
+      "artwork": null,
+      "achievementId": null,
+      "palette": [
+        "#586fe2",
+        "#f3c76a",
+        "#9589ed",
+        "#32427f"
+      ],
+      "description": "Midnight-blue stone, golden constellations, clocks, fireworks, hourglasses and celestial towers."
+    },
+    {
+      "id": "heartbloom-gardens",
+      "name": "Heartbloom Gardens",
+      "collection": "holiday",
+      "availability": "seasonal",
+      "price": 850,
+      "event": "February",
+      "artwork": null,
+      "achievementId": null,
+      "palette": [
+        "#e87fba",
+        "#f3ce83",
+        "#d68ac2",
+        "#a75990"
+      ],
+      "description": "Rose marble, cherry blossoms, crystal hearts, glowing roses and golden arches."
+    },
+    {
+      "id": "verdant-rebirth",
+      "name": "Verdant Rebirth",
+      "collection": "holiday",
+      "availability": "seasonal",
+      "price": 850,
+      "event": "Spring",
+      "artwork": null,
+      "achievementId": null,
+      "palette": [
+        "#79c987",
+        "#b9de83",
+        "#9de4ba",
+        "#4d966e"
+      ],
+      "description": "Soft green stone, floral engraving, botanical ruins, blossoms and magical waterfalls."
+    },
+    {
+      "id": "suncrest-shores",
+      "name": "Suncrest Shores",
+      "collection": "holiday",
+      "availability": "seasonal",
+      "price": 1000,
+      "event": "Summer",
+      "artwork": null,
+      "achievementId": null,
+      "palette": [
+        "#eab56e",
+        "#4ec9e8",
+        "#f2d27d",
+        "#3184b2"
+      ],
+      "description": "Warm sandstone, ocean cliffs, tropical foliage, festival color and sapphire water."
+    },
+    {
+      "id": "dragons-hoard",
+      "name": "Dragon's Hoard",
+      "collection": "premium",
+      "availability": "permanent",
+      "price": 2000,
+      "artwork": null,
+      "achievementId": null,
+      "palette": [
+        "#d99b35",
+        "#ef633c",
+        "#b98a3c",
+        "#6b3e2c"
+      ],
+      "description": "Obsidian and gold, dragon statues, treasure vaults and molten gold."
+    },
+    {
+      "id": "starfall-observatory",
+      "name": "Starfall Observatory",
+      "collection": "premium",
+      "availability": "permanent",
+      "price": 1800,
+      "artwork": null,
+      "achievementId": null,
+      "palette": [
+        "#8c7bff",
+        "#42c4ed",
+        "#c5a5ff",
+        "#3d3378"
+      ],
+      "description": "Dark cosmic glass, celestial machinery and meteor showers beyond the edges."
+    },
+    {
+      "id": "abyssal-throne",
+      "name": "Abyssal Throne",
+      "collection": "premium",
+      "availability": "permanent",
+      "price": 1600,
+      "artwork": null,
+      "achievementId": null,
+      "palette": [
+        "#3ca9bd",
+        "#dfbd67",
+        "#58c7d5",
+        "#285d77"
+      ],
+      "description": "Deep-sea slate, gold inlays, luminous coral and colossal sea-creature silhouettes."
+    },
+    {
+      "id": "clockwork-dominion",
+      "name": "Clockwork Dominion",
+      "collection": "premium",
+      "availability": "permanent",
+      "price": 1500,
+      "artwork": null,
+      "achievementId": null,
+      "palette": [
+        "#c48a4e",
+        "#73d9c1",
+        "#d7b36d",
+        "#75553e"
+      ],
+      "description": "Brushed metal, gears, pistons, steam engines and glowing furnaces."
+    },
+    {
+      "id": "worldroot-sanctuary",
+      "name": "Worldroot Sanctuary",
+      "collection": "premium",
+      "availability": "permanent",
+      "price": 1500,
+      "artwork": null,
+      "achievementId": null,
+      "palette": [
+        "#7abd78",
+        "#d6bb74",
+        "#6bd5a0",
+        "#4e7455"
+      ],
+      "description": "Ancient polished wood, mossy stone, enchanted roots and luminous forest spirits."
+    },
+    {
+      "id": "unstoppable-inferno",
+      "name": "Unstoppable Inferno",
+      "collection": "prestige",
+      "availability": "achievement",
+      "price": null,
+      "artwork": null,
+      "achievementId": "win_streak_10",
+      "palette": [
+        "#ec4e42",
+        "#ffb04a",
+        "#b52e38",
+        "#72243f"
+      ],
+      "description": "Burning crimson royal arena.",
+      "requirement": "Reach a 10-win streak"
+    },
+    {
+      "id": "warlords-colosseum",
+      "name": "Warlord's Colosseum",
+      "collection": "prestige",
+      "availability": "achievement",
+      "price": null,
+      "artwork": null,
+      "achievementId": "pvp_warlord",
+      "palette": [
+        "#d9a84e",
+        "#e65d48",
+        "#a8864c",
+        "#6e3037"
+      ],
+      "description": "Black-and-gold champion's battleground.",
+      "requirement": "Win 50 PvP matches"
+    },
+    {
+      "id": "sovereigns-throne",
+      "name": "Sovereign's Throne",
+      "collection": "prestige",
+      "availability": "achievement",
+      "price": null,
+      "artwork": null,
+      "achievementId": "arena_sovereign",
+      "palette": [
+        "#e0c36a",
+        "#b58aff",
+        "#c9a253",
+        "#564075"
+      ],
+      "description": "Monumental imperial palace.",
+      "requirement": "Win 150 matches"
+    },
+    {
+      "id": "siegebreakers-citadel",
+      "name": "Siegebreaker's Citadel",
+      "collection": "prestige",
+      "availability": "achievement",
+      "price": null,
+      "artwork": null,
+      "achievementId": "siege_warlord",
+      "palette": [
+        "#b76b4d",
+        "#e5be65",
+        "#c47b55",
+        "#63453c"
+      ],
+      "description": "Destroyed fortress and victorious banners.",
+      "requirement": "Win 25 Siege expeditions"
+    },
+    {
+      "id": "grave-of-champions",
+      "name": "Grave of Champions",
+      "collection": "prestige",
+      "availability": "achievement",
+      "price": null,
+      "artwork": null,
+      "achievementId": "siege_boss_legend",
+      "palette": [
+        "#816ad1",
+        "#70db9c",
+        "#a38bd8",
+        "#453d70"
+      ],
+      "description": "Ancient titan skeletons and spectral flames.",
+      "requirement": "Defeat 50 Siege bosses"
+    },
+    {
+      "id": "infinite-archive",
+      "name": "The Infinite Archive",
+      "collection": "prestige",
+      "availability": "achievement",
+      "price": null,
+      "artwork": null,
+      "achievementId": "set_complete",
+      "palette": [
+        "#70b8ea",
+        "#cf9cff",
+        "#81d7d1",
+        "#534a86"
+      ],
+      "description": "Floating books, arcane libraries and celestial glyphs.",
+      "requirement": "Discover 90% of the card catalog"
+    },
+    {
+      "id": "prismatic-nexus",
+      "name": "Prismatic Nexus",
+      "collection": "prestige",
+      "availability": "achievement",
+      "price": null,
+      "artwork": null,
+      "achievementId": "rainbow_master",
+      "palette": [
+        "#ea6ec7",
+        "#71d7ed",
+        "#edc76c",
+        "#7c70df"
+      ],
+      "description": "Twelve elemental realms surrounding one central plate.",
+      "requirement": "Own cards from 10 different elements"
+    },
+    {
+      "id": "eternal-forge",
+      "name": "The Eternal Forge",
+      "collection": "prestige",
+      "availability": "achievement",
+      "price": null,
+      "artwork": null,
+      "achievementId": "grand_forge",
+      "palette": [
+        "#f08b45",
+        "#e3c76c",
+        "#dc5d40",
+        "#754a3b"
+      ],
+      "description": "Legendary anvils, runic machinery and molten metal.",
+      "requirement": "Craft 25 cards"
+    },
+    {
+      "id": "heart-of-the-worldtree",
+      "name": "Heart of the Worldtree",
+      "collection": "prestige",
+      "availability": "achievement",
+      "price": null,
+      "artwork": null,
+      "achievementId": "keep_timber_1000",
+      "palette": [
+        "#76c781",
+        "#d2c06c",
+        "#8dd9a1",
+        "#507a58"
+      ],
+      "description": "Giant enchanted trees and ancient living stone.",
+      "requirement": "Collect 1,000 lifetime timber"
+    },
+    {
+      "id": "astral-conqueror",
+      "name": "Astral Conqueror",
+      "collection": "prestige",
+      "availability": "achievement",
+      "price": null,
+      "artwork": null,
+      "achievementId": "siege_score_master",
+      "palette": [
+        "#e9c05c",
+        "#7d80ed",
+        "#d8a95b",
+        "#514b8d"
+      ],
+      "description": "Golden astral battlefield above a shattered world.",
+      "requirement": "Reach 5,000 Siege score"
+    }
+  ]
+}

@@ -14270,7 +14270,12 @@ function applyArenaElementTheme() {
     }
 
     const [primary, secondary, tertiary, quaternary] = collectArenaThemeElements();
-    const colors = [primary, secondary, tertiary, quaternary].map(getElementHex);
+    const equippedSkinId = authState.profile?.progression?.equippedBattlefieldSkinId;
+    const equippedSkin = authState.profile?.progression?.battlefieldSkins?.find(skin => skin.id === equippedSkinId);
+    const skinPalette = Array.isArray(equippedSkin?.palette) ? equippedSkin.palette : null;
+    const colors = skinPalette?.length
+        ? [skinPalette[0], skinPalette[1] || skinPalette[0], skinPalette[2] || skinPalette[0], skinPalette[3] || skinPalette[1] || skinPalette[0]]
+        : [primary, secondary, tertiary, quaternary].map(getElementHex);
 
     boardArea.style.setProperty('--arena-color-a', colors[0]);
     boardArea.style.setProperty('--arena-color-b', colors[1] || colors[0]);
@@ -14288,13 +14293,13 @@ function applyArenaElementTheme() {
         WATER: 'water', METAL: 'metal', POISON: 'poison', PSYCHIC: 'psychic',
         UNDEAD: 'undead', SHADOW: 'shadow', LIGHT: 'light', NEUTRAL: 'neutral'
     };
-    const applySide = (selector, player) => {
+    const applySide = (selector, player, sideColor) => {
         const half = boardArea.querySelector(selector);
         if (!half) return;
         const element = String(player?.trainer?.element || 'NEUTRAL').toUpperCase();
         const skin = skins[element] || 'neutral';
-        half.style.setProperty('--side-accent', getElementHex(element));
-        const skinUrl = `/img/board-skins/board-${skin}.webp?v=2`;
+        half.style.setProperty('--side-accent', sideColor || getElementHex(element));
+        const skinUrl = equippedSkin?.artwork || `/img/board-skins/board-${skin}.webp?v=2`;
         half.style.setProperty('--side-skin-image', `url("${skinUrl}")`);
         const layer = half.querySelector('.bf-skin-layer');
         if (layer) {
@@ -14306,8 +14311,8 @@ function applyArenaElementTheme() {
             probe.src = skinUrl;
         }
     };
-    applySide('.bf-player', gameState?.player);
-    applySide('.bf-enemy', gameState?.enemy);
+    applySide('.bf-player', gameState?.player, skinPalette?.[0]);
+    applySide('.bf-enemy', gameState?.enemy, skinPalette?.[1] || skinPalette?.[0]);
 }
 
 function getElementSigil(element, variant = 'soft') {
