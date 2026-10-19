@@ -5251,3 +5251,8 @@ Original prompt: Integrate 13 elemental table skins from the updated artwork whi
 - Verification: Confirmed all 13 source photos were converted to full-resolution WebP assets (1280x960) plus 360x270 Shop thumbnails; manifest declares all 13 skins and the updated assets. `git diff --check` passes. No live battle / PvP ownership flow was exercised.
 
 - Deployment verification (October 19, 2026): PR #1127 merged as a91096485ce1cc61939d43403b24528ad52efd29. GitHub Actions run 39196506390 completed successfully for Cloud Run and Firebase Hosting/Functions. Live /play returns HTTP 200 with style.css?v=290; live manifest returns all 13 skins with Neutral marked starter; Fire full-size and Neutral thumbnail return HTTP 200. /api/cards/editor returns HTTP 200 with Firestore source/live editing on through Hosting and direct Cloud Run; /js/config.js keeps piBaseUrl: ''; /api/game/options returns HTTP 200. No live battle ownership or visual interaction test was performed.
+
+
+Original prompt: Fix the live battlefield showing the enemy's updated art while the player's side still shows the previous Fire background, with apparent repeated scenery.
+- October 19, 2026: Confirmed the board image URLs were unchanged while Firebase Hosting serves images as immutable for one year, allowing browsers to keep the old Fire file. Added `?v=2` to every full-size and thumbnail URL in the manifest and to the combat image probe/render path. Removed the second differently-scaled background copy so each side paints one centered cover image. Bumped style.css to v291 and game.js to v331 in every shared HTML page.
+- Verification: `git diff --check` passes; all 13 manifest image URLs now carry v2. Needs production cache-refresh confirmation after deploy.
