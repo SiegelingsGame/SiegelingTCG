@@ -9934,7 +9934,7 @@
         ["Decks", "Use a preset or save your own deck from owned cards in Deck Builder. Standard presets are 40 cards: 20 Siegelings, 10 Strategies and 10 Deceptions; at most three copies of a card and complete evolution lines. Follow the builder’s validation before saving."],
         ["Summons & packs", "Spend Siegecoins in the Shop on the available summons, packs, decks or daily card offers. Check Odds for current drop rates and the displayed price before buying. Daily Offerings refresh at midnight UTC."],
         ["Crafting", "Use Remnants from a card’s Collection sheet to craft copies or upgrade finishes. Extra copies past the three-copy cap become Remnants."],
-        ["Battlefields", "Shop battlefield skins include premium, seasonal and achievement-exclusive designs. Purchase available skins with Siegecoins, earn prestige skins through their listed achievements, and equip an owned skin. These change your board’s appearance."]
+        ["Battlefields", "Shop → Arena Vault shows premium, seasonal and achievement-exclusive battlefield skins. Purchase available skins with Siegecoins, earn prestige skins through their listed achievements, and equip an owned skin. These change your board’s appearance."]
       ]],
       ["link", ["/cards", "Open your Collection"]]
     ]],
