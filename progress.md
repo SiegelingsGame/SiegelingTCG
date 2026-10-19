@@ -1,3 +1,7 @@
+- October 19, 2026 **Arena Art purchase plate is semi-transparent.**
+  - **Change.** Shop › Arena Art `.sg-arena-selected` (title + buy/equip row) used near-opaque navy fills (`.94` / `.83`). Background alphas are now `.52` / `.36` with a slightly stronger backdrop blur so the selected arena artwork reads through the purchase space. Cache pin `home-redesign.css?v=120` on `home-next.html` and `home-redesign-preview.html`.
+  - **Verification.** Headless Chrome at 390×844 and 1920×1080 against a local Arena Art gallery mount: computed gradient alphas are `0.52` / `0.36`, `backdrop-filter: blur(10px)`, no page errors. Screenshots under `/opt/cursor/artifacts/arena-purchase-*.png`.
+
 - October 19, 2026 Dominion no-work-before-knight release verification: PR #1143 merged as `18242abb`; Deploy workflow `39296079634` completed successfully (Cloud Run + Firebase Hosting/Functions). Live `/dominion` serves `dominion.js?v=25` with idle-until-founding guards (`made: false`, advance hold, Found your knight first). Hosting and Cloud Run `/api/cards/editor` remain `FIRESTORE` with editing enabled; `/api/game/options` returns 7 decks; `config.js` keeps `apiBaseUrl: ''`.
 
 - October 19, 2026 **Dominion: no work until you found your knight.**

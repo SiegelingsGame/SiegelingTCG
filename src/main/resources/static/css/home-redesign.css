@@ -5895,7 +5895,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-arena-heading h2 { margin:3px 0; color:#fff7e0; font:700 clamp(20px,4vw,38px)/1.02 var(--serif); text-shadow:0 2px 12px #0b0926; }
 .sg-arena-heading p { margin:0; color:#f0e7d0; font-size:11px; text-shadow:0 1px 6px #090821; }
 .sg-arena-dock { position:absolute; z-index:4; left:calc(var(--gtabs-w) + 22px); right:18px; bottom:calc(var(--gnav) + 8px); display:flex; flex-direction:column; gap:8px; }
-.sg-arena-selected { position:relative; z-index:auto; left:auto; right:auto; bottom:auto; display:flex; justify-content:space-between; align-items:center; gap:14px; min-height:86px; padding:11px 14px; border:1px solid rgba(217,180,95,.55); border-radius:14px; background:linear-gradient(100deg,rgba(19,16,46,.94),rgba(19,16,46,.83)); box-shadow:0 8px 24px rgba(0,0,0,.35); backdrop-filter:blur(8px); }
+.sg-arena-selected { position:relative; z-index:auto; left:auto; right:auto; bottom:auto; display:flex; justify-content:space-between; align-items:center; gap:14px; min-height:86px; padding:11px 14px; border:1px solid rgba(217,180,95,.55); border-radius:14px; background:linear-gradient(100deg,rgba(19,16,46,.52),rgba(19,16,46,.36)); box-shadow:0 8px 24px rgba(0,0,0,.28); backdrop-filter:blur(10px); }
 .sg-arena-copy { min-width:0; }
 .sg-arena-selected small { color:#ffe39a; font-size:9px; font-weight:850; letter-spacing:.16em; }
 .sg-arena-selected h3 { margin:3px 0; color:#fff7e0; font:700 clamp(17px,3vw,25px)/1.05 var(--serif); }
