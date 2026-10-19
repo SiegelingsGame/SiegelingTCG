@@ -3456,13 +3456,13 @@
     // exists on another tab starts at its beginning.
     var scrollTop = current.scrollTop;
     var rows = {};
-    app.querySelectorAll('.sg-gselect').forEach(function (row) {
+    app.querySelectorAll('.sg-gselect, .sg-arena-skins').forEach(function (row) {
       rows[row.getAttribute('aria-label')] = row.scrollLeft;
     });
     var next = render(document.createElement('div'), 'shop', Object.assign({}, opts, { freeze: true }));
     app.replaceWith(next);
     next.querySelector('.sg-scroll').scrollTop = scrollTop;
-    next.querySelectorAll('.sg-gselect').forEach(function (row) {
+    next.querySelectorAll('.sg-gselect, .sg-arena-skins').forEach(function (row) {
       var label = row.getAttribute('aria-label');
       if (Object.prototype.hasOwnProperty.call(rows, label)) row.scrollLeft = rows[label];
       // A choice made from outside the row (a remembered element, say) is

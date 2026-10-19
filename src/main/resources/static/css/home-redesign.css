@@ -5879,8 +5879,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-arena-gallery { position:absolute; inset:0; overflow:hidden; isolation:isolate; background:#11142b; }
 .sg-arena-faceoff { position:absolute; inset:0; display:grid; grid-template-rows:minmax(0,1fr) 18px minmax(0,1fr); overflow:hidden; }
 .sg-arena-half { position:relative; min-height:0; overflow:hidden; isolation:isolate; background:#11142b; }
-.sg-arena-half img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 48%; }
-.sg-arena-half.is-ai img { transform:rotate(180deg) scale(1.015); }
+.sg-arena-half img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; object-position:center; }
+.sg-arena-half.is-ai img { transform:rotate(180deg); }
 .sg-arena-half::after { content:""; position:absolute; inset:0; z-index:1; pointer-events:none; background:linear-gradient(180deg,rgba(10,8,30,.53),transparent 48%,rgba(10,8,30,.1)); }
 .sg-arena-half.is-player::after { background:linear-gradient(0deg,rgba(10,8,30,.9),transparent 72%); }
 .sg-arena-half > span { position:absolute; z-index:2; top:calc(var(--gtop) + 48px); left:calc(var(--gtabs-w) + 25px); display:flex; align-items:baseline; gap:8px; max-width:calc(100% - var(--gtabs-w) - 38px); padding:8px 12px; border:1px solid rgba(255,226,154,.55); border-radius:10px; color:#fff4d5; background:rgba(12,10,35,.78); box-shadow:0 4px 16px rgba(0,0,0,.35); font-weight:900; letter-spacing:.08em; }
@@ -5906,7 +5906,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-arena-skins { position:relative; z-index:auto; left:auto; right:auto; bottom:auto; display:flex; gap:8px; overflow-x:auto; margin-left:calc(-1 * (var(--gtabs-w) + 22px)); width:calc(100% + var(--gtabs-w) + 40px); box-sizing:border-box; padding:3px 12px 8px; scroll-padding-inline:12px; scrollbar-width:thin; overscroll-behavior-x:contain; }
 .sg-arena-skin { flex:0 0 92px; padding:4px; border:1px solid rgba(255,255,255,.24); border-radius:9px; color:#f8efd9; background:rgba(17,15,42,.86); text-align:left; cursor:pointer; }
 .sg-arena-skin.on { border-color:#ffe39a; box-shadow:0 0 0 1px rgba(255,227,154,.6),0 0 14px rgba(255,200,90,.32); }
-.sg-arena-skin img { display:block; width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:5px; }
+.sg-arena-skin img { display:block; width:100%; aspect-ratio:16/9; object-fit:contain; border-radius:5px; }
 .sg-arena-skin span { display:block; overflow:hidden; padding:4px 2px 1px; font-size:9px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
 @media(max-width:639px) {
   .sg-arena-heading { top:var(--gtop); right:10px; max-width:calc(100% - var(--gtabs-w) - 16px); }
