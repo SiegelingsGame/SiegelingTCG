@@ -2124,6 +2124,14 @@ body:has(.welcome-overlay.visible) .safe-hp-strip {
     background-position: center;
     opacity: .9;
 }
+
+/* Artwork on the enemy half faces its owner across the arena. Rotate only
+   scenery; the enemy grid, cards, labels, and controls keep their normal UI
+   orientation for the local player. */
+.bf-enemy .bf-skin-layer {
+    transform: rotate(180deg);
+}
+
 .bf-half .board-grid { --arena-rim: color-mix(in srgb, var(--side-accent) 54%, transparent); }
 .bf-half .board-cell { border-color: color-mix(in srgb, var(--side-accent) 54%, rgba(255,255,255,.14)); }
 .bf-half .board-cell:not(.has-card) { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--side-accent) 17%, transparent); }
