@@ -157,6 +157,12 @@ body[data-screen="over"] #screenOver { display: flex; }
   flex-direction: column;
   gap: 10px;
 }
+.gt-screen#screenStart {
+  /* Keep the primary action reachable when the picker rows exceed a phone's height. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
 .gt-screen > * { flex: 0 0 auto; min-width: 0; }
 .gt-screen-center { justify-content: center; }
 #screenLoading { justify-content: center; }
