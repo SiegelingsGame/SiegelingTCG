@@ -342,7 +342,6 @@ function tournamentDeckProblem(tournament, elements, customDeck) {
 
 async function applyLobbyIntent() {
     if (!LOBBY_INTENT) return;
-    welcomeDismissed = true;
     matchMode = 'online';
     onlineRoomMode = LOBBY_INTENT.online === 'join' ? 'join' : 'create';
     loadoutStep = 'deck';
@@ -363,56 +362,12 @@ async function applyLobbyIntent() {
     }
 }
 
-const DIRECT_BATTLE_ENTRY = (function () {
-    const path = String(window.location.pathname || '').replace(/\/+$/, '');
-    return path === '/battle' || path === '/battle.html';
-})();
-
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const LOADOUT_ACTION_TIMEOUT_MS = 90000;
 const BATTLE_AUTO_ADVANCE_DELAY_MS = 1550;
 let battleAutoAdvanceTimer = null;
 let battleAutoAdvanceInFlight = false;
 let battleHandViewOpen = false;
-let welcomeSlideIndex = 0;
-let welcomeDismissed = DIRECT_BATTLE_ENTRY || GAUNTLET_ENTRY;
-const LEADERBOARD_STORAGE_KEY = 'sieglings_leaderboards_v1';
-const LEADERBOARD_TABS = [
-    { id: 'wins', label: 'Wins' },
-    { id: 'matchesPlayed', label: 'Matches' },
-    { id: 'spellsCast', label: 'Strategies' },
-    { id: 'trapsSprung', label: 'Deceptions' },
-    { id: 'siegelingsDefeated', label: 'Siegelings' },
-    { id: 'pvpWinRate', label: 'PVP W/L' }
-];
-const LEADERBOARD_PERIODS = [
-    { id: 'daily', label: 'Daily' },
-    { id: 'weekly', label: 'Weekly' },
-    { id: 'monthly', label: 'Monthly' },
-    { id: 'year', label: 'Year' },
-    { id: 'allTime', label: 'All Time' }
-];
-let welcomeLeaderboardState = {
-    tab: 'wins',
-    period: 'daily',
-    data: null,
-    loading: false,
-    error: ''
-};
-
-function welcomeLeaderboardBoards() {
-    const data = welcomeLeaderboardState.data;
-    if (!data) {
-        return null;
-    }
-    const period = LEADERBOARD_PERIODS.some((entry) => entry.id === welcomeLeaderboardState.period)
-        ? welcomeLeaderboardState.period
-        : 'daily';
-    if (data.periods && data.periods[period]) {
-        return data.periods[period];
-    }
-    return period === 'daily' ? data.boards : null;
-}
 let authMode = 'login';
 let authRegisterStep = 'credentials';
 let authPopupOpen = false;
@@ -434,7 +389,7 @@ let authState = {
     // the player is already signed in, so there is nothing to wait on. The silent
     // background /api/auth/me still revalidates and corrects this if the session has
     // genuinely lapsed. When there is no cached profile, a present token means
-    // "signing in", NOT "logged out", so the welcome screen shows a loading state
+    // "signing in", NOT "logged out", so the Play navigation shows the current account state
     // instead of flashing the Log In card.
     profileResolved: Boolean(initialCachedProfile?.authenticated),
     error: ''
@@ -444,16 +399,6 @@ let lastProfileRefreshKey = '';
 let lastEndGameNoticeSeq = 0;
 let matchNoticeToastTimer = null;
 let socialOnlineLaunchRoomId = '';
-let playLobbyState = {
-    active: false,
-    mode: 'create',
-    ready: false,
-    opponentReady: false,
-    countdown: 0,
-    chatMessages: []
-};
-let playLobbyCountdownTimer = null;
-let playLobbyOpponentTimer = null;
 const ROW_NAMES = ['Back', 'Middle', 'Front'];
 const TARGET_TYPES = {
     SINGLE_ENEMY: 'enemy',
@@ -1464,165 +1409,6 @@ const CARD_ART_BY_KEY = Object.freeze({
         crop: 'illustration'
     }
 });
-const WELCOME_SLIDES = [
-    {
-        title: '1. Connect to sockets',
-        copy: 'An elemental notch facing a socket at the board’s edge activates it. The socket supplies 1 energy of that element each round and stays active after the Siegeling leaves.',
-        visual: `
-            <div class="tutorial-visual tutorial-board">
-                <div class="tutorial-arena-mid tutorial-arena-external-demo">
-                    <div class="tutorial-grid-with-sides tutorial-has-ex-connector">
-                        <div class="tutorial-ex-rail vertical tutorial-ex-rail--rows" aria-hidden="true">
-                            <span class="tutorial-ex-point"></span>
-                            <span class="tutorial-ex-point active fire"></span>
-                            <span class="tutorial-ex-point"></span>
-                        </div>
-                        <div class="tutorial-board-stage">
-                            <div class="tutorial-board-grid seamless">
-                                <div class="tutorial-slot"></div>
-                                <div class="tutorial-slot"></div>
-                                <div class="tutorial-slot"></div>
-                                <div class="tutorial-slot tutorial-slot-anchored">
-                                    <span class="tutorial-slot-face">S</span>
-                                    <span class="tutorial-slot-notch left fire"></span>
-                                </div>
-                                <div class="tutorial-slot"></div>
-                                <div class="tutorial-slot"></div>
-                                <div class="tutorial-slot"></div>
-                                <div class="tutorial-slot"></div>
-                                <div class="tutorial-slot"></div>
-                            </div>
-                        </div>
-                        <div class="tutorial-ex-rail vertical tutorial-ex-rail--rows" aria-hidden="true">
-                            <span class="tutorial-ex-point"></span>
-                            <span class="tutorial-ex-point"></span>
-                            <span class="tutorial-ex-point"></span>
-                        </div>
-                        <div class="tutorial-ex-bar-to-socket" aria-hidden="true"></div>
-                    </div>
-                    <div class="tutorial-ex-rail horizontal" aria-hidden="true">
-                        <span class="tutorial-ex-point"></span>
-                        <span class="tutorial-ex-point"></span>
-                        <span class="tutorial-ex-point"></span>
-                    </div>
-                </div>
-                <div class="tutorial-caption">The connector shows an active socket link.</div>
-            </div>
-        `
-    },
-    {
-        title: '2. Link matching elements',
-        copy: 'Facing notches of the same element form a link and generate energy of that element each round. A straight connector shows the link between the cards.',
-        visual: `
-            <div class="tutorial-visual tutorial-links">
-                <div class="tutorial-arena-mid tutorial-arena-compact">
-                    <div class="tutorial-board-stage">
-                        <div class="tutorial-same-element-pair">
-                            <div class="tutorial-slot tutorial-slot-anchored">
-                                <span class="tutorial-slot-face">A</span>
-                                <span class="tutorial-slot-notch right fire"></span>
-                            </div>
-                            <span class="tutorial-inner-fire-link-bar" aria-hidden="true"></span>
-                            <div class="tutorial-slot tutorial-slot-anchored">
-                                <span class="tutorial-slot-face">B</span>
-                                <span class="tutorial-slot-notch left fire"></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="tutorial-caption">Matching Fire notches form a Fire energy link.</div>
-            </div>
-        `
-    },
-    {
-        title: '3. Create combo points',
-        copy: 'Facing notches of different elements generate a combo point. The connector shows both colours. Check a card’s energy requirements to see which combo it needs.',
-        visual: `
-            <div class="tutorial-visual tutorial-mix">
-                <div class="tutorial-arena-mid tutorial-arena-compact">
-                    <div class="tutorial-board-stage">
-                        <div class="tutorial-mix-element-pair">
-                            <div class="tutorial-slot tutorial-slot-linked tutorial-slot-linked-left fire">
-                                <span class="tutorial-slot-face">A</span>
-                                <span class="tutorial-slot-notch right fire"></span>
-                            </div>
-                            <div class="tutorial-mix-link-bridge" aria-hidden="true">
-                                <svg width="64" height="12" viewBox="0 -2 64 12" overflow="visible" aria-hidden="true">
-                                    <defs>
-                                        <linearGradient id="welcomeMixGradSlide3" x1="0" y1="0" x2="1" y2="0">
-                                            <stop offset="45%" stop-color="#ff501e"/>
-                                            <stop offset="55%" stop-color="#b48c50"/>
-                                        </linearGradient>
-                                    </defs>
-                                    <path d="M0,4 L5.3,9.0 L10.7,4.0 L16.0,-1.0 L21.3,4.0 L26.7,9.0 L32.0,4.0 L37.3,-1.0 L42.7,4.0 L48.0,9.0 L53.3,4.0 L58.7,-1.0 L64.0,4.0" fill="none" stroke="url(#welcomeMixGradSlide3)" stroke-width="5" stroke-linecap="round"/>
-                                </svg>
-                            </div>
-                            <div class="tutorial-slot tutorial-slot-linked tutorial-slot-linked-right earth">
-                                <span class="tutorial-slot-face">B</span>
-                                <span class="tutorial-slot-notch left earth"></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="tutorial-caption">Fire and Earth notches form a combo link.</div>
-            </div>
-        `
-    },
-    {
-        title: '4. Choose battle abilities',
-        copy: 'After both players finish Setup, Siegelings act in Speed order. Choose an ability and any required target for each of yours. Reduce the opponent’s HP to zero to win.',
-        visual: `
-            <div class="tutorial-visual tutorial-battle">
-                <div class="tutorial-battle-snapshot">
-                    <div class="tutorial-snap-half enemy">
-                        <div class="tutorial-snap-label">ENEMY</div>
-                        <div class="tutorial-snap-grid-wrap">
-                            <div class="tutorial-snap-grid">
-                                <div class="tutorial-snap-cell"></div>
-                                <div class="tutorial-snap-cell has-card">A</div>
-                                <div class="tutorial-snap-cell"></div>
-                                <div class="tutorial-snap-cell"></div>
-                                <div class="tutorial-snap-cell has-card">B</div>
-                                <div class="tutorial-snap-cell"></div>
-                                <div class="tutorial-snap-cell"></div>
-                                <div class="tutorial-snap-cell"></div>
-                                <div class="tutorial-snap-cell"></div>
-                            </div>
-                            <svg class="tutorial-snap-link-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                                <line class="tutorial-snap-link-line" x1="50" y1="28" x2="50" y2="72" />
-                            </svg>
-                        </div>
-                        <div class="tutorial-snap-hp"><span>45</span> HP</div>
-                    </div>
-                    <div class="tutorial-snap-divider"></div>
-                    <div class="tutorial-snap-half player">
-                        <div class="tutorial-snap-label">YOU</div>
-                        <div class="tutorial-snap-grid-wrap">
-                            <div class="tutorial-snap-grid">
-                                <div class="tutorial-snap-cell"></div>
-                                <div class="tutorial-snap-cell has-card">C</div>
-                                <div class="tutorial-snap-cell"></div>
-                                <div class="tutorial-snap-cell has-card">D</div>
-                                <div class="tutorial-snap-cell has-card">E</div>
-                                <div class="tutorial-snap-cell"></div>
-                                <div class="tutorial-snap-cell"></div>
-                                <div class="tutorial-snap-cell"></div>
-                                <div class="tutorial-snap-cell"></div>
-                            </div>
-                            <svg class="tutorial-snap-link-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                                <line class="tutorial-snap-link-line" x1="50" y1="28" x2="50" y2="72" />
-                                <line class="tutorial-snap-link-line" x1="17" y1="50" x2="50" y2="50" />
-                            </svg>
-                        </div>
-                        <div class="tutorial-snap-hp"><span>50</span> HP</div>
-                    </div>
-                    <div class="tutorial-snap-phase">Battle</div>
-                </div>
-                <div class="tutorial-caption">Each player has a 3×3 board and an HP bar.</div>
-            </div>
-        `
-    }
-];
 
 function normalizeApiBaseUrl(baseUrl) {
     return (baseUrl || '').replace(/\/+$/, '');
@@ -5741,7 +5527,7 @@ function closeCardInspector(event) {
     if (overlay) overlay.classList.add('hidden');
 }
 
-// Most-recent match history list, stashed when the welcome screen renders
+// Most-recent match history list for the current account.
 // so openMatchDetail can look up the clicked entry by index.
 let latestMatchHistory = [];
 
@@ -7826,11 +7612,9 @@ async function closeUnfilledLobby(message = '') {
     clearMultiplayerSession();
     gameState = null;
     loadoutErrorMessage = message;
-    if (welcomeDismissed) {
-        renderLoadoutOptions();
-        updateLoadoutSummary();
-        syncEntryOverlays();
-    }
+    renderLoadoutOptions();
+    updateLoadoutSummary();
+    syncEntryOverlays();
 }
 
 async function leaveOnlineMatch() {
@@ -8265,7 +8049,7 @@ async function leaveEndScreenToHome() {
         window.location.href = '/home';
         return;
     }
-    returnToPlayMain();
+    returnToHome();
 }
 window.leaveEndScreenToHome = leaveEndScreenToHome;
 
@@ -8410,7 +8194,7 @@ function clearAuthState() {
 }
 
 function renderAuthDependentSurfaces() {
-    renderWelcomeAuth();
+    syncPlayAuthViews();
     renderSavedDecks();
     if (gameOptions) {
         ensureOwnedTrainerSelected();
@@ -8574,15 +8358,15 @@ function onPlayerNameInput() {
 }
 
 function syncEntryOverlays() {
-    const welcomeOverlay = document.getElementById('welcomeOverlay');
     const loadoutOverlay = document.getElementById('loadoutOverlay');
     const mulliganOverlay = document.getElementById('mulliganOverlay');
     const showingGameplay = Boolean(gameState);
-    const welcomeVisible = !showingGameplay && !welcomeDismissed;
 
     document.body?.classList.toggle('gameplay-active', showingGameplay);
-    welcomeOverlay?.classList.toggle('visible', welcomeVisible);
-    loadoutOverlay?.classList.toggle('visible', !showingGameplay && welcomeDismissed);
+    loadoutOverlay?.classList.toggle('visible', !showingGameplay);
+    if (showingGameplay || ((gameOptions || loadoutErrorMessage) && loadoutOverlay?.classList.contains('visible'))) {
+        document.documentElement.classList.remove('play-startup');
+    }
     // Second hide path. The redraw reveal outlives the server's mulligan, so it
     // has to be honoured here too or the overlay would be pulled out from under
     // the cards the player is being shown.
@@ -8590,9 +8374,6 @@ function syncEntryOverlays() {
         mulliganOverlay?.classList.remove('visible');
     }
     syncMulliganBodyState();
-    if (welcomeVisible) {
-        refreshWelcomeLeaderboards();
-    }
     if (gameState) {
         updateSafeAreaHpStrip(gameState);
     } else {
@@ -8604,178 +8385,8 @@ function syncEntryOverlays() {
     }
 }
 
-function localCalendarDateKey() {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-}
-
-function refreshWelcomeLeaderboards() {
-    const section = document.getElementById('welcomeLeaderboardsSection');
-    if (!section) {
-        return;
-    }
-    const today = localCalendarDateKey();
-    let loadedFromCache = false;
-    welcomeLeaderboardState.error = '';
-    try {
-        const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
-        if (raw) {
-            const parsed = JSON.parse(raw);
-            if (parsed.date === today && parsed.payload && parsed.payload.boards) {
-                welcomeLeaderboardState.data = parsed.payload;
-                loadedFromCache = true;
-                renderWelcomeLeaderboards();
-            }
-        }
-    } catch {
-        /* ignore cache parse errors */
-    }
-    if (!loadedFromCache) {
-        void fetchWelcomeLeaderboardsNetwork(today);
-    }
-}
-
-async function fetchWelcomeLeaderboardsNetwork(today) {
-    if (welcomeLeaderboardState.loading) {
-        return;
-    }
-    welcomeLeaderboardState.loading = true;
-    welcomeLeaderboardState.error = '';
-    renderWelcomeLeaderboards();
-    const data = await fetchJson(apiUrls('/api/leaderboards'), { method: 'GET' });
-    welcomeLeaderboardState.loading = false;
-    if (data && data.boards) {
-        welcomeLeaderboardState.data = data;
-        try {
-            localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify({ date: today, payload: data }));
-        } catch {
-            /* storage full or disabled */
-        }
-    } else {
-        welcomeLeaderboardState.error = (data && data.error) || 'Unable to load leaderboards.';
-    }
-    renderWelcomeLeaderboards();
-}
-
-function setWelcomeLeaderboardTab(tabId) {
-    welcomeLeaderboardState.tab = tabId;
-    renderWelcomeLeaderboards();
-}
-
-function setWelcomeLeaderboardPeriod(periodId) {
-    welcomeLeaderboardState.period = periodId;
-    renderWelcomeLeaderboards();
-}
-
-function renderWelcomeLeaderboards() {
-    const meta = document.getElementById('welcomeLeaderboardsMeta');
-    const tabsEl = document.getElementById('welcomeLeaderboardsTabs');
-    const body = document.getElementById('welcomeLeaderboardsBody');
-    if (!meta || !tabsEl || !body) {
-        return;
-    }
-
-    const boards = welcomeLeaderboardBoards();
-    const tz = welcomeLeaderboardState.data?.timeZone || 'UTC';
-    const gen = welcomeLeaderboardState.data?.generatedAt;
-    if (gen) {
-        let label = gen;
-        try {
-            label = new Date(gen).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-        } catch {
-            /* keep raw */
-        }
-        meta.textContent = `Last updated: ${label} (${tz})`;
-    } else {
-        meta.textContent = '';
-    }
-
-    if (boards && !boards[welcomeLeaderboardState.tab]) {
-        welcomeLeaderboardState.tab = 'wins';
-    }
-
-    if (welcomeLeaderboardState.error && !boards) {
-        meta.textContent = welcomeLeaderboardState.error;
-    }
-
-    const periodTabs = LEADERBOARD_PERIODS.map((entry) => {
-        const active = welcomeLeaderboardState.period === entry.id ? ' active' : '';
-        return `<button type="button" class="welcome-lb-period-tab${active}" role="tab" aria-selected="${welcomeLeaderboardState.period === entry.id}" onclick="setWelcomeLeaderboardPeriod('${entry.id}')">${escapeHtml(entry.label)}</button>`;
-    }).join('');
-    const categoryTabs = LEADERBOARD_TABS.map((t) => {
-        const active = welcomeLeaderboardState.tab === t.id ? ' active' : '';
-        return `<button type="button" class="welcome-lb-tab${active}" role="tab" aria-selected="${welcomeLeaderboardState.tab === t.id}" onclick="setWelcomeLeaderboardTab('${t.id}')">${escapeHtml(t.label)}</button>`;
-    }).join('');
-    tabsEl.innerHTML = `<div class="welcome-lb-period-tabs">${periodTabs}</div><div class="welcome-lb-category-tabs">${categoryTabs}</div>`;
-
-    if (welcomeLeaderboardState.loading && !boards) {
-        body.innerHTML = '<div class="welcome-lb-loading">Loading rankings…</div>';
-        return;
-    }
-
-    if (!boards) {
-        body.innerHTML = '<div class="welcome-lb-empty">No leaderboard data yet.</div>';
-        return;
-    }
-
-    const rows = boards[welcomeLeaderboardState.tab] || [];
-    const isPvp = welcomeLeaderboardState.tab === 'pvpWinRate';
-    const statLabel = isPvp ? 'Record' : 'Total';
-
-    if (rows.length === 0) {
-        body.innerHTML = '<div class="welcome-lb-empty">No players in this category yet.</div>';
-        return;
-    }
-
-    const head = `<div class="welcome-lb-head"><span>#</span><span>Player</span><span>${statLabel}</span></div>`;
-    const list = rows.map((row) => {
-        const display = isPvp && row.detail ? escapeHtml(String(row.detail)) : escapeHtml(String(row.value ?? ''));
-        return `<div class="welcome-lb-row"><span class="lb-rank">${row.rank}</span><span class="lb-name">${escapeHtml(row.displayName)}</span><span class="lb-val">${display}</span></div>`;
-    }).join('');
-    body.innerHTML = `<div class="welcome-lb-table">${head}${list}</div>`;
-}
-
-function renderWelcomeTutorial() {
-    const stage = document.getElementById('welcomeTutorialStage');
-    const dots = document.getElementById('welcomeTutorialDots');
-    const slide = WELCOME_SLIDES[welcomeSlideIndex];
-    if (!stage || !dots || !slide) {
-        return;
-    }
-
-    stage.innerHTML = `
-        <div class="welcome-slide-card">
-            <div class="welcome-slide-title">${slide.title}</div>
-            <div class="welcome-slide-copy">${slide.copy}</div>
-            ${slide.visual}
-        </div>
-    `;
-
-    dots.innerHTML = WELCOME_SLIDES.map((item, index) => {
-        const active = index === welcomeSlideIndex ? ' active' : '';
-        return `<button class="welcome-dot${active}" type="button" aria-label="Go to tutorial slide ${index + 1}" onclick="jumpWelcomeSlide(${index})"></button>`;
-    }).join('');
-}
-
-function jumpWelcomeSlide(index) {
-    welcomeSlideIndex = Math.max(0, Math.min(WELCOME_SLIDES.length - 1, index));
-    renderWelcomeTutorial();
-}
-
-function dismissWelcome() {
-    welcomeDismissed = true;
-    syncEntryOverlays();
-    if (gameOptions) {
-        renderLoadoutOptions();
-        updateLoadoutSummary();
-    }
-}
-
 // When entering a battle flow without a confirmed account, make sure no lingering
-// auth token rides along on /api/game/new. The welcome overlay only shows the
+// auth token rides along on /api/game/new. The loadout only shows the
 // guest/sign-in card (and the Solo Battle button) when no authenticated profile is
 // loaded; if /api/auth/me failed on a network blip the token is left in place and
 // would otherwise still be sent as a Bearer header, making the server resolve a stale
@@ -8796,223 +8407,6 @@ function dropStaleGuestToken() {
     if (authState.profileResolved && !authState.profile?.authenticated && (authState.token || authState.profile)) {
         clearAuthState();
     }
-}
-
-function playAsGuest() {
-    authState.error = '';
-    // Explicitly continuing as a guest: drop any lingering/expired token so the server
-    // treats this as a true guest session (user == null → no ownership gate, every
-    // SiegeKnight is selectable).
-    dropStaleGuestToken();
-    dismissWelcome();
-}
-
-function startPlaySolo() {
-    matchMode = 'solo';
-    tutorialMatchActive = false;
-    onlineRoomMode = 'create';
-    resetPlayLobbyState(false);
-    dropStaleGuestToken();
-    dismissWelcome();
-}
-
-function resetPlayLobbyState(shouldRender = true) {
-    if (playLobbyCountdownTimer) {
-        clearInterval(playLobbyCountdownTimer);
-        playLobbyCountdownTimer = null;
-    }
-    if (playLobbyOpponentTimer) {
-        clearTimeout(playLobbyOpponentTimer);
-        playLobbyOpponentTimer = null;
-    }
-    playLobbyState = {
-        active: false,
-        mode: 'create',
-        ready: false,
-        opponentReady: false,
-        countdown: 0,
-        chatMessages: []
-    };
-    if (shouldRender) {
-        renderPlayLobby();
-    }
-}
-
-function openPlayLobby(mode = 'create') {
-    matchMode = 'online';
-    tutorialMatchActive = false;
-    onlineRoomMode = mode === 'join' ? 'join' : 'create';
-    playLobbyState.active = true;
-    playLobbyState.mode = onlineRoomMode;
-    playLobbyState.ready = false;
-    playLobbyState.opponentReady = onlineRoomMode === 'join';
-    playLobbyState.countdown = 0;
-    playLobbyState.chatMessages = defaultLobbyMessages();
-    const roomInput = document.getElementById('playLobbyRoomCodeInput');
-    const loadoutRoomInput = document.getElementById('roomCodeInput');
-    if (roomInput && loadoutRoomInput && loadoutRoomInput.value) {
-        roomInput.value = loadoutRoomInput.value;
-    }
-    renderPlayLobby();
-}
-
-function defaultLobbyMessages() {
-    const name = getPlayEntryName();
-    if (onlineRoomMode === 'join') {
-        return [
-            { by: 'system', text: 'Invite found. Confirm when both players are ready to pick loadouts.' },
-            { by: 'opponent', text: 'I am here. Let us lock in.' }
-        ];
-    }
-    return [
-        { by: 'system', text: `${name} opened a 1v1 lobby.` },
-        { by: 'system', text: 'Share the invite code, chat while you wait, then both players confirm.' }
-    ];
-}
-
-function getPlayEntryName() {
-    return authState.profile?.user?.displayName || loadSavedPlayerName() || 'You';
-}
-
-function getPlayEntryEmail() {
-    return authState.profile?.user?.email || 'Guest session';
-}
-
-function renderPlayLobby() {
-    const card = document.getElementById('playLobbyCard');
-    if (!card) {
-        return;
-    }
-    const active = playLobbyState.active;
-    const mode = playLobbyState.mode || onlineRoomMode || 'create';
-    const joinCode = getJoinRoomCodeFromUrl()?.toUpperCase() || '';
-    const lobbyCode = currentRoomStatus?.roomId || joinCode || document.getElementById('playLobbyRoomCodeInput')?.value?.trim()?.toUpperCase() || '';
-    const opponentName = mode === 'join' ? 'Inviting Player' : (playLobbyState.opponentReady ? 'Opponent' : 'Waiting...');
-    const statusText = active
-        ? playLobbyState.countdown > 0
-            ? `Selection opens in ${playLobbyState.countdown}`
-            : playLobbyState.ready && playLobbyState.opponentReady
-                ? 'Both players confirmed. Starting selection.'
-                : playLobbyState.ready
-                    ? 'You confirmed. Waiting on the other player.'
-                    : 'Enter the room, chat, and confirm when ready.'
-        : 'Create or join a 1v1 lobby to stage the match before loadout selection.';
-    const chatMessages = active && playLobbyState.chatMessages.length
-        ? playLobbyState.chatMessages
-        : active
-            ? defaultLobbyMessages()
-            : [{ by: 'system', text: 'Create or join a lobby to open the chat room and ready check.' }];
-
-    card.innerHTML = `
-        <div class="play-lobby-head">
-            <div>
-                <span class="welcome-card-kicker">${active ? (mode === 'join' ? 'Joined Lobby' : 'Lobby Open') : 'Lobby'}</span>
-                <h3>${active ? 'Pre-match room' : 'Create a room experience'}</h3>
-            </div>
-            <span class="play-lobby-code">${escapeHtml(lobbyCode || (mode === 'join' ? 'Enter code' : 'Code after loadout'))}</span>
-        </div>
-        <div class="play-lobby-status">${escapeHtml(statusText)}</div>
-        <div class="play-lobby-players">
-            ${renderLobbyPlayerCard('You', getPlayEntryName(), getPlayEntryEmail(), playLobbyState.ready)}
-            ${renderLobbyPlayerCard('Opponent', opponentName, mode === 'join' ? 'Connected by invite' : 'Invite pending', playLobbyState.opponentReady)}
-        </div>
-        <div class="play-lobby-controls${active ? '' : ' is-muted'}">
-            <label class="online-field ${mode === 'join' ? '' : 'hidden'}">
-                <span>Lobby Code</span>
-                <input type="text" id="playLobbyRoomCodeInput" maxlength="6" placeholder="ABC123" value="${escapeHtmlAttribute(lobbyCode)}" oninput="syncPlayLobbyRoomCode()">
-            </label>
-            <div class="play-lobby-chat">
-                <div class="play-lobby-chat-log">
-                    ${chatMessages.map(renderLobbyChatMessage).join('')}
-                </div>
-                <form class="play-lobby-chat-form" onsubmit="sendPlayLobbyChat(event)">
-                    <input type="text" id="playLobbyChatInput" maxlength="96" placeholder="Message lobby" ${active ? '' : 'disabled'}>
-                    <button class="btn" type="submit" ${active ? '' : 'disabled'}>Send</button>
-                </form>
-            </div>
-            <div class="play-lobby-actions">
-                <button class="btn welcome-dashboard-btn" type="button" onclick="openPlayLobby('${mode === 'join' ? 'create' : 'join'}')">${mode === 'join' ? 'Host Instead' : 'Join Instead'}</button>
-                <button class="btn welcome-guest-btn" type="button" onclick="resetPlayLobbyState()">Cancel</button>
-                <button class="btn btn-primary" type="button" ${active ? '' : 'disabled'} onclick="confirmPlayLobbyReady()">${playLobbyState.ready ? 'Ready Confirmed' : 'Confirm Ready'}</button>
-            </div>
-        </div>
-    `;
-}
-
-function renderLobbyPlayerCard(role, name, detail, ready) {
-    return `<article class="play-lobby-player${ready ? ' is-ready' : ''}">
-        <span>${escapeHtml(role)}</span>
-        <strong>${escapeHtml(name)}</strong>
-        <small>${escapeHtml(detail)}</small>
-        <em>${ready ? 'Ready' : 'Not ready'}</em>
-    </article>`;
-}
-
-function renderLobbyChatMessage(message) {
-    const by = message.by === 'opponent' ? 'Opponent' : message.by === 'you' ? 'You' : 'System';
-    return `<div class="play-lobby-chat-row ${escapeHtmlAttribute(message.by || 'system')}"><strong>${escapeHtml(by)}</strong><span>${escapeHtml(message.text || '')}</span></div>`;
-}
-
-function syncPlayLobbyRoomCode() {
-    const value = document.getElementById('playLobbyRoomCodeInput')?.value?.trim()?.toUpperCase() || '';
-    const loadoutInput = document.getElementById('roomCodeInput');
-    if (loadoutInput) {
-        loadoutInput.value = value;
-    }
-}
-
-function sendPlayLobbyChat(event) {
-    event?.preventDefault?.();
-    const input = document.getElementById('playLobbyChatInput');
-    const text = input?.value?.trim() || '';
-    if (!text) {
-        return;
-    }
-    playLobbyState.chatMessages.push({ by: 'you', text });
-    if (input) {
-        input.value = '';
-    }
-    renderPlayLobby();
-}
-
-function confirmPlayLobbyReady() {
-    if (!playLobbyState.active || playLobbyState.countdown > 0) {
-        return;
-    }
-    playLobbyState.ready = true;
-    if (!playLobbyState.opponentReady) {
-        playLobbyState.chatMessages.push({ by: 'system', text: 'You confirmed. Waiting for the other player to confirm.' });
-        playLobbyOpponentTimer = setTimeout(() => {
-            playLobbyState.opponentReady = true;
-            playLobbyState.chatMessages.push({ by: 'opponent', text: 'Ready on my side.' });
-            beginPlayLobbyCountdown();
-        }, 800);
-        renderPlayLobby();
-        return;
-    }
-    beginPlayLobbyCountdown();
-}
-
-function beginPlayLobbyCountdown() {
-    if (!playLobbyState.ready || !playLobbyState.opponentReady || playLobbyCountdownTimer) {
-        renderPlayLobby();
-        return;
-    }
-    playLobbyState.countdown = 3;
-    renderPlayLobby();
-    playLobbyCountdownTimer = setInterval(() => {
-        playLobbyState.countdown -= 1;
-        if (playLobbyState.countdown <= 0) {
-            clearInterval(playLobbyCountdownTimer);
-            playLobbyCountdownTimer = null;
-            playLobbyState.active = false;
-            playLobbyState.countdown = 0;
-            syncPlayLobbyRoomCode();
-            dismissWelcome();
-            return;
-        }
-        renderPlayLobby();
-    }, 900);
 }
 
 function setAuthMode(mode) {
@@ -9200,7 +8594,7 @@ async function submitAuth(mode) {
     authPopupOpen = false;
     document.getElementById('authPopupOverlay')?.classList.add('hidden');
     hydrateSavedPlayerName();
-    renderWelcomeAuth();
+    syncPlayAuthViews();
     renderSavedDecks();
     renderLoadoutOptions();
     updateLoadoutSummary();
@@ -9230,7 +8624,7 @@ function syncAuthProfile(silent = false) {
         // "Restoring your account…" state, so paint it before waiting.
         if (!silent) {
             authState.loading = true;
-            renderWelcomeAuth();
+    syncPlayAuthViews();
         }
         return syncAuthProfileInFlight;
     }
@@ -9242,7 +8636,7 @@ async function syncAuthProfileNow(silent = false) {
     authState.loading = !silent;
     authState.error = '';
     if (!silent) {
-        renderWelcomeAuth();
+    syncPlayAuthViews();
     }
 
     // never serve auth state from the HTTP cache — Safari in particular will
@@ -9254,7 +8648,7 @@ async function syncAuthProfileNow(silent = false) {
     // Fail open: a transient failure ('unknown') must never drop a valid session.
     if (status === 'unknown') {
         authState.error = 'Your account could not be refreshed. Retry to load your latest cards and decks.';
-        renderWelcomeAuth();
+    syncPlayAuthViews();
         renderSavedDecks();
         renderLoadoutOptions();
         return false;
@@ -9291,7 +8685,7 @@ async function syncAuthProfileNow(silent = false) {
     authState.error = '';
     authState.profileResolved = true;
     saveCachedAuthProfile(merged);
-    renderWelcomeAuth();
+    syncPlayAuthViews();
     renderSavedDecks();
     hydrateSavedPlayerName();
     // Fresh unlockedDeckIds / purchases must redraw the loadout — otherwise a
@@ -9308,104 +8702,9 @@ async function logoutAccount() {
     updateLoadoutSummary();
 }
 
-function renderWelcomeAuth() {
+function syncPlayAuthViews() {
     renderPlayHubAuth();
-    const authCard = document.getElementById('welcomeAuthCard');
-    const historyCard = document.getElementById('welcomeHistoryCard');
-    if (!authCard || !historyCard) {
-        return;
-    }
-
-    if (authState.profile?.authenticated) {
-        const savedDeckCount = authState.profile.savedDecks?.length || 0;
-        const historyCount = authState.profile.matchHistory?.length || 0;
-        authCard.innerHTML = `
-            <div class="welcome-card-kicker">Account Linked</div>
-            <h3>${escapeHtml(authState.profile.user.displayName)}</h3>
-            <div class="welcome-auth-meta">${escapeHtml(authState.profile.user.email)}</div>
-            <div class="welcome-stat-grid">
-                <div class="welcome-stat"><strong>${savedDeckCount}</strong><span>saved decks</span></div>
-                <div class="welcome-stat"><strong>${historyCount}</strong><span>recent matches</span></div>
-            </div>
-            <div class="welcome-auth-actions">
-                <button class="btn" type="button" onclick="logoutAccount()">Log Out</button>
-                <button class="btn btn-primary" type="button" onclick="dismissWelcome()">Continue</button>
-            </div>
-        `;
-
-        const recent = authState.profile.matchHistory || [];
-        // Stash for the detail modal — opened by clicking a row.
-        latestMatchHistory = recent;
-        historyCard.innerHTML = `
-            <div class="welcome-card-kicker">Recent Battles</div>
-            <h3>Match history follows this login</h3>
-            ${!authState.profileResolved
-                ? `<div class="welcome-loading-bar" aria-hidden="true"><span></span></div>
-                   <div class="identity-note">Refreshing your latest match history…</div>`
-                : ''}
-            ${recent.length > 0
-                ? `<div class="welcome-history-list">${recent.slice(0, 6).map((entry, idx) => {
-                    const resultClass = String(entry.result || '').toLowerCase();
-                    const ph = Number(entry.playerHealthRemaining);
-                    const oh = Number(entry.opponentHealthRemaining);
-                    const en = Number(entry.playerEnergyRemaining);
-                    const metaBits = [];
-                    if (Number.isFinite(ph) && Number.isFinite(oh)) metaBits.push(`&hearts; ${ph} vs ${oh}`);
-                    if (Number.isFinite(en)) metaBits.push(`&#9889; ${en}`);
-                    if (entry.turnNumber) metaBits.push(`T${entry.turnNumber}`);
-                    return `
-                    <button class="welcome-history-row history-row-clickable result-${escapeHtmlAttribute(resultClass)}" type="button" onclick="openMatchDetail(${idx})">
-                        <strong class="history-result-${escapeHtmlAttribute(resultClass)}">${escapeHtml(entry.result)}</strong>
-                        <span>${escapeHtml(entry.loadoutLabel)} vs ${escapeHtml(entry.opponentName)}</span>
-                        ${metaBits.length ? `<span class="history-row-meta">${metaBits.join(' &middot; ')}</span>` : ''}
-                    </button>
-                `;
-                }).join('')}</div>`
-                : '<div class="identity-note">Your finished games will appear here after the first recorded match.</div>'}
-        `;
-        return;
-    }
-
-    // Token present but /api/auth/me hasn't returned yet: show a loading state
-    // rather than the logged-out Log In card, so navigating in while signed in
-    // never flashes "logged out" while the session is still being restored.
-    if (authState.token && !authState.profileResolved) {
-        authCard.innerHTML = `
-            <div class="welcome-eyebrow">ACCOUNT</div>
-            <h3>${authState.error ? 'Account refresh needed' : 'Loading your collection…'}</h3>
-            ${authState.error ? '' : '<div class="welcome-loading-bar" aria-hidden="true"><span></span></div>'}
-            <p class="welcome-auth-prompt">${escapeHtml(authState.error || 'Your owned presets, saved decks and SiegeKnights will appear here when your account loads.')}</p>
-            ${authState.error ? '<button class="btn btn-primary" type="button" onclick="syncAuthProfile()">Retry account</button>' : ''}
-        `;
-        historyCard.innerHTML = `
-            <div class="welcome-card-kicker">Recent Battles</div>
-            <h3>Loading match history…</h3>
-            <div class="welcome-loading-bar" aria-hidden="true"><span></span></div>
-            <div class="identity-note">You can wait, or start a new match while this loads.</div>
-        `;
-        return;
-    }
-
-    authCard.innerHTML = `
-        <div class="welcome-eyebrow">ACCOUNT</div>
-        <h3>Pick up where you left off</h3>
-        <p class="welcome-auth-prompt">Sign in or create an account to save your decks, track your match history, and rejoin the arena with your builds intact.</p>
-        <div class="welcome-auth-actions">
-            <button class="btn btn-primary welcome-auth-submit" type="button" onclick="openAuthPopup('login')">Log In</button>
-            <button class="btn welcome-auth-submit" type="button" onclick="openAuthPopup('register')">Register</button>
-        </div>
-        <button class="btn welcome-guest-btn" type="button" ${authState.loading ? 'disabled' : ''} onclick="playAsGuest()">Play as Guest</button>
-    `;
-
-    historyCard.innerHTML = `
-        <div class="welcome-eyebrow">WHY SIGN IN</div>
-        <h3>Keep your armory between sessions</h3>
-        <div class="welcome-benefits">
-            <div class="welcome-benefit">Save custom decks and named loadouts.</div>
-            <div class="welcome-benefit">Track your wins, matches, and deck history.</div>
-            <div class="welcome-benefit">Rejoin the arena with your builds intact.</div>
-        </div>
-    `;
+    latestMatchHistory = authState.profile?.matchHistory || [];
 }
 
 function getSavedDeckElements(savedDeck) {
@@ -9586,7 +8885,7 @@ function getActiveLoadoutLabel() {
 async function saveCurrentLoadout() {
     if (!authState.profile?.authenticated) {
         authState.error = 'Sign in first to save decks to your account.';
-        renderWelcomeAuth();
+    syncPlayAuthViews();
         return;
     }
 
@@ -9604,7 +8903,7 @@ async function saveCurrentLoadout() {
 
     if (!data || data.error) {
         authState.error = data?.error || 'Unable to save that deck right now.';
-        renderWelcomeAuth();
+    syncPlayAuthViews();
         return;
     }
 
@@ -9612,7 +8911,7 @@ async function saveCurrentLoadout() {
     const matchingDeck = authState.profile.savedDecks.find(deck => deck.name === name);
     selectedSavedDeckId = matchingDeck?.id || selectedSavedDeckId;
     authState.error = '';
-    renderWelcomeAuth();
+    syncPlayAuthViews();
     renderSavedDecks();
 }
 
@@ -9632,14 +8931,14 @@ async function deleteSavedDeck(deckId) {
     });
     if (!data || data.error) {
         authState.error = data?.error || 'Unable to delete that deck right now.';
-        renderWelcomeAuth();
+    syncPlayAuthViews();
         return;
     }
     if (selectedSavedDeckId === deckId) {
         selectedSavedDeckId = null;
     }
     authState.profile = data;
-    renderWelcomeAuth();
+    syncPlayAuthViews();
     renderSavedDecks();
     updateLoadoutSummary();
 }
@@ -10516,16 +9815,12 @@ function showLoadoutLoadingError(message) {
 
 async function loadGameOptions() {
     try {
-        renderWelcomeTutorial();
-        renderWelcomeAuth();
+    syncPlayAuthViews();
         // Arriving from the hub with a chosen loadout (e.g. Start Match) means
         // the player asked to play now — drop them straight onto deck selection
-        // instead of holding them on the welcome screen. Critically this happens
+        // open deck selection immediately. Critically this happens
         // before any network await, so a slow/hung account restore can't trap
-        // them behind the "Restoring your account…" spinner.
-        if (peekPendingHomeLoadout()) {
-            welcomeDismissed = true;
-        }
+        // them behind an account restore spinner.
         if (GAUNTLET_ENTRY && window.SieglingsLoadingGate) {
             window.SieglingsLoadingGate.show({
                 player: { name: getCurrentPlayerName() || 'You', trainerName: 'Your SiegeKnight' },
@@ -10580,8 +9875,7 @@ async function loadGameOptions() {
         await applyLobbyIntent();
         hydrateOnlineStateFromUrl();
         hydrateSavedPlayerName();
-        renderWelcomeTutorial();
-        renderWelcomeAuth();
+    syncPlayAuthViews();
         renderLoadoutOptions();
         updateLoadoutSummary();
         const resumed = await resumeMultiplayerSession() || await resumeGauntletBattle();
@@ -10817,7 +10111,6 @@ function openLoadoutSelector() {
     document.getElementById('phaseTransitionBanner')?.classList.add('hidden');
     document.getElementById('phaseTransitionBanner')?.classList.remove('visible');
     setPhaseTransitionScrimVisible(false);
-    welcomeDismissed = true;
     resetGameOverOverlayState();
     if (!gameOptions) {
         loadGameOptions();
@@ -10832,26 +10125,10 @@ function openLoadoutSelector() {
     syncEntryOverlays();
 }
 
-function returnToPlayMain() {
-    if (loadoutStartPending) {
-        return;
-    }
-    // Arriving on /battle means the loadout IS the screen; there is no welcome
-    // behind it to fall back to, so closing goes back to the hub that sent them.
-    if (DIRECT_BATTLE_ENTRY && !gameState) {
-        window.location.href = '/home';
-        return;
-    }
+function returnToHome() {
+    if (loadoutStartPending) return;
     clearMultiplayerSession();
-    currentRoomStatus = null;
-    loadoutErrorMessage = '';
-    welcomeDismissed = false;
-    resetPlayLobbyState(false);
-    resetGameOverOverlayState();
-    syncEntryOverlays();
-    renderWelcomeTutorial();
-    renderWelcomeAuth();
-    renderWelcomeLeaderboards();
+    window.location.href = '/home';
 }
 
 function selectDeckOption(deckId) {
@@ -11135,7 +10412,7 @@ async function claimTutorialReward() {
 }
 
 // Reads the hub handoff (Start Match, deck builder launch, etc.) without
-// consuming it, so the boot path can decide to skip the welcome screen before
+// consuming it, so the boot path can decide to restore the loadout before
 // the network settles. Returns null when missing, malformed, or stale.
 function peekPendingHomeLoadout() {
     try {
@@ -11166,7 +10443,6 @@ function applyPendingHomeLoadout() {
     const directLoadout = Boolean(pending.directLoadout);
     tutorialMatchActive = Boolean(pending.tutorial) || pending.mode === 'tutorial';
     // Arrived from the Home hub with a chosen loadout — skip the welcome and go straight to the loadout.
-    welcomeDismissed = true;
     if (directLoadout) {
         loadoutStep = pending.startStep === 'setup' ? 'setup' : 'deck';
         if (!authState.profile?.authenticated) {
@@ -11192,7 +10468,6 @@ function applyPendingHomeLoadout() {
     }
     matchMode = tutorialMatchActive ? 'tutorial' : (pending.mode === 'online' ? 'online' : 'solo');
     if (matchMode === 'online') {
-        welcomeDismissed = true;
         onlineRoomMode = pending.roomId ? 'join' : 'create';
         if (pending.roomId) {
             socialOnlineLaunchRoomId = String(pending.roomId).toUpperCase();
@@ -11230,7 +10505,6 @@ async function resumeGauntletBattle() {
     }
     matchMode = 'solo';
     tutorialMatchActive = false;
-    welcomeDismissed = true;
     clearExternalSocketElementMemory();
     gameState = data;
     render();
@@ -11261,7 +10535,6 @@ async function resumeMultiplayerSession() {
     }
 
     matchMode = 'online';
-    welcomeDismissed = true;
     currentRoomStatus = data;
     if (data.started) {
         startRoomPolling();
@@ -11473,7 +10746,7 @@ function setLoadoutStep(step) {
 function loadoutStepBack() {
     const idx = loadoutStepIndex(loadoutStep);
     if (idx <= 0) {
-        returnToPlayMain();
+        returnToHome();
         return;
     }
     loadoutStep = LOADOUT_STEPS[idx - 1];
@@ -18795,9 +18068,8 @@ window.SieglingsCardShowcase = {
 if (document.getElementById('loadoutOverlay')) {
     renderDesktopMenuMeta();
     renderDesktopActionHistory();
-    renderWelcomeTutorial();
     bindAuthStorageSync();
-    renderWelcomeAuth();
+    syncPlayAuthViews();
     void syncAuthProfile(true);
     syncEntryOverlays();
     if (typeof SieglingsCatalogSync !== 'undefined') {

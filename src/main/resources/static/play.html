@@ -15,7 +15,8 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="stylesheet" href="/css/style.css?v=291">
+    <script>document.documentElement.classList.add('play-startup');</script>
+    <link rel="stylesheet" href="/css/style.css?v=292">
     <style>
         html.gauntlet-navigation-pending::after {
             content: "";
@@ -703,42 +704,6 @@
     </div>
 </div>
 
-<div class="welcome-overlay visible" id="welcomeOverlay">
-    <div class="welcome-shell play-entry-shell">
-        <section class="play-entry-hero">
-            <div>
-                <div class="welcome-eyebrow">PLAY</div>
-                <h2>Choose how to play</h2>
-                <p class="welcome-hero-copy"><strong>Arena Battle:</strong> use your decks against the AI or another player. SiegeKnight levels are off.<br><strong>Siege:</strong> assemble a warband, explore a changing map, and grow stronger during an expedition.</p>
-            </div>
-            <div class="play-entry-actions">
-                <button class="btn btn-primary play-mode-btn" type="button" onclick="startPlaySolo()">
-                    <span class="play-mode-btn-label">Arena Battle</span>
-                    <span class="play-mode-btn-sub">Solo &amp; live PvP — levels off</span>
-                </button>
-                <a class="btn play-mode-btn" href="/siege">
-                    <span class="play-mode-btn-label">Siege <span class="play-mode-soon-tag play-mode-new-tag">New</span></span>
-                    <span class="play-mode-btn-sub">Roguelike expedition — build a warband</span>
-                </a>
-                <a class="btn welcome-dashboard-btn" href="/lobbies">Browse Social Lobbies</a>
-            </div>
-        </section>
-        <div class="play-entry-grid play-entry-grid-solo">
-            <aside class="welcome-sidebar">
-                <section class="welcome-auth-card" id="welcomeAuthCard"></section>
-                <section class="welcome-history-card" id="welcomeHistoryCard"></section>
-            </aside>
-        </div>
-        <div class="welcome-footer">
-            <div class="welcome-footer-note">Arena guide and daily leaderboards now live on Home.</div>
-            <div class="welcome-footer-actions">
-                <a class="btn welcome-dashboard-btn" href="/home">Home</a>
-                <span class="crafted-by">Crafted By PartyChatGaming</span>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div class="loadout-overlay" id="loadoutOverlay">
     <div class="loadout-box">
         <div class="loadout-hero">
@@ -752,7 +717,7 @@
                     <a class="loadout-local-dev-link" href="/play" target="_blank" rel="noopener">Open Game In New Tab</a>
                 </div>
             </div>
-            <button class="loadout-close-btn" type="button" onclick="returnToPlayMain()" aria-label="Return to Play main screen">&times;</button>
+            <button class="loadout-close-btn" type="button" onclick="returnToHome()" aria-label="Return Home">&times;</button>
             <div class="invite-room-badge hidden" id="inviteRoomBadge"></div>
         </div>
         <div class="loadout-steps" id="loadoutSteps" role="tablist" aria-label="Loadout steps">
@@ -971,7 +936,7 @@
     <script src="/js/coach.js?v=11"></script>
     <script src="/js/arena-tutorial.js?v=51"></script>
     <script src="/js/knight-tutorial.js?v=2"></script>
-<script src="/js/game.js?v=333"></script>
+<script src="/js/game.js?v=334"></script>
     <script src="/js/play-mode-picker.js?v=4"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,
