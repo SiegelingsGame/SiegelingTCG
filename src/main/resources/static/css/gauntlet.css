@@ -41,9 +41,15 @@
 /* Several containers here are flex/grid; without this their display beats the attribute. */
 [hidden] { display: none !important; }
 
+/* Same rule as the hub (home-next.html), the Arena (style.css body) and the Keep:
+   height:100% is the layout viewport, which an installed iOS app can report short of
+   the glass, and the page was clipped there - the Fight button cut in half above a
+   dead band - however tall the shell was. --sg-vh (viewport-unit.js) wins only where
+   dvh under-reports. */
 html, body {
   margin: 0;
-  height: 100%;
+  height: var(--sg-vh, 100vh);
+  height: max(100dvh, var(--sg-vh, 0px));
   overflow: hidden;
   background: var(--gt-bg);
   color: var(--ink);
@@ -66,9 +72,13 @@ body {
 button { font-family: inherit; touch-action: manipulation; }
 
 .gt-shell {
-  /* style.css makes body a flex column; with auto side margins the shell would
-     otherwise shrink to its content instead of filling up to max-width. */
-  width: 100%;
+  /* Absolute rather than in flow or fixed (a fixed box sizes to the same short layout
+     viewport). Left/right 0 with auto margins keeps it centred up to max-width. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--sg-vh, 100vh);
   height: max(100dvh, var(--sg-vh, 0px));
   display: flex;
   flex-direction: column;
@@ -961,6 +971,9 @@ body[data-screen="over"] #screenOver { display: flex; }
 @media (orientation: portrait) and (max-width: 599px) {
   body[data-screen="camp"] .gt-main { padding-bottom: calc(max(6px, env(safe-area-inset-bottom)) + 16px); }
   #screenCamp .gt-encounter { height: clamp(150px, 20dvh, 180px); }
+  /* The shorter box leaves the Cards page no room for its count line; the tab
+     already shows the count. */
+  #screenCamp .gt-enc-page .gt-note { display: none; }
 }
 
 /* Phones in portrait: no room beside the title, so the result takes a second header row. */

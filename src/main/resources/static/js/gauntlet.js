@@ -1025,6 +1025,9 @@
     window.addEventListener('resize', scheduleLayout);
     window.addEventListener('orientationchange', scheduleLayout);
     if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleLayout);
+    // viewport-unit.js corrects --sg-vh on a schedule after launch, without a resize
+    // event; the rails must refit to the taller screen when it does.
+    if (window.ResizeObserver) new window.ResizeObserver(scheduleLayout).observe($('gtMain'));
     document.addEventListener('keydown', function (event) {
       if (event.key === 'Escape' && !$('gtSheet').hidden) closeSheet();
     });
