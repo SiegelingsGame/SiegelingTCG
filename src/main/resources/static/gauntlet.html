@@ -17,7 +17,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <!-- The battle stylesheet dresses the real card faces (frames, notches, finishes). -->
 <link rel="stylesheet" href="/css/style.css?v=292">
-<link rel="stylesheet" href="/css/gauntlet.css?v=14">
+<link rel="stylesheet" href="/css/gauntlet.css?v=15">
 </head>
 <body data-screen="loading">
 <div class="gt-shell">
@@ -158,13 +158,15 @@
 
 <div class="gt-toast" id="gtToast" role="status" aria-live="polite" hidden></div>
 
-<script src="/js/viewport-unit.js"></script>
+<!-- --sg-vh: the height the player can actually see. An installed iPhone app can report
+     every viewport measure short of the screen; html, body and the shell size off it. -->
+<script src="/js/viewport-unit.js?v=3"></script>
 <script src="/js/config.js"></script>
 <!-- The shared card renderer: card-binder-visual.js draws faces through game.js's
      renderShowcaseCard, exactly as the hub binder does. game.js only boots its
      battle UI when #loadoutOverlay exists, so here it is a library. -->
 <script src="/js/game.js?v=334"></script>
 <script src="/js/card-binder-visual.js?v=35"></script>
-<script src="/js/gauntlet.js?v=9"></script>
+<script src="/js/gauntlet.js?v=10"></script>
 </body>
 </html>
