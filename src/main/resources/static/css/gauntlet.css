@@ -959,7 +959,7 @@ body[data-screen="over"] #screenOver { display: flex; }
 /* In portrait, give the camp deck more room and put Fight near the home indicator,
    while retaining the device's safe inset for the button's touch target. */
 @media (orientation: portrait) and (max-width: 599px) {
-  body[data-screen="camp"] .gt-main { padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+  body[data-screen="camp"] .gt-main { padding-bottom: calc(max(6px, env(safe-area-inset-bottom)) + 16px); }
   #screenCamp .gt-encounter { height: clamp(150px, 20dvh, 180px); }
 }
 
