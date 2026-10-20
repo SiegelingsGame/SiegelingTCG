@@ -10300,6 +10300,7 @@ function setMatchMode(mode) {
     currentRoomStatus = null;
     loadoutErrorMessage = '';
     tutorialMatchActive = mode === 'tutorial';
+    if (mode === 'gauntlet') loadoutStep = 'setup';
     if (mode === 'online') {
         hydrateOnlineStateFromUrl();
     } else {
@@ -10808,6 +10809,12 @@ function syncLoadoutStepChrome() {
     }
 
     const primary = document.getElementById('btnStartLoadout');
+    if (gameOptions && primary && matchMode === 'gauntlet') {
+        primary.onclick = startSelectedGame;
+        syncLoadoutStartButton(primary, loadoutStartPending,
+            loadoutStartPending ? 'Starting Gauntlet...' : 'Start Gauntlet');
+        return;
+    }
     if (gameOptions && primary && isTutorialMatchMode()) {
         primary.onclick = startSelectedGame;
         syncLoadoutStartButton(primary, loadoutStartPending,
@@ -11202,11 +11209,16 @@ function renderLoadoutOptions() {
     soloMatchTab.classList.toggle('hidden', inviteFlow);
     onlineMatchTab.classList.toggle('hidden', inviteFlow);
     const tutorialMatchTab = document.getElementById('tutorialMatchTab');
+    const gauntletMatchTab = document.getElementById('gauntletMatchTab');
     const tutorialMatchPanel = document.getElementById('tutorialMatchPanel');
     if (tutorialMatchTab) {
         tutorialMatchTab.classList.toggle('active', isTutorialMatchMode());
         tutorialMatchTab.setAttribute('aria-pressed', isTutorialMatchMode() ? 'true' : 'false');
         tutorialMatchTab.classList.toggle('hidden', inviteFlow);
+    }
+    if (gauntletMatchTab) {
+        gauntletMatchTab.classList.toggle('active', matchMode === 'gauntlet');
+        gauntletMatchTab.setAttribute('aria-pressed', matchMode === 'gauntlet' ? 'true' : 'false');
     }
     tutorialMatchPanel?.classList.toggle('hidden', !isTutorialMatchMode());
     onlineMatchPanel.classList.toggle('hidden', matchMode !== 'online' || hideOnlineLoadout);
@@ -11553,6 +11565,9 @@ function renderDeckBuilder() {
 }
 
 function getLoadoutStartButtonLabel() {
+    if (matchMode === 'gauntlet') {
+        return 'Start Gauntlet';
+    }
     if (isTutorialMatchMode()) {
         return 'Start Tutorial Match';
     }
@@ -11736,6 +11751,10 @@ function applyLoadoutSummary() {
 
 async function startSelectedGame() {
     if (loadoutStartPending) return;
+    if (matchMode === 'gauntlet') {
+        window.location.assign('/gauntlet');
+        return;
+    }
     if (isTutorialMatchMode()) {
         loadoutStartPending = true;
         updateLoadoutSummary();
