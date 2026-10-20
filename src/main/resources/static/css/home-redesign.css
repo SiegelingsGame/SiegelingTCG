@@ -2987,7 +2987,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   background:rgba(12,9,35,.84); color:#f8e8b6; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
 .sg-gacha-stage.is-pack-ready { display:block; position:relative; width:100%; max-width:430px;
   height:min(58dvh,460px); flex:1 1 auto; perspective:1400px; }
-.sg-gacha-stage.is-pack-ready .sg-flip { position:absolute; top:50%; left:50%; width:min(52%,210px);
+/* Match the stack card size while sealed so removing pack-ready does not
+   resize the tiles as they deal. */
+.sg-gacha-stage.is-pack-ready .sg-flip { position:absolute; top:50%; left:50%; width:min(62%,240px);
   opacity:0; pointer-events:none; transform:translate(-50%,-50%) translateY(90px) scale(.3); }
 /* Peel the foil flap away, yawn the plastic mouth open, and drop the empty
    pouch — never jagged-clip through the window art (that read as chopping a
@@ -3021,14 +3023,49 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-gacha-stage.is-ripping .sg-pack-prompt,
 .sg-gacha-stage.is-ripping .sg-pack-brand { opacity:0; transition:opacity .16s; }
 .sg-gacha-stage.is-ripping .sg-gacha-pack { animation:none; transform:translate(-50%,-46%) rotate(-2deg);
-  transition:transform .55s ease; }
+  transition:transform .55s ease, opacity .42s ease; }
 .sg-gacha-stage.is-ripping .sg-pack-sheen { opacity:.25; }
-.sg-gacha-stage.is-dealing .sg-flip { animation:sgCardSlideOut .48s cubic-bezier(.2,.8,.2,1) both;
+/* Soft exit so the pouch dissolves under the dealing cards instead of popping. */
+.sg-gacha-pack.is-gone {
+  opacity:0 !important; pointer-events:none;
+  transform:translate(-50%,-28%) scale(.88) rotate(-3deg) !important;
+  transition:opacity .4s ease, transform .45s cubic-bezier(.2,.8,.2,1) !important;
+}
+/* Deal into the stack's resting pose (depth offsets included) so ending the
+   animation does not snap the pile into place. */
+.sg-gacha-stage.is-dealing .sg-flip { animation:sgCardSlideOut .52s cubic-bezier(.2,.8,.2,1) both;
   animation-delay:var(--deal-delay,0ms); pointer-events:none; }
+.sg-gacha-stage.is-stack.is-dealing .sg-flip {
+  width:min(62%,240px);
+  animation-name:sgCardDealToStack;
+  /* Suppress the stack's transform transition while the deal keyframes own it. */
+  transition:none;
+}
 @keyframes sgCardSlideOut {
   0% { opacity:0; transform:translate(-50%,-50%) translateY(105px) scale(.28) rotate(-4deg); }
   65% { opacity:1; transform:translate(-50%,-50%) translateY(-10px) scale(1.04) rotate(1deg); }
   100% { opacity:1; transform:translate(-50%,-50%) translateY(0) scale(1) rotate(0); }
+}
+@keyframes sgCardDealToStack {
+  0% {
+    opacity:0;
+    transform:translate(-50%,-50%) translateY(72px) scale(.38) rotate(-3deg);
+  }
+  70% {
+    opacity:1;
+    transform:
+      translate(-50%,-50%)
+      translate3d(calc(var(--depth,0) * 13px), calc(var(--depth,0) * -12px), calc(var(--depth,0) * -34px))
+      scale(1.03) rotate(calc(var(--depth,0) * 1.6deg));
+  }
+  100% {
+    opacity:1;
+    transform:
+      translate(-50%,-50%)
+      rotateY(0deg) rotateX(0deg)
+      translate3d(calc(var(--depth,0) * 13px), calc(var(--depth,0) * -9px), calc(var(--depth,0) * -34px))
+      rotate(calc(var(--depth,0) * 1.6deg));
+  }
 }
 @keyframes sgPackBreathe { 0%,100%{transform:translate(-50%,-50%) scale(1);} 50%{transform:translate(-50%,-50%) scale(1.045);} }
 @keyframes sgPackSheen {
@@ -4150,7 +4187,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    it leads the swipe that sends it away. */
 .sg-gacha-stage.is-stack {
   display:block; position:relative; width:100%; max-width:430px;
-  height:min(58vh, 460px); perspective:1400px; perspective-origin:50% 46%;
+  /* Same token as is-pack-ready — mixing vh/dvh jumped the stage height on
+     phones when the pack handoff dropped pack-ready. */
+  height:min(58dvh, 460px); perspective:1400px; perspective-origin:50% 46%;
   touch-action:none; cursor:grab; place-items:stretch;
 }
 .sg-gacha-stage.is-stack.is-dragging { cursor:grabbing; }
@@ -4185,7 +4224,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-gacha-stackbar {
   display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;
   font-size:10.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--muted);
+  opacity:0; transform:translateY(6px);
+  transition:opacity .28s ease, transform .28s ease;
 }
+.sg-gacha-stackbar.is-in { opacity:1; transform:none; }
 .sg-gacha-stackbar[hidden] { display:none !important; }
 .sg-gacha-stackcount {
   padding:3px 11px; border-radius:999px; color:var(--gold);
@@ -4218,9 +4260,13 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gacha-stage.is-stack .sg-flip { transition:none; }
   .sg-gacha-pack.is-sealed { animation:none; }
   .sg-gacha-stage.is-ripping .sg-pack-flap,
-  .sg-gacha-stage.is-ripping .sg-pack-plastic { transition:none; }
-  .sg-gacha-stage.is-dealing .sg-flip { animation-duration:.01ms; animation-delay:0ms; }
+  .sg-gacha-stage.is-ripping .sg-pack-plastic,
+  .sg-gacha-pack.is-gone,
+  .sg-gacha-stackbar { transition:none; }
+  .sg-gacha-stage.is-dealing .sg-flip,
+  .sg-gacha-stage.is-stack.is-dealing .sg-flip { animation-duration:.01ms; animation-delay:0ms; }
   .sg-flip-sparks i, .sg-flip.is-flaring .sg-flip-front::before { animation:none; display:none; }
+  .sg-gacha-stackbar.is-in { opacity:1; transform:none; }
 }
 
 /* ==========================================================================
