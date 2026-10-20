@@ -195,6 +195,7 @@ input[type="file"] {
 .dashboard-auth,
 .dashboard-status,
 .dashboard-pages,
+.dashboard-sections,
 .browser-panel,
 .editor-panel,
 .summary-panel,
@@ -296,7 +297,8 @@ input[type="file"] {
     gap: 10px;
 }
 
-.dashboard-pages {
+.dashboard-pages,
+.dashboard-sections {
     display: flex;
     gap: 12px;
     padding: 10px;
@@ -308,7 +310,12 @@ input[type="file"] {
     scrollbar-width: thin;
 }
 
-.page-tab {
+.dashboard-sections {
+    padding: 12px;
+}
+
+.page-tab,
+.section-tab {
     flex: 1 1 0;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 999px;
@@ -319,12 +326,22 @@ input[type="file"] {
     transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, transform 0.18s ease;
 }
 
-.page-tab:hover {
+.section-tab {
+    flex: 0 1 220px;
+    font-family: var(--font-display);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.92rem;
+}
+
+.page-tab:hover,
+.section-tab:hover {
     transform: translateY(-1px);
     border-color: rgba(255, 178, 94, 0.28);
 }
 
-.page-tab.active {
+.page-tab.active,
+.section-tab.active {
     background: linear-gradient(135deg, rgba(255, 178, 94, 0.18), rgba(240, 139, 67, 0.12));
     border-color: rgba(255, 178, 94, 0.42);
     color: #ffe0b8;
@@ -2300,6 +2317,80 @@ textarea {
    browser/editor/preview split the card pages use — both tables are wide. */
 #shopWorkspace {
     grid-template-columns: minmax(0, 1fr);
+}
+
+/* Players: account browser + editor form (two columns, no JSON preview rail). */
+#playersWorkspace {
+    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+}
+
+button.player-row {
+    display: block;
+    width: 100%;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+}
+
+.player-admin-meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0 0 16px;
+}
+
+.player-admin-meta .section-kicker {
+    margin-bottom: 4px;
+}
+
+.player-admin-form {
+    margin-bottom: 16px;
+}
+
+.player-admin-check {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.player-admin-check input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+
+.player-admin-actions,
+.player-admin-section-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.player-admin-section-tools {
+    margin: 0 0 8px;
+}
+
+.player-admin-sections .player-admin-section:first-child {
+    margin-top: 0;
+}
+
+.player-admin-sections .player-admin-form {
+    margin-bottom: 0;
+}
+
+.player-admin-actions {
+    margin-top: 16px;
+}
+
+@media (max-width: 1080px) {
+    #playersWorkspace {
+        grid-template-columns: 1fr;
+    }
+
+    .player-admin-meta {
+        grid-template-columns: 1fr;
+    }
 }
 
 .pack-availability-panel {

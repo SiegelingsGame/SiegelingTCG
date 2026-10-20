@@ -2488,6 +2488,23 @@ body.concept-board {
 .sg-switch.on i { transform:translateX(19px); background:var(--acc-emerald); box-shadow:0 0 12px var(--acc-emerald); }
 
 /* help */
+.sg-help-jump {
+  display:flex; gap:8px; overflow-x:auto; padding:12px 18px 2px;
+  -webkit-overflow-scrolling:touch; scrollbar-width:none; touch-action:pan-x;
+}
+.sg-help-jump::-webkit-scrollbar { display:none; }
+.sg-help-jump-chip {
+  flex:0 0 auto; padding:7px 12px; border-radius:999px;
+  border:1px solid rgba(180,140,255,.28); background:rgba(13,10,38,.45);
+  color:var(--muted); text-decoration:none; font-size:11px; font-weight:600;
+  letter-spacing:.04em;
+}
+.sg-help-jump-chip:hover, .sg-help-jump-chip:focus-visible {
+  color:#fff; border-color:rgba(230,205,140,.55); outline:none;
+}
+.sg-help-section { padding:8px 0 2px; }
+.sg-help-section .sg-section-head { padding-top:12px; padding-bottom:4px; }
+.sg-help-section .sg-help-grid { padding-top:8px; padding-bottom:4px; }
 .sg-help-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; padding:14px 18px 0; }
 .sg-help-card { position:relative; height:132px; border-radius:18px; overflow:hidden; display:block;
   box-shadow:0 14px 28px rgba(6,3,24,.5), inset 0 0 0 1px color-mix(in srgb, var(--el,#b45cff) 40%, transparent); }
@@ -2821,11 +2838,37 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); gap:12px 10px;
 }
 /* The unopened pack breathes while the purchase is in flight. */
-.sg-gacha-pack { width:150px; aspect-ratio:var(--card-back-ratio); border-radius:16px; overflow:hidden;
-  box-shadow:0 22px 46px rgba(0,0,0,.6), inset 0 0 0 1px color-mix(in srgb, var(--el,#f2a03d) 42%, transparent);
-  animation:sgPackBreathe 1.8s ease-in-out infinite; }
+.sg-gacha-pack { position:absolute; z-index:20; left:50%; top:50%; width:150px; aspect-ratio:var(--card-back-ratio);
+  padding:0; border:0; border-radius:16px; overflow:visible; background:transparent; color:inherit; cursor:grab;
+  transform:translate(-50%,-50%); touch-action:none; filter:drop-shadow(0 22px 18px rgba(0,0,0,.45)); }
+.sg-gacha-pack.is-sealed { animation:sgPackBreathe 1.8s ease-in-out infinite; }
+.sg-gacha-pack.is-loading .sg-pack-prompt { display:none; }
+.sg-pack-body,.sg-pack-top { position:absolute; inset:0; overflow:hidden; border-radius:16px; }
+.sg-pack-body { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--el,#f2a03d) 50%, transparent); }
 .sg-gacha-pack img { width:100%; height:100%; object-fit:contain; display:block; }
-@keyframes sgPackBreathe { 0%,100%{transform:scale(1);} 50%{transform:scale(1.045);} }
+.sg-pack-top { clip-path:inset(0 0 77% 0); transform:translate3d(var(--rip-x,0px),var(--rip-y,0px),0) rotate(var(--rip-angle,0deg));
+  transform-origin:20% 100%; transition:transform .12s ease-out; }
+.sg-pack-seam { position:absolute; top:22.5%; left:0; right:0; height:2px; z-index:2;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--el,#f2a03d) 82%,white),transparent);
+  filter:drop-shadow(0 0 8px var(--el,#f2a03d)); opacity:.9; }
+.sg-pack-prompt { position:absolute; top:calc(100% + 22px); left:50%; width:max-content; max-width:80vw;
+  transform:translateX(-50%); padding:7px 12px; border:1px solid rgba(255,255,255,.2); border-radius:999px;
+  background:rgba(12,9,35,.84); color:#f8e8b6; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+.sg-gacha-stage.is-pack-ready { display:block; position:relative; width:100%; max-width:430px;
+  height:min(58dvh,460px); flex:1 1 auto; perspective:1400px; }
+.sg-gacha-stage.is-pack-ready .sg-flip { position:absolute; top:50%; left:50%; width:min(52%,210px);
+  opacity:0; pointer-events:none; transform:translate(-50%,-50%) translateY(90px) scale(.3); }
+.sg-gacha-stage.is-ripping .sg-pack-top { transform:translate3d(72%,-115%,70px) rotate(24deg); transition:transform .55s cubic-bezier(.2,.8,.2,1); }
+.sg-gacha-stage.is-ripping .sg-pack-seam { opacity:0; transition:opacity .16s; }
+.sg-gacha-stage.is-ripping .sg-pack-prompt { opacity:0; }
+.sg-gacha-stage.is-dealing .sg-flip { animation:sgCardSlideOut .48s cubic-bezier(.2,.8,.2,1) both;
+  animation-delay:var(--deal-delay,0ms); pointer-events:none; }
+@keyframes sgCardSlideOut {
+  0% { opacity:0; transform:translate(-50%,-50%) translateY(105px) scale(.28) rotate(-4deg); }
+  65% { opacity:1; transform:translate(-50%,-50%) translateY(-10px) scale(1.04) rotate(1deg); }
+  100% { opacity:1; transform:translate(-50%,-50%) translateY(0) scale(1) rotate(0); }
+}
+@keyframes sgPackBreathe { 0%,100%{transform:translate(-50%,-50%) scale(1);} 50%{transform:translate(-50%,-50%) scale(1.045);} }
 .sg-gacha-note { margin:0; font-size:12.5px; color:var(--muted); letter-spacing:.06em; text-align:center; }
 .sg-gacha-actions { display:flex; gap:10px; width:100%; max-width:420px; }
 .sg-gacha-actions > * { flex:1 1 0; }
@@ -3985,6 +4028,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 @media (prefers-reduced-motion:reduce) {
   .sg-gacha-stage.is-stack .sg-flip { transition:none; }
+  .sg-gacha-pack.is-sealed { animation:none; }
+  .sg-gacha-stage.is-ripping .sg-pack-top { transition:none; }
+  .sg-gacha-stage.is-dealing .sg-flip { animation-duration:.01ms; animation-delay:0ms; }
   .sg-flip-sparks i, .sg-flip.is-flaring .sg-flip-front::before { animation:none; display:none; }
 }
 
@@ -5857,6 +5903,80 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-godds-card dt { color:var(--muted); }
 .sg-godds-card dd { margin:0; font-weight:700; color:#ffe39a; }
 .sg-godds-card .sg-guest-primary { width:100%; }
+
+/* A separate full-screen shop page for battlefield art. */
+.sg-arena-gallery { position:absolute; inset:0; overflow:hidden; isolation:isolate; background:#11142b; }
+.sg-arena-faceoff { position:absolute; inset:0; display:grid; grid-template-rows:minmax(0,1fr) 0 minmax(0,1fr); overflow:hidden; }
+.sg-arena-half { position:relative; min-height:0; overflow:hidden; isolation:isolate; background:#11142b; }
+/* Anchor both complete images to the seam; rotating the AI places its top at the bottom. */
+.sg-arena-half img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; object-position:center top; }
+.sg-arena-half.is-ai img { transform:rotate(180deg); }
+.sg-arena-half::after { content:""; position:absolute; inset:0; z-index:1; pointer-events:none; background:linear-gradient(180deg,rgba(10,8,30,.53),transparent 48%,rgba(10,8,30,.1)); }
+/* Keep the bottom vignette light — the liquid-glass purchase plate frosts the art itself. */
+.sg-arena-half.is-player::after { background:linear-gradient(0deg,rgba(10,8,30,.28),transparent 58%); }
+.sg-arena-half > span { position:absolute; z-index:2; top:calc(var(--gtop) + 48px); left:calc(var(--gtabs-w) + 25px); display:flex; align-items:baseline; gap:8px; max-width:calc(100% - var(--gtabs-w) - 38px); padding:8px 12px; border:1px solid rgba(255,226,154,.55); border-radius:10px; color:#fff4d5; background:rgba(12,10,35,.78); box-shadow:0 4px 16px rgba(0,0,0,.35); font-weight:900; letter-spacing:.08em; }
+.sg-arena-half > span i { overflow:hidden; color:#e9d7a5; font-size:.68em; font-style:normal; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+.sg-arena-half.is-player > span { top:auto; bottom:calc(var(--gnav) + 150px); }
+.sg-arena-vs { position:relative; z-index:3; display:grid; place-items:center; background:linear-gradient(90deg,transparent,rgba(12,10,35,.88) 20%,rgba(12,10,35,.88) 80%,transparent); }
+.sg-arena-vs::before { content:""; position:absolute; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,#d9b45f,#fff0c2,#d9b45f,transparent); }
+.sg-arena-vs b { display:grid; place-items:center; width:34px; height:34px; border:1px solid #ffe39a; border-radius:50%; color:#fff0c2; background:#17162e; box-shadow:0 0 16px rgba(255,211,107,.4); font:900 10px var(--serif); }
+.sg-arena-heading { position:absolute; z-index:3; top:var(--gtop); right:18px; max-width:min(48vw,460px); text-align:right; pointer-events:none; }
+.sg-arena-heading .sg-gplaque-kicker { justify-content:flex-end; }
+.sg-arena-heading h2 { margin:3px 0; color:#fff7e0; font:700 clamp(20px,4vw,38px)/1.02 var(--serif); text-shadow:0 2px 12px #0b0926; }
+.sg-arena-heading p { margin:0; color:#f0e7d0; font-size:11px; text-shadow:0 1px 6px #090821; }
+.sg-arena-dock { position:absolute; z-index:4; left:calc(var(--gtabs-w) + 22px); right:12px; bottom:calc(var(--gnav) + 6px); display:flex; flex-direction:column; align-items:stretch; gap:6px; }
+/* Compact barely-there plate — hugs content, sits bottom-right above the skin tray. */
+.sg-arena-selected {
+  position:relative; z-index:auto; left:auto; right:auto; bottom:auto;
+  align-self:flex-end;
+  display:flex; justify-content:flex-start; align-items:center; gap:12px;
+  width:max-content; max-width:min(340px, 100%);
+  min-height:0; padding:8px 10px; border-radius:14px;
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.02);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16);
+  backdrop-filter:blur(6px) saturate(1.2);
+  -webkit-backdrop-filter:blur(6px) saturate(1.2);
+}
+.sg-arena-selected::before { content:none; }
+.sg-arena-copy { position:relative; z-index:1; min-width:0; max-width:200px; }
+.sg-arena-selected small { color:#ffe39a; font-size:8px; font-weight:850; letter-spacing:.14em; text-shadow:0 1px 10px rgba(8,6,24,.85),0 0 18px rgba(8,6,24,.55); }
+.sg-arena-selected h3 { margin:2px 0; color:#fff7e0; font:700 clamp(15px,2.6vw,20px)/1.05 var(--serif); text-shadow:0 1px 12px rgba(8,6,24,.9),0 0 20px rgba(8,6,24,.55); }
+.sg-arena-selected p { display:-webkit-box; max-width:200px; margin:0; overflow:hidden; color:#f0e8d6; font-size:10px; line-height:1.3; -webkit-line-clamp:1; -webkit-box-orient:vertical; text-shadow:0 1px 10px rgba(8,6,24,.85),0 0 16px rgba(8,6,24,.5); }
+.sg-arena-action { position:relative; z-index:1; flex:0 0 auto; max-width:100%; }
+.sg-arena-action .sg-guest-primary { min-width:96px; min-height:38px; padding:7px 12px; display:flex; align-items:center; justify-content:center; gap:6px; font-size:12px; }
+.sg-arena-action img { width:18px; height:18px; object-fit:contain; }
+.sg-arena-lock { display:block; max-width:100%; color:#ffe39a; font-size:11px; font-weight:800; line-height:1.25; overflow-wrap:anywhere; }
+/* Stand-in hand tray gives the choices their own surface below the battlefield. */
+.sg-arena-skins { position:relative; z-index:auto; left:auto; right:auto; bottom:auto; display:flex; gap:8px; overflow-x:auto; margin-left:calc(-1 * (var(--gtabs-w) + 22px)); width:calc(100% + var(--gtabs-w) + 40px); box-sizing:border-box; padding:12px 12px 10px; border-top:1px solid #d9b45f; background:radial-gradient(ellipse at 50% 0,rgba(127,99,53,.32),transparent 72%),repeating-linear-gradient(110deg,rgba(255,227,154,.025) 0 1px,transparent 1px 6px),linear-gradient(180deg,#29243d,#131126); box-shadow:0 -5px 18px rgba(0,0,0,.45),inset 0 2px 0 rgba(255,227,154,.12); scroll-padding-inline:12px; scrollbar-width:thin; overscroll-behavior-x:contain; }
+.sg-arena-skin { flex:0 0 92px; padding:4px; border:1px solid rgba(255,255,255,.24); border-radius:9px; color:#f8efd9; background:rgba(17,15,42,.86); text-align:left; cursor:pointer; }
+.sg-arena-skin.on { border-color:#ffe39a; box-shadow:0 0 0 1px rgba(255,227,154,.6),0 0 14px rgba(255,200,90,.32); }
+.sg-arena-skin img { display:block; width:100%; aspect-ratio:16/9; object-fit:contain; border-radius:5px; }
+.sg-arena-skin span { display:block; overflow:hidden; padding:4px 2px 1px; font-size:9px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
+@media(max-width:639px) {
+  .sg-arena-heading { top:var(--gtop); right:10px; max-width:calc(100% - var(--gtabs-w) - 16px); }
+  .sg-arena-heading p { display:none; }
+  .sg-arena-half > span { left:calc(var(--gtabs-w) + 13px); top:calc(var(--gtop) + 58px); max-width:calc(100% - var(--gtabs-w) - 25px); padding:6px 9px; font-size:10px; }
+  .sg-arena-half.is-player > span { display:none; }
+  .sg-arena-dock { left:calc(var(--gtabs-w) + 8px); right:6px; bottom:calc(var(--gnav) + 4px); gap:4px; }
+  .sg-arena-selected { display:grid; grid-template-columns:minmax(0,max-content); justify-items:stretch; gap:5px; max-width:min(220px, calc(100% - 4px)); padding:7px 8px; border-radius:12px; }
+  .sg-arena-copy { max-width:100%; }
+  .sg-arena-selected h3 { font-size:15px; }
+  .sg-arena-selected p { display:none; }
+  .sg-arena-action .sg-guest-primary { min-width:0; width:100%; min-height:34px; padding:6px 8px; font-size:11px; }
+  .sg-arena-action { justify-self:stretch; }
+  .sg-arena-skins { margin-left:calc(-1 * (var(--gtabs-w) + 8px)); width:calc(100% + var(--gtabs-w) + 16px); }
+  .sg-arena-skin { flex-basis:78px; }
+}
+
+/* Desktop gives the chosen artwork the showcase; neutral is only a comparison.
+   Faceoff runs under the dock so the liquid-glass purchase plate has art to frost. */
+@media (min-width:1024px) and (min-height:600px) {
+  .sg-arena-faceoff { top:var(--gtop); bottom:0; grid-template-rows:minmax(0,1fr) 0 minmax(0,4fr); }
+  .sg-arena-half.is-ai > span { top:10px; left:50%; transform:translateX(-50%); }
+  .sg-arena-half.is-player > span { display:none; }
+  .sg-arena-half.is-player::after { background:linear-gradient(0deg,rgba(10,8,30,.18),transparent 52%); }
+}
 
 /* Short portrait phones (iPhone SE class): the tabs and the copy share the
    height, so both tighten and the pitch line steps aside. */

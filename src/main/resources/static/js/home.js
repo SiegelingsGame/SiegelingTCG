@@ -427,6 +427,7 @@
         dailyTitleOffers: [],
         titleCatalog: [],
         battlefieldSkins: [],
+        battlefieldShowcaseId: '',
         shopPacksError: '',
         // The pack catalog is fetched on boot, so the shop starts out loading.
         // Cleared by applyShopPacksPayload once an attempt resolves either way.
@@ -5053,6 +5054,8 @@
     function renderShop() {
         const grid = document.getElementById('shopPackGrid');
         if (!grid) return;
+        const shopHeading = document.querySelector('#shopSection .section-head h1');
+        if (shopHeading) shopHeading.textContent = state.shopView === 'arenas' ? 'Arena art gallery' : 'Gacha packs and premade decks';
         const goldLabel = document.getElementById('shopGoldLabel');
         // Catalog or progression still in flight — show explicit progress instead
         // of an empty "No packs available" panel that reads like a dead shop.
@@ -5071,6 +5074,18 @@
         const dailyOffers = starterMode ? [] : state.dailyOffers;
         const shopTitles = shopTitleOffers();
         const battlefieldSkins = state.battlefieldSkins || [];
+        const shopNav = `<nav class="shop-view-tabs" aria-label="Shop sections"><button type="button" class="${state.shopView === 'browse' ? 'is-active' : ''}" data-shop-view="browse">Featured shop</button><button type="button" class="${state.shopView === 'arenas' ? 'is-active' : ''}" data-shop-view="arenas">Arena art</button></nav>`;
+        if (state.shopView === 'arenas' && !starterMode && battlefieldSkins.length) {
+            const selectedSkin = battlefieldSkins.find(item => item.id === state.battlefieldShowcaseId)
+                || battlefieldSkins.find(item => (state.progression?.battlefieldSkins || []).some(owned => owned.id === item.id && (owned.equipped || owned.owned)))
+                || battlefieldSkins[0];
+            state.battlefieldShowcaseId = selectedSkin.id;
+            grid.innerHTML = `${shopNav}${renderArenaArtGallery(selectedSkin, battlefieldSkins)}`;
+            if (goldLabel) goldLabel.innerHTML = renderCoinAmount(state.progression?.gold || 0);
+            renderShopCardPreviewModal();
+            renderHudTools();
+            return;
+        }
         // An open preview can be walked to an evolution relative that is not on
         // offer today; only snap back to the first offer when nothing resolves.
         if (dailyOffers.length
@@ -5079,15 +5094,43 @@
             state.shopPreviewCardId = dailyOffers[0].cardId;
         }
         grid.innerHTML = `
+            ${shopNav}
             ${dailyOffers.length ? `<div class="shop-row-head"><div><span class="eyebrow">Daily Rotation</span><h2>Five cards today</h2></div><span>Refreshes daily</span></div><div class="daily-offer-grid">${dailyOffers.map(renderDailyOfferTile).join('')}</div>` : ''}
             ${shopTitles.length && !starterMode ? `<div class="shop-row-head"><div><span class="eyebrow">Profile Flair</span><h2>Player titles</h2></div><span>Four titles today · Refreshes daily</span></div><div class="shop-title-grid">${shopTitles.map(renderShopTitleTile).join('')}</div>` : ''}
-            ${!starterMode && battlefieldSkins.length ? `<div class="shop-row-head battlefield-shop-heading"><div><span class="eyebrow">Battlefield Collection</span><h2>Make the arena yours</h2></div><span>Seasonal, premium, and achievement rewards</span></div><div class="battlefield-skin-grid">${battlefieldSkins.map(renderBattlefieldSkinTile).join('')}</div>` : ''}
             <div class="shop-row-head"><div><span class="eyebrow">${starterMode ? 'Starter Pack' : 'Packs'}</span><h2>${starterMode ? 'Choose your first pack' : 'Elemental and type pulls'}</h2></div></div>
             ${packs.length ? packs.map(renderPackTile).join('') : renderShopPacksEmptyState()}
         `;
         if (goldLabel) goldLabel.innerHTML = renderCoinAmount(state.progression?.gold || 0);
         renderShopCardPreviewModal();
         renderHudTools();
+    }
+
+    function renderArenaArtGallery(skin, skins) {
+        const neutralArt = '/img/board-skins/board-neutral.webp';
+        const art = skin.artwork || skin.assetUrl || neutralArt;
+        const ownedState = (state.progression?.battlefieldSkins || []).find(item => item.id === skin.id) || {};
+        const owned = Boolean(ownedState.owned || (state.progression?.purchasedBattlefieldSkinIds || []).includes(skin.id));
+        const equipped = Boolean(ownedState.equipped || state.progression?.equippedBattlefieldSkinId === skin.id);
+        const prestige = skin.collection === 'prestige';
+        const eventClosed = skin.collection === 'holiday' && skin.availableForPurchase === false;
+        const action = owned
+            ? `<button class="primary-btn" type="button" data-equip-battlefield-id="${escapeAttr(skin.id)}"${equipped ? ' disabled' : ''}>${equipped ? 'Equipped' : 'Equip arena'}</button>`
+            : prestige
+                ? `<span class="battlefield-skin-lock">Earn through: ${escapeHtml(skin.requirement || skin.achievementId || 'achievement')}</span>`
+                : eventClosed
+                    ? `<span class="battlefield-skin-lock">Available during ${escapeHtml(skin.event || 'the seasonal event')}</span>`
+                    : `<button class="primary-btn" type="button" data-purchase-battlefield-id="${escapeAttr(skin.id)}">Purchase · ${renderCoinAmount(skin.price || 0, '')}</button>`;
+        const palette = Array.isArray(skin.palette) ? skin.palette : ['#5389d8', '#8b6bc2'];
+        return `<section class="arena-gallery" aria-label="Arena art collection">
+            <header class="arena-gallery-heading"><div><span class="eyebrow">Battlefield collection</span><h2>Choose your arena</h2><p>See each arena in a face-off. Your artwork fills the lower side; the AI always uses the neutral arena.</p></div><span class="arena-gallery-count">${skins.length} arenas</span></header>
+            <div class="arena-faceoff" style="--skin-a:${escapeAttr(palette[0] || '#5389d8')};--skin-b:${escapeAttr(palette[1] || palette[0] || '#8b6bc2')}">
+                <div class="arena-faceoff-side arena-faceoff-ai"><img src="${escapeAttr(neutralArt)}" alt="Neutral arena artwork for the AI" loading="eager" decoding="async"><span class="arena-side-label"><i></i> AI · Neutral arena</span></div>
+                <div class="arena-faceoff-divider"><span>VS</span></div>
+                <div class="arena-faceoff-side arena-faceoff-player"><img src="${escapeAttr(art)}" alt="${escapeAttr(skin.name)} arena artwork for you" loading="eager" decoding="async" onerror="this.onerror=null;this.src='${neutralArt}'"><span class="arena-side-label"><i></i> You · ${escapeHtml(skin.name || 'Selected arena')}</span></div>
+            </div>
+            <div class="arena-art-details"><div><span class="battlefield-skin-kicker">${escapeHtml(prestige ? 'PRESTIGE · ACHIEVEMENT' : skin.collection === 'holiday' ? `${skin.event || 'SEASONAL'} EVENT` : 'PREMIUM · PERMANENT')}</span><h3>${escapeHtml(skin.name || 'Battlefield')}</h3><p>${escapeHtml(skin.description || '')}</p></div><div class="arena-art-action">${action}</div></div>
+            <div class="arena-art-picker" role="list" aria-label="Choose arena artwork">${skins.map(item => `<button type="button" role="listitem" class="arena-art-option${item.id === skin.id ? ' is-selected' : ''}" data-battlefield-select-id="${escapeAttr(item.id)}" aria-pressed="${item.id === skin.id}"><img src="${escapeAttr(item.thumbnail || item.thumbnailUrl || '')}" alt="" loading="lazy" decoding="async"><span>${escapeHtml(item.name || 'Arena')}</span></button>`).join('')}</div>
+        </section>`;
     }
 
     function renderBattlefieldSkinTile(skin) {
@@ -5099,15 +5142,41 @@
         const palette = Array.isArray(skin.palette) ? skin.palette : ['#5389d8', '#8b6bc2', '#39afbd', '#d29e58'];
         const style = `--skin-a:${escapeAttr(palette[0] || '#5389d8')};--skin-b:${escapeAttr(palette[1] || palette[0] || '#8b6bc2')};--skin-c:${escapeAttr(palette[2] || palette[0] || '#39afbd')};--skin-d:${escapeAttr(palette[3] || palette[1] || '#d29e58')}`;
         const kicker = prestige ? 'PRESTIGE · ACHIEVEMENT' : skin.collection === 'holiday' ? `${String(skin.event || 'SEASONAL').toUpperCase()} EVENT` : 'PREMIUM · PERMANENT';
+        const eventClosed = skin.collection === 'holiday' && skin.availableForPurchase === false;
         const action = owned
             ? `<button class="primary-btn" type="button" data-equip-battlefield-id="${escapeAttr(skin.id)}"${equipped ? ' disabled' : ''}>${equipped ? 'Equipped' : 'Equip'}</button>`
             : prestige
                 ? `<span class="battlefield-skin-lock">Earn: ${escapeHtml(stateSkin.requirement || skin.requirement || skin.achievementId || 'achievement')}</span>`
-                : `<button class="primary-btn" type="button" data-purchase-battlefield-id="${escapeAttr(skin.id)}">${renderCoinAmount(skin.price || 0, '')}</button>`;
+                : eventClosed
+                    ? `<span class="battlefield-skin-lock">Available during ${escapeHtml(skin.event || 'the seasonal event')}</span>`
+                    : `<button class="primary-btn" type="button" data-purchase-battlefield-id="${escapeAttr(skin.id)}">${renderCoinAmount(skin.price || 0, '')}</button>`;
         return `<article class="battlefield-skin-tile${equipped ? ' is-equipped' : ''}" style="${style}">
-            <div class="battlefield-skin-preview" aria-hidden="true"><span class="battlefield-skin-side battlefield-skin-side-left"></span><span class="battlefield-skin-plate"></span><span class="battlefield-skin-side battlefield-skin-side-right"></span></div>
+            <button class="battlefield-skin-preview" type="button" data-battlefield-preview-id="${escapeAttr(skin.id)}" aria-label="Preview ${escapeAttr(skin.name || 'battlefield')}"><img src="${escapeAttr(skin.thumbnail || skin.thumbnailUrl || '')}" alt="" loading="lazy" decoding="async"><span class="battlefield-preview-label">Preview</span></button>
             <div class="battlefield-skin-copy"><span class="battlefield-skin-kicker">${escapeHtml(kicker)}</span><strong>${escapeHtml(skin.name || 'Battlefield')}</strong><p>${escapeHtml(skin.description || '')}</p><div class="battlefield-skin-footer">${action}</div></div>
         </article>`;
+    }
+
+    function showBattlefieldSkinPreview(skinId) {
+        const skin = state.battlefieldSkins.find(item => item.id === skinId);
+        if (!skin) return;
+        let dialog = document.getElementById('battlefieldSkinPreviewDialog');
+        if (!dialog) {
+            dialog = document.createElement('dialog');
+            dialog.id = 'battlefieldSkinPreviewDialog';
+            dialog.className = 'battlefield-skin-dialog';
+            dialog.innerHTML = '<form method="dialog"><button class="battlefield-preview-close" aria-label="Close preview">×</button></form><h2></h2><img alt=""><p></p>';
+            document.body.append(dialog);
+            dialog.addEventListener('click', event => {
+                if (event.target === dialog) dialog.close();
+            });
+        }
+        dialog.querySelector('h2').textContent = skin.name || 'Battlefield preview';
+        const image = dialog.querySelector('img');
+        image.src = skin.artwork || skin.assetUrl || '';
+        image.alt = `${skin.name || 'Battlefield'} full artwork`;
+        image.onerror = () => { image.removeAttribute('src'); image.alt = 'Battlefield artwork is unavailable'; };
+        dialog.querySelector('p').textContent = skin.description || '';
+        if (!dialog.open) dialog.showModal();
     }
 
     async function purchaseBattlefieldSkin(skinId) {
@@ -9273,7 +9342,8 @@
 
     function isValidShopPacksPayload(data) {
         return Array.isArray(data?.packs) && data.packs.length > 0
-            && Array.isArray(data?.battlefieldSkins);
+            && Array.isArray(data?.battlefieldSkins)
+            && data.battlefieldSkins.some(skin => skin?.id === 'board-haunted-harvest');
     }
 
     function applyShopPacksPayload(data) {
@@ -9814,7 +9884,7 @@
             return { route: 'lobby', shopView: 'browse', lobbyRoomId: segments[2].trim().toUpperCase(), profileUserId: '', achievementCategory: '' };
         }
         if (head === 'shop') {
-            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
+            return { route: 'shop', shopView: segments[1] === 'cardpack' ? 'cardpack' : segments[1] === 'arenas' ? 'arenas' : 'browse', lobbyRoomId: '', profileUserId: '', achievementCategory: '' };
         }
         if (head === 'profile') {
             const profileUserId = segments[1] ? decodeURIComponent(segments[1]).trim().toLowerCase() : '';
@@ -9866,6 +9936,7 @@
     function hubPath(route, shopView = 'browse') {
         if (route === 'home') return `${HUB_PREFIX}/home`;
         if (route === 'shop' && shopView === 'cardpack') return `${HUB_PREFIX}/shop/cardpack`;
+        if (route === 'shop' && shopView === 'arenas') return `${HUB_PREFIX}/shop/arenas`;
         if (route === 'deck-builder') return `${HUB_PREFIX}/deck-builder`;
         if (route === 'achievements') return `${HUB_PREFIX}/achievements`;
         return `${HUB_PREFIX}/${route}`;
@@ -11714,10 +11785,23 @@
             void retryMissingProgression();
             return;
         }
+        const shopViewButton = event.target.closest('[data-shop-view]');
+        if (shopViewButton) {
+            navigateHub('shop', { shopView: shopViewButton.dataset.shopView });
+            return;
+        }
         const dailyOfferButton = event.target.closest('[data-daily-offer-id]');
         if (dailyOfferButton) purchaseDailyOffer(dailyOfferButton.dataset.dailyOfferId);
         const titleButton = event.target.closest('[data-purchase-title-id]');
         if (titleButton) purchasePlayerTitle(titleButton.dataset.purchaseTitleId);
+        const battlefieldPreviewButton = event.target.closest('[data-battlefield-preview-id]');
+        if (battlefieldPreviewButton) showBattlefieldSkinPreview(battlefieldPreviewButton.dataset.battlefieldPreviewId);
+        const battlefieldSelectButton = event.target.closest('[data-battlefield-select-id]');
+        if (battlefieldSelectButton) {
+            state.battlefieldShowcaseId = battlefieldSelectButton.dataset.battlefieldSelectId;
+            renderShop();
+            return;
+        }
         const battlefieldPurchaseButton = event.target.closest('[data-purchase-battlefield-id]');
         if (battlefieldPurchaseButton) purchaseBattlefieldSkin(battlefieldPurchaseButton.dataset.purchaseBattlefieldId);
         const battlefieldEquipButton = event.target.closest('[data-equip-battlefield-id]');

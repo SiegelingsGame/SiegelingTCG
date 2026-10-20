@@ -50,6 +50,71 @@ public class PlayerProgressionStore {
         }
     }
 
+    /** Debits currency, records ownership, and equips the cosmetic as one Firestore transaction. */
+    public boolean purchaseBattlefieldSkin(String userId, String skinId, int price) {
+        if (userId == null || userId.isBlank() || skinId == null || skinId.isBlank() || price < 0) {
+            throw new IllegalArgumentException("Invalid battlefield purchase.");
+        }
+        try {
+            return client.requireFirestore().runTransaction(transaction -> {
+                DocumentReference ref = doc(userId);
+                DocumentSnapshot snapshot = transaction.get(ref).get();
+                if (!snapshot.exists()) throw new IllegalStateException("Player progression is unavailable.");
+                String starterPackId = snapshot.getString("starterPackId");
+                if (starterPackId == null || starterPackId.isBlank()) {
+                    throw new IllegalArgumentException("Choose a starter pack before buying a battlefield.");
+                }
+                List<String> purchased = snapshot.get("purchasedBattlefieldSkinIds") instanceof List<?> values
+                        ? values.stream().filter(String.class::isInstance).map(String.class::cast)
+                            .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
+                        : new ArrayList<>();
+                Long balance = snapshot.getLong("gold");
+                int gold = balance == null ? 0 : balance.intValue();
+                if (purchased.contains(skinId)) return false;
+                if (gold < price) throw new IllegalArgumentException("Not enough Siegecoins for that battlefield.");
+                purchased.add(skinId);
+                Map<String, Object> update = new LinkedHashMap<>();
+                update.put("gold", gold - price);
+                update.put("purchasedBattlefieldSkinIds", purchased);
+                update.put("equippedBattlefieldSkinId", skinId);
+                update.put("updatedAt", Timestamp.now());
+                transaction.update(ref, update);
+                return true;
+            }).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (Exception ex) {
+            Throwable cause = ex;
+            while (cause.getCause() != null && cause.getCause() != cause) cause = cause.getCause();
+            if (cause instanceof IllegalArgumentException invalidPurchase) throw invalidPurchase;
+            if (cause instanceof IllegalStateException unavailable) throw unavailable;
+            throw new IllegalStateException("Unable to complete battlefield purchase.", ex);
+        }
+    }
+
+    /** Adds newly earned prestige cosmetics without overwriting concurrent progression fields. */
+    public void grantBattlefieldAchievementSkins(String userId, List<String> skinIds) {
+        if (userId == null || userId.isBlank() || skinIds == null || skinIds.isEmpty()) return;
+        try {
+            client.requireFirestore().runTransaction(transaction -> {
+                DocumentReference ref = doc(userId);
+                DocumentSnapshot snapshot = transaction.get(ref).get();
+                if (!snapshot.exists()) return null;
+                List<String> owned = snapshot.get("purchasedBattlefieldSkinIds") instanceof List<?> values
+                        ? values.stream().filter(String.class::isInstance).map(String.class::cast)
+                            .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
+                        : new ArrayList<>();
+                boolean changed = false;
+                for (String skinId : skinIds) changed |= skinId != null && owned.add(skinId);
+                if (changed) {
+                    transaction.update(ref, Map.of("purchasedBattlefieldSkinIds", owned,
+                            "updatedAt", Timestamp.now()));
+                }
+                return null;
+            }).get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to grant achievement battlefield rewards.", ex);
+        }
+    }
+
     /** Shared with {@link RewardClaimStore} so a transactional write serializes identically. */
     Map<String, Object> toPayload(PlayerProgressionEntity progression) {
         Map<String, Object> payload = new LinkedHashMap<>();

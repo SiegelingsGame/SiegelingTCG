@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Siegelings Card, Siegeknight, And Deck Dashboard</title>
+    <title>Siegelings Live Dashboard</title>
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
     <link rel="icon" type="image/png" href="/favicon-192x192.png" sizes="192x192">
@@ -21,13 +21,13 @@
          rules stay authoritative. Loading it last leaked home's
          `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
          full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
-    <link rel="stylesheet" href="/css/home.css?v=150">
+    <link rel="stylesheet" href="/css/home.css?v=152">
     <!-- style.css supplies the .hand-card / .element-frame showcase styles the
          card preview needs (the painted element frames). Loaded after home.css
          and before card-dashboard.css so the dashboard's own chrome rules stay
          authoritative. -->
     <link rel="stylesheet" href="/css/style.css?v=291">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=53">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=55">
     <link rel="stylesheet" href="/css/holographic.css?v=7">
 </head>
 <body>
@@ -35,8 +35,8 @@
     <header class="dashboard-header panel">
         <div class="header-copy">
             <div class="eyebrow">Siegelings Creator Tool</div>
-            <h1>Card, Siegeknight, And Deck Dashboard</h1>
-            <p>Load the current live data, edit cards, Siegeknights, and premade decks in structured forms, and export or save JSON without hand-editing every target rule or deck list.</p>
+            <h1>Live Dashboard</h1>
+            <p>Cards: edit Siegelings, Siegeknights, decks, Siege content, and shop tuning. Players: browse registered accounts and manually adjust balances, collections, and unlocks.</p>
         </div>
         <div class="header-actions">
             <button class="btn btn-secondary" id="reloadCurrentBtn" type="button">Reload Current Data</button>
@@ -102,7 +102,12 @@
         <div class="status-message" id="statusMessage">Loading the current data...</div>
     </section>
 
-    <section class="dashboard-pages panel">
+    <section class="dashboard-sections panel">
+        <button class="section-tab active" id="showCardsSectionBtn" type="button" data-dashboard-section="CARDS">Cards</button>
+        <button class="section-tab" id="showPlayersSectionBtn" type="button" data-dashboard-section="PLAYERS">Players</button>
+    </section>
+
+    <section class="dashboard-pages panel" id="cardsPageTabs">
         <button class="page-tab active" id="showSieglingsBtn" type="button" data-editor-page="SIEGLING">Siegeling Page</button>
         <button class="page-tab" id="showActionsBtn" type="button" data-editor-page="ACTION">Strategy / Deception Page</button>
         <button class="page-tab" id="showTrainersBtn" type="button" data-editor-page="TRAINERS">Siegeknights</button>
@@ -1119,6 +1124,34 @@
         </div>
     </section>
 
+    <section class="deck-workspace hidden" id="playersWorkspace">
+        <aside class="panel browser-panel players-browser-panel">
+            <div class="panel-heading">
+                <div>
+                    <div class="section-kicker">Accounts</div>
+                    <h2>Registered Players</h2>
+                </div>
+                <div class="inline-actions">
+                    <button class="btn btn-secondary" id="reloadPlayersBtn" type="button">Reload</button>
+                </div>
+            </div>
+            <div class="browser-filters">
+                <input id="playerSearchInput" type="search" placeholder="Search by name or email">
+            </div>
+            <div class="card-list" id="playerList"></div>
+        </aside>
+        <section class="panel editor-panel players-editor-panel">
+            <div class="panel-heading">
+                <div>
+                    <div class="section-kicker">Edit</div>
+                    <h2 id="playerEditorTitle">Player</h2>
+                </div>
+                <button type="button" class="dash-info-btn" data-info-topic="players-admin" title="How player admin works" aria-label="How player admin works">ⓘ</button>
+            </div>
+            <div id="playerAdminPanel"></div>
+        </section>
+    </section>
+
     <div class="dashboard-info-overlay hidden" id="dashboardInfoOverlay" role="dialog" aria-modal="true" aria-labelledby="dashboardInfoTitle">
         <div class="dashboard-info-modal">
             <div class="dashboard-info-head">
@@ -1268,10 +1301,10 @@
      renderer). The dashboard preview falls back to the old icon shell without it.
      Loaded at body-end (document.body exists) so its layout init can't throw, and
      before card-binder-visual.js so the showcase is registered first. -->
-<script src="/js/game.js?v=332"></script>
+<script src="/js/game.js?v=333"></script>
 <script src="/js/card-binder-visual.js?v=35"></script>
-<script src="/js/dashboard-info.js?v=13"></script>
-<script src="/js/card-dashboard.js?v=71"></script>
+<script src="/js/dashboard-info.js?v=15"></script>
+<script src="/js/card-dashboard.js?v=72"></script>
 <script src="/js/loading-art-admin.js?v=7"></script>
 <script src="/js/siege-class-admin.js?v=3"></script>
 <script src="/js/siege-item-admin.js?v=2"></script>
@@ -1282,5 +1315,6 @@
 <script src="/js/shop-admin.js?v=1"></script>
 <script src="/js/pack-admin.js?v=1"></script>
 <script src="/js/keep-admin.js?v=1"></script>
+<script src="/js/player-admin.js?v=2"></script>
 </body>
 </html>

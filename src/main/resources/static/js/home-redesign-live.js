@@ -199,6 +199,8 @@
           // them this account already bought lives on the progression record.
           dailyOffers: (shop && shop.dailyOffers) || [],
           dailyTitleOffers: (shop && shop.dailyTitleOffers) || [],
+          battlefieldSkins: (shop && shop.battlefieldSkins) || [],
+          progression: progression,
           purchasedDailyOfferIds: (progression && progression.purchasedDailyOfferIds) || [],
           friends: (presence && !presence.error && presence.friends) || (me && me.friends) || null,
           // Friend requests are part of the account, not of presence: /auth/me
