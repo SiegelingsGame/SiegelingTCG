@@ -3,7 +3,9 @@ package com.sieglings.persistence.firestore;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.Transaction;
 import com.sieglings.persistence.entity.PlayerProgressionEntity;
+import com.sieglings.service.BattlefieldSkinCatalogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +23,9 @@ public class PlayerProgressionStore {
 
     @Autowired
     private FirestoreUserDataClient client;
+
+    @Autowired(required = false)
+    private BattlefieldSkinCatalogService battlefieldSkinCatalog;
 
     public Optional<PlayerProgressionEntity> findByUserId(String userId) {
         if (userId == null || userId.isBlank()) {
@@ -60,23 +65,29 @@ public class PlayerProgressionStore {
                 DocumentReference ref = doc(userId);
                 DocumentSnapshot snapshot = transaction.get(ref).get();
                 if (!snapshot.exists()) throw new IllegalStateException("Player progression is unavailable.");
+                List<String> rawPurchased = plainSkinIds(snapshot.get("purchasedBattlefieldSkinIds"));
+                List<String> purchased = canonicalSkinIds(rawPurchased);
+                String canonical = canonicalSkinId(skinId);
+                String rawEquipped = snapshot.getString("equippedBattlefieldSkinId");
+                String equipped = canonicalSkinId(rawEquipped);
+                // An id saved before the board- prefix still owns this plate.
+                // Rewriting the list must not debit gold a second time.
+                if (purchased.contains(canonical)) {
+                    writeSkinIdMigration(transaction, ref, rawPurchased, purchased, rawEquipped, equipped);
+                    return false;
+                }
                 String starterPackId = snapshot.getString("starterPackId");
                 if (starterPackId == null || starterPackId.isBlank()) {
                     throw new IllegalArgumentException("Choose a starter pack before buying a battlefield.");
                 }
-                List<String> purchased = snapshot.get("purchasedBattlefieldSkinIds") instanceof List<?> values
-                        ? values.stream().filter(String.class::isInstance).map(String.class::cast)
-                            .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
-                        : new ArrayList<>();
                 Long balance = snapshot.getLong("gold");
                 int gold = balance == null ? 0 : balance.intValue();
-                if (purchased.contains(skinId)) return false;
                 if (gold < price) throw new IllegalArgumentException("Not enough Siegecoins for that battlefield.");
-                purchased.add(skinId);
+                purchased.add(canonical);
                 Map<String, Object> update = new LinkedHashMap<>();
                 update.put("gold", gold - price);
                 update.put("purchasedBattlefieldSkinIds", purchased);
-                update.put("equippedBattlefieldSkinId", skinId);
+                update.put("equippedBattlefieldSkinId", canonical);
                 update.put("updatedAt", Timestamp.now());
                 transaction.update(ref, update);
                 return true;
@@ -98,12 +109,13 @@ public class PlayerProgressionStore {
                 DocumentReference ref = doc(userId);
                 DocumentSnapshot snapshot = transaction.get(ref).get();
                 if (!snapshot.exists()) return null;
-                List<String> owned = snapshot.get("purchasedBattlefieldSkinIds") instanceof List<?> values
-                        ? values.stream().filter(String.class::isInstance).map(String.class::cast)
-                            .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
-                        : new ArrayList<>();
-                boolean changed = false;
-                for (String skinId : skinIds) changed |= skinId != null && owned.add(skinId);
+                List<String> rawOwned = plainSkinIds(snapshot.get("purchasedBattlefieldSkinIds"));
+                List<String> owned = canonicalSkinIds(rawOwned);
+                boolean changed = !owned.equals(rawOwned);
+                for (String skinId : skinIds) {
+                    String canonical = canonicalSkinId(skinId);
+                    changed |= canonical != null && !canonical.isBlank() && !owned.contains(canonical) && owned.add(canonical);
+                }
                 if (changed) {
                     transaction.update(ref, Map.of("purchasedBattlefieldSkinIds", owned,
                             "updatedAt", Timestamp.now()));
@@ -205,8 +217,8 @@ public class PlayerProgressionStore {
         progression.setPurchasedDailyOfferIds(readStringList(snapshot.get("purchasedDailyOfferIds")));
         progression.setClaimedTournamentIds(readStringList(snapshot.get("claimedTournamentIds")));
         progression.setPurchasedTitleIds(readStringList(snapshot.get("purchasedTitleIds")));
-        progression.setPurchasedBattlefieldSkinIds(readStringList(snapshot.get("purchasedBattlefieldSkinIds")));
-        progression.setEquippedBattlefieldSkinId(snapshot.getString("equippedBattlefieldSkinId"));
+        progression.setPurchasedBattlefieldSkinIds(canonicalSkinIds(readStringList(snapshot.get("purchasedBattlefieldSkinIds"))));
+        progression.setEquippedBattlefieldSkinId(canonicalSkinId(snapshot.getString("equippedBattlefieldSkinId")));
         Long craftCount = snapshot.getLong("craftCount");
         progression.setCraftCount(craftCount == null ? 0 : craftCount.intValue());
         progression.setHolographicCardIds(readStringList(snapshot.get("holographicCardIds")));
@@ -303,6 +315,38 @@ public class PlayerProgressionStore {
                 continue;
             }
             out.put(String.valueOf(entry.getKey()), Math.max(0, number.intValue()));
+        }
+        return out;
+    }
+
+    private void writeSkinIdMigration(Transaction transaction, DocumentReference ref,
+                                      List<String> rawPurchased, List<String> purchased,
+                                      String rawEquipped, String equipped) {
+        boolean listDirty = !purchased.equals(rawPurchased);
+        boolean equippedDirty = equipped != null && !equipped.equals(rawEquipped);
+        if (!listDirty && !equippedDirty) return;
+        Map<String, Object> update = new LinkedHashMap<>();
+        if (listDirty) update.put("purchasedBattlefieldSkinIds", purchased);
+        if (equippedDirty) update.put("equippedBattlefieldSkinId", equipped);
+        update.put("updatedAt", Timestamp.now());
+        transaction.update(ref, update);
+    }
+
+    private String canonicalSkinId(String id) {
+        if (id == null || id.isBlank() || battlefieldSkinCatalog == null) return id;
+        return battlefieldSkinCatalog.canonicalId(id);
+    }
+
+    private List<String> canonicalSkinIds(List<String> raw) {
+        if (battlefieldSkinCatalog == null) return raw == null ? new ArrayList<>() : new ArrayList<>(raw);
+        return new ArrayList<>(battlefieldSkinCatalog.canonicalIds(raw));
+    }
+
+    private List<String> plainSkinIds(Object raw) {
+        List<String> out = new ArrayList<>();
+        if (!(raw instanceof List<?> values)) return out;
+        for (Object value : values) {
+            if (value instanceof String id && !id.isBlank() && !out.contains(id)) out.add(id);
         }
         return out;
     }

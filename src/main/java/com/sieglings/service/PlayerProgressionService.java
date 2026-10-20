@@ -444,32 +444,40 @@ public class PlayerProgressionService {
         }
     }
 
-    public PlayerProgressionEntity purchaseBattlefieldSkin(AccountUser user, String skinId) {
+    public PlayerProgressionEntity purchaseBattlefieldSkin(AccountUser user, String requestedSkinId) {
         synchronized (progressionWriteLock(user)) {
             PlayerProgressionEntity progression = getOrCreate(user);
+            canonicalizeBattlefieldCosmetics(progression);
+            String skinId = battlefieldSkinCatalog.canonicalId(requestedSkinId);
             Map<String, Object> skin = battlefieldSkinCatalog.find(skinId)
                     .orElseThrow(() -> new IllegalArgumentException("Battlefield skin not found."));
             String collection = String.valueOf(skin.get("collection"));
             if (!"holiday".equals(collection) && !"premium".equals(collection)) {
                 throw new IllegalArgumentException("Prestige battlefields are earned through achievements and cannot be purchased.");
             }
-            if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
-                throw new IllegalArgumentException("Choose a starter pack before buying a battlefield.");
-            }
-            if (progression.getPurchasedBattlefieldSkinIds().contains(skinId)) return progression;
-            if (!battlefieldSkinCatalog.isAvailableForPurchase(skinId,
-                    java.time.LocalDate.now(java.time.ZoneId.of("America/New_York")))) {
-                throw new IllegalArgumentException("That holiday battlefield is only available during its event.");
+            boolean owned = progression.getPurchasedBattlefieldSkinIds().contains(skinId);
+            if (!owned) {
+                if (progression.getStarterPackId() == null || progression.getStarterPackId().isBlank()) {
+                    throw new IllegalArgumentException("Choose a starter pack before buying a battlefield.");
+                }
+                if (!battlefieldSkinCatalog.isAvailableForPurchase(skinId,
+                        java.time.LocalDate.now(java.time.ZoneId.of("America/New_York")))) {
+                    throw new IllegalArgumentException("That holiday battlefield is only available during its event.");
+                }
             }
             int price = ((Number) skin.get("price")).intValue();
+            // The store transaction treats a pre-prefix id as the same plate and
+            // will not debit again. Calling it also rewrites that id in place.
             store.purchaseBattlefieldSkin(user.getId(), skinId, price);
             return store.findByUserId(user.getId()).orElse(progression);
         }
     }
 
-    public PlayerProgressionEntity equipBattlefieldSkin(AccountUser user, String skinId) {
+    public PlayerProgressionEntity equipBattlefieldSkin(AccountUser user, String requestedSkinId) {
         synchronized (progressionWriteLock(user)) {
             PlayerProgressionEntity progression = getOrCreate(user);
+            canonicalizeBattlefieldCosmetics(progression);
+            String skinId = battlefieldSkinCatalog.canonicalId(requestedSkinId);
             if ("elemental-confluence".equals(skinId)) {
                 progression.setEquippedBattlefieldSkinId(skinId);
             } else {
@@ -489,6 +497,22 @@ public class PlayerProgressionService {
             }
             progression.setUpdatedAt(Instant.now());
             return store.save(progression);
+        }
+    }
+
+    /** Rewrites ids saved before the catalog's board- prefix so ownership checks match the live shop. */
+    private void canonicalizeBattlefieldCosmetics(PlayerProgressionEntity progression) {
+        if (progression == null || battlefieldSkinCatalog == null) return;
+        List<String> canonical = battlefieldSkinCatalog.canonicalIds(progression.getPurchasedBattlefieldSkinIds());
+        if (!canonical.equals(progression.getPurchasedBattlefieldSkinIds())) {
+            progression.setPurchasedBattlefieldSkinIds(canonical);
+        }
+        String equipped = progression.getEquippedBattlefieldSkinId();
+        if (equipped != null && !equipped.isBlank()) {
+            String canonicalEquipped = battlefieldSkinCatalog.canonicalId(equipped);
+            if (!canonicalEquipped.equals(equipped)) {
+                progression.setEquippedBattlefieldSkinId(canonicalEquipped);
+            }
         }
     }
 
@@ -857,6 +881,7 @@ public class PlayerProgressionService {
     }
 
     public Map<String, Object> serialize(PlayerProgressionEntity progression, AccountUser user) {
+        canonicalizeBattlefieldCosmetics(progression);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("gold", progression.getGold());
         out.put("remnants", progression.getRemnants());

@@ -7,13 +7,17 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class BattlefieldSkinCatalogService {
     private final List<Map<String, Object>> skins;
+    private final Set<String> ids;
 
     public BattlefieldSkinCatalogService(ObjectMapper mapper) {
         try {
@@ -22,9 +26,41 @@ public class BattlefieldSkinCatalogService {
             Object rows = catalog.get("skins");
             this.skins = rows instanceof List<?> list ? list.stream()
                     .filter(Map.class::isInstance).map(row -> (Map<String, Object>) row).toList() : List.of();
+            LinkedHashSet<String> known = new LinkedHashSet<>();
+            for (Map<String, Object> skin : skins) {
+                Object id = skin.get("id");
+                if (id instanceof String text && !text.isBlank()) known.add(text);
+            }
+            this.ids = Set.copyOf(known);
         } catch (IOException ex) {
             throw new IllegalStateException("Unable to load battlefield skin catalog.", ex);
         }
+    }
+
+    /**
+     * Catalog ids gained a {@code board-} prefix after the first shop deploy.
+     * Purchases saved the unprefixed id; those still name the same skin.
+     * Ids that are not in the catalog (the neutral arena, removed prestige
+     * plates) stay as stored so a later read does not invent a skin.
+     */
+    public String canonicalId(String id) {
+        if (id == null || id.isBlank() || ids.contains(id)) return id;
+        if (!id.startsWith("board-")) {
+            String prefixed = "board-" + id;
+            if (ids.contains(prefixed)) return prefixed;
+        }
+        return id;
+    }
+
+    public List<String> canonicalIds(List<String> raw) {
+        if (raw == null || raw.isEmpty()) return List.of();
+        List<String> out = new ArrayList<>();
+        for (String id : raw) {
+            if (id == null || id.isBlank()) continue;
+            String canonical = canonicalId(id);
+            if (!out.contains(canonical)) out.add(canonical);
+        }
+        return out;
     }
 
     public List<Map<String, Object>> all() {
@@ -33,8 +69,9 @@ public class BattlefieldSkinCatalogService {
     }
 
     public Optional<Map<String, Object>> find(String id) {
-        if (id == null) return Optional.empty();
-        return skins.stream().filter(skin -> id.equals(skin.get("id"))).findFirst();
+        if (id == null || id.isBlank()) return Optional.empty();
+        String canonical = canonicalId(id);
+        return skins.stream().filter(skin -> canonical.equals(skin.get("id"))).findFirst();
     }
 
     public List<Map<String, Object>> shopCatalog() {
