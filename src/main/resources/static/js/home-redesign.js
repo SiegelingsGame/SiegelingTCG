@@ -3387,11 +3387,11 @@
     return (pk.elements && pk.elements[0]) || 'NEUTRAL';
   }
 
-  // Every pack was drawing the elemental card back for its first element, so a
-  // pack with no element of its own fell through to Fire. The Siegeling pack is
-  // the only one left in that position now that the Strategy, Deception and
-  // SiegeKnight packs are retired; its back is the one the shipping shop uses,
-  // keyed the same way, so the art matches what opening it actually shows.
+  // The mixed Siegeling pack is the only one without a single element, so it
+  // keeps the multi-element S back. Every elemental summon (pack_siegeling_fire,
+  // pack_siegeling_electric, …) must use that element's own card back — a blanket
+  // `pack_siegeling_` prefix match was painting Electric pulls with the mixed
+  // Fire/Ice/Water/Earth art.
   // Pack faces stay on the elemental card-backs; shop stage art for these packs
   // comes from ELEMENT_STAGE / SUMMON_SCENE (same path as Electric).
   var PACK_BACK = {
@@ -3400,8 +3400,8 @@
 
   function packBack(pk) {
     if (PACK_BACK[pk.id]) return PACK_BACK[pk.id];
-    if (pk.id.indexOf('pack_siegeling_') === 0) return PACK_BACK.pack_siegeling_random;
     var el = String(packElement(pk)).toLowerCase();
+    if (el === 'neutral' || !el) return PACK_BACK.pack_siegeling_random;
     return '/img/decks/card-back-' + el + '.webp';
   }
 
@@ -5842,14 +5842,31 @@
     '</div>';
   }
 
+  // A sealed booster: plastic pouch with the card-back art in a window, not a
+  // clipped card-back image for both halves. The flap is foil plastic so the
+  // rip reads as tearing a pack open, not chopping a card in two.
   function packShell(pk, state) {
     var art = esc(packBack(pk));
+    var el = packElement(pk);
+    var elName = title(el);
     return '<button class="sg-gacha-pack ' + (state || '') + '" type="button" data-rip-pack ' +
+      'style="--el:' + color(el) + '" ' +
       ((state || '').indexOf('is-loading') >= 0 ? 'disabled ' : '') + 'aria-label="Rip open ' +
       esc(pk.name || 'pack') + '">' +
-      '<span class="sg-pack-body"><img src="' + art + '" alt=""></span>' +
-      '<span class="sg-pack-top"><img src="' + art + '" alt=""></span>' +
-      '<span class="sg-pack-seam" aria-hidden="true"></span>' +
+      '<span class="sg-pack-shell" aria-hidden="true">' +
+        '<span class="sg-pack-plastic">' +
+          '<span class="sg-pack-hang"></span>' +
+          '<span class="sg-pack-crimp"></span>' +
+          '<span class="sg-pack-window"><img src="' + art + '" alt=""></span>' +
+          '<span class="sg-pack-sheen"></span>' +
+          '<span class="sg-pack-brand"><b>' + esc(elName) + '</b><em>Siegeling Pack</em></span>' +
+        '</span>' +
+        '<span class="sg-pack-flap">' +
+          '<span class="sg-pack-flap-face"></span>' +
+          '<span class="sg-pack-perforation"></span>' +
+        '</span>' +
+        '<span class="sg-pack-mouth"></span>' +
+      '</span>' +
       '<span class="sg-pack-prompt">Drag across the seal to rip</span>' +
     '</button>';
   }
@@ -6103,7 +6120,7 @@
       }
 
       function flip(btn) {
-        if (btn.classList.contains('is-open')) return;
+        if (btn.classList.contains('is-open') || btn.classList.contains('is-flipping')) return;
         var card = cards[Number(btn.getAttribute('data-flip'))];
         var front = btn.querySelector('[data-flip-front]');
         var known = byIdIn(ALL_CARDS, card.id);
@@ -6133,7 +6150,12 @@
           btn.classList.add('is-copy');
         }
         if (card.holo) btn.classList.add('is-holo');
+        // Populate the front first, then run a lift-and-turn so the back really
+        // rotates away in 3D instead of swapping faces in place.
+        btn.classList.add('is-flipping');
+        void btn.offsetWidth;
         btn.classList.add('is-open');
+        window.setTimeout(function () { btn.classList.remove('is-flipping'); }, reducedMotion() ? 0 : 780);
         gachaFlourish(btn, card);
         finishFlourish(btn, finish);
         if (stackMode) layoutStack();
@@ -6186,8 +6208,8 @@
         if (stackCounter) stackCounter.textContent = (stackPos + 1) + ' / ' + slots.length;
         if (stackHint) {
           stackHint.textContent = opened
-            ? (stackPos >= slots.length - 1 ? 'Swipe to see the whole pull' : 'Swipe or tap for the next card')
-            : 'Tap to unseal · drag to tilt the stack';
+            ? (stackPos >= slots.length - 1 ? 'Swipe to see the whole pull' : 'Drag to tilt · swipe for the next card')
+            : 'Tap to flip · drag to tilt';
         }
       }
 
@@ -6199,9 +6221,10 @@
           if (tearing) return;
           tearing = true;
           pack.disabled = true;
+          pack.classList.add('is-tearing');
           stage.classList.add('is-ripping');
           kicker.textContent = 'Seal broken';
-          note.textContent = 'Your cards are sliding out…';
+          note.textContent = 'Your cards are sliding out\u2026';
           window.setTimeout(function () {
             if (pack.parentNode) pack.remove();
             stage.classList.remove('is-pack-ready', 'is-ripping');
@@ -6217,7 +6240,7 @@
               note.textContent = cards.length + ' card' + (cards.length === 1 ? '' : 's');
               actions.hidden = false;
             }, dealt);
-          }, reducedMotion() ? 0 : 620);
+          }, reducedMotion() ? 0 : 780);
         }
         pack.addEventListener('pointerdown', function (e) {
           if (tearing) return;
@@ -6233,9 +6256,10 @@
           if (Math.abs(dx) > 8 || Math.abs(dy) > 8) dragged = true;
           if (dx > 0 && Math.abs(dx) > Math.abs(dy)) {
             var progress = Math.min(1, dx / Math.max(90, pack.offsetWidth * .55));
-            pack.style.setProperty('--rip-x', (progress * 12) + 'px');
-            pack.style.setProperty('--rip-y', (progress * -6) + 'px');
-            pack.style.setProperty('--rip-angle', (progress * 3) + 'deg');
+            pack.style.setProperty('--rip', String(progress));
+            pack.style.setProperty('--rip-x', (progress * 18) + 'px');
+            pack.style.setProperty('--rip-y', (progress * -10) + 'px');
+            pack.style.setProperty('--rip-angle', (progress * 8) + 'deg');
           }
         });
         pack.addEventListener('pointerup', function (e) {
@@ -6248,6 +6272,7 @@
             e.preventDefault();
             tear();
           } else {
+            pack.style.removeProperty('--rip');
             pack.style.removeProperty('--rip-x');
             pack.style.removeProperty('--rip-y');
             pack.style.removeProperty('--rip-angle');
@@ -6314,17 +6339,29 @@
         var active = null;
         var sx = 0, sy = 0, moved = 0, startedAt = 0;
 
-        function setTilt(dx, dy) {
+        function setTilt(dx, dy, top) {
           stage.style.setProperty('--tilt-y', Math.max(-26, Math.min(26, dx / 7)) + 'deg');
           stage.style.setProperty('--tilt-x', Math.max(-16, Math.min(16, -dy / 9)) + 'deg');
           stage.style.setProperty('--drag-x', Math.max(-240, Math.min(240, dx)) + 'px');
           stage.style.setProperty('--drag-y', Math.max(-80, Math.min(80, dy * 0.3)) + 'px');
+          // Once the top card is face-up, the same drag also rolls that card on
+          // its own axes so the player can inspect the front in 3D before the
+          // swipe that sends it away.
+          if (top && top.classList.contains('is-open')) {
+            top.style.setProperty('--inspect-y', Math.max(-18, Math.min(18, dx / 9)) + 'deg');
+            top.style.setProperty('--inspect-x', Math.max(-12, Math.min(12, -dy / 11)) + 'deg');
+          }
         }
         function clearTilt() {
           stage.style.removeProperty('--tilt-x');
           stage.style.removeProperty('--tilt-y');
           stage.style.removeProperty('--drag-x');
           stage.style.removeProperty('--drag-y');
+          var top = stackBtn(stackPos);
+          if (top) {
+            top.style.removeProperty('--inspect-x');
+            top.style.removeProperty('--inspect-y');
+          }
         }
 
         stage.addEventListener('pointerdown', function (e) {
@@ -6337,7 +6374,7 @@
           if (e.pointerId !== active) return;
           var dx = e.clientX - sx, dy = e.clientY - sy;
           moved = Math.max(moved, Math.sqrt(dx * dx + dy * dy));
-          setTilt(dx, dy);
+          setTilt(dx, dy, stackBtn(stackPos));
         });
         stage.addEventListener('pointerup', function (e) {
           if (e.pointerId !== active) return;
@@ -6350,11 +6387,13 @@
           var threshold = Math.max(56, stage.getBoundingClientRect().width * 0.12);
           var tap = moved < 10 && Date.now() - startedAt < 600;
           var swiped = Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy);
+          // A short drag that only tilted a revealed card must not advance it —
+          // that is how the player inspects the front.
           if (!tap && !swiped) return;
           var top = stackBtn(stackPos);
           if (!top) return;
           if (!top.classList.contains('is-open')) flip(top);
-          else advanceStack(swiped ? (dx < 0 ? -1 : 1) : 1);
+          else if (swiped || tap) advanceStack(swiped ? (dx < 0 ? -1 : 1) : 1);
         });
         stage.addEventListener('pointercancel', function (e) {
           if (e.pointerId !== active) return;
