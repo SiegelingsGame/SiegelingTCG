@@ -91,6 +91,18 @@ body {
     overflow: hidden;
 }
 
+/* Hide the bare table until the selected loadout or resumed match is ready. */
+html.play-startup body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 20000;
+    background: #061020;
+}
+html.play-startup body > :not(#loadoutOverlay) {
+    visibility: hidden !important;
+}
+
 /* ============================================================
    TOP NAV BAR — slim consolidated header
    ============================================================ */
@@ -1628,10 +1640,6 @@ body {
     body.gameplay-active .safe-hp-strip:not([hidden]) {
         display: flex;
     }
-}
-
-body:has(.welcome-overlay.visible) .safe-hp-strip {
-    display: none !important;
 }
 
 /* HUD rails are desktop-only; mobile gets its own compact HUD/stat sheet. */
@@ -13896,7 +13904,6 @@ body.placement-active .board-cell.legal {
     font-weight: bold;
 }
 
-.welcome-overlay,
 .mulligan-overlay {
     position: fixed;
     inset: 0;
@@ -13915,7 +13922,6 @@ body.placement-active .board-cell.legal {
     backdrop-filter: blur(10px);
 }
 
-.welcome-overlay.visible,
 .mulligan-overlay.visible {
     display: flex;
 }
@@ -13989,11 +13995,6 @@ body.mulligan-active .hand-lift-layer {
     0% { transform: rotateY(0deg) scale(1); }
     50% { transform: rotateY(180deg) scale(1.06); }
     100% { transform: rotateY(360deg) scale(1); }
-}
-
-body:has(.welcome-overlay.visible) .top-bar,
-body:has(.welcome-overlay.visible) .mobile-hud {
-    display: none;
 }
 
 .welcome-shell {
@@ -16068,7 +16069,6 @@ body:has(.welcome-overlay.visible) .mobile-hud {
 }
 
 @media (max-width: 560px), (max-width: 900px) and (max-height: 760px) {
-    .welcome-overlay,
     .mulligan-overlay {
         padding: 10px;
         align-items: flex-start;
@@ -17629,7 +17629,6 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     }
 
     /* ── Overlay / modal adjustments ── */
-    .welcome-overlay,
     .mulligan-overlay {
         align-items: flex-start;
         overflow-y: auto;
@@ -17753,35 +17752,6 @@ body:has(.welcome-overlay.visible) .mobile-hud {
     .game-over-actions .btn {
         padding: 8px 14px;
         font-size: 0.82em;
-    }
-
-    /* ── Play entry (welcome) screen ──
-       The default two-column hero (copy | actions) squeezes the copy into a
-       ~100px sliver on wide-short landscape phones (901–979px, above the
-       900px reflow breakpoint). Force a single readable hero column with the
-       mode buttons laid out in a row beneath the copy, and let the shell
-       scroll so no button is ever clipped below the fold. */
-    .welcome-shell.play-entry-shell {
-        display: grid;
-        align-content: start;
-    }
-    .welcome-shell .play-entry-hero {
-        grid-template-columns: 1fr;
-        gap: 12px;
-        padding: 16px 20px;
-        align-items: start;
-    }
-    .welcome-shell .play-entry-hero h2 {
-        font-size: 1.3em;
-    }
-    .welcome-shell .play-entry-actions {
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: stretch;
-    }
-    .welcome-shell .play-entry-actions .play-mode-btn,
-    .welcome-shell .play-entry-actions .welcome-dashboard-btn {
-        flex: 1 1 200px;
     }
 
     /* ── Loadout: two-pane landscape layout ──
@@ -18271,7 +18241,6 @@ body:has(.welcome-overlay.visible) .mobile-hud {
         border-top-right-radius: 0;
     }
 
-    .welcome-overlay,
     .mulligan-overlay {
         align-items: flex-start;
         overflow-y: auto;
@@ -19608,19 +19577,9 @@ body.sgl-opponent-turn .battle-cta-row {
 }
 
 /* =============================================================
-   PREMIUM WELCOME OVERLAY — REDESIGN
+   PLAY LOADOUT OVERLAY
    Override the utilitarian defaults with a polished game lobby feel.
    ============================================================= */
-
-/* Background */
-.welcome-overlay {
-    background:
-        radial-gradient(ellipse at 15% 20%, rgba(30, 80, 200, 0.24) 0%, transparent 45%),
-        radial-gradient(ellipse at 85% 80%, rgba(226, 183, 20, 0.18) 0%, transparent 40%),
-        radial-gradient(ellipse at 50% 110%, rgba(20, 40, 90, 0.35) 0%, transparent 55%),
-        rgba(3, 7, 18, 0.95);
-    backdrop-filter: blur(16px);
-}
 
 /* Main shell */
 .welcome-shell {
@@ -19874,7 +19833,7 @@ body.sgl-opponent-turn .battle-cta-row {
     color: var(--text-dim, #8aa0bd);
 }
 
-/* Indeterminate progress bar shown on the welcome screen while the signed-in
+/* Indeterminate progress bar shown while the signed-in
    session and match history are still being restored from /api/auth/me. */
 .welcome-loading-bar {
     position: relative;
@@ -20372,262 +20331,8 @@ body.sgl-opponent-turn .battle-cta-row {
     transform: translateY(-1px);
 }
 
-/* Main grid layout */
-.welcome-main {
-    gap: 16px;
-}
-
-.play-entry-shell {
-    display: grid;
-    gap: 16px;
-}
-
-.play-entry-hero,
-.play-lobby-card {
-    padding: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 22px;
-    background:
-        radial-gradient(ellipse at top right, rgba(226, 183, 20, 0.08), transparent 50%),
-        rgba(5, 10, 22, 0.78);
-}
-
-.play-entry-hero {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 18px;
-    align-items: center;
-}
-
-.play-entry-hero h2 {
-    margin: 0 0 10px;
-    color: #f0f4ff;
-    font-size: 1.45em;
-    line-height: 1.22;
-}
-
-.play-entry-actions,
-.play-lobby-actions,
-.play-lobby-chat-form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-}
-
-.play-mode-btn {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 3px;
-    text-align: left;
-    line-height: 1.2;
-}
-
-.play-mode-btn-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 800;
-    font-size: 1.02em;
-}
-
-.play-mode-btn-sub {
-    font-size: 0.74em;
-    font-weight: 600;
-    opacity: 0.78;
-}
-
-.play-mode-btn-soon {
-    cursor: not-allowed;
-    color: #aab8d0;
-    border-color: rgba(255, 255, 255, 0.14);
-    background: rgba(255, 255, 255, 0.04);
-}
-
-.play-mode-btn-soon:hover {
-    color: #c7d4ea;
-    border-color: rgba(255, 255, 255, 0.22);
-}
-
-.play-mode-soon-tag {
-    padding: 2px 8px;
-    border-radius: 999px;
-    border: 1px solid rgba(226, 183, 20, 0.42);
-    background: rgba(226, 183, 20, 0.12);
-    color: var(--accent);
-    font-size: 0.62em;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
-.play-entry-grid {
-    display: grid;
-    grid-template-columns: minmax(300px, 0.82fr) minmax(0, 1.18fr);
-    gap: 16px;
-}
-
-.play-entry-grid-solo {
-    grid-template-columns: minmax(0, 1fr);
-}
-
-.play-lobby-card {
-    min-width: 0;
-}
-
-.play-lobby-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 12px;
-}
-
-.play-lobby-head h3 {
-    margin: 0;
-    color: #dce8f8;
-    font-size: 1.12em;
-}
-
-.play-lobby-code {
-    max-width: 180px;
-    overflow-wrap: anywhere;
-    padding: 7px 10px;
-    border: 1px solid rgba(226, 183, 20, 0.34);
-    border-radius: 9px;
-    color: var(--accent);
-    background: rgba(226, 183, 20, 0.08);
-    font-size: 0.76em;
-    font-weight: 800;
-}
-
-.play-lobby-status {
-    margin-bottom: 14px;
-    color: #8fa6c4;
-    font-size: 0.88em;
-    line-height: 1.45;
-}
-
-.play-lobby-players {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    margin-bottom: 14px;
-}
-
-.play-lobby-player {
-    min-width: 0;
-    display: grid;
-    gap: 4px;
-    padding: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.04);
-}
-
-.play-lobby-player.is-ready {
-    border-color: rgba(79, 217, 126, 0.42);
-    box-shadow: 0 0 24px rgba(79, 217, 126, 0.1);
-}
-
-.play-lobby-player span,
-.play-lobby-player small,
-.play-lobby-player em {
-    color: #5a7490;
-    font-size: 0.74em;
-    font-style: normal;
-}
-
-.play-lobby-player strong {
-    min-width: 0;
-    overflow: hidden;
-    color: #f0f4ff;
-    font-size: 1.05em;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.play-lobby-player em {
-    color: var(--accent);
-    font-weight: 800;
-}
-
-.play-lobby-controls {
-    display: grid;
-    gap: 12px;
-}
-
-.play-lobby-controls.is-muted {
-    opacity: 0.78;
-}
-
-.play-lobby-chat {
-    display: grid;
-    gap: 10px;
-}
-
-.play-lobby-chat-log {
-    min-height: 154px;
-    max-height: 210px;
-    overflow-y: auto;
-    display: grid;
-    align-content: start;
-    gap: 7px;
-    padding: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    background: rgba(0, 0, 0, 0.24);
-}
-
-.play-lobby-chat-row {
-    display: grid;
-    grid-template-columns: 74px minmax(0, 1fr);
-    gap: 8px;
-    color: #9fb4d0;
-    font-size: 0.8em;
-    line-height: 1.35;
-}
-
-.play-lobby-chat-row strong {
-    color: #dce8f8;
-}
-
-.play-lobby-chat-row.system strong {
-    color: var(--accent);
-}
-
-.play-lobby-chat-form {
-    flex-wrap: nowrap;
-}
-
-.play-lobby-chat-form input {
-    min-width: 0;
-    flex: 1 1 auto;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    color: #dce8f8;
-    background: rgba(0, 0, 0, 0.28);
-    padding: 10px 12px;
-}
-
-.play-lobby-chat-form .btn {
-    flex: 0 0 auto;
-}
-
 /* Responsive adjustments */
 @media (max-width: 900px) {
-    .play-entry-hero,
-    .play-entry-grid {
-        grid-template-columns: 1fr;
-    }
-    .play-entry-actions {
-        align-items: stretch;
-    }
-    .play-entry-actions .btn,
-    .play-lobby-actions .btn {
-        flex: 1 1 150px;
-    }
     .welcome-hero {
         padding: 22px 20px 18px;
     }
@@ -20661,30 +20366,6 @@ body.sgl-opponent-turn .battle-cta-row {
 }
 
 @media (max-width: 560px) {
-    .play-entry-hero,
-    .play-lobby-card {
-        padding: 18px 16px;
-        border-radius: 18px;
-    }
-    .play-lobby-head,
-    .play-lobby-players,
-    .play-lobby-chat-row {
-        grid-template-columns: 1fr;
-    }
-    .play-lobby-head {
-        display: grid;
-    }
-    .play-lobby-code {
-        max-width: none;
-    }
-    .play-lobby-chat-form,
-    .play-lobby-actions {
-        display: grid;
-        grid-template-columns: 1fr;
-    }
-    .welcome-shell {
-        border-radius: 20px;
-    }
     .welcome-hero {
         border-radius: 18px;
         padding: 18px 16px 16px;
@@ -20724,11 +20405,9 @@ body.sgl-opponent-turn .battle-cta-row {
 }
 
 @media (max-width: 767px) {
-    .welcome-overlay,
     .mulligan-overlay {
         bottom: calc(var(--mobile-hub-nav-height) + env(safe-area-inset-bottom, 0px));
     }
-    body.gameplay-active .welcome-overlay,
     body.gameplay-active .mulligan-overlay {
         bottom: 0;
     }
