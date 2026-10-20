@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
-import java.util.Set;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,6 +22,20 @@ class BattlefieldSkinCatalogServiceTest {
                 .allMatch(skin -> skin.get("achievementId") != null && skin.get("price") == null));
         assertFalse(catalog.all().stream().filter(skin -> "premium".equals(skin.get("collection")))
                 .anyMatch(skin -> skin.get("achievementId") != null));
+    }
+
+    @Test
+    void unprefixedIdsFromTheFirstShopDeployStillNameTheSameSkin() {
+        assertEquals("board-haunted-harvest", catalog.canonicalId("haunted-harvest"));
+        assertEquals("board-dragons-hoard", catalog.canonicalId("dragons-hoard"));
+        assertEquals("board-unstoppable-inferno", catalog.canonicalId("unstoppable-inferno"));
+        assertEquals("board-haunted-harvest", catalog.canonicalId("board-haunted-harvest"));
+        assertEquals("elemental-confluence", catalog.canonicalId("elemental-confluence"));
+        assertEquals("siegebreakers-citadel", catalog.canonicalId("siegebreakers-citadel"));
+        assertEquals(List.of("board-haunted-harvest", "board-dragons-hoard"),
+                catalog.canonicalIds(List.of("haunted-harvest", "board-haunted-harvest", "dragons-hoard")));
+        assertTrue(catalog.find("haunted-harvest").isPresent());
+        assertEquals("board-haunted-harvest", catalog.find("haunted-harvest").orElseThrow().get("id"));
     }
 
     @Test

@@ -51,6 +51,37 @@ class PlayerProgressionServiceTest {
     }
 
     @Test
+    void legacyUnprefixedBattlefieldPurchaseIsNotChargedAgainAndStillEquips() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = new PlayerProgressionEntity();
+        progression.setUserId("player@example.com");
+        progression.setStarterPackId("pack_fire");
+        progression.setGold(900);
+        progression.setPurchasedBattlefieldSkinIds(List.of("haunted-harvest"));
+        progression.setEquippedBattlefieldSkinId("haunted-harvest");
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+
+        service.purchaseBattlefieldSkin(user(), "board-haunted-harvest");
+        Map<String, Object> serialized = service.serialize(store.saved, user());
+
+        assertEquals(900, store.saved.getGold());
+        assertEquals(List.of("board-haunted-harvest"), store.saved.getPurchasedBattlefieldSkinIds());
+        assertEquals("board-haunted-harvest", store.saved.getEquippedBattlefieldSkinId());
+        assertEquals(List.of("board-haunted-harvest"), serialized.get("purchasedBattlefieldSkinIds"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> skins = (List<Map<String, Object>>) serialized.get("battlefieldSkins");
+        Map<String, Object> harvest = skins.stream()
+                .filter(skin -> "board-haunted-harvest".equals(skin.get("id"))).findFirst().orElseThrow();
+        assertEquals(true, harvest.get("owned"));
+        assertEquals(true, harvest.get("equipped"));
+
+        service.equipBattlefieldSkin(user(), "haunted-harvest");
+        assertEquals("board-haunted-harvest", store.saved.getEquippedBattlefieldSkinId());
+        assertEquals(900, store.saved.getGold());
+    }
+
+    @Test
     void prestigeBattlefieldCannotBePurchased() throws Exception {
         FakeProgressionStore store = new FakeProgressionStore();
         PlayerProgressionEntity progression = new PlayerProgressionEntity();
