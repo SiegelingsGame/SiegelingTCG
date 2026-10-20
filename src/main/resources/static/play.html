@@ -750,12 +750,12 @@
                             <span class="battle-mode-description">Take on the AI and put your deck to the test.</span>
                             <span class="battle-mode-meta">Play at your own pace</span>
                         </button>
-                        <a class="battle-mode-card battle-mode-gauntlet" id="gauntletMatchLink" href="/gauntlet">
+                        <button class="battle-mode-card battle-mode-gauntlet" id="gauntletMatchTab" type="button" onclick="setMatchMode('gauntlet')" aria-pressed="false">
                             <span class="battle-mode-kicker">Roguelike climb</span>
                             <span class="battle-mode-title">Gauntlet</span>
                             <span class="battle-mode-description">Draft 10 cards. Grow your deck as you climb.</span>
-                            <span class="battle-mode-meta">Enter the Gauntlet &rsaquo;</span>
-                        </a>
+                            <span class="battle-mode-meta">Draft your climb</span>
+                        </button>
                         <button class="battle-mode-card battle-mode-tutorial" id="tutorialMatchTab" type="button" onclick="setMatchMode('tutorial')" aria-pressed="false">
                             <span class="battle-mode-kicker">Guided match</span>
                             <span class="battle-mode-title">Tutorial</span>
@@ -949,12 +949,5 @@
     <script src="/js/loading-art.js?v=6"></script>
     <script src="/js/loading-gate.js?v=7"></script>
     <script src="/js/sw-register.js?v=1"></script>
-    <script>
-        document.addEventListener('click', function (event) {
-            const link = event.target.closest('#gauntletMatchLink');
-            if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || (link.target && link.target !== '_self')) return;
-            document.documentElement.classList.add('gauntlet-navigation-pending');
-        }, true);
-    </script>
 </body>
 </html>
