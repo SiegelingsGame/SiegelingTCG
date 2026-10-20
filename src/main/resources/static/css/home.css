@@ -7005,9 +7005,61 @@ body.gacha-active {
 
 @media (max-width: 900px) {
     .gacha-stage {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        display: flex;
+        justify-content: flex-start;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scroll-snap-type: x mandatory;
+        touch-action: pan-x;
+        padding: 10px 5vw 18px;
+    }
+    .gacha-stage .reveal-card {
+        flex: 0 0 min(76vw, 310px);
+        scroll-snap-align: center;
     }
 }
+
+/* Pack reveals remain face-up so the player can swipe through the card stack. */
+.gacha-stage .reveal-card .reveal-back { display: none; }
+.gacha-stage .reveal-card .reveal-front { transform: none; }
+.remnant-overlay {
+    position: absolute;
+    z-index: 8;
+    inset: auto 0 0;
+    display: grid;
+    place-items: center;
+    min-height: 22%;
+    padding: 10px;
+    color: #fff5d5;
+    text-align: center;
+    background: linear-gradient(0deg, rgba(18, 12, 4, .96), rgba(18, 12, 4, .05));
+    text-shadow: 0 1px 8px #000;
+    pointer-events: none;
+}
+.remnant-overlay strong {
+    padding: 7px 12px;
+    border: 1px solid rgba(255, 205, 91, .72);
+    border-radius: 999px;
+    background: rgba(35, 24, 8, .92);
+    color: #ffd36a;
+    font-size: clamp(11px, 1.4vw, 16px);
+}
+.pack-opening-pending::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    left: 50%; top: 52%;
+    width: clamp(120px, 32vw, 240px);
+    aspect-ratio: .68;
+    border: 2px solid rgba(255, 219, 121, .9);
+    border-radius: 12px;
+    background: linear-gradient(112deg, #523610 0%, #f4d47b 13%, #744c16 25%, #f9e8a7 38%, #55370e 53%, #d6ad55 69%, #392409 100%);
+    box-shadow: inset 0 0 0 5px rgba(39, 24, 5, .72), inset 0 0 26px #ffecad, 0 0 50px var(--pack-glow);
+    transform: translate(-50%, -50%);
+    animation: foilPackLift 1.25s ease-in-out infinite alternate;
+    pointer-events: none;
+}
+@keyframes foilPackLift { to { transform: translate(-50%, calc(-50% - 14px)); filter: brightness(1.24); } }
 
 .reveal-card {
     position: relative;
