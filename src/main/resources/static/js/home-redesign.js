@@ -6217,6 +6217,13 @@
         var pack = stage.querySelector('[data-rip-pack]');
         if (!pack) return;
         var startX = 0, startY = 0, dragged = false, tearing = false, suppressClick = false;
+        // Overlap the pouch fade with the deal so the pack never hard-cuts away
+        // leaving a blank frame before the cards arrive. Deal animation lands on
+        // the stack's resting transform (depths set first), so dropping
+        // `is-dealing` does not pop the pile.
+        var RIP_TO_DEAL_MS = reducedMotion() ? 0 : 300;
+        var PACK_FADE_MS = reducedMotion() ? 0 : 420;
+        var PACK_REMOVE_MS = reducedMotion() ? 0 : 720;
         function tear() {
           if (tearing) return;
           tearing = true;
@@ -6225,22 +6232,36 @@
           stage.classList.add('is-ripping');
           kicker.textContent = 'Seal broken';
           note.textContent = 'Your cards are sliding out\u2026';
+          if (stackMode) layoutStack();
           window.setTimeout(function () {
-            if (pack.parentNode) pack.remove();
-            stage.classList.remove('is-pack-ready', 'is-ripping');
             stage.classList.add('is-dealing');
+            stage.classList.remove('is-pack-ready');
+            pack.classList.add('is-gone');
+            window.setTimeout(function () {
+              if (pack.parentNode) pack.remove();
+              stage.classList.remove('is-ripping');
+            }, PACK_FADE_MS);
             window.setTimeout(function () {
               stage.classList.remove('is-dealing');
               stackLocked = false;
               if (stackMode) {
                 layoutStack();
-                if (stackBar) stackBar.hidden = false;
+                if (stackBar) {
+                  stackBar.hidden = false;
+                  stackBar.classList.add('is-in');
+                }
               }
               kicker.textContent = 'Tap to reveal';
               note.textContent = cards.length + ' card' + (cards.length === 1 ? '' : 's');
               actions.hidden = false;
             }, dealt);
-          }, reducedMotion() ? 0 : 780);
+          }, RIP_TO_DEAL_MS);
+          // Keep a hard upper bound so a stalled fade never leaves the pack node
+          // blocking taps (PACK_REMOVE_MS covers fade + buffer).
+          window.setTimeout(function () {
+            if (pack.parentNode) pack.remove();
+            stage.classList.remove('is-ripping');
+          }, PACK_REMOVE_MS);
         }
         pack.addEventListener('pointerdown', function (e) {
           if (tearing) return;

@@ -1,3 +1,7 @@
+- October 20, 2026 **Shop pack→reveal handoff no longer frame-jumps.**
+  - **Change.** Pack rip and card deal overlap: depths are laid out before deal, `is-dealing` starts ~300ms into the rip while the pouch fades (`is-gone`) instead of a hard `remove()`, and `sgCardDealToStack` ends on the stack’s resting transform so dropping `is-dealing` does not snap the pile. Pack-ready card width matches the stack (`min(62%,240px)`); stage height stays on `dvh`. Stack bar fades in. Cache pins `home-redesign.js?v=125`, `home-redesign.css?v=132`.
+  - **Verification.** `node --check`. Headless Chrome handoff harness at 390×844: zero blank-frame samples during overlap; pack still fading while cards deal; settle width 240; screenshots `/opt/cursor/artifacts/handoff-*.png`.
+
 - October 20, 2026 Pack reveal gacha production deployment: PR #1154 merged as `25bb78c4`; Deploy workflow `39503124498` completed successfully (Cloud Run + Firebase Hosting/Functions). Live `/shop` and `/home-next.html` serve `home-redesign.css?v=131` and `home-redesign.js?v=124`. Hosting and Cloud Run `/api/cards/editor` remain `FIRESTORE`-backed with editing enabled; `/api/game/options` returns 7 decks; `config.js` keeps `apiBaseUrl: ''`.
 
 - October 20, 2026 **Shop pack reveal: elemental backs, plastic pouch rip, 3D flip + tilt.**
