@@ -2876,10 +2876,12 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
      and is offset by where its depth would carry it at that angle -
      x' = -z·sin(ry), y' = z·sin(rx) - with --pile-sy/--pile-sx holding the
      sines, set from JS. z steps 30px per pack, pivoting about the middle of
-     the pile. Painting order (z-index) keeps the front pack on top. */
+     the pile. Painting order (z-index) keeps the front pack on top. At rest
+     the pile is square and each pack sits 2.5px higher than the one in
+     front, so the stack shows as a neat column of crimped tops. */
   --pack-d:calc(var(--pack-i, 0) - var(--pile-mid, 0));
   transform:translate(-50%,-50%)
-    translate(calc(var(--pack-d) * var(--pile-sy, 0) * -30px), calc(var(--pack-d) * var(--pile-sx, 0) * 30px))
+    translate(calc(var(--pack-d) * var(--pile-sy, 0) * -30px), calc(var(--pack-d) * var(--pile-sx, 0) * 30px + var(--pack-i, 0) * -2.5px))
     rotateX(var(--ptilt-x, 0deg)) rotateY(var(--ptilt-y, 0deg))
     scale(calc(1 - var(--pack-i, 0) * .018));
   transition:transform .45s cubic-bezier(.2,.8,.2,1);
@@ -2924,7 +2926,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
      twenty of them on a ×10 pile. */
   clip-path:polygon(0.000% 5px, 1.667% 0, 3.333% 5px, 5.000% 0, 6.667% 5px, 8.333% 0, 10.000% 5px, 11.667% 0, 13.333% 5px, 15.000% 0, 16.667% 5px, 18.333% 0, 20.000% 5px, 21.667% 0, 23.333% 5px, 25.000% 0, 26.667% 5px, 28.333% 0, 30.000% 5px, 31.667% 0, 33.333% 5px, 35.000% 0, 36.667% 5px, 38.333% 0, 40.000% 5px, 41.667% 0, 43.333% 5px, 45.000% 0, 46.667% 5px, 48.333% 0, 50.000% 5px, 51.667% 0, 53.333% 5px, 55.000% 0, 56.667% 5px, 58.333% 0, 60.000% 5px, 61.667% 0, 63.333% 5px, 65.000% 0, 66.667% 5px, 68.333% 0, 70.000% 5px, 71.667% 0, 73.333% 5px, 75.000% 0, 76.667% 5px, 78.333% 0, 80.000% 5px, 81.667% 0, 83.333% 5px, 85.000% 0, 86.667% 5px, 88.333% 0, 90.000% 5px, 91.667% 0, 93.333% 5px, 95.000% 0, 96.667% 5px, 98.333% 0, 100.000% 5px, 100.000% calc(100% - 5px), 98.333% 100%, 96.667% calc(100% - 5px), 95.000% 100%, 93.333% calc(100% - 5px), 91.667% 100%, 90.000% calc(100% - 5px), 88.333% 100%, 86.667% calc(100% - 5px), 85.000% 100%, 83.333% calc(100% - 5px), 81.667% 100%, 80.000% calc(100% - 5px), 78.333% 100%, 76.667% calc(100% - 5px), 75.000% 100%, 73.333% calc(100% - 5px), 71.667% 100%, 70.000% calc(100% - 5px), 68.333% 100%, 66.667% calc(100% - 5px), 65.000% 100%, 63.333% calc(100% - 5px), 61.667% 100%, 60.000% calc(100% - 5px), 58.333% 100%, 56.667% calc(100% - 5px), 55.000% 100%, 53.333% calc(100% - 5px), 51.667% 100%, 50.000% calc(100% - 5px), 48.333% 100%, 46.667% calc(100% - 5px), 45.000% 100%, 43.333% calc(100% - 5px), 41.667% 100%, 40.000% calc(100% - 5px), 38.333% 100%, 36.667% calc(100% - 5px), 35.000% 100%, 33.333% calc(100% - 5px), 31.667% 100%, 30.000% calc(100% - 5px), 28.333% 100%, 26.667% calc(100% - 5px), 25.000% 100%, 23.333% calc(100% - 5px), 21.667% 100%, 20.000% calc(100% - 5px), 18.333% 100%, 16.667% calc(100% - 5px), 15.000% 100%, 13.333% calc(100% - 5px), 11.667% 100%, 10.000% calc(100% - 5px), 8.333% 100%, 6.667% calc(100% - 5px), 5.000% 100%, 3.333% calc(100% - 5px), 1.667% 100%, 0.000% calc(100% - 5px)); }
 .sg-pack-window { position:absolute; z-index:1; left:0; right:0; top:var(--crimp-top); bottom:var(--crimp-bottom); overflow:hidden; }
-.sg-gacha-pack .sg-pack-window img { width:100%; height:100%; object-fit:cover; display:block; }
+.sg-gacha-pack .sg-pack-window img { width:100%; height:100%; object-fit:cover; display:block;
+  -webkit-user-drag:none; user-select:none; -webkit-user-select:none; pointer-events:none; }
 /* Over everything: pressed ridges on both crimps, the pillowed shading a
    sealed pouch takes where it rounds over the cards, and a holographic film. */
 .sg-pack-foil { position:absolute; inset:0; z-index:2; pointer-events:none;

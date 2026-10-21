@@ -5853,7 +5853,9 @@
   function packSkin(pk, art) {
     return '<span class="sg-pack-skin">' +
       '<span class="sg-pack-foil" aria-hidden="true"></span>' +
-      '<span class="sg-pack-window"><img src="' + art + '" alt=""></span>' +
+      // Not draggable: with a mouse, dragging across the art started the
+      // browser's own image drag, which cancels the pointer stream mid-turn.
+      '<span class="sg-pack-window"><img src="' + art + '" alt="" draggable="false"></span>' +
       '<span class="sg-pack-name">' + esc(pk.name || 'Pack') + '</span>' +
       '<span class="sg-pack-sheen" aria-hidden="true"></span>' +
     '</span>';
@@ -6059,7 +6061,8 @@
     // The values are written on the pile, not the stage: a custom property
     // changed on the stage re-resolves style for every card under it on each
     // pointer move, where on the pile it only touches the packs.
-    var PILE_REST = count > 1 ? { y: -16, x: 5 } : { y: 0, x: 0 };
+    // The pile rests square: it only turns while the player is turning it.
+    var PILE_REST = { y: 0, x: 0 };
     var pileEl = stage.querySelector('[data-pack-pile]');
     function setPile(ry, rx) {
       if (!pileEl) return;
@@ -6343,9 +6346,14 @@
           stage.classList.remove('is-tilting');
           setPile(PILE_REST.y, PILE_REST.x);
         }
+        // Only a pressed pointer turns the pile - a touch, or a mouse with a
+        // button down. A bare mouse hover used to swing it, so on desktop it
+        // was never still.
         stage.addEventListener('pointermove', function (e) {
-          if (stage.classList.contains('is-pack-ready')) tiltPile(e);
+          if (!stage.classList.contains('is-pack-ready')) return;
+          if (e.buttons || e.pointerType === 'touch') tiltPile(e);
         });
+        stage.addEventListener('pointerup', settlePile);
         stage.addEventListener('pointerleave', settlePile);
         pack.addEventListener('pointercancel', settlePile);
         function tear() {

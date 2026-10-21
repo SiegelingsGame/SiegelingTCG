@@ -1,3 +1,13 @@
+Original prompt: The pack movement and rotation is working by default it should sit stacked only rotating when turned
+
+- October 21, 2026 **Sealed pile rests square; it only turns while the player turns it.**
+  - **Change.** The ×10 pile no longer rests turned (−16°/5° is gone; `PILE_REST` is 0/0). It also no longer follows a bare mouse hover: `tiltPile` runs only for a pressed pointer (`e.buttons` or a touch), and `pointerup` settles it back square. At rest each pack sits 2.5px higher than the one in front, so the stack reads as a neat column of crimped tops without any rotation. With a mouse, dragging across the wrapper art also started the browser's native image drag, which cancelled the pointer stream after one move, so turning never worked on desktop. The art is now `draggable="false"` with `-webkit-user-drag:none` and `pointer-events:none`. Cache pins `home-redesign.css` 140, `home-redesign.js` 133.
+  - **Verification.** Headless Chromium `/shop` ×10 flow at 390x844 against the running app, sampling the pile's `--ptilt-*` and the front and back packs' rects:
+    - At rest: 0°/0°. After an unpressed hover to the edge: still 0°/0°, rects unchanged.
+    - Pressed drag left: −22.6° with the back pack shifted 60px. Before the image-drag fix, the same drag logged only two pointer events and stayed at 0°.
+    - Released: back to 0°/0° and identical rects, still sealed.
+    - Screenshots of rest / turned / released inspected. No page errors.
+
 Original prompt: How can I improve the lag in the 10 pack pull animation also when the packs open they sort of drop off the bottom of the screen feels less like they are being pulled out the packs
 
 - October 21, 2026 **Pack reveal: lighter ×10 pile, 3D that survives iOS, cards pulled out of the pack.**
