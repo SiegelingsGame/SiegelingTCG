@@ -5,7 +5,7 @@ const EFFECT_TYPES = [
     key: 'damage',
     label: 'Damage',
     description: 'Deals damage to the resolved target or targets.',
-    targetHints: ['SINGLE_ENEMY', 'ROW_ENEMIES', 'ROW_SELECT_ENEMIES', 'ALL_ENEMIES', 'ENEMY_PLAYER']
+    targetHints: ['SINGLE_ENEMY', 'RANDOM_ENEMY', 'ROW_ENEMIES', 'SPREAD_ROW', 'SPREAD_ALL', 'ROW_SELECT_ENEMIES', 'ALL_ENEMIES', 'ENEMY_PLAYER']
   },
   {
     key: 'chain_damage',
@@ -140,10 +140,25 @@ const TARGET_RULES = {
     fixedTargetCount: 0,
     helperText: 'Hits every enemy, so no extra target fields are needed.'
   },
+  RANDOM_ENEMY: {
+    requiresRow: false,
+    fixedTargetCount: 0,
+    helperText: 'Randomly picks one enemy.'
+  },
   ROW_ENEMIES: {
     requiresRow: true,
     fixedTargetCount: 0,
     helperText: 'Choose which enemy row the ability hits.'
+  },
+  SPREAD_ROW: {
+    requiresRow: true,
+    fixedTargetCount: 0,
+    helperText: 'Splits total damage among enemies in the chosen row.'
+  },
+  SPREAD_ALL: {
+    requiresRow: false,
+    fixedTargetCount: 0,
+    helperText: 'Splits total damage among all enemies.'
   },
   SINGLE_ALLY: {
     requiresRow: false,
@@ -193,7 +208,7 @@ function buildMetadata(trainers) {
     cardTypes: ['SIEGLING', 'SPELL', 'TRAP'],
     rarities: ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'],
     rows: ['BACK', 'MIDDLE', 'FRONT'],
-    targetTypes: ['SINGLE_ENEMY', 'ALL_ENEMIES', 'ROW_ENEMIES', 'SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ENEMIES', 'ROW_SELECT_ALLIES', 'ENEMY_PLAYER', 'SELF', 'PASSIVE'],
+    targetTypes: ['SINGLE_ENEMY', 'RANDOM_ENEMY', 'ALL_ENEMIES', 'ROW_ENEMIES', 'SPREAD_ROW', 'SPREAD_ALL', 'SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ENEMIES', 'ROW_SELECT_ALLIES', 'ENEMY_PLAYER', 'SELF', 'PASSIVE'],
     notchDirections: ['TOP', 'TOP_RIGHT', 'RIGHT', 'BOTTOM_RIGHT', 'BOTTOM', 'BOTTOM_LEFT', 'LEFT', 'TOP_LEFT'],
     reactions: ['MIST'],
     trainers: Array.isArray(trainers) ? trainers.map((trainer) => ({
