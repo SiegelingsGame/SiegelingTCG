@@ -2823,6 +2823,22 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    preserve-3d children and can leave a face-up card showing its back. */
 .sg-gacha-body:has(.is-stack),
 .sg-gacha-body:has(.is-pack-ready) { overflow:visible; }
+/* The pull overview is a vertical list of cards and nothing else: card art
+   and rarity auras poking past the last column made the body a few px wider
+   than the phone, so a thumb could drag the whole screen sideways. Only the
+   vertical scroll is kept, it does not chain into the page behind, and the
+   gesture is pan-y only, so a stray swipe or double-tap cannot shift or zoom
+   the view. */
+.sg-gacha { overflow:hidden; }
+.sg-gacha-body:has(.is-grid) {
+  overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain;
+  touch-action:pan-y; -webkit-overflow-scrolling:touch;
+}
+.sg-gacha-stage.is-grid, .sg-gacha-stage.is-grid .sg-flip { touch-action:pan-y; }
+/* And the overflow is cut where it starts, so the body is never wider than the
+   screen to begin with. `clip` (not `hidden`) leaves the grid's vertical flow
+   alone and makes no scroll container of its own. */
+.sg-gacha-stage.is-grid { overflow-x:clip; }
 .sg-gacha-head { text-align:center; }
 .sg-gacha-kicker { font-size:10px; letter-spacing:.3em; text-transform:uppercase; color:var(--gold); }
 .sg-gacha-head h3 { font-family:var(--serif); font-size:26px; margin:4px 0 0; font-weight:600; }

@@ -1,3 +1,9 @@
+Original prompt: Last update in the final overview screen with all the cards you can sort of scrolll horizontally limit the screen to only view the cards and vertical scroll through them so you can't accidentally zoom or move the screen left or right merge and deploy
+
+- October 21, 2026 **Pull overview scrolls vertically only.**
+  - **Change.** In the end-of-pull grid, card art and rarity auras past the last column made `.sg-gacha-body` 396px wide inside a 390px phone. Its `overflow:auto` and `touch-action:auto` let a thumb drag the whole overview a few px sideways (and double-tap zoom). The grid body is now `overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y`. The grid stage takes `overflow-x:clip`, so the content is never wider than the screen in the first place. `clip` makes no scroll container, so the vertical flow is untouched. `.sg-gacha` itself is `overflow:hidden`. Cache pin `home-redesign.css` 138.
+  - **Verification.** Headless Chromium `/shop` ×10 flow at 390x844 (stubbed 50-card pull) through to the grid. Before: body `scrollWidth` 396 vs `clientWidth` 390, and a horizontal wheel plus a forced `scrollLeft` left it at 6. After: `scrollWidth` 390, `scrollLeft` stays 0 under the same attempts, computed `touch-action: pan-y`, and vertical scrolling still reaches `scrollTop` 600 of a 3163px list. The screenshot shows all three columns intact. ×1 grid is 390/390. No page errors.
+
 Original prompt: Make the 10 packs stack evenly not side to side but all inline the back packs should mostly be visible when you turn the packs to the side also poppin in is ugly. Add an animation where the card packs enter from the top and stack on top of each other one by one. All animations should flow seamlessly into each other without jumping positions or frame lost
 
 - October 21, 2026 **Pack reveal: inline 3D pile, packs fall in one by one, seamless hand-offs.**
