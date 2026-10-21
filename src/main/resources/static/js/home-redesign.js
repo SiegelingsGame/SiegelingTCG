@@ -3387,22 +3387,19 @@
     return (pk.elements && pk.elements[0]) || 'NEUTRAL';
   }
 
-  // Every pack was drawing the elemental card back for its first element, so a
-  // pack with no element of its own fell through to Fire. The Siegeling pack is
-  // the only one left in that position now that the Strategy, Deception and
-  // SiegeKnight packs are retired; its back is the one the shipping shop uses,
-  // keyed the same way, so the art matches what opening it actually shows.
-  // Pack faces stay on the elemental card-backs; shop stage art for these packs
-  // comes from ELEMENT_STAGE / SUMMON_SCENE (same path as Electric).
+  // A pack wears the card back of the element it deals, so an Electric Summon
+  // looks Electric from the shelf to the wrapper. Only the random Siegeling
+  // pack has no element of its own (its element list is the whole live mix),
+  // and an element without a printed back would 404, so both take the shared
+  // Siegeling back instead of falling through to Fire.
   var PACK_BACK = {
     pack_siegeling_random: '/img/packs/siegeling-back.webp'
   };
 
   function packBack(pk) {
     if (PACK_BACK[pk.id]) return PACK_BACK[pk.id];
-    if (pk.id.indexOf('pack_siegeling_') === 0) return PACK_BACK.pack_siegeling_random;
-    var el = String(packElement(pk)).toLowerCase();
-    return '/img/decks/card-back-' + el + '.webp';
+    var entry = cardBackEntry(packElement(pk));
+    return entry ? '/img/decks/card-back-' + entry.element.toLowerCase() + '.webp' : PACK_BACK.pack_siegeling_random;
   }
 
   // Starters lead (a new player's first choice), cheapest first within each
@@ -5835,11 +5832,25 @@
           '<em>remnants</em>' +
         '</div>' +
         '<div class="sg-gacha-actions" data-gacha-actions hidden>' +
-          '<button class="sg-ghost-btn" type="button" data-gacha-all>Reveal all</button>' +
+          '<button class="sg-ghost-btn" type="button" data-gacha-all>View all</button>' +
           '<button class="sg-guest-primary" type="button" data-gacha-done>Done</button>' +
         '</div>' +
       '</div>' +
     '</div>';
+  }
+
+  /* The wrapper is a foil pouch rather than a bare card back: crimped ends, a
+     metallic body tinted by the pack's element, and the element's card back
+     printed in a window on the front. Body and tear strip draw the same skin and
+     each clips to its own half, so ripping the strip off leaves an open mouth
+     on the body that the cards then rise out of. */
+  function packSkin(pk, art) {
+    return '<span class="sg-pack-skin">' +
+      '<span class="sg-pack-foil" aria-hidden="true"></span>' +
+      '<span class="sg-pack-window"><img src="' + art + '" alt=""></span>' +
+      '<span class="sg-pack-name">' + esc(pk.name || 'Pack') + '</span>' +
+      '<span class="sg-pack-sheen" aria-hidden="true"></span>' +
+    '</span>';
   }
 
   function packShell(pk, state) {
@@ -5847,26 +5858,32 @@
     return '<button class="sg-gacha-pack ' + (state || '') + '" type="button" data-rip-pack ' +
       ((state || '').indexOf('is-loading') >= 0 ? 'disabled ' : '') + 'aria-label="Rip open ' +
       esc(pk.name || 'pack') + '">' +
-      '<span class="sg-pack-body"><img src="' + art + '" alt=""></span>' +
-      '<span class="sg-pack-top"><img src="' + art + '" alt=""></span>' +
+      '<span class="sg-pack-body">' + packSkin(pk, art) + '</span>' +
+      '<span class="sg-pack-top">' + packSkin(pk, art) + '</span>' +
       '<span class="sg-pack-seam" aria-hidden="true"></span>' +
       '<span class="sg-pack-prompt">Drag across the seal to rip</span>' +
     '</button>';
   }
 
-  // The face-down card carries the pack's own back, so the thing the player
-  // tapped is the thing that flips over.
-  // The aura is the only thing a face-down card tells you, and it is honest: the
-  // rarity is already decided server-side, so hinting at it before the turn is
-  // showing what is there, not teasing something that has not happened yet.
+  // Each card's back is its own element's back, never the pack's, so a mixed
+  // pack does not show one element's sigil behind another element's card.
+  function cardBackFor(card, fallback) {
+    var entry = cardBackEntry(card && card.element);
+    return entry ? cardBackArt(entry) : fallback;
+  }
+
+  // Cards come out face up: the stack is read by swiping the top card away, so
+  // the back only shows edge-on when the pile is tilted.
+  // The aura is honest about rarity because the pull is already decided
+  // server-side; it marks what is there rather than teasing it.
   function gachaSlot(card, back, i, pos) {
     var slot = pos == null ? i : pos;
-    return '<button class="sg-flip rarity-' + esc(String(card.rarity || '').toLowerCase()) +
+    return '<button class="sg-flip is-open rarity-' + esc(String(card.rarity || '').toLowerCase()) +
       '" type="button" data-flip="' + i + '" data-stack-pos="' + slot + '" style="--el:' + color(card.element) +
       ';--rar:' + rarityColor(card.rarity) + ';--slot:' + slot + '">' +
       '<span class="sg-flip-aura" aria-hidden="true"></span>' +
       '<span class="sg-flip-inner">' +
-        '<span class="sg-flip-back"><img src="' + esc(back) + '" alt="" aria-hidden="true"></span>' +
+        '<span class="sg-flip-back"><img src="' + esc(cardBackFor(card, back)) + '" alt="" aria-hidden="true"></span>' +
         '<span class="sg-flip-front" data-flip-front></span>' +
       '</span>' +
       '<span class="sg-flip-shards" data-flip-shards aria-hidden="true"></span>' +
@@ -6019,21 +6036,26 @@
       note.textContent = 'Drag across the seal to rip the pack open';
 
       // Best first: the stack is dealt best-on-top, so the pull's headline card
-      // is the one the player turns over first. A finish outranks rarity - a GSP
+      // is the first one the player sees. A finish outranks rarity - a GSP
       // Common is the story of the pull, not the plain Legendary beside it.
       var order = cards.map(function (c, i) { return i; }).sort(function (a, b) {
         return (finishIndex(cards[b].finish) - finishIndex(cards[a].finish)) ||
           (rarityRank(cards[b]) - rarityRank(cards[a])) || (a - b);
       });
-      var stackMode = cards.length > 1;
-      stage.className = 'sg-gacha-stage ' + (stackMode ? 'is-stack' : 'is-grid') + ' is-pack-ready';
+      // Even a single card is dealt as a one-card stack: the cards rise out of
+      // the pack into the pile, and swiping past the last card fans the pull out.
+      var stackMode = true;
+      stage.className = 'sg-gacha-stage is-stack is-pack-ready';
       stage.innerHTML = packShell(pk, '') + order.map(function (idx, pos) {
-        return gachaSlot(cards[idx], back, idx, stackMode ? pos : idx);
+        return gachaSlot(cards[idx], back, idx, pos);
       }).join('');
 
       var slots = [].slice.call(stage.querySelectorAll('[data-flip]'));
+      // The pile rises together with its deepest cards leading by a beat, so the
+      // top card - the one the player reads first - is the last to clear the foil.
       slots.forEach(function (btn, pos) {
-        btn.style.setProperty('--deal-delay', Math.min(pos * 40, 720) + 'ms');
+        btn.style.setProperty('--deal-delay', Math.min((Math.min(slots.length, 6) - 1 - Math.min(pos, 5)) * 70, 350) + 'ms');
+        paintFace(btn, cards[Number(btn.getAttribute('data-flip'))]);
       });
       var all = gacha.querySelector('[data-gacha-all]');
       var bucket = gacha.querySelector('[data-gacha-bucket]');
@@ -6041,19 +6063,16 @@
       var banked = 0;
       var left = slots.length;
       var stackLocked = true;
-      // Duplicates turned to remnants while they were still the face-up top of
-      // the stack, so the card the player had just unsealed crumbled out from
-      // under them and left them looking at the back of the next one. A pull is
-      // held here until its art has been seen and moved past; the stage drains
-      // the queue when it fans out into the full view, which is the moment the
-      // whole pull is on screen and a crumble is something to watch rather than
-      // something that eats the card you are reading.
+      // Duplicates crumbling into remnants while they were the top of the stack
+      // ate the card the player was reading. A pull is held here until the
+      // stage fans out into the full view, where the whole pull is on screen
+      // and a crumble is something to watch.
       var pendingRemnants = [];
 
-      // The controls stay out until every card has actually been dealt onto the
-      // stage. Offering "Reveal all" while the pack is still tearing open asks
-      // the player to act on something they cannot see yet.
-      var dealt = reducedMotion() ? 0 : Math.min((slots.length - 1) * 40, 720) + 520;
+      // The controls stay out until the cards have risen clear of the pack.
+      // Offering "View all" while the foil is still tearing asks the player to
+      // act on something they cannot see yet.
+      var risen = reducedMotion() ? 0 : 1050 + Math.min(slots.length - 1, 5) * 70;
 
       // A duplicate is worth remnants, so it does not just sit there wearing a
       // label: the card crumbles and its shards fly to the bucket, which counts
@@ -6102,9 +6121,10 @@
         }, 1150);
       }
 
-      function flip(btn) {
-        if (btn.classList.contains('is-open')) return;
-        var card = cards[Number(btn.getAttribute('data-flip'))];
+      // The face is drawn up front because the cards come out face up. Tags
+      // and finish badges ride on every card; the stack hides them on all but
+      // the top one so the pile edges stay clean.
+      function paintFace(btn, card) {
         var front = btn.querySelector('[data-flip-front]');
         var known = byIdIn(ALL_CARDS, card.id);
         var finish = FINISH_LADDER[finishIndex(card.finish)].key;
@@ -6113,12 +6133,12 @@
         if (finish !== 'STANDARD') {
           var badge = document.createElement('span');
           badge.className = 'sg-flip-finish is-' + finish.toLowerCase();
-          badge.textContent = versionLabel(finish) + (card.finishUpgraded ? ' \u00b7 upgraded' : '');
+          badge.textContent = versionLabel(finish) + (card.finishUpgraded ? ' · upgraded' : '');
           btn.appendChild(badge);
         }
         var tag = btn.querySelector('[data-flip-tag]');
         if (card.duplicateAtCap) {
-          tag.textContent = 'Owned \u00b7 +' + (card.remnantsAwarded || 0);
+          tag.textContent = 'Owned · +' + (card.remnantsAwarded || 0);
           tag.hidden = false;
           btn.classList.add('is-dupe');
         } else if (card.ownedAfter === 1) {
@@ -6133,14 +6153,20 @@
           btn.classList.add('is-copy');
         }
         if (card.holo) btn.classList.add('is-holo');
-        btn.classList.add('is-open');
+      }
+
+      // A card's moment is when it becomes the one on top: that is when its
+      // rarity sparks, finish burst and buzz fire, once per card.
+      function announce(btn) {
+        if (!btn || btn.classList.contains('is-seen')) return;
+        var card = cards[Number(btn.getAttribute('data-flip'))];
+        btn.classList.add('is-seen');
         gachaFlourish(btn, card);
-        finishFlourish(btn, finish);
-        if (stackMode) layoutStack();
+        finishFlourish(btn, FINISH_LADDER[finishIndex(card.finish)].key);
 
         // In the grid the card keeps its slot while it crumbles, so it pays out
-        // once the turn has finished reading. On the stack it is the only card
-        // the player can see, so it waits for the full view.
+        // once it has been read. On the stack it is the only card the player
+        // can see, so it waits for the full view.
         if (card.duplicateAtCap) {
           if (stackMode) pendingRemnants.push({ btn: btn, card: card });
           else setTimeout(function () { bankRemnants(btn, card); }, 700);
@@ -6150,17 +6176,16 @@
         if (!left) {
           kicker.textContent = 'Opened';
           note.textContent = summary(cards);
-          all.hidden = true;
         }
       }
 
       /* ---- the stack ----
-         One leaning pile instead of a grid of backs. Dragging tilts every card
-         by the same rotation, so the pile swings as one body in 3D and the
-         cards underneath show their borders; a swipe or a tap turns the top
-         card over, and the next swipe sends it away to expose the one beneath.
-         Past the last card the stage fans out into the grid, which is also
-         where "Reveal all" goes, so the whole pull stays comparable at the end. */
+         One leaning pile of face-up cards. Dragging tilts every card by the
+         same rotation, so the pile swings as one body in 3D and the cards
+         underneath show their borders; a swipe or a tap sends the top card away
+         to expose the one beneath. Past the last card the stage fans out into
+         the grid, which is also where "View all" goes, so the whole pull stays
+         comparable at the end. */
       var stackPos = 0;
       var stackBar = null;
       var stackCounter = null;
@@ -6181,13 +6206,11 @@
           btn.style.zIndex = String(Math.max(1, 200 - pos));
           btn.tabIndex = depth === 0 ? 0 : -1;
         });
-        var top = stackBtn(stackPos);
-        var opened = !!(top && top.classList.contains('is-open'));
         if (stackCounter) stackCounter.textContent = (stackPos + 1) + ' / ' + slots.length;
         if (stackHint) {
-          stackHint.textContent = opened
-            ? (stackPos >= slots.length - 1 ? 'Swipe to see the whole pull' : 'Swipe or tap for the next card')
-            : 'Tap to unseal · drag to tilt the stack';
+          stackHint.textContent = stackPos >= slots.length - 1
+            ? 'Swipe to see the whole pull'
+            : 'Swipe for the card underneath';
         }
       }
 
@@ -6201,23 +6224,28 @@
           pack.disabled = true;
           stage.classList.add('is-ripping');
           kicker.textContent = 'Seal broken';
-          note.textContent = 'Your cards are sliding out…';
+          note.textContent = 'Your cards are rising out…';
+          // The strip flies off first; then the pile climbs out of the open
+          // mouth while the foil slides away underneath it. The pack stays in
+          // front of the cards the whole time, so only what has cleared the
+          // opening is ever visible.
+          layoutStack();
           window.setTimeout(function () {
-            if (pack.parentNode) pack.remove();
-            stage.classList.remove('is-pack-ready', 'is-ripping');
-            stage.classList.add('is-dealing');
+            stage.classList.remove('is-pack-ready');
+            stage.classList.add('is-rising');
             window.setTimeout(function () {
-              stage.classList.remove('is-dealing');
+              if (pack.parentNode) pack.remove();
+              stage.classList.remove('is-rising', 'is-ripping');
               stackLocked = false;
-              if (stackMode) {
-                layoutStack();
-                if (stackBar) stackBar.hidden = false;
-              }
-              kicker.textContent = 'Tap to reveal';
+              layoutStack();
+              if (stackBar) stackBar.hidden = false;
+              kicker.textContent = 'Your pull';
               note.textContent = cards.length + ' card' + (cards.length === 1 ? '' : 's');
               actions.hidden = false;
-            }, dealt);
-          }, reducedMotion() ? 0 : 620);
+              if (slots.length < 2) all.hidden = true;
+              announce(stackBtn(stackPos));
+            }, risen);
+          }, reducedMotion() ? 0 : 420);
         }
         pack.addEventListener('pointerdown', function (e) {
           if (tearing) return;
@@ -6227,6 +6255,12 @@
           if (pack.setPointerCapture) pack.setPointerCapture(e.pointerId);
         });
         pack.addEventListener('pointermove', function (e) {
+          // The foil catches the light under the finger even before a rip.
+          var box = pack.getBoundingClientRect();
+          if (box.width) {
+            pack.style.setProperty('--foil-x', (((e.clientX - box.left) / box.width) * 100).toFixed(1) + '%');
+            pack.style.setProperty('--foil-y', (((e.clientY - box.top) / box.height) * 100).toFixed(1) + '%');
+          }
           if (tearing || !pack.hasPointerCapture || !pack.hasPointerCapture(e.pointerId)) return;
           var dx = e.clientX - startX;
           var dy = e.clientY - startY;
@@ -6258,7 +6292,6 @@
           tear();
         });
       }
-      bindPackRip();
 
       // Every duplicate the stack held back, paid out one after another so the
       // shard flights read as a sequence instead of one indistinct shower.
@@ -6273,6 +6306,7 @@
         stackMode = false;
         stage.className = 'sg-gacha-stage is-grid' + (slots.length > 5 ? ' is-bulk' : '');
         if (stackBar) stackBar.hidden = true;
+        all.hidden = true;
         slots.forEach(function (btn) {
           btn.classList.remove('is-stack-top', 'is-stack-out', 'is-stack-buried');
           btn.style.removeProperty('--depth');
@@ -6286,11 +6320,14 @@
         // After the layout switch, so each card's shards fly from the slot it
         // actually occupies in the grid rather than from its place in the pile.
         requestAnimationFrame(drainRemnants);
+        // Cards skipped past with "View all" still get their moment, in order.
+        slots.filter(function (btn) { return !btn.classList.contains('is-seen'); })
+          .forEach(function (btn, i) { setTimeout(function () { announce(btn); }, 120 + i * 150); });
       }
 
       function advanceStack(dir) {
         var top = stackBtn(stackPos);
-        if (!top || !top.classList.contains('is-open')) return;
+        if (!top) return;
         // A duplicate is mid-crumble for about a second; let it finish paying
         // out before its slot is swept off the top of the pile.
         if (top.classList.contains('is-dissolving')) return;
@@ -6298,6 +6335,7 @@
         if (stackPos >= slots.length - 1) { toGrid(); return; }
         stackPos += 1;
         layoutStack();
+        announce(stackBtn(stackPos));
       }
 
       function bindStack() {
@@ -6351,10 +6389,7 @@
           var tap = moved < 10 && Date.now() - startedAt < 600;
           var swiped = Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy);
           if (!tap && !swiped) return;
-          var top = stackBtn(stackPos);
-          if (!top) return;
-          if (!top.classList.contains('is-open')) flip(top);
-          else advanceStack(swiped ? (dx < 0 ? -1 : 1) : 1);
+          advanceStack(swiped ? (dx < 0 ? -1 : 1) : 1);
         });
         stage.addEventListener('pointercancel', function (e) {
           if (e.pointerId !== active) return;
@@ -6365,17 +6400,12 @@
 
         layoutStack();
       }
+      bindStack();
+      bindPackRip();
 
-      // In the grid every back is its own button; in the stack only the top card
-      // is live and the stage owns the gesture, so a drag is never read as a tap.
-      slots.forEach(function (btn) {
-        btn.addEventListener('click', function () { if (!stackLocked && !stackMode) flip(btn); });
-      });
-      if (stackMode) bindStack();
       all.addEventListener('click', function () {
-        if (stackLocked) return;
-        if (stackMode) toGrid();
-        slots.forEach(function (btn, i) { setTimeout(function () { flip(btn); }, i * 150); });
+        if (stackLocked || !stackMode) return;
+        toGrid();
       });
     }
 

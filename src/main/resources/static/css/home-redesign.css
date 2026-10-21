@@ -2837,38 +2837,95 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   flex:0 0 auto; align-content:start; max-width:min(1080px, 100%);
   grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); gap:12px 10px;
 }
-/* The unopened pack breathes while the purchase is in flight. */
-.sg-gacha-pack { position:absolute; z-index:20; left:50%; top:50%; width:150px; aspect-ratio:var(--card-back-ratio);
-  padding:0; border:0; border-radius:16px; overflow:visible; background:transparent; color:inherit; cursor:grab;
-  transform:translate(-50%,-50%); touch-action:none; filter:drop-shadow(0 22px 18px rgba(0,0,0,.45)); }
+/* The unopened pack is a foil pouch: crimped ends, a metallic body tinted by
+   the pack's element, and the element's card back printed in a window. It
+   breathes while the purchase is in flight. It is wider and taller than a
+   resting card so the whole pile can wait hidden behind it before rising. */
+.sg-gacha-pack { position:absolute; z-index:300; left:50%; top:50%;
+  width:min(68%, 270px, calc(min(58dvh, 460px) * .62)); aspect-ratio:1 / 1.55;
+  padding:0; border:0; overflow:visible; background:transparent; color:inherit; cursor:grab;
+  transform:translate(-50%,-50%); touch-action:none; filter:drop-shadow(0 22px 18px rgba(0,0,0,.5));
+  --foil-x:30%; --foil-y:20%; }
 .sg-gacha-pack.is-sealed { animation:sgPackBreathe 1.8s ease-in-out infinite; }
 .sg-gacha-pack.is-loading .sg-pack-prompt { display:none; }
-.sg-pack-body,.sg-pack-top { position:absolute; inset:0; overflow:hidden; border-radius:16px; }
-.sg-pack-body { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--el,#f2a03d) 50%, transparent); }
-.sg-gacha-pack img { width:100%; height:100%; object-fit:contain; display:block; }
-.sg-pack-top { clip-path:inset(0 0 77% 0); transform:translate3d(var(--rip-x,0px),var(--rip-y,0px),0) rotate(var(--rip-angle,0deg));
-  transform-origin:20% 100%; transition:transform .12s ease-out; }
-.sg-pack-seam { position:absolute; top:22.5%; left:0; right:0; height:2px; z-index:2;
-  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--el,#f2a03d) 82%,white),transparent);
-  filter:drop-shadow(0 0 8px var(--el,#f2a03d)); opacity:.9; }
-.sg-pack-prompt { position:absolute; top:calc(100% + 22px); left:50%; width:max-content; max-width:80vw;
+.sg-pack-body,.sg-pack-top { position:absolute; inset:0; }
+/* One skin, two clips: the strip above the tear line and the body below it. */
+.sg-pack-body { clip-path:inset(11.5% -2% -2% -2%); }
+.sg-pack-top { clip-path:inset(-2% -2% 88.5% -2%); transform:translate3d(var(--rip-x,0px),var(--rip-y,0px),0) rotate(var(--rip-angle,0deg));
+  transform-origin:12% 12%; transition:transform .12s ease-out; }
+.sg-pack-skin { position:absolute; inset:0; overflow:hidden; border-radius:7px;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,.42), transparent 9%, transparent 91%, rgba(0,0,0,.42)),
+    linear-gradient(160deg,
+      color-mix(in srgb, var(--el,#f2a03d) 62%, #120a26) 0%,
+      color-mix(in srgb, var(--el,#f2a03d) 38%, #fff) 18%,
+      color-mix(in srgb, var(--el,#f2a03d) 78%, #0d0820) 36%,
+      color-mix(in srgb, var(--el,#f2a03d) 30%, #fff) 55%,
+      color-mix(in srgb, var(--el,#f2a03d) 72%, #0d0820) 74%,
+      color-mix(in srgb, var(--el,#f2a03d) 42%, #fff) 100%);
+  /* Serrated ends, the zigzag a heat-crimped wrapper is cut with. */
+  -webkit-mask:
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / 9px 51% repeat-x,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 9px 51% repeat-x;
+  mask:
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / 9px 51% repeat-x,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 9px 51% repeat-x; }
+/* Crimp ridges at both ends and a holographic film over the whole pouch. */
+.sg-pack-foil { position:absolute; inset:0;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.34) 0 1.5px, rgba(0,0,0,.28) 1.5px 3.5px) top / 100% 8.5% no-repeat,
+    repeating-linear-gradient(90deg, rgba(255,255,255,.34) 0 1.5px, rgba(0,0,0,.28) 1.5px 3.5px) bottom / 100% 7% no-repeat,
+    linear-gradient(115deg, rgba(255,90,160,.28), rgba(255,220,90,.24) 22%, rgba(90,255,190,.24) 44%,
+      rgba(90,170,255,.28) 66%, rgba(200,110,255,.26) 88%) 0 0 / 220% 220%;
+  mix-blend-mode:overlay; animation:sgFoilDrift 6s ease-in-out infinite alternate; }
+.sg-pack-window { position:absolute; left:11%; right:11%; top:15%; bottom:12%; overflow:hidden; border-radius:9px;
+  box-shadow:0 0 0 2px color-mix(in srgb, var(--el,#f2a03d) 45%, #fff6d8), 0 0 0 4px rgba(0,0,0,.35),
+    inset 0 0 18px rgba(0,0,0,.55); }
+.sg-gacha-pack .sg-pack-window img { width:100%; height:100%; object-fit:cover; display:block; }
+.sg-pack-name { position:absolute; left:8%; right:8%; bottom:7.6%; transform:translateY(50%); text-align:center;
+  font-family:var(--serif); font-size:11px; font-weight:700; letter-spacing:.04em; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; color:#fff8e2; text-shadow:0 1px 3px rgba(0,0,0,.8); }
+/* The specular highlight: drifts on its own and follows the finger on drag. */
+.sg-pack-sheen { position:absolute; inset:-20%; pointer-events:none; mix-blend-mode:screen;
+  background:
+    radial-gradient(circle at var(--foil-x) var(--foil-y), rgba(255,255,255,.55), transparent 32%),
+    linear-gradient(105deg, transparent 38%, rgba(255,255,255,.5) 48%, rgba(255,255,255,.1) 54%, transparent 62%) 0 0 / 250% 100%;
+  animation:sgFoilSweep 3.6s ease-in-out infinite; }
+@keyframes sgFoilDrift { from { background-position:top, bottom, 0% 0%; } to { background-position:top, bottom, 100% 100%; } }
+@keyframes sgFoilSweep { 0%,15% { background-position:0 0, 130% 0; } 75%,100% { background-position:0 0, -40% 0; } }
+.sg-pack-seam { position:absolute; top:11.5%; left:0; right:0; height:2px; z-index:2;
+  background:repeating-linear-gradient(90deg, color-mix(in srgb,var(--el,#f2a03d) 70%,white) 0 5px, transparent 5px 9px);
+  filter:drop-shadow(0 0 6px var(--el,#f2a03d)); opacity:.95; }
+.sg-pack-prompt { position:absolute; top:calc(100% + 14px); left:50%; width:max-content; max-width:80vw;
   transform:translateX(-50%); padding:7px 12px; border:1px solid rgba(255,255,255,.2); border-radius:999px;
   background:rgba(12,9,35,.84); color:#f8e8b6; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
-.sg-gacha-stage.is-pack-ready { display:block; position:relative; width:100%; max-width:430px;
-  height:min(58dvh,460px); flex:1 1 auto; perspective:1400px; }
-.sg-gacha-stage.is-pack-ready .sg-flip { position:absolute; top:50%; left:50%; width:min(52%,210px);
-  opacity:0; pointer-events:none; transform:translate(-50%,-50%) translateY(90px) scale(.3); }
-.sg-gacha-stage.is-ripping .sg-pack-top { transform:translate3d(72%,-115%,70px) rotate(24deg); transition:transform .55s cubic-bezier(.2,.8,.2,1); }
+/* Cards wait invisible until the strip is off; then they are revealed only by
+   rising past the pack's open mouth, because the pack sits in front of them. */
+.sg-gacha-stage.is-pack-ready .sg-flip { opacity:0; pointer-events:none; }
+/* The pile climbs out squared up, then fans into its leaning stack once clear:
+   at full lean the buried cards are wider than the pack and would show past
+   its sides before they had come out of it. */
+.sg-gacha-stage:is(.is-pack-ready, .is-rising) .sg-flip { --depth:0 !important; }
+.sg-gacha-stage.is-ripping .sg-pack-top { transform:translate3d(78%,-160%,70px) rotate(22deg); opacity:0;
+  transition:transform .5s cubic-bezier(.2,.8,.2,1), opacity .5s ease-in .1s; }
 .sg-gacha-stage.is-ripping .sg-pack-seam { opacity:0; transition:opacity .16s; }
 .sg-gacha-stage.is-ripping .sg-pack-prompt { opacity:0; }
-.sg-gacha-stage.is-dealing .sg-flip { animation:sgCardSlideOut .48s cubic-bezier(.2,.8,.2,1) both;
-  animation-delay:var(--deal-delay,0ms); pointer-events:none; }
-@keyframes sgCardSlideOut {
-  0% { opacity:0; transform:translate(-50%,-50%) translateY(105px) scale(.28) rotate(-4deg); }
-  65% { opacity:1; transform:translate(-50%,-50%) translateY(-10px) scale(1.04) rotate(1deg); }
-  100% { opacity:1; transform:translate(-50%,-50%) translateY(0) scale(1) rotate(0); }
+.sg-gacha-stage.is-ripping .sg-gacha-pack { cursor:default; }
+.sg-gacha-stage.is-rising .sg-gacha-pack { animation:sgPackDrop 1s cubic-bezier(.45,.05,.3,1) both; }
+/* `translate`/`scale` rather than `transform`, so the rise composes with the
+   stack's own depth-and-tilt transform instead of replacing it. */
+.sg-gacha-stage.is-rising .sg-flip { pointer-events:none;
+  animation:sgCardRise .78s cubic-bezier(.2,.75,.25,1) both; animation-delay:var(--deal-delay,0ms); }
+@keyframes sgPackDrop {
+  0%   { transform:translate(-50%,-50%); opacity:1; }
+  70%  { transform:translate(-50%,16%); opacity:1; }
+  100% { transform:translate(-50%,42%); opacity:0; }
 }
-@keyframes sgPackBreathe { 0%,100%{transform:translate(-50%,-50%) scale(1);} 50%{transform:translate(-50%,-50%) scale(1.045);} }
+@keyframes sgCardRise {
+  from { translate:0 22%; scale:.84; }
+  to   { translate:0 0; scale:1; }
+}
+@keyframes sgPackBreathe { 0%,100%{transform:translate(-50%,-50%) scale(1);} 50%{transform:translate(-50%,-50%) scale(1.035);} }
 .sg-gacha-note { margin:0; font-size:12.5px; color:var(--muted); letter-spacing:.06em; text-align:center; }
 .sg-gacha-actions { display:flex; gap:10px; width:100%; max-width:420px; }
 .sg-gacha-actions > * { flex:1 1 0; }
@@ -3989,6 +4046,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   filter:brightness(calc(1 - var(--depth,0) * .11)) saturate(calc(1 - var(--depth,0) * .08));
 }
 .sg-gacha-stage.is-stack .sg-flip.is-stack-buried { opacity:0; }
+/* Every card is face up, so only the top one wears its tag and finish badge;
+   on the cards beneath they would just be clutter along the pile's edge. */
+.sg-gacha-stage.is-stack .sg-flip:not(.is-stack-top) :is(.sg-flip-tag, .sg-flip-finish) { opacity:0; }
 .sg-gacha-stage.is-stack .sg-flip.is-stack-out {
   opacity:0; pointer-events:none;
   transform:translate(-50%,-50%) translate3d(calc(var(--exit-dir,1) * 128%), -14%, 120px)
@@ -4030,7 +4090,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gacha-stage.is-stack .sg-flip { transition:none; }
   .sg-gacha-pack.is-sealed { animation:none; }
   .sg-gacha-stage.is-ripping .sg-pack-top { transition:none; }
-  .sg-gacha-stage.is-dealing .sg-flip { animation-duration:.01ms; animation-delay:0ms; }
+  .sg-gacha-stage.is-rising .sg-flip, .sg-gacha-stage.is-rising .sg-gacha-pack { animation-duration:.01ms; animation-delay:0ms; }
+  .sg-pack-foil, .sg-pack-sheen { animation:none; }
   .sg-flip-sparks i, .sg-flip.is-flaring .sg-flip-front::before { animation:none; display:none; }
 }
 
