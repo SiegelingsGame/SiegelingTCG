@@ -331,6 +331,9 @@
             "abilityTargetRowSelect",
             "abilityEffectTypeSelect",
             "abilityEffectValueInput",
+            "abilityEffectValueModeSelect",
+            "abilityEffectValueMaxWrap",
+            "abilityEffectValueMaxInput",
             "abilityRequiredElementField",
             "abilityRequiredElementSelect",
             "abilityRequiredEnergyField",
@@ -356,6 +359,9 @@
             "moveDraftTargetRowSelect",
             "moveDraftEffectSelect",
             "moveDraftEffectValueInput",
+            "moveDraftEffectValueModeSelect",
+            "moveDraftEffectValueMaxWrap",
+            "moveDraftEffectValueMaxInput",
             "moveDraftEnergyInput",
             "moveDraftDescInput",
             "moveDraftPassiveSelect",
@@ -472,6 +478,9 @@
             "trainerPassiveTargetRowSelect",
             "trainerPassiveEffectTypeSelect",
             "trainerPassiveEffectValueInput",
+            "trainerPassiveEffectValueModeSelect",
+            "trainerPassiveEffectValueMaxWrap",
+            "trainerPassiveEffectValueMaxInput",
             "trainerPassiveRequiredElementSelect",
             "trainerPassiveRequiredEnergyInput",
             "trainerPassiveRequiredReactionSelect",
@@ -484,6 +493,9 @@
             "trainerActiveTargetRowSelect",
             "trainerActiveEffectTypeSelect",
             "trainerActiveEffectValueInput",
+            "trainerActiveEffectValueModeSelect",
+            "trainerActiveEffectValueMaxWrap",
+            "trainerActiveEffectValueMaxInput",
             "trainerActiveRequiredElementSelect",
             "trainerActiveRequiredEnergyInput",
             "trainerActiveRequiredReactionSelect",
@@ -860,6 +872,11 @@
             syncMoveDraftAutoDescription();
             renderMoveDraftLivePanels();
         });
+        refs.moveDraftEffectValueModeSelect?.addEventListener("change", () => {
+            refs.moveDraftEffectValueMaxWrap?.classList.toggle("hidden", refs.moveDraftEffectValueModeSelect.value !== "SCALE");
+            renderMoveDraftLivePanels();
+        });
+        refs.moveDraftEffectValueMaxInput?.addEventListener("input", renderMoveDraftLivePanels);
         refs.moveDraftEnergyInput?.addEventListener("input", () => {
             syncMoveDraftAutoDescription();
             renderMoveDraftLivePanels();
@@ -943,6 +960,8 @@
         refs.abilityTargetRowSelect.addEventListener("change", (event) => updateSelectedAbilityField("targetRow", event.target.value));
         refs.abilityEffectTypeSelect.addEventListener("change", (event) => updateSelectedAbilityField("effectType", event.target.value));
         refs.abilityEffectValueInput.addEventListener("input", (event) => updateSelectedAbilityField("effectValue", toNumber(event.target.value, 0)));
+        refs.abilityEffectValueModeSelect.addEventListener("change", (event) => updateSelectedAbilityField("effectValueMode", event.target.value));
+        refs.abilityEffectValueMaxInput.addEventListener("input", (event) => updateSelectedAbilityField("effectValueMax", toNumber(event.target.value, 0)));
         refs.abilityRequiredElementSelect.addEventListener("change", (event) => updateSelectedAbilityField("requiredElement", event.target.value));
         refs.abilityRequiredEnergyInput.addEventListener("input", (event) => updateSelectedAbilityField("requiredEnergy", toNumber(event.target.value, 0)));
         refs.abilityRequiredReactionSelect.addEventListener("change", (event) => updateSelectedAbilityField("requiredReaction", event.target.value));
@@ -1065,6 +1084,9 @@
             targetRowSelect: refs.trainerPassiveTargetRowSelect,
             effectTypeSelect: refs.trainerPassiveEffectTypeSelect,
             effectValueInput: refs.trainerPassiveEffectValueInput,
+            effectValueModeSelect: refs.trainerPassiveEffectValueModeSelect,
+            effectValueMaxWrap: refs.trainerPassiveEffectValueMaxWrap,
+            effectValueMaxInput: refs.trainerPassiveEffectValueMaxInput,
             requiredElementSelect: refs.trainerPassiveRequiredElementSelect,
             requiredEnergyInput: refs.trainerPassiveRequiredEnergyInput,
             requiredReactionSelect: refs.trainerPassiveRequiredReactionSelect
@@ -1076,6 +1098,9 @@
             targetRowSelect: refs.trainerActiveTargetRowSelect,
             effectTypeSelect: refs.trainerActiveEffectTypeSelect,
             effectValueInput: refs.trainerActiveEffectValueInput,
+            effectValueModeSelect: refs.trainerActiveEffectValueModeSelect,
+            effectValueMaxWrap: refs.trainerActiveEffectValueMaxWrap,
+            effectValueMaxInput: refs.trainerActiveEffectValueMaxInput,
             requiredElementSelect: refs.trainerActiveRequiredElementSelect,
             requiredEnergyInput: refs.trainerActiveRequiredEnergyInput,
             requiredReactionSelect: refs.trainerActiveRequiredReactionSelect
@@ -1094,6 +1119,8 @@
         refsForAbility.targetRowSelect.addEventListener("change", (event) => updateSelectedTrainerAbilityField(kind, "targetRow", event.target.value));
         refsForAbility.effectTypeSelect.addEventListener("change", (event) => updateSelectedTrainerAbilityField(kind, "effectType", event.target.value));
         refsForAbility.effectValueInput.addEventListener("input", (event) => updateSelectedTrainerAbilityField(kind, "effectValue", toNumber(event.target.value, 0)));
+        refsForAbility.effectValueModeSelect.addEventListener("change", (event) => updateSelectedTrainerAbilityField(kind, "effectValueMode", event.target.value));
+        refsForAbility.effectValueMaxInput.addEventListener("input", (event) => updateSelectedTrainerAbilityField(kind, "effectValueMax", toNumber(event.target.value, 0)));
         refsForAbility.requiredElementSelect.addEventListener("change", (event) => updateSelectedTrainerAbilityField(kind, "requiredElement", event.target.value));
         refsForAbility.requiredEnergyInput.addEventListener("input", (event) => updateSelectedTrainerAbilityField(kind, "requiredEnergy", toNumber(event.target.value, 0)));
         refsForAbility.requiredReactionSelect.addEventListener("change", (event) => updateSelectedTrainerAbilityField(kind, "requiredReaction", event.target.value));
@@ -2277,6 +2304,8 @@
             targetCount: normalizedAbility.targetCount,
             effectType: normalizedAbility.effectType,
             effectValue: normalizedAbility.effectValue,
+            effectValueMode: normalizedAbility.effectValueMode,
+            effectValueMax: normalizedAbility.effectValueMax,
             energyCost: normalizedAbility.requiredEnergy,
             description: normalizedAbility.description,
             isPassive: normalizedAbility.passive,
@@ -2749,6 +2778,8 @@
             targetCount: toNumber(ability?.targetCount, 0),
             effectType: ability?.effectType || firstEffectKey(),
             effectValue: toNumber(ability?.effectValue, 0),
+            effectValueMode: String(ability?.effectValueMode || "FIXED").toUpperCase(),
+            effectValueMax: toNumber(ability?.effectValueMax, toNumber(ability?.effectValue, 0)),
             passive: Boolean(ability?.passive),
             requiredElement: ability?.requiredElement || "",
             requiredEnergy: toNumber(ability?.requiredEnergy, 0),
@@ -3504,6 +3535,9 @@
         refs.abilityPassiveSelect.value = ability.passive ? "true" : "false";
         setInputValue(refs.abilityDescriptionInput, ability.description);
         setInputValue(refs.abilityEffectValueInput, ability.effectValue);
+        refs.abilityEffectValueModeSelect.value = ability.effectValueMode || "FIXED";
+        refs.abilityEffectValueMaxWrap.classList.toggle("hidden", ability.effectValueMode !== "SCALE");
+        setInputValue(refs.abilityEffectValueMaxInput, ability.effectValueMax ?? ability.effectValue);
         setInputValue(refs.abilityRequiredEnergyInput, ability.requiredEnergy);
 
         const targetRule = getTargetRule(ability.targetType);
@@ -3519,6 +3553,8 @@
             targetRow: ability?.targetRow || "",
             effectType: ability?.effectType || "",
             effectValue: ability?.effectValue,
+            effectValueMode: ability?.effectValueMode,
+            effectValueMax: ability?.effectValueMax,
             energyCost: ability?.requiredEnergy,
             isPassive: Boolean(ability?.passive)
         });
@@ -3564,6 +3600,8 @@
                     targetRow: ability?.targetRow || "",
                     effectType,
                     effectValue: ability?.effectValue,
+                    effectValueMode: ability?.effectValueMode,
+                    effectValueMax: ability?.effectValueMax,
                     energyCost: 0,
                     isPassive: true
                 });
@@ -3581,6 +3619,8 @@
             targetRow: ability?.targetRow || "",
             effectType: ability?.effectType || "",
             effectValue: ability?.effectValue,
+            effectValueMode: ability?.effectValueMode,
+            effectValueMax: ability?.effectValueMax,
             energyCost: ability?.requiredEnergy,
             isPassive: false
         });
@@ -4110,6 +4150,9 @@
             targetRowSelect: refs.trainerPassiveTargetRowSelect,
             effectTypeSelect: refs.trainerPassiveEffectTypeSelect,
             effectValueInput: refs.trainerPassiveEffectValueInput,
+            effectValueModeSelect: refs.trainerPassiveEffectValueModeSelect,
+            effectValueMaxWrap: refs.trainerPassiveEffectValueMaxWrap,
+            effectValueMaxInput: refs.trainerPassiveEffectValueMaxInput,
             requiredElementSelect: refs.trainerPassiveRequiredElementSelect,
             requiredEnergyInput: refs.trainerPassiveRequiredEnergyInput,
             requiredReactionSelect: refs.trainerPassiveRequiredReactionSelect,
@@ -4124,6 +4167,9 @@
             targetRowSelect: refs.trainerActiveTargetRowSelect,
             effectTypeSelect: refs.trainerActiveEffectTypeSelect,
             effectValueInput: refs.trainerActiveEffectValueInput,
+            effectValueModeSelect: refs.trainerActiveEffectValueModeSelect,
+            effectValueMaxWrap: refs.trainerActiveEffectValueMaxWrap,
+            effectValueMaxInput: refs.trainerActiveEffectValueMaxInput,
             requiredElementSelect: refs.trainerActiveRequiredElementSelect,
             requiredEnergyInput: refs.trainerActiveRequiredEnergyInput,
             requiredReactionSelect: refs.trainerActiveRequiredReactionSelect,
@@ -4152,6 +4198,9 @@
         setInputValue(refsForAbility.nameInput, ability.name);
         setInputValue(refsForAbility.descriptionInput, ability.description);
         setInputValue(refsForAbility.effectValueInput, ability.effectValue);
+        refsForAbility.effectValueModeSelect.value = ability.effectValueMode || "FIXED";
+        refsForAbility.effectValueMaxWrap.classList.toggle("hidden", ability.effectValueMode !== "SCALE");
+        setInputValue(refsForAbility.effectValueMaxInput, ability.effectValueMax ?? ability.effectValue);
         setInputValue(refsForAbility.requiredEnergyInput, ability.requiredEnergy);
 
         const targetRule = getTargetRule(ability.targetType);
@@ -5387,6 +5436,8 @@
             targetCount: rule.fixedTargetCount,
             effectType: ability.effectType,
             effectValue: toNumber(ability.effectValue, 0),
+            effectValueMode: ability.effectValueMode || "FIXED",
+            effectValueMax: toNumber(ability.effectValueMax, toNumber(ability.effectValue, 0)),
             passive: Boolean(ability.passive),
             requiredEnergy: toNumber(ability.requiredEnergy, 0)
         };
@@ -5447,10 +5498,16 @@
         switch (ability.targetType) {
             case "SINGLE_ENEMY":
                 return "1 enemy";
+            case "RANDOM_ENEMY":
+                return "a random enemy";
             case "ALL_ENEMIES":
                 return "all enemies";
             case "ROW_ENEMIES":
                 return `all enemies in ${formatEnumLabel(ability.targetRow || firstMetaValue("rows", "FRONT"))}`;
+            case "SPREAD_ROW":
+                return `spread damage across enemies in ${formatEnumLabel(ability.targetRow || firstMetaValue("rows", "FRONT"))}`;
+            case "SPREAD_ALL":
+                return "spread damage across all enemies";
             case "SINGLE_ALLY":
                 return "1 ally";
             case "ALL_ALLIES":
@@ -6012,6 +6069,8 @@
             targetCount,
             effectType: String(raw.effectType || firstEffectKey()).trim(),
             effectValue: toNumber(raw.effectValue, 0),
+            effectValueMode: String(raw.effectValueMode || "FIXED").toUpperCase(),
+            effectValueMax: toNumber(raw.effectValueMax, toNumber(raw.effectValue, 0)),
             energyCost,
             description: String(raw.description || ""),
             isPassive: passiveFlag,
@@ -6035,6 +6094,8 @@
             targetCount: m.targetCount != null ? toNumber(m.targetCount, rule.fixedTargetCount) : rule.fixedTargetCount,
             effectType: m.effectType,
             effectValue: toNumber(m.effectValue, 0),
+            effectValueMode: m.effectValueMode || "FIXED",
+            effectValueMax: toNumber(m.effectValueMax, toNumber(m.effectValue, 0)),
             energyCost: toNumber(m.energyCost, 0),
             description: String(m.description || ""),
             isPassive: Boolean(m.isPassive) || m.targetType === "PASSIVE",
@@ -6050,6 +6111,8 @@
             targetRow: String(refs.moveDraftTargetRowSelect?.value || "").trim(),
             effectType: String(refs.moveDraftEffectSelect?.value || firstEffectKey()).trim(),
             effectValue: refs.moveDraftEffectValueInput?.value,
+            effectValueMode: refs.moveDraftEffectValueModeSelect?.value || "FIXED",
+            effectValueMax: refs.moveDraftEffectValueMaxInput?.value,
             energyCost: refs.moveDraftEnergyInput?.value,
             isPassive: refs.moveDraftPassiveSelect?.value === "true"
         };
@@ -6265,6 +6328,9 @@
         const targetType = String(move?.targetType || "").trim();
         const isPassive = Boolean(move?.isPassive) || targetType === "PASSIVE";
         const value = Math.max(0, toNumber(move?.effectValue, 0));
+        const valueLabel = String(move?.effectValueMode || "FIXED").toUpperCase() === "SCALE"
+            ? `${value}-${Math.max(value, toNumber(move?.effectValueMax, value))}`
+            : String(value);
         const signedValue = `+${value}`;
         const targetElement = String(move?.targetElement || "").trim();
         const elementPrefix = targetElement && targetElement !== "ALL" ? `${formatEnumLabel(targetElement)} ` : "";
@@ -6274,9 +6340,13 @@
             case "damage":
             case "player_damage":
                 if (effectType === "player_damage" || targetType === "ENEMY_PLAYER") {
-                    return `Deal ${value} damage to the enemy player`;
+                    return `Deal ${valueLabel} damage to the enemy player`;
                 }
-                return target ? `Deal ${value} damage to ${target.object}` : "";
+                if (targetType === "SPREAD_ROW" || targetType === "SPREAD_ALL") {
+                    return `Deal ${valueLabel} total damage, split randomly among ${target?.object || "the enemies"}`;
+                }
+                if (targetType === "RANDOM_ENEMY") return `Deal ${valueLabel} damage to a random enemy`;
+                return target ? `Deal ${valueLabel} damage to ${target.object}` : "";
             case "chain_damage":
                 if (!target || target.self || target.player) {
                     return `Chain ${value} damage to the target and its connected allies`;
@@ -6342,6 +6412,12 @@
                 return single(`1 ${elementPrefix}ally`);
             case "ROW_ENEMIES":
                 return plural(`${rowText}${elementPrefix}enemies`);
+            case "SPREAD_ROW":
+                return plural(`${rowText}${elementPrefix}enemies`);
+            case "SPREAD_ALL":
+                return plural(`all ${elementPrefix}enemies`);
+            case "RANDOM_ENEMY":
+                return single(`a random ${elementPrefix}enemy`);
             case "ROW_ALLIES":
                 return plural(`${rowText}${elementPrefix}allies`);
             case "ROW_SELECT_ENEMIES":
@@ -6929,6 +7005,9 @@
             refs.moveDraftIdInput.dataset.idIsAuto = !isPublished && (isFreshDraft || move.id === slugOfName) ? "true" : "false";
         }
         setInputValue(refs.moveDraftEffectValueInput, move.effectValue);
+        refs.moveDraftEffectValueModeSelect.value = move.effectValueMode || "FIXED";
+        refs.moveDraftEffectValueMaxWrap.classList.toggle("hidden", move.effectValueMode !== "SCALE");
+        setInputValue(refs.moveDraftEffectValueMaxInput, move.effectValueMax ?? move.effectValue);
         setInputValue(refs.moveDraftEnergyInput, move.energyCost);
         setInputValue(refs.moveDraftDescInput, move.description);
         refs.moveDraftPassiveSelect.value = move.isPassive || move.targetType === "PASSIVE" ? "true" : "false";
@@ -7003,6 +7082,8 @@
             targetCount: rule.fixedTargetCount,
             effectType: refs.moveDraftEffectSelect?.value || firstEffectKey(),
             effectValue: refs.moveDraftEffectValueInput?.value,
+            effectValueMode: refs.moveDraftEffectValueModeSelect?.value || "FIXED",
+            effectValueMax: refs.moveDraftEffectValueMaxInput?.value,
             energyCost: energy,
             description: refs.moveDraftDescInput?.value || "",
             isPassive: passive,

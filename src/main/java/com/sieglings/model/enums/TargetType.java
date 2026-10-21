@@ -2,8 +2,11 @@ package com.sieglings.model.enums;
 
 public enum TargetType {
     SINGLE_ENEMY,       // Select 1 enemy target
+    RANDOM_ENEMY,       // Randomly select 1 enemy target
     ALL_ENEMIES,        // All enemy targets
     ROW_ENEMIES,        // All enemies in a specific row
+    SPREAD_ROW,         // Randomly divide damage among enemies in a specific row
+    SPREAD_ALL,         // Randomly divide damage among all enemies
     SINGLE_ALLY,        // Select 1 allied target
     ALL_ALLIES,         // All allied targets
     ROW_ALLIES,         // All allies in a specific row

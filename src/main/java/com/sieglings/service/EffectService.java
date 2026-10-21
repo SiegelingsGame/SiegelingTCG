@@ -14,7 +14,9 @@ import com.sieglings.model.enums.TargetType;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Resolves card abilities and spell effects using universal targeting/effect rules.
@@ -138,6 +140,10 @@ public class EffectService {
                     if (t != null) targets.add(t);
                 }
             }
+            case RANDOM_ENEMY -> {
+                List<CardInstance> enemies = state.getBoardSieglings(!isPlayerSource);
+                if (!enemies.isEmpty()) targets.add(enemies.get(ThreadLocalRandom.current().nextInt(enemies.size())));
+            }
             case ALL_ENEMIES -> {
                 targets.addAll(state.getBoardSieglings(!isPlayerSource));
             }
@@ -147,6 +153,11 @@ public class EffectService {
                     targets.addAll(getSieglingsInRow(state, !isPlayerSource, row.getIndex()));
                 }
             }
+            case SPREAD_ROW -> {
+                Row row = ability.getTargetRow();
+                if (row != null) targets.addAll(getSieglingsInRow(state, !isPlayerSource, row.getIndex()));
+            }
+            case SPREAD_ALL -> targets.addAll(state.getBoardSieglings(!isPlayerSource));
             case SINGLE_ALLY -> {
                 if (targetRow >= 0 && targetCol >= 0) {
                     CardInstance t = state.getAt(isPlayerSource, targetRow, targetCol);
@@ -229,7 +240,7 @@ public class EffectService {
     private void applyEffect(GameState state, Ability ability, CardInstance source, boolean isPlayerSource,
                              List<CardInstance> targets, int destRow, int destCol) {
         String effectType = ability.getEffectType();
-        int value = ability.getEffectValue();
+        int value = resolveEffectValue(ability);
 
         if (AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST.equals(effectType)) {
             applyConnectedAlliesDamageBoost(state, ability, source, Math.max(1, value));
@@ -257,6 +268,13 @@ public class EffectService {
         }
         if (AbilityEffectKeys.CHAIN_DAMAGE.equals(effectType)) {
             applyChainDamage(state, ability, source, targets, Math.max(1, value), isPlayerSource);
+            return;
+        }
+
+        if (AbilityEffectKeys.DAMAGE.equals(effectType)
+                && (ability.getTargetType() == TargetType.SPREAD_ROW
+                || ability.getTargetType() == TargetType.SPREAD_ALL)) {
+            applySpreadDamage(state, ability, source, isPlayerSource, targets, value);
             return;
         }
 
@@ -341,6 +359,35 @@ public class EffectService {
                 }
                 default -> state.log("Unknown effect: " + effectType);
             }
+        }
+    }
+
+    private int resolveEffectValue(Ability ability) {
+        if ("SCALE".equalsIgnoreCase(ability.getEffectValueMode())) {
+            int min = Math.max(0, ability.getEffectValue());
+            int max = Math.max(min, ability.getEffectValueMax());
+            return (int) ThreadLocalRandom.current().nextLong(min, (long) max + 1L);
+        }
+        return ability.getEffectValue();
+    }
+
+    /** Divides a rolled damage total into random whole-number shares whose sum is exact. */
+    private void applySpreadDamage(GameState state, Ability ability, CardInstance source,
+                                   boolean isPlayerSource, List<CardInstance> targets, int total) {
+        List<CardInstance> living = targets.stream().filter(CardInstance::isAlive).toList();
+        if (living.isEmpty()) return;
+        int[] shares = new int[living.size()];
+        int damage = Math.max(0, total);
+        List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < living.size(); i++) order.add(i);
+        Collections.shuffle(order);
+        int baseShares = Math.min(damage, living.size());
+        for (int i = 0; i < baseShares; i++) shares[order.get(i)] = 1;
+        for (int point = baseShares; point < damage; point++) {
+            shares[ThreadLocalRandom.current().nextInt(shares.length)]++;
+        }
+        for (int i = 0; i < living.size(); i++) {
+            if (shares[i] > 0) dealAbilityDamage(state, ability, source, living.get(i), shares[i], isPlayerSource);
         }
     }
 

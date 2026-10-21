@@ -2819,6 +2819,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   gap:14px; padding:calc(26px + var(--sg-sat)) 18px calc(20px + var(--sg-sab));
   overflow:auto;
 }
+/* Stack / pack-rip need a live 3D context. `overflow:auto` on this body flattens
+   preserve-3d children and can leave a face-up card showing its back. */
+.sg-gacha-body:has(.is-stack),
+.sg-gacha-body:has(.is-pack-ready) { overflow:visible; }
 .sg-gacha-head { text-align:center; }
 .sg-gacha-kicker { font-size:10px; letter-spacing:.3em; text-transform:uppercase; color:var(--gold); }
 .sg-gacha-head h3 { font-family:var(--serif); font-size:26px; margin:4px 0 0; font-weight:600; }
@@ -2937,17 +2941,24 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
      about 9% of the height - exactly the gold frame's top and bottom edges - so
      every face-down card in the reveal grid read as a bordered card with its
      border sliced off. Same fault, same token, as the shop's pack tiles. */
-  aspect-ratio:var(--card-back-ratio); perspective:900px;
+  aspect-ratio:var(--card-back-ratio); perspective:1100px; transform-style:preserve-3d;
 }
 .sg-flip-inner {
   position:absolute; inset:0; transform-style:preserve-3d;
   transition:transform .62s cubic-bezier(.2,.75,.25,1);
   animation:sgDealIn .4s backwards; animation-delay:calc(var(--slot,0) * 60ms);
 }
-.sg-flip.is-open .sg-flip-inner { transform:rotateY(180deg); }
+/* Face-up pose; --inspect-* lets a drag roll the top card. `animation:none`
+   keeps the deal-in keyframes (which end on rotateY(0)) from showing the back
+   of a card that was dealt face up. */
+.sg-flip.is-open .sg-flip-inner {
+  animation:none;
+  transform:rotateX(var(--inspect-x,0deg)) rotateY(calc(180deg + var(--inspect-y,0deg)));
+}
 .sg-flip-back, .sg-flip-front {
   position:absolute; inset:0; border-radius:12px; overflow:hidden;
   backface-visibility:hidden; -webkit-backface-visibility:hidden;
+  transform-style:preserve-3d;
 }
 .sg-flip-back { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--el,#c8a54f) 40%, transparent); }
 /* `contain`, so a back of some other proportion letterboxes rather than losing
@@ -4021,13 +4032,16 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    it leads the swipe that sends it away. */
 .sg-gacha-stage.is-stack {
   display:block; position:relative; width:100%; max-width:430px;
-  height:min(58vh, 460px); perspective:1400px; perspective-origin:50% 46%;
+  /* Same token as is-pack-ready - mixing vh/dvh jumped the stage height on
+     phones when the rise dropped pack-ready. */
+  height:min(58dvh, 460px); perspective:1400px; perspective-origin:50% 46%;
   touch-action:none; cursor:grab; place-items:stretch;
 }
 .sg-gacha-stage.is-stack.is-dragging { cursor:grabbing; }
 .sg-gacha-stage.is-stack .sg-flip {
   position:absolute; top:50%; left:50%; width:min(62%, 240px);
   --drag-shift:0px; --drag-lift:0px;
+  transform-style:preserve-3d;
   transform:
     translate(-50%,-50%)
     rotateY(var(--tilt-y,0deg)) rotateX(var(--tilt-x,0deg))
@@ -4038,6 +4052,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   transition:transform .36s cubic-bezier(.2,.8,.2,1), opacity .36s ease;
 }
 .sg-gacha-stage.is-stack.is-dragging .sg-flip { transition:none; }
+.sg-gacha-stage.is-stack.is-dragging .sg-flip.is-open .sg-flip-inner { transition:none; }
 .sg-gacha-stage.is-stack .sg-flip.is-stack-top { --drag-shift:var(--drag-x,0px); --drag-lift:var(--drag-y,0px); }
 /* Depth dims what is behind so the live card stays the subject, while the
    edges still catch their own rarity aura. */
@@ -4057,7 +4072,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-gacha-stackbar {
   display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;
   font-size:10.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--muted);
+  opacity:0; transform:translateY(6px);
+  transition:opacity .28s ease, transform .28s ease;
 }
+.sg-gacha-stackbar.is-in { opacity:1; transform:none; }
 .sg-gacha-stackbar[hidden] { display:none !important; }
 .sg-gacha-stackcount {
   padding:3px 11px; border-radius:999px; color:var(--gold);
@@ -4092,6 +4110,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gacha-stage.is-ripping .sg-pack-top { transition:none; }
   .sg-gacha-stage.is-rising .sg-flip, .sg-gacha-stage.is-rising .sg-gacha-pack { animation-duration:.01ms; animation-delay:0ms; }
   .sg-pack-foil, .sg-pack-sheen { animation:none; }
+  .sg-gacha-stackbar { transition:none; }
+  .sg-gacha-stackbar.is-in { opacity:1; transform:none; }
   .sg-flip-sparks i, .sg-flip.is-flaring .sg-flip-front::before { animation:none; display:none; }
 }
 

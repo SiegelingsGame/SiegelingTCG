@@ -300,7 +300,9 @@ public class MovesPoolService {
                 def.description() != null ? def.description() : "",
                 passive,
                 def.requiredElement(),
-                def.requiredReaction()
+                def.requiredReaction(),
+                def.effectValueMode(),
+                def.effectValueMax()
         );
     }
 
@@ -323,7 +325,9 @@ public class MovesPoolService {
                 desc,
                 printed.isPassive() || tt == TargetType.PASSIVE,
                 printed.getRequiredElement(),
-                printed.getRequiredReaction()
+                printed.getRequiredReaction(),
+                printed.getEffectValueMode(),
+                printed.getEffectValueMax()
         );
     }
 
@@ -350,7 +354,9 @@ public class MovesPoolService {
                 def.description() != null ? def.description() : "",
                 passive || tt == TargetType.PASSIVE,
                 def.requiredElement(),
-                def.requiredReaction()
+                def.requiredReaction(),
+                def.effectValueMode(),
+                def.effectValueMax()
         );
     }
 
@@ -373,6 +379,8 @@ public class MovesPoolService {
             String description,
             Boolean isPassive,
             Element requiredElement,
-            Reaction requiredReaction
+            Reaction requiredReaction,
+            String effectValueMode,
+            Integer effectValueMax
     ) {}
 }

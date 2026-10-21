@@ -8347,7 +8347,7 @@
         const element = card.element || 'FIRE';
         const dissolved = isRemnantDissolved(card.revealId);
         const remnantPull = Boolean(card.duplicateAtCap && card.remnantsAwarded > 0);
-        const showRemnantFace = remnantPull && revealed && dissolved;
+        const showRemnantFace = false;
         const ownedPreview = Math.max(1, Math.min(3, ownedCount(card.id) || (revealed && !remnantPull ? 1 : 0)));
         if (showRemnantFace) {
             return `<button class="reveal-card is-revealed is-remnant-pull is-remnant-resolved rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" data-remnants="${Number(card.remnantsAwarded) || 0}" data-duplicate-at-cap="true" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}" disabled aria-label="${escapeAttr(card.name || 'Card')} converted into Remnants">
@@ -8357,13 +8357,14 @@
                 ${renderRevealRemnantFace(card)}
             </button>`;
         }
-        return `<button class="reveal-card${revealed ? ' is-revealed' : ''}${remnantPull ? ' is-remnant-pull' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" data-remnants="${Number(card.remnantsAwarded) || 0}" data-duplicate-at-cap="${remnantPull ? 'true' : 'false'}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}" aria-label="${revealed ? escapeAttr(card.name || 'Revealed card') : 'Mystery card'}">
+        return `<button class="reveal-card is-revealed${remnantPull ? ' is-remnant-pull' : ''}${dissolved ? ' is-remnant-resolved' : ''} rarity-${String(rarity).toLowerCase()}" type="button" data-reveal-card="${escapeAttr(card.revealId)}" data-remnants="${Number(card.remnantsAwarded) || 0}" data-duplicate-at-cap="${remnantPull ? 'true' : 'false'}" style="--el:${elementColor(element)};--rarity:${rarityColor(rarity)};--pack-back:${packBackForElement(element, packId)};--slot:${index}" aria-label="${escapeAttr(card.name || 'Revealed card')}">
             <span class="rarity-burst" aria-hidden="true"></span>
             <span class="reveal-dust-burst" aria-hidden="true"></span>
             <span class="reveal-face reveal-back" aria-hidden="${revealed ? 'true' : 'false'}"></span>
             <span class="reveal-face reveal-front" aria-hidden="${revealed ? 'false' : 'true'}">
-                ${revealed ? renderRevealFrontContent(card, ownedPreview) : ''}
+                ${renderRevealFrontContent(card, ownedPreview)}
             </span>
+            ${remnantPull ? `<span class="remnant-overlay"><strong>+${Number(card.remnantsAwarded) || duplicateRemnantPreview(rarity)} Remnants</strong></span>` : ''}
         </button>`;
     }
 
@@ -8434,9 +8435,10 @@
             cardEl.classList.add('is-remnant-resolved');
             cardEl.disabled = true;
             const remnants = Number(card.remnantsAwarded) || duplicateRemnantPreview(card.rarity);
-            cardEl.innerHTML = `<span class="rarity-burst" aria-hidden="true"></span><span class="reveal-dust-burst" aria-hidden="true"></span>
-                <span class="reveal-face reveal-back" aria-hidden="true"></span>
-                ${renderRevealRemnantFace(card).trim()}`;
+            cardEl.querySelector('.reveal-dust-burst')?.replaceChildren();
+            if (!cardEl.querySelector('.remnant-overlay')) {
+                cardEl.insertAdjacentHTML('beforeend', `<span class="remnant-overlay"><strong>+${remnants.toLocaleString()} Remnants</strong></span>`);
+            }
             cardEl.setAttribute('aria-label', `${card.name || 'Card'} converted into ${remnants} Remnants`);
             renderGold();
             onDone?.();

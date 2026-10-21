@@ -1144,6 +1144,8 @@ public class CardDefinitionService {
                 definition.effectValue() == null ? 0 : definition.effectValue(),
                 definition.passive() != null && definition.passive()
         );
+        ability.setEffectValueMode(definition.effectValueMode());
+        ability.setEffectValueMax(definition.effectValueMax() == null ? ability.getEffectValue() : definition.effectValueMax());
         ability.setRequiredElement(definition.requiredElement());
         ability.setRequiredEnergy(definition.requiredEnergy() == null ? 0 : definition.requiredEnergy());
         ability.setRequiredReaction(definition.requiredReaction());

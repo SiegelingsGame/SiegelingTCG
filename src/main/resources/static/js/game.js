@@ -2168,10 +2168,16 @@ function formatAbilityTargetLabel(ability) {
     switch (ability?.targetType) {
         case 'SINGLE_ENEMY':
             return 'Target enemy';
+        case 'RANDOM_ENEMY':
+            return 'Random enemy';
         case 'ALL_ENEMIES':
             return 'All enemies';
         case 'ROW_ENEMIES':
             return ability?.targetRow ? `${formatElementLabel(ability.targetRow)} enemy row` : 'Enemy row';
+        case 'SPREAD_ROW':
+            return ability?.targetRow ? `Spread across ${formatElementLabel(ability.targetRow)} row` : 'Spread across enemy row';
+        case 'SPREAD_ALL':
+            return 'Spread across all enemies';
         case 'SINGLE_ALLY':
             return 'Target ally';
         case 'ALL_ALLIES':
@@ -2204,7 +2210,10 @@ function formatAbilityEffectLabel(ability) {
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
         .join(' ');
     const value = Number(ability?.effectValue);
-    return Number.isFinite(value) && value > 0 ? `${label} ${value}` : label;
+    const max = Number(ability?.effectValueMax);
+    const valueLabel = String(ability?.effectValueMode || 'FIXED').toUpperCase() === 'SCALE'
+        && Number.isFinite(max) && max >= value ? `${value}-${max}` : `${value}`;
+    return Number.isFinite(value) && value > 0 ? `${label} ${valueLabel}` : label;
 }
 
 function rowNameToIndex(rowName) {
@@ -2383,6 +2392,7 @@ function getBattleAbilityEnemyTargets(ability, selectedRow = -1) {
     };
     switch (targetType) {
         case 'SINGLE_ENEMY':
+        case 'RANDOM_ENEMY':
         case 'ALL_ENEMIES':
             board.forEach((row) => (row || []).forEach((cell) => {
                 if (cell) {
@@ -2391,7 +2401,13 @@ function getBattleAbilityEnemyTargets(ability, selectedRow = -1) {
             }));
             break;
         case 'ROW_ENEMIES':
+        case 'SPREAD_ROW':
             pushRow(rowNameToIndex(ability?.targetRow));
+            break;
+        case 'SPREAD_ALL':
+            board.forEach((row) => (row || []).forEach((cell) => {
+                if (cell) targets.push(cell);
+            }));
             break;
         case 'ROW_SELECT_ENEMIES':
             if (selectedRow >= 0) {
@@ -2886,7 +2902,8 @@ function previewTargetsFor(ability, selectedRow = -1) {
     const allyBoard = gameState.playerBoard || [];
     const targetType = String(ability.targetType || '').trim().toUpperCase();
     switch (targetType) {
-        case 'SINGLE_ENEMY': {
+        case 'SINGLE_ENEMY':
+        case 'RANDOM_ENEMY': {
             if (isChainTargetAbility(ability)) {
                 const hub = findBestChainPreviewCell(enemyBoard);
                 if (hub) {
@@ -2912,10 +2929,12 @@ function previewTargetsFor(ability, selectedRow = -1) {
             }
             return [];
         case 'ALL_ENEMIES':
+        case 'SPREAD_ALL':
             return collectPreviewCells(enemyBoard, false);
         case 'ALL_ALLIES':
             return collectPreviewCells(allyBoard, true);
         case 'ROW_ENEMIES':
+        case 'SPREAD_ROW':
             return collectPreviewRowCells(enemyBoard, false, rowNameToIndex(ability.targetRow));
         case 'ROW_ALLIES':
             return collectPreviewRowCells(allyBoard, true, rowNameToIndex(ability.targetRow));
@@ -3744,11 +3763,17 @@ function getCompactAbilityTargetPhrase(ability) {
     switch (targetType) {
         case 'SINGLE_ENEMY':
             return 'an enemy';
+        case 'RANDOM_ENEMY':
+            return 'a random enemy';
         case 'ALL_ENEMIES':
             return 'all enemies';
         case 'ROW_ENEMIES':
         case 'ROW_SELECT_ENEMIES':
             return rowName || 'an enemy row';
+        case 'SPREAD_ROW':
+            return rowName || 'an enemy row';
+        case 'SPREAD_ALL':
+            return 'all enemies';
         case 'SINGLE_ALLY':
             return 'an ally';
         case 'ALL_ALLIES':
@@ -10300,6 +10325,7 @@ function setMatchMode(mode) {
     currentRoomStatus = null;
     loadoutErrorMessage = '';
     tutorialMatchActive = mode === 'tutorial';
+    if (mode === 'gauntlet') loadoutStep = 'setup';
     if (mode === 'online') {
         hydrateOnlineStateFromUrl();
     } else {
@@ -10808,6 +10834,12 @@ function syncLoadoutStepChrome() {
     }
 
     const primary = document.getElementById('btnStartLoadout');
+    if (gameOptions && primary && matchMode === 'gauntlet') {
+        primary.onclick = startSelectedGame;
+        syncLoadoutStartButton(primary, loadoutStartPending,
+            loadoutStartPending ? 'Starting Gauntlet...' : 'Start Gauntlet');
+        return;
+    }
     if (gameOptions && primary && isTutorialMatchMode()) {
         primary.onclick = startSelectedGame;
         syncLoadoutStartButton(primary, loadoutStartPending,
@@ -11202,11 +11234,16 @@ function renderLoadoutOptions() {
     soloMatchTab.classList.toggle('hidden', inviteFlow);
     onlineMatchTab.classList.toggle('hidden', inviteFlow);
     const tutorialMatchTab = document.getElementById('tutorialMatchTab');
+    const gauntletMatchTab = document.getElementById('gauntletMatchTab');
     const tutorialMatchPanel = document.getElementById('tutorialMatchPanel');
     if (tutorialMatchTab) {
         tutorialMatchTab.classList.toggle('active', isTutorialMatchMode());
         tutorialMatchTab.setAttribute('aria-pressed', isTutorialMatchMode() ? 'true' : 'false');
         tutorialMatchTab.classList.toggle('hidden', inviteFlow);
+    }
+    if (gauntletMatchTab) {
+        gauntletMatchTab.classList.toggle('active', matchMode === 'gauntlet');
+        gauntletMatchTab.setAttribute('aria-pressed', matchMode === 'gauntlet' ? 'true' : 'false');
     }
     tutorialMatchPanel?.classList.toggle('hidden', !isTutorialMatchMode());
     onlineMatchPanel.classList.toggle('hidden', matchMode !== 'online' || hideOnlineLoadout);
@@ -11553,6 +11590,9 @@ function renderDeckBuilder() {
 }
 
 function getLoadoutStartButtonLabel() {
+    if (matchMode === 'gauntlet') {
+        return 'Start Gauntlet';
+    }
     if (isTutorialMatchMode()) {
         return 'Start Tutorial Match';
     }
@@ -11736,6 +11776,10 @@ function applyLoadoutSummary() {
 
 async function startSelectedGame() {
     if (loadoutStartPending) return;
+    if (matchMode === 'gauntlet') {
+        window.location.assign('/gauntlet');
+        return;
+    }
     if (isTutorialMatchMode()) {
         loadoutStartPending = true;
         updateLoadoutSummary();

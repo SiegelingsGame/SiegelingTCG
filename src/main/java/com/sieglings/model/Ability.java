@@ -21,6 +21,9 @@ public class Ability {
     private int targetCount;        // number of targets (0 = all matching)
     private String effectType;      // See AbilityEffectKeys and ABILITY_EFFECT_KEYS.md
     private int effectValue;
+    /** FIXED uses effectValue; SCALE rolls inclusively from effectValue through effectValueMax. */
+    private String effectValueMode = "FIXED";
+    private int effectValueMax;
     private boolean passive;
 
     // Cost requirements
@@ -49,6 +52,7 @@ public class Ability {
         this.targetCount = targetCount;
         this.effectType = effectType;
         this.effectValue = effectValue;
+        this.effectValueMax = effectValue;
         this.passive = passive;
     }
 
@@ -123,6 +127,8 @@ public class Ability {
 
     public Ability copy() {
         Ability copy = new Ability(name, description, targetType, targetRow, targetCount, effectType, effectValue, passive);
+        copy.setEffectValueMode(effectValueMode);
+        copy.setEffectValueMax(effectValueMax);
         copy.setTargetElement(targetElement);
         copy.setRequiredElement(requiredElement);
         copy.setRequiredEnergy(requiredEnergy);
@@ -155,6 +161,10 @@ public class Ability {
     public void setEffectType(String effectType) { this.effectType = effectType; }
     public int getEffectValue() { return effectValue; }
     public void setEffectValue(int effectValue) { this.effectValue = effectValue; }
+    public String getEffectValueMode() { return effectValueMode; }
+    public void setEffectValueMode(String effectValueMode) { this.effectValueMode = effectValueMode; }
+    public int getEffectValueMax() { return effectValueMax; }
+    public void setEffectValueMax(int effectValueMax) { this.effectValueMax = effectValueMax; }
     public boolean isPassive() { return passive; }
     public void setPassive(boolean passive) { this.passive = passive; }
     public Element getRequiredElement() { return requiredElement; }

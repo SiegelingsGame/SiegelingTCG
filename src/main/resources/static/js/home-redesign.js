@@ -6238,7 +6238,10 @@
               stage.classList.remove('is-rising', 'is-ripping');
               stackLocked = false;
               layoutStack();
-              if (stackBar) stackBar.hidden = false;
+              if (stackBar) {
+                stackBar.hidden = false;
+                stackBar.classList.add('is-in');
+              }
               kicker.textContent = 'Your pull';
               note.textContent = cards.length + ' card' + (cards.length === 1 ? '' : 's');
               actions.hidden = false;
@@ -6352,17 +6355,28 @@
         var active = null;
         var sx = 0, sy = 0, moved = 0, startedAt = 0;
 
-        function setTilt(dx, dy) {
+        function setTilt(dx, dy, top) {
           stage.style.setProperty('--tilt-y', Math.max(-26, Math.min(26, dx / 7)) + 'deg');
           stage.style.setProperty('--tilt-x', Math.max(-16, Math.min(16, -dy / 9)) + 'deg');
           stage.style.setProperty('--drag-x', Math.max(-240, Math.min(240, dx)) + 'px');
           stage.style.setProperty('--drag-y', Math.max(-80, Math.min(80, dy * 0.3)) + 'px');
+          // The same drag also rolls the top card on its own axes, so the
+          // player can inspect the front in 3D before the swipe that sends it away.
+          if (top) {
+            top.style.setProperty('--inspect-y', Math.max(-18, Math.min(18, dx / 9)) + 'deg');
+            top.style.setProperty('--inspect-x', Math.max(-12, Math.min(12, -dy / 11)) + 'deg');
+          }
         }
         function clearTilt() {
           stage.style.removeProperty('--tilt-x');
           stage.style.removeProperty('--tilt-y');
           stage.style.removeProperty('--drag-x');
           stage.style.removeProperty('--drag-y');
+          var top = stackBtn(stackPos);
+          if (top) {
+            top.style.removeProperty('--inspect-x');
+            top.style.removeProperty('--inspect-y');
+          }
         }
 
         stage.addEventListener('pointerdown', function (e) {
@@ -6375,7 +6389,7 @@
           if (e.pointerId !== active) return;
           var dx = e.clientX - sx, dy = e.clientY - sy;
           moved = Math.max(moved, Math.sqrt(dx * dx + dy * dy));
-          setTilt(dx, dy);
+          setTilt(dx, dy, stackBtn(stackPos));
         });
         stage.addEventListener('pointerup', function (e) {
           if (e.pointerId !== active) return;

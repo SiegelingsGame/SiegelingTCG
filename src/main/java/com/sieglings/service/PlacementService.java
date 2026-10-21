@@ -45,6 +45,16 @@ public class PlacementService {
             return positions;
         }
 
+        return getLegalOpeningPlacements(state, isPlayer, candidate);
+    }
+
+    /**
+     * Legal empty squares for an encounter's existing fighters, including evolved
+     * forms. Uses normal notch/socket geometry and the board limit; evolution
+     * timing applies only when playing an evolution from hand during a battle.
+     */
+    public List<int[]> getLegalOpeningPlacements(GameState state, boolean isPlayer, SieglingCard candidate) {
+        List<int[]> positions = new ArrayList<>();
         boolean hasAnySiegling = state.countBoardSieglings(isPlayer) > 0;
 
         for (int row = 0; row < 3; row++) {
