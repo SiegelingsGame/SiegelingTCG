@@ -1,3 +1,34 @@
+Original prompt: The pack movement and rotation is working by default it should sit stacked only rotating when turned
+
+- October 21, 2026 **Sealed pile rests square; it only turns while the player turns it.**
+  - **Change.** The ×10 pile no longer rests turned (−16°/5° is gone; `PILE_REST` is 0/0). It also no longer follows a bare mouse hover: `tiltPile` runs only for a pressed pointer (`e.buttons` or a touch), and `pointerup` settles it back square. At rest each pack sits 2.5px higher than the one in front, so the stack reads as a neat column of crimped tops without any rotation. With a mouse, dragging across the wrapper art also started the browser's native image drag, which cancelled the pointer stream after one move, so turning never worked on desktop. The art is now `draggable="false"` with `-webkit-user-drag:none` and `pointer-events:none`. Cache pins `home-redesign.css` 140, `home-redesign.js` 133.
+  - **Verification.** Headless Chromium `/shop` ×10 flow at 390x844 against the running app, sampling the pile's `--ptilt-*` and the front and back packs' rects:
+    - At rest: 0°/0°. After an unpressed hover to the edge: still 0°/0°, rects unchanged.
+    - Pressed drag left: −22.6° with the back pack shifted 60px. Before the image-drag fix, the same drag logged only two pointer events and stayed at 0°.
+    - Released: back to 0°/0° and identical rects, still sealed.
+    - Screenshots of rest / turned / released inspected. No page errors.
+
+Original prompt: How can I improve the lag in the 10 pack pull animation also when the packs open they sort of drop off the bottom of the screen feels less like they are being pulled out the packs
+
+- October 21, 2026 **Pack reveal: lighter ×10 pile, 3D that survives iOS, cards pulled out of the pack.**
+  - **Change.** (`home-redesign.js` / `.css`)
+    - **3D on iOS.** The iPhone screenshot showed the sealed pile flat: iOS Safari had flattened the `preserve-3d` pile, collapsing the packs onto each other. The depth is now computed per pack. Each pack turns on its own axes under the pile's `perspective` and is offset by where its depth would carry it at that angle (x′ = −z·sin ry, y′ = z·sin rx, 30px per pack, pivoting about the middle). `setPile` writes the angles and their sines on the pile element. On the pile, not the stage: changing a custom property on the stage re-resolved style for all 50 cards on every pointer move.
+    - **Lag sources removed.**
+      - The sheen sweep and holo drift animated `background-position`, a full repaint per frame. Both now move by `translate`.
+      - The conic-gradient zigzag `mask`, an offscreen buffer per skin and 20 on a pile, is a polygon `clip-path`.
+      - The front pack's `drop-shadow` filter is one gradient shadow under the pile.
+      - The veil's full-screen `backdrop-filter` is gone (veil .93 → .96).
+      - The wrapper art is a 720×1080 cut (`img/packs/pack-wrapper-720.webp`, 264KB vs 541KB, 1/2.1 the decoded pixels).
+      - Card faces are drawn lazily: the top six at reveal, the rest as they come within sight or when the grid opens, instead of all 50 (and their art requests) landing mid-entrance.
+    - **Pulled out, not dropped.** `sgCardRise` now lifts the pile up past the open mouth (21% → −24%) while the wrapper gives only 5%. The wrapper then fades where it stands (to 14%, not 42%), and the pile settles into place. Both run on `translate`, so they start exactly where the settled pile leaves off. Card tags and finish badges stay hidden until the pile is out; one hung below the wrapper mid-rise.
+    - Cache pins `home-redesign.css` 139, `home-redesign.js` 132.
+  - **Verification.** `node --check`.
+    - **Perf.** Headless Chromium `/shop` ×10 flow (fall-in, tilt sweep, rip, rise, 10 swipes) at 390x844, DPR 3, 4× CPU throttle. `main` measured 120–122 frames over 34ms, worst 283–300ms, 11.9–12.7s main-thread task time. This branch measured 88–99 long frames, worst 200ms, 11.4s. The first cut was 14–15.6s; the stage-variable recalcs were found from the style-recalc count and moved to the pile. Software rendering: indicative only, not an iPhone measurement.
+    - **Screenshots.** The pile at rest, turned right, turned left and tilted up all show the packs separated in depth. A frame-scrubbed rip at 0/300/600/800/1100/1450ms shows the cards rising out of the open top, the wrapper barely moving then fading in place, and the card settling, with no tag below the wrapper.
+    - **Regression.** The culling/hammer harness still renders ≤8 cards and 3 spark layers, reaching the grid at 50/50 with 47 layers. No page errors.
+
+- October 21, 2026 Inline 3D pile / fall-in entrance / vertical-only overview release verification: PR #1167 merged as `4762129a`; Deploy workflow `39666240024` completed successfully. Live `/shop` serves `home-redesign.css?v=138` and `home-redesign.js?v=131`; the live bundles carry `packPile`/`enteredAt` and the `.sg-pack-pile`/`sgPackEnter`/`overflow-x:clip` rules. Hosting and Cloud Run `/api/cards/editor` remain `FIRESTORE`-backed with editing enabled and Firestore available; `/api/game/options` returns 7 decks; `config.js` keeps `apiBaseUrl: ''`.
+
 Original prompt: Last update in the final overview screen with all the cards you can sort of scrolll horizontally limit the screen to only view the cards and vertical scroll through them so you can't accidentally zoom or move the screen left or right merge and deploy
 
 - October 21, 2026 **Pull overview scrolls vertically only.**

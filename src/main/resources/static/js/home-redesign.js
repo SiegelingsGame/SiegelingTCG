@@ -5853,13 +5853,17 @@
   function packSkin(pk, art) {
     return '<span class="sg-pack-skin">' +
       '<span class="sg-pack-foil" aria-hidden="true"></span>' +
-      '<span class="sg-pack-window"><img src="' + art + '" alt=""></span>' +
+      // Not draggable: with a mouse, dragging across the art started the
+      // browser's own image drag, which cancels the pointer stream mid-turn.
+      '<span class="sg-pack-window"><img src="' + art + '" alt="" draggable="false"></span>' +
       '<span class="sg-pack-name">' + esc(pk.name || 'Pack') + '</span>' +
       '<span class="sg-pack-sheen" aria-hidden="true"></span>' +
     '</span>';
   }
 
-  var PACK_WRAPPER_ART = '/img/packs/siegeling-back.webp';
+  // Cut to the wrapper's largest rendered box at 3x (262px wide), rather than
+  // the 1024x1536 card back: ten packs draw it twice each.
+  var PACK_WRAPPER_ART = '/img/packs/pack-wrapper-720.webp';
 
   // A ×10 pull is ten packs. They stand in one straight line in a real 3D pile
   // (`preserve-3d`), each a fixed step deeper than the one in front, so turning
@@ -5872,7 +5876,8 @@
     var n = Math.max(1, Math.min(count || 1, 10));
     var html = '';
     for (var i = n - 1; i >= 1; i--) html += ghostPack(pk, i, n);
-    return '<div class="sg-pack-pile' + (n > 1 ? ' is-many' : '') + '" data-pack-pile style="--pile-n:' + n + '">' +
+    return '<div class="sg-pack-pile' + (n > 1 ? ' is-many' : '') + '" data-pack-pile style="--pile-n:' + n +
+      ';--pile-mid:' + ((n - 1) / 2) + '">' +
       html + packShell(pk, 'is-loading', n) + '</div>';
   }
 
@@ -6049,6 +6054,24 @@
     var note = gacha.querySelector('[data-gacha-note]');
     var actions = gacha.querySelector('[data-gacha-actions]');
     var kicker = gacha.querySelector('[data-gacha-kicker]');
+    // The pile's turn lives on the stage as the two angles plus their sines;
+    // each pack derives its own parallax offset from the sines in CSS (CSS
+    // trig is not something every iOS version this runs on has). A pile of
+    // several rests a little turned so it reads as a stack untouched.
+    // The values are written on the pile, not the stage: a custom property
+    // changed on the stage re-resolves style for every card under it on each
+    // pointer move, where on the pile it only touches the packs.
+    // The pile rests square: it only turns while the player is turning it.
+    var PILE_REST = { y: 0, x: 0 };
+    var pileEl = stage.querySelector('[data-pack-pile]');
+    function setPile(ry, rx) {
+      if (!pileEl) return;
+      pileEl.style.setProperty('--ptilt-y', ry.toFixed(2) + 'deg');
+      pileEl.style.setProperty('--ptilt-x', rx.toFixed(2) + 'deg');
+      pileEl.style.setProperty('--pile-sy', Math.sin(ry * Math.PI / 180).toFixed(4));
+      pileEl.style.setProperty('--pile-sx', Math.sin(rx * Math.PI / 180).toFixed(4));
+    }
+    setPile(PILE_REST.y, PILE_REST.x);
     // When the last pack has landed; a rip before then is held until it has.
     var enteredAt = Date.now() + (reducedMotion() ? 0 :
       enterDelay(0, Math.min(count, 10)) + PACK_ENTER_MS);
@@ -6128,7 +6151,11 @@
       // top card - the one the player reads first - is the last to clear the foil.
       slots.forEach(function (btn, pos) {
         btn.style.setProperty('--deal-delay', Math.min((Math.min(slots.length, 6) - 1 - Math.min(pos, 5)) * 70, 350) + 'ms');
-        paintFace(btn, cards[Number(btn.getAttribute('data-flip'))]);
+        // Only the cards near the top are drawn now; the rest are drawn as
+        // they come within sight (layoutStack) or when the grid opens.
+        // Building all fifty faces of a ×10 at once - art requests and
+        // all - landed in the middle of the pile's entrance and stalled it.
+        if (pos <= 5) paintFace(btn, cards[Number(btn.getAttribute('data-flip'))]);
       });
       var all = gacha.querySelector('[data-gacha-all]');
       var bucket = gacha.querySelector('[data-gacha-bucket]');
@@ -6145,7 +6172,7 @@
       // The controls stay out until the cards have risen clear of the pack.
       // Offering "View all" while the foil is still tearing asks the player to
       // act on something they cannot see yet.
-      var risen = reducedMotion() ? 0 : 1050 + Math.min(slots.length - 1, 5) * 70;
+      var risen = reducedMotion() ? 0 : 1180 + Math.min(slots.length - 1, 5) * 70;
 
       // A duplicate is worth remnants, so it does not just sit there wearing a
       // label: the card crumbles and its shards fly to the bucket, which counts
@@ -6198,6 +6225,8 @@
       // and finish badges ride on every card; the stack hides them on all but
       // the top one so the pile edges stay clean.
       function paintFace(btn, card) {
+        if (btn.getAttribute('data-painted')) return;
+        btn.setAttribute('data-painted', '1');
         var front = btn.querySelector('[data-flip-front]');
         var known = byIdIn(ALL_CARDS, card.id);
         var finish = FINISH_LADDER[finishIndex(card.finish)].key;
@@ -6283,6 +6312,7 @@
           // Safari's GPU memory - the freeze on the sealed pile and the crash
           // on a fast swipe.
           btn.classList.toggle('is-stack-gone', depth < -2 || depth > 5);
+          if (depth >= 0 && depth <= 5) paintFace(btn, cards[Number(btn.getAttribute('data-flip'))]);
           btn.style.setProperty('--depth', String(Math.max(0, Math.min(depth, 5))));
           btn.style.zIndex = String(Math.max(1, 200 - pos));
           btn.tabIndex = depth === 0 ? 0 : -1;
@@ -6309,18 +6339,21 @@
           var nx = Math.max(-1, Math.min(1, (e.clientX - (box.left + box.width / 2)) / (box.width / 2)));
           var ny = Math.max(-1, Math.min(1, (e.clientY - (box.top + box.height / 2)) / (box.height / 2)));
           stage.classList.add('is-tilting');
-          stage.style.setProperty('--ptilt-y', (nx * 36).toFixed(2) + 'deg');
-          stage.style.setProperty('--ptilt-x', (-ny * 14).toFixed(2) + 'deg');
+          setPile(nx * 36, -ny * 14);
         }
         function settlePile() {
           if (tearing) return;
           stage.classList.remove('is-tilting');
-          stage.style.removeProperty('--ptilt-y');
-          stage.style.removeProperty('--ptilt-x');
+          setPile(PILE_REST.y, PILE_REST.x);
         }
+        // Only a pressed pointer turns the pile - a touch, or a mouse with a
+        // button down. A bare mouse hover used to swing it, so on desktop it
+        // was never still.
         stage.addEventListener('pointermove', function (e) {
-          if (stage.classList.contains('is-pack-ready')) tiltPile(e);
+          if (!stage.classList.contains('is-pack-ready')) return;
+          if (e.buttons || e.pointerType === 'touch') tiltPile(e);
         });
+        stage.addEventListener('pointerup', settlePile);
         stage.addEventListener('pointerleave', settlePile);
         pack.addEventListener('pointercancel', settlePile);
         function tear() {
@@ -6337,8 +6370,7 @@
           // The pile eases back square while the strips fly, so the drop that
           // follows starts from where the packs already are.
           stage.classList.remove('is-tilting');
-          stage.style.removeProperty('--ptilt-y');
-          stage.style.removeProperty('--ptilt-x');
+          setPile(0, 0);
           pack.disabled = true;
           stage.classList.add('is-ripping');
           // The rip lands with a jolt: the whole overlay shakes, harder and
@@ -6449,7 +6481,10 @@
           before[btn.getAttribute('data-flip')] = btn.getBoundingClientRect();
         });
         stackMode = false;
-        slots.forEach(function (btn) { btn.classList.remove('is-stack-gone'); });
+        slots.forEach(function (btn) {
+          paintFace(btn, cards[Number(btn.getAttribute('data-flip'))]);
+          btn.classList.remove('is-stack-gone');
+        });
         stage.className = 'sg-gacha-stage is-grid' + (slots.length > 5 ? ' is-bulk' : '');
         if (stackBar) stackBar.hidden = true;
         all.hidden = true;
