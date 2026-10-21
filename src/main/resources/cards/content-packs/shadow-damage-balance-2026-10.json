@@ -1,0 +1,141 @@
+{
+  "id": "shadow-damage-balance-2026-10",
+  "description": "Rebalances live Shadow single-target and random attacks against other elements while preserving Shadow's high-cost, high-damage identity and existing move counts.",
+  "moves": [
+    {
+      "id": "shadow-echo-ambush-balanced",
+      "name": "Echo Ambush",
+      "element": "SHADOW",
+      "category": "STANDARD",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "damage",
+      "effectValue": 3,
+      "energyCost": 0,
+      "description": "Deal 3 damage to 1 enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "echowing-night-strike-balanced",
+      "name": "Echowing Night Strike",
+      "element": "SHADOW",
+      "category": "STANDARD",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "damage",
+      "effectValue": 4,
+      "energyCost": 1,
+      "description": "Deal 4 damage to 1 enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "echolustrious-eclipse-balanced",
+      "name": "Echolustrious Eclipse",
+      "element": "SHADOW",
+      "category": "SPECIALITY",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "damage",
+      "effectValue": 7,
+      "energyCost": 3,
+      "description": "Deal 7 damage to 1 enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "dreadmeow-night-hunt-balanced",
+      "name": "Dreadmeow Night Hunt",
+      "element": "SHADOW",
+      "category": "STANDARD",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "damage",
+      "effectValue": 4,
+      "energyCost": 1,
+      "description": "Deal 4 damage to 1 enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "umbral-feint-balanced",
+      "name": "Umbral Feint",
+      "element": "SHADOW",
+      "category": "SPECIALITY",
+      "targetType": "RANDOM_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "damage",
+      "effectValue": 4,
+      "energyCost": 2,
+      "description": "Deal 4–6 damage to a random enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null,
+      "effectValueMode": "SCALE",
+      "effectValueMax": 6
+    },
+    {
+      "id": "eclipse-pounce-balanced",
+      "name": "Eclipse Pounce",
+      "element": "SHADOW",
+      "category": "SPECIALITY",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "damage",
+      "effectValue": 8,
+      "energyCost": 4,
+      "description": "Deal 8 damage to 1 enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    }
+  ],
+  "cards": [],
+  "cardPatches": [
+    {
+      "id": "echo",
+      "moveIds": ["shadow-echo-ambush-balanced", "shadow-mend", "shade-ward"]
+    },
+    {
+      "id": "echowing",
+      "moveIds": ["shadow-echo-ambush-balanced", "shadow-mend", "shade-ward", "echowing-night-strike-balanced"]
+    },
+    {
+      "id": "echolustrious",
+      "moveIds": ["shadow-echo-ambush-balanced", "shadow-mend", "shade-ward", "echowing-night-strike-balanced", "echolustrious-eclipse-balanced"]
+    },
+    {
+      "id": "dreadmeow",
+      "moveIds": ["dreadmeow-night-hunt-balanced", "umbral-feint-balanced", "shadow-siphon", "gloom-ward"]
+    },
+    {
+      "id": "voib",
+      "moveIds": ["doomshield-doomshield-dusk-carapace", "umbral-feint-balanced", "shadow-siphon", "gloom-ward"]
+    },
+    {
+      "id": "voiboy",
+      "moveIds": ["doomshield-doomshield-dusk-carapace", "umbral-feint-balanced", "shadow-siphon", "gloom-ward", "phantomsteed-phantomsteed-night-chorus"]
+    },
+    {
+      "id": "umbry",
+      "moveIds": ["doomshield-doomshield-dusk-carapace", "eclipse-pounce-balanced", "night-rend", "gloom-ward", "shadow-siphon"]
+    }
+  ]
+}
