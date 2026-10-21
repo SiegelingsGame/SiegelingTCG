@@ -1379,6 +1379,44 @@ textarea {
     box-shadow: 0 0 0 2px #d4af37, 0 0 10px rgba(0, 0, 0, 0.8);
     pointer-events: none;
 }
+.loading-art-phone-crop {
+    position: absolute;
+    z-index: 2;
+    box-sizing: border-box;
+    border: 2px solid #f2bd4b;
+    border-radius: 18px;
+    background: rgba(242, 189, 75, .09);
+    box-shadow: 0 0 0 9999px rgba(3, 8, 18, .52), 0 0 16px rgba(0, 0, 0, .7);
+    cursor: grab;
+    touch-action: none;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    overflow: hidden;
+}
+.loading-art-phone-crop:active { cursor: grabbing; }
+.loading-art-phone-crop::before {
+    content: "";
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    width: 24%;
+    height: 7px;
+    transform: translateX(-50%);
+    border-radius: 8px;
+    background: rgba(255,255,255,.72);
+}
+.loading-art-phone-crop span {
+    position: absolute;
+    bottom: 5px;
+    left: 2px;
+    right: 2px;
+    color: #fff;
+    font: 600 10px/1.2 system-ui, sans-serif;
+    text-align: center;
+    text-shadow: 0 1px 3px #000;
+    pointer-events: none;
+}
 .loading-art-tags {
     flex: 1 1 auto;
     min-height: 0;

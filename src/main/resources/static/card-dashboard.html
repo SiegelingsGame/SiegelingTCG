@@ -27,7 +27,7 @@
          and before card-dashboard.css so the dashboard's own chrome rules stay
          authoritative. -->
     <link rel="stylesheet" href="/css/style.css?v=292">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=55">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=56">
     <link rel="stylesheet" href="/css/holographic.css?v=7">
 </head>
 <body>
@@ -975,6 +975,9 @@
                          tagging, and so a tap on it can set the crop focus. -->
                     <div class="loading-art-preview-frame" id="loadingArtPreviewFrame">
                         <img id="loadingArtPreviewImg" alt="">
+                        <div class="loading-art-phone-crop hidden" id="loadingArtPhoneCrop" role="slider" aria-label="iPhone portrait crop area" aria-valuetext="Drag to position the iPhone portrait crop">
+                            <span>iPhone portrait · 390 × 844</span>
+                        </div>
                         <i class="loading-art-focus-dot hidden" id="loadingArtFocusDot" aria-hidden="true"></i>
                     </div>
                     <section class="loading-art-tags" aria-label="Cards in this image">
@@ -1008,7 +1011,7 @@
                         </div>
                         <div class="loading-art-tags-row">
                             <h4>Phone crop focus</h4>
-                            <p class="section-help">Tap the image above on the spot that should stay in view when a phone crops it.</p>
+                            <p class="section-help">Drag the iPhone portrait window over the part of the image to show on a phone. Save tags to keep its center as the crop focus.</p>
                             <div class="loading-art-tag-add">
                                 <input id="loadingArtFocus" type="text" placeholder="50% 40%" aria-label="Crop focus" style="max-width:140px;">
                                 <button class="btn btn-secondary" id="loadingArtFocusClear" type="button">Clear</button>
@@ -1319,7 +1322,7 @@
 <script src="/js/card-binder-visual.js?v=35"></script>
 <script src="/js/dashboard-info.js?v=15"></script>
 <script src="/js/card-dashboard.js?v=73"></script>
-<script src="/js/loading-art-admin.js?v=7"></script>
+<script src="/js/loading-art-admin.js?v=8"></script>
 <script src="/js/siege-class-admin.js?v=3"></script>
 <script src="/js/siege-item-admin.js?v=2"></script>
 <script src="/js/siege-event-admin.js?v=3"></script>
