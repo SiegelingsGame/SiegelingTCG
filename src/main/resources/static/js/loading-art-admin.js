@@ -36,6 +36,7 @@
     var shopTarget = document.getElementById('loadingArtShopTarget');
     var focusInput = document.getElementById('loadingArtFocus');
     var focusDot = document.getElementById('loadingArtFocusDot');
+    var phoneCrop = document.getElementById('loadingArtPhoneCrop');
     var tagStatus = document.getElementById('loadingArtTagsStatus');
     var ELEMENTS = ['FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'ELECTRIC', 'METAL', 'POISON',
         'PSYCHIC', 'UNDEAD', 'LIGHT', 'SHADOW', 'NEUTRAL'];
@@ -133,15 +134,31 @@
     }
 
     function placeFocusDot() {
-        if (!focusDot || !previewImg) return;
+        if (!previewImg) return;
         var m = /^(\d+(?:\.\d+)?)% (\d+(?:\.\d+)?)%$/.exec(draft && draft.focus || '');
-        if (!m || previewImg.classList.contains('hidden') || !previewImg.naturalWidth) {
-            focusDot.classList.add('hidden');
+        if (previewImg.classList.contains('hidden') || !previewImg.naturalWidth) {
+            if (focusDot) focusDot.classList.add('hidden');
+            if (phoneCrop) phoneCrop.classList.add('hidden');
             return;
         }
-        focusDot.style.left = (previewImg.offsetLeft + previewImg.offsetWidth * Number(m[1]) / 100) + 'px';
-        focusDot.style.top = (previewImg.offsetTop + previewImg.offsetHeight * Number(m[2]) / 100) + 'px';
-        focusDot.classList.remove('hidden');
+        var iw = previewImg.offsetWidth, ih = previewImg.offsetHeight;
+        var x = m ? Number(m[1]) : 50, y = m ? Number(m[2]) : 50;
+        var cropH = Math.min(ih, iw / (390 / 844));
+        var cropW = cropH * (390 / 844);
+        var left = previewImg.offsetLeft + iw * x / 100 - cropW / 2;
+        var top = previewImg.offsetTop + ih * y / 100 - cropH / 2;
+        left = Math.max(previewImg.offsetLeft, Math.min(previewImg.offsetLeft + iw - cropW, left));
+        top = Math.max(previewImg.offsetTop, Math.min(previewImg.offsetTop + ih - cropH, top));
+        if (phoneCrop) {
+            phoneCrop.style.left = left + 'px'; phoneCrop.style.top = top + 'px';
+            phoneCrop.style.width = cropW + 'px'; phoneCrop.style.height = cropH + 'px';
+            phoneCrop.classList.remove('hidden');
+        }
+        if (focusDot && m) {
+            focusDot.style.left = (previewImg.offsetLeft + iw * x / 100) + 'px';
+            focusDot.style.top = (previewImg.offsetTop + ih * y / 100) + 'px';
+            focusDot.classList.remove('hidden');
+        } else if (focusDot) focusDot.classList.add('hidden');
     }
 
     var nameInput = document.getElementById('loadingArtName');
@@ -330,7 +347,33 @@
             renderResults();
         });
     });
-    // The point clicked becomes the crop focus the shop uses on a phone.
+    // Dragging the iPhone-shaped window sets its center as the saved phone focus.
+    phoneCrop?.addEventListener('pointerdown', function (e) {
+        if (!draft) return;
+        e.preventDefault();
+        phoneCrop.setPointerCapture(e.pointerId);
+        var frame = previewImg.getBoundingClientRect();
+        var cropBox = phoneCrop.getBoundingClientRect();
+        var grabX = e.clientX - (cropBox.left + cropBox.width / 2);
+        var grabY = e.clientY - (cropBox.top + cropBox.height / 2);
+        var move = function (ev) {
+            var x = Math.round(Math.max(0, Math.min(100, (ev.clientX - grabX - frame.left) / frame.width * 100)));
+            var y = Math.round(Math.max(0, Math.min(100, (ev.clientY - grabY - frame.top) / frame.height * 100)));
+            draft.focus = x + '% ' + y + '%';
+            if (focusInput) focusInput.value = draft.focus;
+            if (tagStatus) tagStatus.textContent = 'Unsaved changes.';
+            placeFocusDot();
+        };
+        var done = function () {
+            phoneCrop.removeEventListener('pointermove', move);
+            phoneCrop.removeEventListener('pointerup', done);
+            phoneCrop.removeEventListener('pointercancel', done);
+        };
+        phoneCrop.addEventListener('pointermove', move);
+        phoneCrop.addEventListener('pointerup', done);
+        phoneCrop.addEventListener('pointercancel', done);
+    });
+    // Clicking the art still offers a quick way to set the crop center.
     previewImg?.addEventListener('click', function (e) {
         if (!draft) return;
         var box = previewImg.getBoundingClientRect();
