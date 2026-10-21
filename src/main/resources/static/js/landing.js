@@ -88,9 +88,16 @@
     const FEATURED_SIEGELINGS = [
         { id: 'pylord',       name: 'Pylord',       element: 'FIRE',  rarity: 'LEGENDARY', cardArtUrl: '/img/art/loading/pylord-landscape.webp',       description: 'A crown-forged fire titan that turns every linked ember into a decisive opening.' },
         { id: 'glaciemperor', name: 'Glaciemperor', element: 'ICE',   rarity: 'LEGENDARY', cardArtUrl: '/img/art/loading/glaciemperor-landscape.webp', description: 'An ancient ruler of the frostbound reaches, patient enough to freeze an entire board in place.' },
-        { id: 'aerovane',     name: 'Aerovane',     element: 'WIND',  rarity: 'LEGENDARY', cardArtUrl: '/img/art/loading/aerovane-landscape.webp',     description: 'A skyborne tactician whose shifting currents reward players who never stand still.' },
         { id: 'gymstone',     name: 'Gymstone',     element: 'EARTH', rarity: 'LEGENDARY', cardArtUrl: '/img/art/loading/gymstone-landscape.webp',     description: 'A living fortress of stone and root, built to hold the field when the battle turns.' },
+        { id: 'aerovane',     name: 'Aerovane',     element: 'WIND',  rarity: 'LEGENDARY', cardArtUrl: '/img/art/loading/aerovane-landscape.webp',     description: 'A skyborne tactician whose shifting currents reward players who never stand still.' },
     ];
+
+    // Keep the landing legendary row in the same order as the hub element filters.
+    const LEGENDARY_ELEMENT_ORDER = [
+        'FIRE', 'ICE', 'EARTH', 'WIND', 'WATER', 'ELECTRIC',
+        'METAL', 'POISON', 'PSYCHIC', 'UNDEAD', 'LIGHT', 'SHADOW'
+    ];
+    const LEGENDARY_ELEMENT_RANK = new Map(LEGENDARY_ELEMENT_ORDER.map((element, index) => [element, index]));
 
     // Offline roster: shipped art only, so the card rows still move in a static
     // preview or while Cloud Run is cold.
@@ -1002,10 +1009,15 @@
                     const description = rosterDescription(card);
                     return { ...card, description, pitch: legendaryPitch({ ...card, description }, curated) };
                 });
-                // Curated legends lead; newer ones follow in catalog order.
+                // Match the hub's element filter order, which keeps Neutral last.
                 legends.sort((a, b) => {
+                    const elementRank = (card) => {
+                        const element = String(card.element || '').toUpperCase();
+                        if (element === 'NEUTRAL') return Number.MAX_SAFE_INTEGER;
+                        return LEGENDARY_ELEMENT_RANK.get(element) ?? LEGENDARY_ELEMENT_ORDER.length;
+                    };
                     const rank = (card) => { const i = FEATURED_SIEGELINGS.findIndex((entry) => entry.id === String(card.id || '').toLowerCase()); return i < 0 ? 99 : i; };
-                    return rank(a) - rank(b);
+                    return elementRank(a) - elementRank(b) || rank(a) - rank(b);
                 });
             }
         } catch (_ignored) {
