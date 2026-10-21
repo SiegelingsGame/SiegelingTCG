@@ -1,3 +1,9 @@
+Original prompt: There should not be a border the entire foil should use the S back skin with foil open at the top and bottom use this as a reference (retail booster-pack photo)
+
+- October 21, 2026 **Pack wrapper is full-bleed S art with silver crimps, like a retail booster.**
+  - **Change.** The hub pack pouch (`.sg-gacha-pack` / `.sg-pack-*` in `home-redesign.css`) dropped its element-tinted foil side rails and the framed window. The Siegelings "S" back now prints edge to edge across the whole wrapper. Silver heat-crimped foil (zigzag-cut, pressed ridges, a shadow where the crimp meets the art) shows only at the open top (8%) and bottom (7%). A pillow shade along the sides, a light holographic film (30%) and the moving specular sheen sit over the art. The pouch is 1:1.78, so the art keeps its own 2:3 between the crimps and the S back's ornamental border is not cropped. The width cap moved to `min(68%, 262px, 58dvh*.56)` so the taller pouch still fits short phones. The tear line sits at 10%, so the strip that flies off is the top crimp plus a sliver of art. The rise, the face-up stack and the element card backs are unchanged. Cache pins `home-redesign.css` 134, `home-redesign.js` 128 (comment only).
+  - **Verification.** `node --check`. Ran the headless Chromium `/shop` flow against the running app with the open-pack call stubbed. The pouch is 241x428 at 390x844 and 217x386 at 375x667. Screenshots show the full-bleed S art with silver crimps only at top and bottom, and no side border or window frame. Frame-stepped rise captures still show the pile coming out of the open top as the wrapper slides down. Swipe-through to the grid and the summary were unchanged, with no page errors.
+
 Original prompt: Use this "card back" as the wrapper for packs so all elemental packs come out this wrapper
 
 - October 21, 2026 **Every pack wears the Siegelings "S" wrapper.**

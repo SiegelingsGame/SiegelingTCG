@@ -2841,65 +2841,65 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   flex:0 0 auto; align-content:start; max-width:min(1080px, 100%);
   grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); gap:12px 10px;
 }
-/* The unopened pack is a foil pouch: crimped ends, a metallic body tinted by
-   the pack's element, and the element's card back printed in a window. It
-   breathes while the purchase is in flight. It is wider and taller than a
-   resting card so the whole pile can wait hidden behind it before rising. */
+/* The unopened pack is a retail-style foil pouch: the Siegelings "S" back
+   printed full bleed across the whole wrapper, with silver heat-crimped foil
+   only at the open top and bottom ends - no side rails and no framed window.
+   It breathes while the purchase is in flight. It is wider and taller than a
+   resting card so the whole pile can wait hidden behind it before rising.
+   The 1:1.78 shape leaves the art its own 2:3 between the crimps, so the
+   ornamental border of the S back is not cropped. */
 .sg-gacha-pack { position:absolute; z-index:300; left:50%; top:50%;
-  width:min(68%, 270px, calc(min(58dvh, 460px) * .62)); aspect-ratio:1 / 1.55;
+  width:min(68%, 262px, calc(min(58dvh, 460px) * .56)); aspect-ratio:1 / 1.78;
   padding:0; border:0; overflow:visible; background:transparent; color:inherit; cursor:grab;
   transform:translate(-50%,-50%); touch-action:none; filter:drop-shadow(0 22px 18px rgba(0,0,0,.5));
-  --foil-x:30%; --foil-y:20%; }
+  --foil-x:30%; --foil-y:20%; --crimp-top:8%; --crimp-bottom:7%; }
 .sg-gacha-pack.is-sealed { animation:sgPackBreathe 1.8s ease-in-out infinite; }
 .sg-gacha-pack.is-loading .sg-pack-prompt { display:none; }
 .sg-pack-body,.sg-pack-top { position:absolute; inset:0; }
-/* One skin, two clips: the strip above the tear line and the body below it. */
-.sg-pack-body { clip-path:inset(11.5% -2% -2% -2%); }
-.sg-pack-top { clip-path:inset(-2% -2% 88.5% -2%); transform:translate3d(var(--rip-x,0px),var(--rip-y,0px),0) rotate(var(--rip-angle,0deg));
-  transform-origin:12% 12%; transition:transform .12s ease-out; }
-.sg-pack-skin { position:absolute; inset:0; overflow:hidden; border-radius:7px;
-  background:
-    linear-gradient(90deg, rgba(0,0,0,.42), transparent 9%, transparent 91%, rgba(0,0,0,.42)),
-    linear-gradient(160deg,
-      color-mix(in srgb, var(--el,#f2a03d) 62%, #120a26) 0%,
-      color-mix(in srgb, var(--el,#f2a03d) 38%, #fff) 18%,
-      color-mix(in srgb, var(--el,#f2a03d) 78%, #0d0820) 36%,
-      color-mix(in srgb, var(--el,#f2a03d) 30%, #fff) 55%,
-      color-mix(in srgb, var(--el,#f2a03d) 72%, #0d0820) 74%,
-      color-mix(in srgb, var(--el,#f2a03d) 42%, #fff) 100%);
+/* One skin, two clips: the strip above the tear line (the top crimp plus a
+   sliver of art) and the body below it. */
+.sg-pack-body { clip-path:inset(10% -2% -2% -2%); }
+.sg-pack-top { clip-path:inset(-2% -2% 90% -2%); transform:translate3d(var(--rip-x,0px),var(--rip-y,0px),0) rotate(var(--rip-angle,0deg));
+  transform-origin:12% 10%; transition:transform .12s ease-out; }
+/* The skin itself is the silver foil the crimps are pressed from. */
+.sg-pack-skin { position:absolute; inset:0; overflow:hidden; border-radius:3px;
+  background:linear-gradient(100deg, #8d93a3 0%, #f4f6fb 16%, #a9aebb 32%, #ffffff 48%, #9aa0ae 64%, #eef0f6 80%, #878d9c 100%);
   /* Serrated ends, the zigzag a heat-crimped wrapper is cut with. */
   -webkit-mask:
-    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / 9px 51% repeat-x,
-    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 9px 51% repeat-x;
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / 8px 51% repeat-x,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 8px 51% repeat-x;
   mask:
-    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / 9px 51% repeat-x,
-    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 9px 51% repeat-x; }
-/* Crimp ridges at both ends and a holographic film over the whole pouch. */
-.sg-pack-foil { position:absolute; inset:0;
-  background:
-    repeating-linear-gradient(90deg, rgba(255,255,255,.34) 0 1.5px, rgba(0,0,0,.28) 1.5px 3.5px) top / 100% 8.5% no-repeat,
-    repeating-linear-gradient(90deg, rgba(255,255,255,.34) 0 1.5px, rgba(0,0,0,.28) 1.5px 3.5px) bottom / 100% 7% no-repeat,
-    linear-gradient(115deg, rgba(255,90,160,.28), rgba(255,220,90,.24) 22%, rgba(90,255,190,.24) 44%,
-      rgba(90,170,255,.28) 66%, rgba(200,110,255,.26) 88%) 0 0 / 220% 220%;
-  mix-blend-mode:overlay; animation:sgFoilDrift 6s ease-in-out infinite alternate; }
-.sg-pack-window { position:absolute; left:11%; right:11%; top:15%; bottom:12%; overflow:hidden; border-radius:9px;
-  box-shadow:0 0 0 2px color-mix(in srgb, var(--el,#f2a03d) 45%, #fff6d8), 0 0 0 4px rgba(0,0,0,.35),
-    inset 0 0 18px rgba(0,0,0,.55); }
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / 8px 51% repeat-x,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 8px 51% repeat-x; }
+.sg-pack-window { position:absolute; z-index:1; left:0; right:0; top:var(--crimp-top); bottom:var(--crimp-bottom); overflow:hidden; }
 .sg-gacha-pack .sg-pack-window img { width:100%; height:100%; object-fit:cover; display:block; }
-.sg-pack-name { position:absolute; left:8%; right:8%; bottom:7.6%; transform:translateY(50%); text-align:center;
-  font-family:var(--serif); font-size:11px; font-weight:700; letter-spacing:.04em; white-space:nowrap;
-  overflow:hidden; text-overflow:ellipsis; color:#fff8e2; text-shadow:0 1px 3px rgba(0,0,0,.8); }
-/* The specular highlight: drifts on its own and follows the finger on drag. */
-.sg-pack-sheen { position:absolute; inset:-20%; pointer-events:none; mix-blend-mode:screen;
+/* Over everything: pressed ridges on both crimps, the pillowed shading a
+   sealed pouch takes where it rounds over the cards, and a holographic film. */
+.sg-pack-foil { position:absolute; inset:0; z-index:2; pointer-events:none;
   background:
-    radial-gradient(circle at var(--foil-x) var(--foil-y), rgba(255,255,255,.55), transparent 32%),
-    linear-gradient(105deg, transparent 38%, rgba(255,255,255,.5) 48%, rgba(255,255,255,.1) 54%, transparent 62%) 0 0 / 250% 100%;
+    repeating-linear-gradient(90deg, rgba(255,255,255,.55) 0 1.5px, rgba(40,44,60,.32) 1.5px 3.5px) top / 100% var(--crimp-top) no-repeat,
+    repeating-linear-gradient(90deg, rgba(255,255,255,.55) 0 1.5px, rgba(40,44,60,.32) 1.5px 3.5px) bottom / 100% var(--crimp-bottom) no-repeat,
+    linear-gradient(180deg, transparent calc(var(--crimp-top) - .5%), rgba(0,0,0,.45) var(--crimp-top), rgba(255,255,255,.18) calc(var(--crimp-top) + 1%), transparent calc(var(--crimp-top) + 5%),
+      transparent calc(100% - var(--crimp-bottom) - 5%), rgba(0,0,0,.4) calc(100% - var(--crimp-bottom)), transparent calc(100% - var(--crimp-bottom) + .5%)),
+    linear-gradient(90deg, rgba(0,0,0,.38), rgba(255,255,255,.12) 4%, transparent 11%, transparent 89%, rgba(255,255,255,.1) 96%, rgba(0,0,0,.38)); }
+.sg-pack-foil::after { content:''; position:absolute; inset:0; mix-blend-mode:overlay; opacity:.3;
+  background:linear-gradient(115deg, rgba(255,90,160,.5), rgba(255,220,90,.4) 22%, rgba(90,255,190,.4) 44%,
+      rgba(90,170,255,.5) 66%, rgba(200,110,255,.45) 88%) 0 0 / 220% 220%;
+  animation:sgFoilDrift 6s ease-in-out infinite alternate; }
+.sg-pack-name { position:absolute; z-index:3; left:8%; right:8%; bottom:calc(var(--crimp-bottom) + 3%); text-align:center;
+  font-family:var(--serif); font-size:11px; font-weight:700; letter-spacing:.04em; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; color:#fff8e2; text-shadow:0 1px 3px #000, 0 0 8px rgba(0,0,0,.9); }
+/* The specular highlight: drifts on its own and follows the finger on drag. */
+.sg-pack-sheen { position:absolute; z-index:3; inset:-20%; pointer-events:none; mix-blend-mode:screen;
+  background:
+    radial-gradient(circle at var(--foil-x) var(--foil-y), rgba(255,255,255,.45), transparent 32%),
+    linear-gradient(105deg, transparent 38%, rgba(255,255,255,.42) 48%, rgba(255,255,255,.08) 54%, transparent 62%) 0 0 / 250% 100%;
   animation:sgFoilSweep 3.6s ease-in-out infinite; }
-@keyframes sgFoilDrift { from { background-position:top, bottom, 0% 0%; } to { background-position:top, bottom, 100% 100%; } }
+@keyframes sgFoilDrift { from { background-position:0% 0%; } to { background-position:100% 100%; } }
 @keyframes sgFoilSweep { 0%,15% { background-position:0 0, 130% 0; } 75%,100% { background-position:0 0, -40% 0; } }
-.sg-pack-seam { position:absolute; top:11.5%; left:0; right:0; height:2px; z-index:2;
-  background:repeating-linear-gradient(90deg, color-mix(in srgb,var(--el,#f2a03d) 70%,white) 0 5px, transparent 5px 9px);
-  filter:drop-shadow(0 0 6px var(--el,#f2a03d)); opacity:.95; }
+.sg-pack-seam { position:absolute; top:10%; left:0; right:0; height:2px; z-index:2;
+  background:repeating-linear-gradient(90deg, rgba(255,255,255,.9) 0 5px, transparent 5px 9px);
+  filter:drop-shadow(0 0 4px rgba(0,0,0,.8)); opacity:.85; }
 .sg-pack-prompt { position:absolute; top:calc(100% + 14px); left:50%; width:max-content; max-width:80vw;
   transform:translateX(-50%); padding:7px 12px; border:1px solid rgba(255,255,255,.2); border-radius:999px;
   background:rgba(12,9,35,.84); color:#f8e8b6; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
@@ -4109,7 +4109,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gacha-pack.is-sealed { animation:none; }
   .sg-gacha-stage.is-ripping .sg-pack-top { transition:none; }
   .sg-gacha-stage.is-rising .sg-flip, .sg-gacha-stage.is-rising .sg-gacha-pack { animation-duration:.01ms; animation-delay:0ms; }
-  .sg-pack-foil, .sg-pack-sheen { animation:none; }
+  .sg-pack-foil::after, .sg-pack-sheen { animation:none; }
   .sg-gacha-stackbar { transition:none; }
   .sg-gacha-stackbar.is-in { opacity:1; transform:none; }
   .sg-flip-sparks i, .sg-flip.is-flaring .sg-flip-front::before { animation:none; display:none; }
