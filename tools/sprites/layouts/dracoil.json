@@ -1,0 +1,148 @@
+{
+ "src": "dracoil-atlas.png",
+ "name": "dracoil",
+ "scale": 1.0,
+ "anchor": "mass",
+ "pockets": true,
+ "erase": [
+  [
+   0,
+   0,
+   186,
+   941
+  ]
+ ],
+ "key": [
+  [
+   0,
+   0,
+   1672,
+   941,
+   22,
+   [
+    80,
+    105,
+    77
+   ]
+  ]
+ ],
+ "poses": [
+  {
+   "pose": "idle",
+   "box": [
+    186,
+    14,
+    1665,
+    169
+   ],
+   "frames": 7,
+   "dropLoose": true,
+   "seeded": true,
+   "dropSlivers": true
+  },
+  {
+   "pose": "walk",
+   "box": [
+    186,
+    179,
+    1665,
+    337
+   ],
+   "frames": 7,
+   "dropLoose": true,
+   "seeded": true,
+   "dropSlivers": true
+  },
+  {
+   "pose": "attack",
+   "box": [
+    186,
+    347,
+    1665,
+    505
+   ],
+   "frames": 7,
+   "dropLoose": false,
+   "seeded": true,
+   "dropSlivers": true,
+   "seeds": [
+    [
+     265,
+     455
+    ],
+    [
+     430,
+     465
+    ],
+    [
+     585,
+     455
+    ],
+    [
+     740,
+     465
+    ],
+    [
+     1090,
+     455
+    ],
+    [
+     1400,
+     470
+    ],
+    [
+     1555,
+     455
+    ]
+   ]
+  },
+  {
+   "pose": "cheer",
+   "box": [
+    186,
+    515,
+    1125,
+    648
+   ],
+   "frames": 5,
+   "dropLoose": false,
+   "seeded": true,
+   "dropSlivers": true
+  },
+  {
+   "pose": "hurt",
+   "box": [
+    186,
+    658,
+    925,
+    791
+   ],
+   "frames": 4,
+   "dropLoose": false,
+   "seeded": true,
+   "dropSlivers": true
+  },
+  {
+   "pose": "fainted",
+   "box": [
+    186,
+    801,
+    1000,
+    927
+   ],
+   "frames": 4,
+   "dropLoose": false,
+   "seeded": true,
+   "dropSlivers": true,
+   "assign": [
+    [
+     970,
+     880,
+     1000,
+     927,
+     3
+    ]
+   ]
+  }
+ ]
+}
