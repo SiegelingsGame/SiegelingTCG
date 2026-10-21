@@ -116,7 +116,11 @@ const PASSES = [
   { name: 'chilldoe', query: '', sheet: 'chilldoe', frames: { idle: 8, fainted: 2 },
     states: [BEFORE, AFTER, WON].map(st => asCard(st, 'chilldoe', 'Chilldoe')) },
   { name: 'frostag', query: '', sheet: 'frostag', frames: { idle: 8, fainted: 2 },
-    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'frostag', 'Frostag')) }
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'frostag', 'Frostag')) },
+  { name: 'draco', query: '', sheet: 'draco', frames: { idle: 8, fainted: 4 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'draco', 'Draco')) },
+  { name: 'dracoil', query: '', sheet: 'dracoil', frames: { idle: 7, fainted: 4 },
+    states: [BEFORE, AFTER, WON].map(st => asCard(st, 'dracoil', 'Dracoil')) }
 ];
 
 function pose(id) {

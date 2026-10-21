@@ -40,14 +40,19 @@
     chilldoe: { dir: '/img/sprites/chilldoe/chilldoe-', w: 302, h: 221, fit: 0.869, base: 0.032,
       frames: { idle: 8, walk: 8, attack: 7, cheer: 3, hurt: 3, fainted: 2 } },
     frostag: { dir: '/img/sprites/frostag/frostag-', w: 366, h: 240, fit: 0.817, base: 0.025,
-      frames: { idle: 8, walk: 8, attack: 7, cheer: 4, hurt: 3, fainted: 2 } }
+      frames: { idle: 8, walk: 8, attack: 7, cheer: 4, hurt: 3, fainted: 2 } },
+    draco: { dir: '/img/sprites/draco/draco-', w: 254, h: 153, fit: 0.843, base: 0.059,
+      frames: { idle: 8, walk: 8, attack: 6, cheer: 5, hurt: 4, fainted: 4 } },
+    dracoil: { dir: '/img/sprites/dracoil/dracoil-', w: 450, h: 159, fit: 0.943, base: 0.025,
+      frames: { idle: 7, walk: 7, attack: 7, cheer: 5, hurt: 4, fainted: 4 } }
   };
   // displayCardId -> ANIM_SPRITES key, for Siegelings whose sheets have shipped.
   var cards = { squirebud: 'squirebud', floraknight: 'floraknight', generoot: 'generoot',
     sundile: 'sundile', raydile: 'raydile', solgator: 'solgator',
     cacty: 'cacty', jackedty: 'jackedty', cactyjackedty: 'cactyjackedty',
     breezee: 'breezee', gagglestand: 'gagglestand', hurricrane: 'hurricrane',
-    fawny: 'fawny', chilldoe: 'chilldoe', frostag: 'frostag' };
+    fawny: 'fawny', chilldoe: 'chilldoe', frostag: 'frostag',
+    draco: 'draco', dracoil: 'dracoil' };
   window.SiegeSprites = {
     sheets: sheets,
     cards: cards,
