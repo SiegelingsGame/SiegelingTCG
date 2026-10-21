@@ -6056,12 +6056,17 @@
     // each pack derives its own parallax offset from the sines in CSS (CSS
     // trig is not something every iOS version this runs on has). A pile of
     // several rests a little turned so it reads as a stack untouched.
+    // The values are written on the pile, not the stage: a custom property
+    // changed on the stage re-resolves style for every card under it on each
+    // pointer move, where on the pile it only touches the packs.
     var PILE_REST = count > 1 ? { y: -16, x: 5 } : { y: 0, x: 0 };
+    var pileEl = stage.querySelector('[data-pack-pile]');
     function setPile(ry, rx) {
-      stage.style.setProperty('--ptilt-y', ry.toFixed(2) + 'deg');
-      stage.style.setProperty('--ptilt-x', rx.toFixed(2) + 'deg');
-      stage.style.setProperty('--pile-sy', Math.sin(ry * Math.PI / 180).toFixed(4));
-      stage.style.setProperty('--pile-sx', Math.sin(rx * Math.PI / 180).toFixed(4));
+      if (!pileEl) return;
+      pileEl.style.setProperty('--ptilt-y', ry.toFixed(2) + 'deg');
+      pileEl.style.setProperty('--ptilt-x', rx.toFixed(2) + 'deg');
+      pileEl.style.setProperty('--pile-sy', Math.sin(ry * Math.PI / 180).toFixed(4));
+      pileEl.style.setProperty('--pile-sx', Math.sin(rx * Math.PI / 180).toFixed(4));
     }
     setPile(PILE_REST.y, PILE_REST.x);
     // When the last pack has landed; a rip before then is held until it has.

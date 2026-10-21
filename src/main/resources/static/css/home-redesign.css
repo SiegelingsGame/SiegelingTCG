@@ -2965,6 +2965,11 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    at full lean the buried cards are wider than the pack and would show past
    its sides before they had come out of it. */
 .sg-gacha-stage:is(.is-pack-ready, .is-rising) .sg-flip { --depth:0 !important; }
+/* A card's tag hangs just below its edge, so while the card is still inside
+   the wrapper the tag poked out beneath it. Tags and finish badges stay hidden
+   until the pile is out, then fade in. */
+.sg-gacha-stage:is(.is-pack-ready, .is-rising) .sg-flip :is(.sg-flip-tag, .sg-flip-finish) { opacity:0; }
+.sg-flip-tag, .sg-flip-finish { transition:opacity .3s ease; }
 .sg-gacha-stage.is-ripping .sg-pack-top { transform:translate3d(78%,-160%,70px) rotate(22deg); opacity:0;
   transition:transform .5s cubic-bezier(.2,.8,.2,1), opacity .5s ease-in .1s; }
 .sg-gacha-stage.is-ripping .sg-pack-seam { opacity:0; transition:opacity .16s; }
