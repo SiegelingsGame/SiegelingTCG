@@ -5857,6 +5857,18 @@
 
   var PACK_WRAPPER_ART = '/img/packs/siegeling-back.webp';
 
+  // A ×10 pull is ten packs, so the front pack sits on a loose pile of nine
+  // more. The ones behind are pure dressing - one pack takes the gesture and
+  // every pack in the pile tears with it.
+  function ghostPack(pk, i) {
+    var art = esc(PACK_WRAPPER_ART);
+    return '<span class="sg-gacha-pack is-ghost" aria-hidden="true" style="--pack-i:' + i +
+      ';--pack-side:' + (i % 2 ? 1 : -1) + '">' +
+      '<span class="sg-pack-body">' + packSkin(pk, art) + '</span>' +
+      '<span class="sg-pack-top">' + packSkin(pk, art) + '</span>' +
+    '</span>';
+  }
+
   function packShell(pk, state) {
     var art = esc(PACK_WRAPPER_ART);
     return '<button class="sg-gacha-pack ' + (state || '') + '" type="button" data-rip-pack ' +
@@ -6039,18 +6051,25 @@
       kicker.textContent = 'Pack ready';
       note.textContent = 'Drag across the seal to rip the pack open';
 
-      // Best first: the stack is dealt best-on-top, so the pull's headline card
-      // is the first one the player sees. A finish outranks rarity - a GSP
-      // Common is the story of the pull, not the plain Legendary beside it.
+      // Best last, the way a real pack is sorted: commons on top, rarer cards
+      // toward the back, and every special finish (holo up to GSP) behind all
+      // the plain cards, so the pull builds to its headline card. A finish
+      // outranks rarity - a GSP Common is the story of the pull, not the plain
+      // Legendary beside it. A `holo` flag without a finish still counts as Holo.
+      function finishRank(card) {
+        return Math.max(finishIndex(card.finish), card.holo ? finishIndex('HOLO') : 0);
+      }
       var order = cards.map(function (c, i) { return i; }).sort(function (a, b) {
-        return (finishIndex(cards[b].finish) - finishIndex(cards[a].finish)) ||
-          (rarityRank(cards[b]) - rarityRank(cards[a])) || (a - b);
+        return (finishRank(cards[a]) - finishRank(cards[b])) ||
+          (rarityRank(cards[a]) - rarityRank(cards[b])) || (a - b);
       });
       // Even a single card is dealt as a one-card stack: the cards rise out of
       // the pack into the pile, and swiping past the last card fans the pull out.
       var stackMode = true;
       stage.className = 'sg-gacha-stage is-stack is-pack-ready';
-      stage.innerHTML = packShell(pk, '') + order.map(function (idx, pos) {
+      var piles = '';
+      for (var g = Math.min(count, 10) - 1; g >= 1; g--) piles += ghostPack(pk, g);
+      stage.innerHTML = piles + packShell(pk, '') + order.map(function (idx, pos) {
         return gachaSlot(cards[idx], back, idx, pos);
       }).join('');
 
@@ -6227,6 +6246,17 @@
           tearing = true;
           pack.disabled = true;
           stage.classList.add('is-ripping');
+          // The rip lands with a jolt: the whole overlay shakes, harder and
+          // longer when a pile of packs tears at once.
+          if (!reducedMotion()) {
+            gacha.classList.remove('is-shaking', 'is-shaking-big');
+            void gacha.offsetWidth;
+            gacha.classList.add(count > 1 ? 'is-shaking-big' : 'is-shaking');
+            setTimeout(function () { gacha.classList.remove('is-shaking', 'is-shaking-big'); }, 700);
+            if (navigator.vibrate) {
+              try { navigator.vibrate(count > 1 ? [40, 30, 60] : [26]); } catch (err) { /* optional */ }
+            }
+          }
           kicker.textContent = 'Seal broken';
           note.textContent = 'Your cards are rising out…';
           // The strip flies off first; then the pile climbs out of the open
@@ -6238,7 +6268,7 @@
             stage.classList.remove('is-pack-ready');
             stage.classList.add('is-rising');
             window.setTimeout(function () {
-              if (pack.parentNode) pack.remove();
+              [].slice.call(stage.querySelectorAll('.sg-gacha-pack')).forEach(function (el) { el.remove(); });
               stage.classList.remove('is-rising', 'is-ripping');
               stackLocked = false;
               layoutStack();
