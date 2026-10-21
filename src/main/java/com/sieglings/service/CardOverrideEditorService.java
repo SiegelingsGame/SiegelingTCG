@@ -284,7 +284,7 @@ public class CardOverrideEditorService {
 
     private List<Map<String, Object>> buildEffectTypes() {
         return List.of(
-                effect(AbilityEffectKeys.DAMAGE, "Damage", "Deals damage to the resolved target or targets.", List.of("SINGLE_ENEMY", "ROW_ENEMIES", "ROW_SELECT_ENEMIES", "ALL_ENEMIES", "ENEMY_PLAYER")),
+                effect(AbilityEffectKeys.DAMAGE, "Damage", "Deals damage to the resolved target or targets.", List.of("SINGLE_ENEMY", "RANDOM_ENEMY", "ROW_ENEMIES", "SPREAD_ROW", "SPREAD_ALL", "ROW_SELECT_ENEMIES", "ALL_ENEMIES", "ENEMY_PLAYER")),
                 effect(AbilityEffectKeys.CHAIN_DAMAGE, "Chain Damage", "Damages the picked target and every Siegling directly linked to it by an active notch link.", List.of("SINGLE_ENEMY", "ROW_SELECT_ENEMIES", "ALL_ENEMIES")),
                 effect(AbilityEffectKeys.PLAYER_DAMAGE, "Player Damage", "Deals direct damage to the opposing player.", List.of("ENEMY_PLAYER")),
                 effect(AbilityEffectKeys.DRAW, "Draw", "Draws cards from the user's deck equal to the effect value.", List.of("SELF")),
@@ -320,8 +320,11 @@ public class CardOverrideEditorService {
     private Map<String, Object> buildTargetRules() {
         Map<String, Object> rules = new LinkedHashMap<>();
         rules.put(TargetType.SINGLE_ENEMY.name(), targetRule(false, 1, "Pick one enemy."));
+        rules.put(TargetType.RANDOM_ENEMY.name(), targetRule(false, 0, "Randomly picks one enemy."));
         rules.put(TargetType.ALL_ENEMIES.name(), targetRule(false, 0, "Hits every enemy, so no extra target fields are needed."));
         rules.put(TargetType.ROW_ENEMIES.name(), targetRule(true, 0, "Choose which enemy row the ability hits."));
+        rules.put(TargetType.SPREAD_ROW.name(), targetRule(true, 0, "Divides the total damage randomly among enemies in this row."));
+        rules.put(TargetType.SPREAD_ALL.name(), targetRule(false, 0, "Divides the total damage randomly among all enemies."));
         rules.put(TargetType.SINGLE_ALLY.name(), targetRule(false, 1, "Pick one ally."));
         rules.put(TargetType.ALL_ALLIES.name(), targetRule(false, 0, "Affects every ally, so no target count is needed."));
         rules.put(TargetType.ROW_ALLIES.name(), targetRule(true, 0, "Choose which allied row the ability affects."));
@@ -626,8 +629,8 @@ public class CardOverrideEditorService {
     private TargetRule getTargetRule(TargetType targetType) {
         return switch (targetType) {
             case SINGLE_ENEMY -> new TargetRule(false, 1);
-            case ALL_ENEMIES, ENEMY_PLAYER, SELF, PASSIVE, ALL_ALLIES -> new TargetRule(false, 0);
-            case ROW_ENEMIES, ROW_ALLIES -> new TargetRule(true, 0);
+            case ALL_ENEMIES, SPREAD_ALL, RANDOM_ENEMY, ENEMY_PLAYER, SELF, PASSIVE, ALL_ALLIES -> new TargetRule(false, 0);
+            case ROW_ENEMIES, SPREAD_ROW, ROW_ALLIES -> new TargetRule(true, 0);
             case ROW_SELECT_ENEMIES, ROW_SELECT_ALLIES -> new TargetRule(false, 0);
             case SINGLE_ALLY -> new TargetRule(false, 1);
         };

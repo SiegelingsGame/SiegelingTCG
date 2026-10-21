@@ -874,7 +874,8 @@ public class SiegeContentService {
     TargetKind targetFor(TargetType t, Effect effect, String effectType) {
         TargetKind base = switch (t) {
             case SINGLE_ENEMY -> TargetKind.ENEMY_SINGLE;
-            case ALL_ENEMIES, ROW_ENEMIES, ROW_SELECT_ENEMIES, ENEMY_PLAYER -> TargetKind.ALL_ENEMIES;
+            case RANDOM_ENEMY -> TargetKind.ENEMY_SINGLE;
+            case ALL_ENEMIES, ROW_ENEMIES, SPREAD_ROW, SPREAD_ALL, ROW_SELECT_ENEMIES, ENEMY_PLAYER -> TargetKind.ALL_ENEMIES;
             case SINGLE_ALLY -> TargetKind.ALLY_SINGLE;
             case ALL_ALLIES, ROW_ALLIES, ROW_SELECT_ALLIES -> TargetKind.ALLY_ALL;
             case SELF, PASSIVE -> TargetKind.SELF;

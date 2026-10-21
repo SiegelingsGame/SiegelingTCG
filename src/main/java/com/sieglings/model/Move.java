@@ -23,9 +23,22 @@ public record Move(
         String description,
         boolean isPassive,
         Element requiredElement,
-        Reaction requiredReaction
+        Reaction requiredReaction,
+        String effectValueMode,
+        Integer effectValueMax
 ) {
+    public Move(String id, String name, Element element, MoveCategory category, TargetType targetType,
+                Element targetElement, Row targetRow, int targetCount, String effectType, int effectValue,
+                int energyCost, String description, boolean isPassive, Element requiredElement,
+                Reaction requiredReaction) {
+        this(id, name, element, category, targetType, targetElement, targetRow, targetCount,
+                effectType, effectValue, energyCost, description, isPassive, requiredElement,
+                requiredReaction, "FIXED", effectValue);
+    }
+
     public Move {
+        if (effectValueMode == null || effectValueMode.isBlank()) effectValueMode = "FIXED";
+        if (effectValueMax == null) effectValueMax = effectValue;
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("Move id is required.");
         }
@@ -60,6 +73,8 @@ public record Move(
                 effectValue,
                 isPassive || targetType == TargetType.PASSIVE
         );
+        ability.setEffectValueMode(effectValueMode);
+        ability.setEffectValueMax(effectValueMax == null ? effectValue : effectValueMax);
         if (targetElement != null) {
             ability.setTargetElement(targetElement);
         }

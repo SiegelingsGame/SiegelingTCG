@@ -300,6 +300,8 @@
                             <label id="moveDraftTargetRowWrap"><span>Target row</span><select id="moveDraftTargetRowSelect"></select></label>
                             <label><span>Effect</span><select id="moveDraftEffectSelect"></select></label>
                             <label><span>Effect value</span><input type="number" id="moveDraftEffectValueInput" step="1"></label>
+                            <label><span>Damage value</span><select id="moveDraftEffectValueModeSelect"><option value="FIXED">Fixed</option><option value="SCALE">Scale</option></select></label>
+                            <label id="moveDraftEffectValueMaxWrap"><span>Scale maximum</span><input type="number" id="moveDraftEffectValueMaxInput" step="1"></label>
                             <label><span>Energy cost</span><input type="number" id="moveDraftEnergyInput" min="0" step="1"></label>
                             <label class="full-width"><span>Description</span><textarea id="moveDraftDescInput" rows="2"></textarea></label>
                             <label><span>Passive</span><select id="moveDraftPassiveSelect"><option value="false">No</option><option value="true">Yes</option></select></label>
@@ -356,6 +358,14 @@
                                 <label>
                                     <span>Effect Value</span>
                                     <input id="abilityEffectValueInput" type="number" step="1">
+                                </label>
+                                <label>
+                                    <span>Damage value</span>
+                                    <select id="abilityEffectValueModeSelect"><option value="FIXED">Fixed</option><option value="SCALE">Scale</option></select>
+                                </label>
+                                <label id="abilityEffectValueMaxWrap">
+                                    <span>Scale maximum</span>
+                                    <input id="abilityEffectValueMaxInput" type="number" step="1">
                                 </label>
                                 <label id="abilityRequiredElementField">
                                     <span>Required Element</span>
@@ -789,6 +799,8 @@
                             <span>Effect Value</span>
                             <input id="trainerPassiveEffectValueInput" type="number" step="1">
                         </label>
+                        <label><span>Damage value</span><select id="trainerPassiveEffectValueModeSelect"><option value="FIXED">Fixed</option><option value="SCALE">Scale</option></select></label>
+                        <label id="trainerPassiveEffectValueMaxWrap"><span>Scale maximum</span><input id="trainerPassiveEffectValueMaxInput" type="number" step="1"></label>
                         <label>
                             <span>Required Element</span>
                             <select id="trainerPassiveRequiredElementSelect"></select>
@@ -833,6 +845,8 @@
                             <span>Effect Value</span>
                             <input id="trainerActiveEffectValueInput" type="number" step="1">
                         </label>
+                        <label><span>Damage value</span><select id="trainerActiveEffectValueModeSelect"><option value="FIXED">Fixed</option><option value="SCALE">Scale</option></select></label>
+                        <label id="trainerActiveEffectValueMaxWrap"><span>Scale maximum</span><input id="trainerActiveEffectValueMaxInput" type="number" step="1"></label>
                         <label>
                             <span>Required Element</span>
                             <select id="trainerActiveRequiredElementSelect"></select>
@@ -1301,10 +1315,10 @@
      renderer). The dashboard preview falls back to the old icon shell without it.
      Loaded at body-end (document.body exists) so its layout init can't throw, and
      before card-binder-visual.js so the showcase is registered first. -->
-<script src="/js/game.js?v=334"></script>
+<script src="/js/game.js?v=335"></script>
 <script src="/js/card-binder-visual.js?v=35"></script>
 <script src="/js/dashboard-info.js?v=15"></script>
-<script src="/js/card-dashboard.js?v=72"></script>
+<script src="/js/card-dashboard.js?v=73"></script>
 <script src="/js/loading-art-admin.js?v=7"></script>
 <script src="/js/siege-class-admin.js?v=3"></script>
 <script src="/js/siege-item-admin.js?v=2"></script>

@@ -1,0 +1,386 @@
+{
+  "id": "psychic-kit-2026-10",
+  "description": "Psychic move pool and assignments for live Psychic Sieglings. Common, uncommon, and rare+ cards receive 3, 4, and 5 moves respectively; evolution lines retain inherited moves.",
+  "moves": [
+    {
+      "id": "psychic-spark",
+      "name": "Psychic Spark",
+      "element": "PSYCHIC",
+      "category": "STANDARD",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "damage",
+      "effectValue": 2,
+      "energyCost": 0,
+      "description": "Deal 2 damage to 1 enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "psionic-needle",
+      "name": "Psionic Needle",
+      "element": "PSYCHIC",
+      "category": "STANDARD",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "damage",
+      "effectValue": 3,
+      "energyCost": 0,
+      "description": "Deal 3 damage to 1 enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "mind-lance",
+      "name": "Mind Lance",
+      "element": "PSYCHIC",
+      "category": "STANDARD",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "damage",
+      "effectValue": 4,
+      "energyCost": 1,
+      "description": "Deal 4 damage to 1 enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "astral-bolt",
+      "name": "Astral Bolt",
+      "element": "PSYCHIC",
+      "category": "STANDARD",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "damage",
+      "effectValue": 6,
+      "energyCost": 2,
+      "description": "Deal 6 damage to 1 enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "synaptic-surge",
+      "name": "Synaptic Surge",
+      "element": "PSYCHIC",
+      "category": "SPECIALITY",
+      "targetType": "RANDOM_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "damage",
+      "effectValue": 2,
+      "energyCost": 2,
+      "description": "Deal 2\u20135 damage to a random enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null,
+      "effectValueMode": "SCALE",
+      "effectValueMax": 5
+    },
+    {
+      "id": "mindstorm",
+      "name": "Mindstorm",
+      "element": "PSYCHIC",
+      "category": "SPECIALITY",
+      "targetType": "ALL_ENEMIES",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "damage",
+      "effectValue": 2,
+      "energyCost": 3,
+      "description": "Deal 2 damage to all enemies.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "psychic-wave",
+      "name": "Psychic Wave",
+      "element": "PSYCHIC",
+      "category": "SPECIALITY",
+      "targetType": "SPREAD_ROW",
+      "targetElement": null,
+      "targetRow": "FRONT",
+      "targetCount": 0,
+      "effectType": "damage",
+      "effectValue": 8,
+      "energyCost": 3,
+      "description": "Split 8 total damage randomly among enemies in the Front row.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "cosmic-scatter",
+      "name": "Cosmic Scatter",
+      "element": "PSYCHIC",
+      "category": "SPECIALITY",
+      "targetType": "SPREAD_ALL",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "damage",
+      "effectValue": 10,
+      "energyCost": 4,
+      "description": "Split 10 total damage randomly among all enemies.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "dream-mend",
+      "name": "Dream Mend",
+      "element": "PSYCHIC",
+      "category": "UTILITY",
+      "targetType": "SINGLE_ALLY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "heal",
+      "effectValue": 2,
+      "energyCost": 0,
+      "description": "Heal 1 ally for 2 HP.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "mental-recovery",
+      "name": "Mental Recovery",
+      "element": "PSYCHIC",
+      "category": "UTILITY",
+      "targetType": "SINGLE_ALLY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "heal",
+      "effectValue": 4,
+      "energyCost": 2,
+      "description": "Heal 1 ally for 4 HP.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "mind-bloom",
+      "name": "Mind Bloom",
+      "element": "PSYCHIC",
+      "category": "UTILITY",
+      "targetType": "ALL_ALLIES",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "heal",
+      "effectValue": 2,
+      "energyCost": 3,
+      "description": "Heal all allies for 2 HP.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "mind-guard",
+      "name": "Mind Guard",
+      "element": "PSYCHIC",
+      "category": "UTILITY",
+      "targetType": "SINGLE_ALLY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "shield",
+      "effectValue": 2,
+      "energyCost": 0,
+      "description": "Grant 2 shield to 1 ally.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "thought-barrier",
+      "name": "Thought Barrier",
+      "element": "PSYCHIC",
+      "category": "UTILITY",
+      "targetType": "SINGLE_ALLY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "shield",
+      "effectValue": 4,
+      "energyCost": 2,
+      "description": "Grant 4 shield to 1 ally.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "telekinetic-ward",
+      "name": "Telekinetic Ward",
+      "element": "PSYCHIC",
+      "category": "UTILITY",
+      "targetType": "SINGLE_ALLY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "shield",
+      "effectValue": 5,
+      "energyCost": 2,
+      "description": "Grant 5 shield to 1 ally.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "cerebral-aegis",
+      "name": "Cerebral Aegis",
+      "element": "PSYCHIC",
+      "category": "UTILITY",
+      "targetType": "ALL_ALLIES",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "shield",
+      "effectValue": 2,
+      "energyCost": 3,
+      "description": "Grant 2 shield to all allies.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "gos-astral-cataclysm",
+      "name": "Astral Cataclysm",
+      "element": "PSYCHIC",
+      "category": "SPECIALITY",
+      "targetType": "SPREAD_ALL",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "damage",
+      "effectValue": 20,
+      "energyCost": 5,
+      "description": "Split 20 total damage randomly among all enemies.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    }
+  ],
+  "cards": [],
+  "cardPatches": [
+    {
+      "id": "luvy",
+      "moveIds": [
+        "psychic-spark",
+        "psionic-needle",
+        "dream-mend"
+      ]
+    },
+    {
+      "id": "luvysore",
+      "moveIds": [
+        "psychic-spark",
+        "psionic-needle",
+        "dream-mend",
+        "synaptic-surge"
+      ]
+    },
+    {
+      "id": "luvyduvysore",
+      "moveIds": [
+        "psychic-spark",
+        "psionic-needle",
+        "dream-mend",
+        "synaptic-surge",
+        "thought-barrier"
+      ]
+    },
+    {
+      "id": "mentaroo",
+      "moveIds": [
+        "psychic-spark",
+        "mind-guard",
+        "dream-mend"
+      ]
+    },
+    {
+      "id": "mentarak",
+      "moveIds": [
+        "psychic-spark",
+        "mind-guard",
+        "dream-mend",
+        "astral-bolt",
+        "psychic-wave"
+      ]
+    },
+    {
+      "id": "papapa",
+      "moveIds": [
+        "psionic-needle",
+        "mind-lance",
+        "mind-guard"
+      ]
+    },
+    {
+      "id": "thinky",
+      "moveIds": [
+        "psychic-spark",
+        "mind-lance",
+        "synaptic-surge",
+        "dream-mend",
+        "psychic-wave"
+      ]
+    },
+    {
+      "id": "prantis",
+      "moveIds": [
+        "psionic-needle",
+        "astral-bolt",
+        "synaptic-surge",
+        "telekinetic-ward",
+        "cosmic-scatter"
+      ]
+    },
+    {
+      "id": "golork",
+      "moveIds": [
+        "psychic-spark",
+        "mind-lance",
+        "psychic-wave",
+        "mental-recovery",
+        "cerebral-aegis"
+      ]
+    },
+    {
+      "id": "sheenx",
+      "moveIds": [
+        "psionic-needle",
+        "astral-bolt",
+        "psychic-wave",
+        "telekinetic-ward",
+        "mental-recovery"
+      ]
+    },
+    {
+      "id": "gos",
+      "moveIds": [
+        "astral-bolt",
+        "synaptic-surge",
+        "psychic-wave",
+        "mind-bloom",
+        "gos-astral-cataclysm"
+      ]
+    }
+  ]
+}

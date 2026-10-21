@@ -475,6 +475,8 @@ final class ManualSieglingCatalog {
         if (definition.effectValue() != null) {
             ability.setEffectValue(definition.effectValue());
         }
+        if (definition.effectValueMode() != null) ability.setEffectValueMode(definition.effectValueMode());
+        if (definition.effectValueMax() != null) ability.setEffectValueMax(definition.effectValueMax());
         if (definition.passive() != null) {
             ability.setPassive(definition.passive());
         }
@@ -879,6 +881,8 @@ final class ManualSieglingCatalog {
                 ability.getTargetCount(),
                 ability.getEffectType(),
                 ability.getEffectValue(),
+                ability.getEffectValueMode(),
+                ability.getEffectValueMax(),
                 ability.isPassive(),
                 ability.getRequiredElement(),
                 ability.getRequiredEnergy(),
@@ -1015,9 +1019,19 @@ final class ManualSieglingCatalog {
             Integer targetCount,
             String effectType,
             Integer effectValue,
+            String effectValueMode,
+            Integer effectValueMax,
             Boolean passive,
             Element requiredElement,
             Integer requiredEnergy,
             Reaction requiredReaction
-    ) {}
+    ) {
+        ManualAbilityDefinition(String name, String description, TargetType targetType, Element targetElement,
+                                Row targetRow, Integer targetCount, String effectType, Integer effectValue,
+                                Boolean passive, Element requiredElement, Integer requiredEnergy,
+                                Reaction requiredReaction) {
+            this(name, description, targetType, targetElement, targetRow, targetCount, effectType,
+                    effectValue, "FIXED", effectValue, passive, requiredElement, requiredEnergy, requiredReaction);
+        }
+    }
 }
