@@ -1,3 +1,5 @@
+- October 21, 2026 Lighter ×10 pile / iOS-safe 3D / pulled-out rise / square rest release verification: PR #1168 merged as `36212657`; Deploy workflow `39677869774` completed successfully. Live `/shop` serves `home-redesign.css?v=140` and `home-redesign.js?v=133`; the live bundles carry `setPile`, the `pack-wrapper-720` art path, `draggable="false"`, `--pile-sy`, the transform-based `sgFoilSweep` and `-webkit-user-drag`. `/img/packs/pack-wrapper-720.webp` returns 200 (264,068 bytes). Hosting and Cloud Run `/api/cards/editor` remain `FIRESTORE`-backed with editing enabled and Firestore available; `/api/game/options` returns 7 decks; `config.js` keeps `apiBaseUrl: ''`.
+
 Original prompt: The pack movement and rotation is working by default it should sit stacked only rotating when turned
 
 - October 21, 2026 **Sealed pile rests square; it only turns while the player turns it.**
