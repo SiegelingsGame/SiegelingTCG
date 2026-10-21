@@ -5950,8 +5950,18 @@
     }
     layer.innerHTML = html;
     btn.appendChild(layer);
-    setTimeout(function () { layer.remove(); }, 1400);
+    // Swiping fast through a big pull fired a fresh 40-speck layer per card
+    // before the last ones had faded; iOS Safari ran out of compositor memory
+    // and killed the tab. Only the newest few layers are kept alive.
+    LIVE_SPARKS.push(layer);
+    while (LIVE_SPARKS.length > 3) LIVE_SPARKS.shift().remove();
+    setTimeout(function () {
+      layer.remove();
+      var at = LIVE_SPARKS.indexOf(layer);
+      if (at >= 0) LIVE_SPARKS.splice(at, 1);
+    }, 1400);
   }
+  var LIVE_SPARKS = [];
 
   // Rare and up get a light sweep across the face on top of the sparks.
   function gachaFlourish(btn, card) {
@@ -5968,9 +5978,17 @@
   /* A pulled finish gets its moment. HSP throws a rainbow burst; GOLD and GSP
      are rare enough to be an event - the gold screen glow, a gold burst and the
      unlock chime, twice over for GSP. The flip is a tap, so audio may start. */
+  // The full-screen bursts are the heaviest effect on the page, and the best
+  // cards now sit together at the back of the pile, so a fast swipe through
+  // them used to stack several bursts and screen glows at once. One runs at a
+  // time; a card swiped past mid-burst still gets its sparks and badge.
+  var lastFinishFx = 0;
   function finishFlourish(btn, finish) {
     var rank = finishIndex(finish);
     if (rank < finishIndex('HSP') || reducedMotion()) return;
+    var now = Date.now();
+    if (now - lastFinishFx < 1100) return;
+    lastFinishFx = now;
     var gold = rank >= finishIndex('GOLD');
     function burst(delay) {
       var box = btn.getBoundingClientRect();
@@ -6225,6 +6243,12 @@
           btn.classList.toggle('is-stack-out', depth < 0);
           btn.classList.toggle('is-stack-top', depth === 0);
           btn.classList.toggle('is-stack-buried', depth > 5);
+          // Cards more than one swipe gone, or too deep to see, leave the
+          // render tree entirely. Each face-up card is a 3D compositing layer,
+          // and fifty of them (a ×10 pull) held at opacity 0 exhausted iOS
+          // Safari's GPU memory - the freeze on the sealed pile and the crash
+          // on a fast swipe.
+          btn.classList.toggle('is-stack-gone', depth < -1 || depth > 5);
           btn.style.setProperty('--depth', String(Math.max(0, Math.min(depth, 5))));
           btn.style.zIndex = String(Math.max(1, 200 - pos));
           btn.tabIndex = depth === 0 ? 0 : -1;
@@ -6241,6 +6265,30 @@
         var pack = stage.querySelector('[data-rip-pack]');
         if (!pack) return;
         var startX = 0, startY = 0, dragged = false, tearing = false, suppressClick = false;
+        // The sealed pile is a 3D object: moving a finger (or the mouse) over it
+        // swings every pack together, and because each pack sits at its own
+        // depth the swing parallaxes them apart so the whole stack shows.
+        function tiltPile(e) {
+          if (tearing) return;
+          var box = pack.getBoundingClientRect();
+          if (!box.width) return;
+          var nx = Math.max(-1, Math.min(1, (e.clientX - (box.left + box.width / 2)) / (box.width / 2)));
+          var ny = Math.max(-1, Math.min(1, (e.clientY - (box.top + box.height / 2)) / (box.height / 2)));
+          stage.classList.add('is-tilting');
+          stage.style.setProperty('--ptilt-y', (nx * 18).toFixed(2) + 'deg');
+          stage.style.setProperty('--ptilt-x', (-ny * 12).toFixed(2) + 'deg');
+        }
+        function settlePile() {
+          if (tearing) return;
+          stage.classList.remove('is-tilting');
+          stage.style.removeProperty('--ptilt-y');
+          stage.style.removeProperty('--ptilt-x');
+        }
+        stage.addEventListener('pointermove', function (e) {
+          if (stage.classList.contains('is-pack-ready')) tiltPile(e);
+        });
+        stage.addEventListener('pointerleave', settlePile);
+        pack.addEventListener('pointercancel', settlePile);
         function tear() {
           if (tearing) return;
           tearing = true;
@@ -6319,6 +6367,7 @@
             e.preventDefault();
             tear();
           } else {
+            settlePile();
             pack.style.removeProperty('--rip-x');
             pack.style.removeProperty('--rip-y');
             pack.style.removeProperty('--rip-angle');
@@ -6341,6 +6390,7 @@
 
       function toGrid() {
         stackMode = false;
+        slots.forEach(function (btn) { btn.classList.remove('is-stack-gone'); });
         stage.className = 'sg-gacha-stage is-grid' + (slots.length > 5 ? ' is-bulk' : '');
         if (stackBar) stackBar.hidden = true;
         all.hidden = true;
@@ -6362,9 +6412,15 @@
           .forEach(function (btn, i) { setTimeout(function () { announce(btn); }, 120 + i * 150); });
       }
 
+      // A swipe faster than the exit transition is still honoured, but a burst
+      // of taps landing inside one frame budget is read as one advance.
+      var lastAdvance = 0;
       function advanceStack(dir) {
         var top = stackBtn(stackPos);
         if (!top) return;
+        var now = Date.now();
+        if (now - lastAdvance < 140) return;
+        lastAdvance = now;
         // A duplicate is mid-crumble for about a second; let it finish paying
         // out before its slot is swept off the top of the pile.
         if (top.classList.contains('is-dissolving')) return;

@@ -2851,7 +2851,14 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-gacha-pack { position:absolute; z-index:300; left:50%; top:50%;
   width:min(68%, 262px, calc(min(58dvh, 460px) * .56)); aspect-ratio:1 / 1.78;
   padding:0; border:0; overflow:visible; background:transparent; color:inherit; cursor:grab;
-  transform:translate(-50%,-50%); touch-action:none; filter:drop-shadow(0 22px 18px rgba(0,0,0,.5));
+  /* --ptilt-* swings the whole sealed pile; --pack-z sets each pack at its
+     own depth (scaled back up so perspective does not shrink it), which is
+     what makes the tilt parallax the stack apart. */
+  --pack-z:0px; --pack-zs:1;
+  transform:translate(-50%,-50%) rotateY(var(--ptilt-y,0deg)) rotateX(var(--ptilt-x,0deg))
+    translateZ(var(--pack-z)) scale(var(--pack-zs));
+  transition:transform .35s cubic-bezier(.2,.8,.2,1);
+  touch-action:none; filter:drop-shadow(0 22px 18px rgba(0,0,0,.5));
   --foil-x:30%; --foil-y:20%; --crimp-top:8%; --crimp-bottom:7%; }
 .sg-gacha-pack.is-sealed { animation:sgPackBreathe 1.8s ease-in-out infinite; }
 .sg-gacha-pack.is-loading .sg-pack-prompt { display:none; }
@@ -2920,10 +2927,14 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    stack's own depth-and-tilt transform instead of replacing it. */
 .sg-gacha-stage.is-rising .sg-flip { pointer-events:none;
   animation:sgCardRise .78s cubic-bezier(.2,.75,.25,1) both; animation-delay:var(--deal-delay,0ms); }
+/* While a finger is on the pile it follows without easing lag. */
+.sg-gacha-stage.is-tilting .sg-gacha-pack { transition:none; }
+/* The drop keeps the pile's tilt and depth, so ripping a tilted pile does not
+   snap it flat first. */
 @keyframes sgPackDrop {
-  0%   { transform:translate(-50%,-50%); opacity:1; }
-  70%  { transform:translate(-50%,16%); opacity:1; }
-  100% { transform:translate(-50%,42%); opacity:0; }
+  0%   { transform:translate(-50%,-50%) rotateY(var(--ptilt-y,0deg)) rotateX(var(--ptilt-x,0deg)) translateZ(var(--pack-z)) scale(var(--pack-zs)); opacity:1; }
+  70%  { transform:translate(-50%,16%) rotateY(var(--ptilt-y,0deg)) rotateX(var(--ptilt-x,0deg)) translateZ(var(--pack-z)) scale(var(--pack-zs)); opacity:1; }
+  100% { transform:translate(-50%,42%) rotateY(var(--ptilt-y,0deg)) rotateX(var(--ptilt-x,0deg)) translateZ(var(--pack-z)) scale(var(--pack-zs)); opacity:0; }
 }
 @keyframes sgCardRise {
   from { translate:0 22%; scale:.84; }
@@ -2936,10 +2947,17 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    the pile reads as ten packs ripping at once rather than one tween. Their
    foil stops animating, since only their edges show behind the front pack. */
 .sg-gacha-pack.is-ghost { z-index:calc(300 - var(--pack-i, 1)); pointer-events:none; cursor:default;
-  translate:calc(var(--pack-side, 1) * var(--pack-i, 1) * 1.6px) calc(var(--pack-i, 1) * -2.6px);
-  rotate:calc(var(--pack-side, 1) * var(--pack-i, 1) * .42deg);
-  filter:brightness(calc(1 - var(--pack-i, 1) * .05)) drop-shadow(0 10px 12px rgba(0,0,0,.45)); }
-.sg-gacha-pack.is-ghost .sg-pack-sheen, .sg-gacha-pack.is-ghost .sg-pack-foil::after { animation:none; }
+  --pack-z:calc(var(--pack-i, 1) * -16px); --pack-zs:calc(1 + var(--pack-i, 1) * .0114);
+  translate:calc(var(--pack-side, 1) * var(--pack-i, 1) * 1.2px) calc(var(--pack-i, 1) * -2.6px);
+  rotate:calc(var(--pack-side, 1) * var(--pack-i, 1) * .35deg);
+  /* No filter: a filter forces every pack into its own offscreen buffer, and
+     nine of them plus the cards was enough to stall iOS. Depth is shaded with
+     a plain overlay instead. */
+  filter:none; }
+.sg-gacha-pack.is-ghost::after { content:''; position:absolute; inset:0; z-index:5; pointer-events:none;
+  background:rgba(4,3,14,calc(var(--pack-i, 1) * .045)); border-radius:3px; }
+.sg-gacha-pack.is-ghost .sg-pack-sheen, .sg-gacha-pack.is-ghost .sg-pack-name { display:none; }
+.sg-gacha-pack.is-ghost .sg-pack-foil::after { display:none; }
 .sg-gacha-stage.is-ripping .sg-gacha-pack.is-ghost .sg-pack-top { transition-delay:calc(var(--pack-i, 1) * 22ms); }
 .sg-gacha-stage.is-rising .sg-gacha-pack.is-ghost { animation-delay:calc(var(--pack-i, 1) * 28ms); }
 /* The jolt of the rip. `translate`, not `transform`, so nothing the overlay
@@ -4089,6 +4107,22 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   filter:brightness(calc(1 - var(--depth,0) * .11)) saturate(calc(1 - var(--depth,0) * .08));
 }
 .sg-gacha-stage.is-stack .sg-flip.is-stack-buried { opacity:0; }
+.sg-gacha-stage.is-stack .sg-flip.is-stack-gone { display:none; }
+/* The fanned-out pull is read flat: a face-up grid card needs no 3D, and fifty
+   preserve-3d cards (a ×10 pull) were fifty more compositing layers. */
+.sg-gacha-stage.is-grid .sg-flip { perspective:none; transform-style:flat; }
+.sg-gacha-stage.is-grid .sg-flip-inner,
+.sg-gacha-stage.is-grid .sg-flip.is-open .sg-flip-inner { transform:none; transform-style:flat; will-change:auto; }
+.sg-gacha-stage.is-grid .sg-flip-back { display:none; }
+.sg-gacha-stage.is-grid .sg-flip-front { transform:none; backface-visibility:visible; -webkit-backface-visibility:visible; transform-style:flat; }
+/* Duplicates crumble in the grid, so the crumble there is the flat version of
+   sgCrumble - the stock one turns the card 180deg to keep a flipped face up. */
+.sg-gacha-stage.is-grid .sg-flip.is-dissolving .sg-flip-inner { animation-name:sgCrumbleFlat; }
+@keyframes sgCrumbleFlat {
+  0%   { opacity:1; transform:scale(1); filter:blur(0); }
+  55%  { opacity:.66; transform:rotate(-3deg) scale(.94); filter:blur(1.5px); }
+  100% { opacity:0; transform:rotate(-6deg) scale(.7); filter:blur(7px); }
+}
 /* Every card is face up, so only the top one wears its tag and finish badge;
    on the cards beneath they would just be clutter along the pile's edge. */
 .sg-gacha-stage.is-stack .sg-flip:not(.is-stack-top) :is(.sg-flip-tag, .sg-flip-finish) { opacity:0; }
