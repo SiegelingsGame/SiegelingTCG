@@ -290,20 +290,13 @@ public class GameService {
         player.setLoadoutLabel(playerSide.label());
         enemy.setLoadoutLabel(enemySide.label());
         player.shuffleDeck();
-        enemy.shuffleDeck();
         biasOpeningDraw(player);
-        biasOpeningDraw(enemy);
         state.setPlayer(player);
         state.setEnemy(enemy);
 
-        for (GauntletPlacement placement : enemySide.board() == null ? List.<GauntletPlacement>of() : enemySide.board()) {
-            if (placement == null || placement.card() == null || state.getAt(false, placement.row(), placement.col()) != null) {
-                continue;
-            }
-            CardInstance placed = new CardInstance(placement.card(), placement.row(), placement.col(), false);
-            placed.setPlacementOrder(state.consumePlacementOrder());
-            state.setAt(false, placement.row(), placement.col(), placed);
-        }
+        placeGauntletOpeningBoard(state, enemySide.board());
+        enemy.shuffleDeck();
+        biasOpeningDraw(enemy);
 
         for (int i = 0; i < Math.max(1, playerSide.openingHandSize()); i++) {
             player.drawCard();
@@ -333,6 +326,23 @@ public class GameService {
         String token = generateSoloToken();
         soloGames.put(token, new SoloSession(state));
         return new SoloHandle(token, state);
+    }
+
+    void placeGauntletOpeningBoard(GameState state, List<GauntletPlacement> openingBoard) {
+        for (GauntletPlacement placement : openingBoard == null ? List.<GauntletPlacement>of() : openingBoard) {
+            if (placement == null || placement.card() == null) continue;
+            List<int[]> legal = placementService.getLegalOpeningPlacements(state, false, placement.card());
+            if (legal.isEmpty()) {
+                state.getEnemy().getDeck().add(placement.card());
+                continue;
+            }
+            int[] cell = legal.stream()
+                    .filter(pos -> pos[0] == placement.row() && pos[1] == placement.col())
+                    .findFirst().orElse(legal.get(0));
+            CardInstance placed = new CardInstance(placement.card(), cell[0], cell[1], false);
+            placed.setPlacementOrder(state.consumePlacementOrder());
+            state.setAt(false, cell[0], cell[1], placed);
+        }
     }
 
     /** Applies the SiegeKnight level bonus to a fresh trainer copy (Gauntlet knights level per run). */
