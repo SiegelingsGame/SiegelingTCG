@@ -1,3 +1,5 @@
+- October 21, 2026 ×10 pile rip / best-last reveal release verification: PR #1163 merged as `dcd19bd9`; Deploy workflow `39655366455` completed successfully. Live `/shop` serves `home-redesign.css?v=135` and `home-redesign.js?v=129`; the live bundles carry `ghostPack`/`finishRank` and the `is-ghost`/`sgRipShakeBig` rules. Hosting and Cloud Run `/api/cards/editor` remain `FIRESTORE`-backed with editing enabled and Firestore available; `/api/game/options` returns 7 decks; `config.js` keeps `apiBaseUrl: ''`.
+
 Original prompt: When opening 10 packs show 10 stacked card packs that all get ripped simulataneoisly with a screen shake animation on the Rip. For pack pulls place the rarer cards near the back with the holos and or gold etc always being the last cards pulled and revealed
 
 - October 21, 2026 **×10 pulls rip a pile of ten packs with a screen shake; pulls reveal best last.**
