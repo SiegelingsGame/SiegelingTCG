@@ -1,3 +1,5 @@
+- October 21, 2026 Inline 3D pile / fall-in entrance / vertical-only overview release verification: PR #1167 merged as `4762129a`; Deploy workflow `39666240024` completed successfully. Live `/shop` serves `home-redesign.css?v=138` and `home-redesign.js?v=131`; the live bundles carry `packPile`/`enteredAt` and the `.sg-pack-pile`/`sgPackEnter`/`overflow-x:clip` rules. Hosting and Cloud Run `/api/cards/editor` remain `FIRESTORE`-backed with editing enabled and Firestore available; `/api/game/options` returns 7 decks; `config.js` keeps `apiBaseUrl: ''`.
+
 Original prompt: Last update in the final overview screen with all the cards you can sort of scrolll horizontally limit the screen to only view the cards and vertical scroll through them so you can't accidentally zoom or move the screen left or right merge and deploy
 
 - October 21, 2026 **Pull overview scrolls vertically only.**
