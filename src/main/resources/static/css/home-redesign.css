@@ -2820,7 +2820,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   overflow:auto;
 }
 /* Stack / pack-rip need a live 3D context. `overflow:auto` on this body flattens
-   preserve-3d children and can leave a flipped card showing its back. */
+   preserve-3d children and can leave a face-up card showing its back. */
 .sg-gacha-body:has(.is-stack),
 .sg-gacha-body:has(.is-pack-ready) { overflow:visible; }
 .sg-gacha-head { text-align:center; }
@@ -2841,237 +2841,95 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   flex:0 0 auto; align-content:start; max-width:min(1080px, 100%);
   grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); gap:12px 10px;
 }
-/* Sealed booster: a puffy plastic pouch with a foil tear-flap. The card-back
-   art sits in a recessed window — ripping peels plastic, it does not chop the
-   card art in half. */
-.sg-gacha-pack { position:absolute; z-index:20; left:50%; top:50%; width:178px; aspect-ratio:.62;
+/* The unopened pack is a retail-style foil pouch: the Siegelings "S" back
+   printed full bleed across the whole wrapper, with silver heat-crimped foil
+   only at the open top and bottom ends - no side rails and no framed window.
+   It breathes while the purchase is in flight. It is wider and taller than a
+   resting card so the whole pile can wait hidden behind it before rising.
+   The 1:1.78 shape leaves the art its own 2:3 between the crimps, so the
+   ornamental border of the S back is not cropped. */
+.sg-gacha-pack { position:absolute; z-index:300; left:50%; top:50%;
+  width:min(68%, 262px, calc(min(58dvh, 460px) * .56)); aspect-ratio:1 / 1.78;
   padding:0; border:0; overflow:visible; background:transparent; color:inherit; cursor:grab;
-  transform:translate(-50%,-50%); touch-action:none;
-  filter:drop-shadow(0 20px 26px rgba(0,0,0,.58)); --rip:0; }
+  transform:translate(-50%,-50%); touch-action:none; filter:drop-shadow(0 22px 18px rgba(0,0,0,.5));
+  --foil-x:30%; --foil-y:20%; --crimp-top:8%; --crimp-bottom:7%; }
 .sg-gacha-pack.is-sealed { animation:sgPackBreathe 1.8s ease-in-out infinite; }
 .sg-gacha-pack.is-loading .sg-pack-prompt { display:none; }
-.sg-pack-shell { position:absolute; inset:0; transform-style:preserve-3d; }
-/* Soft pillow silhouette: thicker side rails so the pouch reads as plastic
-   wrapping a card, not as the card itself. */
-.sg-pack-plastic {
-  position:absolute; inset:14px 0 0; border-radius:18px 18px 16px 16px; overflow:hidden;
+.sg-pack-body,.sg-pack-top { position:absolute; inset:0; }
+/* One skin, two clips: the strip above the tear line (the top crimp plus a
+   sliver of art) and the body below it. */
+.sg-pack-body { clip-path:inset(10% -2% -2% -2%); }
+.sg-pack-top { clip-path:inset(-2% -2% 90% -2%); transform:translate3d(var(--rip-x,0px),var(--rip-y,0px),0) rotate(var(--rip-angle,0deg));
+  transform-origin:12% 10%; transition:transform .12s ease-out; }
+/* The skin itself is the silver foil the crimps are pressed from. */
+.sg-pack-skin { position:absolute; inset:0; overflow:hidden; border-radius:3px;
+  background:linear-gradient(100deg, #8d93a3 0%, #f4f6fb 16%, #a9aebb 32%, #ffffff 48%, #9aa0ae 64%, #eef0f6 80%, #878d9c 100%);
+  /* Serrated ends, the zigzag a heat-crimped wrapper is cut with. */
+  -webkit-mask:
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / 8px 51% repeat-x,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 8px 51% repeat-x;
+  mask:
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / 8px 51% repeat-x,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 8px 51% repeat-x; }
+.sg-pack-window { position:absolute; z-index:1; left:0; right:0; top:var(--crimp-top); bottom:var(--crimp-bottom); overflow:hidden; }
+.sg-gacha-pack .sg-pack-window img { width:100%; height:100%; object-fit:cover; display:block; }
+/* Over everything: pressed ridges on both crimps, the pillowed shading a
+   sealed pouch takes where it rounds over the cards, and a holographic film. */
+.sg-pack-foil { position:absolute; inset:0; z-index:2; pointer-events:none;
   background:
-    linear-gradient(90deg,
-      rgba(255,255,255,.18), transparent 10%, transparent 90%, rgba(255,255,255,.1)),
-    linear-gradient(160deg,
-      color-mix(in srgb, var(--el,#f2a03d) 42%, #2a2048) 0%,
-      color-mix(in srgb, var(--el,#f2a03d) 22%, #12102a) 42%,
-      #0a0818 100%);
-  box-shadow:
-    inset 0 2px 0 rgba(255,255,255,.42),
-    inset 0 -14px 22px rgba(0,0,0,.4),
-    inset 10px 0 16px rgba(255,255,255,.07),
-    inset -10px 0 16px rgba(0,0,0,.22),
-    inset 0 0 0 2px color-mix(in srgb, var(--el,#f2a03d) 60%, rgba(255,255,255,.35)),
-    0 0 0 1px rgba(255,255,255,.12);
-}
-.sg-pack-plastic::before {
-  content:''; position:absolute; inset:5px; border-radius:14px; z-index:1; pointer-events:none;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);
-  background:linear-gradient(180deg, rgba(255,255,255,.1), transparent 18%);
-}
-/* Crimped top seal + hang tab — the bits that make it read as a retail pack. */
-.sg-pack-hang {
-  position:absolute; top:4px; left:50%; width:20px; height:11px; margin-left:-10px; z-index:5;
-  border:1.5px solid rgba(255,255,255,.45); border-radius:999px;
-  background:radial-gradient(circle at 50% 55%, rgba(0,0,0,.5), rgba(30,24,50,.92));
-  box-shadow:0 1px 3px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.25);
-}
-.sg-pack-crimp {
-  position:absolute; top:0; left:0; right:0; height:22px; z-index:3;
+    repeating-linear-gradient(90deg, rgba(255,255,255,.55) 0 1.5px, rgba(40,44,60,.32) 1.5px 3.5px) top / 100% var(--crimp-top) no-repeat,
+    repeating-linear-gradient(90deg, rgba(255,255,255,.55) 0 1.5px, rgba(40,44,60,.32) 1.5px 3.5px) bottom / 100% var(--crimp-bottom) no-repeat,
+    linear-gradient(180deg, transparent calc(var(--crimp-top) - .5%), rgba(0,0,0,.45) var(--crimp-top), rgba(255,255,255,.18) calc(var(--crimp-top) + 1%), transparent calc(var(--crimp-top) + 5%),
+      transparent calc(100% - var(--crimp-bottom) - 5%), rgba(0,0,0,.4) calc(100% - var(--crimp-bottom)), transparent calc(100% - var(--crimp-bottom) + .5%)),
+    linear-gradient(90deg, rgba(0,0,0,.38), rgba(255,255,255,.12) 4%, transparent 11%, transparent 89%, rgba(255,255,255,.1) 96%, rgba(0,0,0,.38)); }
+.sg-pack-foil::after { content:''; position:absolute; inset:0; mix-blend-mode:overlay; opacity:.3;
+  background:linear-gradient(115deg, rgba(255,90,160,.5), rgba(255,220,90,.4) 22%, rgba(90,255,190,.4) 44%,
+      rgba(90,170,255,.5) 66%, rgba(200,110,255,.45) 88%) 0 0 / 220% 220%;
+  animation:sgFoilDrift 6s ease-in-out infinite alternate; }
+.sg-pack-name { position:absolute; z-index:3; left:8%; right:8%; bottom:calc(var(--crimp-bottom) + 3%); text-align:center;
+  font-family:var(--serif); font-size:11px; font-weight:700; letter-spacing:.04em; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; color:#fff8e2; text-shadow:0 1px 3px #000, 0 0 8px rgba(0,0,0,.9); }
+/* The specular highlight: drifts on its own and follows the finger on drag. */
+.sg-pack-sheen { position:absolute; z-index:3; inset:-20%; pointer-events:none; mix-blend-mode:screen;
   background:
-    repeating-linear-gradient(90deg,
-      rgba(255,255,255,.2) 0 2px, transparent 2px 6px),
-    linear-gradient(180deg, rgba(255,255,255,.32), rgba(255,255,255,.04) 70%, transparent);
-  border-bottom:1px dashed rgba(255,255,255,.28);
-  opacity:.95;
-}
-.sg-pack-window {
-  /* Deep inset so the plastic rails stay obvious around the card art. */
-  position:absolute; inset:34px 22px 42px; border-radius:10px; overflow:hidden; z-index:2;
-  background:#070510;
-  box-shadow:
-    inset 0 0 0 1px rgba(255,255,255,.2),
-    inset 0 10px 18px rgba(0,0,0,.55),
-    0 0 0 2px color-mix(in srgb, var(--el,#f2a03d) 28%, rgba(0,0,0,.4)),
-    0 6px 14px rgba(0,0,0,.35);
-}
-.sg-pack-window img { width:100%; height:100%; object-fit:cover; display:block;
-  transform:scale(1.02); filter:saturate(1.05) contrast(1.02); }
-/* Glossy plastic sheen drifting over the pouch. */
-.sg-pack-sheen {
-  position:absolute; inset:0; z-index:6; pointer-events:none; border-radius:inherit;
-  background:
-    linear-gradient(118deg,
-      transparent 14%,
-      rgba(255,255,255,.5) 32%,
-      rgba(255,255,255,.08) 40%,
-      transparent 56%),
-    linear-gradient(180deg, rgba(255,255,255,.22), transparent 26%, transparent 70%, rgba(0,0,0,.22));
-  mix-blend-mode:screen; opacity:.9;
-  animation:sgPackSheen 3.6s ease-in-out infinite;
-}
-.sg-pack-brand {
-  position:absolute; left:14px; right:14px; bottom:8px; z-index:7;
-  display:flex; flex-direction:column; align-items:center; gap:1px;
-  pointer-events:none; text-align:center;
-}
-.sg-pack-brand b {
-  font-size:9px; font-weight:800; letter-spacing:.18em; text-transform:uppercase;
-  color:#fff; text-shadow:0 1px 4px rgba(0,0,0,.75);
-}
-.sg-pack-brand em {
-  font-style:normal; font-size:7.5px; letter-spacing:.12em; text-transform:uppercase;
-  color:color-mix(in srgb, var(--el,#f2a03d) 70%, #fff); opacity:.9;
-}
-/* Foil tear-flap — sealed plastic top, not a clipped copy of the card back. */
-.sg-pack-flap {
-  position:absolute; left:-2px; right:-2px; top:0; height:32%; z-index:8;
-  transform-origin:10% 100%;
-  transform:translate3d(var(--rip-x,0px),var(--rip-y,0px),0) rotate(var(--rip-angle,0deg));
-  transition:transform .12s ease-out;
-  filter:drop-shadow(0 8px 10px rgba(0,0,0,.4));
-}
-.sg-pack-flap-face {
-  position:absolute; inset:0; border-radius:16px 16px 6px 6px; overflow:hidden;
-  background:
-    linear-gradient(160deg, rgba(255,255,255,.35), transparent 28%),
-    linear-gradient(125deg,
-      color-mix(in srgb, var(--el,#f2a03d) 58%, #2a1f10) 0%,
-      #f7e7b0 12%,
-      color-mix(in srgb, var(--el,#f2a03d) 38%, #1a1430) 26%,
-      #fff0c0 40%,
-      color-mix(in srgb, var(--el,#f2a03d) 52%, #120e24) 56%,
-      #d9b45a 72%,
-      color-mix(in srgb, var(--el,#f2a03d) 40%, #0c0a18) 100%);
-  box-shadow:
-    inset 0 2px 0 rgba(255,255,255,.65),
-    inset 0 -3px 8px rgba(0,0,0,.3),
-    inset 8px 0 12px rgba(255,255,255,.12),
-    0 0 0 1px rgba(255,255,255,.28);
-}
-.sg-pack-flap-face::before {
-  content:''; position:absolute; left:10%; right:10%; top:34%; height:28%;
-  border-radius:4px;
-  background:linear-gradient(90deg,
-    transparent,
-    color-mix(in srgb, var(--el,#f2a03d) 35%, rgba(255,255,255,.15)),
-    transparent);
-  opacity:.55;
-}
-.sg-pack-flap-face::after {
-  content:''; position:absolute; inset:0;
-  background:linear-gradient(105deg, transparent 28%, rgba(255,255,255,.55) 46%, transparent 64%);
-  mix-blend-mode:screen; opacity:.75;
-}
-.sg-pack-perforation {
-  position:absolute; left:5%; right:5%; bottom:0; height:4px; z-index:2;
-  background:repeating-linear-gradient(90deg,
-    rgba(20,12,4,.8) 0 3px, transparent 3px 7px);
-  opacity:.9;
-}
-.sg-pack-mouth {
-  position:absolute; left:8px; right:8px; top:26%; height:14px; z-index:1;
-  border-radius:0 0 10px 10px; opacity:0; pointer-events:none;
-  background:linear-gradient(180deg, rgba(0,0,0,.65), transparent);
-  box-shadow:inset 0 6px 10px rgba(0,0,0,.5);
-  clip-path:polygon(0 0,100% 0,100% 40%,88% 100%,70% 55%,52% 100%,34% 60%,18% 100%,0 45%);
-}
-.sg-pack-prompt { position:absolute; top:calc(100% + 22px); left:50%; width:max-content; max-width:80vw;
+    radial-gradient(circle at var(--foil-x) var(--foil-y), rgba(255,255,255,.45), transparent 32%),
+    linear-gradient(105deg, transparent 38%, rgba(255,255,255,.42) 48%, rgba(255,255,255,.08) 54%, transparent 62%) 0 0 / 250% 100%;
+  animation:sgFoilSweep 3.6s ease-in-out infinite; }
+@keyframes sgFoilDrift { from { background-position:0% 0%; } to { background-position:100% 100%; } }
+@keyframes sgFoilSweep { 0%,15% { background-position:0 0, 130% 0; } 75%,100% { background-position:0 0, -40% 0; } }
+.sg-pack-seam { position:absolute; top:10%; left:0; right:0; height:2px; z-index:2;
+  background:repeating-linear-gradient(90deg, rgba(255,255,255,.9) 0 5px, transparent 5px 9px);
+  filter:drop-shadow(0 0 4px rgba(0,0,0,.8)); opacity:.85; }
+.sg-pack-prompt { position:absolute; top:calc(100% + 14px); left:50%; width:max-content; max-width:80vw;
   transform:translateX(-50%); padding:7px 12px; border:1px solid rgba(255,255,255,.2); border-radius:999px;
   background:rgba(12,9,35,.84); color:#f8e8b6; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
-.sg-gacha-stage.is-pack-ready { display:block; position:relative; width:100%; max-width:430px;
-  height:min(58dvh,460px); flex:1 1 auto; perspective:1400px; }
-/* Match the stack card size while sealed so removing pack-ready does not
-   resize the tiles as they deal. */
-.sg-gacha-stage.is-pack-ready .sg-flip { position:absolute; top:50%; left:50%; width:min(62%,240px);
-  opacity:0; pointer-events:none; transform:translate(-50%,-50%) translateY(90px) scale(.3); }
-/* Peel the foil flap away, yawn the plastic mouth open, and drop the empty
-   pouch — never jagged-clip through the window art (that read as chopping a
-   card in half). */
-.sg-gacha-stage.is-ripping .sg-pack-flap {
-  transform:translate3d(88%,-150%,100px) rotate(36deg) scale(1.06);
-  transition:transform .72s cubic-bezier(.2,.85,.2,1);
+/* Cards wait invisible until the strip is off; then they are revealed only by
+   rising past the pack's open mouth, because the pack sits in front of them. */
+.sg-gacha-stage.is-pack-ready .sg-flip { opacity:0; pointer-events:none; }
+/* The pile climbs out squared up, then fans into its leaning stack once clear:
+   at full lean the buried cards are wider than the pack and would show past
+   its sides before they had come out of it. */
+.sg-gacha-stage:is(.is-pack-ready, .is-rising) .sg-flip { --depth:0 !important; }
+.sg-gacha-stage.is-ripping .sg-pack-top { transform:translate3d(78%,-160%,70px) rotate(22deg); opacity:0;
+  transition:transform .5s cubic-bezier(.2,.8,.2,1), opacity .5s ease-in .1s; }
+.sg-gacha-stage.is-ripping .sg-pack-seam { opacity:0; transition:opacity .16s; }
+.sg-gacha-stage.is-ripping .sg-pack-prompt { opacity:0; }
+.sg-gacha-stage.is-ripping .sg-gacha-pack { cursor:default; }
+.sg-gacha-stage.is-rising .sg-gacha-pack { animation:sgPackDrop 1s cubic-bezier(.45,.05,.3,1) both; }
+/* `translate`/`scale` rather than `transform`, so the rise composes with the
+   stack's own depth-and-tilt transform instead of replacing it. */
+.sg-gacha-stage.is-rising .sg-flip { pointer-events:none;
+  animation:sgCardRise .78s cubic-bezier(.2,.75,.25,1) both; animation-delay:var(--deal-delay,0ms); }
+@keyframes sgPackDrop {
+  0%   { transform:translate(-50%,-50%); opacity:1; }
+  70%  { transform:translate(-50%,16%); opacity:1; }
+  100% { transform:translate(-50%,42%); opacity:0; }
 }
-.sg-gacha-stage.is-ripping .sg-pack-flap-face {
-  clip-path:polygon(0 0,100% 0,100% 70%,93% 86%,80% 68%,68% 94%,54% 66%,40% 96%,26% 70%,12% 90%,0 64%);
+@keyframes sgCardRise {
+  from { translate:0 22%; scale:.84; }
+  to   { translate:0 0; scale:1; }
 }
-.sg-gacha-stage.is-ripping .sg-pack-plastic {
-  transform:translateY(18%) scale(0.94, 0.88);
-  transform-origin:50% 100%;
-  transition:transform .55s cubic-bezier(.2,.8,.2,1) .05s, opacity .45s ease .2s;
-  opacity:.55;
-  box-shadow:
-    inset 0 22px 28px rgba(0,0,0,.55),
-    inset 0 0 0 2px color-mix(in srgb, var(--el,#f2a03d) 55%, rgba(255,255,255,.25));
-}
-.sg-gacha-stage.is-ripping .sg-pack-window {
-  opacity:.25; filter:blur(1px) brightness(.7);
-  transition:opacity .35s ease .05s, filter .35s ease;
-}
-.sg-gacha-stage.is-ripping .sg-pack-mouth {
-  opacity:1; top:12%; height:28px;
-  transition:opacity .2s ease .05s, top .45s ease, height .45s ease;
-}
-.sg-gacha-stage.is-ripping .sg-pack-crimp,
-.sg-gacha-stage.is-ripping .sg-pack-hang,
-.sg-gacha-stage.is-ripping .sg-pack-prompt,
-.sg-gacha-stage.is-ripping .sg-pack-brand { opacity:0; transition:opacity .16s; }
-.sg-gacha-stage.is-ripping .sg-gacha-pack { animation:none; transform:translate(-50%,-46%) rotate(-2deg);
-  transition:transform .55s ease, opacity .42s ease; }
-.sg-gacha-stage.is-ripping .sg-pack-sheen { opacity:.25; }
-/* Soft exit so the pouch dissolves under the dealing cards instead of popping. */
-.sg-gacha-pack.is-gone {
-  opacity:0 !important; pointer-events:none;
-  transform:translate(-50%,-28%) scale(.88) rotate(-3deg) !important;
-  transition:opacity .4s ease, transform .45s cubic-bezier(.2,.8,.2,1) !important;
-}
-/* Deal into the stack's resting pose (depth offsets included) so ending the
-   animation does not snap the pile into place. */
-.sg-gacha-stage.is-dealing .sg-flip { animation:sgCardSlideOut .52s cubic-bezier(.2,.8,.2,1) both;
-  animation-delay:var(--deal-delay,0ms); pointer-events:none; }
-.sg-gacha-stage.is-stack.is-dealing .sg-flip {
-  width:min(62%,240px);
-  animation-name:sgCardDealToStack;
-  /* Suppress the stack's transform transition while the deal keyframes own it. */
-  transition:none;
-}
-@keyframes sgCardSlideOut {
-  0% { opacity:0; transform:translate(-50%,-50%) translateY(105px) scale(.28) rotate(-4deg); }
-  65% { opacity:1; transform:translate(-50%,-50%) translateY(-10px) scale(1.04) rotate(1deg); }
-  100% { opacity:1; transform:translate(-50%,-50%) translateY(0) scale(1) rotate(0); }
-}
-@keyframes sgCardDealToStack {
-  0% {
-    opacity:0;
-    transform:translate(-50%,-50%) translateY(72px) scale(.38) rotate(-3deg);
-  }
-  70% {
-    opacity:1;
-    transform:
-      translate(-50%,-50%)
-      translate3d(calc(var(--depth,0) * 13px), calc(var(--depth,0) * -12px), calc(var(--depth,0) * -34px))
-      scale(1.03) rotate(calc(var(--depth,0) * 1.6deg));
-  }
-  100% {
-    opacity:1;
-    transform:
-      translate(-50%,-50%)
-      rotateY(0deg) rotateX(0deg)
-      translate3d(calc(var(--depth,0) * 13px), calc(var(--depth,0) * -9px), calc(var(--depth,0) * -34px))
-      rotate(calc(var(--depth,0) * 1.6deg));
-  }
-}
-@keyframes sgPackBreathe { 0%,100%{transform:translate(-50%,-50%) scale(1);} 50%{transform:translate(-50%,-50%) scale(1.045);} }
-@keyframes sgPackSheen {
-  0%,100% { opacity:.7; transform:translateX(-6%); }
-  50% { opacity:.95; transform:translateX(8%); }
-}
+@keyframes sgPackBreathe { 0%,100%{transform:translate(-50%,-50%) scale(1);} 50%{transform:translate(-50%,-50%) scale(1.035);} }
 .sg-gacha-note { margin:0; font-size:12.5px; color:var(--muted); letter-spacing:.06em; text-align:center; }
 .sg-gacha-actions { display:flex; gap:10px; width:100%; max-width:420px; }
 .sg-gacha-actions > * { flex:1 1 0; }
@@ -3087,26 +2945,15 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 .sg-flip-inner {
   position:absolute; inset:0; transform-style:preserve-3d;
-  transition:transform .72s cubic-bezier(.2,.75,.2,1);
+  transition:transform .62s cubic-bezier(.2,.75,.25,1);
   animation:sgDealIn .4s backwards; animation-delay:calc(var(--slot,0) * 60ms);
-  will-change:transform;
 }
-/* Settled face-up pose; --inspect-* lets a drag roll the revealed card.
-   `animation:none` is required: without it, removing `is-flipping` falls back
-   to the deal-in animation and can leave the card stuck edge-on near 90°. */
+/* Face-up pose; --inspect-* lets a drag roll the top card. `animation:none`
+   keeps the deal-in keyframes (which end on rotateY(0)) from showing the back
+   of a card that was dealt face up. */
 .sg-flip.is-open .sg-flip-inner {
   animation:none;
   transform:rotateX(var(--inspect-x,0deg)) rotateY(calc(180deg + var(--inspect-y,0deg)));
-}
-/* Lift-and-turn while the flip is in flight so the back clearly rotates away. */
-.sg-flip.is-open.is-flipping .sg-flip-inner {
-  animation:sgFlipReveal .72s cubic-bezier(.2,.75,.2,1) both;
-  transition:none;
-}
-@keyframes sgFlipReveal {
-  0%   { transform:rotateX(0deg) rotateY(0deg) translateZ(0) scale(1); }
-  42%  { transform:rotateX(-6deg) rotateY(98deg) translateZ(42px) scale(1.07); }
-  100% { transform:rotateX(0deg) rotateY(180deg) translateZ(0) scale(1); }
 }
 .sg-flip-back, .sg-flip-front {
   position:absolute; inset:0; border-radius:12px; overflow:hidden;
@@ -3141,10 +2988,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-flip-plate img { width:26px; height:26px; }
 .sg-flip-plate b { font-size:11px; font-weight:600; line-height:1.25; }
 @media (prefers-reduced-motion:reduce) {
-  .sg-gacha-pack, .sg-flip-inner, .sg-flip.is-holo .sg-flip-front::after,
-  .sg-pack-sheen, .sg-flip.is-open.is-flipping .sg-flip-inner { animation:none; }
+  .sg-gacha-pack, .sg-flip-inner, .sg-flip.is-holo .sg-flip-front::after { animation:none; }
   .sg-flip-inner { transition-duration:.01ms; }
-  .sg-flip.is-open .sg-flip-inner { transform:rotateY(180deg); }
 }
 
 /* ---------- card detail sheet: arena, siege, keep ---------- */
@@ -4187,8 +4032,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    it leads the swipe that sends it away. */
 .sg-gacha-stage.is-stack {
   display:block; position:relative; width:100%; max-width:430px;
-  /* Same token as is-pack-ready — mixing vh/dvh jumped the stage height on
-     phones when the pack handoff dropped pack-ready. */
+  /* Same token as is-pack-ready - mixing vh/dvh jumped the stage height on
+     phones when the rise dropped pack-ready. */
   height:min(58dvh, 460px); perspective:1400px; perspective-origin:50% 46%;
   touch-action:none; cursor:grab; place-items:stretch;
 }
@@ -4216,6 +4061,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   filter:brightness(calc(1 - var(--depth,0) * .11)) saturate(calc(1 - var(--depth,0) * .08));
 }
 .sg-gacha-stage.is-stack .sg-flip.is-stack-buried { opacity:0; }
+/* Every card is face up, so only the top one wears its tag and finish badge;
+   on the cards beneath they would just be clutter along the pile's edge. */
+.sg-gacha-stage.is-stack .sg-flip:not(.is-stack-top) :is(.sg-flip-tag, .sg-flip-finish) { opacity:0; }
 .sg-gacha-stage.is-stack .sg-flip.is-stack-out {
   opacity:0; pointer-events:none;
   transform:translate(-50%,-50%) translate3d(calc(var(--exit-dir,1) * 128%), -14%, 120px)
@@ -4259,14 +4107,12 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 @media (prefers-reduced-motion:reduce) {
   .sg-gacha-stage.is-stack .sg-flip { transition:none; }
   .sg-gacha-pack.is-sealed { animation:none; }
-  .sg-gacha-stage.is-ripping .sg-pack-flap,
-  .sg-gacha-stage.is-ripping .sg-pack-plastic,
-  .sg-gacha-pack.is-gone,
+  .sg-gacha-stage.is-ripping .sg-pack-top { transition:none; }
+  .sg-gacha-stage.is-rising .sg-flip, .sg-gacha-stage.is-rising .sg-gacha-pack { animation-duration:.01ms; animation-delay:0ms; }
+  .sg-pack-foil::after, .sg-pack-sheen { animation:none; }
   .sg-gacha-stackbar { transition:none; }
-  .sg-gacha-stage.is-dealing .sg-flip,
-  .sg-gacha-stage.is-stack.is-dealing .sg-flip { animation-duration:.01ms; animation-delay:0ms; }
-  .sg-flip-sparks i, .sg-flip.is-flaring .sg-flip-front::before { animation:none; display:none; }
   .sg-gacha-stackbar.is-in { opacity:1; transform:none; }
+  .sg-flip-sparks i, .sg-flip.is-flaring .sg-flip-front::before { animation:none; display:none; }
 }
 
 /* ==========================================================================
