@@ -1,0 +1,290 @@
+{
+  "id": "shadow-kit-2026-10",
+  "description": "Shadow moves and assignments for the live Shadow Sieglings, using live card and move IDs. Non-spread attacks stay at 6\u201310; row and multi-target damage and energy costs follow live elemental patterns. Common, uncommon, and rare+ cards receive 3, 4, and 5 moves; the Echo and Voib -> Voiboy -> Voidmaw lines inherit earlier moves.",
+  "moves": [
+    {
+      "id": "umbral-feint",
+      "name": "Umbral Feint",
+      "element": "SHADOW",
+      "category": "SPECIALITY",
+      "targetType": "RANDOM_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "damage",
+      "effectValue": 6,
+      "energyCost": 2,
+      "description": "Deal 6\u201310 damage to a random enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null,
+      "effectValueMode": "SCALE",
+      "effectValueMax": 10
+    },
+    {
+      "id": "shadow-mend",
+      "name": "Shadow Mend",
+      "element": "SHADOW",
+      "category": "UTILITY",
+      "targetType": "SINGLE_ALLY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "heal",
+      "effectValue": 2,
+      "energyCost": 0,
+      "description": "Heal 1 ally for 2 HP.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "shade-ward",
+      "name": "Shade Ward",
+      "element": "SHADOW",
+      "category": "UTILITY",
+      "targetType": "SINGLE_ALLY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "shield",
+      "effectValue": 2,
+      "energyCost": 0,
+      "description": "Grant 2 shield to 1 ally.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "shadow-siphon",
+      "name": "Shadow Siphon",
+      "element": "SHADOW",
+      "category": "UTILITY",
+      "targetType": "SINGLE_ALLY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "heal",
+      "effectValue": 4,
+      "energyCost": 2,
+      "description": "Restore 4 HP to 1 ally.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "gloom-ward",
+      "name": "Gloom Ward",
+      "element": "SHADOW",
+      "category": "UTILITY",
+      "targetType": "SINGLE_ALLY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "shield",
+      "effectValue": 4,
+      "energyCost": 2,
+      "description": "Grant 4 shield to 1 ally.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "eclipse-pounce",
+      "name": "Eclipse Pounce",
+      "element": "SHADOW",
+      "category": "STANDARD",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "damage",
+      "effectValue": 10,
+      "energyCost": 2,
+      "description": "Deal 10 damage to 1 enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "night-rend",
+      "name": "Night Rend",
+      "element": "SHADOW",
+      "category": "SPECIALITY",
+      "targetType": "SPREAD_ROW",
+      "targetElement": null,
+      "targetRow": "FRONT",
+      "targetCount": 0,
+      "effectType": "damage",
+      "effectValue": 6,
+      "energyCost": 4,
+      "description": "Split 6 total damage randomly among enemies in the Front row.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "blackstar-scatter",
+      "name": "Blackstar Scatter",
+      "element": "SHADOW",
+      "category": "SPECIALITY",
+      "targetType": "SPREAD_ALL",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "damage",
+      "effectValue": 12,
+      "energyCost": 5,
+      "description": "Split 12 total damage randomly among all enemies.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "echowing-night-strike",
+      "name": "Echowing Night Strike",
+      "element": "SHADOW",
+      "category": "STANDARD",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "damage",
+      "effectValue": 8,
+      "energyCost": 1,
+      "description": "Deal 8 damage to 1 enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "echolustrious-eclipse",
+      "name": "Echolustrious Eclipse",
+      "element": "SHADOW",
+      "category": "SPECIALITY",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "damage",
+      "effectValue": 10,
+      "energyCost": 2,
+      "description": "Deal 10 damage to 1 enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "dreadmeow-night-hunt",
+      "name": "Dreadmeow Night Hunt",
+      "element": "SHADOW",
+      "category": "STANDARD",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "damage",
+      "effectValue": 9,
+      "energyCost": 1,
+      "description": "Deal 9 damage to 1 enemy.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "voidmaw-umbra-volley",
+      "name": "Voidmaw Umbra Volley",
+      "element": "SHADOW",
+      "category": "SPECIALITY",
+      "targetType": "ROW_ENEMIES",
+      "targetElement": null,
+      "targetRow": "BACK",
+      "targetCount": 0,
+      "effectType": "damage",
+      "effectValue": 6,
+      "energyCost": 5,
+      "description": "Deal 6 damage to all enemies in the Back row.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    }
+  ],
+  "cards": [],
+  "cardPatches": [
+    {
+      "id": "echo",
+      "moveIds": [
+        "echo-echo-ambush",
+        "shadow-mend",
+        "shade-ward"
+      ]
+    },
+    {
+      "id": "echowing",
+      "moveIds": [
+        "echo-echo-ambush",
+        "shadow-mend",
+        "shade-ward",
+        "echowing-night-strike"
+      ]
+    },
+    {
+      "id": "echolustrious",
+      "moveIds": [
+        "echo-echo-ambush",
+        "shadow-mend",
+        "shade-ward",
+        "echowing-night-strike",
+        "echolustrious-eclipse"
+      ]
+    },
+    {
+      "id": "dreadmeow",
+      "moveIds": [
+        "dreadmeow-night-hunt",
+        "umbral-feint",
+        "shadow-siphon",
+        "gloom-ward"
+      ]
+    },
+    {
+      "id": "voib",
+      "moveIds": [
+        "doomshield-doomshield-dusk-carapace",
+        "umbral-feint",
+        "shadow-siphon",
+        "gloom-ward"
+      ]
+    },
+    {
+      "id": "voiboy",
+      "moveIds": [
+        "doomshield-doomshield-dusk-carapace",
+        "umbral-feint",
+        "shadow-siphon",
+        "gloom-ward",
+        "phantomsteed-phantomsteed-night-chorus"
+      ]
+    },
+    {
+      "id": "umbry",
+      "moveIds": [
+        "doomshield-doomshield-dusk-carapace",
+        "eclipse-pounce",
+        "night-rend",
+        "gloom-ward",
+        "shadow-siphon"
+      ]
+    },
+    {
+      "id": "voidmaw",
+      "moveIds": [
+        "doomshield-doomshield-dusk-carapace",
+        "shadow-siphon",
+        "gloom-ward",
+        "phantomsteed-phantomsteed-night-chorus",
+        "voidmaw-umbra-volley"
+      ]
+    }
+  ]
+}

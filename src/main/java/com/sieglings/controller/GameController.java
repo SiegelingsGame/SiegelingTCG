@@ -1748,6 +1748,8 @@ public class GameController {
         serialized.put("targetCount", ability.getTargetCount());
         serialized.put("effectType", ability.getEffectType());
         serialized.put("effectValue", ability.getEffectValue());
+        serialized.put("effectValueMode", ability.getEffectValueMode());
+        serialized.put("effectValueMax", ability.getEffectValueMax());
         serialized.put("passive", ability.isPassive());
         serialized.put("requiredElement", ability.getRequiredElement() == null ? null : ability.getRequiredElement().name());
         serialized.put("requiredEnergy", ability.getRequiredEnergy());
@@ -1860,6 +1862,16 @@ public class GameController {
                 }
             }
             ability.put("effectValue", effectValue);
+            ability.put("effectValueMode", option.getAbility().getEffectValueMode());
+            int effectValueMax = option.getAbility().getEffectValueMax();
+            if (com.sieglings.model.ElementalAfflictions.isEnabled()
+                    && attacker.getAfflictionStacks(ElementalAffliction.BLIND) > 0 && effectValueMax > 0) {
+                effectValueMax = Math.max(0, effectValueMax - attacker.getAfflictionStacks(ElementalAffliction.BLIND));
+                if (AbilityEffectKeys.DAMAGE.equals(option.getAbility().getEffectType())) {
+                    effectValueMax = Math.max(1, effectValueMax);
+                }
+            }
+            ability.put("effectValueMax", effectValueMax);
             ability.put("requiredElement", option.getRequiredElement() == null ? null : option.getRequiredElement().name());
             ability.put("requiredEnergy", option.getRequiredEnergy());
             ability.put("affordable", option.isAffordable());
