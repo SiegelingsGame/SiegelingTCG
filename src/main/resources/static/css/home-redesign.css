@@ -2813,7 +2813,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    player tapped turns over to become the face. Both halves live on one
    preserve-3d inner so the card has thickness rather than two stacked images. */
 .sg-gacha { position:absolute; inset:0; z-index:70; display:flex; }
-.sg-gacha-veil { position:absolute; inset:0; background:rgba(7,5,22,.93); backdrop-filter:blur(6px); }
+.sg-gacha-veil { position:absolute; inset:0; background:rgba(7,5,22,.96); }
+/* No backdrop blur: at .96 the hub behind is barely visible anyway, and
+   re-blurring the whole screen under every animated frame of a ×10 pull was
+   one of the costs that made it stutter on iPhone. */
 .sg-gacha-body {
   position:relative; flex:1 1 auto; display:flex; flex-direction:column; align-items:center;
   gap:14px; padding:calc(26px + var(--sg-sat)) 18px calc(20px + var(--sg-sab));
@@ -2864,34 +2867,41 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    resting card so the whole pile can wait hidden behind it before rising.
    The 1:1.78 shape leaves the art its own 2:3 between the crimps, so the
    ornamental border of the S back is not cropped. */
-.sg-gacha-pack { position:absolute; z-index:300; left:50%; top:50%;
-  width:min(68%, 262px, calc(min(58dvh, 460px) * .56)); aspect-ratio:1 / 1.78;
+.sg-gacha-pack { position:absolute; z-index:calc(300 - var(--pack-i, 0)); left:50%; top:50%;
+  width:var(--pack-w); aspect-ratio:1 / 1.78;
   padding:0; border:0; overflow:visible; background:transparent; color:inherit; cursor:grab;
-  /* Each pack stands at its own depth in the pile's 3D space; the pile, not
-     the pack, is what turns. */
-  --pack-z:calc(var(--pack-i, 0) * -30px);
-  transform:translate(-50%,-50%) translateZ(var(--pack-z));
-  touch-action:none; filter:drop-shadow(0 22px 18px rgba(0,0,0,.5));
-  /* Falls in from above, deepest pack first, and lands with a small settle. */
+  /* The pile's 3D look is computed, not rendered in a shared preserve-3d
+     space: iOS Safari flattened that space, so the packs collapsed onto one
+     another. Each pack turns on its own axes (with the pile's perspective)
+     and is offset by where its depth would carry it at that angle -
+     x' = -z·sin(ry), y' = z·sin(rx) - with --pile-sy/--pile-sx holding the
+     sines, set from JS. z steps 30px per pack, pivoting about the middle of
+     the pile. Painting order (z-index) keeps the front pack on top. */
+  --pack-d:calc(var(--pack-i, 0) - var(--pile-mid, 0));
+  transform:translate(-50%,-50%)
+    translate(calc(var(--pack-d) * var(--pile-sy, 0) * -30px), calc(var(--pack-d) * var(--pile-sx, 0) * 30px))
+    rotateX(var(--ptilt-x, 0deg)) rotateY(var(--ptilt-y, 0deg))
+    scale(calc(1 - var(--pack-i, 0) * .018));
+  transition:transform .45s cubic-bezier(.2,.8,.2,1);
+  touch-action:none;
+  /* Falls in from above, deepest pack first, and lands with a small settle.
+     `translate`/`rotate`, so it composes with the tilt transform above. */
   animation:sgPackEnter .62s cubic-bezier(.2,.85,.25,1) both; animation-delay:var(--enter-delay, 0ms);
   --foil-x:30%; --foil-y:20%; --crimp-top:8%; --crimp-bottom:7%; }
-/* The sealed pile is one 3D object: the packs share this preserve-3d space,
-   so they sort by real depth and turning the pile shows the ones behind.
-   It pivots about its own middle (the transform-origin's z), so both ends
-   swing rather than the back flying out. A multi-pack pile rests slightly
-   turned so it reads as a stack before the player touches it. */
-.sg-pack-pile { position:absolute; inset:0; z-index:300; pointer-events:none; transform-style:preserve-3d;
-  --rest-x:0deg; --rest-y:0deg;
-  transform-origin:50% 50% calc((var(--pile-n, 1) - 1) * -15px);
-  transform:rotateX(var(--ptilt-x, var(--rest-x))) rotateY(var(--ptilt-y, var(--rest-y)));
-  transition:transform .45s cubic-bezier(.2,.8,.2,1); }
-.sg-pack-pile.is-many { --rest-x:5deg; --rest-y:-16deg; }
+/* The pile holds the perspective for its packs and one soft shadow under the
+   lot - a gradient, not a drop-shadow filter, which forced an offscreen pass
+   for the front pack on every frame. */
+.sg-pack-pile { position:absolute; inset:0; z-index:300; pointer-events:none;
+  --pack-w:min(68%, 262px, calc(min(58dvh, 460px) * .56));
+  perspective:1400px; perspective-origin:50% 46%; }
+.sg-pack-pile::before { content:''; position:absolute; left:50%; top:50%; width:calc(var(--pack-w) * 1.15); height:46px;
+  transform:translate(-50%, calc(var(--pack-w) * .89 - 14px));
+  background:radial-gradient(closest-side, rgba(0,0,0,.55), transparent); transition:opacity .4s ease; }
+.sg-gacha-stage.is-rising .sg-pack-pile::before { opacity:0; }
 .sg-pack-pile .sg-gacha-pack { pointer-events:none; }
 .sg-pack-pile [data-rip-pack] { pointer-events:auto; }
 /* A finger on the pile is followed closely; easing it would lag the hand. */
-.sg-gacha-stage.is-tilting .sg-pack-pile { transition:transform .08s linear; }
-/* Squares up while the strips fly, so the drop starts from a still pile. */
-.sg-gacha-stage.is-ripping .sg-pack-pile { --rest-x:0deg; --rest-y:0deg; }
+.sg-gacha-stage.is-tilting .sg-gacha-pack { transition:transform .08s linear; }
 @keyframes sgPackEnter {
   0%   { translate:0 -760px; rotate:-7deg; opacity:0; }
   18%  { opacity:1; }
@@ -2909,13 +2919,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* The skin itself is the silver foil the crimps are pressed from. */
 .sg-pack-skin { position:absolute; inset:0; overflow:hidden; border-radius:3px;
   background:linear-gradient(100deg, #8d93a3 0%, #f4f6fb 16%, #a9aebb 32%, #ffffff 48%, #9aa0ae 64%, #eef0f6 80%, #878d9c 100%);
-  /* Serrated ends, the zigzag a heat-crimped wrapper is cut with. */
-  -webkit-mask:
-    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / 8px 51% repeat-x,
-    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 8px 51% repeat-x;
-  mask:
-    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / 8px 51% repeat-x,
-    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 8px 51% repeat-x; }
+  /* Serrated ends, the zigzag a heat-crimped wrapper is cut with. A polygon
+     clip, not a gradient mask: a mask costs an offscreen buffer per skin,
+     twenty of them on a ×10 pile. */
+  clip-path:polygon(0.000% 5px, 1.667% 0, 3.333% 5px, 5.000% 0, 6.667% 5px, 8.333% 0, 10.000% 5px, 11.667% 0, 13.333% 5px, 15.000% 0, 16.667% 5px, 18.333% 0, 20.000% 5px, 21.667% 0, 23.333% 5px, 25.000% 0, 26.667% 5px, 28.333% 0, 30.000% 5px, 31.667% 0, 33.333% 5px, 35.000% 0, 36.667% 5px, 38.333% 0, 40.000% 5px, 41.667% 0, 43.333% 5px, 45.000% 0, 46.667% 5px, 48.333% 0, 50.000% 5px, 51.667% 0, 53.333% 5px, 55.000% 0, 56.667% 5px, 58.333% 0, 60.000% 5px, 61.667% 0, 63.333% 5px, 65.000% 0, 66.667% 5px, 68.333% 0, 70.000% 5px, 71.667% 0, 73.333% 5px, 75.000% 0, 76.667% 5px, 78.333% 0, 80.000% 5px, 81.667% 0, 83.333% 5px, 85.000% 0, 86.667% 5px, 88.333% 0, 90.000% 5px, 91.667% 0, 93.333% 5px, 95.000% 0, 96.667% 5px, 98.333% 0, 100.000% 5px, 100.000% calc(100% - 5px), 98.333% 100%, 96.667% calc(100% - 5px), 95.000% 100%, 93.333% calc(100% - 5px), 91.667% 100%, 90.000% calc(100% - 5px), 88.333% 100%, 86.667% calc(100% - 5px), 85.000% 100%, 83.333% calc(100% - 5px), 81.667% 100%, 80.000% calc(100% - 5px), 78.333% 100%, 76.667% calc(100% - 5px), 75.000% 100%, 73.333% calc(100% - 5px), 71.667% 100%, 70.000% calc(100% - 5px), 68.333% 100%, 66.667% calc(100% - 5px), 65.000% 100%, 63.333% calc(100% - 5px), 61.667% 100%, 60.000% calc(100% - 5px), 58.333% 100%, 56.667% calc(100% - 5px), 55.000% 100%, 53.333% calc(100% - 5px), 51.667% 100%, 50.000% calc(100% - 5px), 48.333% 100%, 46.667% calc(100% - 5px), 45.000% 100%, 43.333% calc(100% - 5px), 41.667% 100%, 40.000% calc(100% - 5px), 38.333% 100%, 36.667% calc(100% - 5px), 35.000% 100%, 33.333% calc(100% - 5px), 31.667% 100%, 30.000% calc(100% - 5px), 28.333% 100%, 26.667% calc(100% - 5px), 25.000% 100%, 23.333% calc(100% - 5px), 21.667% 100%, 20.000% calc(100% - 5px), 18.333% 100%, 16.667% calc(100% - 5px), 15.000% 100%, 13.333% calc(100% - 5px), 11.667% 100%, 10.000% calc(100% - 5px), 8.333% 100%, 6.667% calc(100% - 5px), 5.000% 100%, 3.333% calc(100% - 5px), 1.667% 100%, 0.000% calc(100% - 5px)); }
 .sg-pack-window { position:absolute; z-index:1; left:0; right:0; top:var(--crimp-top); bottom:var(--crimp-bottom); overflow:hidden; }
 .sg-gacha-pack .sg-pack-window img { width:100%; height:100%; object-fit:cover; display:block; }
 /* Over everything: pressed ridges on both crimps, the pillowed shading a
@@ -2927,21 +2934,24 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     linear-gradient(180deg, transparent calc(var(--crimp-top) - .5%), rgba(0,0,0,.45) var(--crimp-top), rgba(255,255,255,.18) calc(var(--crimp-top) + 1%), transparent calc(var(--crimp-top) + 5%),
       transparent calc(100% - var(--crimp-bottom) - 5%), rgba(0,0,0,.4) calc(100% - var(--crimp-bottom)), transparent calc(100% - var(--crimp-bottom) + .5%)),
     linear-gradient(90deg, rgba(0,0,0,.38), rgba(255,255,255,.12) 4%, transparent 11%, transparent 89%, rgba(255,255,255,.1) 96%, rgba(0,0,0,.38)); }
-.sg-pack-foil::after { content:''; position:absolute; inset:0; mix-blend-mode:overlay; opacity:.3;
+.sg-pack-foil::after { content:''; position:absolute; inset:-50%; mix-blend-mode:overlay; opacity:.3;
   background:linear-gradient(115deg, rgba(255,90,160,.5), rgba(255,220,90,.4) 22%, rgba(90,255,190,.4) 44%,
-      rgba(90,170,255,.5) 66%, rgba(200,110,255,.45) 88%) 0 0 / 220% 220%;
+      rgba(90,170,255,.5) 66%, rgba(200,110,255,.45) 88%);
   animation:sgFoilDrift 6s ease-in-out infinite alternate; }
 .sg-pack-name { position:absolute; z-index:3; left:8%; right:8%; bottom:calc(var(--crimp-bottom) + 3%); text-align:center;
   font-family:var(--serif); font-size:11px; font-weight:700; letter-spacing:.04em; white-space:nowrap;
   overflow:hidden; text-overflow:ellipsis; color:#fff8e2; text-shadow:0 1px 3px #000, 0 0 8px rgba(0,0,0,.9); }
 /* The specular highlight: drifts on its own and follows the finger on drag. */
-.sg-pack-sheen { position:absolute; z-index:3; inset:-20%; pointer-events:none; mix-blend-mode:screen;
-  background:
-    radial-gradient(circle at var(--foil-x) var(--foil-y), rgba(255,255,255,.45), transparent 32%),
-    linear-gradient(105deg, transparent 38%, rgba(255,255,255,.42) 48%, rgba(255,255,255,.08) 54%, transparent 62%) 0 0 / 250% 100%;
+/* The moving light is a band that slides by transform, and the holo film
+   drifts the same way: animating background-position repainted the whole
+   wrapper every frame, where a transform is just moved by the compositor. */
+.sg-pack-sheen { position:absolute; z-index:3; inset:-20%; pointer-events:none; mix-blend-mode:screen; overflow:hidden;
+  background:radial-gradient(circle at var(--foil-x) var(--foil-y), rgba(255,255,255,.45), transparent 32%); }
+.sg-pack-sheen::after { content:''; position:absolute; top:0; bottom:0; left:-40%; width:40%;
+  background:linear-gradient(105deg, transparent, rgba(255,255,255,.42) 45%, rgba(255,255,255,.08) 60%, transparent);
   animation:sgFoilSweep 3.6s ease-in-out infinite; }
-@keyframes sgFoilDrift { from { background-position:0% 0%; } to { background-position:100% 100%; } }
-@keyframes sgFoilSweep { 0%,15% { background-position:0 0, 130% 0; } 75%,100% { background-position:0 0, -40% 0; } }
+@keyframes sgFoilDrift { from { translate:-12% -12%; } to { translate:12% 12%; } }
+@keyframes sgFoilSweep { 0%,15% { translate:0 0; } 75%,100% { translate:360% 0; } }
 .sg-pack-seam { position:absolute; top:10%; left:0; right:0; height:2px; z-index:2;
   background:repeating-linear-gradient(90deg, rgba(255,255,255,.9) 0 5px, transparent 5px 9px);
   filter:drop-shadow(0 0 4px rgba(0,0,0,.8)); opacity:.85; }
@@ -2960,31 +2970,33 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-gacha-stage.is-ripping .sg-pack-seam { opacity:0; transition:opacity .16s; }
 .sg-gacha-stage.is-ripping .sg-pack-prompt { opacity:0; }
 .sg-gacha-stage.is-ripping .sg-gacha-pack { cursor:default; }
-.sg-gacha-stage.is-rising .sg-gacha-pack { animation:sgPackDrop 1s cubic-bezier(.45,.05,.3,1) both; }
+.sg-gacha-stage.is-rising .sg-gacha-pack { animation:sgPackDrop 1.1s cubic-bezier(.4,0,.3,1) both; }
 /* `translate`/`scale` rather than `transform`, so the rise composes with the
    stack's own depth-and-tilt transform instead of replacing it. */
 .sg-gacha-stage.is-rising .sg-flip { pointer-events:none;
-  animation:sgCardRise .78s cubic-bezier(.2,.75,.25,1) both; animation-delay:var(--deal-delay,0ms); }
-/* The drop starts from each pack's resting transform (its depth included),
-   so the hand-off from the settled pile is seamless. */
+  animation:sgCardRise 1.15s both; animation-delay:var(--deal-delay,0ms); }
+/* The cards are pulled out of the pack rather than the pack falling away:
+   the pile climbs up past the open mouth while the wrapper only gives a
+   little, then the wrapper fades where it is and the pile settles down into
+   its resting place. Both run on `translate`, so they start exactly where
+   the settled pile and its tilt transform leave off. */
 @keyframes sgPackDrop {
-  0%   { transform:translate(-50%,-50%) translateZ(var(--pack-z)); opacity:1; }
-  70%  { transform:translate(-50%,16%) translateZ(var(--pack-z)); opacity:1; }
-  100% { transform:translate(-50%,42%) translateZ(var(--pack-z)); opacity:0; }
+  0%   { translate:0 0; opacity:1; }
+  55%  { translate:0 5%; opacity:1; }
+  100% { translate:0 14%; opacity:0; }
 }
 @keyframes sgCardRise {
-  from { translate:0 22%; scale:.84; }
-  to   { translate:0 0; scale:1; }
+  0%   { translate:0 21%; scale:.86; animation-timing-function:cubic-bezier(.25,.8,.3,1); }
+  55%  { translate:0 -24%; scale:1; animation-timing-function:cubic-bezier(.45,0,.3,1); }
+  100% { translate:0 0; scale:1; }
 }
 /* A multi-pack pull: the packs behind the front one stand straight behind
    it, one depth step each, no side-to-side fan. They tear and drop a beat
    apart, so the pile reads as ten packs ripping at once rather than one
-   tween. Their foil stops animating, since mostly their edges show. */
-.sg-gacha-pack.is-ghost { cursor:default;
-  /* No filter: a filter forces every pack into its own offscreen buffer, and
-     nine of them plus the cards was enough to stall iOS. Depth is shaded with
-     a plain overlay instead. */
-  filter:none; }
+   tween. No filters anywhere on them (each would be an offscreen buffer);
+   depth is shaded with a plain overlay, and their foil stops animating,
+   since mostly their edges show. */
+.sg-gacha-pack.is-ghost { cursor:default; }
 .sg-gacha-pack.is-ghost::after { content:''; position:absolute; inset:0; z-index:5; pointer-events:none;
   background:rgba(4,3,14,calc(var(--pack-i, 1) * .045)); border-radius:3px; }
 .sg-gacha-pack.is-ghost .sg-pack-sheen, .sg-gacha-pack.is-ghost .sg-pack-name { display:none; }
