@@ -1,3 +1,5 @@
+- October 21, 2026 Pack opening release verification: PR #1161 merged as `50117390`; Deploy workflow `39646953124` completed successfully (Cloud Run + Firebase Hosting/Functions). Live `/shop` serves `home-redesign.css?v=134` and `home-redesign.js?v=128`, and both bundles carry the S-wrapper code (`PACK_WRAPPER_ART`, `--crimp-top`). `/img/packs/siegeling-back.webp` returns 200. Hosting and Cloud Run `/api/cards/editor` remain `FIRESTORE`-backed with editing enabled and Firestore available; `/api/game/options` returns 200 with 7 decks; `config.js` keeps `apiBaseUrl: ''`.
+
 Original prompt: There should not be a border the entire foil should use the S back skin with foil open at the top and bottom use this as a reference (retail booster-pack photo)
 
 - October 21, 2026 **Pack wrapper is full-bleed S art with silver crimps, like a retail booster.**
