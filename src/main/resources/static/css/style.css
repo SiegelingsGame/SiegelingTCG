@@ -91,15 +91,18 @@ body {
     overflow: hidden;
 }
 
-/* Hide the bare table until the selected loadout or resumed match is ready. */
+/* Hide the bare table until the selected loadout or resumed match is ready.
+   This veil has to stay under #loadoutOverlay (1900). At 20000 it painted a
+   blank screen over the battle picker for the whole options fetch — that
+   picker is the only Play screen now that the welcome entry is gone. */
 html.play-startup body::before {
     content: "";
     position: fixed;
     inset: 0;
-    z-index: 20000;
+    z-index: 1800;
     background: #061020;
 }
-html.play-startup body > :not(#loadoutOverlay) {
+html.play-startup body > :not(#loadoutOverlay):not(#authPopupOverlay) {
     visibility: hidden !important;
 }
 
@@ -20174,7 +20177,12 @@ body.sgl-opponent-turn .battle-cta-row {
 }
 .match-detail-overlay.hidden { display: none; }
 
-/* Sign-in popup — opens over the Play screen */
+/* Sign-in popup — opens over the Play screen.
+   1300 sat above the old welcome layer (70). The loadout that replaced it is
+   1900 and full-screen, so the same popup opened underneath and Sign In
+   could not be clicked. #authPopupOverlay is play.html only; the hub modal
+   (#authModal) keeps 1300. 2400 also clears the end-of-match card (2000)
+   and the play HUD dialogs (2200). */
 .auth-popup-overlay {
     position: fixed;
     inset: 0;
@@ -20186,6 +20194,9 @@ body.sgl-opponent-turn .battle-cta-row {
     background: rgba(4, 8, 18, 0.74);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
+}
+#authPopupOverlay {
+    z-index: 2400;
 }
 .auth-popup-overlay.hidden { display: none; }
 .auth-popup-modal {
