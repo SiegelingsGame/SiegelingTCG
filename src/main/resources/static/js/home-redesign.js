@@ -5840,8 +5840,10 @@
   }
 
   /* The wrapper is a foil pouch rather than a bare card back: crimped ends, a
-     metallic body tinted by the pack's element, and the element's card back
-     printed in a window on the front. Body and tear strip draw the same skin and
+     metallic body tinted by the pack's element, and the shared Siegelings "S"
+     back printed in a window on the front. Every pack wears that one wrapper
+     art, so the foil tint and the pack name are what tell packs apart; the
+     element's own back is saved for the cards that come out of it. Body and tear strip draw the same skin and
      each clips to its own half, so ripping the strip off leaves an open mouth
      on the body that the cards then rise out of. */
   function packSkin(pk, art) {
@@ -5853,8 +5855,10 @@
     '</span>';
   }
 
+  var PACK_WRAPPER_ART = '/img/packs/siegeling-back.webp';
+
   function packShell(pk, state) {
-    var art = esc(packBack(pk));
+    var art = esc(PACK_WRAPPER_ART);
     return '<button class="sg-gacha-pack ' + (state || '') + '" type="button" data-rip-pack ' +
       ((state || '').indexOf('is-loading') >= 0 ? 'disabled ' : '') + 'aria-label="Rip open ' +
       esc(pk.name || 'pack') + '">' +

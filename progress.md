@@ -1,3 +1,9 @@
+Original prompt: Use this "card back" as the wrapper for packs so all elemental packs come out this wrapper
+
+- October 21, 2026 **Every pack wears the Siegelings "S" wrapper.**
+  - **Change.** The foil pouch's printed window in the hub pack reveal (`packShell` in `home-redesign.js`) now shows the shared multi-element "S" back for every pack (`PACK_WRAPPER_ART = /img/packs/siegeling-back.webp`). The uploaded art is byte-identical to that file, so no new asset was added. The foil is still tinted by the pack's element, and the pack name is still printed under the window, so packs stay distinguishable. The cards dealt out of the pouch keep their own element's back (`cardBackFor`). The shop shelf tiles still use `packBack` (the element backs) and are unchanged. Cache pin `home-redesign.js` 127 (home-next, home-redesign-preview).
+  - **Verification.** `node --check`. Ran the headless Chromium `/shop` flow against the running app at 390x844 with the open-pack call stubbed. Electric and Water Summons both render the pouch window as `siegeling-back.webp` inside their own element-tinted foil. All five Electric card backs are still `card-back-electric.webp`. Rip, rise, swipe-through and the grid summary were unchanged. No page errors.
+
 Original prompt: In the pack opening animation make the pack look more foil like, then raise the cards out of the pack through the opening moving the pack paper down. The card backs should always match the associated element. Instead of showing the cards back and revealing them show the front allowing the player to swipe to see the card underneath
 
 - October 21, 2026 **Pack opening: foil pouch, cards rise out of the mouth, face-up swipe stack.**
