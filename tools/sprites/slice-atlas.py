@@ -271,6 +271,11 @@ for p in cfg['poses']:
         if nxt is not None:
             for f in frames: f['mask'] &= ~nxt
             frames[k + 1]['mask'] |= nxt
+    for f in frames:
+        # Hard boxes can hand a frame its whole cell, leaving the race's body
+        # empty: anchor on the frame's own pixels then.
+        if not f['body']['mask'].any():
+            f['body'] = dict(f['body'], mask=f['mask'].copy())
     for k in p.get('mirror', []):
         frames[k]['mirror'] = True
     ground = float(np.median([b['y1'] for b in bodies]))
