@@ -2823,6 +2823,22 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    preserve-3d children and can leave a face-up card showing its back. */
 .sg-gacha-body:has(.is-stack),
 .sg-gacha-body:has(.is-pack-ready) { overflow:visible; }
+/* The pull overview is a vertical list of cards and nothing else: card art
+   and rarity auras poking past the last column made the body a few px wider
+   than the phone, so a thumb could drag the whole screen sideways. Only the
+   vertical scroll is kept, it does not chain into the page behind, and the
+   gesture is pan-y only, so a stray swipe or double-tap cannot shift or zoom
+   the view. */
+.sg-gacha { overflow:hidden; }
+.sg-gacha-body:has(.is-grid) {
+  overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain;
+  touch-action:pan-y; -webkit-overflow-scrolling:touch;
+}
+.sg-gacha-stage.is-grid, .sg-gacha-stage.is-grid .sg-flip { touch-action:pan-y; }
+/* And the overflow is cut where it starts, so the body is never wider than the
+   screen to begin with. `clip` (not `hidden`) leaves the grid's vertical flow
+   alone and makes no scroll container of its own. */
+.sg-gacha-stage.is-grid { overflow-x:clip; }
 .sg-gacha-head { text-align:center; }
 .sg-gacha-kicker { font-size:10px; letter-spacing:.3em; text-transform:uppercase; color:var(--gold); }
 .sg-gacha-head h3 { font-family:var(--serif); font-size:26px; margin:4px 0 0; font-weight:600; }
@@ -2851,16 +2867,38 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-gacha-pack { position:absolute; z-index:300; left:50%; top:50%;
   width:min(68%, 262px, calc(min(58dvh, 460px) * .56)); aspect-ratio:1 / 1.78;
   padding:0; border:0; overflow:visible; background:transparent; color:inherit; cursor:grab;
-  /* --ptilt-* swings the whole sealed pile; --pack-z sets each pack at its
-     own depth (scaled back up so perspective does not shrink it), which is
-     what makes the tilt parallax the stack apart. */
-  --pack-z:0px; --pack-zs:1;
-  transform:translate(-50%,-50%) rotateY(var(--ptilt-y,0deg)) rotateX(var(--ptilt-x,0deg))
-    translateZ(var(--pack-z)) scale(var(--pack-zs));
-  transition:transform .35s cubic-bezier(.2,.8,.2,1);
+  /* Each pack stands at its own depth in the pile's 3D space; the pile, not
+     the pack, is what turns. */
+  --pack-z:calc(var(--pack-i, 0) * -30px);
+  transform:translate(-50%,-50%) translateZ(var(--pack-z));
   touch-action:none; filter:drop-shadow(0 22px 18px rgba(0,0,0,.5));
+  /* Falls in from above, deepest pack first, and lands with a small settle. */
+  animation:sgPackEnter .62s cubic-bezier(.2,.85,.25,1) both; animation-delay:var(--enter-delay, 0ms);
   --foil-x:30%; --foil-y:20%; --crimp-top:8%; --crimp-bottom:7%; }
-.sg-gacha-pack.is-sealed { animation:sgPackBreathe 1.8s ease-in-out infinite; }
+/* The sealed pile is one 3D object: the packs share this preserve-3d space,
+   so they sort by real depth and turning the pile shows the ones behind.
+   It pivots about its own middle (the transform-origin's z), so both ends
+   swing rather than the back flying out. A multi-pack pile rests slightly
+   turned so it reads as a stack before the player touches it. */
+.sg-pack-pile { position:absolute; inset:0; z-index:300; pointer-events:none; transform-style:preserve-3d;
+  --rest-x:0deg; --rest-y:0deg;
+  transform-origin:50% 50% calc((var(--pile-n, 1) - 1) * -15px);
+  transform:rotateX(var(--ptilt-x, var(--rest-x))) rotateY(var(--ptilt-y, var(--rest-y)));
+  transition:transform .45s cubic-bezier(.2,.8,.2,1); }
+.sg-pack-pile.is-many { --rest-x:5deg; --rest-y:-16deg; }
+.sg-pack-pile .sg-gacha-pack { pointer-events:none; }
+.sg-pack-pile [data-rip-pack] { pointer-events:auto; }
+/* A finger on the pile is followed closely; easing it would lag the hand. */
+.sg-gacha-stage.is-tilting .sg-pack-pile { transition:transform .08s linear; }
+/* Squares up while the strips fly, so the drop starts from a still pile. */
+.sg-gacha-stage.is-ripping .sg-pack-pile { --rest-x:0deg; --rest-y:0deg; }
+@keyframes sgPackEnter {
+  0%   { translate:0 -760px; rotate:-7deg; opacity:0; }
+  18%  { opacity:1; }
+  70%  { translate:0 10px; rotate:.8deg; }
+  86%  { translate:0 -3px; rotate:-.2deg; }
+  100% { translate:0 0; rotate:0deg; opacity:1; }
+}
 .sg-gacha-pack.is-loading .sg-pack-prompt { display:none; }
 .sg-pack-body,.sg-pack-top { position:absolute; inset:0; }
 /* One skin, two clips: the strip above the tear line (the top crimp plus a
@@ -2927,29 +2965,22 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    stack's own depth-and-tilt transform instead of replacing it. */
 .sg-gacha-stage.is-rising .sg-flip { pointer-events:none;
   animation:sgCardRise .78s cubic-bezier(.2,.75,.25,1) both; animation-delay:var(--deal-delay,0ms); }
-/* While a finger is on the pile it follows without easing lag. */
-.sg-gacha-stage.is-tilting .sg-gacha-pack { transition:none; }
-/* The drop keeps the pile's tilt and depth, so ripping a tilted pile does not
-   snap it flat first. */
+/* The drop starts from each pack's resting transform (its depth included),
+   so the hand-off from the settled pile is seamless. */
 @keyframes sgPackDrop {
-  0%   { transform:translate(-50%,-50%) rotateY(var(--ptilt-y,0deg)) rotateX(var(--ptilt-x,0deg)) translateZ(var(--pack-z)) scale(var(--pack-zs)); opacity:1; }
-  70%  { transform:translate(-50%,16%) rotateY(var(--ptilt-y,0deg)) rotateX(var(--ptilt-x,0deg)) translateZ(var(--pack-z)) scale(var(--pack-zs)); opacity:1; }
-  100% { transform:translate(-50%,42%) rotateY(var(--ptilt-y,0deg)) rotateX(var(--ptilt-x,0deg)) translateZ(var(--pack-z)) scale(var(--pack-zs)); opacity:0; }
+  0%   { transform:translate(-50%,-50%) translateZ(var(--pack-z)); opacity:1; }
+  70%  { transform:translate(-50%,16%) translateZ(var(--pack-z)); opacity:1; }
+  100% { transform:translate(-50%,42%) translateZ(var(--pack-z)); opacity:0; }
 }
 @keyframes sgCardRise {
   from { translate:0 22%; scale:.84; }
   to   { translate:0 0; scale:1; }
 }
-@keyframes sgPackBreathe { 0%,100%{transform:translate(-50%,-50%) scale(1);} 50%{transform:translate(-50%,-50%) scale(1.035);} }
-/* A multi-pack pull: the packs behind the front one fan out in a loose pile.
-   The fan uses `translate`/`rotate` so it composes with the shared
-   `transform` the drop animation drives. They tear and drop a beat apart, so
-   the pile reads as ten packs ripping at once rather than one tween. Their
-   foil stops animating, since only their edges show behind the front pack. */
-.sg-gacha-pack.is-ghost { z-index:calc(300 - var(--pack-i, 1)); pointer-events:none; cursor:default;
-  --pack-z:calc(var(--pack-i, 1) * -16px); --pack-zs:calc(1 + var(--pack-i, 1) * .0114);
-  translate:calc(var(--pack-side, 1) * var(--pack-i, 1) * 1.2px) calc(var(--pack-i, 1) * -2.6px);
-  rotate:calc(var(--pack-side, 1) * var(--pack-i, 1) * .35deg);
+/* A multi-pack pull: the packs behind the front one stand straight behind
+   it, one depth step each, no side-to-side fan. They tear and drop a beat
+   apart, so the pile reads as ten packs ripping at once rather than one
+   tween. Their foil stops animating, since mostly their edges show. */
+.sg-gacha-pack.is-ghost { cursor:default;
   /* No filter: a filter forces every pack into its own offscreen buffer, and
      nine of them plus the cards was enough to stall iOS. Depth is shaded with
      a plain overlay instead. */
@@ -4078,6 +4109,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    it leads the swipe that sends it away. */
 .sg-gacha-stage.is-stack {
   display:block; position:relative; width:100%; max-width:430px;
+  /* Fixed, not flex-grown: the stack bar and buttons appear below it after the
+     rise, and a growing stage would re-centre - and jump - the pile. */
+  flex:0 0 auto;
   /* Same token as is-pack-ready - mixing vh/dvh jumped the stage height on
      phones when the rise dropped pack-ready. */
   height:min(58dvh, 460px); perspective:1400px; perspective-origin:50% 46%;
@@ -4168,9 +4202,11 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 @media (prefers-reduced-motion:reduce) {
   .sg-gacha-stage.is-stack .sg-flip { transition:none; }
-  .sg-gacha-pack.is-sealed { animation:none; }
+  .sg-gacha-pack { animation:none; }
   .sg-gacha-stage.is-ripping .sg-pack-top { transition:none; }
   .sg-gacha-stage.is-rising .sg-flip, .sg-gacha-stage.is-rising .sg-gacha-pack { animation-duration:.01ms; animation-delay:0ms; }
+  .sg-gacha-pack { animation:none; }
+  .sg-pack-pile { transition:none; }
   .sg-pack-foil::after, .sg-pack-sheen { animation:none; }
   .sg-gacha.is-shaking .sg-gacha-body, .sg-gacha.is-shaking-big .sg-gacha-body { animation:none; }
   .sg-gacha-stackbar { transition:none; }

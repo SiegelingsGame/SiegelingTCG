@@ -1,3 +1,32 @@
+Original prompt: Last update in the final overview screen with all the cards you can sort of scrolll horizontally limit the screen to only view the cards and vertical scroll through them so you can't accidentally zoom or move the screen left or right merge and deploy
+
+- October 21, 2026 **Pull overview scrolls vertically only.**
+  - **Change.** In the end-of-pull grid, card art and rarity auras past the last column made `.sg-gacha-body` 396px wide inside a 390px phone. Its `overflow:auto` and `touch-action:auto` let a thumb drag the whole overview a few px sideways (and double-tap zoom). The grid body is now `overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y`. The grid stage takes `overflow-x:clip`, so the content is never wider than the screen in the first place. `clip` makes no scroll container, so the vertical flow is untouched. `.sg-gacha` itself is `overflow:hidden`. Cache pin `home-redesign.css` 138.
+  - **Verification.** Headless Chromium `/shop` ×10 flow at 390x844 (stubbed 50-card pull) through to the grid. Before: body `scrollWidth` 396 vs `clientWidth` 390, and a horizontal wheel plus a forced `scrollLeft` left it at 6. After: `scrollWidth` 390, `scrollLeft` stays 0 under the same attempts, computed `touch-action: pan-y`, and vertical scrolling still reaches `scrollTop` 600 of a 3163px list. The screenshot shows all three columns intact. ×1 grid is 390/390. No page errors.
+
+Original prompt: Make the 10 packs stack evenly not side to side but all inline the back packs should mostly be visible when you turn the packs to the side also poppin in is ugly. Add an animation where the card packs enter from the top and stack on top of each other one by one. All animations should flow seamlessly into each other without jumping positions or frame lost
+
+- October 21, 2026 **Pack reveal: inline 3D pile, packs fall in one by one, seamless hand-offs.**
+  - **Change.** (`home-redesign.js` / `.css`)
+    - **Inline 3D pile.** The sealed packs are a real 3D pile. `.sg-pack-pile` is a `preserve-3d` wrapper holding every pack, each standing straight behind the one in front at `--pack-i` × −30px of depth. The side-to-side fan is gone. The pile pivots about its own middle (transform-origin z), rests slightly turned (−16° / 5°) when it holds more than one pack, and follows the finger or mouse up to ±36°. Turning it shows the packs behind as depth sorts them. During the rip it eases back square, so the drop (whose keyframes now carry only each pack's depth) starts from where the packs already are.
+    - **Entrance.** The pile is built in `gachaMarkup` the moment the overlay opens, not at reveal. The packs fall in from above one at a time, deepest first (`sgPackEnter` on `translate`/`rotate`, 90ms apart), while the purchase is in flight. The reveal now only inserts the cards behind the pile and arms the front pack. Nothing is torn down and redrawn, which was the pop. A rip during the entrance waits for the last pack to land (`enteredAt`). The breathing loading state is gone, since stopping it mid-cycle jumped.
+    - **Stage size.** The stage is fixed-size (`flex:0 0 auto`) rather than flex-grown, so the stack bar and buttons appearing after the rise no longer re-centre and jump the pile.
+    - **Stack window.** Depth 5 renders at opacity 0, so the next card fades up into the pile instead of appearing. Cards stay rendered for two swipes after leaving instead of one, so a fast swipe does not cut a card's exit short.
+    - **Grid.** The stack→grid switch ("View all" or swiping past the last card) is FLIP-animated: visible cards travel from their place in the pile to their grid slot, and off-screen ones fade up staggered. Remnant crumbles wait for the move to finish (560ms).
+    - **Prompt.** The note no longer repeats the pack's "drag across the seal" prompt, which overlapped it.
+    - Cache pins `home-redesign.css` 137, `home-redesign.js` 131.
+  - **Verification.** `node --check`. Headless Chromium `/shop` flow at 390x844 against the running app, with `open-pack` stubbed and delayed 400ms so the entrance overlaps the purchase.
+    - Screenshots show the packs mid-fall, the inline pile at rest, turned right and left, the stack, and the grid.
+    - A per-frame recorder of the stage, front pack and the first card's rects from overlay open to the grid shows:
+      - The stage rect is identical at the start and the end. The other rects come from the intended rip shake.
+      - The front pack waits off-screen for its delay, falls, overshoots 3px and settles at its resting y.
+      - The rise→stack hand-off moves the card 0px. Its only position change, at rise start, happens at opacity 0 behind the pack.
+      - On the stack→grid switch the top card holds its pile position for the first frames, then travels to its grid slot. No frame jumps.
+    - The ×1 flow is the same. No page errors.
+    - Not tested on a real iPhone.
+
+- October 21, 2026 x10 freeze/crash fix release verification: PR #1166 merged as `574d7f28`; Deploy workflow `39659085108` completed successfully. Live `/shop` served `home-redesign.css?v=136` / `home-redesign.js?v=130` with the `is-stack-gone`/`LIVE_SPARKS`/`tiltPile`/`sgCrumbleFlat` code. Hosting and Cloud Run `/api/cards/editor` remain `FIRESTORE` with editing enabled; `/api/game/options` returns 7 decks; `config.js` keeps `apiBaseUrl: ''`.
+
 Original prompt: 10 packs froze. When you are looking at 10 packs before opening use the 3d version so the player can slightly move and see each pack stacked the screenshot shows where the pack opening freezes. Then if you open or swipe cards too fast it crashes fix theee bugs
 
 - October 21, 2026 **Pack reveal: ×10 freeze and fast-swipe crash fixed (GPU memory); sealed pile tilts in 3D.**
