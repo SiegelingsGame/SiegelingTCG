@@ -2930,6 +2930,34 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   to   { translate:0 0; scale:1; }
 }
 @keyframes sgPackBreathe { 0%,100%{transform:translate(-50%,-50%) scale(1);} 50%{transform:translate(-50%,-50%) scale(1.035);} }
+/* A multi-pack pull: the packs behind the front one fan out in a loose pile.
+   The fan uses `translate`/`rotate` so it composes with the shared
+   `transform` the drop animation drives. They tear and drop a beat apart, so
+   the pile reads as ten packs ripping at once rather than one tween. Their
+   foil stops animating, since only their edges show behind the front pack. */
+.sg-gacha-pack.is-ghost { z-index:calc(300 - var(--pack-i, 1)); pointer-events:none; cursor:default;
+  translate:calc(var(--pack-side, 1) * var(--pack-i, 1) * 1.6px) calc(var(--pack-i, 1) * -2.6px);
+  rotate:calc(var(--pack-side, 1) * var(--pack-i, 1) * .42deg);
+  filter:brightness(calc(1 - var(--pack-i, 1) * .05)) drop-shadow(0 10px 12px rgba(0,0,0,.45)); }
+.sg-gacha-pack.is-ghost .sg-pack-sheen, .sg-gacha-pack.is-ghost .sg-pack-foil::after { animation:none; }
+.sg-gacha-stage.is-ripping .sg-gacha-pack.is-ghost .sg-pack-top { transition-delay:calc(var(--pack-i, 1) * 22ms); }
+.sg-gacha-stage.is-rising .sg-gacha-pack.is-ghost { animation-delay:calc(var(--pack-i, 1) * 28ms); }
+/* The jolt of the rip. `translate`, not `transform`, so nothing the overlay
+   already positions is overwritten. */
+.sg-gacha.is-shaking .sg-gacha-body { animation:sgRipShake .42s cubic-bezier(.36,.07,.19,.97) both; }
+.sg-gacha.is-shaking-big .sg-gacha-body { animation:sgRipShakeBig .62s cubic-bezier(.36,.07,.19,.97) both; }
+@keyframes sgRipShake {
+  0%,100% { translate:0 0; }
+  15% { translate:-5px 2px; } 30% { translate:5px -3px; } 45% { translate:-4px 3px; }
+  60% { translate:3px -2px; } 80% { translate:-1px 1px; }
+}
+@keyframes sgRipShakeBig {
+  0%,100% { translate:0 0; rotate:0deg; }
+  10% { translate:-10px 4px; rotate:-.6deg; } 22% { translate:9px -6px; rotate:.5deg; }
+  34% { translate:-8px 6px; rotate:-.4deg; } 46% { translate:7px -4px; rotate:.35deg; }
+  60% { translate:-5px 3px; rotate:-.2deg; } 74% { translate:3px -2px; rotate:.1deg; }
+  88% { translate:-1px 1px; rotate:0deg; }
+}
 .sg-gacha-note { margin:0; font-size:12.5px; color:var(--muted); letter-spacing:.06em; text-align:center; }
 .sg-gacha-actions { display:flex; gap:10px; width:100%; max-width:420px; }
 .sg-gacha-actions > * { flex:1 1 0; }
@@ -4110,6 +4138,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gacha-stage.is-ripping .sg-pack-top { transition:none; }
   .sg-gacha-stage.is-rising .sg-flip, .sg-gacha-stage.is-rising .sg-gacha-pack { animation-duration:.01ms; animation-delay:0ms; }
   .sg-pack-foil::after, .sg-pack-sheen { animation:none; }
+  .sg-gacha.is-shaking .sg-gacha-body, .sg-gacha.is-shaking-big .sg-gacha-body { animation:none; }
   .sg-gacha-stackbar { transition:none; }
   .sg-gacha-stackbar.is-in { opacity:1; transform:none; }
   .sg-flip-sparks i, .sg-flip.is-flaring .sg-flip-front::before { animation:none; display:none; }
