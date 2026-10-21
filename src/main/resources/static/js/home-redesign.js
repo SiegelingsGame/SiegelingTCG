@@ -5820,8 +5820,12 @@
           '<span class="sg-gacha-kicker" data-gacha-kicker>Opening</span>' +
           '<h3 data-gacha-title>' + esc(pk.name || 'Pack') + (count > 1 ? ' &times;' + esc(count) : '') + '</h3>' +
         '</div>' +
-        '<div class="sg-gacha-stage" data-gacha-stage>' +
-          packShell(pk, 'is-sealed is-loading') +
+        // The stage starts in the exact layout the reveal uses, and the pile is
+        // built here rather than at reveal: the packs fly in while the
+        // purchase is in flight, and the reveal only adds the cards behind
+        // them, so nothing is torn down and redrawn (which read as a pop).
+        '<div class="sg-gacha-stage is-stack is-pack-ready" data-gacha-stage>' +
+          packPile(pk, count) +
         '</div>' +
         '<p class="sg-gacha-note" data-gacha-note>Tearing the seal\u2026</p>' +
         // The shards a duplicate crumbles into need somewhere to land, or the
@@ -5857,21 +5861,40 @@
 
   var PACK_WRAPPER_ART = '/img/packs/siegeling-back.webp';
 
-  // A ×10 pull is ten packs, so the front pack sits on a loose pile of nine
-  // more. The ones behind are pure dressing - one pack takes the gesture and
-  // every pack in the pile tears with it.
-  function ghostPack(pk, i) {
+  // A ×10 pull is ten packs. They stand in one straight line in a real 3D pile
+  // (`preserve-3d`), each a fixed step deeper than the one in front, so turning
+  // the pile shows the packs behind. The ones behind are pure dressing - one
+  // pack takes the gesture and every pack in the pile tears with it.
+  var PACK_ENTER_STEP_MS = 90;
+  var PACK_ENTER_MS = 620;
+
+  function packPile(pk, count) {
+    var n = Math.max(1, Math.min(count || 1, 10));
+    var html = '';
+    for (var i = n - 1; i >= 1; i--) html += ghostPack(pk, i, n);
+    return '<div class="sg-pack-pile' + (n > 1 ? ' is-many' : '') + '" data-pack-pile style="--pile-n:' + n + '">' +
+      html + packShell(pk, 'is-loading', n) + '</div>';
+  }
+
+  // The packs fall in from above one at a time, deepest first, so the pile
+  // builds front to back the way a hand lays packs down.
+  function enterDelay(i, n) {
+    return (n - 1 - i) * PACK_ENTER_STEP_MS;
+  }
+
+  function ghostPack(pk, i, n) {
     var art = esc(PACK_WRAPPER_ART);
     return '<span class="sg-gacha-pack is-ghost" aria-hidden="true" style="--pack-i:' + i +
-      ';--pack-side:' + (i % 2 ? 1 : -1) + '">' +
+      ';--enter-delay:' + enterDelay(i, n) + 'ms">' +
       '<span class="sg-pack-body">' + packSkin(pk, art) + '</span>' +
       '<span class="sg-pack-top">' + packSkin(pk, art) + '</span>' +
     '</span>';
   }
 
-  function packShell(pk, state) {
+  function packShell(pk, state, n) {
     var art = esc(PACK_WRAPPER_ART);
     return '<button class="sg-gacha-pack ' + (state || '') + '" type="button" data-rip-pack ' +
+      'style="--pack-i:0;--enter-delay:' + enterDelay(0, n || 1) + 'ms" ' +
       ((state || '').indexOf('is-loading') >= 0 ? 'disabled ' : '') + 'aria-label="Rip open ' +
       esc(pk.name || 'pack') + '">' +
       '<span class="sg-pack-body">' + packSkin(pk, art) + '</span>' +
@@ -6026,6 +6049,9 @@
     var note = gacha.querySelector('[data-gacha-note]');
     var actions = gacha.querySelector('[data-gacha-actions]');
     var kicker = gacha.querySelector('[data-gacha-kicker]');
+    // When the last pack has landed; a rip before then is held until it has.
+    var enteredAt = Date.now() + (reducedMotion() ? 0 :
+      enterDelay(0, Math.min(count, 10)) + PACK_ENTER_MS);
 
     function close() { gacha.remove(); }
     gacha.querySelector('[data-gacha-done]').addEventListener('click', function () {
@@ -6067,7 +6093,9 @@
     function reveal(cards) {
       var back = packBack(pk);
       kicker.textContent = 'Pack ready';
-      note.textContent = 'Drag across the seal to rip the pack open';
+      // The pack carries its own "drag across the seal" prompt; repeating it
+      // here stacked the same words twice under the pile.
+      note.textContent = '';
 
       // Best last, the way a real pack is sorted: commons on top, rarer cards
       // toward the back, and every special finish (holo up to GSP) behind all
@@ -6084,12 +6112,16 @@
       // Even a single card is dealt as a one-card stack: the cards rise out of
       // the pack into the pile, and swiping past the last card fans the pull out.
       var stackMode = true;
-      stage.className = 'sg-gacha-stage is-stack is-pack-ready';
-      var piles = '';
-      for (var g = Math.min(count, 10) - 1; g >= 1; g--) piles += ghostPack(pk, g);
-      stage.innerHTML = piles + packShell(pk, '') + order.map(function (idx, pos) {
+      // The pile has been on stage since the overlay opened; the cards go in
+      // behind it and the front pack is armed, without redrawing the packs.
+      stage.insertAdjacentHTML('beforeend', order.map(function (idx, pos) {
         return gachaSlot(cards[idx], back, idx, pos);
-      }).join('');
+      }).join(''));
+      var frontPack = stage.querySelector('[data-rip-pack]');
+      if (frontPack) {
+        frontPack.disabled = false;
+        frontPack.classList.remove('is-loading');
+      }
 
       var slots = [].slice.call(stage.querySelectorAll('[data-flip]'));
       // The pile rises together with its deepest cards leading by a beat, so the
@@ -6242,13 +6274,15 @@
           var depth = pos - stackPos;
           btn.classList.toggle('is-stack-out', depth < 0);
           btn.classList.toggle('is-stack-top', depth === 0);
-          btn.classList.toggle('is-stack-buried', depth > 5);
+          // Depth 5 is rendered but transparent, so the next card to surface
+          // fades up into the pile instead of appearing out of nothing.
+          btn.classList.toggle('is-stack-buried', depth > 4);
           // Cards more than one swipe gone, or too deep to see, leave the
           // render tree entirely. Each face-up card is a 3D compositing layer,
           // and fifty of them (a ×10 pull) held at opacity 0 exhausted iOS
           // Safari's GPU memory - the freeze on the sealed pile and the crash
           // on a fast swipe.
-          btn.classList.toggle('is-stack-gone', depth < -1 || depth > 5);
+          btn.classList.toggle('is-stack-gone', depth < -2 || depth > 5);
           btn.style.setProperty('--depth', String(Math.max(0, Math.min(depth, 5))));
           btn.style.zIndex = String(Math.max(1, 200 - pos));
           btn.tabIndex = depth === 0 ? 0 : -1;
@@ -6275,8 +6309,8 @@
           var nx = Math.max(-1, Math.min(1, (e.clientX - (box.left + box.width / 2)) / (box.width / 2)));
           var ny = Math.max(-1, Math.min(1, (e.clientY - (box.top + box.height / 2)) / (box.height / 2)));
           stage.classList.add('is-tilting');
-          stage.style.setProperty('--ptilt-y', (nx * 18).toFixed(2) + 'deg');
-          stage.style.setProperty('--ptilt-x', (-ny * 12).toFixed(2) + 'deg');
+          stage.style.setProperty('--ptilt-y', (nx * 36).toFixed(2) + 'deg');
+          stage.style.setProperty('--ptilt-x', (-ny * 14).toFixed(2) + 'deg');
         }
         function settlePile() {
           if (tearing) return;
@@ -6291,7 +6325,20 @@
         pack.addEventListener('pointercancel', settlePile);
         function tear() {
           if (tearing) return;
+          // A rip that lands while the packs are still falling in waits for
+          // the last one to settle, so the tear never cuts the entrance short.
+          var wait = enteredAt - Date.now();
+          if (wait > 0) {
+            tearing = true;
+            window.setTimeout(function () { tearing = false; tear(); }, wait);
+            return;
+          }
           tearing = true;
+          // The pile eases back square while the strips fly, so the drop that
+          // follows starts from where the packs already are.
+          stage.classList.remove('is-tilting');
+          stage.style.removeProperty('--ptilt-y');
+          stage.style.removeProperty('--ptilt-x');
           pack.disabled = true;
           stage.classList.add('is-ripping');
           // The rip lands with a jolt: the whole overlay shakes, harder and
@@ -6316,7 +6363,8 @@
             stage.classList.remove('is-pack-ready');
             stage.classList.add('is-rising');
             window.setTimeout(function () {
-              [].slice.call(stage.querySelectorAll('.sg-gacha-pack')).forEach(function (el) { el.remove(); });
+              var pile = stage.querySelector('[data-pack-pile]');
+              if (pile) pile.remove();
               stage.classList.remove('is-rising', 'is-ripping');
               stackLocked = false;
               layoutStack();
@@ -6384,11 +6432,22 @@
       function drainRemnants() {
         var queued = pendingRemnants.splice(0, pendingRemnants.length);
         queued.forEach(function (entry, i) {
-          setTimeout(function () { bankRemnants(entry.btn, entry.card); }, 360 + i * 220);
+          setTimeout(function () { bankRemnants(entry.btn, entry.card); }, 560 + i * 220);
         });
       }
 
       function toGrid() {
+        // The switch to the grid is animated FLIP-style: every card the player
+        // can see is measured in the pile, laid out in the grid, then played
+        // from where it was to where it is, so nothing jumps. Cards that were
+        // not on screen (swiped away or still deep in the pile) fade up into
+        // their slots instead.
+        var before = {};
+        slots.forEach(function (btn) {
+          if (btn.classList.contains('is-stack-gone') || btn.classList.contains('is-stack-out') ||
+              btn.classList.contains('is-stack-buried')) return;
+          before[btn.getAttribute('data-flip')] = btn.getBoundingClientRect();
+        });
         stackMode = false;
         slots.forEach(function (btn) { btn.classList.remove('is-stack-gone'); });
         stage.className = 'sg-gacha-stage is-grid' + (slots.length > 5 ? ' is-bulk' : '');
@@ -6404,6 +6463,27 @@
         stage.style.removeProperty('--tilt-y');
         stage.style.removeProperty('--drag-x');
         stage.style.removeProperty('--drag-y');
+        if (!reducedMotion() && slots[0] && slots[0].animate) {
+          var fresh = 0;
+          slots.forEach(function (btn) {
+            var was = before[btn.getAttribute('data-flip')];
+            var now = btn.getBoundingClientRect();
+            if (!now.width) return;
+            if (was && was.width) {
+              var dx = (was.left + was.width / 2) - (now.left + now.width / 2);
+              var dy = (was.top + was.height / 2) - (now.top + now.height / 2);
+              btn.animate([
+                { transform: 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) scale(' + (was.width / now.width).toFixed(3) + ')' },
+                { transform: 'none' }
+              ], { duration: 520, easing: 'cubic-bezier(.2,.8,.2,1)' });
+            } else {
+              btn.animate([
+                { opacity: 0, transform: 'translateY(14px) scale(.94)' },
+                { opacity: 1, transform: 'none' }
+              ], { duration: 360, delay: Math.min(fresh++ * 18, 420), easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' });
+            }
+          });
+        }
         // After the layout switch, so each card's shards fly from the slot it
         // actually occupies in the grid rather than from its place in the pile.
         requestAnimationFrame(drainRemnants);
