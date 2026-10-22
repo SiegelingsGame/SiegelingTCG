@@ -7,12 +7,21 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sieglings.model.Ability;
 import com.sieglings.model.AbilityEffectKeys;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ContentPackMergerTest {
@@ -118,6 +127,87 @@ class ContentPackMergerTest {
                 assertTrue(trapBuckets.add(card.get("trapBucketElement").asText()), "one Metal deception per trigger element");
             }
         }
+    }
+
+    /**
+     * The seeder applies every classpath pack once, in filename order, and then
+     * never again. shadow-kit and the Shadow rebalance both patch the same cards;
+     * the rebalance has to be the one that sticks, with every assigned move present.
+     */
+    @Test
+    void shadowRebalanceWinsWhenPacksApplyInSeederFilenameOrder() throws Exception {
+        Resource[] packs = new PathMatchingResourcePatternResolver()
+                .getResources("classpath*:cards/content-packs/*.json");
+        Arrays.sort(packs, Comparator.comparing(r -> String.valueOf(r.getFilename())));
+
+        ObjectNode snapshot = mapper.createObjectNode();
+        ArrayNode cards = snapshot.putArray("cards");
+        for (String id : List.of("echo", "echowing", "echolustrious", "dreadmeow", "voib", "voiboy", "umbry", "voidmaw")) {
+            cards.addObject().put("type", "SIEGLING").put("id", id).put("name", id)
+                    .put("element", "SHADOW").put("rarity", "COMMON").put("health", 10).put("speed", 3)
+                    .put("preferredRow", "FRONT");
+        }
+        snapshot.putArray("moves");
+
+        JsonNode data = snapshot;
+        JsonNode rebalance = null;
+        int kitIndex = -1;
+        int rebalanceIndex = -1;
+        for (int i = 0; i < packs.length; i++) {
+            JsonNode pack;
+            try (InputStream in = packs[i].getInputStream()) {
+                pack = mapper.readTree(in);
+            }
+            String packId = pack.path("id").asText();
+            if ("shadow-kit-2026-10".equals(packId)) {
+                kitIndex = i;
+            }
+            if ("shadow-rebalance-2026-10".equals(packId)) {
+                rebalanceIndex = i;
+                rebalance = pack;
+            }
+            data = ContentPackMerger.merge(mapper, data, pack).data();
+        }
+        assertNotNull(rebalance, "shadow rebalance pack is on the classpath");
+        assertTrue(kitIndex >= 0 && rebalanceIndex > kitIndex,
+                "rebalance must sort after shadow-kit so its move lists are not overwritten");
+
+        Map<String, List<String>> want = new HashMap<>();
+        for (JsonNode patch : rebalance.get("cardPatches")) {
+            List<String> ids = new ArrayList<>();
+            patch.get("moveIds").forEach(id -> ids.add(id.asText()));
+            want.put(patch.get("id").asText(), ids);
+        }
+        MovesPoolService pool = new MovesPoolService(mapper, null);
+        pool.reloadClasspathAndOverlayEditor(
+                mapper.treeToValue(data, ManualSieglingCatalog.OverrideFile.class).moves());
+        for (JsonNode card : data.get("cards")) {
+            List<String> expected = want.get(card.path("id").asText());
+            if (expected == null) {
+                continue;
+            }
+            List<String> actual = new ArrayList<>();
+            card.get("moveIds").forEach(id -> actual.add(id.asText()));
+            assertEquals(expected, actual, card.path("id").asText());
+            // Legacy move ids (already on the live dashboard, not in a pack) are
+            // absent from this empty snapshot. Every move this rebalance defines
+            // must still resolve, or the card is left pointing at nothing.
+            for (String moveId : actual) {
+                if (moveId.endsWith("-balanced")) {
+                    assertEquals(1, pool.resolveAbilities(List.of(moveId)).size(), moveId);
+                }
+            }
+        }
+        JsonNode voidmaw = null;
+        for (JsonNode card : data.get("cards")) {
+            if ("voidmaw".equals(card.path("id").asText())) {
+                voidmaw = card;
+            }
+        }
+        assertNotNull(voidmaw);
+        List<String> voidmawMoves = new ArrayList<>();
+        voidmaw.get("moveIds").forEach(id -> voidmawMoves.add(id.asText()));
+        assertTrue(voidmawMoves.contains("voidmaw-umbra-volley"));
     }
 
     @Test

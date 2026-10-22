@@ -1,6 +1,6 @@
 {
-  "id": "shadow-damage-balance-2026-10",
-  "description": "Rebalances live Shadow single-target and random attacks against other elements while preserving Shadow's high-cost, high-damage identity and existing move counts.",
+  "id": "shadow-rebalance-2026-10",
+  "description": "Rebalances live Shadow single-target and random attacks against other elements while preserving Shadow's high-cost, high-damage identity and existing move counts. Applies after shadow-kit-2026-10. This id replaces shadow-damage-balance-2026-10, which sorted first and was overwritten by the kit's move lists before it could stick.",
   "moves": [
     {
       "id": "shadow-echo-ambush-balanced",

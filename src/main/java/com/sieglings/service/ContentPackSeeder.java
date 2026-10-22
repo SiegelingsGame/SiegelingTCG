@@ -64,6 +64,10 @@ public class ContentPackSeeder {
             log.warn("Could not list content packs: {}", ex.getMessage());
             return;
         }
+        // Filename order is apply order. A later file's cardPatches replace the same
+        // fields an earlier file wrote, and a pack id that is already recorded never
+        // runs again. A correction has to sort after the pack it fixes and use a new
+        // id when the earlier id may already be marked applied.
         Arrays.sort(packs, Comparator.comparing(r -> String.valueOf(r.getFilename())));
         for (Resource resource : packs) {
             try (InputStream stream = resource.getInputStream()) {

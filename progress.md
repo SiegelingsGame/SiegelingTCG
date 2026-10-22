@@ -1,3 +1,8 @@
+- October 22, 2026 **Shadow attack rebalance now survives the content-pack seeder.**
+  - **Bug.** `ContentPackSeeder` applies `cards/content-packs/*.json` once, in filename order, and records the pack id. `shadow-damage-balance-2026-10.json` sorted before `shadow-kit.json`, so the kit's `cardPatches` replaced the balanced `moveIds` on Echo, Echowing, Echolustrious, Dreadmeow, Voib, Voiboy, and Umbry. Both ids were then marked applied, and the balance never ran again. Those attacks stayed at the kit numbers (for example Echowing Night Strike 8 damage for 1 energy, Umbral Feint 6–10) instead of the shipped rebalance (4 damage, and 4–6).
+  - **Change.** The correction is `shadow-rebalance-2026-10.json` with a new pack id, which sorts after `shadow-kit.json`. A boot that already recorded the old id applies this id once and writes the balanced lists. The balanced move ids are unchanged, so a boot that already added them does not duplicate the moves.
+  - **Verification.** `ContentPackMergerTest.shadowRebalanceWinsWhenPacksApplyInSeederFilenameOrder` merges every classpath pack in the seeder's filename order and checks the seven rebalanced loadouts and that each assigned move resolves. `voidmaw` still keeps the kit's volley.
+
 Original prompt: To initiate the rip the player taps the pack then zoom in to the perforated area, the player then rips and the pack opens cards come out the top. Zoom out and then we do the single reveals
 
 - October 22, 2026 **Pack opening is tap → zoom to the seal → rip up close → cards rise → zoom out → reveals.**
