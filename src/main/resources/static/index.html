@@ -99,8 +99,9 @@
         <span aria-hidden="true">✦</span>
     </button>
     <div class="landing-fab-menu" id="landingFabMenu" hidden>
-        <a href="#modes">Game Modes</a>
         <a href="#roster">Siegelings</a>
+        <a href="#modes">Game Modes</a>
+        <a href="#rarities">Rarities</a>
         <a href="#creatures">Legendaries</a>
         <a href="#knights">SiegeKnights</a>
         <a href="#elements">Elements</a>
@@ -109,6 +110,19 @@
         <a href="#about">About</a>
     </div>
 </nav>
+
+<!-- ── Siegling roster: two counter-scrolling card rows ──────────────────── -->
+<section class="roster-section binder-face-scope" id="roster" aria-labelledby="rosterTitle">
+    <div class="landing-section-heading">
+        <span class="section-kicker">The Siegling Roster</span>
+        <h2 id="rosterTitle">Every element has a champion</h2>
+        <p>A few from every element. Tap any Siegling to meet it, or open the full collection below.</p>
+    </div>
+    <div class="card-marquee roster-marquee" id="rosterMarqueeA" aria-label="Siegling roster, first row"></div>
+    <div class="card-marquee roster-marquee" id="rosterMarqueeB" aria-label="Siegling roster, second row" data-marquee-reverse></div>
+    <div class="roster-spotlight" id="rosterSpotlight" aria-live="polite" hidden></div>
+    <a class="roster-collection-link" href="/cards">Browse the full collection <span>→</span></a>
+</section>
 
 <!-- ── Game modes: one pane, a page per mode, each with a hands-on demo ──── -->
 <section class="modes-pane binder-face-scope" id="modes" data-mode="arena" aria-label="Game modes">
@@ -231,30 +245,6 @@
     </div>
 </section>
 
-<!-- ── Siegling roster: two counter-scrolling card rows ──────────────────── -->
-<section class="roster-section binder-face-scope" id="roster" aria-labelledby="rosterTitle">
-    <div class="landing-section-heading">
-        <span class="section-kicker">The Siegling Roster</span>
-        <h2 id="rosterTitle">Every element has a champion</h2>
-        <p>A few from every element. Tap any Siegling to meet it, or open the full collection below.</p>
-    </div>
-    <div class="card-marquee roster-marquee" id="rosterMarqueeA" aria-label="Siegling roster, first row"></div>
-    <div class="card-marquee roster-marquee" id="rosterMarqueeB" aria-label="Siegling roster, second row" data-marquee-reverse></div>
-    <div class="roster-spotlight" id="rosterSpotlight" aria-live="polite" hidden></div>
-    <a class="roster-collection-link" href="/cards">Browse the full collection <span>→</span></a>
-</section>
-
-<!-- ── Legendary Siegling cards ─────────────────────────────────────────── -->
-<section class="creatures binder-face-scope" id="creatures" aria-labelledby="creaturesTitle">
-    <div class="creatures-header">
-        <span class="creatures-kicker">Legendary Siegelings</span>
-        <h2 class="creatures-title" id="creaturesTitle">Meet the Legendary Siegelings</h2>
-    </div>
-    <div class="legendary-row" id="legendaryRow" aria-label="Legendary Siegling cards">
-        <!-- Legendary cards rendered by landing.js from the live catalog -->
-    </div>
-</section>
-
 <!-- ── Card rarities and finishes ───────────────────────────────────── -->
 <section class="rarity-section binder-face-scope" id="rarities" aria-labelledby="raritiesTitle">
     <div class="landing-section-heading">
@@ -266,6 +256,17 @@
     <p class="finish-blurb" id="finishBlurb" aria-live="polite"></p>
     <div class="rarity-row" id="rarityRow" aria-label="Siegling cards at each rarity">
         <!-- Rarity cards rendered by landing.js -->
+    </div>
+</section>
+
+<!-- ── Legendary Siegling cards ─────────────────────────────────────────── -->
+<section class="creatures binder-face-scope" id="creatures" aria-labelledby="creaturesTitle">
+    <div class="creatures-header">
+        <span class="creatures-kicker">Legendary Siegelings</span>
+        <h2 class="creatures-title" id="creaturesTitle">Meet the Legendary Siegelings</h2>
+    </div>
+    <div class="legendary-row" id="legendaryRow" aria-label="Legendary Siegling cards">
+        <!-- Legendary cards rendered by landing.js from the live catalog -->
     </div>
 </section>
 
