@@ -1,3 +1,5 @@
+- October 22, 2026 Per-card stack perspective release verification: PR #1172 merged as `b9af9e1b`; Deploy workflow `39781531744` completed successfully. Live `/shop` serves `home-redesign.css?v=143` with the per-card `perspective(1400px)` stack transforms. Hosting and Cloud Run `/api/cards/editor` remain `FIRESTORE`-backed with editing enabled and Firestore available; `/api/game/options` returns 7 decks; `config.js` keeps `apiBaseUrl: ''`.
+
 Original prompt: On the pull animation the right side of the cards is being cutoff
 
 - October 22, 2026 **Stack cards no longer sliced on their right side on iPhone.**
