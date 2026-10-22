@@ -12,6 +12,8 @@ These are the effect keys the rules engine currently understands.
 | `chain_damage` | Deals damage to the resolved target **and** to every Siegling that shares an active reciprocal notch link with it (one hop, on the target's own board). | `SINGLE_ENEMY`, `ROW_SELECT_ENEMIES`, `ALL_ENEMIES` |
 | `player_damage` | Deals direct damage to a player target. | `ENEMY_PLAYER` |
 | `heal` | Restores health up to max Health. | `SINGLE_ALLY`, `ALL_ALLIES`, `ENEMY_PLAYER` |
+| `overheal` | Heals like `heal`; whatever would overflow past full is kept as permanent max Health (current and max both rise). A Toxin-afflicted target gets no overflow: Toxin eats the whole heal. Patience's signature *Everdawn*. | `SINGLE_ALLY`, `ALL_ALLIES`, `ROW_ALLIES`, `ROW_SELECT_ALLIES`, `SELF` |
+| `drain` | Deals damage exactly like `damage` (weakness, Blind, Soak, Rust, afflictions), then heals the attacker for the HP actually removed — shield absorption and overkill don't count. Falls back to face damage on an empty board, like `damage`. Penitence's signature *Penance*. | `SINGLE_ENEMY`, `RANDOM_ENEMY`, `ROW_ENEMIES`, `ROW_SELECT_ENEMIES`, `ALL_ENEMIES` |
 | `freeze` | Applies the freeze status. | `SINGLE_ENEMY`, `ROW_ENEMIES` |
 | `speed_zero` | Sets effective Speed to 0 for the turn. | `SINGLE_ENEMY`, `ROW_ENEMIES` |
 | `damage_boost` | Adds temporary attack damage. | `SINGLE_ALLY`, `ALL_ALLIES`, `ROW_ALLIES`, `PASSIVE` |
@@ -86,10 +88,11 @@ table below; an edit applies to battles started afterwards.
 | --- | --- | --- |
 | `damage` | `DAMAGE` — value + 2, plus the caster's attack buff. | as written |
 | `chain_damage` | `DAMAGE` — Siege has no notch links, so it lands as a normal attack. | as written |
+| `drain` | `DAMAGE` — lands as a normal attack; Siege does not model the self-heal. | as written |
 | `player_damage` | `DAMAGE` — there is no opposing player, so it lands on the enemy line. | `ALL_ENEMIES` |
 | `draw` | `DRAW` — pulls that many cards (max 3) into the hand. | `SELF` |
 | `energy_boost` | `GAIN_AP` — Siege has no elemental pools, so the energy becomes AP for the current turn (max 2). Passive versions never become Siege cards at all. | `SELF` |
-| `heal` / `connected_allies_heal` | `HEAL` — value + 3. | as written / `ALLY_ALL` for connected-allies |
+| `heal` / `connected_allies_heal` / `overheal` | `HEAL` — value + 3. | as written / `ALLY_ALL` for connected-allies |
 | `shield` | `SHIELD` — value + 3, **lapses when the shielded side opens its next turn** (the board clears shields at the end of the battle phase). | as written |
 | `health_boost` | `MAX_HP_BOOST` — raises max HP for the battle and heals the same amount, then drops when the battle ends. | as written |
 | `damage_boost` | `BUFF_ATK` — only the Siegelings the card named, and **only for `AbilitySpec.durationRounds` rounds** (2 by default, `SiegeTuning.BUFF_ATK_ROUNDS`); replaying the same card refreshes its own grant instead of stacking a second copy. Battle-long attack bonuses come from the Knight's ATTACK passive and ATTACK items, not from cards. | as written |

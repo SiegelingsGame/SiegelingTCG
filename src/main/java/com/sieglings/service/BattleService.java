@@ -318,7 +318,8 @@ public class BattleService {
     /** Board-damage effects that fall back to face damage when the opposing board is empty. */
     private static boolean isDirectDamageEffect(String effectType) {
         return AbilityEffectKeys.DAMAGE.equals(effectType)
-                || AbilityEffectKeys.CHAIN_DAMAGE.equals(effectType);
+                || AbilityEffectKeys.CHAIN_DAMAGE.equals(effectType)
+                || AbilityEffectKeys.DRAIN.equals(effectType);
     }
 
     private boolean isAtFullHealth(CardInstance unit) {

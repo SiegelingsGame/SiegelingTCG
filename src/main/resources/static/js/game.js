@@ -409,10 +409,12 @@ const TARGET_TYPES = {
 const EFFECT_KIND_MAP = {
     damage: 'damage',
     chain_damage: 'damage',
+    drain: 'damage',
     player_damage: 'damage',
     destroy: 'damage',
     draw: 'buff',
     heal: 'heal',
+    overheal: 'heal',
     shield: 'buff',
     damage_boost: 'buff',
     health_boost: 'buff',
@@ -2272,7 +2274,8 @@ function getBattleAbilityBaseDamage(ability) {
 
 function isBattleDamageAbility(ability) {
     const effectType = String(ability?.effectType || '').trim().toLowerCase();
-    return effectType === 'damage' || effectType === 'chain_damage' || getBattleAbilityBaseDamage(ability) > 0;
+    return effectType === 'damage' || effectType === 'chain_damage' || effectType === 'drain'
+        || getBattleAbilityBaseDamage(ability) > 0;
 }
 
 function isChainTargetAbility(ability) {

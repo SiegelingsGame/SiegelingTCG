@@ -1,0 +1,36 @@
+{
+  "id": "penitence-signature-2026-10",
+  "description": "Penitence, the Shadow legendary, gets its signature Penance (the new drain key: damage that heals Penitence for the HP it removes) and a full five-move loadout built from the balanced live Shadow pool.",
+  "moves": [
+    {
+      "id": "penitence-penance",
+      "name": "Penance",
+      "element": "SHADOW",
+      "category": "SPECIALITY",
+      "targetType": "SINGLE_ENEMY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "drain",
+      "effectValue": 6,
+      "energyCost": 3,
+      "description": "Deal 6 damage to 1 enemy. Penitence heals for the damage dealt.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    }
+  ],
+  "cards": [],
+  "cardPatches": [
+    {
+      "id": "penitence",
+      "moveIds": [
+        "penitence-penance",
+        "eclipse-pounce-balanced",
+        "umbral-feint-balanced",
+        "blackstar-scatter",
+        "gloom-ward"
+      ]
+    }
+  ]
+}

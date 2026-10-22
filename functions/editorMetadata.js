@@ -32,6 +32,18 @@ const EFFECT_TYPES = [
     targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES', 'SELF']
   },
   {
+    key: 'overheal',
+    label: 'Overheal',
+    description: 'Heals the target; healing past full permanently raises its max health by the overflow.',
+    targetHints: ['SINGLE_ALLY', 'ALL_ALLIES', 'ROW_ALLIES', 'ROW_SELECT_ALLIES', 'SELF']
+  },
+  {
+    key: 'drain',
+    label: 'Drain',
+    description: 'Deals damage, then heals the attacker for the HP it actually removed.',
+    targetHints: ['SINGLE_ENEMY', 'RANDOM_ENEMY', 'ROW_ENEMIES', 'ROW_SELECT_ENEMIES', 'ALL_ENEMIES']
+  },
+  {
     key: 'shield',
     label: 'Shield',
     description: 'Grants temporary shield health that absorbs damage before HP.',

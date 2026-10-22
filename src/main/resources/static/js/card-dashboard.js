@@ -6356,6 +6356,14 @@
                 return `Draw ${value} ${value === 1 ? "card" : "cards"}`;
             case "heal":
                 return target && !target.player ? `Heal ${target.object} for ${value} HP` : "";
+            case "overheal":
+                return target && !target.player
+                    ? `Heal ${target.object} for ${value} HP; healing past full raises max HP`
+                    : "";
+            case "drain":
+                return target && !target.player
+                    ? `Deal ${valueLabel} damage to ${target.object} and heal for the damage dealt`
+                    : "";
             case "freeze":
                 return target && !target.player ? `Freeze ${target.object} for ${turnText(value)}` : "";
             case "speed_zero":

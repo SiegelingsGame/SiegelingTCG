@@ -824,11 +824,12 @@ public class SiegeContentService {
     Effect effectFor(String effectType) {
         String key = effectType == null ? "" : effectType.trim().toLowerCase(Locale.ROOT);
         Effect exact = switch (key) {
-            case AbilityEffectKeys.DAMAGE, AbilityEffectKeys.CHAIN_DAMAGE, AbilityEffectKeys.PLAYER_DAMAGE -> Effect.DAMAGE;
+            case AbilityEffectKeys.DAMAGE, AbilityEffectKeys.CHAIN_DAMAGE, AbilityEffectKeys.PLAYER_DAMAGE,
+                 AbilityEffectKeys.DRAIN -> Effect.DAMAGE;
             case AbilityEffectKeys.DRAW -> Effect.DRAW;
             // Siege has no elemental pools; AP is the resource a card would be paying for.
             case AbilityEffectKeys.ENERGY_BOOST -> Effect.GAIN_AP;
-            case AbilityEffectKeys.HEAL, AbilityEffectKeys.CONNECTED_ALLIES_HEAL -> Effect.HEAL;
+            case AbilityEffectKeys.HEAL, AbilityEffectKeys.CONNECTED_ALLIES_HEAL, AbilityEffectKeys.OVERHEAL -> Effect.HEAL;
             case AbilityEffectKeys.SHIELD, AbilityEffectKeys.CONNECTED_ALLIES_SHIELD -> Effect.SHIELD;
             case AbilityEffectKeys.HEALTH_BOOST, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST -> Effect.MAX_HP_BOOST;
             case AbilityEffectKeys.DAMAGE_BOOST, AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST -> Effect.BUFF_ATK;

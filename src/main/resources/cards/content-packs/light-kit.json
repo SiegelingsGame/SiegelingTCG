@@ -1,0 +1,190 @@
+{
+  "id": "light-kit-2026-10",
+  "description": "Light shared moves themed on healing and raising max Health, Patience's signature Everdawn (the new overheal key), and move assignments for the live Light Sieglings. Light has no Battle Table energy pool, so every Light move that costs energy pays Neutral (any pool), matching the Light/Poison Neutral-cost convention. Common and rare+ cards receive 3 and 5 moves; Glare stays as each card's free attack.",
+  "moves": [
+    {
+      "id": "light-glimmer-mend",
+      "name": "Glimmer Mend",
+      "element": "LIGHT",
+      "category": "UTILITY",
+      "targetType": "SINGLE_ALLY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "heal",
+      "effectValue": 3,
+      "energyCost": 0,
+      "description": "Heal 1 ally for 3 HP.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "light-radiant-touch",
+      "name": "Radiant Touch",
+      "element": "LIGHT",
+      "category": "SPECIALITY",
+      "targetType": "SINGLE_ALLY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "heal",
+      "effectValue": 6,
+      "energyCost": 1,
+      "description": "Heal 1 ally for 6 HP.",
+      "isPassive": false,
+      "requiredElement": "NEUTRAL",
+      "requiredReaction": null
+    },
+    {
+      "id": "light-dawnlight",
+      "name": "Dawnlight",
+      "element": "LIGHT",
+      "category": "SPECIALITY",
+      "targetType": "ALL_ALLIES",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "heal",
+      "effectValue": 2,
+      "energyCost": 1,
+      "description": "Heal all allies for 2 HP.",
+      "isPassive": false,
+      "requiredElement": "NEUTRAL",
+      "requiredReaction": null
+    },
+    {
+      "id": "light-sunrise-chorus",
+      "name": "Sunrise Chorus",
+      "element": "LIGHT",
+      "category": "SPECIALITY",
+      "targetType": "ALL_ALLIES",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "heal",
+      "effectValue": 4,
+      "energyCost": 3,
+      "description": "Heal all allies for 4 HP.",
+      "isPassive": false,
+      "requiredElement": "NEUTRAL",
+      "requiredReaction": null
+    },
+    {
+      "id": "light-beacon",
+      "name": "Beacon",
+      "element": "LIGHT",
+      "category": "UTILITY",
+      "targetType": "SELF",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "connected_allies_heal",
+      "effectValue": 2,
+      "energyCost": 0,
+      "description": "Heal connected allies for 2 HP.",
+      "isPassive": false,
+      "requiredElement": null,
+      "requiredReaction": null
+    },
+    {
+      "id": "light-halo",
+      "name": "Halo",
+      "element": "LIGHT",
+      "category": "UTILITY",
+      "targetType": "SINGLE_ALLY",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 1,
+      "effectType": "health_boost",
+      "effectValue": 2,
+      "energyCost": 1,
+      "description": "1 ally gains +2 max HP.",
+      "isPassive": false,
+      "requiredElement": "NEUTRAL",
+      "requiredReaction": null
+    },
+    {
+      "id": "light-aureole",
+      "name": "Aureole",
+      "element": "LIGHT",
+      "category": "UTILITY",
+      "targetType": "SELF",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "connected_allies_health_boost",
+      "effectValue": 2,
+      "energyCost": 1,
+      "description": "Connected allies gain +2 max HP.",
+      "isPassive": false,
+      "requiredElement": "NEUTRAL",
+      "requiredReaction": null
+    },
+    {
+      "id": "light-sanctify",
+      "name": "Sanctify",
+      "element": "LIGHT",
+      "category": "SPECIALITY",
+      "targetType": "ROW_SELECT_ALLIES",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "health_boost",
+      "effectValue": 2,
+      "energyCost": 2,
+      "description": "Allies in a chosen row gain +2 max HP.",
+      "isPassive": false,
+      "requiredElement": "NEUTRAL",
+      "requiredReaction": null
+    },
+    {
+      "id": "patience-everdawn",
+      "name": "Everdawn",
+      "element": "LIGHT",
+      "category": "SPECIALITY",
+      "targetType": "ALL_ALLIES",
+      "targetElement": null,
+      "targetRow": null,
+      "targetCount": 0,
+      "effectType": "overheal",
+      "effectValue": 4,
+      "energyCost": 3,
+      "description": "Heal all allies for 4 HP. Healing past full raises their max HP instead.",
+      "isPassive": false,
+      "requiredElement": "NEUTRAL",
+      "requiredReaction": null
+    }
+  ],
+  "cards": [],
+  "cardPatches": [
+    {
+      "id": "glowbear",
+      "moveIds": [
+        "glare",
+        "light-glimmer-mend",
+        "light-beacon"
+      ]
+    },
+    {
+      "id": "glowy",
+      "moveIds": [
+        "glare",
+        "light-glimmer-mend",
+        "light-halo",
+        "light-dawnlight",
+        "light-sunrise-chorus"
+      ]
+    },
+    {
+      "id": "patience",
+      "moveIds": [
+        "glare",
+        "light-radiant-touch",
+        "light-aureole",
+        "light-sanctify",
+        "patience-everdawn"
+      ]
+    }
+  ]
+}

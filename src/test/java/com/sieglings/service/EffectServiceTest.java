@@ -981,6 +981,83 @@ class EffectServiceTest {
                 "Chained victim is scored on its own element — Water resists Fire for -1.");
     }
 
+    @Test
+    void overhealRestoresMissingHealthThenKeepsTheOverflowAsMaxHealth() {
+        GameState state = battleState();
+        CardInstance wounded = instance("wounded", 1, 0, true);
+        CardInstance healthy = instance("healthy", 1, 1, true);
+        state.setAt(true, 1, 0, wounded);
+        state.setAt(true, 1, 1, healthy);
+        wounded.takeRawDamage(3);
+
+        Ability everdawn = new Ability("Everdawn", "Heal all allies for 4 HP. Healing past full raises their max HP instead.",
+                TargetType.ALL_ALLIES, null, 0, AbilityEffectKeys.OVERHEAL, 4, false);
+
+        effectService.resolveAbility(state, everdawn, null, true, -1, -1);
+
+        assertEquals(11, wounded.getEffectiveMaxHealth(), "3 of the 4 healed the wound, 1 spilled into max HP");
+        assertEquals(11, wounded.getCurrentHealth());
+        assertEquals(14, healthy.getEffectiveMaxHealth(), "a full ally keeps the whole heal as max HP");
+        assertEquals(14, healthy.getCurrentHealth());
+        assertTrue(state.getGameLog().stream().anyMatch(l -> l.contains("Everdawn heals wounded for 3")),
+                "the heal part keeps the wording action-queue.js parses");
+    }
+
+    @Test
+    void overhealOnADeepWoundIsAPlainHeal() {
+        GameState state = battleState();
+        CardInstance wounded = instance("wounded", 1, 0, true);
+        state.setAt(true, 1, 0, wounded);
+        wounded.takeRawDamage(6);
+
+        Ability everdawn = new Ability("Everdawn", "", TargetType.SINGLE_ALLY, null, 1,
+                AbilityEffectKeys.OVERHEAL, 4, false);
+
+        effectService.resolveAbility(state, everdawn, null, true, 1, 0);
+
+        assertEquals(8, wounded.getCurrentHealth());
+        assertEquals(10, wounded.getEffectiveMaxHealth());
+    }
+
+    @Test
+    void drainHealsTheAttackerForTheHealthItRemoved() {
+        GameState state = battleState();
+        CardInstance attacker = instance("penitence", 1, 0, true);
+        CardInstance shielded = instance("shielded", 1, 1, false);
+        state.setAt(true, 1, 0, attacker);
+        state.setAt(false, 1, 1, shielded);
+        attacker.takeRawDamage(8);
+        shielded.addShield(2);
+
+        Ability penance = new Ability("Penance", "Deal 6 damage to 1 enemy. Penitence heals for the damage dealt.",
+                TargetType.SINGLE_ENEMY, null, 1, AbilityEffectKeys.DRAIN, 6, false);
+
+        effectService.resolveAbility(state, penance, attacker, true, 1, 1);
+
+        assertEquals(6, shielded.getCurrentHealth(), "2 of the 6 went into the shield");
+        assertEquals(6, attacker.getCurrentHealth(), "only the 4 HP actually removed is drained back");
+    }
+
+    @Test
+    void drainNeverHealsPastMaxHealthOrCountsOverkill() {
+        GameState state = battleState();
+        CardInstance attacker = instance("penitence", 1, 0, true);
+        CardInstance fragile = instance("fragile", 1, 1, false);
+        state.setAt(true, 1, 0, attacker);
+        state.setAt(false, 1, 1, fragile);
+        attacker.takeRawDamage(5);
+        fragile.takeRawDamage(8);
+
+        Ability penance = new Ability("Penance", "", TargetType.SINGLE_ENEMY, null, 1,
+                AbilityEffectKeys.DRAIN, 6, false);
+
+        effectService.resolveAbility(state, penance, attacker, true, 1, 1);
+
+        assertEquals(0, fragile.getCurrentHealth());
+        assertEquals(7, attacker.getCurrentHealth(), "a 2 HP target only gives back 2");
+        assertEquals(10, attacker.getEffectiveMaxHealth());
+    }
+
     private CardInstance enemyInstance(String id, List<Notch> notches, int row, int col) {
         return enemyInstance(id, Element.EARTH, notches, row, col);
     }

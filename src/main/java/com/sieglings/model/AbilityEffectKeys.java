@@ -12,6 +12,10 @@ public final class AbilityEffectKeys {
     public static final String PLAYER_DAMAGE = "player_damage";
     public static final String DRAW = "draw";
     public static final String HEAL = "heal";
+    /** Heals like {@link #HEAL}; healing past full is kept as permanent max Health. */
+    public static final String OVERHEAL = "overheal";
+    /** Damages like {@link #DAMAGE}; the attacker heals for the HP it actually removed. */
+    public static final String DRAIN = "drain";
     public static final String SHIELD = "shield";
     public static final String FREEZE = "freeze";
     public static final String SPEED_ZERO = "speed_zero";
@@ -36,6 +40,8 @@ public final class AbilityEffectKeys {
             PLAYER_DAMAGE,
             DRAW,
             HEAL,
+            OVERHEAL,
+            DRAIN,
             SHIELD,
             FREEZE,
             SPEED_ZERO,
