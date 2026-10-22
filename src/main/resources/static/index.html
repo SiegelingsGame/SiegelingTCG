@@ -23,8 +23,9 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="stylesheet" href="/css/landing.css?v=52">
-    <link rel="stylesheet" href="/css/card-face.css?v=7">
+    <link rel="stylesheet" href="/css/landing.css?v=54">
+    <link rel="stylesheet" href="/css/card-face.css?v=8">
+    <link rel="stylesheet" href="/css/holographic.css?v=8">
 </head>
 <body class="landing-body">
 
@@ -221,6 +222,20 @@
     </div>
 </section>
 
+<!-- ── Card rarities and finishes ───────────────────────────────────── -->
+<section class="rarity-section binder-face-scope" id="rarities" aria-labelledby="raritiesTitle">
+    <div class="landing-section-heading">
+        <span class="section-kicker">Rarity &amp; Finish</span>
+        <h2 id="raritiesTitle">Every rarity, every finish</h2>
+        <p>A Siegling's frame shows its rarity, and rarer Sieglings carry bigger bounties: when one falls, its owner takes that much damage. Then collect each card in rarer finishes, from Holo sheen to solid gold.</p>
+    </div>
+    <div class="finish-picker" id="finishPicker" role="radiogroup" aria-label="Card finish"></div>
+    <p class="finish-blurb" id="finishBlurb" aria-live="polite"></p>
+    <div class="rarity-row" id="rarityRow" aria-label="Siegling cards at each rarity">
+        <!-- Rarity cards rendered by landing.js -->
+    </div>
+</section>
+
 <!-- ── SiegeKnights ──────────────────────────────────────────────────── -->
 <section class="knights-section" id="knights" aria-labelledby="knightsTitle">
     <div class="landing-section-heading">
@@ -383,7 +398,7 @@
 <script src="/js/art-reveal.js?v=3"></script>
 <script src="/js/landing-particles.js?v=5"></script>
 <script src="/js/play-mode-picker.js?v=4"></script>
-<script src="/js/landing.js?v=55"></script>
+<script src="/js/landing.js?v=58"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
 <script src="/js/landing-modes.js?v=1"></script>
 <script src="/js/sw-register.js?v=1"></script>
