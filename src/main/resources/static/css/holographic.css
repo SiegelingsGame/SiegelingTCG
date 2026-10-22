@@ -471,6 +471,27 @@
 .is-holo-gold-finish .notch-dot {
     z-index: 13;
 }
+/* Painted frames redraw their top and side sockets above the art on the notch
+   layer's ::before (style.css). Lifted with the notches, those sockets escaped
+   the gold and kept the frame's own grey, each in a darker disc, while the
+   bottom sockets (plain frame) took the cast. So on these cards the notch layer
+   stops being a stacking context: the redrawn sockets drop to just above the
+   art (shell, z 1) and under the gold layers (z 11-12), and only the notch
+   icons (z 13, above) are lifted, so element colours stay true. */
+.board-card.arena-board-card.element-frame.is-holo-gold-finish .hand-notches.arena-board-notches,
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.is-holo-gold-finish .hand-notches,
+.card-preview-card.element-frame.is-holo-gold-finish .hand-notches,
+.selected-preview-card.element-frame.is-holo-gold-finish .hand-notches,
+.mulligan-showcase.element-frame.is-holo-gold-finish .hand-notches {
+    z-index: auto;
+}
+.board-card.arena-board-card.element-frame.is-holo-gold-finish .hand-notches::before,
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.is-holo-gold-finish .hand-notches::before,
+.card-preview-card.element-frame.is-holo-gold-finish .hand-notches::before,
+.selected-preview-card.element-frame.is-holo-gold-finish .hand-notches::before,
+.mulligan-showcase.element-frame.is-holo-gold-finish .hand-notches::before {
+    z-index: 2;
+}
 
 /* ---------- HOLO finish ----------
    The first finish: the standard art under a plain holographic sheen - a soft
