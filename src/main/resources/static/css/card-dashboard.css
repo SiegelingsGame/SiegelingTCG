@@ -578,6 +578,11 @@ input[type="file"] {
     margin-bottom: 14px;
 }
 
+.siegling-filters {
+    display: grid;
+    gap: 10px;
+}
+
 #actionTypeFilterSelect {
     background: rgba(255, 250, 242, 0.96);
 }

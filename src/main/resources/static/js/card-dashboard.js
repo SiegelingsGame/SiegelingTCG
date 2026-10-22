@@ -96,6 +96,9 @@
         actionTypeFilter: "ALL",
         search: "",
         elementFilter: "ALL",
+        rarityFilter: "ALL",
+        notchCountFilter: "ALL",
+        energyCostFilter: "ALL",
         deckSearch: "",
         deckStatusFilter: "ALL",
         trainerSearch: "",
@@ -261,6 +264,10 @@
             "cardSearchInput",
             "elementFilterSelect",
             "actionTypeFilterSelect",
+            "sieglingFilterRow",
+            "rarityFilterSelect",
+            "notchCountFilterSelect",
+            "energyCostFilterSelect",
             "cardList",
             "cardEditorPanel",
             "authModePill",
@@ -562,6 +569,18 @@
         });
         refs.elementFilterSelect.addEventListener("change", (event) => {
             state.elementFilter = event.target.value || "ALL";
+            renderCardList();
+        });
+        refs.rarityFilterSelect.addEventListener("change", (event) => {
+            state.rarityFilter = event.target.value || "ALL";
+            renderCardList();
+        });
+        refs.notchCountFilterSelect.addEventListener("change", (event) => {
+            state.notchCountFilter = event.target.value || "ALL";
+            renderCardList();
+        });
+        refs.energyCostFilterSelect.addEventListener("change", (event) => {
+            state.energyCostFilter = event.target.value || "ALL";
             renderCardList();
         });
         refs.actionTypeFilterSelect.addEventListener("change", (event) => {
@@ -3368,6 +3387,7 @@
         refs.elementFilterSelect.value = state.elementFilter;
         refs.actionTypeFilterSelect.value = state.actionTypeFilter;
         refs.actionTypeFilterSelect.classList.toggle("hidden", state.editorPage !== "ACTION");
+        renderSieglingFilterOptions();
         refs.browserTitle.textContent = state.editorPage === "ACTION"
             ? "Strategies And Deceptions"
             : (state.editorPage === "MOVES_POOL" ? "Shared Abilities" : "Siegelings");
@@ -3384,6 +3404,49 @@
         if (state.editorPage === "LIVE_ELEMENTS") {
             refs.browserTitle.textContent = "Live Elements";
         }
+    }
+
+    /**
+     * Options are built from the values the current Siegling roster actually uses, so a designer never
+     * picks a notch count or cost that can only return an empty list. A previously chosen value that no
+     * card uses any more is kept so the filter does not silently reset mid-edit.
+     */
+    function renderSieglingFilterOptions() {
+        refs.sieglingFilterRow.classList.toggle("hidden", state.editorPage !== "SIEGLING");
+        const sieglings = state.cards.filter((card) => card.cardType === "SIEGLING");
+        const notchCounts = new Set(sieglings.map((card) => card.notches.length));
+        const energyCosts = new Set();
+        sieglings.forEach((card) => sieglingAbilityEnergyCosts(card).forEach((cost) => energyCosts.add(cost)));
+        if (state.notchCountFilter !== "ALL") {
+            notchCounts.add(Number(state.notchCountFilter));
+        }
+        if (state.energyCostFilter !== "ALL") {
+            energyCosts.add(Number(state.energyCostFilter));
+        }
+        const byNumber = (a, b) => a - b;
+        populateSelect(refs.rarityFilterSelect, ["ALL", ...(state.metadata?.rarities || [])], state.rarityFilter, false, { ALL: "All Rarities" });
+        const notchValues = [...notchCounts].sort(byNumber).map(String);
+        populateSelect(refs.notchCountFilterSelect, ["ALL", ...notchValues], state.notchCountFilter, false, {
+            ALL: "Any Notch Count",
+            ...Object.fromEntries(notchValues.map((value) => [value, `${value} active notch${value === "1" ? "" : "es"}`]))
+        });
+        const costValues = [...energyCosts].sort(byNumber).map(String);
+        populateSelect(refs.energyCostFilterSelect, ["ALL", ...costValues], state.energyCostFilter, false, {
+            ALL: "Any Energy Cost",
+            ...Object.fromEntries(costValues.map((value) => [value, `Ability costs ${value} energy`]))
+        });
+    }
+
+    /** Passives never spend energy, so they are left out rather than counted as 0-cost abilities. */
+    function sieglingAbilityEnergyCosts(card) {
+        const costs = [];
+        (card?.moveIds || []).forEach((id) => {
+            const move = findMoveById(id);
+            if (move && !isMovePassiveForFilter(move)) {
+                costs.push(toNumber(move.energyCost, 0));
+            }
+        });
+        return costs;
     }
 
     function renderCardList() {
@@ -4813,8 +4876,22 @@
             const searchMatch = !search
                 || card.name.toLowerCase().includes(search)
                 || card.id.toLowerCase().includes(search);
-            return elementMatch && searchMatch;
+            return elementMatch && searchMatch && matchesSieglingFilters(card);
         });
+    }
+
+    function matchesSieglingFilters(card) {
+        if (state.editorPage !== "SIEGLING") {
+            return true;
+        }
+        if (state.rarityFilter !== "ALL" && card.rarity !== state.rarityFilter) {
+            return false;
+        }
+        if (state.notchCountFilter !== "ALL" && card.notches.length !== Number(state.notchCountFilter)) {
+            return false;
+        }
+        return state.energyCostFilter === "ALL"
+            || sieglingAbilityEnergyCosts(card).includes(Number(state.energyCostFilter));
     }
 
     function getPageCards() {

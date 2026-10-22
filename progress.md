@@ -1,3 +1,9 @@
+Original prompt: In dash board add Siegeling filters for Rarity? Active notches and energy cost
+
+- October 22, 2026 **Card dashboard Siegelings browser can filter by rarity, active notch count, and ability energy cost.**
+  - **Change.** Three new selects sit under the element filter in the card browser and only show on the Siegelings page (`#sieglingFilterRow`). Rarity lists `metadata.rarities`. Notch count and energy cost list only the values the current Siegling roster actually uses. A picked value stays listed even if edits leave no card using it, so the filter does not reset mid-edit. The energy filter matches a Siegling when at least one of its activated pool moves (`moveIds` → moves pool) costs exactly that much. Passive moves are left out, because they never spend energy. The filters AND together with search and element. Bumped `card-dashboard.js` to v=75 and `card-dashboard.css` to v=57 in `card-dashboard.html`, which is the only page that loads them.
+  - **Verification.** `node --check`. Headless Chromium against the static server with a mocked `/api/cards/editor` payload (3 Sieglings, 4 moves including a 5-cost passive): options listed correctly, with no 5 offered. Rarity=Rare, then Rare plus 0 notches, cost 1, and cost 2 each returned the expected card sets. The row is hidden on the Strategies page. At 390x844 it does not overflow. No page errors.
+
 Original prompt: Siegeling names should use the same font as the siegeknight names on card same font and flavor text
 
 - October 22, 2026 **Siegling card names and flavor text now use the SiegeKnight card fonts.**
