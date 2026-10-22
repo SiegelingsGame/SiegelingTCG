@@ -23,7 +23,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="stylesheet" href="/css/landing.css?v=53">
+    <link rel="stylesheet" href="/css/landing.css?v=54">
     <link rel="stylesheet" href="/css/card-face.css?v=8">
     <link rel="stylesheet" href="/css/holographic.css?v=8">
 </head>
@@ -100,6 +100,8 @@
     </button>
     <div class="landing-fab-menu" id="landingFabMenu" hidden>
         <a href="#connections">Card Links</a>
+        <a href="#siege-demo">Siege</a>
+        <a href="#dominion-demo">Dominion</a>
         <a href="#roster">Siegelings</a>
         <a href="#creatures">Legendaries</a>
         <a href="#knights">SiegeKnights</a>
@@ -147,6 +149,52 @@
             </div>
             <div class="placement-hand" id="placementHand" aria-label="Cards in your hand"></div>
         </div>
+    </div>
+</section>
+
+<!-- ── Siege: the Advantage token and the branching map ─────────────────── -->
+<section class="placement-section mode-demo-section is-siege is-mirrored" id="siege-demo" aria-labelledby="siegeDemoTitle">
+    <div class="placement-copy">
+        <span class="section-kicker">Siege Expedition</span>
+        <h2 id="siegeDemoTitle">Seize the Advantage. Choose your road.</h2>
+        <p>One Advantage token runs down the Speed order, yours and the enemy's alike. Cards played by the Siegeling holding it gain an elemental rider. Between fights your warband marches a branching map, and only roads joined to where you stand are open.</p>
+        <div class="placement-rule">
+            <span class="mode-rule-token" aria-hidden="true">◆</span>
+            <span><strong>Advantage riders</strong> fire only while that Siegeling holds the token, then it passes on.</span>
+        </div>
+        <a class="roster-collection-link mode-demo-cta" href="/siege">Begin a Siege <span>→</span></a>
+    </div>
+
+    <div class="placement-demo mode-demo" id="siegeDemo">
+        <div class="mode-demo-tabs" role="tablist" aria-label="Siege systems">
+            <button type="button" role="tab" id="siegeTabAdvantage" aria-controls="siegePanelAdvantage" aria-selected="true">◆ Advantage</button>
+            <button type="button" role="tab" id="siegeTabMap" aria-controls="siegePanelMap" aria-selected="false" tabindex="-1">🗺 The Map</button>
+        </div>
+        <div class="mode-demo-panel" id="siegePanelAdvantage" role="tabpanel" aria-labelledby="siegeTabAdvantage"></div>
+        <div class="mode-demo-panel" id="siegePanelMap" role="tabpanel" aria-labelledby="siegeTabMap" hidden></div>
+    </div>
+</section>
+
+<!-- ── Dominion: found your knight and raise the Keep ──────────────────── -->
+<section class="placement-section mode-demo-section is-dominion" id="dominion-demo" aria-labelledby="dominionDemoTitle">
+    <div class="placement-copy">
+        <span class="section-kicker">Dominion</span>
+        <h2 id="dominionDemoTitle">Forge your knight. Raise your Keep.</h2>
+        <p>Found a knight of your own: a portrait, a name, a crest and a calling that speeds two crafts. Then raise workshops plot by plot. Workshops carry notches too: turn two sockets to face each other and the pair refines what neither makes alone.</p>
+        <div class="placement-rule">
+            <span class="placement-rule-notch mode-rule-notch" aria-hidden="true"></span>
+            <span><strong>Workshop links</strong> use the same facing notches as the battle table.</span>
+        </div>
+        <a class="roster-collection-link mode-demo-cta" href="/dominion">Found your Dominion <span>→</span></a>
+    </div>
+
+    <div class="placement-demo mode-demo" id="dominionDemo">
+        <div class="mode-demo-tabs" role="tablist" aria-label="Dominion systems">
+            <button type="button" role="tab" id="dominionTabKnight" aria-controls="dominionPanelKnight" aria-selected="true">🛡 Your Knight</button>
+            <button type="button" role="tab" id="dominionTabKeep" aria-controls="dominionPanelKeep" aria-selected="false" tabindex="-1">🏰 The Keep</button>
+        </div>
+        <div class="mode-demo-panel" id="dominionPanelKnight" role="tabpanel" aria-labelledby="dominionTabKnight"></div>
+        <div class="mode-demo-panel" id="dominionPanelKeep" role="tabpanel" aria-labelledby="dominionTabKeep" hidden></div>
     </div>
 </section>
 
@@ -351,6 +399,8 @@
 <script src="/js/landing-particles.js?v=5"></script>
 <script src="/js/play-mode-picker.js?v=4"></script>
 <script src="/js/landing.js?v=58"></script>
+<script src="/js/siege-sprites.js?v=2"></script>
+<script src="/js/landing-modes.js?v=1"></script>
 <script src="/js/sw-register.js?v=1"></script>
 <script src="/js/install-guide.js?v=3"></script>
 </body>
