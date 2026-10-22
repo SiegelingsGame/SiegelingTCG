@@ -2921,3 +2921,42 @@ img { display: block; }
     .sg-pop { animation-name: sg-pop-still; }
     @keyframes sg-pop-still { from, 80% { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, 0); } }
 }
+
+/* Mode copy folds behind "Learn more" so each page opens on its title and demo. */
+.mode-details { margin-top: 4px; }
+.mode-details > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 14px 8px 16px;
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 999px;
+    color: rgba(240, 245, 255, .9);
+    background: rgba(3, 12, 22, .45);
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    list-style: none;
+    cursor: pointer;
+    transition: border-color .2s ease, background .2s ease;
+}
+.mode-details > summary::-webkit-details-marker { display: none; }
+.mode-details > summary:hover { border-color: rgba(255,255,255,.4); background: rgba(255,255,255,.06); }
+.mode-details > summary:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.mode-details-chevron { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; transition: transform .25s ease; }
+.mode-details[open] > summary .mode-details-chevron { transform: rotate(180deg); }
+.mode-details-body { padding-top: 16px; animation: mode-page-in .25s ease both; }
+.mode-details-body > p { margin: 0; color: rgba(231, 240, 248, .78); line-height: 1.72; }
+#modePageBattle .mode-details[open] > summary { border-color: rgba(181, 238, 121, .5); }
+#modePageSiege .mode-details[open] > summary { border-color: rgba(255, 178, 90, .5); }
+#modePageDominion .mode-details[open] > summary { border-color: rgba(110, 231, 183, .5); }
+.placement-copy h2 + .mode-details { margin-top: 0; }
+@media (max-width: 760px) {
+    .mode-details-body > p { max-width: 560px; margin-left: auto; margin-right: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mode-details-body { animation: none; }
+    .mode-details-chevron { transition: none; }
+}

@@ -1,5 +1,9 @@
 Original prompt: Siegeling names should use the same font as the siegeknight names on card same font and flavor text
 
+- October 22, 2026 **Landing Game Modes pane: each mode's details fold behind "Learn more ⌄".**
+  - **Change.** Each mode page now opens on its kicker, title, a "Learn more" pill with a chevron, and its Enter link, beside the demo. The descriptive paragraph, the sub-mode chips (Arena: Battle/Gauntlet/Tutorial; Siege: Adventure/Battlegrounds/Endless/Tutorial; Dominion) and the rule box sit inside a native `<details class="mode-details">`. It needs no script, is keyboard and screen-reader friendly, and the chevron rotates when open. Each mode's own accent colours the open pill's border. Cache pin `landing.css?v=57` (index + play).
+  - **Verification.** Headless Chromium at 390x844, 320x568 and 1920x1080. Details are hidden by default and visible after tapping Learn more. The Siege page starts collapsed and shows 4 mode chips when opened, and the Siege demo still works. No page errors and no horizontal scroll. Pane height on a phone dropped from about 1440px to 1291px collapsed (about 1590px when opened). Screenshots checked by eye.
+
 - October 22, 2026 **Mode names across the board: Battle becomes Arena; Arena, Siege and Dominion each list their own modes.**
   - **Change.** The hierarchy is now: **Arena** (Battle, PvE or PvP · Gauntlet · Tutorial), **Siege** (Adventure · Battlegrounds · Endless · Tutorial) and **Dominion** (one mode).
     - *Landing.* The pane's first tab is Arena (`data-mode="arena"`, `/#arena`), and the tabs read "3 modes / 4 modes / 1 mode". Each page carries a `.mode-submodes` chip row listing its modes. "Enter Battle" becomes "Enter the Arena". The footer reads Arena / Siege / Dominion (Dominion replaces the stale `/keep` link), and its "Arenas" lobby link is now "Lobbies" so it doesn't collide.
