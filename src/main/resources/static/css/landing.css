@@ -2497,12 +2497,20 @@ img { display: block; }
 .modes-switch [role='tab'][aria-selected='true'] { color: #fff; border-color: color-mix(in srgb, var(--tab-accent), transparent 40%); background: color-mix(in srgb, var(--tab-accent), transparent 80%); box-shadow: 0 0 22px color-mix(in srgb, var(--tab-accent), transparent 70%); }
 .modes-switch [role='tab'][aria-selected='true'] .modes-switch-icon { color: var(--tab-accent); }
 .modes-switch [role='tab']:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-.modes-switch [data-mode='battle'] { --tab-accent: #b5ee79; }
+.modes-switch [data-mode='arena'] { --tab-accent: #b5ee79; }
 .modes-switch [data-mode='siege'] { --tab-accent: #ffb25a; }
 .modes-switch [data-mode='dominion'] { --tab-accent: #6ee7b7; }
 .mode-page { animation: mode-page-in .3s ease both; }
 @keyframes mode-page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 #modePageBattle .mode-demo-cta { color: #c6f58d; }
+/* Each mode's own sub-modes, so the pane reads as Arena (3) / Siege (4) / Dominion (1). */
+.mode-submodes { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
+.mode-submodes li { display: grid; gap: 1px; padding: 7px 12px 8px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; background: rgba(3, 12, 22, .45); }
+.mode-submodes b { color: #fff; font-size: .8rem; }
+.mode-submodes small { color: rgba(236, 242, 252, .6); font-size: .62rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+#modePageBattle .mode-submodes li { border-color: rgba(181, 238, 121, .28); }
+#modePageSiege .mode-submodes li { border-color: rgba(255, 178, 90, .3); }
+#modePageDominion .mode-submodes li { border-color: rgba(110, 231, 183, .3); }
 #modePageSiege .placement-rule strong { color: #ffe0a3; }
 #modePageDominion .placement-rule strong { color: #c4f5df; }
 .mode-rule-token {
@@ -2882,6 +2890,8 @@ img { display: block; }
     .modes-switch [role='tab'] { padding: 8px 2px 7px; border-radius: 12px; }
     .modes-switch b { font-size: .86rem; }
     .modes-switch small { font-size: .5rem; letter-spacing: .04em; }
+    .mode-submodes { justify-content: center; gap: 6px; }
+    .mode-submodes li { padding: 6px 10px 7px; text-align: left; }
     .mode-demo-cta { margin-top: 18px; }
     .mode-demo-tabs [role='tab'] { font-size: .66rem; letter-spacing: .06em; padding: 8px 6px; }
     .sg-queue { flex-wrap: wrap; row-gap: 6px; }

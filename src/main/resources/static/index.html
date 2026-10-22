@@ -23,7 +23,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="stylesheet" href="/css/landing.css?v=55">
+    <link rel="stylesheet" href="/css/landing.css?v=56">
     <link rel="stylesheet" href="/css/card-face.css?v=9">
     <link rel="stylesheet" href="/css/holographic.css?v=8">
 </head>
@@ -111,26 +111,27 @@
 </nav>
 
 <!-- ── Game modes: one pane, a page per mode, each with a hands-on demo ──── -->
-<section class="modes-pane binder-face-scope" id="modes" data-mode="battle" aria-label="Game modes">
+<section class="modes-pane binder-face-scope" id="modes" data-mode="arena" aria-label="Game modes">
     <div class="modes-head">
         <span class="section-kicker">Choose Your Path</span>
         <div class="modes-switch" role="tablist" aria-label="Game modes">
-            <button type="button" role="tab" id="modeTabBattle" aria-controls="modePageBattle" aria-selected="true" data-mode="battle"><span class="modes-switch-icon" aria-hidden="true">⚔️</span><b>Battle</b><small>The card table</small></button>
-            <button type="button" role="tab" id="modeTabSiege" aria-controls="modePageSiege" aria-selected="false" tabindex="-1" data-mode="siege"><span class="modes-switch-icon" aria-hidden="true">🗺️</span><b>Siege</b><small>Roguelike expedition</small></button>
-            <button type="button" role="tab" id="modeTabDominion" aria-controls="modePageDominion" aria-selected="false" tabindex="-1" data-mode="dominion"><span class="modes-switch-icon" aria-hidden="true">🏰</span><b>Dominion</b><small>Knight &amp; Keep</small></button>
+            <button type="button" role="tab" id="modeTabBattle" aria-controls="modePageBattle" aria-selected="true" data-mode="arena"><span class="modes-switch-icon" aria-hidden="true">⚔️</span><b>Arena</b><small>3 modes</small></button>
+            <button type="button" role="tab" id="modeTabSiege" aria-controls="modePageSiege" aria-selected="false" tabindex="-1" data-mode="siege"><span class="modes-switch-icon" aria-hidden="true">🗺️</span><b>Siege</b><small>4 modes</small></button>
+            <button type="button" role="tab" id="modeTabDominion" aria-controls="modePageDominion" aria-selected="false" tabindex="-1" data-mode="dominion"><span class="modes-switch-icon" aria-hidden="true">🏰</span><b>Dominion</b><small>1 mode</small></button>
         </div>
     </div>
 
     <div class="placement-section mode-page" id="modePageBattle" role="tabpanel" aria-labelledby="modeTabBattle">
     <div class="placement-copy">
-        <span class="section-kicker">Play the Connection</span>
+        <span class="section-kicker">Arena</span>
         <h2 id="connectionsTitle">Place a card. Power the board.</h2>
         <p>Facing notches always connect. Match their elements to generate energy, or mix Earth and Fire to create a combo point.</p>
+        <ul class="mode-submodes" aria-label="Arena modes"><li><b>⚔️ Battle</b><small>PvE or PvP</small></li><li><b>🧗 Gauntlet</b><small>Draft and climb</small></li><li><b>🎓 Tutorial</b><small>Your first match</small></li></ul>
         <div class="placement-rule">
             <span class="placement-rule-notch" aria-hidden="true"></span>
             <span><strong>Reciprocal notches</strong> create energy links and elemental combos.</span>
         </div>
-        <a class="roster-collection-link mode-demo-cta" href="/play">Enter Battle <span>→</span></a>
+        <a class="roster-collection-link mode-demo-cta" href="/play">Enter the Arena <span>→</span></a>
     </div>
 
     <div class="placement-demo" id="placementDemo" data-state="ready">
@@ -162,9 +163,10 @@
 
     <div class="placement-section mode-page" id="modePageSiege" role="tabpanel" aria-labelledby="modeTabSiege" hidden>
     <div class="placement-copy">
-        <span class="section-kicker">Siege Expedition</span>
+        <span class="section-kicker">Siege</span>
         <h2 id="siegeDemoTitle">Seize the Advantage. Choose your road.</h2>
         <p>One Advantage token runs down the Speed order, yours and the enemy's alike. Cards played by the Siegeling holding it gain an elemental rider. Between fights your warband marches a branching map, and only roads joined to where you stand are open.</p>
+        <ul class="mode-submodes" aria-label="Siege modes"><li><b>🏳️ Adventure</b><small>Classic run</small></li><li><b>⚔️ Battlegrounds</b><small>Veteran mode</small></li><li><b>♾️ Endless</b><small>Score attack</small></li><li><b>🎓 Tutorial</b><small>Guided tour</small></li></ul>
         <div class="placement-rule">
             <span class="mode-rule-token" aria-hidden="true">◆</span>
             <span><strong>Advantage riders</strong> fire only while that Siegeling holds the token, then it passes on.</span>
@@ -187,9 +189,10 @@
         <span class="section-kicker">Dominion</span>
         <h2 id="dominionDemoTitle">Forge your knight. Raise your Keep.</h2>
         <p>Found a knight of your own: a portrait, a name, a crest and a calling that speeds two crafts. Then raise workshops plot by plot. Workshops carry notches too: turn two sockets to face each other and the pair refines what neither makes alone.</p>
+        <ul class="mode-submodes" aria-label="Dominion mode"><li><b>🏰 Dominion</b><small>Kingdom &amp; idle RPG</small></li></ul>
         <div class="placement-rule">
             <span class="placement-rule-notch mode-rule-notch" aria-hidden="true"></span>
-            <span><strong>Workshop links</strong> use the same facing notches as the battle table.</span>
+            <span><strong>Workshop links</strong> use the same facing notches as the Arena table.</span>
         </div>
         <a class="roster-collection-link mode-demo-cta" href="/dominion">Found your Dominion <span>→</span></a>
     </div>
@@ -318,13 +321,13 @@
         </div>
 
         <nav class="footer-nav-links" aria-label="Game links">
-            <a href="/play">Battle</a>
+            <a href="/play">Arena</a>
             <a href="/siege">Siege</a>
-            <a href="/keep">My Keep</a>
+            <a href="/dominion">Dominion</a>
             <a href="/cards">Cards</a>
             <a href="/deck-builder">Deck Builder</a>
             <a href="/shop">Shop</a>
-            <a href="/lobbies">Arenas</a>
+            <a href="/lobbies">Lobbies</a>
             <a href="/profile">Profile</a>
             <a href="/achievements">Achievements</a>
             <a href="/help">How to Play</a>
@@ -382,7 +385,7 @@
 
 <script src="/js/art-reveal.js?v=3"></script>
 <script src="/js/landing-particles.js?v=5"></script>
-<script src="/js/play-mode-picker.js?v=4"></script>
+<script src="/js/play-mode-picker.js?v=5"></script>
 <script src="/js/landing.js?v=58"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
 <script src="/js/landing-modes.js?v=2"></script>
