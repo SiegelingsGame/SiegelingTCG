@@ -1,7 +1,7 @@
 Original prompt: On the pull animation the right side of the cards is being cutoff
 
 - October 22, 2026 **Landing page: rarity and finish showcase in one section (replaces the Cacty-only rarity row).**
-  - **Change.** The `#rarities` section in `index.html` now shows five different Sieglings, one per rarity tier: Cacty (Common), Gagglestand (Uncommon), Dracoil (Rare), Lumina (Rare) and Conchious (Legendary). The owner picked these; none is Epic, so Epic does not appear. Each card is drawn in its own rarity frame, captioned with its rarity and defeat bounty. A finish switcher (`#finishPicker`, a radio group with arrow-key support) redraws the same five cards in each finish:
+  - **Change.** The `#rarities` section in `index.html` now shows five different Sieglings, one per rarity tier: Cacty (Common), Gagglestand (Uncommon), Dracoil (Rare), Lumina (Epic, once the owner's dashboard change lands; it was still Rare at commit time) and Conchious (Legendary). Rarity, frame and bounty are read from the live catalog, so dashboard rarity edits show up without a deploy. Each card is drawn in its own rarity frame, captioned with its rarity and defeat bounty. A finish switcher (`#finishPicker`, a radio group with arrow-key support) redraws the same five cards in each finish:
     - Standard: standard art, no overlay.
     - Holo: `is-holo-plain` plus its sheen over the standard art.
     - SP: SP art, no overlay.
