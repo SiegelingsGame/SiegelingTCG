@@ -251,3 +251,8 @@
    it was tuned at in the dashboard. */
 .mulligan-showcase.element-frame .card-art-preview.card-art-crop-illustration { --card-art-zoom: 2.08; --card-art-focus-y: 23%; --card-art-offset-y: 1%; }
 .mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-preview.card-art-crop-illustration img { width: auto; height: calc(100% * var(--card-art-zoom, 1)); flex-shrink: 0; max-width: none; max-height: none; object-fit: cover; object-position: center var(--card-art-focus-y, 50%); transform: translateY(var(--card-art-offset-y, 0%)); }
+
+/* Siegling name and flavor text share the SiegeKnight card's type (landing.css
+   .knight-card-name / .knight-card-ability) so every card face reads as one set. */
+.element-frame:not(.spell-trap-frame) .card-title { font-family: 'Cinzel', Georgia, serif; }
+.element-frame:not(.spell-trap-frame) .card-summary-description { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
