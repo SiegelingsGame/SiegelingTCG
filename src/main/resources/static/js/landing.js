@@ -1057,51 +1057,112 @@
         scheduleDescriptionFit(host);
     }
 
-    // ── Rarity showcase ───────────────────────────────────────────────────
-    // One Siegling (Cacty) printed at every rarity, so the frame is the only
-    // thing that changes. Bounties mirror GameState.defeatBounty.
-    const RARITY_SHOWCASE = [
-        { rarity: 'COMMON', label: 'Common', bounty: 5 },
-        { rarity: 'UNCOMMON', label: 'Uncommon', bounty: 6 },
-        { rarity: 'RARE', label: 'Rare', bounty: 7 },
-        { rarity: 'EPIC', label: 'Epic', bounty: 8 },
-        { rarity: 'LEGENDARY', label: 'Legendary', bounty: 10 }
-    ];
-    // Shipped copy of the live card, so the row still paints if the catalog is down.
-    const RARITY_REFERENCE_FALLBACK = {
-        id: 'cacty',
-        name: 'Cacty',
-        element: 'EARTH',
-        health: 15,
-        speed: 8,
-        notches: [{ direction: 'TOP', element: 'EARTH' }, { direction: 'RIGHT', element: 'EARTH' }],
-        cardArtUrl: 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fcacty.png?alt=media&token=4cbc5e6f-99bb-4738-812e-232c786d681e',
-        cardArtMode: 'OVERLAY',
-        cardArtOffsetXPct: 1.6666666666666785,
-        cardArtOffsetYPct: 15,
-        cardArtScale: 0.72,
-        description: 'Despite its adorable appearance, Cacty is anything but harmless. Its thick, razor-sharp thorns inflict agonizing wounds on anything that gets too close.'
+    // ── Rarity and finish showcase ───────────────────────────────────────
+    // Five Sieglings, one per rarity tier, in their own frames. The finish
+    // picker re-dresses the same five the way the game draws each finish
+    // (card-binder-visual.js holographicClass/renderFinishOverlay): Holo is a
+    // sheen over the standard art; SP and up swap in the SP art. Bounties
+    // mirror GameState.defeatBounty.
+    const RARITY_SHOWCASE_IDS = ['cacty', 'gagglestand', 'dracoil', 'lumina', 'conchious'];
+    const RARITY_INFO = {
+        COMMON: { label: 'Common', bounty: 5 },
+        UNCOMMON: { label: 'Uncommon', bounty: 6 },
+        RARE: { label: 'Rare', bounty: 7 },
+        EPIC: { label: 'Epic', bounty: 8 },
+        LEGENDARY: { label: 'Legendary', bounty: 10 }
     };
+    const CARD_FINISHES = [
+        { id: 'STANDARD', label: 'Standard', blurb: 'The printed card.', spArt: false, cardClass: '', overlay: '' },
+        { id: 'HOLO', label: 'Holo', blurb: 'A holographic sheen over the standard art.', spArt: false,
+            cardClass: ' is-holo-plain', overlay: '<div class="card-holo-plain-overlay" aria-hidden="true"></div>' },
+        { id: 'SP', label: 'SP', blurb: 'Special art: a new illustration of the card.', spArt: true, cardClass: '', overlay: '' },
+        { id: 'HSP', label: 'HSP', blurb: 'Special art under full rainbow foil.', spArt: true,
+            cardClass: ' is-holographic', overlay: '<div class="card-holographic-overlay" aria-hidden="true"></div>' },
+        { id: 'GOLD', label: 'Gold', blurb: 'Special art in a polished gold frame.', spArt: true,
+            cardClass: ' is-holographic is-gold-finish',
+            overlay: '<div class="card-gold-finish" aria-hidden="true"><i class="card-gold-frame"></i><i class="card-gold-sheen"></i></div>' },
+        { id: 'GSP', label: 'GSP', blurb: 'The whole card cast in gold leaf, notches kept in colour.', spArt: true,
+            cardClass: ' is-holographic is-holo-gold-finish',
+            overlay: '<div class="card-holo-gold-finish" aria-hidden="true"><i class="card-holo-gold-tint"></i><i class="card-holo-gold-warm"></i><i class="card-gold-sheen"></i><i class="card-holo-gold-rim"></i></div>' }
+    ];
+
+    // The finish wraps renderBinderFace's markup: its class goes on the card
+    // face and its overlay is the face's last child, as game.js draws it.
+    function renderFinishedFace(card, finish) {
+        const html = renderBinderFace(card, { thumbWidth: 320, spArt: finish.spArt });
+        if (!finish.cardClass && !finish.overlay) return html;
+        const marker = 'class="hand-card ';
+        const at = html.indexOf(marker);
+        const withClass = `${html.slice(0, at + marker.length)}${finish.cardClass.trim()} ${html.slice(at + marker.length)}`;
+        const end = withClass.lastIndexOf('</div>', withClass.lastIndexOf('</div>') - 1);
+        return `${withClass.slice(0, end)}${finish.overlay}${withClass.slice(end)}`;
+    }
 
     async function renderRarityRow() {
         const host = document.getElementById('rarityRow');
-        if (!host) return;
-        let reference = RARITY_REFERENCE_FALLBACK;
+        const picker = document.getElementById('finishPicker');
+        const blurb = document.getElementById('finishBlurb');
+        if (!host || !picker) return;
+        let cards = [];
         try {
             const payload = await loadGameOptions();
-            const live = (Array.isArray(payload?.cardCatalog) ? payload.cardCatalog : [])
-                .find((card) => String(card?.id || '').toLowerCase() === 'cacty' && String(card?.cardArtUrl || '').trim());
-            if (live) reference = { ...live, description: rosterDescription(live) };
+            const catalog = Array.isArray(payload?.cardCatalog) ? payload.cardCatalog : [];
+            cards = RARITY_SHOWCASE_IDS
+                .map((id) => catalog.find((card) => String(card?.id || '').toLowerCase() === id))
+                .filter((card) => card && String(card.cardArtUrl || '').trim() && hasCardFrame(card))
+                .map((card) => ({ ...card, description: rosterDescription(card) }));
         } catch (_ignored) {
-            // The shipped copy above keeps the row painted.
+            // No catalog, no cards to dress: the section stays out of the way below.
         }
-        host.innerHTML = RARITY_SHOWCASE.map((tier) => `
-            <article class="rarity-card rarity-${tier.rarity.toLowerCase()}" aria-label="${escapeAttr(`${reference.name}, ${tier.label}`)}">
-                ${renderBinderFace({ ...reference, rarity: tier.rarity }, { thumbWidth: 320 })}
-                <h3>${escapeHtml(tier.label)}</h3>
-                <p>Bounty ${tier.bounty}</p>
-            </article>`).join('');
-        scheduleDescriptionFit(host);
+        const section = host.closest('section');
+        if (!cards.length) {
+            if (section) section.hidden = true;
+            return;
+        }
+
+        let current = CARD_FINISHES[0];
+        const paint = () => {
+            host.innerHTML = cards.map((card) => {
+                const tier = RARITY_INFO[String(card.rarity || '').toUpperCase()] || RARITY_INFO.COMMON;
+                return `
+                <article class="rarity-card rarity-${String(card.rarity || 'common').toLowerCase()}" aria-label="${escapeAttr(`${card.name}, ${tier.label}, ${current.label} finish`)}">
+                    ${renderFinishedFace(card, current)}
+                    <h3>${escapeHtml(tier.label)}</h3>
+                    <p>Bounty ${tier.bounty}</p>
+                </article>`;
+            }).join('');
+            if (blurb) blurb.textContent = `${current.label}: ${current.blurb}`;
+            picker.querySelectorAll('.finish-chip').forEach((chip) => {
+                const on = chip.dataset.finish === current.id;
+                chip.classList.toggle('is-active', on);
+                chip.setAttribute('aria-checked', on ? 'true' : 'false');
+                chip.tabIndex = on ? 0 : -1;
+            });
+            scheduleDescriptionFit(host);
+        };
+        picker.innerHTML = CARD_FINISHES.map((finish) =>
+            `<button type="button" class="finish-chip finish-${finish.id.toLowerCase()}" role="radio" data-finish="${finish.id}">${escapeHtml(finish.label)}</button>`
+        ).join('');
+        const select = (id, focus) => {
+            const next = CARD_FINISHES.find((finish) => finish.id === id);
+            if (!next || next === current) return;
+            current = next;
+            paint();
+            if (focus) picker.querySelector(`[data-finish="${id}"]`)?.focus();
+        };
+        picker.addEventListener('click', (event) => {
+            const chip = event.target.closest('.finish-chip');
+            if (chip) select(chip.dataset.finish, false);
+        });
+        // Radio-group arrows: move the selection along the chips.
+        picker.addEventListener('keydown', (event) => {
+            const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+            if (!step) return;
+            event.preventDefault();
+            const index = CARD_FINISHES.indexOf(current);
+            select(CARD_FINISHES[(index + step + CARD_FINISHES.length) % CARD_FINISHES.length].id, true);
+        });
+        paint();
     }
 
     // ── Hero art stage ────────────────────────────────────────────────────
