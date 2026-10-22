@@ -509,8 +509,31 @@
             ? String(source.cardArtUrl || '').trim() : '';
     }
 
-    function renderBinderFace(card, options) {
+    // The SP (special art) upload is stored as the holographic art. Mirrors
+    // card-binder-visual.js withHolographicArt: REPLACE/OVERLAY SP art renders
+    // through the standard template with its own placement. FULL_CARD SP art is
+    // a whole pre-composited face, so those cards keep their standard art here.
+    // Only the art changes; the landing deliberately shows no holo foil.
+    function withSpArt(card) {
+        const url = String(card?.holographicCardArtUrl || '').trim();
+        const mode = String(card?.holographicCardArtMode || '').trim().toUpperCase();
+        if (!url || (mode !== 'REPLACE' && mode !== 'OVERLAY')) return card;
+        return {
+            ...card,
+            cardArtUrl: url,
+            cardArtMode: mode,
+            cardArtOffsetX: 0,
+            cardArtOffsetY: 0,
+            cardArtOffsetXPct: card.holographicCardArtOffsetXPct ?? 0,
+            cardArtOffsetYPct: card.holographicCardArtOffsetYPct ?? 0,
+            cardArtScale: card.holographicCardArtScale ?? 1,
+            cardArtRotation: card.holographicCardArtRotation ?? 0
+        };
+    }
+
+    function renderBinderFace(sourceCard, options) {
         const opts = options || {};
+        const card = opts.spArt ? withSpArt(sourceCard) : sourceCard;
         const element = String(card.element || 'NEUTRAL').toUpperCase();
         const key = element.toLowerCase();
         const rarity = String(card.rarity || 'COMMON').toUpperCase();
@@ -546,6 +569,9 @@
         }
         const art = String(card.cardArtUrl || card.art || '');
         const transform = cardArtTransform(card);
+        // REPLACE art is a full illustration tuned at the dashboard's cover fit,
+        // the same crop game.js gives it (getCardArtMeta).
+        const cropClass = String(card.cardArtMode || '').toUpperCase() === 'REPLACE' ? ' card-art-crop-illustration' : '';
         const ink = SUMMARY_INK[element] || DEFAULT_INK;
         const description = String(card.description || '').trim() || 'Description coming soon.';
         const stat = (value) => (Number.isFinite(Number(value)) && value !== null && value !== '' ? Number(value) : '-');
@@ -563,7 +589,7 @@
                     <div class="hand-card-shell">
                         ${chips.join('')}
                         <div class="hand-card-header"><div class="card-title">${escapeHtml(card.name)}</div><div class="card-label">SIEGLING / ${escapeHtml(element.charAt(0) + element.slice(1).toLowerCase())}</div></div>
-                        <div class="card-art card-art-preview">${art ? `<img ${artAttrs} alt="" loading="${loading}" decoding="async"${transform ? ` style="${transform}"` : ''}>` : ''}</div>
+                        <div class="card-art card-art-preview${cropClass}">${art ? `<img ${artAttrs} alt="" loading="${loading}" decoding="async"${transform ? ` style="${transform}"` : ''}>` : ''}</div>
                         <div class="hand-card-body">
                             <div class="card-stat-pills"><span class="card-stat-pill card-stat-pill-hp">HP: ${stat(card.health)}</span><span class="card-stat-pill card-stat-pill-spd">SPD: ${stat(card.speed)}</span></div>
                             <div class="card-summary-list card-summary-description-list" style="--summary-ink:${ink[0]};--summary-strong:${ink[1]};--summary-muted:${ink[2]};--summary-shadow:${ink[3]}"><div class="card-summary-description">${escapeHtml(description)}</div></div>
@@ -1025,7 +1051,7 @@
         }
         host.innerHTML = legends.map((card) => `
             <article class="legendary-card" aria-label="${escapeAttr(card.name)}, legendary ${escapeAttr(card.element)} Siegling">
-                ${renderBinderFace(card, { thumbWidth: 480 })}
+                ${renderBinderFace(card, { thumbWidth: 480, spArt: true })}
                 ${card.pitch ? `<p>${escapeHtml(card.pitch)}</p>` : ''}
             </article>`).join('');
         scheduleDescriptionFit(host);

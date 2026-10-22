@@ -246,3 +246,8 @@
    compositing layer; on iOS that memory adds up fast across 80+ cards. */
 .binder-face-scope .mulligan-showcase.element-frame,
 .binder-face-scope .mulligan-card-slot .hand-card.mulligan-showcase.element-frame { filter: none; }
+/* REPLACE (illustration) art, e.g. a legendary's SP art: the same cover fit and
+   zoom the framed showcase uses in style.css, so cardArtScale lands at the size
+   it was tuned at in the dashboard. */
+.mulligan-showcase.element-frame .card-art-preview.card-art-crop-illustration { --card-art-zoom: 2.08; --card-art-focus-y: 23%; --card-art-offset-y: 1%; }
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame .card-art-preview.card-art-crop-illustration img { width: auto; height: calc(100% * var(--card-art-zoom, 1)); flex-shrink: 0; max-width: none; max-height: none; object-fit: cover; object-position: center var(--card-art-focus-y, 50%); transform: translateY(var(--card-art-offset-y, 0%)); }
