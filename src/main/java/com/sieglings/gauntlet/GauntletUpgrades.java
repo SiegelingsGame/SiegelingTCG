@@ -47,12 +47,13 @@ public class GauntletUpgrades {
     /** Elements with an energy pool, so an infused card can still pay for its moves. */
     static final List<Element> INFUSIBLE = List.of(
             Element.FIRE, Element.WATER, Element.EARTH, Element.WIND, Element.ICE,
-            Element.ELECTRIC, Element.METAL, Element.SHADOW, Element.PSYCHIC, Element.UNDEAD);
+            Element.ELECTRIC, Element.METAL, Element.SHADOW, Element.PSYCHIC, Element.UNDEAD,
+            Element.POISON, Element.LIGHT);
 
     /** Value-carrying effects that "+N" makes stronger. Destroy/freeze have no number to raise. */
     private static final Set<String> SCALABLE = Set.of(
             AbilityEffectKeys.DAMAGE, AbilityEffectKeys.CHAIN_DAMAGE, AbilityEffectKeys.PLAYER_DAMAGE,
-            AbilityEffectKeys.HEAL, AbilityEffectKeys.SHIELD, AbilityEffectKeys.DAMAGE_BOOST,
+            AbilityEffectKeys.DRAIN, AbilityEffectKeys.HEAL, AbilityEffectKeys.OVERHEAL, AbilityEffectKeys.SHIELD, AbilityEffectKeys.DAMAGE_BOOST,
             AbilityEffectKeys.HEALTH_BOOST, AbilityEffectKeys.SPEED_BOOST, AbilityEffectKeys.SLOW,
             AbilityEffectKeys.CONNECTED_ALLIES_DAMAGE_BOOST, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST,
             AbilityEffectKeys.CONNECTED_ALLIES_HEAL, AbilityEffectKeys.CONNECTED_ALLIES_SHIELD,
@@ -350,7 +351,7 @@ public class GauntletUpgrades {
     private static String valueNoun(Ability ability) {
         String effect = ability.getEffectType() == null ? "" : ability.getEffectType();
         if (effect.contains("damage_boost")) return "damage boost";
-        if (effect.contains("damage")) return "damage";
+        if (effect.contains("damage") || effect.equals(AbilityEffectKeys.DRAIN)) return "damage";
         if (effect.contains("heal")) return "healing";
         if (effect.contains("shield")) return "shield";
         if (effect.contains("health")) return "health boost";

@@ -143,16 +143,9 @@
         if (note) {
             var pooled = (note.getAttribute('data-pool-elements') || '').split(',')
                 .filter(function (name) { return live[name]; }).map(titleCase);
-            var neutral = (note.getAttribute('data-neutral-elements') || '').split(',')
-                .filter(function (name) { return live[name]; });
-            var riders = { poison: 'Toxin', light: 'Blind' };
             var html = '<strong>Energy pools:</strong> ' + joinWithAnd(pooled)
-                + (pooled.length === 1 ? ' has a dedicated pool.' : ' have dedicated pools.');
-            if (neutral.length > 0) {
-                html += ' ' + joinWithAnd(neutral.map(titleCase)) + ' attacks still apply '
-                    + joinWithAnd(neutral.map(function (name) { return riders[name] || titleCase(name); }))
-                    + ', but ' + (neutral.length === 1 ? 'its' : 'their') + ' action cards use Neutral costs.';
-            }
+                + (pooled.length === 1 ? ' has a dedicated pool.' : ' have dedicated pools.')
+                + ' Neutral costs can be paid from any pool.';
             if (pooled.length > 0) note.innerHTML = html;
         }
 

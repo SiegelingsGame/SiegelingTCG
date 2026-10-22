@@ -270,6 +270,10 @@ public class EffectService {
             applyChainDamage(state, ability, source, targets, Math.max(1, value), isPlayerSource);
             return;
         }
+        if (AbilityEffectKeys.DRAIN.equals(effectType)) {
+            applyDrain(state, ability, source, targets, value, isPlayerSource);
+            return;
+        }
 
         if (AbilityEffectKeys.DAMAGE.equals(effectType)
                 && (ability.getTargetType() == TargetType.SPREAD_ROW
@@ -282,29 +286,10 @@ public class EffectService {
             switch (effectType) {
                 case AbilityEffectKeys.DAMAGE ->
                         dealAbilityDamage(state, ability, source, target, value, isPlayerSource);
-                case AbilityEffectKeys.HEAL -> {
-                    int healValue = value;
-                    if (elementalAfflictionService != null && source != null) {
-                        healValue = elementalAfflictionService.applyBlindToValue(source, healValue);
-                    }
-                    int toxinBefore = target.getAfflictionStacks(
-                            com.sieglings.model.enums.ElementalAffliction.TOXIN);
-                    int restored;
-                    if (elementalAfflictionService != null) {
-                        restored = elementalAfflictionService.applyHealWithToxin(state, target, healValue);
-                    } else {
-                        int before = target.getCurrentHealth();
-                        target.healDamage(healValue);
-                        restored = Math.max(0, target.getCurrentHealth() - before);
-                    }
-                    if (restored > 0) {
-                        state.log(ability.getName() + " heals " + target.getName() + " for " + restored
-                                + " (HP: " + target.getCurrentHealth() + ")");
-                    } else if (toxinBefore <= 0) {
-                        state.log(ability.getName() + " heals " + target.getName() + " for " + healValue
-                                + " (HP: " + target.getCurrentHealth() + ")");
-                    }
-                }
+                case AbilityEffectKeys.HEAL ->
+                        restoreHealth(state, ability, target, blinded(source, value));
+                case AbilityEffectKeys.OVERHEAL ->
+                        applyOverheal(state, ability, target, blinded(source, value));
                 case AbilityEffectKeys.SHIELD -> {
                     target.addShield(Math.max(1, value));
                     state.log(ability.getName() + " grants " + target.getName() + " " + Math.max(1, value) + " Shield"
@@ -396,8 +381,8 @@ public class EffectService {
      * Rust, weakness, log wording, and elemental affliction inflict in one place so chain hits
      * cannot drift from normal damage.
      */
-    private void dealAbilityDamage(GameState state, Ability ability, CardInstance source,
-                                   CardInstance target, int value, boolean isPlayerSource) {
+    private int dealAbilityDamage(GameState state, Ability ability, CardInstance source,
+                                  CardInstance target, int value, boolean isPlayerSource) {
         Element damageElement = ElementalAfflictionService.damageElementFor(
                 source, ability.getRequiredElement());
         int damage = value;
@@ -444,6 +429,84 @@ public class EffectService {
             elementalAfflictionService.tryInflictFromDamage(
                     state, source, target, damageElement, hpDealt, isPlayerSource);
         }
+        return hpDealt;
+    }
+
+    private int blinded(CardInstance source, int value) {
+        if (elementalAfflictionService == null || source == null) {
+            return value;
+        }
+        return elementalAfflictionService.applyBlindToValue(source, value);
+    }
+
+    /**
+     * Shared heal path: Toxin on the target eats the heal instead of restoring HP. The
+     * "heals X for N" wording is what action-queue.js parses to play the heal animation.
+     */
+    private int restoreHealth(GameState state, Ability ability, CardInstance target, int amount) {
+        int toxinBefore = target.getAfflictionStacks(
+                com.sieglings.model.enums.ElementalAffliction.TOXIN);
+        int restored;
+        if (elementalAfflictionService != null) {
+            restored = elementalAfflictionService.applyHealWithToxin(state, target, amount);
+        } else {
+            int before = target.getCurrentHealth();
+            target.healDamage(amount);
+            restored = Math.max(0, target.getCurrentHealth() - before);
+        }
+        if (restored > 0) {
+            state.log(ability.getName() + " heals " + target.getName() + " for " + restored
+                    + " (HP: " + target.getCurrentHealth() + ")");
+        } else if (toxinBefore <= 0) {
+            state.log(ability.getName() + " heals " + target.getName() + " for " + amount
+                    + " (HP: " + target.getCurrentHealth() + ")");
+        }
+        return restored;
+    }
+
+    /**
+     * Overheal: restore missing HP first, then keep whatever is left over as permanent max
+     * Health. A Toxin-afflicted target gets no overflow — Toxin consumes the whole heal, so
+     * there is nothing left to spill over.
+     */
+    private void applyOverheal(GameState state, Ability ability, CardInstance target, int amount) {
+        if (amount <= 0) {
+            return;
+        }
+        boolean toxined = target.getAfflictionStacks(
+                com.sieglings.model.enums.ElementalAffliction.TOXIN) > 0;
+        if (toxined) {
+            restoreHealth(state, ability, target, amount);
+            return;
+        }
+        int missing = Math.max(0, target.getEffectiveMaxHealth() - target.getCurrentHealth());
+        int restored = missing > 0 ? restoreHealth(state, ability, target, Math.min(amount, missing)) : 0;
+        int overflow = amount - restored;
+        if (overflow > 0) {
+            target.addMaxHealthBoost(overflow);
+            state.log(ability.getName() + " raises " + target.getName() + "'s max Health by " + overflow
+                    + " (HP: " + target.getCurrentHealth() + "/" + target.getEffectiveMaxHealth() + ")");
+        }
+    }
+
+    /**
+     * Drain: an ordinary hit (weakness, Blind, Soak, Rust, afflictions all apply), then the
+     * attacker heals for the HP it actually removed — shields absorbed and overkill do not count.
+     */
+    private void applyDrain(GameState state, Ability ability, CardInstance source,
+                            List<CardInstance> targets, int value, boolean isPlayerSource) {
+        int drained = 0;
+        for (CardInstance target : targets) {
+            if (target != null && target.isAlive()) {
+                drained += dealAbilityDamage(state, ability, source, target, value, isPlayerSource);
+            }
+        }
+        // A full-health attacker has nothing to restore; skip the "heals for 0" log line.
+        if (source == null || !source.isAlive() || drained <= 0
+                || source.getCurrentHealth() >= source.getEffectiveMaxHealth()) {
+            return;
+        }
+        restoreHealth(state, ability, source, drained);
     }
 
     /**

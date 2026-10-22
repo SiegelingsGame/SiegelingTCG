@@ -560,12 +560,12 @@ class GameJavaScriptRegressionTest {
         assertTrue(
                 helpMarkup.contains("<h3>Strategy</h3>")
                         && helpMarkup.contains("<h3>Deception</h3>")
-                        && helpMarkup.contains("Poison and Light attacks still apply their afflictions")
+                        && helpMarkup.contains("Poison, Psychic, Undead, Light, and Shadow have dedicated pools")
                         && helpMarkup.contains("There is no elemental weakness chart in Siege")
                         && helpCssPin(helpMarkup) >= 4
                         && !helpMarkup.contains("<h3>Spell</h3>")
                         && !helpMarkup.contains("<h3>Trap</h3>"),
-                "The full Field Guide must use current card labels, energy exceptions, Siege rules, and fresh visuals."
+                "The full Field Guide must use current card labels, every energy pool, Siege rules, and fresh visuals."
         );
         assertTrue(
                 homeCssPin(homeMarkup) >= 130
@@ -2355,8 +2355,8 @@ class GameJavaScriptRegressionTest {
 
         assertTrue(home.contains("function liveGuideAfflictions()")
                         && home.contains("return !live || live.has(key);")
-                        && home.contains("function renderGuideEnergyExceptionNote()"),
-                "The settings guide must filter its affliction/element grids and its energy note.");
+                        && home.contains("Every element has its own pool"),
+                "The settings guide must filter its affliction/element grids and list every energy pool.");
         assertTrue(home.contains("function guideSectionField(section, key)")
                         && home.contains("guideSectionField(section, 'html')"),
                 "Guide sections that depend on the roster must be built per open, not frozen at load.");
@@ -2367,8 +2367,13 @@ class GameJavaScriptRegressionTest {
                 "The Field Guide must prune affliction rows and matchup rows for dark elements.");
         assertTrue(helpMarkup.contains("id=\"energyPoolsNote\"")
                         && helpMarkup.contains("data-pool-elements=")
-                        && helpMarkup.contains("/js/help.js?v=3"),
+                        && helpJsPin(helpMarkup) >= 5,
                 "The energy-pool note needs its rewrite hooks and a fresh cache pin.");
+    }
+
+    private static int helpJsPin(String markup) {
+        Matcher matcher = Pattern.compile("/js/help\\.js\\?v=(\\d+)").matcher(markup);
+        return matcher.find() ? Integer.parseInt(matcher.group(1)) : -1;
     }
 
     /** Pinned as a floor, not an exact number: help.css keeps being re-cut as the guide changes. */

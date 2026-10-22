@@ -10004,7 +10004,7 @@
         'Claim, during Setup, spends a surviving Siegling’s presence for temporary energy. Cursed units cannot be claimed.',
         'Placement must stay legal on your half — foundation and network rules decide which cells light up.'
       ]],
-      ['note', 'Energy pools: Fire, Ice, Earth, Wind, Water, Electric, Metal, Shadow, Psychic and Undead have dedicated pools. Poison and Light attacks still apply their afflictions, but their action cards use Neutral costs.']
+      ['note', 'Energy pools: every element has its own pool — Fire, Ice, Earth, Wind, Water, Electric, Metal, Poison, Psychic, Undead, Light and Shadow. Neutral costs can be paid from any pool.']
     ]],
     ['Evolution', 'Growing a Siegling mid-match', '/img/gallery/bearzooka-rampage.webp', 'FIRE', [
       ['p', 'An Evolution card is not placed on an empty cell. It is placed onto its live precursor, replacing it in the same cell and keeping that cell’s links.'],

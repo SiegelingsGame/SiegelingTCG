@@ -138,7 +138,7 @@ public class MatchHistoryService {
         return player.getFireEnergy() + player.getEarthEnergy() + player.getWindEnergy()
                 + player.getWaterEnergy() + player.getIceEnergy() + player.getShadowEnergy()
                 + player.getElectricEnergy() + player.getMetalEnergy() + player.getUndeadEnergy()
-                + player.getPsychicEnergy();
+                + player.getPsychicEnergy() + player.getPoisonEnergy() + player.getLightEnergy();
     }
 
     private String resolveResult(GameState state, String playerName) {
