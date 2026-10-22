@@ -23,7 +23,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="stylesheet" href="/css/landing.css?v=54">
+    <link rel="stylesheet" href="/css/landing.css?v=55">
     <link rel="stylesheet" href="/css/card-face.css?v=9">
     <link rel="stylesheet" href="/css/holographic.css?v=8">
 </head>
@@ -99,13 +99,10 @@
         <span aria-hidden="true">✦</span>
     </button>
     <div class="landing-fab-menu" id="landingFabMenu" hidden>
-        <a href="#connections">Card Links</a>
-        <a href="#siege-demo">Siege</a>
-        <a href="#dominion-demo">Dominion</a>
+        <a href="#modes">Game Modes</a>
         <a href="#roster">Siegelings</a>
         <a href="#creatures">Legendaries</a>
         <a href="#knights">SiegeKnights</a>
-        <a href="#modes">Game Modes</a>
         <a href="#elements">Elements</a>
         <a href="#world">World Art</a>
         <a href="#arena">Arenas</a>
@@ -113,8 +110,18 @@
     </div>
 </nav>
 
-<!-- ── Interactive card placement ─────────────────────────────────────── -->
-<section class="placement-section binder-face-scope" id="connections" aria-labelledby="connectionsTitle">
+<!-- ── Game modes: one pane, a page per mode, each with a hands-on demo ──── -->
+<section class="modes-pane binder-face-scope" id="modes" data-mode="battle" aria-label="Game modes">
+    <div class="modes-head">
+        <span class="section-kicker">Choose Your Path</span>
+        <div class="modes-switch" role="tablist" aria-label="Game modes">
+            <button type="button" role="tab" id="modeTabBattle" aria-controls="modePageBattle" aria-selected="true" data-mode="battle"><span class="modes-switch-icon" aria-hidden="true">⚔️</span><b>Battle</b><small>The card table</small></button>
+            <button type="button" role="tab" id="modeTabSiege" aria-controls="modePageSiege" aria-selected="false" tabindex="-1" data-mode="siege"><span class="modes-switch-icon" aria-hidden="true">🗺️</span><b>Siege</b><small>Roguelike expedition</small></button>
+            <button type="button" role="tab" id="modeTabDominion" aria-controls="modePageDominion" aria-selected="false" tabindex="-1" data-mode="dominion"><span class="modes-switch-icon" aria-hidden="true">🏰</span><b>Dominion</b><small>Knight &amp; Keep</small></button>
+        </div>
+    </div>
+
+    <div class="placement-section mode-page" id="modePageBattle" role="tabpanel" aria-labelledby="modeTabBattle">
     <div class="placement-copy">
         <span class="section-kicker">Play the Connection</span>
         <h2 id="connectionsTitle">Place a card. Power the board.</h2>
@@ -123,6 +130,7 @@
             <span class="placement-rule-notch" aria-hidden="true"></span>
             <span><strong>Reciprocal notches</strong> create energy links and elemental combos.</span>
         </div>
+        <a class="roster-collection-link mode-demo-cta" href="/play">Enter Battle <span>→</span></a>
     </div>
 
     <div class="placement-demo" id="placementDemo" data-state="ready">
@@ -150,10 +158,9 @@
             <div class="placement-hand" id="placementHand" aria-label="Cards in your hand"></div>
         </div>
     </div>
-</section>
+    </div>
 
-<!-- ── Siege: the Advantage token and the branching map ─────────────────── -->
-<section class="placement-section mode-demo-section is-siege is-mirrored" id="siege-demo" aria-labelledby="siegeDemoTitle">
+    <div class="placement-section mode-page" id="modePageSiege" role="tabpanel" aria-labelledby="modeTabSiege" hidden>
     <div class="placement-copy">
         <span class="section-kicker">Siege Expedition</span>
         <h2 id="siegeDemoTitle">Seize the Advantage. Choose your road.</h2>
@@ -173,10 +180,9 @@
         <div class="mode-demo-panel" id="siegePanelAdvantage" role="tabpanel" aria-labelledby="siegeTabAdvantage"></div>
         <div class="mode-demo-panel" id="siegePanelMap" role="tabpanel" aria-labelledby="siegeTabMap" hidden></div>
     </div>
-</section>
+    </div>
 
-<!-- ── Dominion: found your knight and raise the Keep ──────────────────── -->
-<section class="placement-section mode-demo-section is-dominion" id="dominion-demo" aria-labelledby="dominionDemoTitle">
+    <div class="placement-section mode-page" id="modePageDominion" role="tabpanel" aria-labelledby="modeTabDominion" hidden>
     <div class="placement-copy">
         <span class="section-kicker">Dominion</span>
         <h2 id="dominionDemoTitle">Forge your knight. Raise your Keep.</h2>
@@ -195,6 +201,15 @@
         </div>
         <div class="mode-demo-panel" id="dominionPanelKnight" role="tabpanel" aria-labelledby="dominionTabKnight"></div>
         <div class="mode-demo-panel" id="dominionPanelKeep" role="tabpanel" aria-labelledby="dominionTabKeep" hidden></div>
+    </div>
+    </div>
+
+    <div class="mode-extra-links">
+        <a href="/cards">Card Collection <span aria-hidden="true">→</span></a>
+        <a href="/deck-builder">Deck Builder <span aria-hidden="true">→</span></a>
+        <a href="/shop">Card Packs <span aria-hidden="true">→</span></a>
+        <a href="/achievements">Achievements <span aria-hidden="true">→</span></a>
+        <a href="/help">How to Play <span aria-hidden="true">→</span></a>
     </div>
 </section>
 
@@ -247,36 +262,6 @@
         <!-- Knight cards rendered by landing.js from the shipped knight art -->
     </div>
     <a class="roster-collection-link" href="/play">Take one into the arena <span>→</span></a>
-</section>
-
-<!-- ── Game modes ─────────────────────────────────────────────────────── -->
-<section class="game-modes" id="modes" aria-labelledby="modesTitle">
-    <div class="landing-section-heading">
-        <span class="section-kicker">Choose Your Path</span>
-        <h2 id="modesTitle">Three ways to command the elements</h2>
-        <p>Build a deck for the table, take your warband on an expedition, or grow the sanctuary your Siegelings call home.</p>
-    </div>
-    <div class="mode-grid">
-        <a class="mode-card mode-card-battle" href="/play" style="--mode-color: var(--element-water); --mode-glow: rgba(50,150,255,.5)">
-            <div class="mode-card-image" role="img" aria-label="Elemental battle preview"><span class="mode-card-sigil" aria-hidden="true">⚔</span></div>
-            <div class="mode-card-content"><span class="mode-number">01</span><h3>Battle</h3><p>Place Siegelings, link elemental notches, and outthink your rival on the battle table.</p><span class="mode-link">Enter Battle <b>→</b></span></div>
-        </a>
-        <a class="mode-card mode-card-siege" href="/siege" style="--mode-color: var(--element-fire); --mode-glow: var(--element-fire-glow)">
-            <div class="mode-card-image" role="img" aria-label="Siege expedition preview"><span class="mode-card-sigil" aria-hidden="true">🜂</span></div>
-            <div class="mode-card-content"><span class="mode-number">02</span><h3>Siege</h3><p>Lead a SiegeKnight across a branching expedition full of battles, rewards, and hard choices.</p><span class="mode-link">Begin a Siege <b>→</b></span></div>
-        </a>
-        <a class="mode-card mode-card-keep" href="/keep" style="--mode-color: var(--element-wind); --mode-glow: var(--element-wind-glow)">
-            <div class="mode-card-image" role="img" aria-label="My Keep preview"><span class="mode-card-sigil" aria-hidden="true">⌂</span></div>
-            <div class="mode-card-content"><span class="mode-number">03</span><h3>Keep</h3><p>Restore your elemental sanctuary, assign residents, craft materials, and make your mark.</p><span class="mode-link">Visit My Keep <b>→</b></span></div>
-        </a>
-    </div>
-    <div class="mode-extra-links">
-        <a href="/cards">Card Collection <span aria-hidden="true">→</span></a>
-        <a href="/deck-builder">Deck Builder <span aria-hidden="true">→</span></a>
-        <a href="/shop">Card Packs <span aria-hidden="true">→</span></a>
-        <a href="/achievements">Achievements <span aria-hidden="true">→</span></a>
-        <a href="/help">How to Play <span aria-hidden="true">→</span></a>
-    </div>
 </section>
 
 <!-- ── Element affinities ─────────────────────────────────────────────── -->
@@ -400,7 +385,7 @@
 <script src="/js/play-mode-picker.js?v=4"></script>
 <script src="/js/landing.js?v=58"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
-<script src="/js/landing-modes.js?v=1"></script>
+<script src="/js/landing-modes.js?v=2"></script>
 <script src="/js/sw-register.js?v=1"></script>
 <script src="/js/install-guide.js?v=3"></script>
 </body>
