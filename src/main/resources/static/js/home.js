@@ -11308,20 +11308,6 @@
             </article>`).join('')}</div>`;
     }
 
-    /** Only worth printing while an element it names is actually in play. */
-    function renderGuideEnergyExceptionNote() {
-        const named = ['Poison', 'Light'].filter(isGuideElementLive);
-        if (named.length === 0) return '';
-        const riders = { Poison: 'Toxin', Light: 'Blind' };
-        const elements = named.join(' and ');
-        const afflictions = named.map(name => riders[name]).join(' and ');
-        const single = named.length === 1;
-        const pools = single ? 'that element does not have a dedicated energy pool' : 'those elements do not have dedicated energy pools';
-        const cards = single ? 'Its' : 'Their';
-        return `<p class="guide-note"><strong>Energy exception:</strong> ${elements} attacks still apply `
-            + `${afflictions}, but ${pools}. ${cards} action cards use Neutral costs.</p>`;
-    }
-
     function renderGuideElements() {
         const rows = liveGuideAfflictions().concat([
             { element: 'Neutral', status: 'No affliction', icon: '◇', color: '#95a5a6' }
@@ -11401,8 +11387,7 @@
             eyebrow: 'Affinity map',
             summary: 'An attack’s element determines the affliction it builds. Neutral is the exception: it has no affliction.',
             title: () => `${liveGuideAfflictions().length + 1} affinities, ${liveGuideAfflictions().length} damage riders`,
-            html: () => `${renderGuideElements()}
-                ${renderGuideEnergyExceptionNote()}`
+            html: () => renderGuideElements()
         },
         {
             id: 'energy',
@@ -11425,9 +11410,9 @@
                     </ol>
                 </div>
                 <div class="guide-energy-row" aria-label="Dedicated energy pools">
-                    <span style="--guide-el:#ff501e">F</span><span style="--guide-el:#76e6ff">I</span><span style="--guide-el:#8fbd58">E</span><span style="--guide-el:#96ffb4">W</span><span style="--guide-el:#3296ff">W</span><span style="--guide-el:#ffe63c">E</span><span style="--guide-el:#a0aab4">M</span><span style="--guide-el:#9a63d6">S</span><span style="--guide-el:#c896ff">P</span><span style="--guide-el:#8c78a0">U</span>
+                    <span style="--guide-el:#ff501e">F</span><span style="--guide-el:#76e6ff">I</span><span style="--guide-el:#8fbd58">E</span><span style="--guide-el:#96ffb4">W</span><span style="--guide-el:#3296ff">W</span><span style="--guide-el:#ffe63c">E</span><span style="--guide-el:#a0aab4">M</span><span style="--guide-el:#7ecb4d">P</span><span style="--guide-el:#c896ff">P</span><span style="--guide-el:#8c78a0">U</span><span style="--guide-el:#ffe59a">L</span><span style="--guide-el:#9a63d6">S</span>
                 </div>
-                <p class="guide-note">The ten dedicated pools are Fire, Ice, Earth, Wind, Water, Electric, Metal, Shadow, Psychic, and Undead. Poison and Light action cards spend Neutral energy.</p>`
+                <p class="guide-note">Every element has its own pool: Fire, Ice, Earth, Wind, Water, Electric, Metal, Poison, Psychic, Undead, Light, and Shadow. Neutral costs can be paid from any pool.</p>`
         },
         {
             id: 'spells-traps',

@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sieglings.model.Ability;
 import com.sieglings.model.AbilityEffectKeys;
-import com.sieglings.model.enums.Element;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -62,16 +61,14 @@ class LightKitAndPenitencePackTest {
     }
 
     @Test
-    void lightMovesStayOnThemeAndCostedOnesPayNeutral() {
+    void lightMovesStayOnThemeAndPayLightEnergy() {
         JsonNode pack = ContentPackMerger.loadClasspathPack(mapper, LIGHT_PACK);
         for (JsonNode move : pack.get("moves")) {
             String id = move.get("id").asText();
             assertEquals("LIGHT", move.get("element").asText(), id);
             assertTrue(LIGHT_THEME_EFFECTS.contains(move.get("effectType").asText()), id);
-            // Light has no energy pool, so a Light-costed move could never be paid for.
-            if (move.get("energyCost").asInt() > 0) {
-                assertEquals(Element.NEUTRAL.name(), move.get("requiredElement").asText(), id);
-            }
+            // A null requiredElement makes the battle engine charge the card's own (Light) pool.
+            assertTrue(move.get("requiredElement").isNull(), id);
         }
     }
 

@@ -55,8 +55,8 @@ These are the effect keys the rules engine currently understands.
   glows. `GameService.startBattlePhase` is the single expiry point, so however late in the round a
   buff is used it always ends at the same place. The serialized player carries `overcharged` and
   `overchargeEnergy`.
-  Elements with no pool (Poison, Light, Neutral) generate nothing; picking one is treated as a
-  design error rather than silently falling back.
+  Every element has a pool except Neutral; a Neutral boost generates nothing rather than
+  silently paying into another element's pool.
 - **Whose element it generates.** With `targetElement` unset, the boost reads the card the ability
   names: aim it at an ally and it generates *that ally's* element, once per named card
   (`ALL_ALLIES` on a Fire + Ice + Earth board generates one of each). `SELF`/`PASSIVE` name the

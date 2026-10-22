@@ -519,15 +519,64 @@ class EnergyServiceTest {
     }
 
     @Test
-    void energyBoostGeneratesNothingForElementsWithoutAPool() {
+    void energyBoostCanPayIntoTheLightPool() {
         MovesPoolService pool = newMovesPool();
         EnergyService service = new EnergyService(placementService, pool);
         GameState state = playerStateWithEnergyBoost(pool, "boost-light", Element.FIRE, Element.LIGHT, 2);
 
         EnergyService.EnergyBreakdown b = service.getBreakdown(state, true);
 
-        assertTrue(b.passiveEnergy().isEmpty(), "Light has no pool to pay into.");
-        assertEquals(0, b.fireTotal(), "A poolless pick must not quietly fall back to the card's element.");
+        assertEquals(2, b.lightTotal());
+        assertEquals(0, b.fireTotal(), "An explicit Light pick does not also pay the card's own element.");
+    }
+
+    @Test
+    void neutralEnergyBoostGeneratesNothing() {
+        MovesPoolService pool = newMovesPool();
+        EnergyService service = new EnergyService(placementService, pool);
+        GameState state = playerStateWithEnergyBoost(pool, "boost-neutral", Element.NEUTRAL, null, 2);
+
+        assertTrue(service.getBreakdown(state, true).passiveEnergy().isEmpty(), "Neutral has no pool to pay into.");
+    }
+
+    @Test
+    void everyGameplayElementHasAnEnergyPool() {
+        for (Element element : Element.values()) {
+            assertEquals(element != Element.NEUTRAL, EnergyService.hasEnergyPool(element), element.name());
+        }
+    }
+
+    @Test
+    void lightAndPoisonLinksFillTheirOwnPoolsAndCanBeSpent() {
+        for (Element element : List.of(Element.LIGHT, Element.POISON)) {
+            GameState state = new GameState();
+            state.setPlayer(new Player("Player", true));
+            state.setEnemy(new Player("AI Opponent", false));
+            // One reciprocal mid-board link and no outer notches, so no sockets.
+            placeLinkedPair(state, element, 1);
+
+            energyService.recalculateEnergy(state);
+
+            Player player = state.getPlayer();
+            int pool = element == Element.LIGHT ? player.getLightEnergy() : player.getPoisonEnergy();
+            assertEquals(1, pool, element.name());
+            assertTrue(energyService.canAfford(state, true, element, 1), element.name());
+            assertFalse(energyService.canAfford(state, true, element, 2), element.name());
+            assertTrue(energyService.canAfford(state, true, Element.NEUTRAL, 1), "Neutral costs draw on the new pool too.");
+
+            energyService.spendEnergy(state, true, element, 1);
+
+            assertEquals(0, element == Element.LIGHT ? player.getLightEnergy() : player.getPoisonEnergy(), element.name());
+        }
+    }
+
+    private void placeLinkedPair(GameState state, Element element, int row) {
+        SieglingCard left = new SieglingCard(element + "-l", element + " L", element, Rarity.COMMON, 10, 1,
+                List.of(new Notch(NotchDirection.RIGHT, element)), Row.MIDDLE);
+        SieglingCard right = new SieglingCard(element + "-r", element + " R", element, Rarity.COMMON, 10, 1,
+                List.of(new Notch(NotchDirection.LEFT, element)), Row.MIDDLE);
+        state.setAt(true, row, 0, new CardInstance(left.copy(), row, 0, true));
+        state.setAt(true, row, 1, new CardInstance(right.copy(), row, 1, true));
     }
 
     @Test

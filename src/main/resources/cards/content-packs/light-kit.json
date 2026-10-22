@@ -1,6 +1,6 @@
 {
   "id": "light-kit-2026-10",
-  "description": "Light shared moves themed on healing and raising max Health, Patience's signature Everdawn (the new overheal key), and move assignments for the live Light Sieglings. Light has no Battle Table energy pool, so every Light move that costs energy pays Neutral (any pool), matching the Light/Poison Neutral-cost convention. Common and rare+ cards receive 3 and 5 moves; Glare stays as each card's free attack.",
+  "description": "Light shared moves themed on healing and raising max Health, Patience's signature Everdawn (the new overheal key), and move assignments for the live Light Sieglings. Costed moves pay from the Light energy pool. Common and rare+ cards receive 3 and 5 moves; Glare stays as each card's free attack.",
   "moves": [
     {
       "id": "light-glimmer-mend",
@@ -33,7 +33,7 @@
       "energyCost": 1,
       "description": "Heal 1 ally for 6 HP.",
       "isPassive": false,
-      "requiredElement": "NEUTRAL",
+      "requiredElement": null,
       "requiredReaction": null
     },
     {
@@ -50,7 +50,7 @@
       "energyCost": 1,
       "description": "Heal all allies for 2 HP.",
       "isPassive": false,
-      "requiredElement": "NEUTRAL",
+      "requiredElement": null,
       "requiredReaction": null
     },
     {
@@ -67,7 +67,7 @@
       "energyCost": 3,
       "description": "Heal all allies for 4 HP.",
       "isPassive": false,
-      "requiredElement": "NEUTRAL",
+      "requiredElement": null,
       "requiredReaction": null
     },
     {
@@ -101,7 +101,7 @@
       "energyCost": 1,
       "description": "1 ally gains +2 max HP.",
       "isPassive": false,
-      "requiredElement": "NEUTRAL",
+      "requiredElement": null,
       "requiredReaction": null
     },
     {
@@ -118,7 +118,7 @@
       "energyCost": 1,
       "description": "Connected allies gain +2 max HP.",
       "isPassive": false,
-      "requiredElement": "NEUTRAL",
+      "requiredElement": null,
       "requiredReaction": null
     },
     {
@@ -135,7 +135,7 @@
       "energyCost": 2,
       "description": "Allies in a chosen row gain +2 max HP.",
       "isPassive": false,
-      "requiredElement": "NEUTRAL",
+      "requiredElement": null,
       "requiredReaction": null
     },
     {
@@ -152,7 +152,7 @@
       "energyCost": 3,
       "description": "Heal all allies for 4 HP. Healing past full raises their max HP instead.",
       "isPassive": false,
-      "requiredElement": "NEUTRAL",
+      "requiredElement": null,
       "requiredReaction": null
     }
   ],

@@ -47,7 +47,8 @@ public class GauntletUpgrades {
     /** Elements with an energy pool, so an infused card can still pay for its moves. */
     static final List<Element> INFUSIBLE = List.of(
             Element.FIRE, Element.WATER, Element.EARTH, Element.WIND, Element.ICE,
-            Element.ELECTRIC, Element.METAL, Element.SHADOW, Element.PSYCHIC, Element.UNDEAD);
+            Element.ELECTRIC, Element.METAL, Element.SHADOW, Element.PSYCHIC, Element.UNDEAD,
+            Element.POISON, Element.LIGHT);
 
     /** Value-carrying effects that "+N" makes stronger. Destroy/freeze have no number to raise. */
     private static final Set<String> SCALABLE = Set.of(

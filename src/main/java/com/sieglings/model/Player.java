@@ -39,6 +39,8 @@ public class Player {
     private int metalEnergy;
     private int undeadEnergy;
     private int psychicEnergy;
+    private int poisonEnergy;
+    private int lightEnergy;
     private boolean mistActive;
     private final Map<Element, Integer> temporaryEnergyAdjustments = new EnumMap<>(Element.class);
     /**
@@ -231,7 +233,7 @@ public class Player {
     /** Sum of all element pool totals (used for Siegling setup placement budget snapshot). */
     public int sumPooledEnergy() {
         return fireEnergy + earthEnergy + windEnergy + waterEnergy + iceEnergy + shadowEnergy
-                + electricEnergy + metalEnergy + undeadEnergy + psychicEnergy;
+                + electricEnergy + metalEnergy + undeadEnergy + psychicEnergy + poisonEnergy + lightEnergy;
     }
 
     public int getSpellsCastThisMatch() {
@@ -289,6 +291,10 @@ public class Player {
     public void setUndeadEnergy(int undeadEnergy) { this.undeadEnergy = undeadEnergy; }
     public int getPsychicEnergy() { return psychicEnergy; }
     public void setPsychicEnergy(int psychicEnergy) { this.psychicEnergy = psychicEnergy; }
+    public int getPoisonEnergy() { return poisonEnergy; }
+    public void setPoisonEnergy(int poisonEnergy) { this.poisonEnergy = poisonEnergy; }
+    public int getLightEnergy() { return lightEnergy; }
+    public void setLightEnergy(int lightEnergy) { this.lightEnergy = lightEnergy; }
     public boolean isMistActive() { return mistActive; }
     public void setMistActive(boolean mistActive) { this.mistActive = mistActive; }
     public int getHealth() { return health; }

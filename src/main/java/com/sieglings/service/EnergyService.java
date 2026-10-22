@@ -102,6 +102,12 @@ public class EnergyService {
             int psychicTotal,
             int psychicInternal,
             int psychicExternal,
+            int poisonTotal,
+            int poisonInternal,
+            int poisonExternal,
+            int lightTotal,
+            int lightInternal,
+            int lightExternal,
             int comboTwoCount,
             int comboThreeCount,
             int comboFourCount,
@@ -172,7 +178,8 @@ public class EnergyService {
             case METAL -> consumeEnergy(player, Element.METAL, costAmount);
             case UNDEAD -> consumeEnergy(player, Element.UNDEAD, costAmount);
             case PSYCHIC -> consumeEnergy(player, Element.PSYCHIC, costAmount);
-            case POISON, LIGHT -> { /* no energy pools — spells use NEUTRAL cost */ }
+            case POISON -> consumeEnergy(player, Element.POISON, costAmount);
+            case LIGHT -> consumeEnergy(player, Element.LIGHT, costAmount);
             case NEUTRAL -> spendNeutral(player, costAmount);
         }
     }
@@ -194,6 +201,8 @@ public class EnergyService {
             if (player.getMetalEnergy() > max) { max = player.getMetalEnergy(); maxEl = "METAL"; }
             if (player.getUndeadEnergy() > max) { max = player.getUndeadEnergy(); maxEl = "UNDEAD"; }
             if (player.getPsychicEnergy() > max) { max = player.getPsychicEnergy(); maxEl = "PSYCHIC"; }
+            if (player.getPoisonEnergy() > max) { max = player.getPoisonEnergy(); maxEl = "POISON"; }
+            if (player.getLightEnergy() > max) { max = player.getLightEnergy(); maxEl = "LIGHT"; }
             if (maxEl == null) break;
             switch (maxEl) {
                 case "FIRE" -> consumeEnergy(player, Element.FIRE, 1);
@@ -206,6 +215,8 @@ public class EnergyService {
                 case "METAL" -> consumeEnergy(player, Element.METAL, 1);
                 case "UNDEAD" -> consumeEnergy(player, Element.UNDEAD, 1);
                 case "PSYCHIC" -> consumeEnergy(player, Element.PSYCHIC, 1);
+                case "POISON" -> consumeEnergy(player, Element.POISON, 1);
+                case "LIGHT" -> consumeEnergy(player, Element.LIGHT, 1);
             }
             remaining--;
         }
@@ -233,7 +244,9 @@ public class EnergyService {
             case METAL -> player.setMetalEnergy(player.getMetalEnergy() + amount);
             case UNDEAD -> player.setUndeadEnergy(player.getUndeadEnergy() + amount);
             case PSYCHIC -> player.setPsychicEnergy(player.getPsychicEnergy() + amount);
-            case POISON, LIGHT, NEUTRAL -> { /* no pools — filtered by hasEnergyPool */ }
+            case POISON -> player.setPoisonEnergy(player.getPoisonEnergy() + amount);
+            case LIGHT -> player.setLightEnergy(player.getLightEnergy() + amount);
+            case NEUTRAL -> { /* no pool — filtered by hasEnergyPool */ }
         }
     }
 
@@ -260,6 +273,8 @@ public class EnergyService {
         player.setMetalEnergy(poolFor(player, breakdown.metalTotal(), Element.METAL));
         player.setUndeadEnergy(poolFor(player, breakdown.undeadTotal(), Element.UNDEAD));
         player.setPsychicEnergy(poolFor(player, breakdown.psychicTotal(), Element.PSYCHIC));
+        player.setPoisonEnergy(poolFor(player, breakdown.poisonTotal(), Element.POISON));
+        player.setLightEnergy(poolFor(player, breakdown.lightTotal(), Element.LIGHT));
     }
 
     /** Board energy, plus claim-style temporary energy, plus any live overcharge. */
@@ -284,7 +299,9 @@ public class EnergyService {
             case METAL -> player.setMetalEnergy(Math.max(0, player.getMetalEnergy() - amount));
             case UNDEAD -> player.setUndeadEnergy(Math.max(0, player.getUndeadEnergy() - amount));
             case PSYCHIC -> player.setPsychicEnergy(Math.max(0, player.getPsychicEnergy() - amount));
-            case POISON, LIGHT, NEUTRAL -> {
+            case POISON -> player.setPoisonEnergy(Math.max(0, player.getPoisonEnergy() - amount));
+            case LIGHT -> player.setLightEnergy(Math.max(0, player.getLightEnergy() - amount));
+            case NEUTRAL -> {
                 return;
             }
         }
@@ -312,12 +329,9 @@ public class EnergyService {
             case METAL -> player.getMetalEnergy() >= costAmount;
             case UNDEAD -> player.getUndeadEnergy() >= costAmount;
             case PSYCHIC -> player.getPsychicEnergy() >= costAmount;
-            case POISON, LIGHT -> false; // no energy pools; use NEUTRAL cost
-            case NEUTRAL -> (player.getFireEnergy() + player.getEarthEnergy()
-                    + player.getWindEnergy() + player.getWaterEnergy() + player.getIceEnergy()
-                    + player.getShadowEnergy() + player.getElectricEnergy()
-                    + player.getMetalEnergy() + player.getUndeadEnergy()
-                    + player.getPsychicEnergy()) >= costAmount;
+            case POISON -> player.getPoisonEnergy() >= costAmount;
+            case LIGHT -> player.getLightEnergy() >= costAmount;
+            case NEUTRAL -> player.sumPooledEnergy() >= costAmount;
         };
     }
 
@@ -370,6 +384,10 @@ public class EnergyService {
         int undeadExternal = 0;
         int psychicInternal = 0;
         int psychicExternal = 0;
+        int poisonInternal = 0;
+        int poisonExternal = 0;
+        int lightInternal = 0;
+        int lightExternal = 0;
 
         List<CardInstance> sieglings = placementService.getFoundationSieglings(state, isPlayer);
         Set<String> countedConnections = new HashSet<>();
@@ -422,7 +440,9 @@ public class EnergyService {
                         case METAL -> metalInternal++;
                         case UNDEAD -> undeadInternal++;
                         case PSYCHIC -> psychicInternal++;
-                        case POISON, LIGHT, NEUTRAL -> { }
+                        case POISON -> poisonInternal++;
+                        case LIGHT -> lightInternal++;
+                        case NEUTRAL -> { }
                     }
                 }
             }
@@ -442,7 +462,9 @@ public class EnergyService {
                 case METAL -> metalExternal++;
                 case UNDEAD -> undeadExternal++;
                 case PSYCHIC -> psychicExternal++;
-                case POISON, LIGHT, NEUTRAL -> { }
+                case POISON -> poisonExternal++;
+                case LIGHT -> lightExternal++;
+                case NEUTRAL -> { }
             }
         }
 
@@ -495,6 +517,12 @@ public class EnergyService {
                 psychicInternal + psychicExternal + passiveEnergy.getOrDefault(Element.PSYCHIC, 0),
                 psychicInternal,
                 psychicExternal,
+                poisonInternal + poisonExternal + passiveEnergy.getOrDefault(Element.POISON, 0),
+                poisonInternal,
+                poisonExternal,
+                lightInternal + lightExternal + passiveEnergy.getOrDefault(Element.LIGHT, 0),
+                lightInternal,
+                lightExternal,
                 comboTwoCount,
                 comboThreeCount,
                 comboFourCount,
@@ -601,8 +629,8 @@ public class EnergyService {
 
     /**
      * The energy type an {@code energy_boost} generates: the element chosen on the ability,
-     * falling back to the card's own element. Elements without a pool (Poison, Light, Neutral)
-     * generate nothing rather than silently paying into another element's pool.
+     * falling back to the card's own element. Neutral has no pool, so it generates nothing
+     * rather than silently paying into another element's pool.
      */
     public static Element resolveEnergyElement(Ability ability, Element sourceElement) {
         if (ability == null) {
@@ -611,11 +639,6 @@ public class EnergyService {
         Element chosen = ability.getTargetElement();
         if (hasEnergyPool(chosen)) {
             return chosen;
-        }
-        if (chosen != null && chosen != Element.NEUTRAL) {
-            // An explicit poolless pick (Poison/Light) is a design mistake, not a request
-            // to fall back to the card's element — generate nothing so it is visible.
-            return null;
         }
         return hasEnergyPool(sourceElement) ? sourceElement : null;
     }
@@ -626,8 +649,8 @@ public class EnergyService {
             return false;
         }
         return switch (element) {
-            case FIRE, EARTH, WIND, WATER, ICE, SHADOW, ELECTRIC, METAL, UNDEAD, PSYCHIC -> true;
-            case POISON, LIGHT, NEUTRAL -> false;
+            case FIRE, EARTH, WIND, WATER, ICE, SHADOW, ELECTRIC, METAL, UNDEAD, PSYCHIC, POISON, LIGHT -> true;
+            case NEUTRAL -> false;
         };
     }
 

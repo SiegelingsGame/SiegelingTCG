@@ -1124,14 +1124,14 @@ public class GameController {
         return energy.fireInternal() + energy.earthInternal() + energy.windInternal()
                 + energy.waterInternal() + energy.iceInternal() + energy.shadowInternal()
                 + energy.electricInternal() + energy.metalInternal() + energy.undeadInternal()
-                + energy.psychicInternal();
+                + energy.psychicInternal() + energy.poisonInternal() + energy.lightInternal();
     }
 
     private int sumExternalEnergy(EnergyService.EnergyBreakdown energy) {
         return energy.fireExternal() + energy.earthExternal() + energy.windExternal()
                 + energy.waterExternal() + energy.iceExternal() + energy.shadowExternal()
                 + energy.electricExternal() + energy.metalExternal() + energy.undeadExternal()
-                + energy.psychicExternal();
+                + energy.psychicExternal() + energy.poisonExternal() + energy.lightExternal();
     }
 
     private Map<String, Object> buildRoomMeta(MultiplayerRoom room,
