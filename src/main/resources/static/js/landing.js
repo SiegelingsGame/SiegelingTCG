@@ -1057,6 +1057,53 @@
         scheduleDescriptionFit(host);
     }
 
+    // ── Rarity showcase ───────────────────────────────────────────────────
+    // One Siegling (Cacty) printed at every rarity, so the frame is the only
+    // thing that changes. Bounties mirror GameState.defeatBounty.
+    const RARITY_SHOWCASE = [
+        { rarity: 'COMMON', label: 'Common', bounty: 5 },
+        { rarity: 'UNCOMMON', label: 'Uncommon', bounty: 6 },
+        { rarity: 'RARE', label: 'Rare', bounty: 7 },
+        { rarity: 'EPIC', label: 'Epic', bounty: 8 },
+        { rarity: 'LEGENDARY', label: 'Legendary', bounty: 10 }
+    ];
+    // Shipped copy of the live card, so the row still paints if the catalog is down.
+    const RARITY_REFERENCE_FALLBACK = {
+        id: 'cacty',
+        name: 'Cacty',
+        element: 'EARTH',
+        health: 15,
+        speed: 8,
+        notches: [{ direction: 'TOP', element: 'EARTH' }, { direction: 'RIGHT', element: 'EARTH' }],
+        cardArtUrl: 'https://firebasestorage.googleapis.com/v0/b/siegelingstcgtesting.firebasestorage.app/o/cards%2Fcacty.png?alt=media&token=4cbc5e6f-99bb-4738-812e-232c786d681e',
+        cardArtMode: 'OVERLAY',
+        cardArtOffsetXPct: 1.6666666666666785,
+        cardArtOffsetYPct: 15,
+        cardArtScale: 0.72,
+        description: 'Despite its adorable appearance, Cacty is anything but harmless. Its thick, razor-sharp thorns inflict agonizing wounds on anything that gets too close.'
+    };
+
+    async function renderRarityRow() {
+        const host = document.getElementById('rarityRow');
+        if (!host) return;
+        let reference = RARITY_REFERENCE_FALLBACK;
+        try {
+            const payload = await loadGameOptions();
+            const live = (Array.isArray(payload?.cardCatalog) ? payload.cardCatalog : [])
+                .find((card) => String(card?.id || '').toLowerCase() === 'cacty' && String(card?.cardArtUrl || '').trim());
+            if (live) reference = { ...live, description: rosterDescription(live) };
+        } catch (_ignored) {
+            // The shipped copy above keeps the row painted.
+        }
+        host.innerHTML = RARITY_SHOWCASE.map((tier) => `
+            <article class="rarity-card rarity-${tier.rarity.toLowerCase()}" aria-label="${escapeAttr(`${reference.name}, ${tier.label}`)}">
+                ${renderBinderFace({ ...reference, rarity: tier.rarity }, { thumbWidth: 320 })}
+                <h3>${escapeHtml(tier.label)}</h3>
+                <p>Bounty ${tier.bounty}</p>
+            </article>`).join('');
+        scheduleDescriptionFit(host);
+    }
+
     // ── Hero art stage ────────────────────────────────────────────────────
     // Two stacked layers cross-fade so a slide never shows an undecoded image;
     // the incoming layer is only revealed once its own <img> has loaded.
@@ -1757,6 +1804,7 @@
         renderWorldMarquee();
         bindRosterMarquee();
         renderLegendaryRow();
+        renderRarityRow();
         bindPlacementDemo();
         bindLandingFab();
         bindParallax();

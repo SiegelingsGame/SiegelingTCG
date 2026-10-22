@@ -2326,6 +2326,27 @@ img { display: block; }
    full rather than behind a line clamp that ate the longer ones on desktop. */
 .legendary-card p { margin: 0; color: rgba(228, 235, 252, .74); font-size: .8rem; line-height: 1.5; text-align: center; }
 
+/* Rarity showcase: the same card in each rarity frame, a single row. */
+.rarity-section { padding: 70px 24px 64px; }
+.rarity-row {
+    width: min(1040px, 100%);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 186px));
+    justify-content: center;
+    gap: 20px;
+}
+.rarity-card { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.rarity-card .mulligan-card-slot { width: 100%; margin-bottom: 6px; }
+.rarity-card h3 { margin: 0; color: var(--rarity-color, #f8fbff); font-family: 'Cinzel', Georgia, serif; font-size: 1.05rem; letter-spacing: .04em; }
+.rarity-card p { margin: 0; color: rgba(228, 235, 252, .7); font-size: .78rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+/* Rail colours of the painted frames (grey/green/blue/purple/gold). */
+.rarity-common { --rarity-color: #c9d0d8; }
+.rarity-uncommon { --rarity-color: #7fd38a; }
+.rarity-rare { --rarity-color: #6fb3ff; }
+.rarity-epic { --rarity-color: #c48bff; }
+.rarity-legendary { --rarity-color: var(--siegelings-gold); }
+
 /* Knight rail: full-bleed drifting row instead of a clipped 1240px grid. */
 .knights-section { padding-left: 0; padding-right: 0; }
 .knights-section .landing-section-heading { padding: 0 24px; }
@@ -2356,6 +2377,22 @@ img { display: block; }
         overscroll-behavior-x: contain;
     }
     .legendary-row::-webkit-scrollbar { display: none; }
+    .rarity-section { padding: 56px 0 52px; }
+    .rarity-section .landing-section-heading { padding: 0 24px; margin-bottom: 22px; }
+    /* Same swipe row as the legends on a phone. */
+    .rarity-row {
+        display: flex;
+        justify-content: flex-start;
+        gap: 14px;
+        padding: 6px 24px 12px;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        scroll-padding-inline: 24px;
+        scrollbar-width: none;
+        overscroll-behavior-x: contain;
+    }
+    .rarity-row::-webkit-scrollbar { display: none; }
+    .rarity-card { flex: 0 0 auto; width: min(52vw, 200px); scroll-snap-align: start; }
     .legendary-card { flex: 0 0 auto; width: min(58vw, 220px); scroll-snap-align: start; }
     .knight-rail.card-marquee .knight-card { width: min(56vw, 210px); }
     /* Twelve element tiles stacked two-up ran past 1,300px; one swipe row says
