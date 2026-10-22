@@ -2889,7 +2889,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   /* Falls in from above, deepest pack first, and lands with a small settle.
      `translate`/`rotate`, so it composes with the tilt transform above. */
   animation:sgPackEnter .62s cubic-bezier(.2,.85,.25,1) both; animation-delay:var(--enter-delay, 0ms);
-  --foil-x:30%; --foil-y:20%; --crimp-top:8%; --crimp-bottom:7%; }
+  --crimp-top:8%; --crimp-bottom:7%;
+  /* Each pack keeps one stable compositor layer for the whole turn, so the
+     browser moves it rather than re-rasterising it as the angle changes. */
+  will-change:transform; }
 /* The pile holds the perspective for its packs and one soft shadow under the
    lot - a gradient, not a drop-shadow filter, which forced an offscreen pass
    for the front pack on every frame. */
@@ -2937,7 +2940,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     linear-gradient(180deg, transparent calc(var(--crimp-top) - .5%), rgba(0,0,0,.45) var(--crimp-top), rgba(255,255,255,.18) calc(var(--crimp-top) + 1%), transparent calc(var(--crimp-top) + 5%),
       transparent calc(100% - var(--crimp-bottom) - 5%), rgba(0,0,0,.4) calc(100% - var(--crimp-bottom)), transparent calc(100% - var(--crimp-bottom) + .5%)),
     linear-gradient(90deg, rgba(0,0,0,.38), rgba(255,255,255,.12) 4%, transparent 11%, transparent 89%, rgba(255,255,255,.1) 96%, rgba(0,0,0,.38)); }
-.sg-pack-foil::after { content:''; position:absolute; inset:-50%; mix-blend-mode:overlay; opacity:.3;
+.sg-pack-foil::after { content:''; position:absolute; inset:-50%; opacity:.14; will-change:translate;
   background:linear-gradient(115deg, rgba(255,90,160,.5), rgba(255,220,90,.4) 22%, rgba(90,255,190,.4) 44%,
       rgba(90,170,255,.5) 66%, rgba(200,110,255,.45) 88%);
   animation:sgFoilDrift 6s ease-in-out infinite alternate; }
@@ -2948,10 +2951,18 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* The moving light is a band that slides by transform, and the holo film
    drifts the same way: animating background-position repainted the whole
    wrapper every frame, where a transform is just moved by the compositor. */
-.sg-pack-sheen { position:absolute; z-index:3; inset:-20%; pointer-events:none; mix-blend-mode:screen; overflow:hidden;
-  background:radial-gradient(circle at var(--foil-x) var(--foil-y), rgba(255,255,255,.45), transparent 32%); }
-.sg-pack-sheen::after { content:''; position:absolute; top:0; bottom:0; left:-40%; width:40%;
-  background:linear-gradient(105deg, transparent, rgba(255,255,255,.42) 45%, rgba(255,255,255,.08) 60%, transparent);
+/* No blend modes on the pack: a screen/overlay layer inside a turning 3D
+   pack has to be re-blended against whatever is behind it on every frame,
+   which iOS could not keep up with. Plain translucent white reads the same
+   on this art. The glint slides with the pile's tilt (its sines), like light
+   catching foil, by transform only. */
+.sg-pack-sheen { position:absolute; z-index:3; inset:-20%; pointer-events:none; overflow:hidden;
+  background:radial-gradient(circle at 34% 26%, rgba(255,255,255,.26), transparent 30%);
+  transform:translate(calc(var(--pile-sy, 0) * -55%), calc(var(--pile-sx, 0) * 55%));
+  transition:transform .45s cubic-bezier(.2,.8,.2,1); will-change:transform; }
+.sg-gacha-stage.is-tilting .sg-pack-sheen { transition:transform .08s linear; }
+.sg-pack-sheen::after { content:''; position:absolute; top:0; bottom:0; left:-40%; width:40%; will-change:translate;
+  background:linear-gradient(105deg, transparent, rgba(255,255,255,.26) 45%, rgba(255,255,255,.05) 60%, transparent);
   animation:sgFoilSweep 3.6s ease-in-out infinite; }
 @keyframes sgFoilDrift { from { translate:-12% -12%; } to { translate:12% 12%; } }
 @keyframes sgFoilSweep { 0%,15% { translate:0 0; } 75%,100% { translate:360% 0; } }
@@ -2961,6 +2972,35 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-pack-prompt { position:absolute; top:calc(100% + 14px); left:50%; width:max-content; max-width:80vw;
   transform:translateX(-50%); padding:7px 12px; border:1px solid rgba(255,255,255,.2); border-radius:999px;
   background:rgba(12,9,35,.84); color:#f8e8b6; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
+/* ---- the zoom: tap brings the camera in on the seal ----
+   The whole stage (pile and the cards behind it) scales about the tear line,
+   measured in JS, so the cards later rise out of the zoomed pack. While the
+   camera is in, the pile drops its will-change so the browser re-rasterises
+   the packs at the zoomed size once they land rather than stretching the
+   at-rest texture, which would leave the close-up soft. */
+.sg-gacha-stage.is-stack { transform-origin:var(--zoom-ox, 50%) var(--zoom-oy, 50%);
+  transition:transform .6s cubic-bezier(.22,.8,.22,1); }
+.sg-gacha-stage.is-zoomed {
+  transform:translate(var(--zoom-tx, 0px), var(--zoom-ty, 0px)) scale(var(--zoom-s, 1)); }
+.sg-gacha-stage.is-zoomed .sg-gacha-pack { will-change:auto; }
+.sg-gacha-stage.is-zoomed .sg-pack-prompt { opacity:0; }
+.sg-gacha-head { transition:opacity .35s ease; }
+.sg-gacha.is-zoomed .sg-gacha-head { opacity:0; }
+/* Up close: a bright mote runs along the perforation, showing the path. */
+.sg-pack-seam::after { content:''; position:absolute; top:50%; left:0; width:16%; height:6px; margin-top:-3px; opacity:0;
+  border-radius:999px; background:radial-gradient(closest-side, #fff, rgba(255,240,200,.6) 45%, transparent); }
+.sg-gacha-stage.is-zoomed:not(.is-ripping) .sg-pack-seam::after { opacity:1; animation:sgSeamRun 1.5s cubic-bezier(.45,0,.3,1) infinite; }
+@keyframes sgSeamRun { 0% { translate:-20% 0; opacity:0; } 15% { opacity:1; } 85% { opacity:1; } 100% { translate:560% 0; opacity:0; } }
+.sg-gacha-stage.is-zoomed:not(.is-ripping) .sg-pack-seam { opacity:1; }
+/* A tap up close twitches the strip instead of doing nothing. */
+.sg-gacha-pack.is-nudged .sg-pack-top { animation:sgStripNudge .5s cubic-bezier(.3,.7,.3,1); }
+@keyframes sgStripNudge { 0%,100% { translate:0 0; rotate:0deg; } 35% { translate:7px -4px; rotate:2deg; } 65% { translate:-2px 1px; rotate:-.6deg; } }
+.sg-gacha-ziphint { position:absolute; z-index:5; left:0; right:0; top:calc(14% + var(--sg-sat, 0px)); display:flex; justify-content:center;
+  pointer-events:none; animation:sgHintIn .4s ease .25s both; }
+.sg-gacha-ziphint[hidden] { display:none; }
+.sg-gacha-ziphint span { padding:8px 14px; border-radius:999px; border:1px solid rgba(255,255,255,.22); background:rgba(12,9,35,.86);
+  color:#f8e8b6; font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+@keyframes sgHintIn { from { opacity:0; translate:0 -6px; } to { opacity:1; translate:0 0; } }
 /* Cards wait invisible until the strip is off; then they are revealed only by
    rising past the pack's open mouth, because the pack sits in front of them. */
 .sg-gacha-stage.is-pack-ready .sg-flip { opacity:0; pointer-events:none; }
@@ -2973,7 +3013,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    until the pile is out, then fade in. */
 .sg-gacha-stage:is(.is-pack-ready, .is-rising) .sg-flip :is(.sg-flip-tag, .sg-flip-finish) { opacity:0; }
 .sg-flip-tag, .sg-flip-finish { transition:opacity .3s ease; }
-.sg-gacha-stage.is-ripping .sg-pack-top { transform:translate3d(78%,-160%,70px) rotate(22deg); opacity:0;
+.sg-gacha-stage.is-ripping .sg-pack-top { transform:translate3d(calc(var(--rip-dir, 1) * 78%),-160%,70px) rotate(calc(var(--rip-dir, 1) * 22deg)); opacity:0;
   transition:transform .5s cubic-bezier(.2,.8,.2,1), opacity .5s ease-in .1s; }
 .sg-gacha-stage.is-ripping .sg-pack-seam { opacity:0; transition:opacity .16s; }
 .sg-gacha-stage.is-ripping .sg-pack-prompt { opacity:0; }
@@ -4228,6 +4268,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gacha-pack { animation:none; }
   .sg-pack-pile { transition:none; }
   .sg-pack-foil::after, .sg-pack-sheen { animation:none; }
+  .sg-gacha-stage.is-stack { transition:none; }
+  .sg-gacha-stage.is-zoomed:not(.is-ripping) .sg-pack-seam::after, .sg-gacha-pack.is-nudged .sg-pack-top, .sg-gacha-ziphint { animation:none; }
   .sg-gacha.is-shaking .sg-gacha-body, .sg-gacha.is-shaking-big .sg-gacha-body { animation:none; }
   .sg-gacha-stackbar { transition:none; }
   .sg-gacha-stackbar.is-in { opacity:1; transform:none; }

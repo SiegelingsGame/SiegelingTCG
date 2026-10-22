@@ -1,3 +1,28 @@
+Original prompt: To initiate the rip the player taps the pack then zoom in to the perforated area, the player then rips and the pack opens cards come out the top. Zoom out and then we do the single reveals
+
+- October 22, 2026 **Pack opening is tap → zoom to the seal → rip up close → cards rise → zoom out → reveals.**
+  - **Change.** (`openPack` / `bindPackRip` in `home-redesign.js`, `.css`)
+    - **Tap to zoom.** A tap on the sealed pack no longer tears it. It zooms the camera in on the perforation. `zoomIn` measures the front pack's tear line (10% down) and scales the whole stage about it: pile plus the cards waiting behind it, up to 1.7×, so the pack spans the screen width. The seal lands 42% down the viewport. The title fades and a "Drag across the seal to rip" pill shows outside the scaled stage. A light runs along the perforation to show the path. The pack's own prompt now reads "Tap the pack to open".
+    - **Rip up close.** Only while zoomed does a sideways drag peel the strip, in either direction (`--rip-dir`), and past the threshold it rips. At rest the same drag only turns the pile, as before. A tap up close twitches the strip instead of doing nothing. A tap anywhere off the pack backs the camera out (the listener is on the overlay, because up close the pack covers the whole stage). Keyboard Enter zooms in, then rips.
+    - **Rise and zoom out.** Because the cards are scaled with the stage, they come up out of the zoomed pack's mouth. The camera pulls back 620ms into the rise, as the pile tops its climb, then the stack takes over for the single reveals.
+    - While zoomed, the packs drop `will-change`, so the browser re-rasterises them at the zoomed size instead of stretching the at-rest texture.
+    - Cache pins `home-redesign.css` 142, `home-redesign.js` 135.
+  - **Verification.** `node --check`. Headless Chromium `/shop` flow at 390x844 against the running app, ×10 and ×1, with `open-pack` stubbed:
+    - A drag at rest leaves the pack sealed. A tap zooms: the seal moves from y=153 to y=355 (42%), the pack goes 241→370px wide, the title fades, the hint shows.
+    - Up close, a tap only nudges (`is-nudged`, still sealed) and a vertical drag does nothing. A right-to-left drag across the seal rips with `--rip-dir:-1`.
+    - Frame-scrubbed captures show the strips flying, the cards coming up out of the top of the zoomed pack, and the camera pulling back as they climb. The stack ends unzoomed (`transform:none`) at 1/50 (×10) and 1/5 (×1).
+    - A tap off the pack backs out ("Pack ready"). Keyboard Enter zooms, then a second Enter rips.
+    - No page errors. Not tested on a real iPhone.
+
+Original prompt: There are points when you rotate and the decks become very blurry performance drops On the turns can this be fixed ?
+
+- October 22, 2026 **Sealed pile stays sharp and smooth while turning.**
+  - **Cause.** The iPhone screenshots show the art going soft mid-turn, with frames dropping. Two things in the pack repainted or re-blended on every move. (1) The finger-follow glint was a radial gradient re-centred under the finger (`--foil-x/y`) on every pointer move, which repainted the whole front pack, art included. While WebKit re-rasterises it shows low-resolution tiles: the blur. (2) The sheen and holo film used `mix-blend-mode` (screen/overlay), which inside a turning 3D-transformed pack has to be re-blended against the page behind on every frame.
+  - **Change.** The glint is fixed in the gradient and slides with the pile's tilt sines by `transform` (light catching foil), in its own layer, so it is moved, never repainted. The pointer-follow `--foil-x/y` writes are gone. No blend modes remain on the pack: the sheen and holo film are plain translucent layers (sheen .26 white, film .14) that read the same on this art. Each pack, the sheen band and the holo film carry `will-change`, so they keep stable layers through a turn instead of being re-rasterised as the angle changes. Cache pins `home-redesign.css` 141, `home-redesign.js` 134.
+  - **Verification.** `node --check`. Headless Chromium `/shop` ×10 at 390x844, DPR 3, counting CDP `LayerTree.layerPainted` events over a 40-step pressed turn of the sealed pile. Main: 104 paints covering 9.6M px, 247 style recalcs. This branch: 35 paints covering 2.4M px, 182 style recalcs. The pile is never ripped by the turn. At idle, nothing repaints. Mid-turn screenshots compared: the new pack reads crisper, without the screen-blended wash. Not tested on WebKit or a real iPhone (no WebKit build in this environment), so the iOS result is inferred from the paint counts.
+
+- October 21, 2026 Lighter ×10 pile / iOS-safe 3D / pulled-out rise / square rest release verification: PR #1168 merged as `36212657`; Deploy workflow `39677869774` completed successfully. Live `/shop` serves `home-redesign.css?v=140` and `home-redesign.js?v=133`; the live bundles carry `setPile`, the `pack-wrapper-720` art path, `draggable="false"`, `--pile-sy`, the transform-based `sgFoilSweep` and `-webkit-user-drag`. `/img/packs/pack-wrapper-720.webp` returns 200 (264,068 bytes). Hosting and Cloud Run `/api/cards/editor` remain `FIRESTORE`-backed with editing enabled and Firestore available; `/api/game/options` returns 7 decks; `config.js` keeps `apiBaseUrl: ''`.
+
 Original prompt: The pack movement and rotation is working by default it should sit stacked only rotating when turned
 
 - October 21, 2026 **Sealed pile rests square; it only turns while the player turns it.**
