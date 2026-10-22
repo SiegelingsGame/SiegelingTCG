@@ -5828,6 +5828,9 @@
           packPile(pk, count) +
         '</div>' +
         '<p class="sg-gacha-note" data-gacha-note>Tearing the seal\u2026</p>' +
+        // Up close the pack's own prompt is off-screen below, so the zoomed
+        // view carries its instruction here, outside the scaled stage.
+        '<div class="sg-gacha-ziphint" data-zip-hint hidden><span>Drag across the seal to rip</span></div>' +
         // The shards a duplicate crumbles into need somewhere to land, or the
         // remnants it paid are just a number that appears. This is that place.
         '<div class="sg-gacha-bucket" data-gacha-bucket hidden>' +
@@ -5905,7 +5908,7 @@
       '<span class="sg-pack-body">' + packSkin(pk, art) + '</span>' +
       '<span class="sg-pack-top">' + packSkin(pk, art) + '</span>' +
       '<span class="sg-pack-seam" aria-hidden="true"></span>' +
-      '<span class="sg-pack-prompt">Drag across the seal to rip</span>' +
+      '<span class="sg-pack-prompt">Tap the pack to open</span>' +
     '</button>';
   }
 
@@ -6333,7 +6336,7 @@
         // swings every pack together, and because each pack sits at its own
         // depth the swing parallaxes them apart so the whole stack shows.
         function tiltPile(e) {
-          if (tearing) return;
+          if (tearing || zoomed) return;
           var box = pack.getBoundingClientRect();
           if (!box.width) return;
           var nx = Math.max(-1, Math.min(1, (e.clientX - (box.left + box.width / 2)) / (box.width / 2)));
@@ -6356,14 +6359,73 @@
         stage.addEventListener('pointerup', settlePile);
         stage.addEventListener('pointerleave', settlePile);
         pack.addEventListener('pointercancel', settlePile);
-        function tear() {
+
+        /* ---- the zoom ----
+           Opening is two beats: a tap brings the camera in on the perforated
+           seal, and the rip happens there, up close. The zoom scales the whole
+           stage (pile and the cards waiting behind it) about the tear line, so
+           when the cards come up out of the mouth they come up out of the
+           zoomed pack, and the camera pulls back out as they settle. The
+           numbers are measured from the pack as it sits, so the seal lands in
+           the same place on any screen. */
+        var zoomed = false;
+        var zipHint = gacha.querySelector('[data-zip-hint]');
+        function zoomIn() {
+          if (zoomed || tearing) return;
+          var wait = enteredAt - Date.now();
+          if (wait > 0) { window.setTimeout(zoomIn, wait); return; }
+          settlePile();
+          var box = pack.getBoundingClientRect();
+          var st = stage.getBoundingClientRect();
+          if (!box.width || !st.width) return;
+          var vw = window.innerWidth || document.documentElement.clientWidth;
+          var vh = window.innerHeight || document.documentElement.clientHeight;
+          // The tear line sits 10% down the pack (see .sg-pack-body's clip).
+          var tx = box.left + box.width / 2;
+          var ty = box.top + box.height * 0.10;
+          var scale = Math.max(1, Math.min(1.7, (vw - 20) / box.width));
+          stage.style.setProperty('--zoom-ox', (tx - st.left).toFixed(1) + 'px');
+          stage.style.setProperty('--zoom-oy', (ty - st.top).toFixed(1) + 'px');
+          stage.style.setProperty('--zoom-tx', (vw / 2 - tx).toFixed(1) + 'px');
+          stage.style.setProperty('--zoom-ty', (vh * 0.42 - ty).toFixed(1) + 'px');
+          stage.style.setProperty('--zoom-s', scale.toFixed(3));
+          zoomed = true;
+          stage.classList.add('is-zoomed');
+          gacha.classList.add('is-zoomed');
+          kicker.textContent = 'Break the seal';
+          if (zipHint) zipHint.hidden = false;
+        }
+        function zoomOut() {
+          if (!zoomed) return;
+          zoomed = false;
+          stage.classList.remove('is-zoomed');
+          gacha.classList.remove('is-zoomed');
+          if (zipHint) zipHint.hidden = true;
+        }
+        // A tap that is not a rip, up close: the strip twitches to show which
+        // way it wants to go rather than silently doing nothing.
+        function nudge() {
+          pack.classList.remove('is-nudged');
+          void pack.offsetWidth;
+          pack.classList.add('is-nudged');
+          window.setTimeout(function () { pack.classList.remove('is-nudged'); }, 520);
+        }
+        // Tapping anywhere off the pack backs the camera out. Up close the
+        // pack fills the whole stage, so this listens on the overlay.
+        gacha.addEventListener('click', function (e) {
+          if (!zoomed || tearing) return;
+          if (e.target.closest && e.target.closest('[data-rip-pack]')) return;
+          zoomOut();
+          kicker.textContent = 'Pack ready';
+        });
+        function tear(dir) {
           if (tearing) return;
           // A rip that lands while the packs are still falling in waits for
           // the last one to settle, so the tear never cuts the entrance short.
           var wait = enteredAt - Date.now();
           if (wait > 0) {
             tearing = true;
-            window.setTimeout(function () { tearing = false; tear(); }, wait);
+            window.setTimeout(function () { tearing = false; tear(dir); }, wait);
             return;
           }
           tearing = true;
@@ -6384,8 +6446,10 @@
               try { navigator.vibrate(count > 1 ? [40, 30, 60] : [26]); } catch (err) { /* optional */ }
             }
           }
+          pack.style.setProperty('--rip-dir', dir < 0 ? '-1' : '1');
+          if (zipHint) zipHint.hidden = true;
           kicker.textContent = 'Seal broken';
-          note.textContent = 'Your cards are rising out…';
+          note.textContent = '';
           // The strip flies off first; then the pile climbs out of the open
           // mouth while the foil slides away underneath it. The pack stays in
           // front of the cards the whole time, so only what has cleared the
@@ -6394,6 +6458,9 @@
           window.setTimeout(function () {
             stage.classList.remove('is-pack-ready');
             stage.classList.add('is-rising');
+            // The camera pulls back as the pile reaches the top of its climb,
+            // so the cards settle into the stack at full view.
+            window.setTimeout(zoomOut, reducedMotion() ? 0 : 620);
             window.setTimeout(function () {
               var pile = stage.querySelector('[data-pack-pile]');
               if (pile) pile.remove();
@@ -6423,37 +6490,48 @@
         // It used to be a gradient re-centred under the finger on every move,
         // which repainted the whole front pack each time - on iPhone that
         // showed as the pack going soft and dropping frames mid-turn.
+        // Up close, a sideways drag peels the strip toward the finger, either
+        // way; at a distance the same drag only turns the pile.
         pack.addEventListener('pointermove', function (e) {
           if (tearing || !pack.hasPointerCapture || !pack.hasPointerCapture(e.pointerId)) return;
           var dx = e.clientX - startX;
           var dy = e.clientY - startY;
           if (Math.abs(dx) > 8 || Math.abs(dy) > 8) dragged = true;
-          if (dx > 0 && Math.abs(dx) > Math.abs(dy)) {
-            var progress = Math.min(1, dx / Math.max(90, pack.offsetWidth * .55));
-            pack.style.setProperty('--rip-x', (progress * 12) + 'px');
+          if (zoomed && Math.abs(dx) > Math.abs(dy)) {
+            var dir = dx < 0 ? -1 : 1;
+            var progress = Math.min(1, Math.abs(dx) / Math.max(90, pack.offsetWidth * .55));
+            pack.style.setProperty('--rip-x', (dir * progress * 12) + 'px');
             pack.style.setProperty('--rip-y', (progress * -6) + 'px');
-            pack.style.setProperty('--rip-angle', (progress * 3) + 'deg');
+            pack.style.setProperty('--rip-angle', (dir * progress * 3) + 'deg');
           }
         });
+        function resetStrip() {
+          pack.style.removeProperty('--rip-x');
+          pack.style.removeProperty('--rip-y');
+          pack.style.removeProperty('--rip-angle');
+        }
         pack.addEventListener('pointerup', function (e) {
           if (!dragged || tearing) return;
           suppressClick = true;
           window.setTimeout(function () { suppressClick = false; }, 0);
           var dx = e.clientX - startX;
           var dy = e.clientY - startY;
-          if (dx > Math.max(48, pack.offsetWidth * .28) && dx > Math.abs(dy)) {
+          if (zoomed && Math.abs(dx) > Math.max(48, pack.offsetWidth * .28) && Math.abs(dx) > Math.abs(dy)) {
             e.preventDefault();
-            tear();
+            tear(dx < 0 ? -1 : 1);
           } else {
             settlePile();
-            pack.style.removeProperty('--rip-x');
-            pack.style.removeProperty('--rip-y');
-            pack.style.removeProperty('--rip-angle');
+            resetStrip();
           }
         });
-        pack.addEventListener('click', function () {
-          if (suppressClick) return;
-          tear();
+        // A tap zooms in; up close a tap only nudges the strip, because the rip
+        // is the drag. Keyboard activation (no pointer, detail 0) has no drag
+        // to give, so Enter/Space zooms in and then opens.
+        pack.addEventListener('click', function (e) {
+          if (suppressClick || tearing) return;
+          if (!zoomed) { zoomIn(); return; }
+          if (e.detail === 0) tear(1);
+          else nudge();
         });
       }
 

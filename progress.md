@@ -1,3 +1,19 @@
+Original prompt: To initiate the rip the player taps the pack then zoom in to the perforated area, the player then rips and the pack opens cards come out the top. Zoom out and then we do the single reveals
+
+- October 22, 2026 **Pack opening is tap → zoom to the seal → rip up close → cards rise → zoom out → reveals.**
+  - **Change.** (`openPack` / `bindPackRip` in `home-redesign.js`, `.css`)
+    - **Tap to zoom.** A tap on the sealed pack no longer tears it. It zooms the camera in on the perforation. `zoomIn` measures the front pack's tear line (10% down) and scales the whole stage about it: pile plus the cards waiting behind it, up to 1.7×, so the pack spans the screen width. The seal lands 42% down the viewport. The title fades and a "Drag across the seal to rip" pill shows outside the scaled stage. A light runs along the perforation to show the path. The pack's own prompt now reads "Tap the pack to open".
+    - **Rip up close.** Only while zoomed does a sideways drag peel the strip, in either direction (`--rip-dir`), and past the threshold it rips. At rest the same drag only turns the pile, as before. A tap up close twitches the strip instead of doing nothing. A tap anywhere off the pack backs the camera out (the listener is on the overlay, because up close the pack covers the whole stage). Keyboard Enter zooms in, then rips.
+    - **Rise and zoom out.** Because the cards are scaled with the stage, they come up out of the zoomed pack's mouth. The camera pulls back 620ms into the rise, as the pile tops its climb, then the stack takes over for the single reveals.
+    - While zoomed, the packs drop `will-change`, so the browser re-rasterises them at the zoomed size instead of stretching the at-rest texture.
+    - Cache pins `home-redesign.css` 142, `home-redesign.js` 135.
+  - **Verification.** `node --check`. Headless Chromium `/shop` flow at 390x844 against the running app, ×10 and ×1, with `open-pack` stubbed:
+    - A drag at rest leaves the pack sealed. A tap zooms: the seal moves from y=153 to y=355 (42%), the pack goes 241→370px wide, the title fades, the hint shows.
+    - Up close, a tap only nudges (`is-nudged`, still sealed) and a vertical drag does nothing. A right-to-left drag across the seal rips with `--rip-dir:-1`.
+    - Frame-scrubbed captures show the strips flying, the cards coming up out of the top of the zoomed pack, and the camera pulling back as they climb. The stack ends unzoomed (`transform:none`) at 1/50 (×10) and 1/5 (×1).
+    - A tap off the pack backs out ("Pack ready"). Keyboard Enter zooms, then a second Enter rips.
+    - No page errors. Not tested on a real iPhone.
+
 Original prompt: There are points when you rotate and the decks become very blurry performance drops On the turns can this be fixed ?
 
 - October 22, 2026 **Sealed pile stays sharp and smooth while turning.**
