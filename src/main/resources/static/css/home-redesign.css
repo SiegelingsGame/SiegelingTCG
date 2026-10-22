@@ -2889,7 +2889,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   /* Falls in from above, deepest pack first, and lands with a small settle.
      `translate`/`rotate`, so it composes with the tilt transform above. */
   animation:sgPackEnter .62s cubic-bezier(.2,.85,.25,1) both; animation-delay:var(--enter-delay, 0ms);
-  --foil-x:30%; --foil-y:20%; --crimp-top:8%; --crimp-bottom:7%; }
+  --crimp-top:8%; --crimp-bottom:7%;
+  /* Each pack keeps one stable compositor layer for the whole turn, so the
+     browser moves it rather than re-rasterising it as the angle changes. */
+  will-change:transform; }
 /* The pile holds the perspective for its packs and one soft shadow under the
    lot - a gradient, not a drop-shadow filter, which forced an offscreen pass
    for the front pack on every frame. */
@@ -2937,7 +2940,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     linear-gradient(180deg, transparent calc(var(--crimp-top) - .5%), rgba(0,0,0,.45) var(--crimp-top), rgba(255,255,255,.18) calc(var(--crimp-top) + 1%), transparent calc(var(--crimp-top) + 5%),
       transparent calc(100% - var(--crimp-bottom) - 5%), rgba(0,0,0,.4) calc(100% - var(--crimp-bottom)), transparent calc(100% - var(--crimp-bottom) + .5%)),
     linear-gradient(90deg, rgba(0,0,0,.38), rgba(255,255,255,.12) 4%, transparent 11%, transparent 89%, rgba(255,255,255,.1) 96%, rgba(0,0,0,.38)); }
-.sg-pack-foil::after { content:''; position:absolute; inset:-50%; mix-blend-mode:overlay; opacity:.3;
+.sg-pack-foil::after { content:''; position:absolute; inset:-50%; opacity:.14; will-change:translate;
   background:linear-gradient(115deg, rgba(255,90,160,.5), rgba(255,220,90,.4) 22%, rgba(90,255,190,.4) 44%,
       rgba(90,170,255,.5) 66%, rgba(200,110,255,.45) 88%);
   animation:sgFoilDrift 6s ease-in-out infinite alternate; }
@@ -2948,10 +2951,18 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* The moving light is a band that slides by transform, and the holo film
    drifts the same way: animating background-position repainted the whole
    wrapper every frame, where a transform is just moved by the compositor. */
-.sg-pack-sheen { position:absolute; z-index:3; inset:-20%; pointer-events:none; mix-blend-mode:screen; overflow:hidden;
-  background:radial-gradient(circle at var(--foil-x) var(--foil-y), rgba(255,255,255,.45), transparent 32%); }
-.sg-pack-sheen::after { content:''; position:absolute; top:0; bottom:0; left:-40%; width:40%;
-  background:linear-gradient(105deg, transparent, rgba(255,255,255,.42) 45%, rgba(255,255,255,.08) 60%, transparent);
+/* No blend modes on the pack: a screen/overlay layer inside a turning 3D
+   pack has to be re-blended against whatever is behind it on every frame,
+   which iOS could not keep up with. Plain translucent white reads the same
+   on this art. The glint slides with the pile's tilt (its sines), like light
+   catching foil, by transform only. */
+.sg-pack-sheen { position:absolute; z-index:3; inset:-20%; pointer-events:none; overflow:hidden;
+  background:radial-gradient(circle at 34% 26%, rgba(255,255,255,.26), transparent 30%);
+  transform:translate(calc(var(--pile-sy, 0) * -55%), calc(var(--pile-sx, 0) * 55%));
+  transition:transform .45s cubic-bezier(.2,.8,.2,1); will-change:transform; }
+.sg-gacha-stage.is-tilting .sg-pack-sheen { transition:transform .08s linear; }
+.sg-pack-sheen::after { content:''; position:absolute; top:0; bottom:0; left:-40%; width:40%; will-change:translate;
+  background:linear-gradient(105deg, transparent, rgba(255,255,255,.26) 45%, rgba(255,255,255,.05) 60%, transparent);
   animation:sgFoilSweep 3.6s ease-in-out infinite; }
 @keyframes sgFoilDrift { from { translate:-12% -12%; } to { translate:12% 12%; } }
 @keyframes sgFoilSweep { 0%,15% { translate:0 0; } 75%,100% { translate:360% 0; } }

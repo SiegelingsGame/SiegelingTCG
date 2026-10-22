@@ -6419,13 +6419,11 @@
           dragged = false;
           if (pack.setPointerCapture) pack.setPointerCapture(e.pointerId);
         });
+        // The glint follows the pile's tilt in CSS (moved, never repainted).
+        // It used to be a gradient re-centred under the finger on every move,
+        // which repainted the whole front pack each time - on iPhone that
+        // showed as the pack going soft and dropping frames mid-turn.
         pack.addEventListener('pointermove', function (e) {
-          // The foil catches the light under the finger even before a rip.
-          var box = pack.getBoundingClientRect();
-          if (box.width) {
-            pack.style.setProperty('--foil-x', (((e.clientX - box.left) / box.width) * 100).toFixed(1) + '%');
-            pack.style.setProperty('--foil-y', (((e.clientY - box.top) / box.height) * 100).toFixed(1) + '%');
-          }
           if (tearing || !pack.hasPointerCapture || !pack.hasPointerCapture(e.pointerId)) return;
           var dx = e.clientX - startX;
           var dy = e.clientY - startY;
