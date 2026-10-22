@@ -20,21 +20,21 @@
             id: 'arena',
             icon: '⚔️',
             name: 'Arena',
-            sub: 'Go 1v1 across the table. Connect your Sieglings notch-to-notch to build elemental energy, then spend it to break their board.'
+            sub: 'Battle (PvE or PvP), Gauntlet or Tutorial. Go 1v1 across the table. Connect your Sieglings notch-to-notch to build elemental energy, then spend it to break their board.'
         },
         {
             id: 'siege',
-            icon: '🏰',
-            name: 'Siege Battlegrounds',
-            sub: 'March a branching warpath. Muster a warband, level your knight, and see how deep you get before it ends you.',
+            icon: '🗺️',
+            name: 'Siege',
+            sub: 'Adventure, Battlegrounds, Endless or Tutorial. March a branching warpath. Muster a warband, level your knight, and see how deep you get before it ends you.',
             href: '/siege'
         },
         {
-            id: 'keep',
-            icon: '🛡️',
-            name: 'My Keep',
-            sub: 'Your stronghold between battles — spoils, chronicles and the veterans you brought home alive.',
-            href: '/keep'
+            id: 'dominion',
+            icon: '🏰',
+            name: 'Dominion',
+            sub: 'Found your own knight, raise your Keep and explore the roads beyond it.',
+            href: '/dominion'
         }
     ];
 

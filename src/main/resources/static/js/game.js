@@ -11223,7 +11223,7 @@ function renderLoadoutOptions() {
         inviteRoomBadge.classList.add('hidden');
         playerIdentityNote.textContent = 'Your name appears above your board.';
     } else {
-        loadoutKicker.textContent = 'Battle Loadout';
+        loadoutKicker.textContent = 'Arena Loadout';
         loadoutTitle.textContent = 'Prepare for Battle';
         loadoutSubtitle.textContent = 'Name yourself, choose your deck, then command a SiegeKnight.';
         inviteRoomBadge.classList.add('hidden');

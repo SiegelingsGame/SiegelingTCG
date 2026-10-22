@@ -422,7 +422,7 @@
     'Gallery': 'art'
   };
   var EXTERNAL = {
-    'Battle': '/battle', 'Siege': '/siege', 'Gauntlet': '/gauntlet', 'Keep': '/keep', 'Chronicles': '/chronicles', 'Dominion': '/dominion',
+    'Arena': '/battle', 'Battle': '/battle', 'Siege': '/siege', 'Gauntlet': '/gauntlet', 'Keep': '/keep', 'Chronicles': '/chronicles', 'Dominion': '/dominion',
     'Social Lobbies': 'social',
     'Featured Packs': 'shop', 'Open Packs': 'shop', 'Siegelcoins': 'shop'
   };
@@ -476,7 +476,7 @@
           ['Continue Playing', runs ? n(runs) : '']] },
       // Keep this tray aligned with the top-level Play destinations.
       { id: 'play', ico: '⚔', label: 'Play', screen: 'play', items: [
-          ['Battle', ''], ['Siege', runs ? 'Saved' : ''], ['Dominion', ''],
+          ['Arena', ''], ['Siege', runs ? 'Saved' : ''], ['Dominion', ''],
           ['Lobbies & Tournaments', n(rooms) ? n(rooms) + ' open' : '']] },
       { id: 'collection', ico: '◈', label: 'Collection', screen: 'collection', items: [
           ['Cards', n(live.ownedTotal != null ? live.ownedTotal : (ALL_CARDS.length || null))],
@@ -1313,9 +1313,9 @@
           '<a class="sg-stage-mode" href="' + HREF.siege + '">' +
             '<span class="sg-stage-mode-kicker">' + (run ? 'Expedition saved' : 'Roguelike') + '</span>' +
             '<strong>' + (run ? 'Resume Siege' : 'Siege') + '</strong></a>' +
-          '<a class="sg-stage-mode is-keep" href="' + HREF.keep + '">' +
-            '<span class="sg-stage-mode-kicker">Your stronghold</span><strong>Keep</strong></a>' +
-          '<a class="sg-stage-play" href="' + HREF.battle + '">Battle</a>' +
+          '<a class="sg-stage-mode is-keep" href="/dominion">' +
+            '<span class="sg-stage-mode-kicker">Knight &amp; Keep</span><strong>Dominion</strong></a>' +
+          '<a class="sg-stage-play" href="' + HREF.battle + '">Arena</a>' +
         '</div>' +
         '<div class="sg-stage-deck">' +
           // The soundtrack's own pill, like the lobby jukebox it is modelled on.
@@ -2644,10 +2644,10 @@
   // Battle vs Siege before showing a single image. Same two modes, same
   // vocabulary, but each is a full-bleed plate carrying a label and one line.
   var MODES = [
-    { id: 'battle', label: 'Battle', tag: 'Solo & Live PvP',
+    { id: 'battle', label: 'Arena', tag: 'Battle · Gauntlet · Tutorial',
       line: 'Levels off — all deck and reads.',
       art: '/img/gallery/frostag-training.webp', el: 'ICE', primary: true, cta: 'Play' },
-    { id: 'siege', label: 'Siege', tag: 'Expedition',
+    { id: 'siege', label: 'Siege', tag: 'Adventure · Battlegrounds · Endless',
       line: 'Roguelike expedition — build a warband.',
       art: '/img/gallery/bearzooka-rampage.webp', el: 'FIRE', cta: 'Enter' },
     { id: 'dominion', label: 'Dominion', tag: 'Kingdom & Idle RPG',

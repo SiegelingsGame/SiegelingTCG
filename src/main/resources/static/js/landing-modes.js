@@ -12,8 +12,9 @@
     const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, reducedMotion() ? Math.min(ms, 120) : ms));
 
-    function bindTabs(root) {
-        const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
+    function bindTabs(root, onSelect) {
+        // The root's first tablist is its own; nested demos carry their own lists.
+        const tabs = Array.from(root.querySelector('[role="tablist"]').querySelectorAll('[role="tab"]'));
         function select(tab) {
             tabs.forEach((t) => {
                 const on = t === tab;
@@ -21,6 +22,7 @@
                 t.tabIndex = on ? 0 : -1;
                 document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
             });
+            if (onSelect) onSelect(tab);
         }
         tabs.forEach((tab, index) => {
             tab.addEventListener('click', () => select(tab));
@@ -31,6 +33,7 @@
                 next.focus();
             });
         });
+        return select;
     }
 
     function popText(host, text, kind) {
@@ -495,7 +498,25 @@
         render();
     }
 
+    // The mode pane: Battle / Siege / Dominion pages. The pane's backdrop follows
+    // the mode, and #siege or #dominion links open straight onto that page.
+    function bindModePane() {
+        const pane = document.getElementById('modes');
+        if (!pane) return;
+        const select = bindTabs(pane, (tab) => { pane.dataset.mode = tab.dataset.mode; });
+        const fromHash = () => {
+            const mode = String(window.location.hash || '').replace('#', '');
+            const tab = pane.querySelector(`.modes-switch [data-mode="${mode}"]`);
+            if (!tab) return;
+            select(tab);
+            pane.scrollIntoView({ block: 'start' });
+        };
+        window.addEventListener('hashchange', fromHash);
+        fromHash();
+    }
+
     function init() {
+        bindModePane();
         const siege = document.getElementById('siegeDemo');
         const dominion = document.getElementById('dominionDemo');
         if (siege) {

@@ -763,7 +763,7 @@
     var tier = ['I', 'II', 'III', 'IV', 'V'][(run.bgTier || 1) - 1] || run.bgTier;
     if (kind === 'bg') return '⚔️ Battlegrounds · Tier ' + tier;
     if (kind === 'endless') return '♾️ Endless';
-    return '🏳️ Siege Expedition';
+    return '🏳️ Adventure';
   }
 
   /** 'siege' | 'endless' | 'bg' — the class each mode's badge and resume plate wear. */

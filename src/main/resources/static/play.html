@@ -34,7 +34,7 @@
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
          link tag inside loading-gate.js was paint-blocking the gate. -->
-    <link rel="stylesheet" href="/css/landing.css?v=54">
+    <link rel="stylesheet" href="/css/landing.css?v=57">
     <!-- Sets --sg-vh before first paint; every fixed shell measures off it. -->
     <script src="/js/viewport-unit.js?v=3"></script>
 </head>
@@ -52,7 +52,7 @@
 <nav class="play-hub-nav" aria-label="Siegelings hub navigation">
     <a class="play-hub-brand" href="/home">
         <img class="play-hub-mark" src="/img/siegelings-icon-256.webp" alt="" aria-hidden="true">
-        <span><strong>Siegelings TCG</strong><small>Battle Table</small></span>
+        <span><strong>Siegelings TCG</strong><small>Arena</small></span>
     </a>
     <div class="play-hub-icons" aria-label="Alerts and help">
         <button class="play-hub-icon-btn" id="playHudNotifBtn" type="button" aria-label="Notifications" title="Notifications" aria-haspopup="dialog" aria-controls="playHudNotifPanel" aria-expanded="false">
@@ -708,7 +708,7 @@
     <div class="loadout-box">
         <div class="loadout-hero">
             <div class="loadout-hero-copy">
-                <div class="loadout-kicker" id="loadoutKicker">Battle Loadout</div>
+                <div class="loadout-kicker" id="loadoutKicker">Arena Loadout</div>
                 <h2 id="loadoutTitle">Prepare for Battle</h2>
                 <p class="loadout-copy" id="loadoutSubtitle">Name yourself, choose your deck, then command a SiegeKnight.</p>
                 <div class="loadout-local-dev hidden" id="loadoutLocalDev" aria-label="Local development tools">
@@ -736,17 +736,17 @@
                     <div class="identity-note" id="playerIdentityNote">This name is shown in online matches and saved on this device.</div>
                 </div>
                 <div class="loadout-toggle-set battle-mode-picker">
-                    <h3 class="battle-mode-heading">Choose your mode</h3>
-                    <div class="match-mode-tabs battle-mode-grid" role="group" aria-label="Battle Mode">
+                    <h3 class="battle-mode-heading">Choose your Arena mode</h3>
+                    <div class="match-mode-tabs battle-mode-grid" role="group" aria-label="Arena mode">
                         <button class="battle-mode-card battle-mode-pvp" id="onlineMatchTab" type="button" onclick="setMatchMode('online')" aria-pressed="false">
-                            <span class="battle-mode-kicker">Live multiplayer</span>
+                            <span class="battle-mode-kicker">Battle · Live multiplayer</span>
                             <span class="battle-mode-title">PvP</span>
                             <span class="battle-mode-description">Challenge another player. Bring your best deck.</span>
                             <span class="battle-mode-meta">Host or join a room</span>
                         </button>
                         <button class="battle-mode-card battle-mode-pvai active" id="soloMatchTab" type="button" onclick="setMatchMode('solo')" aria-pressed="true">
-                            <span class="battle-mode-kicker">Solo battle</span>
-                            <span class="battle-mode-title">PvAI</span>
+                            <span class="battle-mode-kicker">Battle · Solo</span>
+                            <span class="battle-mode-title">PvE</span>
                             <span class="battle-mode-description">Take on the AI and put your deck to the test.</span>
                             <span class="battle-mode-meta">Play at your own pace</span>
                         </button>
@@ -936,8 +936,8 @@
     <script src="/js/coach.js?v=11"></script>
     <script src="/js/arena-tutorial.js?v=51"></script>
     <script src="/js/knight-tutorial.js?v=2"></script>
-<script src="/js/game.js?v=336"></script>
-    <script src="/js/play-mode-picker.js?v=4"></script>
+<script src="/js/game.js?v=337"></script>
+    <script src="/js/play-mode-picker.js?v=5"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,
          getDashboardCardArtMeta() can't build the cardArtScale/offset transform, so
