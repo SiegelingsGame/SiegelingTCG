@@ -1,3 +1,5 @@
+- October 22, 2026 Tap-to-zoom opening / sharp turns release verification: PR #1170 merged as `48f50ca0`; Deploy workflow `39717590059` completed successfully. Live `/shop` serves `home-redesign.css?v=142` and `home-redesign.js?v=135`; the live bundles carry `zoomIn`/`data-zip-hint` and the `is-zoomed`/`sgSeamRun` rules. Hosting and Cloud Run `/api/cards/editor` remain `FIRESTORE`-backed with editing enabled and Firestore available; `/api/game/options` returns 7 decks; `config.js` keeps `apiBaseUrl: ''`.
+
 Original prompt: To initiate the rip the player taps the pack then zoom in to the perforated area, the player then rips and the pack opens cards come out the top. Zoom out and then we do the single reveals
 
 - October 22, 2026 **Pack opening is tap → zoom to the seal → rip up close → cards rise → zoom out → reveals.**
