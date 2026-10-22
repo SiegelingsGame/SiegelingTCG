@@ -1,3 +1,9 @@
+Original prompt: Siegeling names should use the same font as the siegeknight names on card same font and flavor text
+
+- October 22, 2026 **Siegling card names and flavor text now use the SiegeKnight card fonts.**
+  - **Change.** On Siegling card faces (`.element-frame:not(.spell-trap-frame)`), the name (`.card-title`) now uses `'Cinzel', Georgia, serif`, the same stack as `.knight-card-name`. The flavor text (`.card-summary-description`) now uses the system sans stack that the knight ability text inherits. Before this, both inherited the monospace `'Segoe UI', 'Consolas', monospace` body font. The rule is in `style.css` (battle table, hub, binder, dashboard) and in its landing copy `card-face.css`. Spell and trap frames are unchanged. Cinzel is not web-loaded anywhere in the project, so on iPhone both knight and Siegling names render in Georgia, which keeps them matching. Bumped `style.css` to v=294 in all five pages that load it and `card-face.css` to v=9 in `index.html`.
+  - **Verification.** Headless Chromium at 390x844 on `play.html` and `index.html`: a Siegling showcase card's computed title font is `Cinzel, Georgia, serif` and its description font is the system sans stack. A spell-trap card's title still computes to the old monospace stack.
+
 Original prompt: In the web app the game loads directly to the home page can we generate the landing page in the web app as well to begin?
 
 - October 22, 2026 **The home-screen web app now opens on the landing page.**
