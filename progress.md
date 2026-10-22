@@ -1,3 +1,9 @@
+Original prompt: In the web app the game loads directly to the home page can we generate the landing page in the web app as well to begin?
+
+- October 22, 2026 **The home-screen web app now opens on the landing page.**
+  - **Change.** `site.webmanifest` `start_url` goes from `/home` to `/`, so launching the installed web app shows the landing page (`index.html`) first, as a browser visit does. From there, Explore and post-login still go to `/home`. `id` stays `/home` on purpose: the manifest `id` is the installed app's identity, and changing it would make Chrome/Android treat existing installs as a different app instead of updating them. The manifest is served `no-cache` (`firebase.json`) and is linked without a `?v=`, so there is no cache pin to bump. iOS records the start URL when the app is added to the Home Screen, so existing iPhone icons keep opening `/home` until they are removed and added again. Android/Chrome installs pick up the new `start_url` on their next manifest update.
+  - **Verification.** Headless Chromium at 390x844 against the static server: `/` loads the landing page (hero CTA present, no page errors), and its linked manifest resolves `start_url` to `/` with `id` `/home`. Not tested as an installed app on a real device.
+
 Original prompt: On the pull animation the right side of the cards is being cutoff
 
 - October 22, 2026 **Every element now has an energy pool: Poison and Light join the other ten.**
