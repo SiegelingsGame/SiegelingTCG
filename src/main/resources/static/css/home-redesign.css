@@ -4174,7 +4174,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   flex:0 0 auto;
   /* Same token as is-pack-ready - mixing vh/dvh jumped the stage height on
      phones when the rise dropped pack-ready. */
-  height:min(58dvh, 460px); perspective:1400px; perspective-origin:50% 46%;
+  height:min(58dvh, 460px);
   touch-action:none; cursor:grab; place-items:stretch;
 }
 .sg-gacha-stage.is-stack.is-dragging { cursor:grabbing; }
@@ -4182,8 +4182,16 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   position:absolute; top:50%; left:50%; width:min(62%, 240px);
   --drag-shift:0px; --drag-lift:0px;
   transform-style:preserve-3d;
+  /* The perspective is inside each card's own transform, not on the stage.
+     A stage perspective makes WebKit render every card in one shared 3D
+     space and depth-sort them together, so when the top card turned while
+     being dragged its far edge sank behind the card 34px under it and was
+     sliced off down a straight line - the right side of the card vanished
+     on iPhone. Per-card perspective renders each card on its own, ordered by
+     z-index, so cards can never cut through one another. */
   transform:
     translate(-50%,-50%)
+    perspective(1400px)
     rotateY(var(--tilt-y,0deg)) rotateX(var(--tilt-x,0deg))
     translate3d(calc(var(--depth,0) * 13px + var(--drag-shift)),
                 calc(var(--depth,0) * -9px + var(--drag-lift)),
@@ -4222,7 +4230,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-gacha-stage.is-stack .sg-flip:not(.is-stack-top) :is(.sg-flip-tag, .sg-flip-finish) { opacity:0; }
 .sg-gacha-stage.is-stack .sg-flip.is-stack-out {
   opacity:0; pointer-events:none;
-  transform:translate(-50%,-50%) translate3d(calc(var(--exit-dir,1) * 128%), -14%, 120px)
+  transform:translate(-50%,-50%) perspective(1400px) translate3d(calc(var(--exit-dir,1) * 128%), -14%, 120px)
             rotate(calc(var(--exit-dir,1) * 17deg));
 }
 .sg-gacha-stackbar {
