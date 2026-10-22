@@ -578,6 +578,48 @@ input[type="file"] {
     margin-bottom: 14px;
 }
 
+.siegling-filters {
+    display: grid;
+    gap: 10px;
+}
+
+.notch-position-filter {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+/* The editor's notch grid at sidebar scale; the cells keep the same positions so a filter
+   pick reads exactly like the toggle a designer uses to place that notch. */
+.notch-grid.notch-filter-grid {
+    width: 120px;
+    flex: 0 0 120px;
+    gap: 4px;
+}
+
+.notch-filter-grid .notch-button,
+.notch-filter-center {
+    aspect-ratio: 1;
+    border-radius: 10px;
+    font-size: 0.72rem;
+}
+
+.notch-filter-center {
+    border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.notch-position-filter-controls {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.notch-position-filter-label {
+    font-size: 0.78rem;
+    color: var(--text-soft);
+}
+
 #actionTypeFilterSelect {
     background: rgba(255, 250, 242, 0.96);
 }

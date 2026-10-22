@@ -1,3 +1,15 @@
+Original prompt: Notch count and notch position so filter by cards that have a top notch or multi select top and top right etc and cards that have those can be filtered as well
+
+- October 22, 2026 **Card dashboard Siegelings browser can filter by notch position (multi-select).**
+  - **Change.** Below the rarity, notch-count, and energy-cost selects, the Siegelings filter row now has a compact copy of the editor's 3x3 notch grid. Each of the eight directions toggles on or off (`aria-pressed`). A "Match all / Match any" select chooses whether a card must have every picked position or at least one of them, and a Clear button empties the selection. The position filter combines with the notch-count filter, so "Top + Top Right, exactly 2 notches" finds cards with only those two. The center cell uses its own `.notch-filter-center` class, because `style.css` (also loaded on the dashboard) positions `.notch-center` absolutely as a card-face dot, and that pulled the cell out of the grid. Bumped `card-dashboard.js` to v=76 and `card-dashboard.css` to v=58 in `card-dashboard.html`.
+  - **Verification.** `node --check`. Headless Chromium with a mocked `/api/cards/editor` payload of 4 Sieglings with notches [TOP], [TOP, LEFT], [], and [TOP, TOP_RIGHT]. TOP returned a,b,d. TOP+TOP_RIGHT with Match all returned d. Match any returned a,b,d. TOP_RIGHT|LEFT with Match any returned b,d. LEFT+TOP_RIGHT with Match all and 2 notches returned nothing. Screenshots at 1920x1080 and 390x844 show the grid intact with no overflow. No page errors.
+
+Original prompt: In dash board add Siegeling filters for Rarity? Active notches and energy cost
+
+- October 22, 2026 **Card dashboard Siegelings browser can filter by rarity, active notch count, and ability energy cost.**
+  - **Change.** Three new selects sit under the element filter in the card browser and only show on the Siegelings page (`#sieglingFilterRow`). Rarity lists `metadata.rarities`. Notch count and energy cost list only the values the current Siegling roster actually uses. A picked value stays listed even if edits leave no card using it, so the filter does not reset mid-edit. The energy filter matches a Siegling when at least one of its activated pool moves (`moveIds` → moves pool) costs exactly that much. Passive moves are left out, because they never spend energy. The filters AND together with search and element. Bumped `card-dashboard.js` to v=75 and `card-dashboard.css` to v=57 in `card-dashboard.html`, which is the only page that loads them.
+  - **Verification.** `node --check`. Headless Chromium against the static server with a mocked `/api/cards/editor` payload (3 Sieglings, 4 moves including a 5-cost passive): options listed correctly, with no 5 offered. Rarity=Rare, then Rare plus 0 notches, cost 1, and cost 2 each returned the expected card sets. The row is hidden on the Strategies page. At 390x844 it does not overflow. No page errors.
+
 Original prompt: Siegeling names should use the same font as the siegeknight names on card same font and flavor text
 
 - October 22, 2026 **Siegling card names and flavor text now use the SiegeKnight card fonts.**
