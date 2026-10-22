@@ -1,3 +1,9 @@
+Original prompt: Notch count and notch position so filter by cards that have a top notch or multi select top and top right etc and cards that have those can be filtered as well
+
+- October 22, 2026 **Card dashboard Siegelings browser can filter by notch position (multi-select).**
+  - **Change.** Below the rarity, notch-count, and energy-cost selects, the Siegelings filter row now has a compact copy of the editor's 3x3 notch grid. Each of the eight directions toggles on or off (`aria-pressed`). A "Match all / Match any" select chooses whether a card must have every picked position or at least one of them, and a Clear button empties the selection. The position filter combines with the notch-count filter, so "Top + Top Right, exactly 2 notches" finds cards with only those two. The center cell uses its own `.notch-filter-center` class, because `style.css` (also loaded on the dashboard) positions `.notch-center` absolutely as a card-face dot, and that pulled the cell out of the grid. Bumped `card-dashboard.js` to v=76 and `card-dashboard.css` to v=58 in `card-dashboard.html`.
+  - **Verification.** `node --check`. Headless Chromium with a mocked `/api/cards/editor` payload of 4 Sieglings with notches [TOP], [TOP, LEFT], [], and [TOP, TOP_RIGHT]. TOP returned a,b,d. TOP+TOP_RIGHT with Match all returned d. Match any returned a,b,d. TOP_RIGHT|LEFT with Match any returned b,d. LEFT+TOP_RIGHT with Match all and 2 notches returned nothing. Screenshots at 1920x1080 and 390x844 show the grid intact with no overflow. No page errors.
+
 Original prompt: In dash board add Siegeling filters for Rarity? Active notches and energy cost
 
 - October 22, 2026 **Card dashboard Siegelings browser can filter by rarity, active notch count, and ability energy cost.**

@@ -99,6 +99,8 @@
         rarityFilter: "ALL",
         notchCountFilter: "ALL",
         energyCostFilter: "ALL",
+        notchPositionFilter: [],
+        notchPositionMode: "ALL",
         deckSearch: "",
         deckStatusFilter: "ALL",
         trainerSearch: "",
@@ -268,6 +270,9 @@
             "rarityFilterSelect",
             "notchCountFilterSelect",
             "energyCostFilterSelect",
+            "notchPositionFilterGrid",
+            "notchPositionModeSelect",
+            "notchPositionClearBtn",
             "cardList",
             "cardEditorPanel",
             "authModePill",
@@ -581,6 +586,27 @@
         });
         refs.energyCostFilterSelect.addEventListener("change", (event) => {
             state.energyCostFilter = event.target.value || "ALL";
+            renderCardList();
+        });
+        refs.notchPositionFilterGrid.addEventListener("click", (event) => {
+            const direction = event.target.closest("[data-notch-filter]")?.dataset.notchFilter;
+            if (!direction) {
+                return;
+            }
+            const selected = state.notchPositionFilter;
+            state.notchPositionFilter = selected.includes(direction)
+                ? selected.filter((value) => value !== direction)
+                : [...selected, direction];
+            renderSieglingFilterOptions();
+            renderCardList();
+        });
+        refs.notchPositionModeSelect.addEventListener("change", (event) => {
+            state.notchPositionMode = event.target.value === "ANY" ? "ANY" : "ALL";
+            renderCardList();
+        });
+        refs.notchPositionClearBtn.addEventListener("click", () => {
+            state.notchPositionFilter = [];
+            renderSieglingFilterOptions();
             renderCardList();
         });
         refs.actionTypeFilterSelect.addEventListener("change", (event) => {
@@ -3435,6 +3461,16 @@
             ALL: "Any Energy Cost",
             ...Object.fromEntries(costValues.map((value) => [value, `Ability costs ${value} energy`]))
         });
+        refs.notchPositionFilterGrid.innerHTML = NOTCH_LAYOUT.map((direction) => {
+            if (direction === "CENTER") {
+                // Not .notch-center: style.css gives that class an absolute card-face position.
+                return `<div class="notch-filter-center notch-cell-CENTER" aria-hidden="true"></div>`;
+            }
+            const active = state.notchPositionFilter.includes(direction);
+            return `<button class="notch-button notch-cell-${direction}${active ? " active" : ""}" type="button" data-notch-filter="${direction}" aria-pressed="${active}" title="${escapeHtml(formatEnumLabel(direction))}">${escapeHtml(shortDirection(direction))}</button>`;
+        }).join("");
+        refs.notchPositionModeSelect.value = state.notchPositionMode;
+        refs.notchPositionClearBtn.disabled = state.notchPositionFilter.length === 0;
     }
 
     /** Passives never spend energy, so they are left out rather than counted as 0-cost abilities. */
@@ -4889,6 +4925,16 @@
         }
         if (state.notchCountFilter !== "ALL" && card.notches.length !== Number(state.notchCountFilter)) {
             return false;
+        }
+        if (state.notchPositionFilter.length > 0) {
+            const directions = new Set(card.notches.map((notch) => notch.direction));
+            const hasPosition = (direction) => directions.has(direction);
+            const positionMatch = state.notchPositionMode === "ANY"
+                ? state.notchPositionFilter.some(hasPosition)
+                : state.notchPositionFilter.every(hasPosition);
+            if (!positionMatch) {
+                return false;
+            }
         }
         return state.energyCostFilter === "ALL"
             || sieglingAbilityEnergyCosts(card).includes(Number(state.energyCostFilter));

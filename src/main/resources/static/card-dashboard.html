@@ -27,7 +27,7 @@
          and before card-dashboard.css so the dashboard's own chrome rules stay
          authoritative. -->
     <link rel="stylesheet" href="/css/style.css?v=294">
-    <link rel="stylesheet" href="/css/card-dashboard.css?v=57">
+    <link rel="stylesheet" href="/css/card-dashboard.css?v=58">
     <link rel="stylesheet" href="/css/holographic.css?v=8">
 </head>
 <body>
@@ -146,6 +146,17 @@
                     <select id="rarityFilterSelect" aria-label="Filter by rarity"></select>
                     <select id="notchCountFilterSelect" aria-label="Filter by active notch count"></select>
                     <select id="energyCostFilterSelect" aria-label="Filter by ability energy cost" title="Shows Siegelings with at least one activated ability at this energy cost"></select>
+                    <div class="notch-position-filter">
+                        <div class="notch-grid notch-filter-grid" id="notchPositionFilterGrid" role="group" aria-label="Filter by notch position"></div>
+                        <div class="notch-position-filter-controls">
+                            <span class="notch-position-filter-label">Notch positions</span>
+                            <select id="notchPositionModeSelect" aria-label="Notch position match mode">
+                                <option value="ALL">Match all</option>
+                                <option value="ANY">Match any</option>
+                            </select>
+                            <button class="btn btn-secondary" id="notchPositionClearBtn" type="button">Clear</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="card-list" id="cardList"></div>
@@ -1326,7 +1337,7 @@
 <script src="/js/game.js?v=336"></script>
 <script src="/js/card-binder-visual.js?v=35"></script>
 <script src="/js/dashboard-info.js?v=15"></script>
-<script src="/js/card-dashboard.js?v=75"></script>
+<script src="/js/card-dashboard.js?v=76"></script>
 <script src="/js/loading-art-admin.js?v=8"></script>
 <script src="/js/siege-class-admin.js?v=3"></script>
 <script src="/js/siege-item-admin.js?v=2"></script>
