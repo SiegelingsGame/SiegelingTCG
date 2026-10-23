@@ -1280,6 +1280,14 @@ public class GameController {
         info.put("iceEnergy", player.getIceEnergy());
         info.put("shadowEnergy", player.getShadowEnergy());
         info.put("electricEnergy", player.getElectricEnergy());
+        // The battle client reads `${element}Energy` for every pool in ENERGY_ORDER.
+        // Metal, Undead, Psychic, Poison, and Light are spendable on the server;
+        // omitting them makes the HUD show 0 and locks any card that costs them.
+        info.put("metalEnergy", player.getMetalEnergy());
+        info.put("undeadEnergy", player.getUndeadEnergy());
+        info.put("psychicEnergy", player.getPsychicEnergy());
+        info.put("poisonEnergy", player.getPoisonEnergy());
+        info.put("lightEnergy", player.getLightEnergy());
         info.put("mistActive", energy.mistActive());
         info.put("fireInternal", energy.fireInternal());
         info.put("fireExternal", energy.fireExternal());
@@ -1295,6 +1303,16 @@ public class GameController {
         info.put("shadowExternal", energy.shadowExternal());
         info.put("electricInternal", energy.electricInternal());
         info.put("electricExternal", energy.electricExternal());
+        info.put("metalInternal", energy.metalInternal());
+        info.put("metalExternal", energy.metalExternal());
+        info.put("undeadInternal", energy.undeadInternal());
+        info.put("undeadExternal", energy.undeadExternal());
+        info.put("psychicInternal", energy.psychicInternal());
+        info.put("psychicExternal", energy.psychicExternal());
+        info.put("poisonInternal", energy.poisonInternal());
+        info.put("poisonExternal", energy.poisonExternal());
+        info.put("lightInternal", energy.lightInternal());
+        info.put("lightExternal", energy.lightExternal());
         // Link-free energy from energy_boost passives, keyed by element name so the energy
         // panel can show why a pool is bigger than its links and sockets explain.
         Map<String, Object> passiveEnergy = new LinkedHashMap<>();
