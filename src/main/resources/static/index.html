@@ -100,10 +100,10 @@
     </button>
     <div class="landing-fab-menu" id="landingFabMenu" hidden>
         <a href="#roster">Siegelings</a>
-        <a href="#modes">Game Modes</a>
         <a href="#rarities">Rarities</a>
         <a href="#creatures">Legendaries</a>
         <a href="#knights">SiegeKnights</a>
+        <a href="#modes">Game Modes</a>
         <a href="#elements">Elements</a>
         <a href="#world">World Art</a>
         <a href="#arena">Arenas</a>
@@ -122,6 +122,44 @@
     <div class="card-marquee roster-marquee" id="rosterMarqueeB" aria-label="Siegling roster, second row" data-marquee-reverse></div>
     <div class="roster-spotlight" id="rosterSpotlight" aria-live="polite" hidden></div>
     <a class="roster-collection-link" href="/cards">Browse the full collection <span>→</span></a>
+</section>
+
+<!-- ── Card rarities and finishes ───────────────────────────────────── -->
+<section class="rarity-section binder-face-scope" id="rarities" aria-labelledby="raritiesTitle">
+    <div class="landing-section-heading">
+        <span class="section-kicker">Rarity &amp; Finish</span>
+        <h2 id="raritiesTitle">Every rarity, every finish</h2>
+        <p>A Siegling's frame shows its rarity, and rarer Sieglings carry bigger bounties: when one falls, its owner takes that much damage. Then collect each card in rarer finishes, from Holo sheen to solid gold.</p>
+    </div>
+    <div class="finish-picker" id="finishPicker" role="radiogroup" aria-label="Card finish"></div>
+    <p class="finish-blurb" id="finishBlurb" aria-live="polite"></p>
+    <div class="rarity-row" id="rarityRow" aria-label="Siegling cards at each rarity">
+        <!-- Rarity cards rendered by landing.js -->
+    </div>
+</section>
+
+<!-- ── Legendary Siegling cards ─────────────────────────────────────────── -->
+<section class="creatures binder-face-scope" id="creatures" aria-labelledby="creaturesTitle">
+    <div class="creatures-header">
+        <span class="creatures-kicker">Legendary Siegelings</span>
+        <h2 class="creatures-title" id="creaturesTitle">Meet the Legendary Siegelings</h2>
+    </div>
+    <div class="legendary-row" id="legendaryRow" aria-label="Legendary Siegling cards">
+        <!-- Legendary cards rendered by landing.js from the live catalog -->
+    </div>
+</section>
+
+<!-- ── SiegeKnights ──────────────────────────────────────────────────── -->
+<section class="knights-section" id="knights" aria-labelledby="knightsTitle">
+    <div class="landing-section-heading">
+        <span class="section-kicker">Command a SiegeKnight</span>
+        <h2 id="knightsTitle">Your warband answers to a commander</h2>
+        <p>Every SiegeKnight brings a passive that reshapes the board plus an active and an ultimate you spend hard-won energy on. Pick the one your deck deserves.</p>
+    </div>
+    <div class="knight-rail card-marquee" id="knightRail" aria-label="SiegeKnight roster">
+        <!-- Knight cards rendered by landing.js from the shipped knight art -->
+    </div>
+    <a class="roster-collection-link" href="/play">Take one into the arena <span>→</span></a>
 </section>
 
 <!-- ── Game modes: one pane, a page per mode, each with a hands-on demo ──── -->
@@ -243,44 +281,6 @@
         <a href="/achievements">Achievements <span aria-hidden="true">→</span></a>
         <a href="/help">How to Play <span aria-hidden="true">→</span></a>
     </div>
-</section>
-
-<!-- ── Card rarities and finishes ───────────────────────────────────── -->
-<section class="rarity-section binder-face-scope" id="rarities" aria-labelledby="raritiesTitle">
-    <div class="landing-section-heading">
-        <span class="section-kicker">Rarity &amp; Finish</span>
-        <h2 id="raritiesTitle">Every rarity, every finish</h2>
-        <p>A Siegling's frame shows its rarity, and rarer Sieglings carry bigger bounties: when one falls, its owner takes that much damage. Then collect each card in rarer finishes, from Holo sheen to solid gold.</p>
-    </div>
-    <div class="finish-picker" id="finishPicker" role="radiogroup" aria-label="Card finish"></div>
-    <p class="finish-blurb" id="finishBlurb" aria-live="polite"></p>
-    <div class="rarity-row" id="rarityRow" aria-label="Siegling cards at each rarity">
-        <!-- Rarity cards rendered by landing.js -->
-    </div>
-</section>
-
-<!-- ── Legendary Siegling cards ─────────────────────────────────────────── -->
-<section class="creatures binder-face-scope" id="creatures" aria-labelledby="creaturesTitle">
-    <div class="creatures-header">
-        <span class="creatures-kicker">Legendary Siegelings</span>
-        <h2 class="creatures-title" id="creaturesTitle">Meet the Legendary Siegelings</h2>
-    </div>
-    <div class="legendary-row" id="legendaryRow" aria-label="Legendary Siegling cards">
-        <!-- Legendary cards rendered by landing.js from the live catalog -->
-    </div>
-</section>
-
-<!-- ── SiegeKnights ──────────────────────────────────────────────────── -->
-<section class="knights-section" id="knights" aria-labelledby="knightsTitle">
-    <div class="landing-section-heading">
-        <span class="section-kicker">Command a SiegeKnight</span>
-        <h2 id="knightsTitle">Your warband answers to a commander</h2>
-        <p>Every SiegeKnight brings a passive that reshapes the board plus an active and an ultimate you spend hard-won energy on. Pick the one your deck deserves.</p>
-    </div>
-    <div class="knight-rail card-marquee" id="knightRail" aria-label="SiegeKnight roster">
-        <!-- Knight cards rendered by landing.js from the shipped knight art -->
-    </div>
-    <a class="roster-collection-link" href="/play">Take one into the arena <span>→</span></a>
 </section>
 
 <!-- ── Element affinities ─────────────────────────────────────────────── -->
