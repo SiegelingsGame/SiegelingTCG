@@ -1,3 +1,7 @@
+- October 23, 2026 **Battle state now sends Metal, Undead, Psychic, Poison, and Light energy.**
+  - **Change.** `serializePlayer` copied only the original seven pools. The client reads `${element}Energy` for every element in `ENERGY_ORDER` and refuses a hand card whose pool is missing, so a Metal-cost spell such as Rivet Volley stayed locked ("Need 1 Metal energy") after a Metal link had already filled `Player.metalEnergy`. The same hole hid Poison and Light after those pools were added, including Light energy claimed off a Siegling. The payload now includes each pool's total plus its internal and external split, for both sides.
+  - **Verification.** `GameControllerTest.statePayloadIncludesEverySpendableEnergyPool`: a Metal link, Light/Poison/Psychic/Undead call wells, and one claimed Light energy. The serialized map reports 1 Metal (internal), 2 Light (1 external + the claim), and 1 each for Poison, Psychic, and Undead. Fire stays 0.
+
 Original prompt: pick up the landing-page binder follow-up and wire renderBinderFace into the Gold Activated Notches change.
 
 - October 23, 2026 **Gold Activated Notches follow-up: the landing-page binder's `renderBinderFace` now emits the glow too.**

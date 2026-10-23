@@ -1,9 +1,18 @@
 package com.sieglings.controller;
 
 import com.sieglings.model.Ability;
+import com.sieglings.model.CardInstance;
+import com.sieglings.model.GameState;
+import com.sieglings.model.Notch;
+import com.sieglings.model.Player;
+import com.sieglings.model.SieglingCard;
 import com.sieglings.model.TrainerCard;
 import com.sieglings.model.enums.Element;
+import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Rarity;
+import com.sieglings.model.enums.Row;
+import com.sieglings.service.EnergyService;
+import com.sieglings.service.PlacementService;
 import com.sieglings.persistence.entity.AccountUser;
 import com.sieglings.service.AccountService;
 import com.sieglings.service.GameService;
@@ -161,6 +170,75 @@ class GameControllerTest {
 
         assertNull(meta.get("tournamentId"));
         assertNull(meta.get("tournament"));
+    }
+
+    @Test
+    void statePayloadIncludesEverySpendableEnergyPool() throws Exception {
+        EnergyService energyService = new EnergyService(new PlacementService());
+        GameController controller = createController(new MultiplayerService(), accountServiceReturning(null));
+        setField(controller, "energyService", energyService);
+
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        Player enemy = new Player("AI Opponent", false);
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+        // A reciprocal Metal link, plus one call well each for the other pools the
+        // original serializer never copied. Light also has a claim still in the pool.
+        // Lowest placement order is the foundation root. The Metal pair has to be
+        // that network, or a later socketed card becomes the root and the link is ignored.
+        CardInstance metalLeft = placed("metal-left", Element.METAL, NotchDirection.RIGHT, 1, 0);
+        metalLeft.setPlacementOrder(0);
+        CardInstance metalRight = placed("metal-right", Element.METAL, NotchDirection.LEFT, 1, 1);
+        metalRight.setPlacementOrder(1);
+        state.setAt(true, 1, 0, metalLeft);
+        state.setAt(true, 1, 1, metalRight);
+        state.setAt(true, 0, 1, ordered("light-well", Element.LIGHT, NotchDirection.BOTTOM, 0, 1, 10));
+        state.setAt(true, 0, 0, ordered("poison-well", Element.POISON, NotchDirection.BOTTOM, 0, 0, 11));
+        state.setAt(true, 0, 2, ordered("psychic-well", Element.PSYCHIC, NotchDirection.BOTTOM, 0, 2, 12));
+        state.setAt(true, 2, 0, ordered("undead-well", Element.UNDEAD, NotchDirection.LEFT, 2, 0, 13));
+        player.adjustTemporaryEnergy(Element.LIGHT, 1);
+        energyService.recalculateEnergy(state);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> payload = (Map<String, Object>) invoke(
+                controller,
+                "serializePlayer",
+                new Class<?>[] { GameState.class, boolean.class, boolean.class },
+                new Object[] { state, true, false }
+        );
+
+        assertEquals(1, number(payload, "metalEnergy"));
+        assertEquals(1, number(payload, "metalInternal"));
+        assertEquals(0, number(payload, "metalExternal"));
+        assertEquals(2, number(payload, "lightEnergy"), "Claim energy has to ride along with the Light well.");
+        assertEquals(0, number(payload, "lightInternal"));
+        assertEquals(1, number(payload, "lightExternal"));
+        assertEquals(1, number(payload, "poisonEnergy"));
+        assertEquals(1, number(payload, "poisonExternal"));
+        assertEquals(1, number(payload, "psychicEnergy"));
+        assertEquals(1, number(payload, "psychicExternal"));
+        assertEquals(1, number(payload, "undeadEnergy"));
+        assertEquals(1, number(payload, "undeadExternal"));
+        assertEquals(0, number(payload, "fireEnergy"));
+    }
+
+    private CardInstance placed(String id, Element element, NotchDirection direction, int row, int col) {
+        SieglingCard card = new SieglingCard(
+                id, id, element, Rarity.COMMON, 10, 1, List.of(new Notch(direction, element)), Row.MIDDLE);
+        return new CardInstance(card, row, col, true);
+    }
+
+    private CardInstance ordered(String id, Element element, NotchDirection direction, int row, int col, int order) {
+        CardInstance instance = placed(id, element, direction, row, col);
+        instance.setPlacementOrder(order);
+        return instance;
+    }
+
+    private int number(Map<String, Object> payload, String key) {
+        Object value = payload.get(key);
+        assertNotNull(value, key);
+        return ((Number) value).intValue();
     }
 
     @Test
