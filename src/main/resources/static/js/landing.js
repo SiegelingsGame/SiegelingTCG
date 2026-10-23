@@ -543,7 +543,7 @@
         const notches = CARD_NOTCH_DIRECTIONS.map((dir) => {
             const notch = notchMap[dir];
             return notch
-                ? `<div class="notch-dot ${escapeAttr(String(notch.element || element).toLowerCase())} notch-${dir}" style="${notchStyle(notch.element || element)}"></div>`
+                ? `<div class="notch-dot ${escapeAttr(String(notch.element || element).toLowerCase())} notch-${dir}" style="${notchStyle(notch.element || element)}"></div><i class="notch-glow notch-${dir}" style="${notchStyle(notch.element || element)}"></i>`
                 : `<div class="notch-dot notch-${dir}"></div>`;
         }).join('');
         const chips = [];
@@ -1081,7 +1081,7 @@
         { id: 'GOLD', label: 'Gold', blurb: 'Special art in a polished gold frame.', spArt: true,
             cardClass: ' is-holographic is-gold-finish',
             overlay: '<div class="card-gold-finish" aria-hidden="true"><i class="card-gold-frame"></i><i class="card-gold-sheen"></i></div>' },
-        { id: 'GSP', label: 'GSP', blurb: 'The whole card cast in gold leaf, notches kept in colour.', spArt: true,
+        { id: 'GSP', label: 'GSP', blurb: 'The whole card cast in gold leaf, notches included — a link still flares gold.', spArt: true,
             cardClass: ' is-holographic is-holo-gold-finish',
             overlay: '<div class="card-holo-gold-finish" aria-hidden="true"><i class="card-holo-gold-tint"></i><i class="card-holo-gold-warm"></i><i class="card-gold-sheen"></i><i class="card-holo-gold-rim"></i></div>' }
     ];

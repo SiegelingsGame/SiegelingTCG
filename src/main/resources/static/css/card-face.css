@@ -164,6 +164,16 @@
 .mulligan-showcase.element-frame .notch-dot.notch-BOTTOM_LEFT { left: 7.6%; top: 94.1%; }
 .mulligan-showcase.element-frame .notch-dot.notch-BOTTOM { left: 49.5%; top: 94.3%; }
 .mulligan-showcase.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
+/* The gold-activated-notch glow ring (holographic.css) rides alongside each
+   dot, so a painted frame's percentage coordinates need to land on it too. */
+.mulligan-showcase.element-frame .notch-glow.notch-TOP_LEFT { left: 7.8%; top: 5.7%; }
+.mulligan-showcase.element-frame .notch-glow.notch-TOP { left: 50%; top: 5.6%; }
+.mulligan-showcase.element-frame .notch-glow.notch-TOP_RIGHT { left: 91.8%; top: 5.7%; }
+.mulligan-showcase.element-frame .notch-glow.notch-LEFT { left: 7.7%; top: 50%; }
+.mulligan-showcase.element-frame .notch-glow.notch-RIGHT { left: 91.9%; top: 50%; }
+.mulligan-showcase.element-frame .notch-glow.notch-BOTTOM_LEFT { left: 7.6%; top: 94.1%; }
+.mulligan-showcase.element-frame .notch-glow.notch-BOTTOM { left: 49.5%; top: 94.3%; }
+.mulligan-showcase.element-frame .notch-glow.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
 .hand-card-shell { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 8px; width: 100%; min-height: 100%; }
 .hand-card-header { display: flex; flex-direction: column; gap: 3px; align-items: center; text-align: center; }
 .card-art-preview { min-height: 150px; border-radius: 12px; padding: 8px; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.22), transparent 16%),
