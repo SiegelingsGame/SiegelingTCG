@@ -1121,6 +1121,7 @@ function renderArenaBoardFrameNotches(notches, options) {
             const elemClass = notch.element.toLowerCase();
             const stateClass = options ? getNotchStateClass(notch, { ...options, isBoard: true }) : '';
             html += `<div class="notch-dot ${elemClass} notch-${dir} ${stateClass}" style="${notchIconStyle(notch.element)}"></div>`;
+            html += `<i class="notch-glow notch-${dir}" style="${notchIconStyle(notch.element)}"></i>`;
         } else {
             html += `<div class="notch-dot notch-${dir}"></div>`;
         }
@@ -14893,6 +14894,7 @@ function renderHandNotches(notches) {
         if (notch) {
             const elemClass = notch.element.toLowerCase();
             html += `<div class="notch-dot ${elemClass} notch-${dir}" style="${notchIconStyle(notch.element)}"></div>`;
+            html += `<i class="notch-glow notch-${dir}" style="${notchIconStyle(notch.element)}"></i>`;
         } else {
             html += `<div class="notch-dot notch-${dir}"></div>`;
         }
@@ -14916,6 +14918,7 @@ function renderNotches(notches, options = {}) {
         }
 
         html += `<div class="notch-dot ${elemClass} notch-${notch.direction} ${stateClass}" style="${notchIconStyle(notch.element)}"></div>`;
+        html += `<i class="notch-glow notch-${notch.direction}" style="${notchIconStyle(notch.element)}"></i>`;
     }
 
     html += `</div>`;

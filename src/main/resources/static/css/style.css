@@ -8277,6 +8277,17 @@ body.placement-active .board-cell.legal {
 .board-card.arena-board-card.element-frame .notch-dot.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
 .board-card.arena-board-card.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
 
+/* The gold-activated-notch glow ring (holographic.css) rides alongside each
+   dot, so a painted frame's percentage coordinates need to land on it too. */
+.board-card.arena-board-card.element-frame .notch-glow.notch-TOP_LEFT     { left: 7.8%;  top: 5.7%;  }
+.board-card.arena-board-card.element-frame .notch-glow.notch-TOP          { left: 50%;   top: 5.6%;  }
+.board-card.arena-board-card.element-frame .notch-glow.notch-TOP_RIGHT    { left: 91.8%; top: 5.7%;  }
+.board-card.arena-board-card.element-frame .notch-glow.notch-LEFT         { left: 7.7%;  top: 50%;   }
+.board-card.arena-board-card.element-frame .notch-glow.notch-RIGHT        { left: 91.9%; top: 50%;   }
+.board-card.arena-board-card.element-frame .notch-glow.notch-BOTTOM_LEFT  { left: 7.6%;  top: 94.1%; }
+.board-card.arena-board-card.element-frame .notch-glow.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
+.board-card.arena-board-card.element-frame .notch-glow.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
+
 .card-art {
     position: relative;
     overflow: hidden;
@@ -9222,6 +9233,17 @@ body.placement-active .board-cell.legal {
 :is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-BOTTOM_LEFT  { left: 7.6%;  top: 94.1%; }
 :is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
 :is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
+
+/* The gold-activated-notch glow ring (holographic.css) rides alongside each
+   dot, so a painted frame's percentage coordinates need to land on it too. */
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-glow.notch-TOP_LEFT     { left: 7.8%;  top: 5.7%;  }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-glow.notch-TOP          { left: 50%;   top: 5.6%;  }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-glow.notch-TOP_RIGHT    { left: 91.8%; top: 5.7%;  }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-glow.notch-LEFT         { left: 7.7%;  top: 50%;   }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-glow.notch-RIGHT        { left: 91.9%; top: 50%;   }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-glow.notch-BOTTOM_LEFT  { left: 7.6%;  top: 94.1%; }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-glow.notch-BOTTOM       { left: 49.5%; top: 94.3%; }
+:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame .notch-glow.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
 
 /* Showcase previews share the painted frame, with copy constrained to the
    template's bottom info panel. */
@@ -10589,6 +10611,40 @@ body.placement-active .board-cell.legal {
 .card-preview-card.element-frame .notch-dot.notch-BOTTOM_RIGHT,
 .selected-preview-card.element-frame .notch-dot.notch-BOTTOM_RIGHT,
 .mulligan-showcase.element-frame .notch-dot.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
+
+/* The gold-activated-notch glow ring (holographic.css) rides alongside each
+   dot, so a painted frame's percentage coordinates need to land on it too. */
+.card-preview-card.element-frame .notch-glow.notch-TOP_LEFT,
+.selected-preview-card.element-frame .notch-glow.notch-TOP_LEFT,
+.mulligan-showcase.element-frame .notch-glow.notch-TOP_LEFT { left: 7.8%; top: 5.7%; }
+
+.card-preview-card.element-frame .notch-glow.notch-TOP,
+.selected-preview-card.element-frame .notch-glow.notch-TOP,
+.mulligan-showcase.element-frame .notch-glow.notch-TOP { left: 50%; top: 5.6%; }
+
+.card-preview-card.element-frame .notch-glow.notch-TOP_RIGHT,
+.selected-preview-card.element-frame .notch-glow.notch-TOP_RIGHT,
+.mulligan-showcase.element-frame .notch-glow.notch-TOP_RIGHT { left: 91.8%; top: 5.7%; }
+
+.card-preview-card.element-frame .notch-glow.notch-LEFT,
+.selected-preview-card.element-frame .notch-glow.notch-LEFT,
+.mulligan-showcase.element-frame .notch-glow.notch-LEFT { left: 7.7%; top: 50%; }
+
+.card-preview-card.element-frame .notch-glow.notch-RIGHT,
+.selected-preview-card.element-frame .notch-glow.notch-RIGHT,
+.mulligan-showcase.element-frame .notch-glow.notch-RIGHT { left: 91.9%; top: 50%; }
+
+.card-preview-card.element-frame .notch-glow.notch-BOTTOM_LEFT,
+.selected-preview-card.element-frame .notch-glow.notch-BOTTOM_LEFT,
+.mulligan-showcase.element-frame .notch-glow.notch-BOTTOM_LEFT { left: 7.6%; top: 94.1%; }
+
+.card-preview-card.element-frame .notch-glow.notch-BOTTOM,
+.selected-preview-card.element-frame .notch-glow.notch-BOTTOM,
+.mulligan-showcase.element-frame .notch-glow.notch-BOTTOM { left: 49.5%; top: 94.3%; }
+
+.card-preview-card.element-frame .notch-glow.notch-BOTTOM_RIGHT,
+.selected-preview-card.element-frame .notch-glow.notch-BOTTOM_RIGHT,
+.mulligan-showcase.element-frame .notch-glow.notch-BOTTOM_RIGHT { left: 91.7%; top: 94.2%; }
 
 .hand-card-shell {
     position: relative;

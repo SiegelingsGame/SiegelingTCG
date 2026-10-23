@@ -463,34 +463,92 @@
 .is-holo-gold-finish {
     box-shadow: 0 0 0 1px rgba(122, 84, 16, .8), 0 0 18px rgba(255, 190, 60, .45);
 }
-/* Notches ride above the gold. The board's own notch rule is more specific,
-   so it is matched here class for class. */
+/* ---------- Gold Activated Notches ----------
+   GSP used to lift every notch above the gold cast so element colour always
+   read true. Settled direction: fold the notches into the cast like the rest
+   of the card instead — it reads cleaner — and keep identity legible with a
+   thin ring of the notch's own element colour glowing out from behind it. A
+   formed link amplifies into a bright gold pulse instead of style.css's
+   green ring.
+
+   Notch containers drop their own stacking context (z-index: auto) so
+   .notch-dot and a painted frame's own redrawn sockets (::before, style.css)
+   both paint at the ordinary art level, under .card-holo-gold-finish's
+   z 11-12 tint/warm/rim/sheen, and pick up the same `color` blend. */
 .board-card.arena-board-card.is-holo-gold-finish .arena-board-notches,
 .is-holo-gold-finish .hand-notches,
-.is-holo-gold-finish .holographic-card-notches,
-.is-holo-gold-finish .notch-dot {
-    z-index: 13;
-}
-/* Painted frames redraw their top and side sockets above the art on the notch
-   layer's ::before (style.css). Lifted with the notches, those sockets escaped
-   the gold and kept the frame's own grey, each in a darker disc, while the
-   bottom sockets (plain frame) took the cast. So on these cards the notch layer
-   stops being a stacking context: the redrawn sockets drop to just above the
-   art (shell, z 1) and under the gold layers (z 11-12), and only the notch
-   icons (z 13, above) are lifted, so element colours stay true. */
-.board-card.arena-board-card.element-frame.is-holo-gold-finish .hand-notches.arena-board-notches,
-:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.is-holo-gold-finish .hand-notches,
-.card-preview-card.element-frame.is-holo-gold-finish .hand-notches,
-.selected-preview-card.element-frame.is-holo-gold-finish .hand-notches,
-.mulligan-showcase.element-frame.is-holo-gold-finish .hand-notches {
+.is-holo-gold-finish .holographic-card-notches {
     z-index: auto;
 }
-.board-card.arena-board-card.element-frame.is-holo-gold-finish .hand-notches::before,
-:is(#playerHand, .hand-lift-layer, #drawAbilityRevealCards) .hand-card.element-frame.is-holo-gold-finish .hand-notches::before,
-.card-preview-card.element-frame.is-holo-gold-finish .hand-notches::before,
-.selected-preview-card.element-frame.is-holo-gold-finish .hand-notches::before,
-.mulligan-showcase.element-frame.is-holo-gold-finish .hand-notches::before {
+.is-holo-gold-finish .hand-notches::before {
     z-index: 2;
+}
+.is-holo-gold-finish .notch-dot {
+    z-index: 3;
+}
+
+/* The identity glow: game.js/landing.js render a .notch-glow element right
+   after each .notch-dot (inert everywhere else — see the base rule below).
+   Painted after the gold stack, it keeps the notch's true hue (the inline
+   --notch custom property notchIconStyle already sets on the dot) instead of
+   getting cast. A transparent hole at the dot's own footprint plus
+   `mix-blend-mode: screen` adds light around the gold notch's edge rather
+   than recolouring or covering it. */
+.notch-glow {
+    display: none;
+}
+.is-holo-gold-finish .notch-glow {
+    display: block;
+    position: absolute;
+    z-index: 14;
+    width: 26px;
+    height: 26px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(circle,
+        transparent 0%, transparent 30%,
+        var(--notch, transparent) 52%,
+        transparent 80%);
+    mix-blend-mode: screen;
+    opacity: 0.75;
+    transition: opacity .3s ease;
+}
+.is-holo-gold-finish .notch-dot.linked + .notch-glow {
+    opacity: 1;
+}
+@media (max-width: 900px) {
+    .is-holo-gold-finish .notch-glow { width: 18px; height: 18px; }
+}
+@media (max-width: 560px), (max-width: 900px) and (max-height: 760px) {
+    .is-holo-gold-finish .notch-glow { width: 14px; height: 14px; }
+}
+@media (orientation: landscape) and (max-width: 979px) {
+    .is-holo-gold-finish .notch-glow { width: 11px; height: 11px; }
+}
+
+/* Activated: a gold pulse instead of style.css's green ring. The dot is
+   already folded under the gold cast (above), so its own hue is already
+   gold — `color` blend keeps the backdrop's lightness, which is what makes
+   this still visibly pulse once blended, so unlike the identity glow it
+   needs no escape layer of its own. */
+.is-holo-gold-finish .notch-dot.linked {
+    box-shadow: none;
+    animation: gold-notch-pulse 1.7s ease-in-out infinite;
+}
+@keyframes gold-notch-pulse {
+    0%, 100% {
+        filter: drop-shadow(0 0 5px rgba(255, 214, 110, .85)) drop-shadow(0 0 13px rgba(255, 170, 50, .55));
+    }
+    50% {
+        filter: drop-shadow(0 0 9px rgba(255, 224, 150, 1)) drop-shadow(0 0 22px rgba(255, 180, 60, .75));
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .is-holo-gold-finish .notch-dot.linked {
+        animation: none;
+        filter: drop-shadow(0 0 9px rgba(255, 224, 150, 1)) drop-shadow(0 0 22px rgba(255, 180, 60, .75));
+    }
 }
 
 /* ---------- HOLO finish ----------
