@@ -6377,6 +6377,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* The grid item would otherwise grow to the table's natural width and push
    the sheet off a phone screen. */
 .sg-godds-card { min-width:0; max-width:100%; }
+/* Each knight a pack can roll sits under the shared knight chance; the list can
+   run long, so the sheet scrolls inside the viewport instead of the page. */
+.sg-godds-card { max-height:calc(100% - 8px); overflow-y:auto; overscroll-behavior:contain; }
+.sg-godds-card dl .sg-godds-knight { padding-left:12px; font-size:12px; opacity:.85; }
 .sg-godds-finish { display:block !important; min-width:0; }
 .sg-godds-finish dd { margin:6px 0 0; overflow-x:auto; min-width:0; }
 .sg-godds-finish table { width:100%; border-collapse:collapse; font-size:11px; }

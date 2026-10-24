@@ -1,3 +1,21 @@
+Original prompt: The text should say Fire Siegeknight Pack - Each pack has a chance to drop a siegeknight add it to the percentage of the pulls
+
+- October 24, 2026 **Shop: element summons are now "<Element> Siegeknight Pack", and the odds sheet names every knight a pack can drop.**
+  - **Change.** `PackCatalogService` renames the element summon packs to "<Element> Siegeknight Pack" with the description "Five <Element> Siegelings. Each pack has a chance to drop a SiegeKnight." (pack ids and contents unchanged). `serializePack` adds `odds.siegeKnightPool`: each knight `bonusTrainerCandidates` can pick (element knights plus Neutral ones, as before) with its share of `TRAINER_DROP_CHANCE` (the roll picks uniformly, so 3% / pool size). In `home-redesign.js` the summon stage title reads "<Element> Siegeknight Pack", the desktop pennant is headed "SiegeKnight 3%", and the Odds sheet lists each knight and its chance under "Bonus SiegeKnight" (for every pack, since all packs carry the pool). `home-redesign.css` indents those rows and lets the sheet scroll inside the viewport if the list runs long. The dashboard art-tag help and an `ArtCardTagService` comment follow the rename. Cache pins: `home-redesign.js?v=140`, `home-redesign.css?v=144`.
+  - **Verification.** New `PackCatalogServiceTest.packOddsNameEachKnightWithItsShareOfTheKnightChance` (pool ids equal the roll's candidates; chances sum to `TRAINER_DROP_CHANCE`); `PackCatalogServiceTest` (17) and `PackAvailabilityCatalogServiceTest` (3) green via the installed `mvn` (the wrapper download is blocked here). `node --check`. Headless Chromium on the preview shop with a mocked Fire pack at 390x844 and 1920x1080: stage reads "Fire Siegeknight Pack" with the new text, the Odds sheet lists 7 knights at 0.4% each under 3%, fits the viewport. No page errors.
+
+Original prompt: The images should be siegeknights of that element
+
+- October 24, 2026 **Shop: the Siegeknight (summon) tab now shows that element's SiegeKnights.**
+  - **Change.** `home-redesign.js` adds `elementKnights(el)` (SIEGEKNIGHT entries from the live `ALL_CARDS`, falling back to the offline `DATA.knights`, highest rarity first) and `summonKnight(el)` (the first of those with a `KNIGHT_ART` shop portrait). When an element has one, the summon tab thumb and the stage backdrop use that knight's portrait at its own `pos`. The stage's pennant now lists the element's SiegeKnights instead of its Siegelings (`knightPennant`: shop portrait where one exists, else a card-art thumb, each portrait shown once). Elements with no portrait (Earth's Aldera, Psychic's Lyria) keep their element scene but still show their knights in the pennant; elements with no knights at all (Metal, Poison, Shadow, Undead, Light) keep the scene and show no pennant. New 480px tab cuts `img/shop/knight-*-480.webp`. Pack contents and server pack names are unchanged. Cache pin: `home-redesign.js?v=139`.
+  - **Verification.** `node --check`. Headless Chromium on `home-redesign-preview.html?screen=shop` with mocked summon packs at 390x844 and 1920x1080: Fire → tab `knight-pyla-480.webp`, backdrop `knight-pyla.webp`, pennant "Lady Pyla"; Earth → element banner with pennant "Aldera"; Metal → `scene-metal` with no pennant. No page errors.
+
+Original prompt: in shop change Siegeling Summon to Siegeknight
+
+- October 24, 2026 **Shop: the summon tab and its stage kicker now read "Siegeknight".**
+  - **Change.** `home-redesign.js` renames the shop's first tab label and the summon stage's kicker from "Siegeling Summon" to "Siegeknight". The tab id (`summon`), pack ids, server pack names (`PackCatalogService` still names packs "<Element> Siegeling Summon") and the stage title/sub ("<Element> Siegelings") are unchanged. Cache pin: `home-redesign.js?v=138` (`home-next.html`, `home-redesign-preview.html`).
+  - **Verification.** `node --check` on `home-redesign.js`; grep confirms no other "Siegeling Summon" label remains in the hub UI.
+
 Original prompt: pick up the landing-page binder follow-up and wire renderBinderFace into the Gold Activated Notches change.
 
 - October 23, 2026 **Gold Activated Notches follow-up: the landing-page binder's `renderBinderFace` now emits the glow too.**
