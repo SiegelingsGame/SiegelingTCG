@@ -1,3 +1,9 @@
+Original prompt: (follow-up) Element Siegeknight Packs should only drop that element's SiegeKnights — "Yes"
+
+- October 24, 2026 **Siegeknight Packs roll only their own element's SiegeKnights.**
+  - **Change.** `PackCatalogService.bonusTrainerCandidates` now gives an element Siegeknight Pack (`pack_siegeling_<element>`, not `pack_siegeling_random`) only the knights of that element; Neutral knights no longer share its 3% roll. If the element has no knight live it falls back to the old shared pool, so the advertised chance is never one the pack cannot pay. Every other pack keeps element + Neutral knights. `odds.siegeKnightPool` reads the same method, so the shop's Odds sheet updates with no frontend change (live Fire: Ser Apollo, Pyla, Lady Pyla at 1% each instead of 8 knights at 0.38%).
+  - **Verification.** New `PackCatalogServiceTest.siegeknightPackRollsOnlyItsOwnElementsKnights` (Fire summon → only the Fire knight; Earth summon with no Earth knight → shared pool). `PackCatalogServiceTest` (18) and `PackAvailabilityCatalogServiceTest` (3) green via the installed `mvn`.
+
 Original prompt: The text should say Fire Siegeknight Pack - Each pack has a chance to drop a siegeknight add it to the percentage of the pulls
 
 - October 24, 2026 **Shop: element summons are now "<Element> Siegeknight Pack", and the odds sheet names every knight a pack can drop.**
