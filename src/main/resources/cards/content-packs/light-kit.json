@@ -1,6 +1,6 @@
 {
   "id": "light-kit-2026-10",
-  "description": "Light shared moves themed on healing and raising max Health, Patience's signature Everdawn (the new overheal key), and move assignments for the live Light Sieglings. Costed moves pay from the Light energy pool. Common and rare+ cards receive 3 and 5 moves; Glare stays as each card's free attack.",
+  "description": "Light shared moves themed on healing and raising max Health, Patience's signature Everdawn (the new overheal key), and move assignments for the live Light Siegelings. Costed moves pay from the Light energy pool. Common and rare+ cards receive 3 and 5 moves; Glare stays as each card's free attack.",
   "moves": [
     {
       "id": "light-glimmer-mend",

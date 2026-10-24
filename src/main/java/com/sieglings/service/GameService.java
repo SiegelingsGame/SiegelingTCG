@@ -261,13 +261,13 @@ public class GameService {
     public record GauntletSide(String name, List<Card> deck, TrainerCard trainer, int maxHealth,
                             int openingHandSize, List<GauntletPlacement> board, String label) {}
 
-    /** A Siegling already standing on the board when an Gauntlet battle opens (e.g. a Draco pack). */
+    /** A Siegeling already standing on the board when an Gauntlet battle opens (e.g. a Draco pack). */
     public record GauntletPlacement(SieglingCard card, int row, int col) {}
 
     /**
      * Starts an Gauntlet run's battle. Same rules engine and client as a solo match; what
      * differs is that both decks come from the run, HP is set per encounter (25 for the
-     * player, a little for a lone wild Siegling, 30 for a floor-ten knight), wild packs
+     * player, a little for a lone wild Siegeling, 30 for a floor-ten knight), wild packs
      * fight with no SiegeKnight, and the pack can already be on the board.
      */
     public SoloHandle newGauntletGame(GauntletSide playerSide, GauntletSide enemySide, int floor,
@@ -495,7 +495,7 @@ public class GameService {
     public GameState placeSiegling(GameState state, boolean isPlayerSide, String cardId, int row, int col) {
         if (state == null || state.isGameOver()) return state;
         if (state.isPlayerTurn() != isPlayerSide) {
-            state.log("Wait for your turn before placing a Siegling.");
+            state.log("Wait for your turn before placing a Siegeling.");
             return state;
         }
         if (state.getCurrentPhase() != Phase.SETUP) {
@@ -506,7 +506,7 @@ public class GameService {
         Player actor = getSidePlayer(state, isPlayerSide);
         Card card = findInHand(actor, cardId);
         if (!(card instanceof SieglingCard siegling)) {
-            state.log("Card not found in hand or not a Siegling!");
+            state.log("Card not found in hand or not a Siegeling!");
             return state;
         }
         if (!isTutorialTurnOnePlacementAllowed(state, isPlayerSide, siegling)) {
@@ -539,8 +539,8 @@ public class GameService {
         energyService.recalculateEnergy(state);
         if (state.isSieglingSetupBudgetExhausted(isPlayerSide)) {
             state.log(evolutionPlacement
-                    ? "No Siegling setup actions left this turn — evolutions still cost 1 action."
-                    : "No Siegling setup actions left this turn (1 base + 1 per energy in your pool when you entered setup).");
+                    ? "No Siegeling setup actions left this turn — evolutions still cost 1 action."
+                    : "No Siegeling setup actions left this turn (1 base + 1 per energy in your pool when you entered setup).");
             return state;
         }
         CardInstance instance = placementService.createPlacedInstance(existing, siegling, isPlayerSide, row, col);
@@ -567,17 +567,17 @@ public class GameService {
     public GameState claimSiegling(GameState state, boolean isPlayerSide, int row, int col) {
         if (state == null || state.isGameOver()) return state;
         if (state.isPlayerTurn() != isPlayerSide) {
-            state.log("Wait for your turn before claiming a Siegling.");
+            state.log("Wait for your turn before claiming a Siegeling.");
             return state;
         }
         if (state.getCurrentPhase() != Phase.SETUP) {
-            state.log("You can only claim Sieglings during Setup phase.");
+            state.log("You can only claim Siegelings during Setup phase.");
             return state;
         }
 
         CardInstance claimed = state.getAt(isPlayerSide, row, col);
         if (claimed == null || !claimed.isAlive()) {
-            state.log("No Siegling is there to claim.");
+            state.log("No Siegeling is there to claim.");
             return state;
         }
         if (claimed.getBattlePhasesSeen() <= 0) {
@@ -640,7 +640,7 @@ public class GameService {
                 }
                 CardInstance victim = state.getAt(!isPlayerSide, targetRow, targetCol);
                 if (victim == null || !victim.isAlive()) {
-                    state.log("No enemy Siegling at the chosen cell.");
+                    state.log("No enemy Siegeling at the chosen cell.");
                     return state;
                 }
                 if (state.getAt(!isPlayerSide, destRow, destCol) != null) {
@@ -670,7 +670,7 @@ public class GameService {
                 }
                 CardInstance victim = state.getAt(!isPlayerSide, targetRow, targetCol);
                 if (victim == null || !victim.isAlive()) {
-                    state.log("No enemy Siegling at the chosen cell.");
+                    state.log("No enemy Siegeling at the chosen cell.");
                     return state;
                 }
                 if (state.getAt(!isPlayerSide, destRow, destCol) != null) {
@@ -945,7 +945,7 @@ public class GameService {
         // falls back to the FIRST playable preset, which in production is the
         // mono-Fire "Blazing Core". Taking the scripted cards only from that pool
         // silently dropped squirebud and the Earth Strategies, so the round-three
-        // combo lesson asked for an off-element Siegling the deck could not
+        // combo lesson asked for an off-element Siegeling the deck could not
         // contain. Pulling from the pool first still preserves any dashboard
         // tuning of that copy; the catalog is the guarantee behind it.
         for (String id : List.of(
@@ -1057,7 +1057,7 @@ public class GameService {
         // Priced in a POOL, not a combo. Pricing it as a Fire/Earth combo was
         // tried and reverted: EnergyService recomputes combo points from the
         // connected foundation network, so the claim step — which takes a
-        // Siegling off the board one beat earlier — breaks the very link the
+        // Siegeling off the board one beat earlier — breaks the very link the
         // combo was standing on, and the wipe became uncastable at the exact
         // moment the script asks for it. A pool survives the claim; a link does
         // not, and the claim is what pays for this.
@@ -1083,7 +1083,7 @@ public class GameService {
     }
 
     /**
-     * Move the first off-element Siegling in the tutorial deck to the top, so the
+     * Move the first off-element Siegeling in the tutorial deck to the top, so the
      * round-three draw hands the student a combo partner. Elements already on the
      * player's board are skipped — a second Fire card would link, but it would pay
      * Fire energy, not the combo point the lesson is about.
@@ -1093,7 +1093,7 @@ public class GameService {
             return;
         }
         // Held elements, not just board elements: on an empty board the board-only
-        // rule matches the first Siegling in the deck whatever its element, which
+        // rule matches the first Siegeling in the deck whatever its element, which
         // hoists another Fire card and leaves the lesson exactly as stuck.
         Set<Element> held = tutorialVisibleElements(state, isPlayerSide, actor);
         for (int i = 0; i < actor.getDeck().size(); i++) {
@@ -1110,7 +1110,7 @@ public class GameService {
      * distinct element across both is a dead end no matter how well they play.
      *
      * Deliberately not "is there a card in hand whose element is missing from the
-     * board": on an empty board that is true of every Siegling, so it reads as
+     * board": on an empty board that is true of every Siegeling, so it reads as
      * satisfied while the student holds nothing but Fire — the exact state that was
      * reported.
      */
@@ -1387,7 +1387,7 @@ public class GameService {
         Ability passive = trainer == null ? null : trainer.getAbility();
         boolean activePassive = passive != null && passive.isPassive();
         // A "connected allies" health passive grants its bonus to every allied
-        // Siegling notch-linked to at least one other ally, recomputed here so the
+        // Siegeling notch-linked to at least one other ally, recomputed here so the
         // bonus follows the board's connection network as placements change.
         boolean connectedHealthPassive = activePassive
                 && AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST.equals(passive.getEffectType());
@@ -1566,7 +1566,7 @@ public class GameService {
                 }
             }
         }
-        return "its first Siegling";
+        return "its first Siegeling";
     }
 
     /**

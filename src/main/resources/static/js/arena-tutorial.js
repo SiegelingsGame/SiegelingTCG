@@ -250,9 +250,9 @@
   }
 
   /** A hand card that actually asks for energy, or null. The tutorial's starter
-   *  Sieglings are all free (cost 0) — it is the EVOLUTIONS that carry a cost
+   *  Siegelings are all free (cost 0) — it is the EVOLUTIONS that carry a cost
    *  (Raydile and Dracoil are FIRE 2), so the lesson has to read the hand
-   *  rather than assume a Siegling costs something. */
+   *  rather than assume a Siegeling costs something. */
   function costedCard() {
     var cards = hand().filter(function (c) { return c && c.costAmount > 0 && c.costElement; });
     return cards.find(function (c) { return String(c.id || c.name).toLowerCase() === 'raydile'; }) || cards[0] || null;
@@ -1459,9 +1459,9 @@
         until: function () { return phase() === 'SETUP' || phase() === 'BATTLE'; } },
 
       // Cost is a real rule and it is NOT the same rule for both card kinds:
-      // GameService checks `canAfford` for a Siegling and never spends it
+      // GameService checks `canAfford` for a Siegeling and never spends it
       // (energy is recomputed from links each turn), while a spell or trap goes
-      // through `spendEnergy`. Saying "pay" for a Siegling would be wrong.
+      // through `spendEnergy`. Saying "pay" for a Siegeling would be wrong.
       { id: 't2-cost', title: 'Energy requirements', target: costTarget,
         nodim: true,
         body: function () {

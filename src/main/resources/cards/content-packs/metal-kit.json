@@ -1,6 +1,6 @@
 {
   "id": "metal-kit-2026-10",
-  "description": "Metal shared ability set (direct damage, shields, health), Metal Strategies and Deceptions, and move assignments for the live Metal Sieglings.",
+  "description": "Metal shared ability set (direct damage, shields, health), Metal Strategies and Deceptions, and move assignments for the live Metal Siegelings.",
   "moves": [
     {
       "id": "rivet-shot",
@@ -133,7 +133,7 @@
       "effectType": "shield",
       "effectValue": 2,
       "energyCost": 0,
-      "description": "This Siegling gains +2 Shield",
+      "description": "This Siegeling gains +2 Shield",
       "isPassive": false,
       "requiredElement": null,
       "requiredReaction": null
@@ -252,7 +252,7 @@
       "effectType": "heal",
       "effectValue": 5,
       "energyCost": 2,
-      "description": "Heal this Siegling for 5 HP",
+      "description": "Heal this Siegeling for 5 HP",
       "isPassive": false,
       "requiredElement": null,
       "requiredReaction": null

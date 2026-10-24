@@ -234,7 +234,7 @@
     "ability" : null,
     "abilities" : [ {
       "name" : "Pylook Drift",
-      "description" : "Move this Siegling to an open linked point",
+      "description" : "Move this Siegeling to an open linked point",
       "targetType" : "SELF",
       "targetRow" : null,
       "targetCount" : 0,
@@ -1308,7 +1308,7 @@
     "ability" : null,
     "abilities" : [ {
       "name" : "Squire Bud Drift",
-      "description" : "Move this Siegling to an open linked point",
+      "description" : "Move this Siegeling to an open linked point",
       "targetType" : "SELF",
       "targetRow" : null,
       "targetCount" : 0,
@@ -1527,7 +1527,7 @@
       "requiredReaction" : null
     }, {
       "name" : "Gymstone Barkplate",
-      "description" : "This Siegling gains +1 max Health",
+      "description" : "This Siegeling gains +1 max Health",
       "targetType" : "SINGLE_ALLY",
       "targetRow" : null,
       "targetCount" : 1,
@@ -1626,7 +1626,7 @@
     "ability" : null,
     "abilities" : [ {
       "name" : "Breezee Drift",
-      "description" : "Move this Siegling to an open linked point",
+      "description" : "Move this Siegeling to an open linked point",
       "targetType" : "SELF",
       "targetRow" : null,
       "targetCount" : 0,
@@ -2967,7 +2967,7 @@
     "ability" : null,
     "abilities" : [ {
       "name" : "Spoutyl Drift",
-      "description" : "Move this Siegling to an open linked point",
+      "description" : "Move this Siegeling to an open linked point",
       "targetType" : "SELF",
       "targetRow" : null,
       "targetCount" : 0,
@@ -4104,7 +4104,7 @@
       "requiredReaction" : null
     }, {
       "name" : "Doomshield Dusk Carapace",
-      "description" : "This Siegling gains +1 max Health",
+      "description" : "This Siegeling gains +1 max Health",
       "targetType" : "SINGLE_ALLY",
       "targetRow" : null,
       "targetCount" : 1,
@@ -4254,7 +4254,7 @@
       "requiredReaction" : null
     }, {
       "name" : "Grimshell Dusk Carapace",
-      "description" : "This Siegling gains +1 max Health",
+      "description" : "This Siegeling gains +1 max Health",
       "targetType" : "SINGLE_ALLY",
       "targetRow" : null,
       "targetCount" : 1,
@@ -5292,7 +5292,7 @@
       "requiredReaction" : null
     }, {
       "name" : "Brassguard Guard",
-      "description" : "This Siegling gains +1 max Health",
+      "description" : "This Siegeling gains +1 max Health",
       "targetType" : "SINGLE_ALLY",
       "targetRow" : null,
       "targetCount" : 1,
@@ -5349,7 +5349,7 @@
       "requiredReaction" : null
     }, {
       "name" : "Steelwarden Guard",
-      "description" : "This Siegling gains +1 max Health",
+      "description" : "This Siegeling gains +1 max Health",
       "targetType" : "SINGLE_ALLY",
       "targetRow" : null,
       "targetCount" : 1,
@@ -5667,7 +5667,7 @@
       "requiredReaction" : null
     }, {
       "name" : "Chromelord Guard",
-      "description" : "This Siegling gains +1 max Health",
+      "description" : "This Siegeling gains +1 max Health",
       "targetType" : "SINGLE_ALLY",
       "targetRow" : null,
       "targetCount" : 1,

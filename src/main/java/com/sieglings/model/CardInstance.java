@@ -13,7 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Runtime instance of a Siegling on the board with mutable state.
+ * Runtime instance of a Siegeling on the board with mutable state.
  */
 public class CardInstance {
     private String instanceId;
@@ -28,7 +28,7 @@ public class CardInstance {
     private int trainerPassiveSpeedBuff;
     private int trainerPassiveShieldBuff;
     private int trainerPassiveShieldRemaining;
-    /** Passive team-aura attack damage from allied Sieglings on the board (recomputed when the board changes). */
+    /** Passive team-aura attack damage from allied Siegelings on the board (recomputed when the board changes). */
     private int auraDamageBoost;
     private Set<StatusEffect> statusEffects = new HashSet<>();
     /** Stacking elemental damage afflictions (Burn, Chill, …) — see ElementalAfflictionCatalog. */
@@ -50,7 +50,7 @@ public class CardInstance {
     public CardInstance(SieglingCard card, int row, int col, boolean owner) {
         // IDs must be globally unique: instanceId is used as a stable identity in battle queues,
         // connected-network traversal, and UI diffing. Shortened UUIDs can collide and cause
-        // unrelated Sieglings to "disappear" when one is defeated.
+        // unrelated Siegelings to "disappear" when one is defeated.
         this.instanceId = UUID.randomUUID().toString();
         this.card = card;
         this.currentHealth = card.getHealth();

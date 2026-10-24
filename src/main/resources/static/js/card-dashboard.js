@@ -3433,7 +3433,7 @@
     }
 
     /**
-     * Options are built from the values the current Siegling roster actually uses, so a designer never
+     * Options are built from the values the current Siegeling roster actually uses, so a designer never
      * picks a notch count or cost that can only return an empty list. A previously chosen value that no
      * card uses any more is kept so the filter does not silently reset mid-edit.
      */
@@ -3708,7 +3708,7 @@
     }
 
     /**
-     * An active resolves on the targets the designer picked, so it reads like a Siegling move — the
+     * An active resolves on the targets the designer picked, so it reads like a Siegeling move — the
      * SiegeKnight's own element must not leak into the blurb the way it does for a passive aura.
      */
     function buildAutoTrainerActiveDescription(ability) {

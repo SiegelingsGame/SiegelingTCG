@@ -4,7 +4,7 @@ import com.sieglings.model.enums.Element;
 import com.sieglings.model.enums.TargetType;
 
 /**
- * Runtime battle choice exposed to the UI for one acting Siegling.
+ * Runtime battle choice exposed to the UI for one acting Siegeling.
  */
 public class BattleAbilityOption {
     private int index;

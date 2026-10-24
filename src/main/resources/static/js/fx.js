@@ -1,5 +1,5 @@
 /**
- * Sieglings TCG — DOM Canvas FX Layer
+ * Siegelings TCG — DOM Canvas FX Layer
  * Pure Canvas 2D. No libraries. Sits above the HTML board via a fixed transparent overlay.
  *
  * Public API (window.SieglingsFx):

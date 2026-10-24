@@ -557,11 +557,11 @@ function validateCards(cards, moves) {
 
     const cardType = normalizeCardType(card?.type || card?.cardType || inferCardType(card));
     if (cardType === 'SIEGLING') {
-      validateEnum(card?.preferredRow, ROWS, `Siegling '${cardId}' needs a valid preferred row.`);
+      validateEnum(card?.preferredRow, ROWS, `Siegeling '${cardId}' needs a valid preferred row.`);
       const ids = Array.isArray(card?.moveIds) ? card.moveIds.map(normalizeLower).filter(Boolean) : [];
       for (const moveId of ids) {
         if (!moveIds.has(moveId)) {
-          throw badRequest(`Siegling '${cardId}' references unknown move id '${moveId}'.`);
+          throw badRequest(`Siegeling '${cardId}' references unknown move id '${moveId}'.`);
         }
       }
     } else {

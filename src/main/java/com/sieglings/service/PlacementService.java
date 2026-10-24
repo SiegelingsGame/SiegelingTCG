@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Determines legal placement positions for Sieglings on the board.
+ * Determines legal placement positions for Siegelings on the board.
  */
 @Service
 public class PlacementService {

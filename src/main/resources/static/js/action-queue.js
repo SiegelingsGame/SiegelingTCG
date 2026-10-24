@@ -1,5 +1,5 @@
 /**
- * Sieglings TCG — Real-Time Playback System
+ * Siegelings TCG — Real-Time Playback System
  *
  * Per-move animation + toast notification queue. Drives:
  *   - Toast notifications (top-of-screen, knight-tinted, queued)
@@ -567,7 +567,7 @@
      * Chain damage playback. The effect is about the links, so it has to read as
      * one strike that ricochets: the projectile crosses the board to the card the
      * ability actually targeted, lands, and only then do arcs jump from that card
-     * to each Siegling wired to it. (The generic multi-target barrage fires
+     * to each Siegeling wired to it. (The generic multi-target barrage fires
      * everything from the attacker at once, which hid the link entirely.)
      *
      * Victims killed by a hop keep their card on screen until every hop is done —
@@ -650,7 +650,7 @@
 
         for (const step of action.chainSteps) {
             // Initial target lands first and alone; the shock then jumps to each
-            // connected Siegling one at a time, so the arc order is readable
+            // connected Siegeling one at a time, so the arc order is readable
             // instead of every link flashing on the same frame.
             await playHop(action.source, [step.primary]);
             for (const link of step.links) {
@@ -765,7 +765,7 @@
         return { x: 0, y: 100 - ((p - 0.75) / 0.25) * 100 };
     }
 
-    // The house visual for anything that happens to a card without a Siegling
+    // The house visual for anything that happens to a card without a Siegeling
     // attacking it — affliction ticks, badges landing, trap/aura/effect damage,
     // status applications, heals. Projectiles stay reserved for real attacks, so
     // these light the element around the card's border instead. Fixed positioned
@@ -1126,7 +1126,7 @@
         return { target: m[1].trim(), affliction, stacks };
     }
     // Chain damage announces its shape before the damage lines land:
-    //   "<Ability> arcs through <Primary>'s links to 2 connected Sieglings!"
+    //   "<Ability> arcs through <Primary>'s links to 2 connected Siegelings!"
     //   "<Ability> finds no links on <Primary>."
     // The named card is the one the projectile strikes first — every other
     // victim of that ability in the same batch is a bounce off it. Board diffs
@@ -1134,7 +1134,7 @@
     // struck target from the cards the arc jumped to.
     function parseChainArcFromLog(line) {
         const text = stripLogPrefix(line);
-        let m = text.match(/^(.+?)\s+arcs\s+through\s+(.+?)'s\s+links\s+to\s+(\d+)\s+connected\s+Siegling/i);
+        let m = text.match(/^(.+?)\s+arcs\s+through\s+(.+?)'s\s+links\s+to\s+(\d+)\s+connected\s+Siege?ling/i);
         if (m) return { ability: m[1].trim(), primary: m[2].trim(), links: parseInt(m[3], 10) };
         m = text.match(/^(.+?)\s+finds\s+no\s+links\s+on\s+(.+?)[.!]?$/i);
         if (m) return { ability: m[1].trim(), primary: m[2].trim(), links: 0 };
@@ -2539,7 +2539,7 @@
             //   2. Log lines like "X uses Y" + "Y deals N damage to TARGET"
             //   3. Direct "<CardName> deals N damage to TARGET" lines
             // We deliberately do NOT fall back to "first cell on board" — that
-            // mis-pinned every effect-damage event onto whatever Siegling
+            // mis-pinned every effect-damage event onto whatever Siegeling
             // happened to be in row 0 / col 0 (e.g. Emberfin) and caused the
             // "Emberfin attacks Sleaf" phantom toasts from the bug report.
             const resolvePlayerSource = (t) => {
@@ -2847,7 +2847,7 @@
                     : null;
 
                 // Status-only group (e.g. an enemy aura applies Weak to a
-                // newly-placed player Siegling with no HP change). Don't
+                // newly-placed player Siegeling with no HP change). Don't
                 // route through the ATTACK path — that produces phantom
                 // "AI attacks X" toasts even though no attack happened.
                 // Emit a STATUS_APPLY action per affected target instead.
@@ -3181,7 +3181,7 @@
             if (!soloAiEndFlow) enqueuePhaseTransitionAction();
 
             // Placements last — individually paced so the player can see each
-            // AI Siegling appear before the next one arrives. First placement
+            // AI Siegeling appear before the next one arrives. First placement
             // in this batch gets the longer "settle" gap, subsequent ones
             // step on a tighter beat.
             const enqueuePlacement = (p, side, knight, actorName) => {
@@ -3198,7 +3198,7 @@
             const prevEnemyHp  = Number(prevState.enemy?.health  ?? prevState.enemyHealth);
             const nextEnemyHp  = Number(nextState.enemy?.health  ?? nextState.enemyHealth);
 
-            // Siege (bounty) damage is dealt the moment its Siegling dies, but
+            // Siege (bounty) damage is dealt the moment its Siegeling dies, but
             // the HP diff is only known for the whole step, so it used to play
             // after every other hit in the battle - the kill landed, then the
             // rest of the battle played, and only then did the owner's HP move.

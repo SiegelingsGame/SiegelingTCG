@@ -20,7 +20,7 @@
             id: 'arena',
             icon: '⚔️',
             name: 'Arena',
-            sub: 'Battle (PvE or PvP), Gauntlet or Tutorial. Go 1v1 across the table. Connect your Sieglings notch-to-notch to build elemental energy, then spend it to break their board.'
+            sub: 'Battle (PvE or PvP), Gauntlet or Tutorial. Go 1v1 across the table. Connect your Siegelings notch-to-notch to build elemental energy, then spend it to break their board.'
         },
         {
             id: 'siege',

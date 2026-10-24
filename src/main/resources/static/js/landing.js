@@ -181,13 +181,13 @@
         if (ability) return String(ability);
         const move = card.moves?.find((entry) => entry && entry.description)?.description;
         if (move) return String(move);
-        return `A ${String(card.element || 'neutral').toLowerCase()} Siegling ready to shape your next battle.`;
+        return `A ${String(card.element || 'neutral').toLowerCase()} Siegeling ready to shape your next battle.`;
     }
 
     function normalizeRosterCard(card) {
         return {
             ...card,
-            name: String(card.name || 'Unknown Siegling'),
+            name: String(card.name || 'Unknown Siegeling'),
             element: String(card.element || 'NEUTRAL').toUpperCase(),
             rarity: String(card.rarity || 'COMMON').toUpperCase(),
             art: String(card.cardArtUrl || ''),
@@ -195,7 +195,7 @@
         };
     }
 
-    // One catalog request feeds both the Siegling roster and the SiegeKnight rail;
+    // One catalog request feeds both the Siegeling roster and the SiegeKnight rail;
     // the payload carries `cardCatalog` and `trainers` together.
     let __gameOptions = null;
     // Evolution chips show the precursor's art, looked up by evolvesFromId.
@@ -376,7 +376,7 @@
 
     // ── Binder card face ────────────────────────────────────────────────
     // The same markup card-binder-visual.js renderBinderCardTile produces for a
-    // framed Siegling (via game.js renderShowcaseCard), so css/card-face.css,
+    // framed Siegeling (via game.js renderShowcaseCard), so css/card-face.css,
     // which is extracted from style.css, draws it identically. Kept local
     // because the landing page cannot afford to load game.js just for this.
     const FRAME_FAMILY = {
@@ -390,7 +390,7 @@
         FIRE: '#ff501e', EARTH: '#b48c50', WIND: '#96ffb4', WATER: '#3296ff', ICE: '#76e6ff', SHADOW: '#7832b4',
         ELECTRIC: '#ffe63c', METAL: '#a0aab4', UNDEAD: '#8c78a0', PSYCHIC: '#c896ff', POISON: '#7ecb4d', LIGHT: '#ffe59a', NEUTRAL: '#95a5a6'
     };
-    // game.js getCompactSummaryInkPalette, Siegling branch.
+    // game.js getCompactSummaryInkPalette, Siegeling branch.
     const SUMMARY_INK = {
         FIRE:     ['#a8f4ff', '#fff7b0', '#dafbff', 'rgba(5, 18, 28, 0.94)'],
         EARTH:    ['#c8d7ff', '#fff0ac', '#e6ecff', 'rgba(13, 14, 27, 0.92)'],
@@ -800,7 +800,7 @@
 
     // The landing page shows a sample, not the catalog: a few per element, one
     // of each rarity where the element has it, so every element is represented
-    // and the page loads two dozen cards instead of every Siegling. Legendaries
+    // and the page loads two dozen cards instead of every Siegeling. Legendaries
     // have their own section below.
     const ROSTER_PER_ELEMENT = 4;
     const ROSTER_RARITY_ORDER = ['EPIC', 'RARE', 'UNCOMMON', 'COMMON'];
@@ -977,7 +977,7 @@
             spotlight.innerHTML = `
                 <img class="roster-spotlight-art" ${thumbAttrs(entry.art, 240)} alt="">
                 <div class="roster-spotlight-copy">
-                    <span class="roster-element">${escapeHtml(entry.element)} · ${escapeHtml(entry.rarity || 'Siegling')}</span>
+                    <span class="roster-element">${escapeHtml(entry.element)} · ${escapeHtml(entry.rarity || 'Siegeling')}</span>
                     <h3>${escapeHtml(entry.name)}</h3>
                     <p>${escapeHtml(entry.description)}</p>
                 </div>
@@ -1050,7 +1050,7 @@
             // Shipped art keeps the legendary row painted offline.
         }
         host.innerHTML = legends.map((card) => `
-            <article class="legendary-card" aria-label="${escapeAttr(card.name)}, legendary ${escapeAttr(card.element)} Siegling">
+            <article class="legendary-card" aria-label="${escapeAttr(card.name)}, legendary ${escapeAttr(card.element)} Siegeling">
                 ${renderBinderFace(card, { thumbWidth: 480, spArt: true })}
                 ${card.pitch ? `<p>${escapeHtml(card.pitch)}</p>` : ''}
             </article>`).join('');
@@ -1058,7 +1058,7 @@
     }
 
     // ── Rarity and finish showcase ───────────────────────────────────────
-    // Five Sieglings, one per rarity tier, in their own frames. The finish
+    // Five Siegelings, one per rarity tier, in their own frames. The finish
     // picker re-dresses the same five the way the game draws each finish
     // (card-binder-visual.js holographicClass/renderFinishOverlay): Holo is a
     // sheen over the standard art; SP and up swap in the SP art. Bounties
