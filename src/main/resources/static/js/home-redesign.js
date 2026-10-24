@@ -3708,9 +3708,23 @@
     'squirebobsp':       { file: 'squire-bob', pos: '38% 35%' },
     'new-siegeknight-2': { file: 'ser-bob', pos: '56% 30%' }
   };
-  function knightArt(id) {
+  function knightArt(id, thumb) {
     var k = KNIGHT_ART[id];
-    return k ? '/img/shop/knight-' + k.file + '.webp' : '';
+    return k ? '/img/shop/knight-' + k.file + (thumb ? '-480' : '') + '.webp' : '';
+  }
+  // The summon tab is dressed as that element's SiegeKnights. The live catalog
+  // carries knights in ALL_CARDS; the offline snapshot keeps them apart.
+  function elementKnights(el) {
+    var key = String(el || '').toUpperCase();
+    var pool = ALL_CARDS.filter(isKnight);
+    if (!pool.length) pool = DATA.knights || [];
+    return pool.filter(function (k) { return String(k.element || '').toUpperCase() === key; })
+      .sort(function (a, b) { return rarityRank(b) - rarityRank(a); });
+  }
+  // Highest-rarity knight of the element that has a shop portrait, else null
+  // and the summon keeps its element scene.
+  function summonKnight(el) {
+    return elementKnights(el).filter(function (k) { return KNIGHT_ART[k.id]; })[0] || null;
   }
   // Elements whose summon stands on a shop scene (`scene-<id>.webp`) rather
   // than a banner; the same scene backs that element's packs and cards.
@@ -3793,7 +3807,11 @@
     var pack = packs.filter(function (pk) { return pk.id === opts.shopPack; })[0] || packs[0] || null;
     var tabs = [];
     var summonTag = summon && artForSlot('summon:' + packElement(summon));
-    if (summon) tabs.push({ id: 'summon', label: 'Siegeknight', art: summonArt(packElement(summon), true), face: summonTag ? summonTag.focus || '50% 50%' : SUMMON_SCENE[packElement(summon)] ? ELEMENT_STAGE[packElement(summon)].pos : SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
+    var summonLead = summon && summonKnight(packElement(summon));
+    if (summon) tabs.push({ id: 'summon', label: 'Siegeknight',
+      art: summonLead ? knightArt(summonLead.id, true) : summonArt(packElement(summon), true),
+      face: summonLead ? KNIGHT_ART[summonLead.id].pos : summonTag ? summonTag.focus || '50% 50%' : SUMMON_SCENE[packElement(summon)] ? ELEMENT_STAGE[packElement(summon)].pos : SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%',
+      el: packElement(summon) });
     if (pack) tabs.push({ id: 'packs', label: 'Pack Market', art: sceneArt('market', true), face: SHOP_SCENE.market.face, el: 'EARTH' });
     if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: sceneArt('cards', true), face: SHOP_SCENE.cards.face, el: 'LIGHT' });
     if (titles.length) tabs.push({ id: 'titles', label: 'Title Hall', art: sceneArt('throne', true), face: SHOP_SCENE.throne.face, el: 'WATER' });
@@ -3901,18 +3919,43 @@
     };
   }
 
+  // Knight faces: the shop portrait where one exists (framed by its own `pos`),
+  // else a thumb of the card art.
+  function knightPennant(knights) {
+    var visual = window.SieglingsCardBinderVisual;
+    var seen = {};
+    var withArt = knights.filter(function (k) {
+      // Several ids share one portrait (Pyla's two cards); show that face once.
+      var key = KNIGHT_ART[k.id] ? KNIGHT_ART[k.id].file : k.cardArtUrl;
+      if (!key || seen[key]) return false;
+      seen[key] = true;
+      return true;
+    }).slice(0, 4);
+    if (!withArt.length) return null;
+    return {
+      title: 'SiegeKnights',
+      items: withArt.map(function (k) {
+        var src = KNIGHT_ART[k.id] ? knightArt(k.id, true)
+          : visual && visual.artThumbSrc ? visual.artThumbSrc(k.cardArtUrl, 160) : k.cardArtUrl;
+        var pos = KNIGHT_ART[k.id] ? ' style="object-position:' + esc(KNIGHT_ART[k.id].pos) + '"' : '';
+        return '<span class="sg-gpennant-face" style="--el:' + color(k.element) + ';--rar:' + rarityColor(k.rarity) + '">' +
+          '<img src="' + esc(src) + '" alt="" loading="lazy"' + pos + '><em>' + esc(k.name) + '</em></span>';
+      }).join('')
+    };
+  }
+
   function summonPanel(m) {
     var pk = m.summon;
     var el = packElement(pk);
-    var pool = CARDS.filter(function (c) { return String(c.element || '').toUpperCase() === el; })
-      .sort(function (a, b) { return rarityRank(b) - rarityRank(a); });
-    var tagged = artForSlot('summon:' + el);
+    var knights = elementKnights(el);
+    var lead = summonKnight(el);
+    var tagged = lead ? null : artForSlot('summon:' + el);
     return stage({
-        kind: 'summon', el: el, art: summonArt(el), piece: tagged,
-        pos: tagged ? tagged.focus : ELEMENT_STAGE[el] && SUMMON_SCENE[el] ? ELEMENT_STAGE[el].pos : '',
+        kind: 'summon', el: el, art: lead ? knightArt(lead.id) : summonArt(el), piece: tagged,
+        pos: lead ? KNIGHT_ART[lead.id].pos : tagged ? tagged.focus : ELEMENT_STAGE[el] && SUMMON_SCENE[el] ? ELEMENT_STAGE[el].pos : '',
         kicker: 'Siegeknight', title: title(el) + ' Siegelings', sub: title(el) + ' only',
         text: pk.description,
-        pennant: pennantFaces('Featured', pool),
+        pennant: knightPennant(knights),
         select: '<div class="sg-gselect" role="radiogroup" aria-label="Summon element">' + m.summons.map(function (s) {
           var e = packElement(s);
           var on = s === pk;

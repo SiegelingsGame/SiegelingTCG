@@ -1,3 +1,9 @@
+Original prompt: The images should be siegeknights of that element
+
+- October 24, 2026 **Shop: the Siegeknight (summon) tab now shows that element's SiegeKnights.**
+  - **Change.** `home-redesign.js` adds `elementKnights(el)` (SIEGEKNIGHT entries from the live `ALL_CARDS`, falling back to the offline `DATA.knights`, highest rarity first) and `summonKnight(el)` (the first of those with a `KNIGHT_ART` shop portrait). When an element has one, the summon tab thumb and the stage backdrop use that knight's portrait at its own `pos`. The stage's pennant now lists the element's SiegeKnights instead of its Siegelings (`knightPennant`: shop portrait where one exists, else a card-art thumb, each portrait shown once). Elements with no portrait (Earth's Aldera, Psychic's Lyria) keep their element scene but still show their knights in the pennant; elements with no knights at all (Metal, Poison, Shadow, Undead, Light) keep the scene and show no pennant. New 480px tab cuts `img/shop/knight-*-480.webp`. Pack contents and server pack names are unchanged. Cache pin: `home-redesign.js?v=139`.
+  - **Verification.** `node --check`. Headless Chromium on `home-redesign-preview.html?screen=shop` with mocked summon packs at 390x844 and 1920x1080: Fire → tab `knight-pyla-480.webp`, backdrop `knight-pyla.webp`, pennant "Lady Pyla"; Earth → element banner with pennant "Aldera"; Metal → `scene-metal` with no pennant. No page errors.
+
 Original prompt: in shop change Siegeling Summon to Siegeknight
 
 - October 24, 2026 **Shop: the summon tab and its stage kicker now read "Siegeknight".**
