@@ -3706,7 +3706,14 @@
     'new-siegeknight-3': { file: 'high-cleric-catherine', pos: '52% 30%' },
     'squire-bob':        { file: 'squire-bob', pos: '38% 35%' },
     'squirebobsp':       { file: 'squire-bob', pos: '38% 35%' },
-    'new-siegeknight-2': { file: 'ser-bob', pos: '56% 30%' }
+    'new-siegeknight-2': { file: 'ser-bob', pos: '56% 30%' },
+    // Portrait plates (2:3, Shadow 1:2): `pos` keeps the face in the band a
+    // wide screen crops to.
+    'anton':             { file: 'anton', pos: '49% 25%' },
+    'virelia':           { file: 'virelia', pos: '46% 23%' },
+    'morgana':           { file: 'morgana', pos: '53% 19%' },
+    'celeste':           { file: 'celeste', pos: '48% 22%' },
+    'damian':            { file: 'damian', pos: '49% 24%' }
   };
   function knightArt(id, thumb) {
     var k = KNIGHT_ART[id];
@@ -10737,6 +10744,16 @@
     }
   }
 
+  // Shop tab labels wrap between words, but a single long word ("Siegeknight")
+  // cannot, and on a phone it ran into the tab's gem; shrink it to its box.
+  function fitTabLabels(root) {
+    var nodes = (root || document).querySelectorAll('.sg-gtab-label');
+    for (var i = 0; i < nodes.length; i++) {
+      if (!nodes[i].getClientRects().length) continue;
+      fitOneName(nodes[i]);
+    }
+  }
+
   function fitCardDescriptions(root) {
     var scope = root || document;
     var nodes = scope.querySelectorAll('.sg-card-tile .card-summary-description');
@@ -10756,6 +10773,7 @@
       fitFrame = null;
       fitCardDescriptions(root);
       fitTileNames(root);
+      fitTabLabels(root);
     });
   }
 
