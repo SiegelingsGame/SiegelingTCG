@@ -201,7 +201,7 @@ public class EffectService {
     }
 
     /**
-     * Siegling "all allies" damage/health/speed buffs are elemental auras (e.g. all Fire allies).
+     * Siegeling "all allies" damage/health/speed buffs are elemental auras (e.g. all Fire allies).
      * Without filtering, {@link TargetType#ALL_ALLIES} would hit every ally on board.
      */
     private List<CardInstance> filterSameElementTeamBuffs(Ability ability, CardInstance source, List<CardInstance> targets) {
@@ -510,7 +510,7 @@ public class EffectService {
     }
 
     /**
-     * Chain damage hits the picked target and everything wired to it: each Siegling that shares an
+     * Chain damage hits the picked target and everything wired to it: each Siegeling that shares an
      * active reciprocal notch link with that target, on the target's own board. Weakness and
      * afflictions are scored per victim.
      */
@@ -529,7 +529,7 @@ public class EffectService {
                 state.log(ability.getName() + " finds no links on " + primary.getName() + ".");
             } else {
                 state.log(ability.getName() + " arcs through " + primary.getName() + "'s links to "
-                        + linked.size() + " connected Siegling" + (linked.size() == 1 ? "" : "s") + "!");
+                        + linked.size() + " connected Siegeling" + (linked.size() == 1 ? "" : "s") + "!");
                 linked.forEach(ally -> addUnique(victims, ally));
             }
         }
@@ -539,7 +539,7 @@ public class EffectService {
         }
     }
 
-    /** Sieglings that a chain effect jumps to from {@code primary} (its directly linked neighbours). */
+    /** Siegelings that a chain effect jumps to from {@code primary} (its directly linked neighbours). */
     public List<CardInstance> getChainedTargets(GameState state, CardInstance primary) {
         return placementService.getDirectlyConnectedAllies(state, primary);
     }
@@ -559,7 +559,7 @@ public class EffectService {
 
     /**
      * Auto-target for chain damage (AI turns and untargeted resolution): the enemy whose links
-     * carry the hit to the most Sieglings, breaking ties on the weakest primary target.
+     * carry the hit to the most Siegelings, breaking ties on the weakest primary target.
      */
     private CardInstance findBestChainTarget(GameState state, boolean side, Row preferredRow) {
         List<CardInstance> candidates = new ArrayList<>();
@@ -1003,7 +1003,7 @@ public class EffectService {
     }
 
     /**
-     * Recomputes attack-damage boosts from passive allied Siegling auras (e.g. Pylook Aura on the board).
+     * Recomputes attack-damage boosts from passive allied Siegeling auras (e.g. Pylook Aura on the board).
      * Trainer/actives use {@link CardInstance#addDamageBuff}; this only sets {@link CardInstance#setAuraDamageBoost}.
      */
     public void recalculateBoardAuraDamageBoosts(GameState state) {

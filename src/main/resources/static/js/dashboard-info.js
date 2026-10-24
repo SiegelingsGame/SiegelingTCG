@@ -133,7 +133,7 @@
     };
 
     topics['siegling-size'] = {
-        title: 'Siegling Size',
+        title: 'Siegeling Size',
         html: '<p>How big the Siegeling stands where it is drawn at world scale rather than as a card — today the paper cutouts in the Keep enclave.</p>' +
             table([
                 row(['<strong>Auto</strong>', 'Follows rarity: Common/Uncommon small, Rare medium, Epic large, Legendary gigantic. Updates on its own if you change the rarity.']),

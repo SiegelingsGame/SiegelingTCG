@@ -220,7 +220,7 @@ class PackCatalogServiceTest {
                 ShopPriceCatalogService.DEFAULT_PRICE_BY_RARITY.get(siegling.card().getRarity()),
                 siegling.price()
         );
-        assertTrue(knight.price() > siegling.price(), "Knights should cost more than same-day Siegling buys");
+        assertTrue(knight.price() > siegling.price(), "Knights should cost more than same-day Siegeling buys");
     }
 
     @Test

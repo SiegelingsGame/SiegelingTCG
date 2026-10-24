@@ -85,10 +85,10 @@ final class ManualSieglingCatalog {
                 .toList();
 
         // The published override file is the authoritative full roster — the dashboard
-        // exports every card it knows about. When it carries Siegling definitions, build
+        // exports every card it knows about. When it carries Siegeling definitions, build
         // the element's roster strictly from them so a card deleted in the dashboard
         // stays deleted instead of falling back to its generated seed. When there are no
-        // Siegling overrides at all, keep the generated roster so an empty or missing
+        // Siegeling overrides at all, keep the generated roster so an empty or missing
         // override file never wipes the catalog.
         Map<String, SieglingCard> cardsById = new LinkedHashMap<>();
         if (sieglingDefinitions.isEmpty()) {
@@ -97,7 +97,7 @@ final class ManualSieglingCatalog {
             for (ManualSieglingDefinition definition : sieglingDefinitions) {
                 String id = normalizeId(definition.id());
                 if (id == null) {
-                    throw new IllegalStateException("Manual Siegling definitions require a non-blank id.");
+                    throw new IllegalStateException("Manual Siegeling definitions require a non-blank id.");
                 }
 
                 SieglingCard generated = generatedById.get(id);
@@ -552,7 +552,7 @@ final class ManualSieglingCatalog {
 
     /**
      * Cards the dashboard has not pinned a size on fall back to the rarity band, so surfaces
-     * that draw Sieglings at world scale (Keep enclave cutouts) always have a size to read.
+     * that draw Siegelings at world scale (Keep enclave cutouts) always have a size to read.
      */
     private static void applyDefaultSizes(Map<String, SieglingCard> cardsById) {
         for (SieglingCard card : cardsById.values()) {
@@ -626,7 +626,7 @@ final class ManualSieglingCatalog {
             String id = normalizeId(definition.id());
             requireField(id != null, "<unknown>", "id");
             if (!ids.add(id)) {
-                throw new IllegalStateException("Duplicate manual Siegling definition id '" + id + "'.");
+                throw new IllegalStateException("Duplicate manual Siegeling definition id '" + id + "'.");
             }
             validateCardArtForStorage(definition);
             if (hasText(definition.size()) && SieglingSize.parse(definition.size()) == null) {

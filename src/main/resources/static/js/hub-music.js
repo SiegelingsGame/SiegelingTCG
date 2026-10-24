@@ -32,7 +32,7 @@
   ].map(function (t) { t.src = '/audio/biomes/' + t.id + '.mp3?v=1'; return t; }).concat([
     // The rest of the soundtrack: the Keep and Siege play these in place, and
     // the hub player is where every song can be heard on demand.
-    { id: 'main',          title: 'Sieglings Theme',     el: 'NEUTRAL',  src: '/audio/sieglings-theme.mp3?v=1' },
+    { id: 'main',          title: 'Siegelings Theme',     el: 'NEUTRAL',  src: '/audio/sieglings-theme.mp3?v=1' },
     { id: 'loading',       title: 'Loading Theme',       el: 'NEUTRAL',  src: '/audio/sieglings-loading-theme.mp3?v=1' },
     { id: 'battle',        title: 'Battle Theme',        el: 'NEUTRAL',  src: '/audio/sieglings-battle-theme.mp3?v=1' },
     { id: 'battle-2',      title: 'Battle Theme II',     el: 'NEUTRAL',  src: '/audio/battle/sieglings-battle-theme-2.mp3?v=1' },
@@ -64,7 +64,7 @@
      second. Stale state (a visit hours later) starts a fresh shuffle instead.
      The browser still decides when sound may start: a new page needs its own
      tap before it plays, and the song then continues from where it was. */
-  var RESUME_KEY = 'sgHubMusicResume';
+  var RESUME_KEY = 'sgHubMusicResume2';
   var RESUME_TTL_MS = 30 * 60 * 1000;
   var lastSave = 0;
 
@@ -104,13 +104,29 @@
     try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
   }
 
-  // A fresh shuffle per visit, so the hub does not open on the same song daily.
-  function shuffle() {
-    order = TRACKS.map(function (_, i) { return i; });
-    for (var i = order.length - 1; i > 0; i--) {
+  // Every visit opens on the Loading Theme then the Siegelings Theme; the rest is
+  // shuffled per visit, with the aggressive battle tracks held for the end.
+  var LEAD_IDS = ['loading', 'main'];
+  function isBattle(t) { return t.id.indexOf('battle') === 0 || /-gym$/.test(t.id); }
+
+  function shuffled(list) {
+    for (var i = list.length - 1; i > 0; i--) {
       var j = Math.floor(Math.random() * (i + 1));
-      var t = order[i]; order[i] = order[j]; order[j] = t;
+      var t = list[i]; list[i] = list[j]; list[j] = t;
     }
+    return list;
+  }
+
+  function shuffle() {
+    var lead = [], calm = [], battle = [];
+    LEAD_IDS.forEach(function (id) {
+      for (var i = 0; i < TRACKS.length; i++) if (TRACKS[i].id === id) lead.push(i);
+    });
+    TRACKS.forEach(function (t, i) {
+      if (lead.indexOf(i) >= 0) return;
+      (isBattle(t) ? battle : calm).push(i);
+    });
+    order = lead.concat(shuffled(calm), shuffled(battle));
   }
 
   function current() { return TRACKS[order[pos]]; }

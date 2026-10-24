@@ -230,7 +230,7 @@ public class Player {
         return overchargeEnergy.values().stream().anyMatch(amount -> amount != null && amount > 0);
     }
 
-    /** Sum of all element pool totals (used for Siegling setup placement budget snapshot). */
+    /** Sum of all element pool totals (used for Siegeling setup placement budget snapshot). */
     public int sumPooledEnergy() {
         return fireEnergy + earthEnergy + windEnergy + waterEnergy + iceEnergy + shadowEnergy
                 + electricEnergy + metalEnergy + undeadEnergy + psychicEnergy + poisonEnergy + lightEnergy;

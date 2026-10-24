@@ -137,11 +137,11 @@ class GameJavaScriptRegressionTest {
                 openingHints.contains("type === 'SIEGLING'")
                         && openingHints.contains("!card.evolvesFromId && !card.evolvesFromName")
                         && openingHints.contains("directCost <= 0"),
-                "Opening hand keeps must be limited to 0-cost base-starter Siegelings, since only a free Siegling can be placed on turn one."
+                "Opening hand keeps must be limited to 0-cost base-starter Siegelings, since only a free Siegeling can be placed on turn one."
         );
         assertFalse(
                 openingHints.contains("isFreeAction"),
-                "Free non-Siegling utility cards (spells/traps) must no longer be listed as opening hand keeps."
+                "Free non-Siegeling utility cards (spells/traps) must no longer be listed as opening hand keeps."
         );
     }
 
@@ -687,7 +687,7 @@ class GameJavaScriptRegressionTest {
     }
 
     /**
-     * Chain damage has to read as a ricochet: the projectile strikes the Siegling the
+     * Chain damage has to read as a ricochet: the projectile strikes the Siegeling the
      * ability targeted, and only once that hit lands do the arcs leave that card for
      * everything wired to it. Playing every victim as one simultaneous barrage — the
      * generic multi-target path — made a chain indistinguishable from an AoE and hid

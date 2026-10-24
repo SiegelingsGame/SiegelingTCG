@@ -58,7 +58,7 @@ class TutorialOpenerPlacementTest {
         assertEquals(1, state.getTurnNumber(), "precondition: this is turn one");
 
         SieglingCard other = handSiegling(state, false);
-        assertNotNull(other, "the tutorial hand must hold a second Siegling for this test to mean anything");
+        assertNotNull(other, "the tutorial hand must hold a second Siegeling for this test to mean anything");
 
         int before = countPlayerBoard(state);
         state = gameService.placeSiegling(state, true, other.getId(), 0, 0);

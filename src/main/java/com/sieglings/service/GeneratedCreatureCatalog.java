@@ -436,7 +436,7 @@ final class GeneratedCreatureCatalog {
             );
             case EARTH -> Ability.passive(
                     seed.name() + " Barkplate",
-                    "This Siegling gains +1 max Health",
+                    "This Siegeling gains +1 max Health",
                     "health_boost",
                     1
             );
@@ -466,7 +466,7 @@ final class GeneratedCreatureCatalog {
             );
             case SHADOW -> Ability.passive(
                     seed.name() + " Dusk Carapace",
-                    "This Siegling gains +1 max Health",
+                    "This Siegeling gains +1 max Health",
                     "health_boost",
                     1
             );
@@ -478,7 +478,7 @@ final class GeneratedCreatureCatalog {
                     1,
                     Math.max(2, abilityDamage)
             );
-            default -> Ability.passive(seed.name() + " Guard", "This Siegling gains +1 max Health", "health_boost", 1);
+            default -> Ability.passive(seed.name() + " Guard", "This Siegeling gains +1 max Health", "health_boost", 1);
         };
     }
 

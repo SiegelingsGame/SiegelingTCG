@@ -1,6 +1,6 @@
 {
   "id": "psychic-kit-2026-10",
-  "description": "Psychic move pool and assignments for live Psychic Sieglings. Common, uncommon, and rare+ cards receive 3, 4, and 5 moves respectively; evolution lines retain inherited moves.",
+  "description": "Psychic move pool and assignments for live Psychic Siegelings. Common, uncommon, and rare+ cards receive 3, 4, and 5 moves respectively; evolution lines retain inherited moves.",
   "moves": [
     {
       "id": "psychic-spark",

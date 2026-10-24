@@ -178,7 +178,7 @@ class EnergyServiceTest {
 
         Ability move = new Ability(
                 "Slip",
-                "Move this Siegling to an open linked point",
+                "Move this Siegeling to an open linked point",
                 TargetType.SELF,
                 null,
                 0,
@@ -372,7 +372,7 @@ class EnergyServiceTest {
 
     /**
      * Four diagonal notches meeting lattice (2,2): (0,0) TR, (0,1) TL, (1,0) BR, (1,1) BL — all same element.
-     * Extra orthogonal notches form a cycle so all four Sieglings stay in {@link PlacementService#getFoundationSieglings}.
+     * Extra orthogonal notches form a cycle so all four Siegelings stay in {@link PlacementService#getFoundationSieglings}.
      */
     @Test
     void fourSameElementNotchesAtOneInteriorLatticeYieldNexusWithoutCombo() {
@@ -637,7 +637,7 @@ class EnergyServiceTest {
         return new MovesPoolService(new com.fasterxml.jackson.databind.ObjectMapper(), null);
     }
 
-    /** A lone mid-board Siegling: no neighbour to link with and no outer notch to reach a socket. */
+    /** A lone mid-board Siegeling: no neighbour to link with and no outer notch to reach a socket. */
     private GameState playerStateWithEnergyBoost(MovesPoolService pool, String cardId,
                                                  Element cardElement, Element energyElement, int value) {
         String moveId = "test:" + cardId + ":energy-boost";

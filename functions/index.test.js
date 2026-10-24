@@ -17,7 +17,7 @@ test('infers untyped action cards with a singular ability as spells', () => {
 
   assert.equal(_private.inferCardType({
     id: 'legacy-siegling',
-    name: 'Legacy Siegling',
+    name: 'Legacy Siegeling',
     element: 'FIRE',
     rarity: 'COMMON',
     health: 10,

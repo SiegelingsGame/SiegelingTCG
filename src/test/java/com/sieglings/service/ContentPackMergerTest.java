@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ContentPackMergerTest {
 
     private static final String METAL_PACK = "cards/content-packs/metal-kit.json";
-    // The live Metal Sieglings the pack assigns moves to (dashboard ids, not display names).
+    // The live Metal Siegelings the pack assigns moves to (dashboard ids, not display names).
     private static final List<String> LIVE_METAL_IDS = List.of(
             "drillbo", "blastro", "constructo", "new-siegling", "new-siegling-2", "new-siegling-4", "siegebot");
     private static final Set<String> METAL_THEME_EFFECTS = Set.of(
@@ -65,7 +65,7 @@ class ContentPackMergerTest {
         MovesPoolService pool = new MovesPoolService(mapper, null);
         pool.reloadClasspathAndOverlayEditor(file.moves());
 
-        // The same path the game uses to turn stored rows into playable Metal Sieglings.
+        // The same path the game uses to turn stored rows into playable Metal Siegelings.
         List<com.sieglings.model.SieglingCard> metal = ManualSieglingCatalog.applyOverrides(
                 com.sieglings.model.enums.Element.METAL,
                 GeneratedCreatureCatalog.createGeneratedForElement(com.sieglings.model.enums.Element.METAL),
@@ -88,7 +88,7 @@ class ContentPackMergerTest {
             assertTrue(!resolvedNames.contains("Brassguard Guard"), card.getId() + " still on the placeholder");
             checked++;
         }
-        assertEquals(expected.size(), checked, "every live Metal Siegling was built");
+        assertEquals(expected.size(), checked, "every live Metal Siegeling was built");
 
         Set<String> spellIds = new HashSet<>();
         ManualSieglingCatalog.applySpellOverrides(GeneratedSpellCatalog.createSpells(), file.cards())

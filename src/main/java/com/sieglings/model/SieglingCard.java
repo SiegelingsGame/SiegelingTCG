@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A Siegling creature card with health, speed, notches, and up to five moves from the shared pool.
+ * A Siegeling creature card with health, speed, notches, and up to five moves from the shared pool.
  */
 public class SieglingCard extends Card {
     private int health;

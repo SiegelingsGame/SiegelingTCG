@@ -105,7 +105,7 @@ public class MovesPoolService {
     }
 
     /**
-     * Ensures a generated Siegling with only {@link SieglingCard#getAbility()} gets a stable pool id and {@code moveIds}.
+     * Ensures a generated Siegeling with only {@link SieglingCard#getAbility()} gets a stable pool id and {@code moveIds}.
      */
     public void hydrateGeneratedCard(SieglingCard card) {
         if (card == null) {

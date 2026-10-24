@@ -338,7 +338,7 @@ public class BattleService {
             List<Ability> printed = movesPoolService.resolvePrintedAbilities(card);
             if (!printed.isEmpty()) {
                 List<Ability> configured = buildConfiguredBattleAbilities(attacker, card, printed);
-                // A loadout of nothing but auto-applied passives would leave the Siegling with
+                // A loadout of nothing but auto-applied passives would leave the Siegeling with
                 // no battle action at all; fall through to the generated options in that case.
                 if (!configured.isEmpty()) {
                     return configured;
@@ -439,7 +439,7 @@ public class BattleService {
         if (ZERO_COST_MOVERS.contains(cardId)) {
             Ability move = new Ability(
                     attacker.getName() + " Drift",
-                    "Move this Siegling to an open linked point",
+                    "Move this Siegeling to an open linked point",
                     TargetType.SELF,
                     null,
                     1,

@@ -36,14 +36,14 @@ public class GameState {
      * visual result before the queue advances to the next creature or phase.
      */
     private boolean battleActionPausePending = false;
-    /** Setup actions consumed this turn by Sieglings, spells, and traps. */
+    /** Setup actions consumed this turn by Siegelings, spells, and traps. */
     private int playerPlacementsThisTurn = 0;
     private int enemyPlacementsThisTurn = 0;
     /** Perimeter call wells activated for this match; each key contributes at most one baseline energy. */
     private Map<String, Element> playerExternalSocketActivations = new LinkedHashMap<>();
     private Map<String, Element> enemyExternalSocketActivations = new LinkedHashMap<>();
     /**
-     * Extra Siegling setup placements from total pooled energy ({@link Player#sumPooledEnergy()}) for this turn only.
+     * Extra Siegeling setup placements from total pooled energy ({@link Player#sumPooledEnergy()}) for this turn only.
      * Captured when entering setup (after {@code recalculateEnergy}) so energy gained during the same setup phase
      * does not increase the budget mid-turn.
      */
@@ -55,7 +55,7 @@ public class GameState {
     /** Fixed Tutorial Match — coach follows this state; decks are scripted. */
     private boolean tutorialMatch = false;
     /**
-     * The one Siegling the tutorial accepts on turn one. Sundile is the pinned
+     * The one Siegeling the tutorial accepts on turn one. Sundile is the pinned
      * draw stack's designated "Fire socket opener", and every later lesson is
      * built on it being down: Pylook links to it in round two, and the evolution
      * needs it to have survived a full battle phase.
@@ -347,7 +347,7 @@ public class GameState {
     public boolean isEnemyHumanControlled() { return enemyHumanControlled; }
     public void setEnemyHumanControlled(boolean enemyHumanControlled) { this.enemyHumanControlled = enemyHumanControlled; }
     /**
-     * While non-null, the only Siegling the player may place. DERIVED rather than
+     * While non-null, the only Siegeling the player may place. DERIVED rather than
      * stored: the first version set this when entering Setup from the draw phase,
      * and turn one does not arrive that way, so the field was still null exactly
      * when it mattered and the client locked nothing. Deriving it removes the
