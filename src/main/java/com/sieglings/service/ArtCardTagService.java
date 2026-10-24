@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
  * <p>A piece's {@code cards} drive "Cards in this image" in the gallery and the
  * shop, and let a daily offer stand on a scene of the card it sells. Its
  * {@code shop} slots name the stages it backs: {@code summon:FIRE} (that
- * element's Siegeling Summon), {@code element:FIRE} (packs and daily offers of
+ * element's Siegeknight Pack), {@code element:FIRE} (packs and daily offers of
  * that element) and {@code pack:<packId>}. {@code focus} is the CSS
  * object-position that keeps the subjects in frame when a 16:9 plate is cropped
  * to a phone. {@code title} and {@code place} replace the name the catalog

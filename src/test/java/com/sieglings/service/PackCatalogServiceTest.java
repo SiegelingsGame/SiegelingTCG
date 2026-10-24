@@ -172,6 +172,25 @@ class PackCatalogServiceTest {
     }
 
     @Test
+    void packOddsNameEachKnightWithItsShareOfTheKnightChance() throws Exception {
+        PackCatalogService service = createService();
+        PackCatalogService.PackDefinition firePack = service.findPack("pack_fire").orElseThrow();
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> odds = (Map<String, Object>) service.serializePack(firePack).get("odds");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> pool = (List<Map<String, Object>>) odds.get("siegeKnightPool");
+
+        Set<String> poolIds = pool.stream().map(row -> (String) row.get("id")).collect(Collectors.toSet());
+        Set<String> candidateIds = service.bonusTrainerCandidates(firePack).stream()
+                .map(TrainerCard::getId)
+                .collect(Collectors.toSet());
+        assertEquals(candidateIds, poolIds, "the sheet lists exactly the knights the roll can pick");
+        double total = pool.stream().mapToDouble(row -> (Double) row.get("chance")).sum();
+        assertEquals(PackCatalogService.TRAINER_DROP_CHANCE, total, 1e-9);
+    }
+
+    @Test
     void dailyOfferSerializationIncludesSiegeKnightArt() throws Exception {
         PackCatalogService service = createService(new FullArtKnightCardDefinitions());
         PackCatalogService.DailyCardOffer offer = service.listDailyOffers().stream()
