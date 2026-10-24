@@ -163,8 +163,8 @@ public class PackCatalogService {
             }
             packs.add(new PackDefinition(
                     SIEGELING_SUMMON_PREFIX + element.name().toLowerCase(Locale.ROOT),
-                    formatElement(element) + " Siegeling Summon",
-                    "Five " + formatElement(element) + " Siegelings, nothing else.",
+                    formatElement(element) + " Siegeknight Pack",
+                    "Five " + formatElement(element) + " Siegelings. Each pack has a chance to drop a SiegeKnight.",
                     true,
                     160,
                     List.of(element),
@@ -403,6 +403,18 @@ public class PackCatalogService {
         out.put("starterEligible", pack.starterEligible());
         Map<String, Object> odds = new LinkedHashMap<>();
         odds.put("siegeKnight", TRAINER_DROP_CHANCE);
+        // Each knight the roll can pick, with its share of the knight chance
+        // (rollBonusTrainer picks uniformly), so the odds sheet names them.
+        List<TrainerCard> knights = bonusTrainerCandidates(pack);
+        odds.put("siegeKnightPool", knights.stream().map(knight -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", knight.getId());
+            row.put("name", knight.getName());
+            row.put("element", knight.getElement() == null ? null : knight.getElement().name());
+            row.put("rarity", knight.getRarity() == null ? null : knight.getRarity().name());
+            row.put("chance", TRAINER_DROP_CHANCE / knights.size());
+            return row;
+        }).toList());
         // finishPerCard[rarity][finish] = chance per card; the shop's odds sheet reads it.
         Map<String, Map<String, Double>> finishPerCard = new LinkedHashMap<>();
         for (Rarity rarity : Rarity.values()) {

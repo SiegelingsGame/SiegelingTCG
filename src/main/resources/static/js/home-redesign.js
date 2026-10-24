@@ -3921,7 +3921,7 @@
 
   // Knight faces: the shop portrait where one exists (framed by its own `pos`),
   // else a thumb of the card art.
-  function knightPennant(knights) {
+  function knightPennant(knights, odds) {
     var visual = window.SieglingsCardBinderVisual;
     var seen = {};
     var withArt = knights.filter(function (k) {
@@ -3933,7 +3933,7 @@
     }).slice(0, 4);
     if (!withArt.length) return null;
     return {
-      title: 'SiegeKnights',
+      title: odds && odds.siegeKnight != null ? 'SiegeKnight ' + (Math.round(odds.siegeKnight * 1000) / 10) + '%' : 'SiegeKnights',
       items: withArt.map(function (k) {
         var src = KNIGHT_ART[k.id] ? knightArt(k.id, true)
           : visual && visual.artThumbSrc ? visual.artThumbSrc(k.cardArtUrl, 160) : k.cardArtUrl;
@@ -3953,9 +3953,9 @@
     return stage({
         kind: 'summon', el: el, art: lead ? knightArt(lead.id) : summonArt(el), piece: tagged,
         pos: lead ? KNIGHT_ART[lead.id].pos : tagged ? tagged.focus : ELEMENT_STAGE[el] && SUMMON_SCENE[el] ? ELEMENT_STAGE[el].pos : '',
-        kicker: 'Siegeknight', title: title(el) + ' Siegelings', sub: title(el) + ' only',
+        kicker: 'Siegeknight', title: title(el) + ' Siegeknight Pack', sub: title(el) + ' only',
         text: pk.description,
-        pennant: knightPennant(knights),
+        pennant: knightPennant(knights, pk.odds),
         select: '<div class="sg-gselect" role="radiogroup" aria-label="Summon element">' + m.summons.map(function (s) {
           var e = packElement(s);
           var on = s === pk;
@@ -4125,6 +4125,9 @@
         '<dl>' +
           '<div><dt>Cards per pack</dt><dd>' + esc(odds.cardsPerPack || 5) + '</dd></div>' +
           (odds.siegeKnight != null ? '<div><dt>Bonus SiegeKnight</dt><dd>' + esc(Math.round(odds.siegeKnight * 1000) / 10) + '%</dd></div>' : '') +
+          (odds.siegeKnightPool || []).map(function (k) {
+            return '<div class="sg-godds-knight"><dt>' + esc(k.name || k.id) + '</dt><dd>' + esc(chance(k.chance)) + '</dd></div>';
+          }).join('') +
           (rarities.length
             ? '<div class="sg-godds-finish"><dt>Finish per card</dt><dd><table>' +
                 '<tr><th></th>' + rarities.map(function (r) { return '<th>' + esc(title(r).slice(0, 4)) + '</th>'; }).join('') + '</tr>' +
