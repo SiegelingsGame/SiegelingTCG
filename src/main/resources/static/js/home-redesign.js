@@ -461,6 +461,8 @@
       return f && f.presence && f.presence.online;
     }).length;
     var openQuests = (liveQuests(opts) || []).filter(function (q) { return !q[2]; }).length;
+    // Art thumbs mirror the Shop's framed portrait plates (sg-gtab): the site
+    // rail uses the same chrome, so each destination needs a face crop too.
     return [
       // Home carried no tray, so it was the one tab in the bar with no caret -
       // and the caret is not decoration, it rotates when a tray opens. Rather
@@ -468,20 +470,24 @@
       // other tab has: its rows are the Home screen's own sections, and they
       // take you to the section rather than to a screen of their own, because
       // that is where Leaderboards, Objectives and Expeditions actually live.
-      { id: 'home', ico: '⌂', label: 'Home', screen: 'home', items: [
+      { id: 'home', ico: '⌂', label: 'Home', screen: 'home',
+        art: '/img/gallery/frostag-training-thumb.webp', face: '42% 28%', el: 'ICE', items: [
           ['Featured Siegelings', ''],
           ['Hall of Siege', ''],
           ['From the Gallery', ''],
           ['Daily Objectives', n(openQuests)],
           ['Continue Playing', runs ? n(runs) : '']] },
       // Keep this tray aligned with the top-level Play destinations.
-      { id: 'play', ico: '⚔', label: 'Play', screen: 'play', items: [
+      { id: 'play', ico: '⚔', label: 'Play', screen: 'play',
+        art: '/img/modes/mode-solo.webp', face: '50% 30%', el: 'FIRE', items: [
           ['Arena', ''], ['Siege', runs ? 'Saved' : ''], ['Dominion', ''],
           ['Lobbies & Tournaments', n(rooms) ? n(rooms) + ' open' : '']] },
-      { id: 'collection', ico: '◈', label: 'Collection', screen: 'collection', items: [
+      { id: 'collection', ico: '◈', label: 'Collection', screen: 'collection',
+        art: '/img/shop/scene-cards-480.webp', face: '48% 40%', el: 'LIGHT', items: [
           ['Cards', n(live.ownedTotal != null ? live.ownedTotal : (ALL_CARDS.length || null))],
           ['Decks', n(saved)], ['Deck Builder', '']] },
-      { id: 'shop', ico: '⬢', label: 'Shop', screen: 'shop', items: [
+      { id: 'shop', ico: '⬢', label: 'Shop', screen: 'shop',
+        art: '/img/shop/scene-market-480.webp', face: '55% 42%', el: 'EARTH', items: [
           ['Featured Packs', n(live.packs && live.packs.length)],
           ['Open Packs', ''], ['Siegelcoins', '']] },
       // Social is its own tab now rather than a row inside More: it is where the
@@ -492,13 +498,15 @@
       // somewhere to go - a lone tray-less tab read as a broken one. The third
       // tuple slot is the screen tab the row opens.
       { id: 'social', ico: '☻', label: 'Social', screen: 'social',
+        art: '/img/shop/scene-throne-480.webp', face: '50% 28%', el: 'WATER',
         badge: unreadThreadCount(opts), items: [
           ['Profile', '', 'profile'],
           ['Friends', n(online), 'friends'],
           ['Messages', n(unreadThreadCount(opts)), 'messages']] },
       // Profile and Social are gone from here; what remains is genuinely
       // miscellaneous.
-      { id: 'more', ico: '⋯', label: 'More', items: [
+      { id: 'more', ico: '⋯', label: 'More',
+        art: '/img/shop/scene-armory-480.webp', face: '46% 36%', el: 'METAL', items: [
           ['Settings', ''], ['Help', '']],
         guestItems: [
           ['Sign In', 'Save decks'], ['Create Account', ''],
@@ -1095,7 +1103,26 @@
     var openTray = opts.openTray;
     var guest = opts.guest;
     var NAV = navFor(opts);
-    return '<nav class="sg-bottom' + (openTray ? ' tray-open' : '') + '" data-bottom>' +
+    // Site destinations live in a left rail of framed portrait plates — the same
+    // chrome the Shop uses for its section tabs — so the bottom taskbar no longer
+    // pulls the eye away from page art.
+    return '<nav class="sg-bottom' + (openTray ? ' tray-open' : '') + '" data-bottom aria-label="Site">' +
+      '<div class="sg-nav" role="tablist">' + NAV.map(function (n) {
+        return '<button type="button" role="tab" data-nav="' + n.id + '" data-screen="' + esc(n.screen || '') +
+          '" class="sg-gtab' + (n.id === active ? ' on' : '') +
+          (n.items ? ' has-tray' : '') + (n.id === openTray ? ' tray-on' : '') +
+          '" aria-selected="' + (n.id === active ? 'true' : 'false') +
+          '" style="--el:' + color(n.el || 'NEUTRAL') + '">' +
+          '<span class="sg-gtab-art"><img src="' + esc(n.art || '/img/siegelings-icon-256.webp') +
+            '" alt="" loading="lazy" style="object-position:' + esc(n.face || '50% 50%') +
+            ';--face:' + esc(n.face || '50% 50%') + '"></span>' +
+          '<span class="sg-gtab-label">' + esc(n.label) + '</span>' +
+          // An unread count belongs on the tab, not only inside the screen:
+          // otherwise a waiting message is invisible until you go looking.
+          (n.badge ? '<i class="sg-nav-badge">' + esc(n.badge > 9 ? '9+' : String(n.badge)) + '</i>' : '') +
+          '<i class="sg-gtab-gem" aria-hidden="true"></i>' +
+          (n.items ? '<i class="sg-caret" aria-hidden="true"></i>' : '') + '</button>';
+      }).join('') + '</div>' +
       NAV.filter(function (n) { return n.items; }).map(function (n) {
         var items = (guest && n.guestItems) ? n.guestItems : n.items;
         return '<div class="sg-tray' + (n.id === openTray ? ' open' : '') + '" data-tray="' + n.id + '"><div>' +
@@ -1119,16 +1146,6 @@
               (it[1] ? '<span>' + esc(it[1]) + '</span>' : '') + '</li>';
           }).join('') + '</ul></div></div>';
       }).join('') +
-      '<div class="sg-nav">' + NAV.map(function (n) {
-        return '<button type="button" data-nav="' + n.id + '" data-screen="' + esc(n.screen || '') +
-          '" class="' + (n.id === active ? 'on' : '') +
-          (n.items ? ' has-tray' : '') + (n.id === openTray ? ' tray-on' : '') + '">' +
-          '<span class="ico">' + n.ico + '</span>' + esc(n.label) +
-          // An unread count belongs on the tab, not only inside the screen:
-          // otherwise a waiting message is invisible until you go looking.
-          (n.badge ? '<i class="sg-nav-badge">' + esc(n.badge > 9 ? '9+' : String(n.badge)) + '</i>' : '') +
-          (n.items ? '<i class="sg-caret" aria-hidden="true"></i>' : '') + '</button>';
-      }).join('') + '</div>' +
     '</nav>';
   }
 
@@ -1552,7 +1569,7 @@
     // scroller with a sibling selector rather than :has().
     return topMarkup(opts) + stageMarkup(opts) +
       '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + expeditionsSection(opts) +
-      '<div style="height:96px"></div></div>' +
+      '<div style="height:24px" aria-hidden="true"></div></div>' +
       sheetHost() +
       bottomMarkup('home', opts);
   }
@@ -2107,7 +2124,7 @@
         '</div>' +
         '<div class="sg-binder-page"><div class="sg-gal-grid" data-grid></div></div>' +
         '<div class="sg-gal-more" data-more hidden><button type="button">Show more</button></div>' +
-        '<div style="height:96px"></div>' +
+        '<div style="height:24px" aria-hidden="true"></div>' +
       '</div>' +
       '<button class="sg-filter-fab" type="button" data-filter-fab aria-label="Open filters and search" hidden>' +
         '<span class="sg-filter-fab-ico" aria-hidden="true">' +
@@ -2693,7 +2710,7 @@
             esc(label) + '</em><span class="go">›</span></a>';
         })() +
         (guest ? guestBand() : '') +
-        '<div style="height:96px"></div>' +
+        '<div style="height:24px" aria-hidden="true"></div>' +
       '</div>' +
       bottomMarkup('play', opts);
   }
@@ -3093,7 +3110,7 @@
         deckSection(opts.guest ? 'Included presets' : 'Owned presets', groups.owned, 'owned', opts, 'No unlocked presets available.') +
         deckSection('Preset decks', groups.shop, 'presets', opts,
           (opts.live && opts.live.decks && opts.live.decks.length) ? 'You have unlocked every available preset.' : 'Preset decks are unavailable right now.') +
-        '<div style="height:96px"></div>' +
+        '<div style="height:24px" aria-hidden="true"></div>' +
       '</div>' +
       deckSheetHost() +
       sheetHost() +
@@ -4273,7 +4290,7 @@
               '</button>';
             }).join('') + '</div>'
           : '<div class="sg-empty-row">The gallery has not loaded yet.</div>') +
-        '<div style="height:96px"></div>' +
+        '<div style="height:24px" aria-hidden="true"></div>' +
       '</div>' +
       '<div class="sg-lightbox" data-lightbox hidden>' +
         '<img data-lightbox-img alt="">' +
@@ -7104,7 +7121,7 @@
           recentMarkup(opts) +
         '</section>' +
       '</div>' +
-      '<div style="height:96px"></div>';
+      '<div style="height:24px" aria-hidden="true"></div>';
   }
 
   /* ---------- profile editor ----------
@@ -7474,7 +7491,7 @@
             (register ? 'Create account' : 'Log in') + '</button>' +
           '<a class="sg-auth-guest" href="/home" data-screen="home">Continue as guest</a>' +
         '</form>' +
-        '<div style="height:96px"></div>' +
+        '<div style="height:24px" aria-hidden="true"></div>' +
       '</div>' +
       bottomMarkup('more', opts);
   }
@@ -7875,7 +7892,7 @@
             (b.saving || opts.guest ? ' disabled' : '') + '>' +
             (b.saving ? 'Saving\u2026' : 'Save Deck') + '</button>' +
         '</div>' +
-        '<div style="height:96px"></div>' +
+        '<div style="height:24px" aria-hidden="true"></div>' +
       '</div>' +
       sheetHost() +
       bottomMarkup('collection', opts);
@@ -8143,7 +8160,7 @@
           '</div>' +
         '</section>' +
         '<section class="sg-section sg-tour-next" data-tour-next hidden></section>' +
-        '<div style="height:96px"></div>' +
+        '<div style="height:24px" aria-hidden="true"></div>' +
       '</div>' +
       bottomMarkup('play', opts);
   }
@@ -9246,7 +9263,7 @@
           ? '<div class="sg-stack">' + rooms.slice(0, 8).map(lobbyRow).join('') + '</div>'
           : emptyLobbies()) +
       '</section>' +
-      '<div style="height:96px"></div>' +
+      '<div style="height:24px" aria-hidden="true"></div>' +
     '</div>';
   }
 
@@ -9320,7 +9337,7 @@
             }).join('') + '</div>'
           : '<div class="sg-empty-row">No messages yet. Open a friend and say hello.</div>') +
       '</section>' +
-      '<div style="height:96px"></div>' +
+      '<div style="height:24px" aria-hidden="true"></div>' +
     '</div>';
   }
 
@@ -9418,17 +9435,21 @@
     });
   }
 
-  /* An open thread should fill the space between the page title and the tab bar.
-     A fixed height cannot do that: the head spacer moves with the
-     status-bar inset. Measured from where the view actually starts. */
+  /* An open thread should fill the space under the page title. The site rail is
+     on the left now, so height is only clipped by the glass bottom (plus a
+     small safe-area cushion) rather than a bottom tab bar. */
   function layoutThread(app) {
     var view = app.querySelector('[data-thread-view]');
     if (!view) return;
-    var nav = app.querySelector('.sg-bottom');
-    var navH = nav ? nav.getBoundingClientRect().height : 90;
     var top = view.getBoundingClientRect().top;
     var glass = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-    view.style.height = Math.max(240, glass - top - navH - 8) + 'px';
+    // Safe-area is already on --sg-sab; read it so a notched phone keeps the
+    // composer clear of the home indicator without reintroducing a tab-bar pad.
+    var sab = 0;
+    try {
+      sab = parseFloat(getComputedStyle(app).getPropertyValue('--sg-sab')) || 0;
+    } catch (e) { sab = 0; }
+    view.style.height = Math.max(240, glass - top - Math.max(12, sab * 0.4) - 8) + 'px';
   }
 
   function refreshSocial(app, opts, patch) {
@@ -9948,7 +9969,7 @@
               '</div>' +
             '</div>' +
           '</section>') +
-        '<div style="height:96px"></div>' +
+        '<div style="height:24px" aria-hidden="true"></div>' +
       '</div>' +
       bottomMarkup('more', opts);
   }
@@ -10415,7 +10436,7 @@
         '<div class="sg-page-head"><h2>How to Play</h2><p>' + HELP.length + ' chapters · ' + HELP_SECTIONS.length + ' sections</p></div>' +
         jump +
         sectionsHtml +
-        '<div style="height:96px"></div>' +
+        '<div style="height:24px" aria-hidden="true"></div>' +
       '</div>' +
       '<div class="sg-guide" data-guide hidden>' +
         '<div class="sg-guide-panel" data-guide-panel role="dialog" aria-modal="true" aria-label="Rules chapter"></div>' +
