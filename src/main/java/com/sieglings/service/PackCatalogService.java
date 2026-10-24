@@ -301,12 +301,29 @@ public class PackCatalogService {
 
     List<TrainerCard> bonusTrainerCandidates(PackDefinition pack) {
         List<TrainerCard> trainers = cardDefinitionService.getTrainerOptions();
+        if (isElementSummon(pack)) {
+            // A "<Element> Siegeknight Pack" promises that element's knights, so
+            // Neutral ones stay out; it falls back to the shared pool below only
+            // if the element has no knight live yet.
+            List<TrainerCard> own = trainers.stream()
+                    .filter(trainer -> trainer.getElement() == pack.elements().get(0))
+                    .toList();
+            if (!own.isEmpty()) {
+                return own;
+            }
+        }
         List<TrainerCard> candidates = trainers.stream()
                 .filter(trainer -> trainer.getElement() == null
                         || trainer.getElement() == Element.NEUTRAL
                         || pack.elements().contains(trainer.getElement()))
                 .toList();
         return candidates.isEmpty() ? trainers : candidates;
+    }
+
+    private static boolean isElementSummon(PackDefinition pack) {
+        return pack.id().startsWith(SIEGELING_SUMMON_PREFIX)
+                && !pack.id().equals("pack_siegeling_random")
+                && pack.elements().size() == 1;
     }
 
     /** One finish roll per pulled card, in pull order. */

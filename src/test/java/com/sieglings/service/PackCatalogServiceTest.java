@@ -172,6 +172,22 @@ class PackCatalogServiceTest {
     }
 
     @Test
+    void siegeknightPackRollsOnlyItsOwnElementsKnights() throws Exception {
+        PackCatalogService service = createService(new NeutralDropCardDefinitions());
+        PackCatalogService.PackDefinition fireSummon = new PackCatalogService.PackDefinition(
+                "pack_siegeling_fire", "Fire Siegeknight Pack", "", true, 160, List.of(Element.FIRE), false);
+        PackCatalogService.PackDefinition earthSummon = new PackCatalogService.PackDefinition(
+                "pack_siegeling_earth", "Earth Siegeknight Pack", "", true, 160, List.of(Element.EARTH), false);
+
+        assertEquals(Set.of("trainer-fire"), service.bonusTrainerCandidates(fireSummon).stream()
+                .map(TrainerCard::getId).collect(Collectors.toSet()));
+        // No Earth knight is live, so the pack keeps the shared pool rather than
+        // advertising a knight chance it can never pay out.
+        assertEquals(Set.of("trainer-neutral"), service.bonusTrainerCandidates(earthSummon).stream()
+                .map(TrainerCard::getId).collect(Collectors.toSet()));
+    }
+
+    @Test
     void packOddsNameEachKnightWithItsShareOfTheKnightChance() throws Exception {
         PackCatalogService service = createService();
         PackCatalogService.PackDefinition firePack = service.findPack("pack_fire").orElseThrow();
