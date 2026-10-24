@@ -469,7 +469,7 @@
     }
 
     // Row-sized thumbnail for list surfaces (the deck builder's binder/deck
-    // rows). Sieglings show their cutout illustration so the row reads as the
+    // rows). Siegelings show their cutout illustration so the row reads as the
     // creature rather than a wall of identical element badges; Strategies and
     // Deceptions have no creature art, so they get their notch art instead.
     // Element stays legible from the row's accent colour and its type/element

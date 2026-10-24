@@ -3691,7 +3691,7 @@ const PALE_PANEL_INK_PALETTE = {
 
 function getCompactSummaryInkPalette(element, card) {
     const normalized = String(element || 'NEUTRAL').toUpperCase();
-    // Element alone cannot decide this: a metal Siegling keeps the dark painted
+    // Element alone cannot decide this: a metal Siegeling keeps the dark painted
     // creature frame while a metal spell sits on the pale grey template.
     if (isSpellTrapCard(card) && PALE_SPELL_TRAP_FRAMES.has(normalized)) {
         return PALE_PANEL_INK_PALETTE;
@@ -10974,7 +10974,7 @@ function getDeckOpeningHandHints() {
         const comboCost = Number(card.requiredComboSize || 0);
         // Opening keeps are strictly 0-cost base-starter Siegelings. On turn one
         // there is no energy yet (energy comes from placed/linked Siegelings), so
-        // only a free Siegling can actually be placed to open the game. Paid
+        // only a free Siegeling can actually be placed to open the game. Paid
         // starters and evolutions (which need their live precursor) can't open,
         // and free utility spells/traps are not something you keep on their own.
         const isZeroCostStarter = type === 'SIEGLING'
@@ -12504,7 +12504,7 @@ async function placeCard(row, col) {
 /**
  * Hide a hand slot that has been committed to the server but not yet confirmed.
  * Tracked by slot index rather than card id because hand cards carry definition
- * ids, so three copies of a Siegling all share one id. The flag is cleared by
+ * ids, so three copies of a Siegeling all share one id. The flag is cleared by
  * the next authoritative state, which is what actually removes the card.
  */
 function applyOptimisticHandRemoval(handIndex) {
@@ -18068,7 +18068,7 @@ window.SieglingsBoardCellState = {
 };
 
 // Spells, traps and trainer actives never sit on the board, so the playback
-// queue cannot read their element off a cell the way it does for a Siegling's
+// queue cannot read their element off a cell the way it does for a Siegeling's
 // ability — it only has the name the server logged. Expose a name → element
 // lookup over the loaded catalog so effect damage still lights the right
 // elemental border. Keyed by card name *and* ability name, because the damage

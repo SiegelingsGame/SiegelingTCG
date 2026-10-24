@@ -10,7 +10,7 @@ const EFFECT_TYPES = [
   {
     key: 'chain_damage',
     label: 'Chain Damage',
-    description: 'Damages the picked target and every Siegling directly linked to it by an active notch link.',
+    description: 'Damages the picked target and every Siegeling directly linked to it by an active notch link.',
     targetHints: ['SINGLE_ENEMY', 'ROW_SELECT_ENEMIES', 'ALL_ENEMIES']
   },
   {
@@ -82,25 +82,25 @@ const EFFECT_TYPES = [
   {
     key: 'connected_allies_damage_boost',
     label: 'Connected Allies Damage Boost',
-    description: 'Buffs every allied Siegling connected to the source card through active links.',
+    description: 'Buffs every allied Siegeling connected to the source card through active links.',
     targetHints: ['SELF']
   },
   {
     key: 'connected_allies_health_boost',
     label: 'Connected Allies Health Boost',
-    description: 'Gives directly linked allied Sieglings extra max health.',
+    description: 'Gives directly linked allied Siegelings extra max health.',
     targetHints: ['SELF']
   },
   {
     key: 'connected_allies_heal',
     label: 'Connected Allies Heal',
-    description: 'Restores current health on directly linked allied Sieglings without raising max health.',
+    description: 'Restores current health on directly linked allied Siegelings without raising max health.',
     targetHints: ['SELF']
   },
   {
     key: 'connected_allies_shield',
     label: 'Connected Allies Shield',
-    description: 'Grants temporary shield health to directly linked allied Sieglings.',
+    description: 'Grants temporary shield health to directly linked allied Siegelings.',
     targetHints: ['SELF']
   },
   {
@@ -118,13 +118,13 @@ const EFFECT_TYPES = [
   {
     key: 'connected_allies_slow',
     label: 'Connected Allies Slow',
-    description: "Reduces directly linked allied Sieglings' Speed by the effect value for the turn.",
+    description: "Reduces directly linked allied Siegelings' Speed by the effect value for the turn.",
     targetHints: ['SELF']
   },
   {
     key: 'connected_allies_speed_boost',
     label: 'Connected Allies Speed Boost',
-    description: 'Gives connected allied Sieglings extra speed.',
+    description: 'Gives connected allied Siegelings extra speed.',
     targetHints: ['SELF']
   },
   {

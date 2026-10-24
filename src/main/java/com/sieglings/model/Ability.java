@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Universal ability/effect definition used by Sieglings, Spells, and Trainers.
+ * Universal ability/effect definition used by Siegelings, Spells, and Trainers.
  */
 public class Ability {
     private String name;
@@ -38,7 +38,7 @@ public class Ability {
      */
     private List<Ability> riders;
 
-    /** True when this battle-queue option was converted from a printed passive Siegling ability (UI only). */
+    /** True when this battle-queue option was converted from a printed passive Siegeling ability (UI only). */
     private boolean battleOptionFromPrintedPassive;
 
     public Ability() {}
@@ -98,7 +98,7 @@ public class Ability {
     }
 
     // Trainer (SiegeKnight) passive form: continuously grants connected allied
-    // Sieglings extra max health. Marked passive so the per-turn trainer-passive
+    // Siegelings extra max health. Marked passive so the per-turn trainer-passive
     // recalculation in GameService picks it up.
     public static Ability passiveConnectedAlliesHealthBoost(String name, String desc, int value) {
         return new Ability(name, desc, TargetType.PASSIVE, null, 0, AbilityEffectKeys.CONNECTED_ALLIES_HEALTH_BOOST, value, true);

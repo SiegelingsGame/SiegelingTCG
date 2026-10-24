@@ -3,7 +3,7 @@ package com.sieglings.model.enums;
 import java.util.Locale;
 
 /**
- * Physical scale of a Siegling, used by presentation surfaces that draw the creature at
+ * Physical scale of a Siegeling, used by presentation surfaces that draw the creature at
  * world scale (currently the Keep enclave cutouts) rather than as a fixed-size card.
  *
  * <p>Cards leave this unset by default; {@link #defaultFor(Rarity, int)} then supplies the

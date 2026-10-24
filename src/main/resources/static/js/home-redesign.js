@@ -1939,7 +1939,7 @@
     // two cards in a fan: the binder as a whole
     ALL: '<rect x="4" y="5" width="10" height="14" rx="1.6"/>' +
       '<path d="M16.4 6.6l3.4 1.3-3.6 9.6-1.4-.5"/>',
-    // a card wearing notches on three edges - the Siegling's own tell
+    // a card wearing notches on three edges - the Siegeling's own tell
     SIEGLING: '<rect x="5" y="3.5" width="14" height="17" rx="2"/>' +
       '<circle cx="12" cy="3.5" r="1.9" fill="currentColor" stroke="none"/>' +
       '<circle cx="5" cy="12" r="1.9" fill="currentColor" stroke="none"/>' +
@@ -9969,12 +9969,12 @@
       ["link", ["/battle", "Choose a Battle mode"]]
     ]],
     ['Basics', 'How a match runs end to end', '/img/lands/relic.webp', 'NEUTRAL', [
-      ['p', 'Siegelings is a tactical elemental card game. Each player builds a 3×3 board half. Creature cards — Sieglings — fight with abilities paid for by elemental energy. There is no printed ATK or DEF: all damage comes from abilities.'],
-      ['facts', [['50', 'Player Health'], ['3×3', 'Board half'], ['5', 'Sieglings max'], ['+1 / -1', 'Weak / resist']]],
+      ['p', 'Siegelings is a tactical elemental card game. Each player builds a 3×3 board half. Creature cards — Siegelings — fight with abilities paid for by elemental energy. There is no printed ATK or DEF: all damage comes from abilities.'],
+      ['facts', [['50', 'Player Health'], ['3×3', 'Board half'], ['5', 'Siegelings max'], ['+1 / -1', 'Weak / resist']]],
       ['list', [
-        'Player HP starts at 50. When one of your Sieglings is defeated you take rarity-based bounty damage.',
-        'A Siegling’s printed stats are Health, Speed, notches (directional coloured dots) and abilities.',
-        'Board cap is 5 Sieglings per side. Evolutions do not count against the cap or the one-placement-per-turn limit.',
+        'Player HP starts at 50. When one of your Siegelings is defeated you take rarity-based bounty damage.',
+        'A Siegeling’s printed stats are Health, Speed, notches (directional coloured dots) and abilities.',
+        'Board cap is 5 Siegelings per side. Evolutions do not count against the cap or the one-placement-per-turn limit.',
         'You win by reducing the opponent’s HP to 0.'
       ]]
     ]],
@@ -9982,35 +9982,35 @@
       ['p', 'Each round cycles through three phases for the active player.'],
       ['steps', [
         ['Draw', 'Draw cards into your hand to prepare the turn.'],
-        ['Setup', 'Place at most one new Siegling, play Strategies and Deceptions, and optionally claim surviving Sieglings for temporary energy. Afflictions like Burn and Wither resolve at the start of your Setup.'],
-        ['Battle', 'Every ready Siegling acts in Speed order, spending energy on its abilities. Then the next round begins.']
+        ['Setup', 'Place at most one new Siegeling, play Strategies and Deceptions, and optionally claim surviving Siegelings for temporary energy. Afflictions like Burn and Wither resolve at the start of your Setup.'],
+        ['Battle', 'Every ready Siegeling acts in Speed order, spending energy on its abilities. Then the next round begins.']
       ]]
     ]],
-    ['Card types', 'Siegling, Strategy, Deception', '/img/gallery/draco-brood.webp', 'EARTH', [
+    ['Card types', 'Siegeling, Strategy, Deception', '/img/gallery/draco-brood.webp', 'EARTH', [
       ['defs', [
-        ['Siegling', 'Creatures you place on the board. They carry notches, Health, Speed and battle abilities.'],
+        ['Siegeling', 'Creatures you place on the board. They carry notches, Health, Speed and battle abilities.'],
         ['Strategy', 'Immediate effects played from hand during Setup. Older card data calls this role Spell.'],
         ['Deception', 'Reactive cards set face down. They reveal when their condition is met, often during the opponent’s actions. Older data calls this role Trap.'],
         ['Evolution', 'Placed onto a live precursor already on your board. Skips the placement cap and the one-per-turn limit.'],
         ['SiegeKnight', 'Your trainer. Grants a passive plus an active or ultimate that shapes the whole match.']
       ]],
-      ['note', 'Standard premade decks are 40 cards: 20 Sieglings, 10 Strategies and 10 Deceptions, at most 3 copies of a card, full evolution lines only.']
+      ['note', 'Standard premade decks are 40 cards: 20 Siegelings, 10 Strategies and 10 Deceptions, at most 3 copies of a card, full evolution lines only.']
     ]],
     ['Board, notches & energy', 'Links, sockets and what they pay for', '/img/lands/electric.webp', 'ELECTRIC', [
-      ['p', 'The coloured dots on a Siegling’s edges are notches. When two adjacent cards’ notches point at each other — a reciprocal link — they connect and generate elemental energy.'],
+      ['p', 'The coloured dots on a Siegeling’s edges are notches. When two adjacent cards’ notches point at each other — a reciprocal link — they connect and generate elemental energy.'],
       ['list', [
         'Sockets on the board perimeter anchor edge cells instead: left column LEFT, right column RIGHT, outer row TOP or BOTTOM.',
         'Energy pays for Strategies, Deceptions and battle abilities, and the element of the cost matters.',
-        'Claim, during Setup, spends a surviving Siegling’s presence for temporary energy. Cursed units cannot be claimed.',
+        'Claim, during Setup, spends a surviving Siegeling’s presence for temporary energy. Cursed units cannot be claimed.',
         'Placement must stay legal on your half — foundation and network rules decide which cells light up.'
       ]],
       ['note', 'Energy pools: every element has its own pool — Fire, Ice, Earth, Wind, Water, Electric, Metal, Poison, Psychic, Undead, Light and Shadow. Neutral costs can be paid from any pool.']
     ]],
-    ['Evolution', 'Growing a Siegling mid-match', '/img/gallery/bearzooka-rampage.webp', 'FIRE', [
+    ['Evolution', 'Growing a Siegeling mid-match', '/img/gallery/bearzooka-rampage.webp', 'FIRE', [
       ['p', 'An Evolution card is not placed on an empty cell. It is placed onto its live precursor, replacing it in the same cell and keeping that cell’s links.'],
       ['list', [
         'The precursor must be alive and on your board; the Evolution names which card it grows from.',
-        'Evolving is exempt from the 5-Siegling board cap and from the one-placement-per-turn limit, so you can still place a fresh Siegling the same turn.',
+        'Evolving is exempt from the 5-Siegeling board cap and from the one-placement-per-turn limit, so you can still place a fresh Siegeling the same turn.',
         'A unit carrying any Curse stack cannot evolve until the Curse is gone.',
         'Decks may only run full evolution lines, so a stage-2 card always ships with the stage it grows from.'
       ]]
@@ -10018,7 +10018,7 @@
     ['SiegeKnight', 'Passives, actives and ultimates', '/img/lands/light.webp', 'LIGHT', [
       ['p', 'Your SiegeKnight is the trainer behind the board. You pick one per match and it never enters play as a card.'],
       ['defs', [
-        ['Passive', 'Always on for the whole match — usually a standing bonus to your Sieglings or your energy.'],
+        ['Passive', 'Always on for the whole match — usually a standing bonus to your Siegelings or your energy.'],
         ['Active', 'A deliberate ability you trigger, paid for from your energy pools like any other cost.'],
         ['Ultimate', 'A once-per-match swing, gated behind a heavier cost or condition.']
       ]],

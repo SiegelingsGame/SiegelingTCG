@@ -30,25 +30,25 @@ class TutorialRuleParityTest {
     void sieglingCostIsCheckedButNeverSpentWhileSpellsAndTrapsSpend() throws Exception {
         String gameService = read("src/main/java/com/sieglings/service/GameService.java");
 
-        // A Siegling placement gates on canAfford...
+        // A Siegeling placement gates on canAfford...
         assertTrue(gameService.contains(
                         "energyService.canAfford(state, isPlayerSide, siegling.getCostElement(), siegling.getCostAmount())"),
-                "Siegling placement must still gate on canAfford — the tutorial tells the player "
+                "Siegeling placement must still gate on canAfford — the tutorial tells the player "
                         + "the cost has to be on tap.");
 
         // ...and never calls spendEnergy for one, which is exactly why the tip
         // says "it does not spend it" rather than "pay".
         assertTrue(!gameService.contains("spendEnergy(state, isPlayerSide, siegling."),
-                "A Siegling's cost must stay a requirement, not a payment — the tutorial copy "
+                "A Siegeling's cost must stay a requirement, not a payment — the tutorial copy "
                         + "says placing does not spend it.");
 
         // Spells and traps do spend, which is the contrast the tip draws.
         assertTrue(gameService.contains(
                         "energyService.spendEnergy(state, isPlayerSide, spell.getCostElement(), spell.getCostAmount())"),
-                "Spells must still spend energy — the tutorial contrasts them with Sieglings.");
+                "Spells must still spend energy — the tutorial contrasts them with Siegelings.");
         assertTrue(gameService.contains(
                         "energyService.spendEnergy(state, isPlayerSide, trap.getCostElement(), trap.getCostAmount())"),
-                "Traps must still spend energy — the tutorial contrasts them with Sieglings.");
+                "Traps must still spend energy — the tutorial contrasts them with Siegelings.");
     }
 
     @Test
@@ -69,7 +69,7 @@ class TutorialRuleParityTest {
         // origin/main). Re-keyed to the requirement the lesson still states.
         // The engine half of that contract is asserted directly, above.
         assertTrue(tutorial.contains("require energy of their element"),
-                "The cost lesson must keep stating that heavier Sieglings require energy of "
+                "The cost lesson must keep stating that heavier Siegelings require energy of "
                         + "their own element.");
         assertTrue(tutorial.contains("survived a full battle phase"),
                 "The evolution lesson must keep naming the battle-phase requirement.");
@@ -78,7 +78,7 @@ class TutorialRuleParityTest {
                 "Both the same-element link and the combo link must be walked through — the "
                         + "matching link in round two, the combo in round three.");
         // One Setup affords one placement, so round two is link-then-evolve and the
-        // combo (which needs a third Siegling) belongs to round three, where
+        // combo (which needs a third Siegeling) belongs to round three, where
         // GameService hoists the off-element partner onto the draw.
         assertTrue(tutorial.contains("{ id: 'gate-t3'"),
                 "The combo/Strategy/Deception lessons must sit behind a round-three gate.");

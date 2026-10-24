@@ -79,7 +79,7 @@ public class PlayerProgressionController {
         try {
             AccountUser user = accountService.requireUser(authorizationHeader);
             // Pack grant is persisted first. Profile defaults are best-effort so a
-            // favorite-Siegling / title hiccup can never strand a new account with
+            // favorite-Siegeling / title hiccup can never strand a new account with
             // starterChosen=true but an error body (and no gacha payload).
             PlayerProgressionEntity progression = progressionService.chooseStarterPack(user, string(req, "packId"));
             Map<String, Object> response = buildResponse(user, progression);

@@ -1,5 +1,5 @@
 /**
- * Notifies open Sieglings tabs when the card dashboard publishes catalog changes.
+ * Notifies open Siegelings tabs when the card dashboard publishes catalog changes.
  * Uses BroadcastChannel (same origin) and localStorage (cross-tab fallback).
  */
 (function (global) {

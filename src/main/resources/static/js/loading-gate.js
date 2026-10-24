@@ -1,5 +1,5 @@
 /**
- * Sieglings TCG — Loading Gate
+ * Siegelings TCG — Loading Gate
  *
  * Console-style splash that runs between "Start Match" and the first game
  * state rendering. Builds its DOM on demand (no markup in index.html), so
@@ -109,7 +109,7 @@
         if (!already) {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = '/css/landing.css?v=46';
+            link.href = '/css/landing.css?v=47';
             link.dataset.sglLandingCss = '1';
             document.head.appendChild(link);
         }

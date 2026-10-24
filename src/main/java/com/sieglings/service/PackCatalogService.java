@@ -344,7 +344,7 @@ public class PackCatalogService {
         List<DailyCardOffer> offers = new ArrayList<>();
         // Every daily rotation always offers a SiegeKnight (trainer), a
         // Strategy (spell), and a Deception (trap); the remaining two slots are
-        // Sieglings so the creature roster headlines the shop.
+        // Siegelings so the creature roster headlines the shop.
         List<CardType> slots = new ArrayList<>(List.of(
                 CardType.TRAINER, CardType.SPELL, CardType.TRAP,
                 CardType.SIEGLING, CardType.SIEGLING));

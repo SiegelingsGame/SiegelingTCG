@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * Simple AI that can draw, place Sieglings, and cast spells.
+ * Simple AI that can draw, place Siegelings, and cast spells.
  * Not smart, but functional.
  */
 @Service
@@ -62,7 +62,7 @@ public class AIService {
         state.captureSieglingSetupPlacementBonusFromEnergy(false);
 
         state.log("AI Setup phase.");
-        // Setup phase: try to place Sieglings and cast spells
+        // Setup phase: try to place Siegelings and cast spells
         aiPlaceSieglings(state);
         if (!state.isSieglingSetupBudgetExhausted(false)) {
             aiCastSpells(state);

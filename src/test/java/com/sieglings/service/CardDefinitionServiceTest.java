@@ -82,7 +82,7 @@ class CardDefinitionServiceTest {
 
             assertEquals(40, deck.size(), option.name() + " should contain exactly 40 cards.");
             assertEquals(20, deck.stream().filter(SieglingCard.class::isInstance).count(),
-                    option.name() + " should contain exactly 20 Sieglings.");
+                    option.name() + " should contain exactly 20 Siegelings.");
             assertEquals(10, deck.stream().filter(SpellCard.class::isInstance).count(),
                     option.name() + " should contain exactly 10 spells.");
             assertEquals(10, deck.stream().filter(TrapCard.class::isInstance).count(),

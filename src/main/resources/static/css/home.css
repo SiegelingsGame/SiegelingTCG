@@ -6035,7 +6035,7 @@ body.starter-onboarding-active .starter-gate h1 {
     isolation: isolate;
 }
 
-/* Row thumbnails: the Siegling cutout (or a Strategy/Deception's notch art)
+/* Row thumbnails: the Siegeling cutout (or a Strategy/Deception's notch art)
    in place of the element badge. Same absolute-inset contract as
    .element-icon-art — .builder-card-mark is the sized, clipped, positioned
    box these are measured against. */
@@ -8062,7 +8062,7 @@ body.gacha-active {
 
 /* With custom art behind the hero, collapse the two-column layout into a
    single right-bound stack of glass panels so the artwork fills the left and
-   the identity + favorite-Siegling rail read as one aligned column. */
+   the identity + favorite-Siegeling rail read as one aligned column. */
 .profile-hero.has-art {
     grid-template-columns: minmax(0, 1fr);
     justify-items: end;

@@ -344,7 +344,7 @@ class ElementalAfflictionServiceTest {
     void aiTurnTicksBurnOnItsOwnSieglings() {
         // The AI never goes through GameService.draw, so its Setup-tick afflictions
         // only fire if executeAITurn ticks them itself — otherwise Burn stacked on
-        // an enemy Siegling would sit there forever.
+        // an enemy Siegeling would sit there forever.
         AIService ai = new AIService();
         ReflectionTestUtils.setField(ai, "placementService", new PlacementService());
         ReflectionTestUtils.setField(ai, "energyService", energyService);
@@ -361,7 +361,7 @@ class ElementalAfflictionServiceTest {
         ai.executeAITurn(state);
 
         assertEquals(0, burning.getAfflictionStacks(ElementalAffliction.BURN));
-        assertFalse(burning.isAlive(), "3 Burn stacks should finish a 2 HP Siegling");
+        assertFalse(burning.isAlive(), "3 Burn stacks should finish a 2 HP Siegeling");
         assertTrue(state.getEnemy().getHealth() < 50, "the burn kill should pay its bounty");
     }
 

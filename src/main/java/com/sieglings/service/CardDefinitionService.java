@@ -639,7 +639,7 @@ public class CardDefinitionService {
         for (Element element : orderedElements) {
             MonsterPlan plan = solveMonsterPlan(getEvolutionLinesForElement(element), targets.get(element));
             if (plan == null) {
-                throw new IllegalStateException("Unable to build a balanced preset Siegling package for " + element.name());
+                throw new IllegalStateException("Unable to build a balanced preset Siegeling package for " + element.name());
             }
             for (LineChoice choice : plan.choices()) {
                 for (int i = 0; i < choice.line().cards().size(); i++) {
