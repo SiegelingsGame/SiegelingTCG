@@ -49,7 +49,7 @@ public class LiveElementCatalogService {
     private static final Path PROJECT_RESOURCE_PATH = Path.of("src", "main", "resources", "cards", "live-elements.json");
 
     /**
-     * Elements that have generated Siegling lines in this build (order = UI / deck-builder sort).
+     * Elements that have generated Siegeling lines in this build (order = UI / deck-builder sort).
      */
     public static final List<Element> DEFAULT_GAMEPLAY_ELEMENT_ORDER = List.of(
             Element.FIRE,

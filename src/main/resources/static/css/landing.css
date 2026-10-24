@@ -2262,7 +2262,7 @@ img { display: block; }
 .marquee-card:focus-visible { outline: 3px solid #fff; outline-offset: 3px; border-radius: 10px; }
 .marquee-card.is-active .mulligan-card-slot { border-color: rgba(255, 215, 0, .7); box-shadow: 0 0 0 1px rgba(255, 215, 0, .45), 0 0 18px rgba(255, 215, 0, .35); }
 
-/* Tapped Siegling: a compact strip under the rows instead of a tall slide. */
+/* Tapped Siegeling: a compact strip under the rows instead of a tall slide. */
 .roster-spotlight {
     position: relative;
     width: min(760px, calc(100% - 36px));

@@ -2785,7 +2785,7 @@
         return '<p class="dm-cc-intro">Choose where your Keep stands. Its elemental affinity changes the land and the output of its buildings.</p><div class="dm-cc-biomes">' + Object.keys(BIOMES).map((id) => { const b = BIOMES[id]; return '<button type="button" class="dm-cc-biome is-' + id + (d.biome === id ? ' is-on' : '') + '" data-act="cc" data-arg="biome:' + id + '"><span class="dm-biome-art"><i></i><i></i><i></i></span><b>' + b.icon + ' ' + b.name + '</b><small>' + esc(b.blurb) + '</small><em class="is-good">' + esc(b.boosts) + '</em><em class="is-bad">' + esc(b.penalty) + '</em></button>'; }).join('') + '</div>';
     }
     function starterPage(d) {
-        return '<p class="dm-cc-intro">One Siegling answers your banner. You will discover and befriend the others on your journeys.</p><div class="dm-cc-starters">' + STARTER_IDS.map((id) => { const c = C(id); return '<button type="button" class="dm-cc-starter' + (d.starter === id ? ' is-on' : '') + '" data-act="cc" data-arg="starter:' + id + '" style="--el:var(--' + c.el + ')"><span class="dm-cc-starter-art">' + speciesArt(id, c.name, c.el.toUpperCase()) + '</span><b>' + esc(c.name) + '</b><small>' + esc(c.role) + '</small><em>' + esc(c.trait) + '</em></button>'; }).join('') + '</div>';
+        return '<p class="dm-cc-intro">One Siegeling answers your banner. You will discover and befriend the others on your journeys.</p><div class="dm-cc-starters">' + STARTER_IDS.map((id) => { const c = C(id); return '<button type="button" class="dm-cc-starter' + (d.starter === id ? ' is-on' : '') + '" data-act="cc" data-arg="starter:' + id + '" style="--el:var(--' + c.el + ')"><span class="dm-cc-starter-art">' + speciesArt(id, c.name, c.el.toUpperCase()) + '</span><b>' + esc(c.name) + '</b><small>' + esc(c.role) + '</small><em>' + esc(c.trait) + '</em></button>'; }).join('') + '</div>';
     }
     function spritePage(d) {
         return creationPreview(d, true) + '<p class="dm-cc-intro">Choose the sprite that represents your knight at the Keep and on the road.</p><div class="dm-cc-portraits">' + PORTRAITS.map((el) => '<button type="button" class="dm-cc-portrait' + (d.portrait === el ? ' is-on' : '') + '" data-act="cc" data-arg="portrait:' + el + '" style="--el:var(--' + el + ')" aria-label="' + titleCase(el) + ' knight">' + knightFigure(el, 'idle', true) + '<small>' + titleCase(el) + '</small></button>').join('') + '</div>';
@@ -4828,7 +4828,7 @@
             const pages = creationPages(), i = pages.indexOf(draft.page);
             if (draft.page === 'identity' && String(draft.given || '').replace(/\s+/g, ' ').trim().length < 2) { toast('Give your knight a name (2–20 letters).'); return; }
             if (draft.page === 'biome' && !BIOMES[draft.biome]) { toast('Choose where your Keep stands.'); return; }
-            if (draft.page === 'starter' && !STARTER_IDS.includes(draft.starter)) { toast('Choose your first Siegling.'); return; }
+            if (draft.page === 'starter' && !STARTER_IDS.includes(draft.starter)) { toast('Choose your first Siegeling.'); return; }
             showCreationPage(pages[Math.min(pages.length - 1, i + 1)]); return;
         }
         case 'cc-prev': { const pages = creationPages(), i = pages.indexOf(draft.page); showCreationPage(pages[Math.max(0, i - 1)]); return; }
@@ -4838,7 +4838,7 @@
             const k = s.knight;
             const first = !k.made;
             if (first && !BIOMES[draft.biome]) { toast('Choose where your Keep stands.'); showCreationPage('biome'); return; }
-            if (first && !STARTER_IDS.includes(draft.starter)) { toast('Choose your first Siegling.'); showCreationPage('starter'); return; }
+            if (first && !STARTER_IDS.includes(draft.starter)) { toast('Choose your first Siegeling.'); showCreationPage('starter'); return; }
             k.given = given; k.title = draft.title; k.name = (draft.title ? draft.title + ' ' : '') + given;
             k.crest = { emblem: draft.emblem, color: draft.color, shape: draft.shape }; k.calling = draft.calling; k.portrait = draft.portrait;
             s.biome = BIOMES[draft.biome] ? draft.biome : 'woodland';

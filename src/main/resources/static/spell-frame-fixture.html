@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Spell / trap frame fixture</title>
-<link rel="stylesheet" href="/css/style.css?v=279">
+<link rel="stylesheet" href="/css/style.css?v=280">
 <style>
   body { margin:0; padding:16px; background:#0b0f18; font-family:system-ui, sans-serif; }
   #stage { display:flex; flex-wrap:wrap; gap:14px; }
@@ -30,7 +30,7 @@ stage.innerHTML = ELEMENTS.map(function (element, i) {
     costElement: element,
     costAmount: 2,
     description: 'Sample copy for panel legibility.',
-    abilities: [{ name: 'Surge', description: 'Deal 3 damage to one enemy Siegling.' }]
+    abilities: [{ name: 'Surge', description: 'Deal 3 damage to one enemy Siegeling.' }]
   };
   return '<figure>'
     + window.SieglingsCardShowcase.renderShowcaseCard(card, { artVariant: 'preview' })

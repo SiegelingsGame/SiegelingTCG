@@ -377,7 +377,7 @@ public class CardOverrideStorageService {
             Files.createDirectories(projectPath.getParent());
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(projectPath.toFile(), file);
         } catch (IOException ex) {
-            throw new UncheckedIOException("Unable to save manual Siegling definitions to " + projectPath, ex);
+            throw new UncheckedIOException("Unable to save manual Siegeling definitions to " + projectPath, ex);
         }
 
         cacheEntry = null;
@@ -452,7 +452,7 @@ public class CardOverrideStorageService {
                 return objectMapper.readTree(stream);
             }
         } catch (IOException ex) {
-            throw new UncheckedIOException("Unable to load manual Siegling definitions.", ex);
+            throw new UncheckedIOException("Unable to load manual Siegeling definitions.", ex);
         }
     }
 
@@ -471,7 +471,7 @@ public class CardOverrideStorageService {
                 return readDefinitions(mapper, stream);
             }
         } catch (IOException ex) {
-            throw new UncheckedIOException("Unable to load manual Siegling definitions.", ex);
+            throw new UncheckedIOException("Unable to load manual Siegeling definitions.", ex);
         }
     }
 
@@ -491,7 +491,7 @@ public class CardOverrideStorageService {
         } catch (IllegalArgumentException ex) {
             throw ex;
         } catch (Exception ex) {
-            throw new IllegalArgumentException("The submitted JSON does not match the Sieglings override format.", ex);
+            throw new IllegalArgumentException("The submitted JSON does not match the Siegelings override format.", ex);
         }
     }
 

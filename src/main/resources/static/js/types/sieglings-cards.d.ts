@@ -1,5 +1,5 @@
 /**
- * Shared shapes for the Sieglings card editor and game client (Java serves matching JSON).
+ * Shared shapes for the Siegelings card editor and game client (Java serves matching JSON).
  * The runtime code is plain JavaScript; this file is for IDE / TypeScript tooling only.
  */
 

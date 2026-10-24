@@ -1,6 +1,6 @@
 {
   "id": "shadow-kit-2026-10",
-  "description": "Shadow moves and assignments for the live Shadow Sieglings, using live card and move IDs. Non-spread attacks stay at 6\u201310; row and multi-target damage and energy costs follow live elemental patterns. Common, uncommon, and rare+ cards receive 3, 4, and 5 moves; the Echo and Voib -> Voiboy -> Voidmaw lines inherit earlier moves.",
+  "description": "Shadow moves and assignments for the live Shadow Siegelings, using live card and move IDs. Non-spread attacks stay at 6\u201310; row and multi-target damage and energy costs follow live elemental patterns. Common, uncommon, and rare+ cards receive 3, 4, and 5 moves; the Echo and Voib -> Voiboy -> Voidmaw lines inherit earlier moves.",
   "moves": [
     {
       "id": "umbral-feint",

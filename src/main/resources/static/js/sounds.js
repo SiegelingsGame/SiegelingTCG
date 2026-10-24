@@ -1,5 +1,5 @@
 /**
- * Sieglings TCG — Audio module
+ * Siegelings TCG — Audio module
  *
  * Synthesises short game sounds procedurally with the Web Audio API so we ship
  * zero audio files. Each sound is a tiny inline data URI generated once on

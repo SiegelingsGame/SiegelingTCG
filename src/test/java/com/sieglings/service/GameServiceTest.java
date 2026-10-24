@@ -163,7 +163,7 @@ class GameServiceTest {
         recalculate.invoke(gameService, state);
         recalculate.invoke(gameService, state);
 
-        assertEquals(12, placed.getCurrentHealth(), "Recalculating the passive should not repeatedly heal an already-buffed Siegling.");
+        assertEquals(12, placed.getCurrentHealth(), "Recalculating the passive should not repeatedly heal an already-buffed Siegeling.");
         assertEquals(16, placed.getEffectiveMaxHealth());
     }
 
@@ -585,7 +585,7 @@ class GameServiceTest {
 
         SieglingCard siegling = new SieglingCard(
                 "ai-siegling",
-                "AI Siegling",
+                "AI Siegeling",
                 Element.FIRE,
                 Rarity.COMMON,
                 10,
@@ -793,8 +793,8 @@ class GameServiceTest {
 
         gameService.claimSiegling(state, true, 1, 0);
 
-        assertNull(state.getAt(true, 1, 0), "Claiming should remove the Siegling from the board.");
-        assertEquals(1, state.getPlayer().getDiscard().size(), "Claimed Sieglings should move to the discard pile.");
+        assertNull(state.getAt(true, 1, 0), "Claiming should remove the Siegeling from the board.");
+        assertEquals(1, state.getPlayer().getDiscard().size(), "Claimed Siegelings should move to the discard pile.");
         assertEquals(2, state.getPlayer().getFireEnergy(), "Losing the internal link should drop to 1, then the claim should add 1 temporary fire energy back.");
     }
 
@@ -894,8 +894,8 @@ class GameServiceTest {
         clearTempEffects.setAccessible(true);
         clearTempEffects.invoke(gameService, state);
 
-        assertFalse(playerFrozen.getStatusEffects().contains(StatusEffect.FREEZE), "Player Sieglings should thaw after battle ends.");
-        assertFalse(enemyFrozen.getStatusEffects().contains(StatusEffect.FREEZE), "Opponent Sieglings should thaw after battle ends.");
+        assertFalse(playerFrozen.getStatusEffects().contains(StatusEffect.FREEZE), "Player Siegelings should thaw after battle ends.");
+        assertFalse(enemyFrozen.getStatusEffects().contains(StatusEffect.FREEZE), "Opponent Siegelings should thaw after battle ends.");
     }
 
     @Test

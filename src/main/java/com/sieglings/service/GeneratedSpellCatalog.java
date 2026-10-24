@@ -82,7 +82,7 @@ final class GeneratedSpellCatalog {
                 1,
                 new Ability(
                         "Forced Gust",
-                        "Move 1 enemy Siegling to any empty cell on the enemy board.",
+                        "Move 1 enemy Siegeling to any empty cell on the enemy board.",
                         TargetType.SINGLE_ENEMY,
                         null,
                         1,

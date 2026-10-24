@@ -1108,7 +1108,7 @@ public class SiegeCombatEngine {
                 battle.log(attacker.getName() + " uses " + spec.name() + " → " + buffedNames(targets) + " are slowed.");
             }
             case STUN -> {
-                // Freeze makes a board Siegling skip its turn; here it skips its action.
+                // Freeze makes a board Siegeling skip its turn; here it skips its action.
                 for (Combatant t : targets) {
                     applyStatus(battle, t, StatusKind.STUN);
                 }

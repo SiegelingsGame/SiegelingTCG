@@ -167,7 +167,7 @@ class TutorialScriptedDrawTest {
             assertEquals("squirebud", drawn.getId());
             assertTrue(handHas(state, "tutorial_ashfall"), "Ashfall must be available for its preview lesson.");
             SieglingCard partner = assertInstanceOf(SieglingCard.class, drawn,
-                    "Round three must draw a Siegling to link a combo with.");
+                    "Round three must draw a Siegeling to link a combo with.");
             assertEquals(Element.EARTH, partner.getElement(),
                     "Round three's draw is the combo partner — a different element to the Fire board.");
         }
@@ -176,7 +176,7 @@ class TutorialScriptedDrawTest {
     /**
      * The combo lesson is gated on the student's own progress, so it can open well
      * after round three — and the partner drawn on round three can be spent before
-     * it does. Reported from a real run: the coach said "tap a Siegling of a
+     * it does. Reported from a real run: the coach said "tap a Siegeling of a
      * different element" over an all-Fire hand, which cannot be complied with. The
      * partner is therefore re-hoisted on every draw from round three onward until
      * one is actually in hand.
@@ -224,7 +224,7 @@ class TutorialScriptedDrawTest {
      * the live set — so `buildDeckById` falls back to the FIRST playable preset,
      * which live is the mono-Fire "Blazing Core". The scripted cards used to be
      * taken only from that pool, so squirebud and the Earth Strategies were
-     * silently dropped and the combo lesson asked for an off-element Siegling the
+     * silently dropped and the combo lesson asked for an off-element Siegeling the
      * deck could not contain. Reported from a real run: no Earth card ever drawn.
      *
      * The local catalog still has deck_fire_earth, which is exactly why this could
@@ -246,7 +246,7 @@ class TutorialScriptedDrawTest {
                         + "deck has none — otherwise the round-three lesson is unwinnable.");
         assertTrue(player.getDeck().stream().anyMatch(c ->
                         c instanceof SieglingCard s && !s.isEvolutionCard() && s.getElement() == Element.EARTH),
-                "A placeable off-element Siegling must exist in the tutorial deck.");
+                "A placeable off-element Siegeling must exist in the tutorial deck.");
         for (String id : List.of("sundile", "pylook", "raydile", "trap13", "tutorial_ashen_ward")) {
             assertTrue(player.getDeck().stream().anyMatch(c -> id.equalsIgnoreCase(c.getId())),
                     "Scripted lesson card '" + id + "' must survive a foreign backing deck too.");

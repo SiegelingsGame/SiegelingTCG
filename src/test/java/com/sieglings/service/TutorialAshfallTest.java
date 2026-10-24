@@ -76,7 +76,7 @@ class TutorialAshfallTest {
         state.setTurnNumber(3);
         state.setFirstTurn(false);
 
-        // Stand three Sieglings up on the Dummy's board.
+        // Stand three Siegelings up on the Dummy's board.
         var enemyDeck = state.getEnemy().getDeck();
         int placed = 0;
         for (Card c : enemyDeck) {
@@ -113,7 +113,7 @@ class TutorialAshfallTest {
      * It was briefly priced as a Fire/Earth combo, which read well — round three
      * teaches combos, so the combo would unlock the wipe. It is unshippable:
      * EnergyService recomputes combo points from the connected foundation
-     * network, and the claim step one beat earlier takes a Siegling OFF the
+     * network, and the claim step one beat earlier takes a Siegeling OFF the
      * board. Claiming breaks the link the combo was standing on, so the wipe
      * became uncastable at the exact moment the script asks for it.
      *
