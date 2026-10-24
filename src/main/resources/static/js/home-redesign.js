@@ -3793,7 +3793,7 @@
     var pack = packs.filter(function (pk) { return pk.id === opts.shopPack; })[0] || packs[0] || null;
     var tabs = [];
     var summonTag = summon && artForSlot('summon:' + packElement(summon));
-    if (summon) tabs.push({ id: 'summon', label: 'Siegeling Summon', art: summonArt(packElement(summon), true), face: summonTag ? summonTag.focus || '50% 50%' : SUMMON_SCENE[packElement(summon)] ? ELEMENT_STAGE[packElement(summon)].pos : SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
+    if (summon) tabs.push({ id: 'summon', label: 'Siegeknight', art: summonArt(packElement(summon), true), face: summonTag ? summonTag.focus || '50% 50%' : SUMMON_SCENE[packElement(summon)] ? ELEMENT_STAGE[packElement(summon)].pos : SHOP_BANNER[packElement(summon)] ? '72% 22%' : '50% 50%', el: packElement(summon) });
     if (pack) tabs.push({ id: 'packs', label: 'Pack Market', art: sceneArt('market', true), face: SHOP_SCENE.market.face, el: 'EARTH' });
     if (offers.length) tabs.push({ id: 'daily', label: 'Daily Offerings', art: sceneArt('cards', true), face: SHOP_SCENE.cards.face, el: 'LIGHT' });
     if (titles.length) tabs.push({ id: 'titles', label: 'Title Hall', art: sceneArt('throne', true), face: SHOP_SCENE.throne.face, el: 'WATER' });
@@ -3910,7 +3910,7 @@
     return stage({
         kind: 'summon', el: el, art: summonArt(el), piece: tagged,
         pos: tagged ? tagged.focus : ELEMENT_STAGE[el] && SUMMON_SCENE[el] ? ELEMENT_STAGE[el].pos : '',
-        kicker: 'Siegeling Summon', title: title(el) + ' Siegelings', sub: title(el) + ' only',
+        kicker: 'Siegeknight', title: title(el) + ' Siegelings', sub: title(el) + ' only',
         text: pk.description,
         pennant: pennantFaces('Featured', pool),
         select: '<div class="sg-gselect" role="radiogroup" aria-label="Summon element">' + m.summons.map(function (s) {

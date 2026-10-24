@@ -1,3 +1,9 @@
+Original prompt: in shop change Siegeling Summon to Siegeknight
+
+- October 24, 2026 **Shop: the summon tab and its stage kicker now read "Siegeknight".**
+  - **Change.** `home-redesign.js` renames the shop's first tab label and the summon stage's kicker from "Siegeling Summon" to "Siegeknight". The tab id (`summon`), pack ids, server pack names (`PackCatalogService` still names packs "<Element> Siegeling Summon") and the stage title/sub ("<Element> Siegelings") are unchanged. Cache pin: `home-redesign.js?v=138` (`home-next.html`, `home-redesign-preview.html`).
+  - **Verification.** `node --check` on `home-redesign.js`; grep confirms no other "Siegeling Summon" label remains in the hub UI.
+
 Original prompt: pick up the landing-page binder follow-up and wire renderBinderFace into the Gold Activated Notches change.
 
 - October 23, 2026 **Gold Activated Notches follow-up: the landing-page binder's `renderBinderFace` now emits the glow too.**
