@@ -76,9 +76,6 @@ body.concept-board {
   background:
     radial-gradient(120% 60% at 50% 0%, #16223a 0%, #0a1020 48%, #05080f 100%);
   overflow:hidden;
-  /* Site destinations live in a left rail of framed portrait plates (Shop's
-     gtabs chrome). Content and shop section tabs clear this width. */
-  --snav-w:118px;
 }
 
 /* --- top bar: four atoms, no conventional header --- */
@@ -386,7 +383,7 @@ body.concept-board {
 .sg-app a.sg-exp.is-empty .sg-exp-go { color:var(--muted); }
 
 /* hero art rotation dots */
-.sg-dots { position:absolute; right:14px; bottom:28px; display:flex; flex-direction:column; gap:7px; z-index:4; }
+.sg-dots { position:absolute; right:14px; bottom:206px; display:flex; flex-direction:column; gap:7px; z-index:4; }
 .sg-dot { width:5px; height:5px; border-radius:50%; background:rgba(200,214,236,.28); transition:all .35s ease; }
 .sg-dot.on { background:var(--gold-bright); height:16px; border-radius:3px; box-shadow:0 0 10px rgba(230,205,140,.6); }
 
@@ -645,51 +642,67 @@ body.concept-board {
   border:1px solid rgba(180,140,255,.26);
 }
 
-/* --- site navigation: left rail of framed portrait plates (Shop gtabs) ---
-   The bottom taskbar drew the eye off the page art. Site destinations reuse the
-   Shop's plate chrome and sit on the left instead. */
+/* --- bottom navigation --- */
 .sg-bottom {
-  position:absolute; z-index:45; left:8px; top:calc(58px + max(6px, var(--sg-sat)));
-  bottom:max(10px, calc(var(--sg-sab) * 0.35));
-  width:var(--snav-w); pointer-events:none;
-  display:flex; flex-direction:column; gap:0;
-  background:none; padding:0;
+  position:absolute; left:0; right:0; bottom:0; z-index:45; pointer-events:none;
+  background:linear-gradient(180deg, rgba(5,8,15,0), rgba(5,8,15,.66) 55%, rgba(5,8,15,.93) 78%);
+  /* Shorter fade so the content is not capped by a tall empty highlight band. */
+  padding-top:18px;
 }
 .sg-bottom > * { pointer-events:auto; }
-.sg-more-sheet { display:none; }
+.sg-more-sheet {
+  margin:0 12px 8px; border-radius:22px; overflow:hidden;
+  border:1px solid rgba(200,165,79,.24); background:rgba(9,14,26,.93);
+  backdrop-filter:blur(22px) saturate(1.35); -webkit-backdrop-filter:blur(22px) saturate(1.35);
+  box-shadow:0 -14px 42px rgba(0,0,0,.6);
+  display:grid; grid-template-rows:0fr; opacity:0; transform:translateY(14px);
+  transition:grid-template-rows .36s cubic-bezier(.2,.8,.25,1), opacity .26s ease, transform .32s cubic-bezier(.2,.8,.25,1);
+}
+.sg-bottom.more-open .sg-more-sheet { grid-template-rows:1fr; opacity:1; transform:translateY(0); }
+.sg-more-sheet > div { overflow:hidden; }
+.sg-more-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:4px; padding:12px; }
+.sg-more-grid button {
+  background:none; border:1px solid transparent; border-radius:14px; cursor:pointer;
+  padding:12px 6px; display:flex; flex-direction:column; align-items:center; gap:6px;
+  color:var(--ink); font-size:10.5px; letter-spacing:.06em;
+}
+.sg-more-grid button .ico { font-size:19px; }
+.sg-more-grid button:active { background:rgba(200,165,79,.12); border-color:rgba(200,165,79,.26); }
 
 .sg-nav {
-  display:flex; flex-direction:column; gap:7px; width:100%;
-  padding:0; border:none; background:none; backdrop-filter:none; -webkit-backdrop-filter:none;
-  flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:visible;
-  scrollbar-width:none; -webkit-overflow-scrolling:touch;
+  display:flex; align-items:flex-end; justify-content:space-around;
+  /* The bar used to reserve the WHOLE home-indicator inset below the chevrons
+     (10px + 34px on a modern iPhone), which is what left the tab bar floating
+     well above the bottom of the glass. Its own background already runs under
+     the indicator and each button is a 48px target, so only a small clearance
+     is needed - the chevrons now sit about as far off the bottom with the
+     indicator as they do without it. */
+  /* Read through a variable so a test can exercise this exact expression with a
+     real inset value - Chromium cannot fake env(), and a test that re-declares
+     the padding is only checking a copy of the rule. */
+  /* Phone feedback still showed a tall empty band under the labels: keep the
+     bar flush and drop the decorative clearance further so icons ride lower. */
+  /* Labels and carets must clear the home indicator: 0.4 of the inset (~14px
+     on a 34px inset) keeps them fully visible without reopening a dead band. */
+  padding:4px 6px max(8px, calc(var(--sg-sab) * 0.4));
+  border-top:1px solid rgba(112,142,180,.14);
+  background:linear-gradient(180deg, rgba(7,11,20,.72), rgba(5,8,15,.96));
+  backdrop-filter:blur(22px) saturate(1.3); -webkit-backdrop-filter:blur(22px) saturate(1.3);
 }
-.sg-nav::-webkit-scrollbar { display:none; }
-/* Buttons are .sg-gtab plates; keep them from stretching past the rail. */
-.sg-nav > .sg-gtab {
-  flex:0 0 auto; width:100%; height:52px; min-height:44px;
-  padding-right:16px;
+.sg-nav button {
+  flex:1 1 0; background:none; border:none; cursor:pointer; position:relative;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:2px;
+  color:var(--muted); font-size:9.5px; letter-spacing:.09em; text-transform:uppercase;
+  padding:2px 0 1px; transition:color .3s ease;
 }
-.sg-nav > .sg-gtab .sg-gtab-label { font-size:10.5px; }
-.sg-nav > .sg-gtab .sg-caret {
-  position:absolute; right:16px; bottom:5px; margin:0;
-  border-left-width:3px; border-right-width:3px; border-bottom-width:0;
-  border-top:4px solid currentColor; opacity:.45;
-  transform:rotate(-90deg);
-}
-.sg-nav > .sg-gtab.tray-on .sg-caret { opacity:1; transform:rotate(0deg); }
-.sg-nav > .sg-gtab .sg-gtab-gem { right:5px; }
-.sg-nav > .sg-gtab.has-tray .sg-gtab-gem { opacity:.35; }
-.sg-nav > .sg-gtab.tray-on .sg-gtab-gem,
-.sg-nav > .sg-gtab.on .sg-gtab-gem { opacity:1; }
-
-/* Scroll content clears the left rail; full-bleed stages (Shop hero, Home
-   hero) break out with a negative margin so art still runs edge to edge. */
-.sg-scroll { padding-left:calc(var(--snav-w) + 10px); }
-.sg-app[data-screen="shop"] .sg-scroll { padding-left:0; }
-.sg-hero {
-  margin-left:calc(-1 * (var(--snav-w) + 10px));
-  width:calc(100% + var(--snav-w) + 10px);
+.sg-nav button .ico { font-size:18px; line-height:1; filter:grayscale(.4); transition:filter .3s ease, transform .3s ease; }
+.sg-nav button.on { color:var(--gold-bright); }
+.sg-nav button.on .ico { filter:none; transform:translateY(-1px); }
+.sg-nav button.on::before {
+  content:''; position:absolute; top:-6px; left:50%; transform:translateX(-50%);
+  width:42px; height:26px; border-radius:50%;
+  background:radial-gradient(circle, rgba(230,205,140,.28), transparent 68%);
+  filter:blur(4px);
 }
 
 /* --- collection / gallery screen --- */
@@ -1645,13 +1658,18 @@ body.single-screen .sg-app { position:fixed; inset:0; }
   --acc-sky:#54a8f0;
 }
 
-/* Site-rail plates carry --el from markup; keep legacy --tab aliases harmless. */
-.sg-nav > .sg-gtab[data-nav="home"]       { --tab:var(--amber); }
-.sg-nav > .sg-gtab[data-nav="play"]       { --tab:var(--acc-coral); }
-.sg-nav > .sg-gtab[data-nav="collection"] { --tab:var(--acc-violet); }
-.sg-nav > .sg-gtab[data-nav="shop"]       { --tab:var(--acc-lemon); }
-.sg-nav > .sg-gtab[data-nav="social"]     { --tab:var(--acc-cyan); }
-.sg-nav > .sg-gtab[data-nav="more"]       { --tab:var(--gold-bright); }
+/* --- bottom tabs: one hue each, so the bar is a spectrum, not five greys --- */
+.sg-nav button[data-nav="home"]       { --tab:var(--amber); }
+.sg-nav button[data-nav="play"]       { --tab:var(--acc-coral); }
+.sg-nav button[data-nav="collection"] { --tab:var(--acc-violet); }
+.sg-nav button[data-nav="decks"]      { --tab:var(--acc-cyan); }
+.sg-nav button[data-nav="more"]       { --tab:var(--gold-bright); }
+.sg-nav button .ico { color:var(--tab); opacity:.42; filter:none; transition:opacity .3s ease, transform .3s ease; }
+.sg-nav button.on { color:var(--tab); }
+.sg-nav button.on .ico { opacity:1; transform:translateY(-1px); }
+.sg-nav button.on::before {
+  background:radial-gradient(circle, color-mix(in srgb, var(--tab) 46%, transparent), transparent 68%);
+}
 
 /* --- quick rail: icons keep their own colour at rest --- */
 .sg-qa[data-qa="play"]   { --qa:var(--acc-coral); }
@@ -1934,6 +1952,8 @@ body.concept-board {
   box-shadow:0 1px 3px rgba(3,5,14,.7), 0 4px 14px rgba(3,5,14,.45);
 }
 .sg-qa-panel ul, .sg-more-sheet { background:rgba(26,17,71,.94); }
+.sg-nav { background:linear-gradient(180deg, rgba(21,16,64,.68), rgba(13,10,38,.96)); }
+.sg-bottom { background:linear-gradient(180deg, rgba(13,10,38,0), rgba(13,10,38,.55) 50%, rgba(13,10,38,.92) 78%); }
 .sg-sheet-card { background:linear-gradient(180deg, rgba(40,28,108,.97), rgba(15,11,44,.99)); }
 .sg-gal-plate, .sg-feat-plate {
   background:linear-gradient(172deg,
@@ -2046,6 +2066,7 @@ body.concept-board {
   border-color:rgba(180,140,255,.34);
   box-shadow:0 12px 34px rgba(6,3,24,.5), 0 0 26px rgba(120,80,240,.24);
 }
+.sg-nav button { color:color-mix(in srgb, var(--tab) 46%, var(--muted)); }
 .sg-qa-btn .ico { opacity:1; }
 .sg-qa-btn .lbl { color:color-mix(in srgb, var(--qa, #b3a9e0) 78%, #fff); opacity:.9; }
 .sg-chip, .sg-bell { border-color:rgba(180,140,255,.36); }
@@ -2065,22 +2086,18 @@ body.concept-board {
    ========================================================================== */
 .sg-rail { display:none !important; }
 
-/* Sub-destination trays fly out to the right of the site rail. */
 .sg-tray {
-  position:absolute; left:calc(100% + 8px); top:0; z-index:46;
-  width:min(240px, calc(100vw - var(--snav-w) - 28px));
-  display:grid; grid-template-rows:0fr; opacity:0; margin:0;
-  pointer-events:none;
-  transition:grid-template-rows .34s cubic-bezier(.2,.8,.25,1), opacity .24s ease;
+  display:grid; grid-template-rows:0fr; opacity:0; margin:0 12px;
+  transition:grid-template-rows .34s cubic-bezier(.2,.8,.25,1), opacity .24s ease, margin-bottom .3s ease;
 }
-.sg-tray.open { grid-template-rows:1fr; opacity:1; pointer-events:auto; }
+.sg-tray.open { grid-template-rows:1fr; opacity:1; margin-bottom:8px; }
 .sg-tray > div { overflow:hidden; }
 .sg-tray ul {
   list-style:none; margin:0; padding:7px;
-  border-radius:16px; border:1px solid rgba(180,140,255,.34);
+  border-radius:20px; border:1px solid rgba(180,140,255,.34);
   background:rgba(26,17,71,.95);
   backdrop-filter:blur(22px) saturate(1.35); -webkit-backdrop-filter:blur(22px) saturate(1.35);
-  box-shadow:0 14px 44px rgba(6,3,24,.68), 0 0 30px rgba(120,80,240,.22);
+  box-shadow:0 -14px 44px rgba(6,3,24,.68), 0 0 30px rgba(120,80,240,.22);
 }
 .sg-tray li {
   display:flex; align-items:center; justify-content:space-between; gap:12px; cursor:pointer;
@@ -2090,20 +2107,35 @@ body.concept-board {
 .sg-tray li span { font-size:11px; color:var(--acc-lemon); letter-spacing:.04em; }
 .sg-tray li:active { background:rgba(180,140,255,.16); }
 /* each tray takes the hue of the tab that owns it */
-.sg-tray[data-tray="home"] ul       { border-color:color-mix(in srgb, var(--amber) 46%, transparent); }
 .sg-tray[data-tray="play"] ul       { border-color:color-mix(in srgb, var(--acc-coral) 46%, transparent); }
 .sg-tray[data-tray="collection"] ul { border-color:color-mix(in srgb, var(--acc-violet) 46%, transparent); }
 .sg-tray[data-tray="shop"] ul       { border-color:color-mix(in srgb, var(--acc-lemon) 46%, transparent); }
-.sg-tray[data-tray="social"] ul     { border-color:color-mix(in srgb, var(--acc-cyan) 46%, transparent); }
 .sg-tray[data-tray="more"] ul       { border-color:color-mix(in srgb, var(--acc-sky) 46%, transparent); }
 
+/* Shop is a main tab now; Decks and Cards moved under Collection. */
+.sg-nav button[data-nav="shop"] { --tab:var(--acc-lemon); }
+
+/* A caret marks the tabs that carry a tray, and flips when it is open. */
 .sg-caret {
   display:block; width:0; height:0; margin-top:1px;
   border-left:3.5px solid transparent; border-right:3.5px solid transparent;
   border-bottom:4px solid currentColor; opacity:.5;
   transition:transform .3s ease, opacity .3s ease;
 }
+.sg-bottom.tray-open .sg-nav button.has-tray .sg-caret { opacity:.3; }
+.sg-nav button.on .sg-caret { opacity:.95; }
 .cov-pill.s-more { --c:var(--acc-sky); }
+
+/* The tab whose tray is open lights up, so the panel is clearly anchored to it. */
+.sg-nav button.tray-on { color:var(--tab); }
+.sg-nav button.tray-on .ico { opacity:1; filter:drop-shadow(0 0 10px var(--tab)); transform:translateY(-1px); }
+.sg-nav button.tray-on .sg-caret { opacity:1; transform:rotate(180deg); }
+.sg-nav button.tray-on::before {
+  content:''; position:absolute; top:-6px; left:50%; transform:translateX(-50%);
+  width:42px; height:26px; border-radius:50%;
+  background:radial-gradient(circle, color-mix(in srgb, var(--tab) 40%, transparent), transparent 68%);
+  filter:blur(4px);
+}
 
 /* ==========================================================================
    PLAY, IMAGE-FIRST  +  GUEST SIGN-IN
@@ -3936,7 +3968,20 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-pick-grid { gap:7px; }
 }
 
-/* ---------- social: six destinations, three sub-tabs, and DMs ---------- */
+/* ---------- social: six tabs, three sub-tabs, and DMs ----------
+   Social became a tab of its own, which makes six in the bar. At 320px that is
+   53px per tab, so the label has to give: it steps down a point and loses some
+   tracking rather than wrapping or being cut. */
+.sg-nav button { min-width:0; }
+.sg-nav button .ico { font-size:17px; }
+@media (max-width: 400px) {
+  .sg-nav button { font-size:8.5px; letter-spacing:.04em; }
+  .sg-nav button .ico { font-size:16px; }
+}
+@media (max-width: 340px) {
+  .sg-nav button { font-size:8px; letter-spacing:.01em; }
+}
+
 /* Unread pip on the tab itself, so a waiting message is visible from anywhere. */
 .sg-nav-badge, .sg-tab-badge {
   min-width:15px; height:15px; padding:0 4px; border-radius:999px;
@@ -3944,7 +3989,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   font-size:9px; font-weight:800; font-style:normal; line-height:1;
   color:#22160a; background:linear-gradient(180deg,#f0cd8a,var(--gold));
 }
-.sg-nav-badge { position:absolute; top:4px; right:4px; z-index:2; }
+.sg-nav-badge { position:absolute; top:-2px; right:22%; }
 .sg-tab-badge { margin-left:6px; }
 
 /* Clears the fixed top bar (logo + chips) for the Friends and Messages views.
@@ -3964,7 +4009,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 .sg-fab-wrap.open .sg-fab-scrim { opacity:1; pointer-events:auto; }
 .sg-fab {
-  position:absolute; right:18px; bottom:calc(18px + var(--sg-sab, 0px));
+  position:absolute; right:18px; bottom:calc(96px + var(--sg-sab, 0px));
   width:56px; height:56px; border-radius:50%; border:0; cursor:pointer; pointer-events:auto;
   display:grid; place-items:center; color:#22160a;
   background:linear-gradient(180deg,#ffd58a,#f2a03d);
@@ -4008,7 +4053,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-fab-item { position:relative; }
 .sg-fab-item .sg-tab-badge { position:absolute; top:-3px; right:-3px; margin:0; }
 /* Room below the last row so the floating button never sits on top of it. */
-[data-social-scroll] [data-social-body] { padding-bottom:24px; }
+[data-social-scroll] [data-social-body] { padding-bottom:64px; }
 .sg-fab-ico svg { width:100%; height:100%; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
 .sg-fab .sg-fab-ico svg { stroke-width:2.1; }
 @media (prefers-reduced-motion: reduce) {
@@ -4445,18 +4490,19 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-stack { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:18px; }
   .sg-stack-tight { grid-template-columns:1fr; gap:8px; }
 
-  /* Site rail widens with the desktop gutters; trays stay a readable card. */
-  .sg-app { --snav-w:clamp(168px, 12vw, 220px); }
-  .sg-bottom { left:var(--sg-gutter); }
-  .sg-scroll { padding-left:calc(var(--sg-gutter) + var(--snav-w) + 10px); }
-  .sg-app[data-screen="shop"] .sg-scroll { padding-left:0; }
-  .sg-hero {
-    margin-left:calc(-1 * (var(--sg-gutter) + var(--snav-w) + 10px));
-    width:calc(100% + var(--sg-gutter) + var(--snav-w) + 10px);
+  /* --- bottom chrome ---
+     A tab bar stretched edge to edge across 1920px puts six labels an inch
+     apart with nothing between them. It becomes a centred pill instead; the
+     scrim behind it stays, since content still scrolls underneath. */
+  .sg-nav {
+    max-width:760px; margin:0 auto 16px; border-radius:999px;
+    border:1px solid rgba(112,142,180,.2); padding:8px 14px;
+    box-shadow:0 18px 44px rgba(0,0,0,.5);
   }
-  .sg-nav > .sg-gtab { height:clamp(58px, 4.6vw, 76px); }
-  .sg-nav > .sg-gtab .sg-gtab-label { font-size:13px; }
-  .sg-tray { width:min(280px, 22vw); }
+  .sg-nav button { font-size:10.5px; padding:4px 0 2px; }
+  .sg-nav button .ico { font-size:20px; }
+  .sg-more-sheet { max-width:760px; margin:0 auto 10px; }
+  .sg-more-grid { grid-template-columns:repeat(6, minmax(0, 1fr)); }
   .sg-rail { max-width:760px; margin:0 auto 8px; }
 
   /* Sheets and overlays are centred dialogs at this width, not bottom sheets. */
@@ -4627,7 +4673,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     font-size:clamp(12px, .75vw, 15px); padding:clamp(13px, 1vh, 18px) clamp(30px, 2.2vw, 46px);
   }
 
-  .sg-rail { max-width:none; margin-inline:var(--sg-gutter); }
+  /* Bottom chrome spans the window like the top bar does. */
+  .sg-nav, .sg-more-sheet, .sg-rail { max-width:none; margin-inline:var(--sg-gutter); }
+  .sg-nav { padding-inline:clamp(14px, 2vw, 48px); }
 }
 
 /* ---------- landscape stage (experiment) ----------
@@ -4643,8 +4691,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     display:block; position:absolute; inset:0; z-index:2; overflow:hidden;
     --sal:env(safe-area-inset-left, 0px); --sar:env(safe-area-inset-right, 0px);
     --stage-top:calc(max(6px, var(--sg-sat)) + 44px);
-    /* Site rail is on the left; only the home-indicator needs bottom clearance. */
-    --stage-bottom:max(12px, calc(var(--sg-sab) * 0.4));
+    --stage-bottom:calc(58px + max(8px, calc(var(--sg-sab) * 0.4)));
     background:#0d0a26;
   }
   .sg-stage-art { position:absolute; inset:0; }
@@ -5836,10 +5883,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-shop {
   position:relative; flex:1 1 auto; min-height:0;
   --gtabs-w:118px;
-  /* Site rail sits outside the shop; section tabs clear it. Bottom pad only
-     needs the home-indicator now that the taskbar is gone. */
-  --rail-left:calc(var(--snav-w) + 8px);
-  --gnav:max(14px, calc(var(--sg-sab, 0px) * 0.4));
+  /* Clears the floating tab bar (its controls stand ~46px tall on a phone). */
+  --gnav:calc(58px + max(0px, calc(var(--sg-sab, 0px) * .4)));
   --gtop:calc(58px + max(6px, var(--sg-sat)));
   --navy-plate:linear-gradient(180deg, rgba(30,34,78,.94), rgba(13,14,40,.94));
   --gold-line:#d9b45f;
@@ -5863,9 +5908,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     linear-gradient(180deg, rgba(8,7,28,.55) 0%, rgba(8,7,28,0) 18%, rgba(8,7,28,0) 40%, rgba(8,7,28,.72) 66%, rgba(8,7,28,.95) 100%);
 }
 
-/* --- tabs: framed portrait plates (shop sections; sit right of site rail) --- */
+/* --- tabs: framed portrait plates --- */
 .sg-gtabs {
-  position:absolute; z-index:3; left:var(--rail-left, 8px); top:var(--gtop);
+  position:absolute; z-index:3; left:8px; top:var(--gtop);
   display:flex; flex-direction:column; gap:7px; width:var(--gtabs-w);
 }
 .sg-gtab {
@@ -6186,49 +6231,21 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* Short portrait phones (iPhone SE class): the tabs and the copy share the
    height, so both tighten and the pitch line steps aside. */
 @media (orientation:portrait) and (max-height:740px) {
-  .sg-nav > .sg-gtab { height:44px; gap:5px; }
-  .sg-shop .sg-gtabs { gap:5px; }
-  .sg-shop .sg-gtabs .sg-gtab { height:40px; }
+  .sg-gtabs { gap:5px; }
+  .sg-gtab { height:46px; }
   .sg-gplaque h2 { font-size:26px; }
   .sg-gplaque p { display:none; }
   .sg-gstage-card { width:min(34vw, 150px); }
   .sg-gbtn { height:52px; }
 }
 
-/* Phones / narrow tablets: shop section tabs become a horizontal strip so the
-   site rail and the shop sections do not stack two vertical columns over the art. */
-@media (max-width:1023px) {
-  .sg-shop {
-    --gtabs-w:0px;
-    --shop-htabs:50px;
-    --rail-left:calc(var(--snav-w) + 8px);
-  }
-  .sg-shop .sg-gtabs {
-    left:var(--rail-left); right:8px; width:auto; z-index:36;
-    flex-direction:row; gap:6px; overflow-x:auto; scrollbar-width:none;
-    padding-bottom:2px;
-  }
-  .sg-shop .sg-gtabs::-webkit-scrollbar { display:none; }
-  .sg-shop .sg-gtabs .sg-gtab {
-    flex:0 0 auto; width:min(128px, 36vw); height:44px;
-    transform:none;
-  }
-  .sg-shop .sg-gtabs .sg-gtab.on { transform:none; }
-  .sg-shop .sg-gstage-body {
-    left:calc(var(--snav-w) + 12px); right:12px;
-    top:calc(var(--gtop) + var(--shop-htabs));
-  }
-  .sg-shop .sg-shop-notice { left:calc(var(--snav-w) + 12px); right:12px; }
-  .sg-arena-heading { max-width:calc(100% - var(--snav-w) - 24px); }
-  .sg-arena-half > span { left:calc(var(--snav-w) + 14px); max-width:calc(100% - var(--snav-w) - 28px); }
-  .sg-arena-dock { left:calc(var(--snav-w) + 12px); }
-  .sg-arena-skins { margin-left:calc(-1 * (var(--snav-w) + 12px)); width:calc(100% + var(--snav-w) + 20px); }
-}
-
-/* Tablets and wide phones: larger plaque type once there is room. */
-@media (min-width:640px) and (max-width:1023px) {
-  .sg-shop .sg-gtabs .sg-gtab { width:min(148px, 28vw); height:52px; }
-  .sg-shop .sg-gtabs .sg-gtab-label { font-size:13px; }
+/* Tablets and wide phones: wider tabs, the copy column starts past them. */
+@media (min-width:640px) {
+  .sg-shop { --gtabs-w:176px; }
+  .sg-gtab { height:68px; }
+  .sg-gtab-label { font-size:14px; }
+  .sg-gstage-body { left:calc(var(--gtabs-w) + 28px); right:20px; }
+  .sg-shop .sg-shop-notice { left:calc(var(--gtabs-w) + 28px); right:20px; }
   .sg-gplaque h2 { font-size:40px; }
 }
 @media (min-width:900px) {
@@ -6252,22 +6269,17 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gstage-card { width:140px; right:16px; }
 }
 @media (min-width:1024px) {
-  /* The art runs edge to edge; site rail + shop section tabs keep the gutter. */
+  /* The art runs edge to edge; the tabs and copy keep the page gutter. */
   .sg-app[data-screen="shop"] .sg-scroll { padding-inline:0; }
-  .sg-shop {
-    --gtabs-w:clamp(220px, 15vw, 280px);
-    --gtop:calc(76px + var(--sg-sat));
-    --gnav:max(18px, calc(var(--sg-sab, 0px) * 0.4));
-    --rail-left:calc(var(--sg-gutter) + var(--snav-w) + 14px);
-  }
-  .sg-gtabs { left:var(--rail-left); gap:12px; width:var(--gtabs-w); flex-direction:column; right:auto; }
-  .sg-gtabs .sg-gtab { height:clamp(84px, 6.4vw, 104px); border-radius:16px 8px 8px 16px; padding-right:26px; width:100%; }
-  .sg-gtabs .sg-gtab-art { border-radius:15px 0 0 15px; }
-  .sg-gtabs .sg-gtab-label { font-size:19px; }
-  .sg-gtabs .sg-gtab-gem { width:12px; height:18px; margin-top:-9px; right:10px; }
-  .sg-gtabs .sg-gtab.on { transform:translateX(12px); }
+  .sg-shop { --gtabs-w:clamp(240px, 17vw, 300px); --gtop:calc(76px + var(--sg-sat)); --gnav:88px; }
+  .sg-gtabs { left:var(--sg-gutter); gap:12px; }
+  .sg-gtab { height:clamp(84px, 6.4vw, 104px); border-radius:16px 8px 8px 16px; padding-right:26px; }
+  .sg-gtab-art { border-radius:15px 0 0 15px; }
+  .sg-gtab-label { font-size:19px; }
+  .sg-gtab-gem { width:12px; height:18px; margin-top:-9px; right:10px; }
+  .sg-gtab.on { transform:translateX(12px); }
   /* The stage bleeds past the page gutter but the tabs sit inside it. */
-  .sg-gstage-body { top:var(--gtop); left:calc(var(--rail-left) + var(--gtabs-w) + 28px); right:calc(var(--sg-gutter) + 170px); }
+  .sg-gstage-body { top:var(--gtop); left:calc(var(--sg-gutter) + var(--gtabs-w) + 56px); right:calc(var(--sg-gutter) + 170px); }
   /* The plaque holds the top; the selector rides down with the footer. */
   .sg-gplaque { margin-bottom:auto; }
   .sg-gplaque-kicker { font-size:13px; }
@@ -6290,7 +6302,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gstage-card { right:calc(var(--sg-gutter) + 200px); top:auto; bottom:calc(var(--gnav) + 120px); width:clamp(220px, 15vw, 290px); }
   .sg-goffer { width:62px; height:62px; }
   .sg-gtitle { height:42px; font-size:15px; padding:0 20px; }
-  .sg-shop .sg-shop-notice { left:calc(var(--rail-left) + var(--gtabs-w) + 28px); right:auto; }
+  .sg-shop .sg-shop-notice { left:calc(var(--sg-gutter) + var(--gtabs-w) + 56px); right:auto; }
   .sg-gplate { min-width:340px; }
   .sg-gplate b { font-size:20px; }
   .sg-gplate i { font-size:16px; }
