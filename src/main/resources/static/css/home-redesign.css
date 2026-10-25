@@ -1925,7 +1925,7 @@ body.concept-board {
      controls carry their own opaque fills, so nothing here needs darkening.
      The bottom half, which hands the artwork to the page colour under the
      title, is untouched. */
-  background:linear-gradient(180deg, rgba(9,36,52,0) 0%, rgba(9,36,52,0) 62%, rgba(9,36,52,.34) 84%);
+  background:linear-gradient(180deg, transparent 0%, transparent 62%, color-mix(in srgb, var(--hub-base-b) 34%, transparent) 84%);
 }
 .sg-crest-veil { background:linear-gradient(180deg, rgba(9,36,52,.52) 0%, rgba(9,36,52,0) 26%, rgba(9,36,52,.34) 62%, rgba(9,36,52,.60) 84%); }
 .sg-feature-veil { background:linear-gradient(180deg, rgba(9,36,52,.52) 0%, rgba(9,36,52,0) 24%, rgba(9,36,52,.40) 62%, rgba(9,36,52,.66) 86%); }
@@ -6547,10 +6547,24 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 /* Bright elemental hub: sky, lagoon and warm gold replace the uniform violet ground. */
 :root { --navy:#092434; --navy-2:#123c50; --navy-3:#1b536b; --steel:#608eaa; --steel-soft:rgba(144,213,235,.35); --ink:#f5fcff; --muted:#c2dfeb; }
+/* Registered so the ground can fade between palettes as Home's art rotates. */
+@property --hub-glow { syntax:'<color>'; inherits:true; initial-value:#267fc0; }
+@property --hub-glow-two { syntax:'<color>'; inherits:true; initial-value:#168f89; }
+@property --hub-base-a { syntax:'<color>'; inherits:true; initial-value:#174766; }
+@property --hub-base-b { syntax:'<color>'; inherits:true; initial-value:#0e3448; }
+@property --hub-base-c { syntax:'<color>'; inherits:true; initial-value:#184c56; }
 .sg-app {
-  --hub-glow:#267fc0; --hub-glow-two:#168f89;
-  background:radial-gradient(ellipse at 8% 5%,color-mix(in srgb,var(--hub-glow) 82%,transparent),transparent 65%),radial-gradient(ellipse at 95% 70%,color-mix(in srgb,var(--hub-glow-two) 65%,transparent),transparent 68%),linear-gradient(145deg,#174766,#0e3448 65%,#184c56);
+  --hub-glow:#267fc0; --hub-glow-two:#168f89; --hub-base-a:#174766; --hub-base-b:#0e3448; --hub-base-c:#184c56;
+  background:radial-gradient(ellipse at 8% 5%,color-mix(in srgb,var(--hub-glow) 82%,transparent),transparent 65%),radial-gradient(ellipse at 95% 70%,color-mix(in srgb,var(--hub-glow-two) 65%,transparent),transparent 68%),linear-gradient(145deg,var(--hub-base-a),var(--hub-base-b) 65%,var(--hub-base-c));
+  transition:--hub-glow 1.2s ease, --hub-glow-two 1.2s ease, --hub-base-a 1.2s ease, --hub-base-b 1.2s ease, --hub-base-c 1.2s ease;
 }
+/* Home's colours come from the hero art (home-redesign.js tintFromArt); the
+   --hero-* values stay on the app between visits but only Home reads them. */
+.sg-app[data-screen="home"] {
+  --hub-glow:var(--hero-glow, #267fc0); --hub-glow-two:var(--hero-glow-two, #168f89);
+  --hub-base-a:var(--hero-base-a, #174766); --hub-base-b:var(--hero-base-b, #0e3448); --hub-base-c:var(--hero-base-c, #184c56);
+}
+@media (prefers-reduced-motion:reduce) { .sg-app { transition:none; } }
 .sg-app[data-screen="collection"] { --hub-glow:#287ab7; --hub-glow-two:#378d68; }
 .sg-app[data-screen="decks"], .sg-app[data-screen="builder"] { --hub-glow:#157f83; --hub-glow-two:#b2853a; }
 .sg-app[data-screen="help"], .sg-app[data-screen="settings"] { --hub-glow:#288ba4; --hub-glow-two:#326c95; }

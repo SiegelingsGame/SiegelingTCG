@@ -327,6 +327,110 @@
     host.innerHTML = html;
   }
 
+  /* ---------- art-driven page colour ----------
+     Home's ground takes its colours from the piece on the wall, so Bearby's
+     Emberwaste plate sits on embers and black and Frostag's yard on ice blue.
+     Each plate is read once at 40px: the two strongest hues (weighted by
+     saturation, ignoring near-black and near-white) and the darkest quarter
+     of the pixels. The ground is built from deep tints of those so the white
+     copy above it keeps its contrast whatever the art. */
+  var artPaletteCache = {};
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, h = 0, sat = 0;
+    if (max !== min) {
+      var d = max - min;
+      sat = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h /= 6;
+    }
+    return [h * 360, sat, l];
+  }
+  function hsl(h, sat, l) {
+    return 'hsl(' + Math.round(h) + ' ' + Math.round(sat * 100) + '% ' + Math.round(l * 100) + '%)';
+  }
+  // Equal HSL lightness is not equal brightness: orange at 42% reads light and
+  // brown, blue at 42% reads dark. Each tone is pitched to a target luminance
+  // instead, which deepens warm art toward ember red and lifts cool art to ice.
+  function hslAtLuminance(h, sat, target) {
+    function lum(l) {
+      var a = sat * Math.min(l, 1 - l);
+      function ch(n) {
+        var k = (n + h / 30) % 12, v = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+        return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      }
+      return 0.2126 * ch(0) + 0.7152 * ch(8) + 0.0722 * ch(4);
+    }
+    var lo = 0.02, hi = 0.8;
+    for (var i = 0; i < 18; i++) { var mid = (lo + hi) / 2; if (lum(mid) < target) lo = mid; else hi = mid; }
+    return hsl(h, sat, (lo + hi) / 2);
+  }
+  function readArtPalette(img) {
+    var size = 40, canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    var ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, size, size);
+    var data = ctx.getImageData(0, 0, size, size).data;
+    var bins = [], lums = [];
+    for (var b = 0; b < 24; b++) bins.push({ w: 0, h: 0, s: 0 });
+    for (var i = 0; i < data.length; i += 4) {
+      if (data[i + 3] < 128) continue;
+      var c = rgbToHsl(data[i], data[i + 1], data[i + 2]);
+      lums.push(c);
+      if (c[1] < 0.22 || c[2] < 0.1 || c[2] > 0.88) continue;
+      // Squared saturation lets a vivid accent (Bearby's red mask) outweigh a
+      // larger muted field (the dusty rock behind him).
+      var w = c[1] * c[1] * (1 - Math.abs(c[2] - 0.5) * 1.3);
+      var bin = bins[Math.floor(c[0] / 15) % 24];
+      bin.w += w; bin.h += c[0] * w; bin.s += c[1] * w;
+    }
+    var order = bins.map(function (x, k) { return k; }).sort(function (a, z) { return bins[z].w - bins[a].w; });
+    var first = bins[order[0]];
+    if (!first.w) return null;
+    // The second hue has to be a different colour, not the next bin over.
+    var second = null;
+    for (var o = 1; o < order.length; o++) {
+      var gap = Math.abs(order[o] - order[0]); gap = Math.min(gap, 24 - gap);
+      if (gap >= 3 && bins[order[o]].w > first.w * 0.12) { second = bins[order[o]]; break; }
+    }
+    lums.sort(function (a, z) { return a[2] - z[2]; });
+    var dark = lums.slice(0, Math.max(1, Math.floor(lums.length / 4)));
+    var dh = 0, ds = 0, dl = 0, dw = 0;
+    dark.forEach(function (c) { var w = c[1] + 0.05; dh += c[0] * w; ds += c[1] * w; dl += c[2]; dw += w; });
+    var p1 = [first.h / first.w, first.s / first.w];
+    var darkHue = dh / dw, darkSat = Math.min(ds / dw, 0.45), darkL = dl / dark.length;
+    // A one-colour plate pairs its hue with its own shadows (Bearby: red and
+    // black) rather than repeating the hue.
+    var p2 = second ? [second.h / second.w, second.s / second.w] : null;
+    var shadow = hsl(darkHue, darkSat, Math.min(Math.max(darkL, 0.04), 0.07));
+    return {
+      glow: hslAtLuminance(p1[0], Math.min(p1[1] * 1.15, 0.9), 0.15),
+      glowTwo: p2 ? hslAtLuminance(p2[0], Math.min(p2[1] * 1.1, 0.8), 0.1) : hsl(darkHue, darkSat, 0.1),
+      baseA: hslAtLuminance(p1[0], Math.min(p1[1], 0.8), 0.028),
+      baseB: shadow,
+      baseC: p2 ? hslAtLuminance(p2[0], Math.min(p2[1], 0.7), 0.018) : shadow
+    };
+  }
+  function tintFromArt(app, url, isCurrent) {
+    function apply(pal) {
+      if (!pal || !isCurrent()) return;
+      app.style.setProperty('--hero-glow', pal.glow);
+      app.style.setProperty('--hero-glow-two', pal.glowTwo);
+      app.style.setProperty('--hero-base-a', pal.baseA);
+      app.style.setProperty('--hero-base-b', pal.baseB);
+      app.style.setProperty('--hero-base-c', pal.baseC);
+    }
+    if (artPaletteCache[url] !== undefined) { apply(artPaletteCache[url]); return; }
+    var img = new Image();
+    img.decoding = 'async';
+    img.onload = function () {
+      // A tainted or undecodable plate keeps the default ground.
+      try { artPaletteCache[url] = readArtPalette(img); } catch (e) { artPaletteCache[url] = null; }
+      apply(artPaletteCache[url]);
+    };
+    img.src = url;
+  }
+
   function mountHero(app, opts) {
     var hero = app.querySelector('[data-hero]');
     if (!hero) return;
@@ -344,7 +448,9 @@
       var card = byId(scene.card) || CARDS[0];
       var c = color(card.element);
       hero.style.setProperty('--el', c);
-      landEl.style.backgroundImage = "url('" + heroPlate(scene) + "')";
+      var art = heroPlate(scene), shown = i;
+      landEl.style.backgroundImage = "url('" + art + "')";
+      tintFromArt(app, art, function () { return hero.isConnected && idx === shown; });
       subEl.innerHTML = '<b>' + esc(card.name) + '</b> &middot; ' + esc(title(card.element)) +
         ' &middot; ' + esc(title(card.rarity));
       creditEl.innerHTML = '<span>' + esc(scene.title) + '</span>' + esc(scene.place);
@@ -356,7 +462,12 @@
     paint(idx);
 
     if (!opts || !opts.freeze) {
-      setInterval(function () { idx += 1; paint(idx); }, 7000);
+      // Home re-renders on every visit; a detached hero stops its own timer so
+      // stale rotations never repaint the page colour.
+      var heroTimer = setInterval(function () {
+        if (!hero.isConnected) { clearInterval(heroTimer); return; }
+        idx += 1; paint(idx);
+      }, 7000);
     }
 
     // Parallax: the plate drifts slower than the scroll so the hero gains depth
