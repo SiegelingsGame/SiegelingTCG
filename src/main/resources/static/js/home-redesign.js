@@ -7107,8 +7107,41 @@
     '</section>';
   }
 
+  function profileNavigation(opts, active) {
+    var items = [['profile', 'Profile', 'profile'], ['friends', 'Friends', 'social'],
+      ['messages', 'Messages', 'social'], ['lobbies', 'Lobbies', 'lobbies']];
+    return '<nav class="sg-profile-nav" aria-label="Profile and social">' + items.map(function (item) {
+      var social = item[2] === 'social' ? ' data-social-goto="' + item[0] + '"' : '';
+      return '<a class="sg-gtab' + (active === item[0] ? ' on' : '') + '" href="' + pathForScreen(item[2]) +
+        '" data-screen="' + item[2] + '"' + social + (active === item[0] ? ' aria-current="page"' : '') + '>' +
+        '<span class="sg-profile-nav-icon" aria-hidden="true">' +
+        ({profile:'◈', friends:'♧', messages:'✉', lobbies:'⚔'})[item[0]] + '</span>' +
+        '<span class="sg-gtab-label">' + item[1] + '</span><i class="sg-gtab-gem"></i>' +
+        (item[0] === 'messages' && unreadThreadCount(opts) ? '<i class="sg-tab-badge">' + esc(unreadThreadCount(opts)) + '</i>' : '') + '</a>';
+    }).join('') + '<button class="sg-gtab" type="button" data-profile-history><span class="sg-profile-nav-icon" aria-hidden="true">⌛</span><span class="sg-gtab-label">Recent matches</span><i class="sg-gtab-gem"></i></button></nav>';
+  }
+
+  function mountProfileNavigation(app, opts) {
+    app.addEventListener('click', function (event) {
+      if (!event.target.closest('[data-profile-history]')) return;
+      var dialog = document.createElement('dialog');
+      dialog.className = 'sg-profile-history';
+      dialog.setAttribute('aria-label', 'Recent matches');
+      dialog.innerHTML = '<header><h2>Recent matches</h2><button type="button" aria-label="Close recent matches">×</button></header>' + recentMarkup(opts);
+      app.appendChild(dialog);
+      dialog.querySelector('header button').onclick = function () { dialog.close(); };
+      dialog.addEventListener('click', function (e) { if (e.target === dialog || e.target.closest('[data-review]')) dialog.close(); });
+      dialog.addEventListener('close', function () { dialog.remove(); });
+      dialog.showModal();
+    });
+  }
+
+  function profileBackdrop() {
+    return '<div class="sg-profile-backdrop" aria-hidden="true"><img src="' + esc(crestBackground()) + '" alt=""></div>';
+  }
+
   function profileScreen(opts) {
-    return topMarkup(opts) +
+    return profileBackdrop() + topMarkup(opts) + profileNavigation(opts, 'profile') +
       '<div class="sg-scroll">' + profileBody(opts) + '</div>' +
       // mountSheet runs for this screen; without the host it had nothing to bind,
       // so tapping a showcase card here did nothing.
@@ -7140,7 +7173,7 @@
               ? '<span class="sg-crest-title">' + esc(prefs().playerTitle) + '</span>' : '') +
             '<p>' + esc(profileSubtitle(opts)) + '</p>' +
             xpMarkup(opts) +
-            (prefs().bio ? '<p class="sg-crest-bio">' + esc(prefs().bio) + '</p>' : '') +
+            (prefs().bio ? '<p class="sg-crest-bio" title="' + esc(prefs().bio) + '">' + esc(prefs().bio) + '</p>' : '') +
           '</div>' +
         '</section>' +
         profileTiles(opts) +
@@ -9181,18 +9214,15 @@
     boot();
   }
 
-  /* The Profile / Friends / Messages switch used to be a row of three pills
-     across the top of the screen, which pushed the profile's artwork down and
-     read as part of the profile. It is a floating button now: the profile gets
-     the screen, and Friends and Messages are one tap away from anywhere on it. */
+  /* Profile and Social share the Shop-style destination rail. Keeping it
+     outside data-social-body preserves navigation during live inbox refreshes. */
   function socialScreen(opts) {
     opts = opts || {};
     var tab = socialTab;
-    return topMarkup(opts) +
+    return profileBackdrop() + topMarkup(opts) + profileNavigation(opts, tab) +
       '<div class="sg-scroll" data-social-scroll>' +
         '<div data-social-body>' + socialTabBody(opts, tab) + '</div>' +
       '</div>' +
-      socialFab(opts, tab) +
       sheetHost() +
       (opts.guest ? '' : profileEditorHost()) +
       bottomMarkup('social', opts);
@@ -9452,11 +9482,13 @@
       fabBadge.hidden = !unread;
       fabBadge.textContent = unread > 9 ? '9+' : String(unread);
     }
-    app.querySelectorAll('[data-social-tab]').forEach(function (b) {
-      var id = b.getAttribute('data-social-tab');
+    app.querySelectorAll('[data-social-tab], .sg-profile-nav [data-social-goto], .sg-profile-nav [data-screen="profile"]').forEach(function (b) {
+      var id = b.getAttribute('data-social-tab') || b.getAttribute('data-social-goto') || 'profile';
       var on = id === socialTab;
       b.classList.toggle('on', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (b.tagName === 'A') {
+        if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+      } else b.setAttribute('aria-selected', on ? 'true' : 'false');
       var badge = b.querySelector('.sg-tab-badge');
       if (id === 'messages') {
         if (!unread && badge) badge.remove();
@@ -10600,6 +10632,7 @@
     if (screen === 'art') mountArt(app, opts);
     if (screen === 'lobbies') mountLobbies(app, opts); else stopLobbyTimers();
     if (screen === 'room') mountRoom(app, opts); else stopRoomTimers();
+    if (screen === 'profile' || screen === 'social') mountProfileNavigation(app, opts);
     if (screen === 'profile') { mountSheet(app, opts); mountProfile(app, opts); }
     if (screen === 'social') { mountSheet(app, opts); mountProfile(app, opts); mountSocial(app, opts); }
     if (screen !== 'social') { openThread = null; stopThreadPoll(); }
@@ -10821,6 +10854,7 @@
   function mountApp(host, opts) {
     opts = opts || {};
     var current = null;
+    var shieldNavigation = null;
     var priorTextState = window.render_game_to_text;
     window.render_game_to_text = function () {
       var sheet = host.querySelector('[data-sheet].open');
@@ -10846,9 +10880,14 @@
 
     function show(screen, push) {
       screen = screen || 'home';
+      if (shieldNavigation) {
+        shieldNavigation.reset();
+        shieldNavigation.element.remove();
+      }
       host.innerHTML = '';
       render(host, screen, opts);
       current = screen;
+      if (shieldNavigation) host.appendChild(shieldNavigation.element);
       if (push) {
         try {
           history.pushState({ screen: screen }, '', pathForScreen(screen));
@@ -10890,6 +10929,11 @@
     // ?screen= still works so existing links and the preview board keep going.
     show(opts.screen || new URLSearchParams(location.search).get('screen') ||
          screenForPath(location.pathname) || 'home', false);
+    if (window.SiegelingsShieldNavigation) {
+      shieldNavigation = window.SiegelingsShieldNavigation.mount(host, function (screen) {
+        show(screen, true);
+      }, function () { return current; });
+    }
     warmBinderArt(current);
     return { show: show, currentScreen: function () { return current; } };
   }

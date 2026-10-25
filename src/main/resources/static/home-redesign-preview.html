@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siegelings TCG — Art-First Home Concept</title>
-<link rel="stylesheet" href="/css/home-redesign.css?v=144">
+<link rel="stylesheet" href="/css/shield-navigation.css?v=1">
+<link rel="stylesheet" href="/css/home-redesign.css?v=146">
 </head>
 <body class="concept-board">
   <div class="board-wrap" id="board">
@@ -100,7 +101,8 @@
 
 <script src="/js/home-redesign-data.js?v=1"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
-<script src="/js/home-redesign.js?v=141"></script>
+<script src="/js/shield-navigation.js?v=1"></script>
+<script src="/js/home-redesign.js?v=143"></script>
 <script>
 (function () {
   var single = new URLSearchParams(location.search).get('screen');
@@ -108,7 +110,11 @@
     // Phone review mode: one screen, no device frame, real viewport.
     document.body.className = 'single-screen';
     document.body.innerHTML = '';
-    if (single === 'nav') {
+    if (single === 'profile') {
+      window.SiegelingsHomeConcept.mountApp(document.body, { screen: 'profile', guest: true });
+    } else if (single === 'shield') {
+      window.SiegelingsHomeConcept.mountApp(document.body, { screen: 'play', guest: true });
+    } else if (single === 'nav') {
       window.SiegelingsHomeConcept.render(document.body, 'home', { openTray: 'collection', freeze: true });
     } else if (single === 'more') {
       window.SiegelingsHomeConcept.render(document.body, 'home', { openTray: 'play', questsOpen: true, freeze: true });
