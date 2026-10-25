@@ -1,3 +1,47 @@
+Original prompt: The Circle should break the line completely along the top and bottom of the bar to enhance the illusion of it passing behind
+
+- October 25, 2026 **Arena Art rail: the ring around the shield button now breaks both edges of the bar.**
+  - **Change.** The landscape skin rail is now a band centred on the shield button (`--fab-cy`), 14px shorter than the hole's diameter (`--rail-h`), with a gold line on its bottom edge as well as its top. Before, it ran down to the screen edge, so the ring only notched its top. The mask hole is centred in the band (`circle at 50vw 50%`), so the ring passes about 7px beyond both lines and the bar reads as sliding behind the button. Each skin is now a column whose thumbnail takes the height its label leaves (`object-fit:cover`), so the label always fits in the shorter band. Cache pin: `home-redesign.css?v=160`.
+  - **Verification.** Headless Chromium on the preview shop with 11 mock skins, at 1920x1080, 1366x768, 1024x600, 932x430, 852x393, 667x375 and 568x320:
+    - the rail's midline equals the FAB centre;
+    - the ring's top and bottom both lie outside the rail (for example 995/1077 against a 1002–1070 rail at 1920x1080);
+    - every skin, its label and its content fit inside the band;
+    - no horizontal scroll and no page errors.
+
+    The first pass of the label check failed at every landscape size, which is what prompted the column layout. Cropped screenshots, including one after scrolling, show both lines stopping at the ring. Portrait is unchanged. `tests/hub-workspaces-check.cjs` passes.
+
+Original prompt: On landscape view for arenas well in shop in general. Instead of placing the arena options bar above the circle instead place the button on top of it. But around the button just create a circle shape break in the line where the options essentially pass over to the next side
+
+- October 25, 2026 **Shop › Arena Art (landscape): the skin rail runs under the shield button through a circular break.**
+  - **Change.**
+    - **Rail position.** In landscape the skin rail moves from above the shield FAB down to the bottom edge, level with the button: the dock sits at `bottom:0`, and the rail's height is sized so the button's centre sits inside the band.
+    - **Circular break.** A radial `mask-image` cuts a circular hole out of the rail around the FAB. Its centre is `50vw` (the rail starts at x=0) at `--fab-cy` (44px above the safe area, 39px on landscape phones under 500px tall), and its radius is the FAB radius plus 10px (8px on phones). The rail's top line therefore breaks around the button, and skins scrolling along disappear into the gap and come out the other side. A 1px gold ring with a soft glow (`.sg-arena-gallery::after`) outlines the hole.
+    - **Selected-arena plate.** The plate still sits above the rail at the right. The AI label moved up to clear it.
+    - **Cache pins.** Bumped to `home-redesign.css?v=158` / `home-redesign.js?v=154`: main's #1199 had also taken v=157/153 for different content.
+  - **Verification.** Headless Chromium on the preview shop with 11 mock skins:
+    - **Geometry.** At 1920x1080, 1366x768, 1024x600, 932x430, 852x393, 667x375 and 568x320, the FAB centre lies inside the rail band, and the ring's centre equals the FAB centre (44px up; 39px up under 500px tall). The selected plate clears the rail, and there is no horizontal page scroll.
+    - **Visual.** Cropped screenshots, including one after scrolling the rail, show thumbnails clipped along the circle and the rail's top line breaking into the ring.
+    - **Portrait.** 430x932 is unchanged: no mask, no ring.
+    - `tests/hub-workspaces-check.cjs` passes.
+
+Original prompt: Image 2 that screen should be end to end on my display not cut off or showing the purple background. Image 1 make the collection scaled 4 wide on portrait at this resolution. Image 3 arena in shop needs a full screen display on portrait. Also the landscape display is horrendous you cannot see the arena at all. Image 4 profile on landscape use the top header for much of the player details such as name rank wins status. Anything in that bubble can be shown dynamically with nice flavor text across the top. Update the rest of the elements combining showcase and favorite cards. The favorite card must be in the showcase and it gets a special border in the showcase.
+
+- October 25, 2026 **Loadout edge to edge, 4-wide binder, full-screen Arena Art, and a landscape Profile with a header strip and a merged showcase.**
+  - **Change.**
+    - **Loadout (`play-next.css`).** On landscape phones the loadout box already pads by the safe areas, but `style.css` also padded the overlay by them. The notch was counted twice, so the box sat inset by about 60px a side with the overlay's purple showing. The landscape block now zeroes the overlay padding.
+    - **Binder.** Portrait phones (under 700px wide) show 4 cards across; under 360px wide they show 3.
+    - **Arena Art.** Board skins are 4:3 / 3:2 landscape plates, so `object-fit:contain` letterboxed them: a dark band in portrait, and on landscape a sliver about 290px wide. Each half now fills its share of the whole screen with cover, starting under the transparent header. Portrait stacks the halves. Landscape and desktop put them side by side, upright, with a vertical VS line and a frosted skin rail.
+    - **Profile header strip.** On landscape/desktop the crest's details move into a glass strip in the header's empty middle: avatar, name, title chip and Customize. One line of flavour fades through bio, record, purse, favourite card and SiegeKnight count every 4.2s (`profileHeadMarkup`/`mountProfileHead`; the timer stops when detached). Its right edge is measured from the header's chips. The page below becomes a 4-across record row, the showcase and the card back. Social's Profile tab keeps its crest.
+    - **Showcase merge.** `mergeFavorite` puts the favourite card first in the showcase, never twice, followed by up to three picks. It gets an `is-favorite` gold frame and a "★ Favorite" pill, on the owner's profile and in the friend view. Signature became Card back, and the editor hints explain the favourite rule.
+    - **Test update.** `tests/profile-dashboard-check.cjs` now allows the hidden crest, asserts the header strip sits in the header row, and clicks the visible Customize button.
+    - Cache pins: `play-next.css?v=16`, `home-redesign.css?v=157`, `home-redesign.js?v=153`.
+  - **Verification.** `node --check`. Headless Chromium:
+    - **Loadout.** At 932x430, 852x393 and 667x375 the overlay padding is 0 and the box spans the viewport. With a simulated 59px notch padding, controls stay inside it.
+    - **Binder.** 430x932, 390x844 and 375x667 give 4 columns; 320x568 gives 3; no horizontal scroll.
+    - **Arena Art.** At 430x932 and 390x844 the halves each fill half the screen. At 932x430, 852x393, 667x375, 1366x768 and 1920x1080 the halves sit side by side at full height. Screenshots show the art.
+    - **Profile.** At 1000x463, 852x393, 667x375, 1920x1080 and 1366x768 the strip shows, clears the logo and chips, and the name isn't clipped. No block overflows and nothing sits under the FAB. The showcase reads Skydon★ (the favourite), Conchious, Pylord, Glaciemperor, and the flavour line cycles through all 5 lines. 390x844 keeps the crest.
+    - **Repo checks.** `hub-workspaces-check`, `shield-navigation-check` and `play-match-and-profile-check` pass. `profile-dashboard-check` passes its layout assertions; it still intermittently fails clicking the shield's Social link, and fails the same way on commit 438c4535 from before this session's hub work. `hub-top-chrome-check` fails identically on main (an intro overlay covers the chips).
+
 Original prompt: Let's create a portrait concept for the new landscape view where the art is forefront. No scrolling with the floating glass buttons and similar placement of action buttons. Using only portrait cut outs of art of portrait art
 
 - October 25, 2026 **Portrait Home is the stage too: one non-scrolling screen of tall art with floating glass controls.**

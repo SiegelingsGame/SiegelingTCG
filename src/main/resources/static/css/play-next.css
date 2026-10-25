@@ -751,6 +751,11 @@
    side-by-side columns that scroll sideways. Nothing scrolls vertically except
    the Deck Builder (an editor, not a pick) and a long panel's own body. */
 @media (orientation: landscape) and (max-height: 600px) {
+    /* The box below already pads by the safe areas, so the overlay must not:
+       style.css's overlay padding counted the notch twice and left the
+       overlay's purple showing ~60px a side on landscape iPhones. */
+    .loadout-overlay { padding: 0; }
+
     .loadout-overlay .loadout-box {
         --loadout-padding: 12px;
         position: relative;
