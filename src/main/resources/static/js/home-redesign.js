@@ -1340,8 +1340,10 @@
      instead one screen of artwork with every destination floating over it, in
      the manner of a gacha lobby: nothing scrolls, the art is the point, and the
      panels that used to be sections (Objectives, Hall of Siege, Continue
-     Playing) open on demand over the art. Portrait and desktop keep the
-     scrolling Home - the stage is only shown by the landscape media query.
+     Playing) open on demand over the art. A portrait phone gets the same
+     stage stood on end (the "tall stage"), hung only with art painted tall:
+     a 16:9 scene cropped to a 9:19 phone keeps a sliver of its subject, so
+     wide-only pieces sit out of the portrait rotation rather than be cut.
 
      The player chooses which gallery pieces rotate behind it, up to
      STAGE_MAX. Like the binder look this is a device preference (localStorage):
@@ -1350,42 +1352,69 @@
   var STAGE_KEY = 'sgStageRotation';
   var STAGE_MAX = 10;
   var STAGE_DWELL_MS = 9000;
-  var STAGE_QUERY = '(min-width: 1024px), (orientation: landscape)';
+  var STAGE_TALL_QUERY = '(orientation: portrait) and (max-width: 1023px)';
+  // The tall stage's first rotation: the hub's own tall scenes, then the
+  // loading library's, up to this many, one per Siegeling where it can.
+  var STAGE_TALL_DEFAULT = 6;
 
-  function stagePieces() {
-    // Landscape art first: the stage is by definition a wide screen, and a tall
-    // plate cropped to a 2:1 band loses its subject.
+  function stageTall() {
+    return Boolean(window.matchMedia && window.matchMedia(STAGE_TALL_QUERY).matches);
+  }
+
+  function stagePieces(tall) {
+    // Each orientation hangs the art painted for it. A wide stage still takes a
+    // tall piece when it has nothing else; a tall stage never takes a wide one.
     var src = (window.SiegelingsLoadingArt && window.SiegelingsLoadingArt.pool()) || [];
     var out = src.map(function (p) {
-      var art = p.landscape || p.portrait || '';
+      var art = tall ? p.portrait || '' : p.landscape || p.portrait || '';
       return { id: p.id, title: p.title || title(p.id), place: p.place || '', thumb: art, art: art };
     }).filter(function (p) { return p.art; });
     // The hub's own plates are not all in the loading pool (the Sunscar Ruins
     // scene is hub-only), and the default rotation names them.
     galleryScenes().forEach(function (g) {
       if (out.some(function (p) { return p.id === g.img; })) return;
-      out.push({ id: g.img, title: g.title, place: g.place, thumb: plate(g, true), art: plate(g) });
+      if (tall && !g.portrait) return;
+      var art = tall ? heroPlate(g) : plate(g);
+      out.push({ id: g.img, title: g.title, place: g.place, thumb: tall ? art : plate(g, true), art: art });
     });
     return out;
   }
 
-  function readStageRotation() {
+  // A choice made for the wide wall says nothing about the tall one (most of
+  // its pieces cannot hang there), so each orientation keeps its own list.
+  function stageKey(tall) { return tall ? STAGE_KEY + 'Tall' : STAGE_KEY; }
+
+  function stageDefault(pieces, tall) {
+    if (!tall) return HERO_SCENES;
+    var ids = [], cards = {};
+    galleryScenes().forEach(function (g) { if (g.portrait) ids.push(g.img); });
+    pieces.forEach(function (p) {
+      var card = String(p.id).split('-')[0];
+      if (ids.indexOf(p.id) >= 0 || cards[card] || galleryLock(p.id)) return;
+      cards[card] = true;
+      ids.push(p.id);
+    });
+    return ids.slice(0, STAGE_TALL_DEFAULT);
+  }
+
+  function readStageRotation(tall) {
     var saved = null;
-    try { saved = JSON.parse(localStorage.getItem(STAGE_KEY) || 'null'); } catch (e) { saved = null; }
-    var pieces = stagePieces();
+    try { saved = JSON.parse(localStorage.getItem(stageKey(tall)) || 'null'); } catch (e) { saved = null; }
+    var pieces = stagePieces(tall);
     var known = {};
     pieces.forEach(function (p) { known[p.id] = p; });
-    var ids = (Array.isArray(saved) ? saved : HERO_SCENES).filter(function (id) {
+    var fallback = stageDefault(pieces, tall);
+    var ids = (Array.isArray(saved) ? saved : fallback).filter(function (id) {
       return known[id] && !galleryLock(id);
     }).slice(0, STAGE_MAX);
     // An emptied or fully-locked selection still needs something on the wall.
-    if (!ids.length) ids = HERO_SCENES.filter(function (id) { return known[id]; });
+    if (!ids.length) ids = fallback.filter(function (id) { return known[id]; });
     if (!ids.length && pieces.length) ids = [pieces[0].id];
     return ids.map(function (id) { return known[id]; });
   }
 
-  function writeStageRotation(ids) {
-    try { localStorage.setItem(STAGE_KEY, JSON.stringify(ids.slice(0, STAGE_MAX))); } catch (e) { /* private mode */ }
+  function writeStageRotation(ids, tall) {
+    try { localStorage.setItem(stageKey(tall), JSON.stringify(ids.slice(0, STAGE_MAX))); } catch (e) { /* private mode */ }
   }
 
   // The card a piece portrays, for the caption. Gallery scenes name it; API
@@ -1505,9 +1534,10 @@
     '</section>';
   }
 
-  function stagePickerMarkup(selected) {
-    var pieces = stagePieces();
-    return '<p class="sg-stage-pick-note">Choose up to ' + STAGE_MAX + ' pieces to rotate behind Home. ' +
+  function stagePickerMarkup(selected, tall) {
+    var pieces = stagePieces(tall);
+    return '<p class="sg-stage-pick-note">Choose up to ' + STAGE_MAX + ' pieces to rotate behind Home' +
+        (tall ? ' in portrait. Only art painted tall hangs here.' : '.') + ' ' +
         '<b data-stage-count>' + selected.length + '/' + STAGE_MAX + '</b></p>' +
       '<div class="sg-stage-pick-grid">' + pieces.map(function (p) {
         var lock = galleryLock(p.id);
@@ -1526,7 +1556,9 @@
   function mountStage(app, opts) {
     var stage = app.querySelector('[data-stage]');
     if (!stage) return;
-    var mq = window.matchMedia ? window.matchMedia(STAGE_QUERY) : null;
+    // Home is the stage at every size now; only the orientation of the wall
+    // changes, and with it which art can hang there.
+    var mq = window.matchMedia ? window.matchMedia(STAGE_TALL_QUERY) : null;
     var plates = [].slice.call(stage.querySelectorAll('[data-stage-plate]'));
     var caption = stage.querySelector('[data-stage-caption]');
     // The art controls render in the header, so they are found from the app.
@@ -1536,11 +1568,10 @@
     var sheet = stage.querySelector('[data-stage-sheet]');
     var sheetTitle = stage.querySelector('[data-stage-sheet-title]');
     var sheetBody = stage.querySelector('[data-stage-sheet-body]');
-    var rotation = readStageRotation();
+    var tall = stageTall();
+    var rotation = readStageRotation(tall);
     var idx = 0, front = 0, timer = null, paused = false;
     var borrowed = null;   // { node, marker } while a Home section is shown in the panel
-
-    function active() { return Boolean(mq && mq.matches); }
 
     function paint(i, instant) {
       if (!rotation.length) return;
@@ -1570,7 +1601,7 @@
 
     function schedule() {
       clearInterval(timer); timer = null;
-      if (paused || rotation.length < 2 || !active()) return;
+      if (paused || rotation.length < 2) return;
       timer = setInterval(function () {
         // Home re-renders on every screen change; a detached stage stops itself.
         if (!stage.isConnected) { clearInterval(timer); return; }
@@ -1625,7 +1656,7 @@
 
     function openPicker() {
       var selected = rotation.map(function (p) { return p.id; });
-      openSheet('Home Rotation', stagePickerMarkup(selected));
+      openSheet('Home Rotation', stagePickerMarkup(selected, tall));
       sheetBody.onclick = function (e) {
         var btn = e.target.closest && e.target.closest('[data-stage-piece]');
         if (!btn || btn.disabled) return;
@@ -1642,7 +1673,7 @@
           }
           selected.push(id);
         }
-        writeStageRotation(selected);
+        writeStageRotation(selected, tall);
         sheetBody.querySelectorAll('[data-stage-piece]').forEach(function (b) {
           var o = selected.indexOf(b.getAttribute('data-stage-piece'));
           b.classList.toggle('on', o >= 0);
@@ -1651,7 +1682,7 @@
         });
         sheetBody.querySelector('[data-stage-count]').textContent = selected.length + '/' + STAGE_MAX;
         var showing = rotation[idx] && rotation[idx].id;
-        rotation = readStageRotation();
+        rotation = readStageRotation(tall);
         var keep = -1;
         rotation.forEach(function (p, i) { if (p.id === showing) keep = i; });
         // Adding a piece shows it at once, so the choice is visibly made.
@@ -1695,9 +1726,13 @@
     });
 
     if (mq) {
+      // Turning the phone swaps the wall for the other orientation's rotation.
       var onChange = function () {
         if (!stage.isConnected) return;
-        if (!mq.matches) { closeSheet(); app.classList.remove('is-stage-bare'); }
+        closeSheet();
+        tall = mq.matches;
+        rotation = readStageRotation(tall);
+        paint(0, true);
         schedule();
       };
       if (mq.addEventListener) mq.addEventListener('change', onChange);
