@@ -16,6 +16,29 @@ Original prompt: Image 2 that screen should be end to end on my display not cut 
     - **Profile.** At 1000x463, 852x393, 667x375, 1920x1080 and 1366x768 the strip shows, clears the logo and chips, and the name isn't clipped. No block overflows and nothing sits under the FAB. The showcase reads Skydon★ (the favourite), Conchious, Pylord, Glaciemperor, and the flavour line cycles through all 5 lines. 390x844 keeps the crest.
     - **Repo checks.** `hub-workspaces-check`, `shield-navigation-check` and `play-match-and-profile-check` pass. `profile-dashboard-check` passes its layout assertions; it still intermittently fails clicking the shield's Social link, and fails the same way on commit 438c4535 from before this session's hub work. `hub-top-chrome-check` fails identically on main (an intro overlay covers the chips).
 
+Original prompt: Let's create a portrait concept for the new landscape view where the art is forefront. No scrolling with the floating glass buttons and similar placement of action buttons. Using only portrait cut outs of art of portrait art
+
+- October 25, 2026 **Portrait Home is the stage too: one non-scrolling screen of tall art with floating glass controls.**
+  - **Change.**
+    - **Stage everywhere.** The stage's CSS block no longer sits behind `(min-width:1024px), (orientation:landscape)`, so portrait phones and tablets also retire the scroller. A new `(orientation:portrait) and (max-width:1023px)` block (the "tall stage") restates only what moves.
+    - **Layout.** The five glass destination plates run down the upper left and the six launcher icons form a rail down the right (two wide only at 600px tall or less). The caption sits bottom-left, Arena is the one wide button above the bottom row, and Siege and Dominion flank the shield FAB on that row. Without the shield, the modes sit above the tab bar. The art transport (Rotation, prev/pause/next, dots, hide) hangs as its own pill just under the header. The soundtrack pill hides in portrait; the music button stays. Panels open under that pill.
+    - **Portrait art only.** `stagePieces(tall)` takes only pieces with a portrait file (the hub's tall gallery scenes plus the loading library's `*-portrait` art). Wide-only pieces sit out of the portrait rotation rather than be cropped. The portrait wall keeps its own rotation (`sgStageRotationTall`). By default it holds the tall gallery scenes, then one piece per Siegeling, six in all. The picker shows 9:16 tiles. Turning the phone swaps to the other orientation's rotation.
+    - Cache pins: `home-redesign.css?v=157`, `home-redesign.js?v=153`.
+  - **Verification.** `node --check`. Headless Chromium on the preview hub at 390x844, 430x932, 375x667, 320x568 and 820x1180:
+    - the page does not scroll;
+    - no control overlaps another or the shield FAB;
+    - nothing runs off screen;
+    - the wall shows only `*-portrait` art.
+
+    With the loading library cached at 390x844:
+    - stepping the rotation and the picker (47 pieces) listed only portrait files;
+    - Hall of Siege opened below the art pill;
+    - hide/reveal worked;
+    - rotating to 844x390 swapped to landscape art, and rotating back swapped back;
+    - no page errors.
+
+    852x393 and 1920x1080 keep the landscape stage. `tests/hub-workspaces-check.cjs` passes.
+
 Original prompt: Update landscape and desktop setting page so it does not require scrolling
 
 - October 25, 2026 **Settings fits one screen on landscape and desktop; the delete confirmation no longer shows before it is asked for.**

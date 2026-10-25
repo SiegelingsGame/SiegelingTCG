@@ -4692,15 +4692,15 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-nav { padding-inline:clamp(14px, 2vw, 48px); }
 }
 
-/* ---------- landscape stage (experiment) ----------
-   On a phone on its side Home is one screen of rotating artwork with every
-   destination floating over it; nothing scrolls. Portrait and desktop never see
-   the stage - it only exists inside this query, which matches the landscape
-   breakpoint the card sheet already uses. The scroller stays in the DOM (its
-   sections are lent to the stage's panel) but is retired from layout. */
-.sg-stage, .sg-stage-music, .sg-stage-player { display:none; }
+/* ---------- the stage ----------
+   Home is one screen of rotating artwork with every destination floating over
+   it; nothing scrolls. It began on landscape phones and now covers every size:
+   a portrait phone stands it on end (the tall stage, below). The scroller stays
+   in the DOM (its sections are lent to the stage's panel) but is retired from
+   layout. The base rules stay in one block so the tall stage can restate only
+   what moves. */
 .sg-logo-link { display:flex; align-items:center; }
-@media (min-width:1024px), (orientation:landscape) {
+@media all {
   .sg-stage ~ .sg-scroll { display:none; }
   .sg-stage {
     display:block; position:absolute; inset:0; z-index:2; overflow:hidden;
@@ -4983,6 +4983,115 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     .sg-stage-plate.is-on { animation:none; transform:none; }
     .sg-app a.sg-stage-play::after { animation:none; }
     .sg-stage-music-toggle.is-playing .sg-stage-eq i { animation:none; height:9px; }
+  }
+}
+
+/* ---------- the tall stage (portrait phones and tablets) ----------
+   The landscape stage stood on end, hung only with portrait art. The same
+   pieces keep the same corners where the phone allows: destinations down the
+   left, the launcher icons as a rail down the right, the caption bottom-left,
+   Arena as the one loud button. Siege and Dominion flank the shield FAB on the
+   bottom row instead of stacking above Arena, so the art keeps the middle of
+   the screen. The art controls drop out of the crowded header into their own
+   pill just under it. */
+@media (orientation:portrait) and (max-width:1023px) {
+  .sg-stage {
+    --stage-top:calc(max(6px, var(--sg-sat)) + 44px);
+    --stage-bottom:calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+  .sg-stage-plate { background-position:center 30%; }
+  .sg-stage-veil {
+    background:
+      linear-gradient(180deg, rgba(9,36,52,.55) 0%, rgba(9,36,52,0) 20%, rgba(9,36,52,0) 54%, rgba(9,36,52,.58) 76%, rgba(9,36,52,.86) 100%),
+      linear-gradient(90deg, rgba(9,36,52,.32) 0%, rgba(9,36,52,0) 34%, rgba(9,36,52,0) 78%, rgba(9,36,52,.28) 100%);
+  }
+
+  /* Header: the soundtrack pill steps aside (the music button stays), and the
+     art's transport hangs below the chips where it has the full width. */
+  .sg-top .sg-stage-music { display:none; }
+  .sg-top .sg-stage-player {
+    position:absolute; top:calc(100% - 2px); left:max(14px, env(safe-area-inset-left, 0px)); height:32px;
+  }
+  .sg-stage-player button.sg-stage-pick-btn span { display:inline; }
+  .sg-stage-player button.sg-stage-pick-btn { padding:0 11px; }
+  .sg-stage-player [data-stage-prev], .sg-stage-dots { display:inline-flex; }
+
+  /* Without the shield the tab bar takes the bottom, and the modes sit above it. */
+  .sg-stage-ui {
+    padding:calc(var(--stage-top) + 42px) max(12px, var(--sar)) calc(var(--stage-bottom) - 18px) max(12px, var(--sal));
+    grid-template-columns:minmax(0, 1fr) 72px minmax(0, 1fr);
+    grid-template-rows:auto minmax(0, 1fr) auto auto 48px;
+    grid-template-areas:
+      "lead lead tiles"
+      ". . tiles"
+      "deck deck deck"
+      "play play play"
+      "siege siege keep";
+    gap:8px 8px;
+  }
+  .has-shield-navigation .sg-stage-ui {
+    padding-bottom:calc(13px + env(safe-area-inset-bottom, 0px));
+    grid-template-rows:auto minmax(0, 1fr) auto auto 62px;
+    grid-template-areas:
+      "lead lead tiles"
+      ". . tiles"
+      "deck deck deck"
+      "play play play"
+      "siege fab keep";
+  }
+
+  .sg-stage-lead { grid-area:lead; }
+  .sg-stage-cards { grid-template-columns:clamp(118px, 33vw, 150px); gap:6px; }
+  .sg-stage-cards .sg-gtab { height:40px; }
+  .sg-stage-cards .sg-gtab-label { font-size:11.5px; }
+
+  /* The column's own box dissolves so its children take the grid's corners. */
+  .sg-stage-right { display:contents; }
+  .sg-stage-left {
+    grid-area:tiles; align-self:start; justify-self:end;
+    grid-template-columns:58px; gap:8px; margin:0;
+  }
+  .sg-stage-tile-ico { width:38px; height:38px; }
+  .sg-stage-badge { right:4px; }
+  .sg-app a.sg-stage-mode {
+    grid-area:siege; align-self:center; justify-self:end; width:min(100%, 260px); min-height:46px; padding:6px 12px;
+  }
+  .sg-app a.sg-stage-mode.is-keep { grid-area:keep; justify-self:start; }
+  .sg-stage-mode-kicker { font-size:8px; letter-spacing:.14em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sg-stage-mode strong { font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sg-app a.sg-stage-play {
+    grid-area:play; justify-self:center; width:min(100%, 340px); height:54px; font-size:21px;
+  }
+  .sg-stage-deck { grid-area:deck; }
+  .sg-stage-caption strong { font-size:21px; }
+
+  /* Panels open under the art pill rather than over it. */
+  .sg-stage-panel { top:calc(var(--stage-top) + 42px); }
+  .sg-stage-panel-card { max-height:calc(var(--sg-vh, 100dvh) - var(--stage-top) - 42px - var(--stage-bottom) - 6px); }
+
+  /* Tall pieces are tall in the picker too. */
+  .sg-stage-pick-grid { grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); }
+  .sg-stage-pick { aspect-ratio:9 / 16; }
+
+  /* Shorter phones (SE, mini, the browser's own chrome): the rail tightens
+     and the plates slim down; only the shortest windows fold it two wide,
+     which would otherwise cover the middle of the art. */
+  @media (max-height:740px) {
+    .sg-stage-left { gap:3px; }
+    .sg-stage-tile-ico { width:34px; height:34px; }
+    .sg-stage-cards .sg-gtab { height:34px; }
+    .sg-stage-cards { gap:5px; }
+    .sg-app a.sg-stage-play { height:48px; font-size:19px; }
+    .sg-stage-caption strong { font-size:18px; }
+  }
+  @media (max-height:600px) {
+    .sg-stage-left { grid-template-columns:repeat(2, 52px); gap:4px; }
+    .sg-stage-caption span { display:none; }
+    .sg-stage-cards .sg-gtab { height:30px; }
+  }
+  /* Narrow phones: the picker keeps its icon and the transport, nothing else. */
+  @media (max-width:359px) {
+    .sg-stage-player button.sg-stage-pick-btn span, .sg-stage-dots { display:none; }
   }
 }
 
