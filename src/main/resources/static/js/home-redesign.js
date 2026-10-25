@@ -1060,16 +1060,22 @@
 
   var MUSIC_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle><path class="sg-music-slash" d="M3 3l18 18"></path></svg>';
 
-  function topMarkup(opts, beforeMusic) {
+  // `extra` lets a screen add its own header controls: { logoHref, afterLogo,
+  // beforeMusic }. Only Home's landscape stage uses it today.
+  function topMarkup(opts, extra) {
+    extra = extra || {};
     var guest = Boolean(opts && opts.guest);
+    var logo = '<img class="sg-logo" src="/img/siegelings-icon-256.webp" alt="Siegelings">';
     var unread = unreadNotifCount(opts);
     return '<header class="sg-top' + (guest ? ' is-guest' : '') + '">' +
-      '<img class="sg-logo" src="/img/siegelings-icon-256.webp" alt="Siegelings">' +
+      // No data-screen: this is a real page change, not a hub route.
+      (extra.logoHref ? '<a class="sg-logo-link" href="' + esc(extra.logoHref) + '" aria-label="Siegelings home page">' + logo + '</a>' : logo) +
+      (extra.afterLogo || '') +
       '<span class="sg-top-spacer"></span>' +
       '<span class="sg-chip coin"><img src="/img/ui/home-stats/siegecoin.png" alt="">' +
         esc(formatCoins(opts, guest)) + '</span>' +
       // hub-music.js owns the state and repaints this on every change.
-      (beforeMusic || '') +
+      (extra.beforeMusic || '') +
       '<button class="sg-music" type="button" data-music-open aria-label="Music" aria-haspopup="dialog" aria-expanded="false">' + MUSIC_ICON + '</button>' +
       (guest
         ? '<a class="sg-signin" href="/login" data-screen="auth">Sign In</a>'
@@ -1346,8 +1352,6 @@
             '<button type="button" data-stage-pause aria-label="Pause rotation">' + STAGE_ICON.pause + '</button>' +
             '<button type="button" data-stage-next aria-label="Next art">' + STAGE_ICON.next + '</button>' +
             '<span class="sg-stage-dots" data-stage-dots></span>' +
-            '<button type="button" class="is-wide" data-stage-pick aria-haspopup="dialog">' +
-              STAGE_ICON.frames + '<span>Rotation</span></button>' +
             '<button type="button" data-stage-hide aria-label="Hide menus to view the art">' + STAGE_ICON.eye + '</button>' +
           '</div>' +
           // The title of the piece on the wall holds the far bottom-left corner.
@@ -1545,6 +1549,9 @@
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && stage.isConnected && !sheet.hidden) closeSheet();
     });
+    // The wallpaper picker lives in the header, outside the stage's listener.
+    var headerPick = app.querySelector('.sg-top [data-stage-pick]');
+    if (headerPick) headerPick.addEventListener('click', openPicker);
 
     if (mq) {
       var onChange = function () {
@@ -1566,8 +1573,13 @@
     opts = opts || {};
     // The stage precedes the scroller so the landscape rule can retire the
     // scroller with a sibling selector rather than :has().
-    // The stage's soundtrack pill rides in the header beside the music button.
-    return topMarkup(opts, stageMusicMarkup()) + stageMarkup(opts) +
+    // The stage's soundtrack pill rides in the header beside the music button,
+    // its wallpaper picker beside the logo, and the logo leads to the landing.
+    return topMarkup(opts, {
+        logoHref: '/landing',
+        afterLogo: '<button type="button" class="sg-stage-pick-btn" data-stage-pick aria-haspopup="dialog">' +
+          STAGE_ICON.frames + '<span>Rotation</span></button>',
+        beforeMusic: stageMusicMarkup() }) + stageMarkup(opts) +
       '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + expeditionsSection(opts) +
       '<div style="height:96px"></div></div>' +
       sheetHost() +

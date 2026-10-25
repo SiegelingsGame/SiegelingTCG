@@ -4684,7 +4684,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    the stage - it only exists inside this query, which matches the landscape
    breakpoint the card sheet already uses. The scroller stays in the DOM (its
    sections are lent to the stage's panel) but is retired from layout. */
-.sg-stage, .sg-stage-music { display:none; }
+.sg-stage, .sg-stage-music, .sg-stage-pick-btn { display:none; }
+.sg-logo-link { display:flex; align-items:center; }
 @media (min-width:1024px), (orientation:landscape) {
   .sg-stage ~ .sg-scroll { display:none; }
   .sg-stage {
@@ -4854,7 +4855,16 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   }
   .sg-stage-player button svg { width:16px; height:16px; }
   .sg-stage-player button:active { background:rgba(255,255,255,.12); }
-  .sg-stage-player button.is-wide { border-left:1px solid rgba(255,255,255,.14); border-radius:0 999px 999px 0; margin-left:4px; }
+  .sg-stage-player [data-stage-hide] { border-left:1px solid rgba(255,255,255,.14); border-radius:0 999px 999px 0; margin-left:4px; }
+  /* Wallpaper picker beside the logo, sized to the header's 32px controls. */
+  .sg-stage-pick-btn {
+    display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; flex:0 0 auto;
+    border-radius:999px; border:1px solid rgba(255,255,255,.2); background:rgba(9,36,52,.55);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    color:var(--ink); cursor:pointer; font:inherit; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  }
+  .sg-stage-pick-btn svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+  .sg-stage-pick-btn:active { background:rgba(255,255,255,.12); }
   .sg-stage-dots { display:inline-flex; gap:4px; padding:0 6px; }
   .sg-stage-dots i { width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,.3); transition:all .3s ease; }
   .sg-stage-dots i.on { width:14px; border-radius:3px; background:var(--el, var(--gold-bright)); }
@@ -4870,9 +4880,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     .sg-stage-right { gap:6px; }
   }
   /* Narrow screens: the rotation pill must stay left of the centred shield
-     button, so it drops its dots and the "Rotation" word. */
+     button, so it drops its dots. */
   @media (max-width:700px) {
-    .sg-stage-dots, .sg-stage-player button.is-wide span { display:none; }
+    .sg-stage-dots { display:none; }
   }
 
   /* On-demand panels. Its body is the one region that scrolls. */
