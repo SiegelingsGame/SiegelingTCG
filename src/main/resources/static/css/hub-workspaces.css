@@ -108,6 +108,10 @@
   .sg-stage-caption strong { font-size:30px; }
   .sg-stage-caption span { font-size:13px; }
 }
+@media (min-width:1024px) and (min-height:600px) and (orientation:landscape) {
+  .sg-stage-cards { height:min(68vh,calc(var(--sg-vh,100dvh) - var(--stage-top) - var(--stage-bottom) - 24px)); grid-template-rows:repeat(5,minmax(0,1fr)); }
+  .sg-stage-cards .sg-gtab { height:100%; min-height:0; }
+}
 @media (orientation:landscape) and (max-height:600px) {
   .sg-work-nav { top:calc(54px + var(--sg-sat,0px)); left:8px; width:144px; gap:6px; }
   .sg-work-nav .sg-gtab { height:48px; }
