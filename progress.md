@@ -1,3 +1,9 @@
+Original prompt: make it fully transparent image top to bottom
+
+- October 25, 2026 **Hub header is fully transparent; the art runs edge to edge under it.**
+  - **Change.** Follow-up to the liquid-glass header: `.sg-app .sg-top` now paints nothing (no tint, blur, border or shadow), and its status-bar scrim `.sg-top::before` is hidden inside the hub, so the background image shows unbroken from the very top. The chips keep their own fills for legibility. Cache pin: `home-redesign.css?v=150`.
+  - **Verification.** Headless Chromium on the preview hub (Home 852x393/1920x1080/390x844, Shop 852x393, Collection 390x844): computed `.sg-top` background/backdrop-filter `none`, border 0, `::before` `display:none`. Screenshots show the art continuous through the header with the chips readable. No page errors.
+
 Original prompt: remove the blue background from the top header make it liquid glass mostly transparent
 
 - October 25, 2026 **Hub header is now liquid glass instead of a blue bar.**
