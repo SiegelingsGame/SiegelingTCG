@@ -4,29 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Siegelings — Official Promo</title>
-    <meta name="description" content="15-second Siegelings TCG cinematic. Collect. Command. Conquer.">
+    <meta name="description" content="Siegelings TCG cinematic — collect, command, conquer, and clash on the battle table.">
     <meta name="robots" content="noindex">
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/promo.css?v=2">
+    <link rel="stylesheet" href="/css/promo.css?v=3">
 </head>
 <body class="promo-body" data-mode="live">
     <div id="promoStage" class="promo-stage" aria-label="Siegelings promo">
-        <!-- Full-bleed art plates (Ken Burns / smash cuts) -->
+        <!-- World art -->
         <div class="art-plate" data-art="0" style="--art:url('/img/gallery/draco-brood.webp')"></div>
         <div class="art-plate" data-art="1" style="--art:url('/img/gallery/bearzooka-rampage.webp')"></div>
         <div class="art-plate" data-art="2" style="--art:url('/img/gallery/hurricrane-skyruins.webp')"></div>
         <div class="art-plate" data-art="3" style="--art:url('/img/gallery/frostag-training.webp')"></div>
-        <div class="art-plate" data-art="4" style="--art:url('/img/gallery/cactyjackedty-ruins.webp')"></div>
+        <!-- Gameplay plates -->
+        <div class="art-plate art-gameplay" data-art="g0" style="--art:url('/img/promo/gameplay/battle-clash.webp')"></div>
+        <div class="art-plate art-gameplay" data-art="g1" style="--art:url('/img/promo/gameplay/battle-board.webp')"></div>
+        <div class="art-plate art-gameplay" data-art="g2" style="--art:url('/img/promo/gameplay/battle-ability.webp')"></div>
+        <div class="art-plate art-gameplay" data-art="g3" style="--art:url('/img/promo/gameplay/siege-hand.webp')"></div>
+        <div class="art-plate art-gameplay" data-art="g4" style="--art:url('/img/promo/gameplay/battle-standby.webp')"></div>
+        <!-- End-card backdrop -->
         <div class="art-plate" data-art="5" style="--art:url('/img/gallery/skydon-skyreach.webp')"></div>
 
         <div class="promo-vignette" aria-hidden="true"></div>
         <div class="promo-grain" aria-hidden="true"></div>
         <canvas id="promoSparks" class="promo-sparks" aria-hidden="true"></canvas>
 
-        <!-- Notch / energy tease -->
         <div class="energy-ring" aria-hidden="true">
             <span class="notch n-fire" style="--a:0deg"></span>
             <span class="notch n-ice" style="--a:72deg"></span>
@@ -36,12 +41,13 @@
             <div class="energy-core"></div>
         </div>
 
-        <!-- Copy layers -->
         <p class="beat presents">PartyChatGaming presents</p>
         <p class="beat whisper">They answer the call of energy</p>
         <p class="beat verb" data-verb="collect">Collect.</p>
         <p class="beat verb" data-verb="command">Command.</p>
         <p class="beat verb" data-verb="conquer">Conquer.</p>
+        <p class="beat verb" data-verb="battle">Battle.</p>
+        <p class="beat whisper whisper-game">Every notch. Every strike.</p>
 
         <div class="end-card">
             <div class="end-crown" aria-hidden="true">
@@ -62,6 +68,6 @@
         <a class="promo-btn" href="/">Back to site</a>
     </div>
 
-    <script src="/js/promo.js?v=2"></script>
+    <script src="/js/promo.js?v=3"></script>
 </body>
 </html>

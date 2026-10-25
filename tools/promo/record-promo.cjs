@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Record the Siegelings 15s promo cinematic to MP4.
- * Serves static/, drives promo.html?record=1 in Chrome, grabs 30fps frames,
- * then stitches + muxes a theme excerpt with system ffmpeg.
+ * Record the Siegelings promo cinematic to MP4 (extended w/ gameplay).
+ * Serves static/, drives promo.html?record=1 in Chrome, grabs frames,
+ * then stitches + muxes a battle-theme excerpt with system ffmpeg.
  */
 const { spawnSync } = require('child_process');
 const fs = require('fs');
@@ -29,9 +29,12 @@ const FRAMES = path.join(TMP, 'frames');
 const PORT = 8942;
 const W = 1920;
 const H = 1080;
-const FPS = 24;
-const DURATION_S = 15;
+const FPS = 20;
+const DURATION_S = 24;
 const FRAME_COUNT = FPS * DURATION_S;
+const BATTLE_THEME = path.join(STATIC, 'audio/battle/sieglings-battle-theme-2.mp3');
+// Loudest sustained epic window from energy scan of battle-theme-2.
+const AUDIO_START_S = '220';
 
 function mime(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -99,11 +102,12 @@ async function main() {
   fs.rmSync(TMP, { recursive: true, force: true });
   fs.mkdirSync(FRAMES, { recursive: true });
 
-  const audioClip = path.join(TMP, 'promo-audio-15s.mp3');
+  const audioClip = path.join(TMP, 'promo-audio-battle.mp3');
+  const fadeOutStart = Math.max(0.5, DURATION_S - 1.5);
   run('ffmpeg', [
-    '-y', '-ss', '32', '-i', path.join(STATIC, 'audio/sieglings-theme.mp3'),
+    '-y', '-ss', AUDIO_START_S, '-i', BATTLE_THEME,
     '-t', String(DURATION_S),
-    '-af', 'afade=t=in:st=0:d=0.35,afade=t=out:st=13.6:d=1.35,loudnorm=I=-14:TP=-1.5:LRA=11',
+    '-af', `afade=t=in:st=0:d=0.4,afade=t=out:st=${fadeOutStart}:d=1.45,loudnorm=I=-12:TP=-1.2:LRA=10`,
     '-c:a', 'libmp3lame', '-b:a', '192k', audioClip
   ]);
 
@@ -142,8 +146,8 @@ async function main() {
   await browser.close();
   server.close();
 
-  const finalMp4 = path.join(OUT_DIR, 'siegelings-promo-15s.mp4');
-  const artifactMp4 = path.join(ARTIFACT_DIR, 'siegelings-promo-15s.mp4');
+  const finalMp4 = path.join(OUT_DIR, 'siegelings-promo.mp4');
+  const artifactMp4 = path.join(ARTIFACT_DIR, 'siegelings-promo.mp4');
   run('ffmpeg', [
     '-y',
     '-framerate', String(FPS),
@@ -167,13 +171,13 @@ async function main() {
   const poster = path.join(OUT_DIR, 'siegelings-promo-poster.webp');
   const posterArt = path.join(ARTIFACT_DIR, 'siegelings-promo-poster.webp');
   run('ffmpeg', [
-    '-y', '-ss', '13.2', '-i', finalMp4,
+    '-y', '-ss', '21.4', '-i', finalMp4,
     '-frames:v', '1', poster
   ]);
   fs.copyFileSync(poster, posterArt);
 
-  // Also drop a few beat stills for the walkthrough.
-  ['00000', '00150', '00240', '00360', '00420'].forEach((id, idx) => {
+  // Beat stills: open, collect, battle clash, siege hand, end card.
+  ['00000', '00090', '00210', '00350', '00440'].forEach((id, idx) => {
     const src = path.join(FRAMES, `frame-${id}.png`);
     if (fs.existsSync(src)) {
       fs.copyFileSync(src, path.join(ARTIFACT_DIR, `promo-beat-${idx + 1}.png`));

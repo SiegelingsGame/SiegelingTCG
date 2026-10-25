@@ -1,5 +1,5 @@
 /* ============================================================
-   Siegelings 15s promo cinematic — brand-first, art-led beats
+   Siegelings promo cinematic — brand-first, art + gameplay beats
    Motion is driven by promo.js (seekable for recording).
    ============================================================ */
 
@@ -194,6 +194,28 @@ html, body.promo-body {
         drop-shadow(0 0 18px rgba(110, 231, 183, 0.75))
         drop-shadow(0 3px 10px rgba(0, 0, 0, 0.95))
         drop-shadow(0 0 2px rgba(0, 0, 0, 1));
+}
+.verb[data-verb="battle"] {
+    background: linear-gradient(100deg, #ffe9b0, #F5A623 40%, #ff4500);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    -webkit-text-stroke: 1px rgba(40, 10, 0, 0.45);
+    filter:
+        drop-shadow(0 0 22px rgba(255, 140, 40, 0.9))
+        drop-shadow(0 3px 10px rgba(0, 0, 0, 0.95))
+        drop-shadow(0 0 2px rgba(0, 0, 0, 1));
+}
+.whisper-game {
+    top: 82%;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-size: clamp(0.9rem, 2.2vw, 1.25rem);
+    color: rgba(255, 230, 180, 0.92);
+}
+.art-gameplay {
+    /* Gameplay captures read sharper with less soft blur from the vignette stack */
+    filter: saturate(1.05) contrast(1.08);
 }
 
 .end-card {

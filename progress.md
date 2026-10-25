@@ -1,12 +1,21 @@
+Original prompt: Extend the trailer so it shows gameplay clips as well. Change the music to something more epic in the library like battle
+
+- October 25, 2026 **Promo extended to 24s with real gameplay plates and battle-theme-2 audio.**
+  - **Change.**
+    - **Timeline.** `/promo` now runs 24s: Collect/Command/Conquer, then **Battle.** over Battle Table clash/board/ability UI plus a Siege hand clip (`img/promo/gameplay/*.webp`), then the end card.
+    - **Audio.** Mux uses `audio/battle/sieglings-battle-theme-2.mp3` from the loudest 24s window (~220s in), not the menu theme.
+    - **Asset.** Output renamed to `static/video/siegelings-promo.mp4` (24.000s). Landing modal copy + source updated; pins `promo.css?v=3`, `promo.js?v=3`, `landing.css?v=60`, `landing.js?v=62`.
+  - **Verification.** `node --check`. Recorder probe: 24.000s, 1920×1080, 20fps. Beat stills show battle-phase UI and Siege hand. Headless duration check `=== 24`.
+
 Original prompt: Build a 15 second commercial for the Siegelings TCG website a promo video to generate hype and curiosity
 
 - October 25, 2026 **Official 15s Siegelings promo commercial — cinematic page, MP4, and Watch Trailer wired live.**
   - **Change.**
-    - **Cinematic.** New `/promo` (`promo.html` + `css/promo.css` + `js/promo.js`): seekable 15s timeline — energy notches → world art smash cuts with Collect / Command / Conquer → SIEGELINGS end card, Play Now, and site URL. Uses gallery art and Cinzel.
-    - **MP4.** `tools/promo/record-promo.cjs` captures the stage at 24fps and muxes a 15s theme excerpt into `static/video/siegelings-promo-15s.mp4` (+ poster webp). Exact duration 15.000s, 1920×1080 H.264 + AAC.
-    - **Landing.** Watch Trailer opens a player modal (autoplay when allowed) instead of “coming soon”; Play Now + fullscreen `/promo` links. Cache pins `landing.css?v=59`, `landing.js?v=61`.
-    - **Routing.** `/promo` forward in `WebConfig` and `firebase.json`; mp4 added to immutable cache headers.
-  - **Verification.** `node --check` on promo/landing/recorder. Recorder probe: 15.000s, 1920×1080. Headless Chrome: Watch Trailer opens modal, video `duration===15`, `readyState===4`, playback advances. Video review confirms beat order, audio present, no blank frames.
+    - **Cinematic.** New `/promo` (`promo.html` + `css/promo.css` + `js/promo.js`): seekable timeline — energy notches → world art smash cuts with Collect / Command / Conquer → SIEGELINGS end card. Uses gallery art and Cinzel.
+    - **MP4.** `tools/promo/record-promo.cjs` captures the stage and muxes audio into `static/video/siegelings-promo.mp4` (+ poster webp).
+    - **Landing.** Watch Trailer opens a player modal; Play Now + fullscreen `/promo` links.
+    - **Routing.** `/promo` forward in `WebConfig` and `firebase.json`; mp4 immutable cache headers.
+  - **Verification.** `node --check`; recorder + Watch Trailer headless checks; video review of beat order.
 
 Original prompt: Update landscape and desktop setting page so it does not require scrolling
 
