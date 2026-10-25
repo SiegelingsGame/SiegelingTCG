@@ -4,8 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Siegelings TCG — Art-First Home Concept</title>
+<link rel="stylesheet" href="/css/style.css?v=296">
 <link rel="stylesheet" href="/css/shield-navigation.css?v=1">
-<link rel="stylesheet" href="/css/home-redesign.css?v=146">
+<link rel="stylesheet" href="/css/home-redesign.css?v=147">
+<link rel="stylesheet" href="/css/hub-workspaces.css?v=1">
 </head>
 <body class="concept-board">
   <div class="board-wrap" id="board">
@@ -99,10 +101,12 @@
     </div>
   </div>
 
+<script src="/js/game.js?v=339"></script>
+<script src="/js/card-binder-visual.js?v=36"></script>
 <script src="/js/home-redesign-data.js?v=1"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
 <script src="/js/shield-navigation.js?v=1"></script>
-<script src="/js/home-redesign.js?v=143"></script>
+<script src="/js/home-redesign.js?v=145"></script>
 <script>
 (function () {
   var single = new URLSearchParams(location.search).get('screen');
@@ -110,6 +114,10 @@
     // Phone review mode: one screen, no device frame, real viewport.
     document.body.className = 'single-screen';
     document.body.innerHTML = '';
+    if (['home','play','profile','decks','builder','auth','shop','social','help'].indexOf(single) !== -1) {
+      window.SiegelingsHomeConcept.mountApp(document.body, { screen: single, guest: true });
+      return;
+    }
     if (single === 'profile') {
       window.SiegelingsHomeConcept.mountApp(document.body, { screen: 'profile', guest: true });
     } else if (single === 'shield') {

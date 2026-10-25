@@ -1212,7 +1212,7 @@
   var STAGE_KEY = 'sgStageRotation';
   var STAGE_MAX = 10;
   var STAGE_DWELL_MS = 9000;
-  var STAGE_QUERY = '(orientation: landscape) and (max-height: 500px)';
+  var STAGE_QUERY = '(min-width: 1024px), (orientation: landscape)';
 
   function stagePieces() {
     // Landscape art first: the stage is by definition a wide screen, and a tall
@@ -2675,6 +2675,12 @@
     '</a>';
   }
 
+  function compactPlayResume(opts) {
+    var runs = opts.siegeRuns || [];
+    if (runs.length <= 1) return expeditionsSection(opts);
+    return '<section class="sg-section" data-home-section="Continue Playing"><div class="sg-exps"><a class="sg-exp is-empty" href="' + HREF.siege + '"><span class="sg-exp-empty-body"><strong>Continue your expeditions</strong><em>' + runs.length + ' saved runs</em></span><span class="sg-exp-go">Choose ›</span></a></div></section>';
+  }
+
   function playScreen(opts) {
     opts = opts || {};
     var lead = byId('solgator') || CARDS[0];
@@ -2682,7 +2688,7 @@
     return topMarkup(opts) +
       '<div class="sg-scroll">' +
         '<div class="sg-modes">' + MODES.map(function (m) { return modePanel(m, opts); }).join('') + '</div>' +
-        expeditionsSection(opts) +
+        compactPlayResume(opts) +
         (function () {
           // The count is whatever /api/match/rooms reported. Unknown says so
           // rather than showing the "11 open" the concept shipped with.
@@ -3074,30 +3080,59 @@
       '</div>';
   }
 
+  // Every navigation destination gets distinct artwork and a deliberate crop.
+  // Full scenes often put their character off-center; the tiny panes need their
+  // own focal points instead of inheriting the stage's cover crop.
+  var HUB_PANEL_IMAGES = {
+    my: { src:'/img/gallery/bearby-longfuse.webp', thumb:'38% 50%', stage:'46% 45%' },
+    saved: { src:'/img/gallery/earth-warband.webp', thumb:'84% 45%', stage:'65% 45%' },
+    presets: { src:'/img/gallery/skydon-skyreach.webp', thumb:'60% 45%', stage:'50% 40%' },
+    add: { src:'/img/gallery/frostag-training-portrait.webp', thumb:'48% 40%', card:'48% 45%', stage:'48% 45%' },
+    review: { src:'/img/gallery/hurricrane-skyruins-portrait.webp', thumb:'50% 8%', stage:'50% 35%' },
+    auto: { src:'/img/shop/scene-electric.webp', thumb:'50% 12%', card:'50% 30%', stage:'50% 28%' },
+    save: { src:'/img/gallery/cactyjackedty-ruins.webp', thumb:'52% 45%', stage:'50% 45%' },
+    'saved-card': { src:'/img/shop/scene-water.webp', thumb:'55% 30%', card:'55% 35%', stage:'55% 40%' },
+    profile: { src:'/img/gallery/bearzooka-rampage.webp', thumb:'60% 45%', stage:'53% 45%' },
+    friends: { src:'/img/shop/scene-poison.webp', thumb:'50% 30%', stage:'50% 35%' },
+    messages: { src:'/img/shop/scene-psychic.webp', thumb:'60% 30%', stage:'55% 40%' },
+    lobbies: { src:'/img/gallery/bearnade-payload.webp', thumb:'10% 50%', stage:'32% 45%' },
+    history: { src:'/img/gallery/draco-brood.webp', thumb:'65% 45%', stage:'55% 45%' }
+  };
+
+  function hubPanelImage(key, use) {
+    var art = HUB_PANEL_IMAGES[key] || HUB_PANEL_IMAGES.my;
+    var focus = art[use || 'thumb'] || art.stage || '50% 50%';
+    return '<img src="' + esc(art.src) + '" alt="" data-hub-art="' + esc(key) + '" style="object-position:' + focus + '">';
+  }
+
+  function panelButton(id, label, active, attribute) {
+    return '<button class="sg-gtab' + (active === id ? ' on' : '') + '" type="button" ' + attribute + '="' + id +
+      '" aria-pressed="' + (active === id) + '"><span class="sg-gtab-art">' + hubPanelImage(id) +
+      '</span><span class="sg-gtab-label">' + label + '</span><i class="sg-gtab-gem" aria-hidden="true"></i></button>';
+  }
+
   function decksScreen(opts) {
     opts = opts || {};
     var groups = deckGroups(opts);
+    var tab = opts.deckPanel || 'my';
+    var heading = {my:'My Decks', saved:'Saved Decks', presets:'Presets'};
     return topMarkup(opts) +
-      '<div class="sg-scroll" data-decks-content aria-busy="' + Boolean(opts.deckPurchasePendingId) + '">' +
-        '<div class="sg-page-head"><h2>My Decks</h2><p>' + groups.saved.length + ' saved &middot; ' +
-          groups.owned.length + (opts.guest ? ' included presets' : ' owned presets') + '</p></div>' +
-        '<div class="sg-tool-row">' +
-          '<button class="sg-ghost-btn" type="button" data-open-builder' +
-            (opts.guest ? ' disabled' : '') + '><span class="ico">✎</span>Deck Builder</button>' +
-          '<button class="sg-ghost-btn" type="button" data-auto-build' +
-            (opts.guest ? ' disabled' : '') + '><span class="ico">✧</span>Auto Build</button>' +
-        '</div>' +
-        (opts.deckPurchaseNotice ? '<p class="sg-deck-notice" data-deck-notice tabindex="-1" role="' +
-          (opts.deckPurchaseError ? 'alert' : 'status') + '">' + esc(opts.deckPurchaseNotice) + '</p>' : '') +
-        deckSection('Saved decks', groups.saved, 'saved', opts, opts.guest ? 'Sign in to save your own decks.' : 'No saved decks yet.') +
-        deckSection(opts.guest ? 'Included presets' : 'Owned presets', groups.owned, 'owned', opts, 'No unlocked presets available.') +
-        deckSection('Preset decks', groups.shop, 'presets', opts,
-          (opts.live && opts.live.decks && opts.live.decks.length) ? 'You have unlocked every available preset.' : 'Preset decks are unavailable right now.') +
-        '<div style="height:96px"></div>' +
-      '</div>' +
-      deckSheetHost() +
-      sheetHost() +
-      bottomMarkup('collection', opts);
+      '<div class="sg-deck-backdrop" aria-hidden="true">' + hubPanelImage(tab, 'stage') + '</div>' +
+      '<nav class="sg-work-nav" aria-label="Deck library">' +
+        panelButton('my','My Decks',tab,'data-deck-panel') + panelButton('saved','Saved Decks',tab,'data-deck-panel') +
+        panelButton('presets','Presets',tab,'data-deck-panel') + '</nav>' +
+      '<div class="sg-scroll sg-deck-workspace" data-decks-content aria-busy="' + Boolean(opts.deckPurchasePendingId) + '">' +
+        '<header class="sg-work-head"><h2>' + heading[tab] + '</h2><p>' + groups.saved.length + ' saved · ' + groups.owned.length +
+          (opts.guest ? ' included presets' : ' owned presets') + '</p></header>' +
+        (opts.deckPurchaseNotice ? '<p class="sg-deck-notice" data-deck-notice tabindex="-1" role="status">' + esc(opts.deckPurchaseNotice) + '</p>' : '') +
+        (tab === 'my' ? '<div class="sg-deck-launchers">' +
+          '<button class="sg-task-card" type="button" data-open-builder>' + hubPanelImage('add', 'card') + '<span><strong>Deck Builder</strong><small>Create a deck from your binder</small></span></button>' +
+          '<button class="sg-task-card" type="button" data-open-auto-builder>' + hubPanelImage('auto', 'card') + '<span><strong>Auto Build</strong><small>Build a starting deck from cards you own</small></span></button>' +
+          '<button class="sg-task-card" type="button" data-deck-panel="saved">' + hubPanelImage('saved-card', 'card') + '<span><strong>Saved Decks</strong><small>' + groups.saved.length + ' decks in your library</small></span></button></div>' :
+          tab === 'saved' ? deckSection('Saved decks',groups.saved,'saved',opts,opts.guest ? 'Sign in to save your own decks.' : 'Create your first deck in Deck Builder.') :
+          deckSection(opts.guest ? 'Included presets' : 'Owned presets',groups.owned,'owned',opts,'No unlocked presets yet.') +
+          deckSection('Unlock presets',groups.shop,'presets',opts,'You have unlocked every available preset.')) +
+      '</div>' + deckSheetHost() + sheetHost() + bottomMarkup('collection',opts);
   }
 
   function refreshDecks(opts, announce) {
@@ -3316,6 +3351,9 @@
 
     app.addEventListener('click', function (e) {
       if (!e.target.closest) return;
+      var deckPanel = e.target.closest('[data-deck-panel]');
+      if (deckPanel) { opts.deckPanel = deckPanel.getAttribute('data-deck-panel'); refreshDecks(opts); return; }
+      if (e.target.closest('[data-open-auto-builder]')) { BUILD = newBuild(opts); BUILD.view = 'auto'; if (onNavigate) onNavigate('builder'); return; }
       if (e.target.closest('[data-open-builder]')) {
         openBuilderFor(null, opts);
         return;
@@ -7114,11 +7152,10 @@
       var social = item[2] === 'social' ? ' data-social-goto="' + item[0] + '"' : '';
       return '<a class="sg-gtab' + (active === item[0] ? ' on' : '') + '" href="' + pathForScreen(item[2]) +
         '" data-screen="' + item[2] + '"' + social + (active === item[0] ? ' aria-current="page"' : '') + '>' +
-        '<span class="sg-profile-nav-icon" aria-hidden="true">' +
-        ({profile:'◈', friends:'♧', messages:'✉', lobbies:'⚔'})[item[0]] + '</span>' +
+        '<span class="sg-gtab-art">' + hubPanelImage(item[0]) + '</span>' +
         '<span class="sg-gtab-label">' + item[1] + '</span><i class="sg-gtab-gem"></i>' +
         (item[0] === 'messages' && unreadThreadCount(opts) ? '<i class="sg-tab-badge">' + esc(unreadThreadCount(opts)) + '</i>' : '') + '</a>';
-    }).join('') + '<button class="sg-gtab" type="button" data-profile-history><span class="sg-profile-nav-icon" aria-hidden="true">⌛</span><span class="sg-gtab-label">Recent matches</span><i class="sg-gtab-gem"></i></button></nav>';
+    }).join('') + '<button class="sg-gtab" type="button" data-profile-history><span class="sg-gtab-art">' + hubPanelImage('history') + '</span><span class="sg-gtab-label">Recent matches</span><i class="sg-gtab-gem"></i></button></nav>';
   }
 
   function mountProfileNavigation(app, opts) {
@@ -7838,7 +7875,7 @@
       trainerId: autoTrainerId(opts),
       counts: {},            // cardId -> copies
       order: [],             // insertion order, so the tray does not reshuffle
-      notice: '', error: false, saving: false, query: ''
+      notice: '', error: false, saving: false, query: '', view: 'add', element: 'ALL', type: 'ALL', rarity: 'ALL', sort: 'name', page: 0
     };
   }
 
@@ -7875,96 +7912,74 @@
     });
   }
 
+  function buildKnightOptions(opts) {
+    var live = opts.live || {};
+    var owned = (live.knights || []).map(function (k) { return k && k.id; });
+    return (live.trainers || []).filter(function (t) { return t && t.id && t.active !== false && owned.indexOf(t.id) !== -1; });
+  }
+
+  function buildFilteredCards(opts, review) {
+    var b = BUILD;
+    var pool = review ? b.order.map(function (id) { return byIdIn(ALL_CARDS,id) || byId(id); }).filter(Boolean) : builderPool(opts,b.query);
+    var q = String(b.query || '').trim().toLowerCase();
+    pool = pool.filter(function (c) {
+      return (!q || String(c.name || '').toLowerCase().indexOf(q) !== -1) &&
+        (b.element === 'ALL' || String(c.element).toUpperCase() === b.element) &&
+        (b.type === 'ALL' || String(c.type || 'SIEGLING').toUpperCase() === b.type) &&
+        (b.rarity === 'ALL' || String(c.rarity).toUpperCase() === b.rarity);
+    });
+    pool.sort(function (a,c) {
+      if (b.sort === 'element') return String(a.element).localeCompare(String(c.element)) || a.name.localeCompare(c.name);
+      if (b.sort === 'rarity') return rarityRank(c) - rarityRank(a) || a.name.localeCompare(c.name);
+      if (b.sort === 'copies') return (b.counts[c.id] || 0) - (b.counts[a.id] || 0) || a.name.localeCompare(c.name);
+      return a.name.localeCompare(c.name);
+    });
+    return pool;
+  }
+
+  function buildFilterSelect(key, label, entries) {
+    return '<label><span>' + label + '</span><select data-build-filter="' + key + '">' + entries.map(function (entry) {
+      var id = Array.isArray(entry) ? entry[0] : entry, name = Array.isArray(entry) ? entry[1] : title(entry);
+      return '<option value="' + id + '"' + (BUILD[key] === id ? ' selected' : '') + '>' + name + '</option>';
+    }).join('') + '</select></label>';
+  }
+
   function builderScreen(opts) {
     opts = opts || {};
     if (!BUILD) BUILD = newBuild(opts);
-    var b = BUILD;
-    var rules = builderRules(opts);
-    var total = buildTotal(b);
-    var pct = Math.min(100, Math.round(total / rules.minDeckSize * 100));
-    var cards = b.order.map(function (id) { return byIdIn(ALL_CARDS, id) || byId(id); }).filter(Boolean);
-    var els = cards.map(function (c) { return c.element; }).filter(function (el, i, all) {
-      return el && all.indexOf(el) === i;
-    });
-    if (!els.length) els = ['NEUTRAL'];
-
-    var live = opts.live || {};
-    var ownedKnights = (live.knights || []).map(function (k) { return k && k.id; }).filter(Boolean);
-    var knightOptions = (live.trainers || []).filter(function (t) {
-      return t && t.id && t.active !== false && ownedKnights.indexOf(t.id) !== -1;
-    });
-
-    var pool = builderPool(opts, b.query);
-
-    return topMarkup(opts) +
-      '<div class="sg-scroll" data-builder>' +
-        '<div class="sg-page-head"><h2>Deck Builder</h2><p>' +
-          esc(total) + ' of ' + esc(rules.minDeckSize) + ' minimum &middot; max ' +
-          esc(rules.maxCopies) + ' copies</p></div>' +
-        '<div class="sg-build-bar"><i style="width:' + pct + '%"></i></div>' +
-        (b.notice ? '<p class="sg-deck-notice' + (b.error ? ' is-error' : '') +
-          '" data-build-notice tabindex="-1" role="' + (b.error ? 'alert' : 'status') + '">' +
-          esc(b.notice) + '</p>' : '') +
-        '<div class="sg-build-id" style="--el:' + color(els[0]) + '">' +
-          '<input class="sg-build-name" data-build-name value="' + esc(b.name) +
-            '" maxlength="40" aria-label="Deck name">' +
-          '<div class="sg-deck-els">' + els.map(function (e) {
-            return '<img src="' + icon(e) + '" alt="' + esc(title(e)) + '">';
-          }).join('') + '</div>' +
-        '</div>' +
-        '<section class="sg-section">' +
-          '<div class="sg-section-head"><h3>SiegeKnight</h3></div>' +
-          (knightOptions.length
-            ? '<select class="sg-build-knight" data-build-knight aria-label="SiegeKnight">' +
-                knightOptions.map(function (t) {
-                  return '<option value="' + esc(t.id) + '"' +
-                    (t.id === b.trainerId ? ' selected' : '') + '>' + esc(t.name || t.id) + '</option>';
-                }).join('') + '</select>'
-            : '<p class="sg-empty-row">' + esc(opts.guest
-                ? 'Sign in to build with your SiegeKnights.'
-                : 'Open a pack to pull a SiegeKnight before saving a deck.') + '</p>') +
-        '</section>' +
-        '<section class="sg-section">' +
-          '<div class="sg-section-head"><h3>In this deck</h3>' +
-            (total ? '<a href="#" data-build-clear>Clear</a>' : '') + '</div>' +
-          '<div class="sg-swipe">' + (cards.length
-            ? cards.map(function (c) {
-                return '<div class="sg-build-slot" data-build-slot="' + esc(c.id) + '">' +
-                  galleryCard(c) +
-                  '<span class="sg-build-count">x' + esc(b.counts[c.id]) + '</span>' +
-                  '<button class="sg-build-less" type="button" data-build-remove="' + esc(c.id) +
-                    '" aria-label="Remove one ' + esc(c.name) + '">\u2212</button>' +
-                '</div>';
-              }).join('')
-            : '<p class="sg-empty">Nothing added yet. Tap a card below to add it.</p>') + '</div>' +
-        '</section>' +
-        '<section class="sg-section">' +
-          '<div class="sg-section-head"><h3>Add from your binder</h3>' +
-            '<span>' + esc(pool.length) + '</span></div>' +
-          '<input class="sg-build-search" data-build-search value="' + esc(b.query) +
-            '" placeholder="Search your cards" aria-label="Search your cards">' +
-          (pool.length
-            ? '<div class="sg-gal-grid">' + pool.slice(0, 60).map(function (c) {
-                var have = b.counts[c.id] || 0;
-                var cap = Math.min(rules.maxCopies, ownedCount(opts, c.id));
-                return '<div class="sg-build-pick' + (have >= cap ? ' is-maxed' : '') +
-                  '" data-build-add="' + esc(c.id) + '">' + galleryCard(c) +
-                  '<span class="sg-build-owned">' + esc(have) + '/' + esc(cap) + '</span></div>';
-              }).join('') + '</div>'
-            : '<p class="sg-empty-row">' + esc(opts.guest
-                ? 'Sign in to build from your collection.'
-                : b.query ? 'No cards match that search.' : 'Open a pack to start collecting cards.') + '</p>') +
-        '</section>' +
-        '<div class="sg-build-actions">' +
-          '<button class="sg-ghost-btn" type="button" data-build-auto><span class="ico">\u2727</span>Auto Build</button>' +
-          '<button class="sg-guest-primary" type="button" data-build-save' +
-            (b.saving || opts.guest ? ' disabled' : '') + '>' +
-            (b.saving ? 'Saving\u2026' : 'Save Deck') + '</button>' +
-        '</div>' +
-        '<div style="height:96px"></div>' +
-      '</div>' +
-      sheetHost() +
-      bottomMarkup('collection', opts);
+    var b = BUILD, rules = builderRules(opts), total = buildTotal(b), view = b.view || 'add';
+    var review = view === 'review', pool = buildFilteredCards(opts,review);
+    var size = window.innerWidth >= 1024 ? 6 : 4;
+    var pages = Math.max(1,Math.ceil(pool.length / size));
+    b.page = Math.max(0,Math.min(b.page || 0,pages - 1));
+    var knights = buildKnightOptions(opts);
+    var titleText = {add:'Add from your binder',review:'Deck Review',auto:'Auto Build',save:'Save your deck'}[view];
+    var filters = '<div class="sg-build-filters"><input class="sg-build-search" data-build-search value="' + esc(b.query) + '" placeholder="Search cards" aria-label="Search cards">' +
+      buildFilterSelect('element','Element',['ALL'].concat(PROFILE_ELEMENTS)) +
+      buildFilterSelect('type','Type',[['ALL','All types'],['SIEGLING','Siegelings'],['SPELL','Strategies'],['TRAP','Deceptions']]) +
+      buildFilterSelect('rarity','Rarity',['ALL','COMMON','UNCOMMON','RARE','EPIC','LEGENDARY']) +
+      buildFilterSelect('sort','Sort',[['name','Name'],['element','Element'],['rarity','Rarity'],['copies','Copies']]) + '</div>';
+    var binder = filters + '<div class="sg-build-book" aria-label="' + (review ? 'Deck binder' : 'Collection binder') + '">' +
+      (pool.length ? pool.slice(b.page * size,(b.page + 1) * size).map(function (c) {
+        var have = b.counts[c.id] || 0, cap = Math.min(rules.maxCopies,ownedCount(opts,c.id));
+        return '<div class="sg-build-pocket">' + galleryCard(c) + '<div class="sg-build-pocket-actions"><span>' + esc(review ? have + ' in deck' : have + ' / ' + cap + ' added') + '</span>' +
+          (review ? '<button type="button" data-build-remove="' + esc(c.id) + '" aria-label="Remove one ' + esc(c.name) + '">−</button>' : '') +
+          '<button type="button" data-build-add="' + esc(c.id) + '"' + (have >= cap ? ' disabled' : '') + ' aria-label="Add one ' + esc(c.name) + '">+</button></div></div>';
+      }).join('') : '<p class="sg-empty-row">' + (review ? 'No cards match. Add cards from your binder or clear the filters.' : 'No cards match your filters. Try another search.') + '</p>') +
+      '</div><footer class="sg-build-pager"><button type="button" data-build-page="-1"' + (!b.page ? ' disabled' : '') + '>‹ Previous</button><span>Page ' + (b.page + 1) + ' of ' + pages + ' · ' + pool.length + ' cards</span><button type="button" data-build-page="1"' + (b.page >= pages - 1 ? ' disabled' : '') + '>Next ›</button>' +
+      (review && total ? '<button type="button" data-build-clear>Clear deck</button>' : '') + '</footer>';
+    var save = '<div class="sg-build-save-panel"><label class="sg-auth-field"><span>Deck name</span><input class="sg-build-name" data-build-name value="' + esc(b.name) + '" maxlength="40"></label>' +
+      '<label class="sg-auth-field"><span>Choose a SiegeKnight</span><select class="sg-build-knight" data-build-knight><option value="">Select a SiegeKnight</option>' + knights.map(function (t) {
+        return '<option value="' + esc(t.id) + '"' + (t.id === b.trainerId ? ' selected' : '') + '>' + esc(t.name || t.id) + '</option>';
+      }).join('') + '</select></label>' + (!knights.length ? '<p>' + (opts.guest ? 'Sign in to save your deck.' : 'Collect a SiegeKnight before saving a deck.') + '</p>' : '') +
+      '<p>' + total + ' cards · minimum ' + rules.minDeckSize + '</p><button class="sg-guest-primary" type="button" data-build-confirm' + (b.saving || opts.guest ? ' disabled' : '') + '>' + (b.saving ? 'Saving…' : 'Save deck') + '</button></div>';
+    return topMarkup(opts) + '<div class="sg-deck-backdrop" aria-hidden="true">' + hubPanelImage(view, 'stage') + '</div>' +
+      '<nav class="sg-work-nav" aria-label="Deck builder">' + panelButton('add','Add Cards',view,'data-builder-view') + panelButton('review','Deck Review',view,'data-builder-view') +
+      panelButton('auto','Auto Build',view,'data-builder-view') + panelButton('save','Save Deck',view,'data-builder-view') + '<a class="sg-work-back" href="/decks" data-screen="decks">‹ My Decks</a></nav>' +
+      '<div class="sg-scroll sg-builder-workspace" data-builder><header class="sg-work-head"><h2>' + titleText + '</h2><p>' + total + ' cards · ' + rules.minDeckSize + ' minimum · max ' + rules.maxCopies + ' copies</p></header>' +
+      (b.notice ? '<p class="sg-deck-notice' + (b.error ? ' is-error' : '') + '" data-build-notice tabindex="-1" role="' + (b.error ? 'alert' : 'status') + '">' + esc(b.notice) + '</p>' : '') +
+      (view === 'save' ? save : view === 'auto' ? '<div class="sg-build-auto-panel">' + hubPanelImage('auto', 'card') + '<div><h3>A starting point for your next victory</h3><p>Use cards you own to build a playable deck. Review every card before saving. Auto Build replaces the cards currently in this draft.</p><button class="sg-guest-primary" type="button" data-build-auto>Build my deck</button></div></div>' : binder) +
+      '</div>' + sheetHost() + bottomMarkup('collection',opts);
   }
 
   function refreshBuilder(opts, focusNotice) {
@@ -7995,6 +8010,10 @@
     app.addEventListener('click', function (e) {
       if (!e.target.closest) return;
 
+      var viewButton = e.target.closest('[data-builder-view]');
+      if (viewButton) { b.view = viewButton.getAttribute('data-builder-view'); b.page = 0; b.notice = ''; refreshBuilder(opts); return; }
+      var pageButton = e.target.closest('[data-build-page]');
+      if (pageButton) { b.page += Number(pageButton.getAttribute('data-build-page')); refreshBuilder(opts); return; }
       var add = e.target.closest('[data-build-add]');
       if (add) {
         var id = add.getAttribute('data-build-add');
@@ -8047,11 +8066,12 @@
           if (!b.counts[id]) { b.counts[id] = 0; b.order.push(id); }
           b.counts[id]++;
         });
+        b.view = 'review'; b.page = 0; b.query = ''; b.type = b.element = b.rarity = 'ALL';
         say('Auto Build filled ' + built.cards.length + ' cards. Save when you are happy with it.');
         return;
       }
 
-      if (e.target.closest('[data-build-save]')) {
+      if (e.target.closest('[data-build-confirm]')) {
         if (opts.guest || b.saving) return;
         var total = buildTotal(b);
         if (!b.name.trim()) { say('Give this deck a name before saving.', true); return; }
@@ -8088,6 +8108,15 @@
       }
     });
 
+    app.querySelectorAll('[data-build-filter]').forEach(function (field) {
+      field.addEventListener('change', function () { b[this.getAttribute('data-build-filter')] = this.value; b.page = 0; refreshBuilder(opts); });
+    });
+    app.addEventListener('keydown', function (event) {
+      if (/INPUT|SELECT|TEXTAREA/.test(event.target.tagName) || event.target.closest('[data-sheet]')) return;
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      var pageButton = app.querySelector('[data-build-page="' + (event.key === 'ArrowRight' ? '1' : '-1') + '"]');
+      if (pageButton && !pageButton.disabled) { event.preventDefault(); pageButton.click(); }
+    });
     var name = app.querySelector('[data-build-name]');
     if (name) {
       name.addEventListener('input', function () { b.name = this.value; });
@@ -8102,7 +8131,7 @@
     if (search) {
       var timer = null;
       search.addEventListener('input', function () {
-        b.query = this.value;
+        b.query = this.value; b.page = 0;
         if (timer) window.clearTimeout(timer);
         timer = window.setTimeout(function () {
           refreshBuilder(opts);

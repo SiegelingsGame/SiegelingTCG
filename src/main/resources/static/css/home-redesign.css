@@ -4685,7 +4685,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    breakpoint the card sheet already uses. The scroller stays in the DOM (its
    sections are lent to the stage's panel) but is retired from layout. */
 .sg-stage { display:none; }
-@media (orientation:landscape) and (max-height:500px) {
+@media (min-width:1024px), (orientation:landscape) {
   .sg-stage ~ .sg-scroll { display:none; }
   .sg-stage {
     display:block; position:absolute; inset:0; z-index:2; overflow:hidden;
