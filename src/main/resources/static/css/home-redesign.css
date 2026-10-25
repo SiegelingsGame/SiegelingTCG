@@ -2623,6 +2623,15 @@ body.concept-board {
 /* Desktop binder: the tiles are capped at 168px wide (.binder-framed-slot), so a
    two-column grid leaves a whole card's worth of dead air between them. Pack the
    columns to the tile width instead so the sheet reads like the printed binder. */
+/* Portrait phones: four cards across, like a binder sheet, rather than two
+   page-wide cards; a narrow phone (under 360px) keeps three so card text
+   stays legible. */
+@media (orientation:portrait) and (max-width:699px) {
+  .sg-gal-grid { grid-template-columns:repeat(4, minmax(0, 1fr)); gap:10px 6px; padding:18px 10px 20px; }
+}
+@media (orientation:portrait) and (max-width:359px) {
+  .sg-gal-grid { grid-template-columns:repeat(3, minmax(0, 1fr)); }
+}
 @media (min-width:700px) {
   .sg-gal-grid {
     grid-template-columns:repeat(auto-fill, minmax(150px, 176px));
@@ -6612,4 +6621,101 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 @media (orientation:landscape) and (max-height:600px) {
   .sg-app:has(> .sg-profile-backdrop) .sg-prof-layout .sg-crest-body { padding-bottom:4px; }
+}
+
+/* ---------- Shop › Arena Art: the arena fills the screen ----------
+   Board skins are landscape plates (4:3 / 3:2), one per player half. Stacked
+   with object-fit:contain they shrank to letterboxed strips: a dark band on
+   portrait phones, and on landscape a sliver ~290px wide in a 930px screen.
+   Now each half fills its share of the whole screen (header included, which
+   is transparent) with cover. Portrait stacks the halves; landscape and
+   desktop put them side by side, where each half's box is close to the art's
+   own shape. Placed last so it outranks the older per-breakpoint rules. */
+.sg-arena-faceoff { inset:0; }
+.sg-arena-half img { object-fit:cover; object-position:center; }
+@media (orientation:portrait) {
+  .sg-arena-faceoff { top:0; bottom:0; grid-template-rows:minmax(0,1fr) 0 minmax(0,1fr); }
+}
+@media (orientation:landscape) {
+  .sg-arena-faceoff { top:0; bottom:0; grid-template-columns:minmax(0,1fr) 0 minmax(0,1fr); grid-template-rows:minmax(0,1fr); }
+  /* Side by side the opponent's plate reads upright, like a showroom pair. */
+  .sg-arena-half.is-ai img { transform:none; }
+  .sg-arena-half::after { background:linear-gradient(180deg,rgba(10,8,30,.5),transparent 30%,transparent 62%,rgba(10,8,30,.55)); }
+  .sg-arena-vs { background:none; }
+  .sg-arena-vs::before { left:50%; right:auto; top:0; bottom:0; width:1px; height:auto; background:linear-gradient(180deg,transparent,#d9b45f 20%,#fff0c2,#d9b45f 80%,transparent); }
+  .sg-arena-half.is-player > span { display:flex; top:calc(var(--gtop) + 48px); bottom:auto; left:20px; }
+  .sg-arena-half.is-ai > span { top:auto; bottom:calc(var(--gnav) + 120px); transform:none; }
+  .sg-arena-heading p { display:none; }
+  /* The skin rail frosts over the art instead of walling it off. */
+  .sg-arena-skins {
+    background:linear-gradient(180deg,rgba(19,17,38,.42),rgba(19,17,38,.72));
+    backdrop-filter:blur(12px) saturate(1.2); -webkit-backdrop-filter:blur(12px) saturate(1.2);
+  }
+}
+@media (orientation:landscape) and (max-height:520px) {
+  .sg-arena-skins { padding:6px 10px 6px; gap:6px; }
+  .sg-arena-skin { flex-basis:70px; padding:3px; }
+  .sg-arena-skin span { font-size:8px; padding-top:2px; }
+  .sg-arena-half.is-ai > span { bottom:calc(var(--gnav) + 86px); }
+  .sg-arena-heading h2 { font-size:22px; }
+}
+
+/* ---------- Profile: favourite card leads the showcase ---------- */
+.sg-feat.is-favorite .sg-feat-plate {
+  box-shadow:inset 0 0 0 2px #ffd97a, 0 0 0 1px rgba(255,217,122,.55), 0 0 22px rgba(255,200,90,.45), 0 8px 20px rgba(4,20,30,.4);
+  background:linear-gradient(180deg,rgba(255,214,120,.18),rgba(60,36,8,.55));
+}
+.sg-feat-fav {
+  position:absolute; z-index:3; top:8px; left:8px; padding:3px 9px; border-radius:999px;
+  font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#2b1a02;
+  background:linear-gradient(180deg,#ffe9a8,#e2b54c); box-shadow:0 2px 8px rgba(0,0,0,.35);
+}
+.sg-sig.is-back-only { grid-template-columns:minmax(0,1fr); }
+
+/* ---------- Profile: player details ride in the header (landscape/desktop) ---------- */
+.sg-prof-head { display:none; }
+@media (min-width:1024px), (orientation:landscape) {
+  .sg-app[data-screen="profile"] .sg-prof-head {
+    display:flex; align-items:center; gap:10px; position:absolute; z-index:41;
+    top:calc(max(6px, var(--sg-sat, 0px)) - 3px); left:48px; right:var(--prof-head-right, 260px);
+    height:42px; min-width:0; padding:3px 14px 3px 4px; border-radius:999px;
+    border:1px solid rgba(255,255,255,.18); background:rgba(6,26,38,.5);
+    backdrop-filter:blur(12px) saturate(1.3); -webkit-backdrop-filter:blur(12px) saturate(1.3);
+    color:#f5fcff;
+  }
+  .sg-prof-head .sg-crest-ring { width:34px; height:34px; flex:0 0 34px; margin:0; }
+  .sg-prof-head .sg-crest-ring i { font-size:16px; }
+  .sg-prof-head-text { min-width:0; flex:1 1 auto; display:flex; flex-direction:column; justify-content:center; }
+  .sg-prof-head-line { display:flex; align-items:center; gap:8px; min-width:0; white-space:nowrap; }
+  .sg-prof-head-line strong { font:700 17px/1.1 var(--serif); color:#ffe39a; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .sg-prof-head-line .sg-crest-title { margin:0; padding:1px 8px; font-size:9px; letter-spacing:.1em; flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .sg-prof-head-edit { margin-left:auto; flex:0 0 auto; padding:2px 8px; border-radius:999px; border:1px solid rgba(255,227,154,.5); background:none; color:#ffe39a; font-size:9px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; cursor:pointer; }
+  .sg-prof-flavor { margin:1px 0 0; font-size:11px; line-height:1.2; color:#d6ecf4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:opacity .38s ease, transform .38s ease; }
+  .sg-prof-flavor.is-out { opacity:0; transform:translateY(-4px); }
+
+  /* The crest's contents live in the header now, so the page is the record,
+     the showcase (favourite first) and the card back. Social's Profile tab
+     has no header strip and keeps its crest. */
+  .sg-app[data-screen="profile"] .sg-profile-nav ~ .sg-scroll .sg-prof-layout { grid-template-columns:minmax(0,1fr) minmax(0,.3fr); grid-template-rows:auto minmax(0,1fr); }
+  .sg-app[data-screen="profile"] .sg-profile-nav ~ .sg-scroll .sg-prof-layout > [data-prof-block="crest"] { display:none; }
+  .sg-app[data-screen="profile"] .sg-profile-nav ~ .sg-scroll .sg-prof-layout > [data-prof-block="tiles"] { grid-area:1 / 1 / 2 / 3; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .sg-app[data-screen="profile"] .sg-profile-nav ~ .sg-scroll .sg-prof-layout > [data-prof-block="showcase"] { grid-area:2 / 1; }
+  .sg-app[data-screen="profile"] .sg-profile-nav ~ .sg-scroll .sg-prof-layout > [data-prof-block="signature"] { grid-area:2 / 2; }
+  .sg-app[data-screen="profile"] .sg-profile-nav ~ .sg-scroll .sg-tiles div { padding:6px 8px; }
+  .sg-profile-nav ~ .sg-scroll .sg-swipe[data-count="4"] { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .sg-app[data-screen="profile"] .sg-profile-nav ~ .sg-scroll .sg-sig { grid-template-columns:minmax(0,1fr); }
+  .sg-app[data-screen="profile"] .sg-profile-nav ~ .sg-scroll .sg-sig-slot { grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr) auto; justify-items:center; }
+  .sg-app[data-screen="profile"] .sg-profile-nav ~ .sg-scroll .sg-sig-back { grid-column:1; grid-row:2; height:100%; width:auto; }
+  /* The section heading already says Card back. */
+  .sg-app[data-screen="profile"] .sg-profile-nav ~ .sg-scroll .sg-sig-label { display:none; }
+  .sg-app[data-screen="profile"] .sg-profile-nav ~ .sg-scroll .sg-sig-name { grid-column:1; grid-row:3; text-align:center; }
+}
+@media (min-width:1024px) {
+  .sg-app[data-screen="profile"] .sg-prof-head { left:calc(var(--sg-gutter, 14px) + 46px); height:48px; top:calc(max(6px, var(--sg-sat, 0px)) - 5px); }
+  .sg-prof-head .sg-crest-ring { width:40px; height:40px; flex-basis:40px; }
+  .sg-prof-head-line strong { font-size:20px; }
+  .sg-prof-flavor { font-size:12.5px; }
+}
+@media (orientation:landscape) and (max-height:500px) {
+  .sg-feat-fav { top:4px; left:4px; padding:2px 6px; font-size:8px; }
 }

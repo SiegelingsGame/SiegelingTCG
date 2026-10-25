@@ -7120,15 +7120,27 @@
   // The concept's Showcase was four hand-picked ids. It is now the player's own
   // three, falling back to those ids only while nothing has been chosen.
   function showcaseCards() {
-    var chosen = (prefs().favoriteCardIds || []).map(function (id) {
-      return byIdIn(ALL_CARDS, id);
-    }).filter(Boolean);
+    var p = prefs();
+    var chosen = mergeFavorite(p.favoriteCardIds, p.favoriteCardId);
     if (chosen.length) return chosen;
     return pickPresent(['bearzooka', 'pylord', 'conchious', 'gymstone']).slice(0, PROFILE_SHOWCASE_MAX);
   }
 
-  function featTile(c) {
-    return '<article class="sg-feat" data-card="' + esc(c.id) + '" tabindex="0" style="--el:' + color(c.element) + '">' +
+  // The favourite card always stands in the showcase, first and framed, so the
+  // two never disagree: it leads the player's own picks (up to three) and is
+  // never listed twice.
+  function mergeFavorite(ids, favoriteId) {
+    var fav = favoriteId ? byIdIn(ALL_CARDS, favoriteId) : null;
+    var rest = (ids || []).filter(function (id) { return id && id !== favoriteId; }).map(function (id) {
+      return byIdIn(ALL_CARDS, id);
+    }).filter(Boolean).slice(0, PROFILE_SHOWCASE_MAX);
+    return (fav ? [fav] : []).concat(rest);
+  }
+
+  function featTile(c, favoriteId) {
+    var fav = favoriteId && c.id === favoriteId;
+    return '<article class="sg-feat' + (fav ? ' is-favorite' : '') + '" data-card="' + esc(c.id) + '" tabindex="0" style="--el:' + color(c.element) + '">' +
+      (fav ? '<span class="sg-feat-fav">\u2605 Favorite</span>' : '') +
       '<div class="sg-feat-plate"></div>' +
       '<div class="sg-feat-art"><img ' + artAttrs(c.cardArtUrl) + ' alt="" loading="lazy"' +
       // The authored card-face size, carried to the tile so a grouped rail can
@@ -7298,20 +7310,12 @@
   }
 
   function signatureSection(opts) {
-    var fav = byIdIn(ALL_CARDS, prefs().favoriteCardId);
     var back = cardBackEntry(prefs().preferredCardBack) || CARD_BACKS[0];
+    // The favourite card now leads the showcase, so Signature is the card back.
     return '<section class="sg-section" data-prof-block="signature">' +
-      '<div class="sg-section-head"><h3>Signature</h3>' +
+      '<div class="sg-section-head"><h3>Card back</h3>' +
         (opts.guest ? '' : '<a href="#" data-prof-open="favorite">Change</a>') + '</div>' +
-      '<div class="sg-sig">' +
-        '<div class="sg-sig-slot">' +
-          '<span class="sg-sig-label">Favorite card</span>' +
-          (fav
-            ? '<div class="sg-sig-art" data-card="' + esc(fav.id) + '" style="--el:' + color(fav.element) + '">' +
-                '<div class="sg-sig-face">' + favoriteFace(fav) + '</div>' +
-              '</div><span class="sg-sig-name">' + esc(fav.name) + '</span>'
-            : '<div class="sg-sig-art is-empty"></div><span class="sg-sig-name">Not chosen</span>') +
-        '</div>' +
+      '<div class="sg-sig is-back-only">' +
         '<div class="sg-sig-slot">' +
           '<span class="sg-sig-label">Card back</span>' +
           '<div class="sg-sig-back"><img src="' + esc(cardBackArt(back)) + '" alt="' + esc(back.name) + '"></div>' +
@@ -7353,8 +7357,83 @@
     return '<div class="sg-profile-backdrop" aria-hidden="true"><img src="' + esc(crestBackground()) + '" alt=""></div>';
   }
 
+  /* Landscape and desktop carry the crest's details in the header's empty
+     middle instead of a bubble: avatar, name, title and rank on one line, and
+     below it one line of flavour that cycles through everything the crest
+     said (record, purse, bio, favourite). Hidden in portrait, where the crest
+     stays. */
+  function profileFlavorLines(opts) {
+    var p = prefs(), live = opts.live || {}, lines = [];
+    if (p.bio) lines.push('\u201c' + p.bio + '\u201d');
+    var record = profileSubtitle(opts);
+    if (record && record !== 'Signed in') lines.push(record);
+    var purse = [];
+    if (live.gold != null) purse.push(Number(live.gold).toLocaleString() + ' Siegecoins');
+    if (live.remnants != null) purse.push(Number(live.remnants).toLocaleString() + ' remnants');
+    if (purse.length) lines.push(purse.join(' \u00b7 '));
+    var fav = byIdIn(ALL_CARDS, p.favoriteCardId);
+    if (fav) lines.push('Fights beside ' + fav.name + ', ' + title(fav.element) + ' ' + title(fav.rarity));
+    if (live.knights && live.knights.length) {
+      lines.push('Commands ' + live.knights.length + ' SiegeKnight' + (live.knights.length === 1 ? '' : 's'));
+    }
+    if (!lines.length) lines.push(opts.guest ? 'Sign in to keep your record' : 'A new legend takes the field');
+    return lines;
+  }
+  function profileHeadMarkup(opts) {
+    var p = prefs();
+    var name = p.displayName || (opts.live && opts.live.displayName) || (opts.guest ? 'Guest' : 'Siegelord');
+    var lines = profileFlavorLines(opts);
+    return '<div class="sg-prof-head" style="--el:' + color(crestElement()) + '">' +
+      crestAvatar(opts) +
+      '<div class="sg-prof-head-text">' +
+        '<div class="sg-prof-head-line"><strong>' + esc(name) + '</strong>' +
+          (p.playerTitle ? '<span class="sg-crest-title">' + esc(p.playerTitle) + '</span>' : '') +
+          (opts.guest ? '' : '<button class="sg-prof-head-edit" type="button" data-prof-open="look">Customize</button>') +
+        '</div>' +
+        '<p class="sg-prof-flavor" data-prof-flavor data-lines="' + esc(JSON.stringify(lines)) + '">' + esc(lines[0]) + '</p>' +
+      '</div>' +
+    '</div>';
+  }
+  var profFlavorTimer = null;
+  // The strip ends where the header's chips begin, which varies with the coin
+  // count and sign-in state, so it is measured rather than guessed.
+  function fitProfileHead(app) {
+    var head = app.querySelector('.sg-prof-head');
+    if (!head || !head.getClientRects().length) return;
+    var left = Infinity;
+    [].forEach.call(app.querySelectorAll('.sg-top > *'), function (el) {
+      if (el.classList.contains('sg-logo') || el.classList.contains('sg-logo-link') ||
+          el.classList.contains('sg-top-spacer') || !el.getClientRects().length) return;
+      left = Math.min(left, el.getBoundingClientRect().left);
+    });
+    if (left !== Infinity) head.style.setProperty('--prof-head-right', Math.max(12, window.innerWidth - left + 12) + 'px');
+  }
+  function mountProfileHead(app) {
+    clearInterval(profFlavorTimer);
+    fitProfileHead(app);
+    if (!app.__profHeadResize) {
+      app.__profHeadResize = true;
+      window.addEventListener('resize', function () { fitProfileHead(app); });
+    }
+    var el = app.querySelector('[data-prof-flavor]');
+    if (!el) return;
+    var lines = [];
+    try { lines = JSON.parse(el.getAttribute('data-lines') || '[]'); } catch (e) { lines = []; }
+    if (lines.length < 2) return;
+    var i = 0;
+    profFlavorTimer = setInterval(function () {
+      if (!el.isConnected) { clearInterval(profFlavorTimer); return; }
+      el.classList.add('is-out');
+      setTimeout(function () {
+        i = (i + 1) % lines.length;
+        el.textContent = lines[i];
+        el.classList.remove('is-out');
+      }, 380);
+    }, 4200);
+  }
+
   function profileScreen(opts) {
-    return profileBackdrop() + topMarkup(opts) + profileNavigation(opts, 'profile') +
+    return profileBackdrop() + topMarkup(opts) + profileHeadMarkup(opts) + profileNavigation(opts, 'profile') +
       '<div class="sg-scroll">' + profileBody(opts) + '</div>' +
       // mountSheet runs for this screen; without the host it had nothing to bind,
       // so tapping a showcase card here did nothing.
@@ -7395,7 +7474,7 @@
             (opts.guest
               ? '<a href="/cards" data-screen="collection">Browse</a>'
               : '<a href="#" data-prof-open="showcase">Change</a>') + '</div>' +
-          '<div class="sg-swipe" data-art-fit-group="showcase">' + cards.map(featTile).join('') + '</div>' +
+          '<div class="sg-swipe" data-art-fit-group="showcase" data-count="' + cards.length + '">' + cards.map(function (c) { return featTile(c, prefs().favoriteCardId); }).join('') + '</div>' +
         '</section>' +
         signatureSection(opts) +
         '<section class="sg-section" data-prof-block="recent">' +
@@ -7460,7 +7539,7 @@
     var pool = ownedPool(opts);
     if (!pool.length) return emptyPickNote(opts);
     return '<p class="sg-prof-hint">Pick up to ' + PROFILE_SHOWCASE_MAX +
-      ' cards. Tap a picked card to drop it.</p>' +
+      ' cards. Tap a picked card to drop it. Your favourite card (set under Signature) always leads the showcase.</p>' +
       '<div class="sg-pick-grid">' + pool.map(function (c) {
         var at = d.favoriteCardIds.indexOf(c.id);
         return pickTile(c, at >= 0, 'data-pick-showcase', at >= 0 ? String(at + 1) : '');
@@ -7470,7 +7549,7 @@
   function favoritePanel(opts) {
     var d = draft();
     var pool = ownedPool(opts);
-    return '<p class="sg-prof-hint">Your signature card and the back your decks wear.</p>' +
+    return '<p class="sg-prof-hint">Your favourite card leads your showcase with a gold frame. Below, the back your decks wear.</p>' +
       (pool.length
         ? '<div class="sg-pick-grid">' + pool.map(function (c) {
             return pickTile(c, c.id === d.favoriteCardId, 'data-pick-favorite', '');
@@ -10018,10 +10097,8 @@
     var name = settings.displayName || 'Siegelord';
     var el = settings.favoriteElement || 'NEUTRAL';
 
-    var showcase = (settings.favoriteCardIds || []).map(function (id) {
-      return byIdIn(ALL_CARDS, id);
-    }).filter(Boolean);
-    var signature = byIdIn(ALL_CARDS, settings.favoriteCardId || settings.favoriteSieglingId || '');
+    var favId = settings.favoriteCardId || settings.favoriteSieglingId || '';
+    var showcase = mergeFavorite(settings.favoriteCardIds, favId);
 
     // The server's own completion figure, so a visitor reads exactly what the
     // owner sees. `collectibleTotal` is the live catalog as the SERVER counts it,
@@ -10057,17 +10134,7 @@
         '</div>' +
         (showcase.length
           ? '<section class="sg-section"><div class="sg-section-head"><h3>Showcase</h3></div>' +
-              '<div class="sg-swipe" data-art-fit-group="showcase">' + showcase.map(featTile).join('') + '</div></section>'
-          : '') +
-        (signature
-          ? '<section class="sg-section"><div class="sg-section-head"><h3>Signature</h3></div>' +
-              '<div class="sg-sig"><div class="sg-sig-slot">' +
-                '<span class="sg-sig-label">Favorite card</span>' +
-                '<div class="sg-sig-art" data-card="' + esc(signature.id) + '" style="--el:' +
-                  color(signature.element) + '"><div class="sg-sig-face">' + favoriteFace(signature) + '</div></div>' +
-                '<span class="sg-sig-name">' + esc(signature.name) + '</span>' +
-              '</div></div>' +
-            '</section>'
+              '<div class="sg-swipe" data-art-fit-group="showcase" data-count="' + showcase.length + '">' + showcase.map(function (c) { return featTile(c, favId); }).join('') + '</div></section>'
           : '') +
         '<section class="sg-section"><div class="sg-section-head"><h3>Recent</h3></div>' +
           (matches === null
@@ -10840,7 +10907,7 @@
     if (screen === 'lobbies') mountLobbies(app, opts); else stopLobbyTimers();
     if (screen === 'room') mountRoom(app, opts); else stopRoomTimers();
     if (screen === 'profile' || screen === 'social') mountProfileNavigation(app, opts);
-    if (screen === 'profile') { mountSheet(app, opts); mountProfile(app, opts); }
+    if (screen === 'profile') { mountSheet(app, opts); mountProfile(app, opts); mountProfileHead(app); }
     if (screen === 'social') { mountSheet(app, opts); mountProfile(app, opts); mountSocial(app, opts); }
     if (screen !== 'social') { openThread = null; stopThreadPoll(); }
     if (screen === 'collection') {
