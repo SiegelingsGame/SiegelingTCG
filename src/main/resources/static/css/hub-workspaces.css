@@ -256,3 +256,99 @@
 }
 .sg-app[data-screen="decks"] .sg-deck-workspace .sg-deck-section > .sg-stack { display:grid; grid-auto-flow:row; grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr)); grid-template-rows:none; grid-auto-columns:auto; gap:12px; margin:0; padding:0 4px 10px; }
 .sg-app[data-screen="decks"] .sg-deck-workspace .sg-deck-section .sg-deckrow { width:auto; min-width:0; max-width:none; }
+
+/* Settings on landscape and desktop: one screen, no scrolling. The artwork
+   fills the screen, the title rides in the header's empty middle beside the
+   logo, and the six sections are frosted cards in a 3x2 grid that runs to the
+   bottom edge. The shield button sits bottom-centre, so the one-row Danger
+   zone takes that slot and alone keeps clearance for it (a guest has no
+   Danger zone, so the slot stays empty). Padding honours the notch on
+   landscape iPhones. A card that grows (the delete confirmation) scrolls
+   inside itself, never the page. */
+@media (min-width:1024px), (orientation:landscape) {
+  .sg-app[data-screen="settings"] > .sg-scroll.sg-settings-workspace {
+    --set-top:calc(54px + var(--sg-sat,0px)); --set-bottom:calc(12px + env(safe-area-inset-bottom,0px)); --set-fab:72px;
+    position:absolute; inset:0; overflow:hidden; display:grid;
+    /* Rows take their content's height (capped to half the space) and the
+       grid sits centred, so roomy screens get compact cards, not tall ones. */
+    grid-template-columns:repeat(3,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(0,max-content));
+    align-content:center; gap:10px 14px;
+    padding:var(--set-top) max(16px, env(safe-area-inset-right,0px)) var(--set-bottom) max(16px, env(safe-area-inset-left,0px));
+  }
+  .sg-settings-workspace > div[style] { display:none; }
+  .sg-settings-workspace .sg-crest { display:contents; }
+  .sg-settings-workspace .sg-crest-bg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; -webkit-mask-image:none; mask-image:none; }
+  .sg-settings-workspace .sg-crest-veil { position:absolute; inset:0; z-index:0; background:linear-gradient(180deg,rgba(6,24,38,.28),rgba(6,24,38,.5) 45%,rgba(6,24,38,.7)); }
+  .sg-settings-workspace .sg-crest-body {
+    position:absolute; z-index:41; inset:auto; top:calc(max(6px, var(--sg-sat,0px)) + 16px); transform:translateY(-50%);
+    left:calc(max(16px, env(safe-area-inset-left,0px)) + 40px);
+    display:flex; align-items:baseline; gap:10px; padding:5px 14px 6px; margin:0; text-align:left; pointer-events:none;
+    border-radius:999px; border:1px solid rgba(255,255,255,.2); background:rgba(9,36,52,.5);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  }
+  /* Solid gold rather than the crest's gradient fill, which washed out on sky. */
+  .sg-settings-workspace .sg-crest-body h2 { margin:0; font-size:20px; line-height:1; color:#f6d77a; -webkit-text-fill-color:#f6d77a; background:none; text-shadow:0 1px 3px #001b2d; }
+  .sg-settings-workspace .sg-crest-body p { margin:0; font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:#d8ecf3; }
+  .sg-settings-card {
+    position:relative; z-index:1; min-width:0; min-height:0; display:flex; flex-direction:column;
+    margin:0; padding:10px 12px; border-radius:16px; overflow-y:auto; overscroll-behavior:contain;
+    border:1px solid rgba(255,255,255,.24);
+    background:linear-gradient(140deg,rgba(255,255,255,.14),rgba(255,255,255,.04) 60%,rgba(140,210,255,.06));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 10px 26px rgba(0,0,0,.25);
+    backdrop-filter:blur(16px) saturate(1.4); -webkit-backdrop-filter:blur(16px) saturate(1.4);
+  }
+  /* Children: crest, Audio, Motion, Notifications, Account, Community, Danger. */
+  .sg-settings-workspace > .sg-settings-card:nth-child(2) { grid-area:1 / 1; }
+  .sg-settings-workspace > .sg-settings-card:nth-child(3) { grid-area:1 / 2; }
+  .sg-settings-workspace > .sg-settings-card:nth-child(4) { grid-area:1 / 3; }
+  .sg-settings-workspace > .sg-settings-card:nth-child(5) { grid-area:2 / 1; }
+  .sg-settings-workspace > .sg-settings-card:nth-child(6) { grid-area:2 / 3; }
+  .sg-settings-workspace > .sg-settings-card:nth-child(7) { grid-area:2 / 2; margin-bottom:var(--set-fab); }
+  .sg-settings-card .sg-section-head { padding:0 0 8px; }
+  .sg-settings-card .sg-section-head h3 { font-size:16px; }
+  .sg-settings-card .sg-stack { display:flex; flex-direction:column; padding:0; gap:6px; }
+  .sg-settings-card .sg-toggle-row { flex:0 0 auto; }
+  .sg-settings-card .sg-toggle-row { padding:6px 12px; border-radius:12px; background:rgba(9,36,52,.45); font-size:13px; min-height:44px; }
+  .sg-settings-card .sg-danger { margin:0; }
+  .sg-settings-card .sg-danger-body { margin-top:8px; padding:12px; gap:8px; }
+}
+/* Desktop headers pad by the page gutter, so the title follows the logo there. */
+@media (min-width:1024px) {
+  .sg-settings-workspace .sg-crest-body { left:calc(var(--sg-gutter, 16px) + 4px + 44px); }
+}
+@media (min-width:1024px) and (min-height:700px) {
+  .sg-app[data-screen="settings"] > .sg-scroll.sg-settings-workspace {
+    --set-top:calc(80px + var(--sg-sat,0px)); --set-bottom:calc(24px + env(safe-area-inset-bottom,0px)); --set-fab:84px;
+    gap:16px 20px; padding-inline:max(40px, calc((100% - 1500px) / 2));
+  }
+  .sg-settings-workspace .sg-crest-body { top:calc(var(--sg-sat,0px) + 40px); }
+  .sg-settings-workspace .sg-crest-body h2 { font-size:clamp(22px, 1.8vw, 30px); }
+  .sg-settings-card { padding:16px 18px; border-radius:20px; }
+  .sg-settings-card .sg-section-head h3 { font-size:19px; }
+  .sg-settings-card .sg-stack { gap:10px; }
+  .sg-settings-card .sg-toggle-row { padding:10px 16px; font-size:14.5px; min-height:52px; }
+}
+/* Short landscape phones: three rows per card cannot all stand 44px tall in
+   ~150px, so rows slim, the notes under link rows step aside, and each switch
+   keeps a 44px-wide hit area through an invisible halo. */
+@media (orientation:landscape) and (max-height:500px) {
+  .sg-app[data-screen="settings"] > .sg-scroll.sg-settings-workspace {
+    --set-top:calc(50px + var(--sg-sat,0px)); --set-bottom:calc(8px + env(safe-area-inset-bottom,0px)); --set-fab:62px; gap:6px 10px;
+  }
+  .sg-settings-workspace .sg-crest-body h2 { font-size:17px; }
+  .sg-settings-workspace .sg-crest-body { padding:4px 11px 5px; }
+  .sg-settings-card { padding:6px 10px; border-radius:12px; }
+  .sg-settings-card .sg-section-head { padding:0 0 3px; }
+  .sg-settings-card .sg-section-head h3 { font-size:13px; }
+  .sg-settings-card .sg-stack { gap:3px; }
+  .sg-settings-card .sg-toggle-row { padding:2px 8px 2px 10px; gap:8px; min-height:28px; font-size:12px; line-height:1.15; border-radius:9px; }
+  .sg-settings-card .sg-toggle-row.is-link em.sg-row-note { display:none; }
+  .sg-settings-card .sg-switch { width:38px; height:22px; }
+  .sg-settings-card .sg-switch i { width:16px; height:16px; }
+  .sg-settings-card .sg-switch.on i { transform:translateX(16px); }
+  .sg-settings-card .sg-switch::after { content:''; position:absolute; inset:-9px -4px; }
+}
+@media (orientation:landscape) and (max-height:500px) and (max-width:700px) {
+  .sg-settings-card { padding:5px 8px; }
+  .sg-settings-card .sg-toggle-row { font-size:11px; }
+}
