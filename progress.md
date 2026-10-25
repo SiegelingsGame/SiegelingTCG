@@ -1,3 +1,35 @@
+Original prompt: it should have a very smooth color transition
+
+- October 25, 2026 **Home's art and page colour now melt into the next piece together.**
+  - **Change.**
+    - **Crossfading picture.** The portrait hero picture used to swap instantly while the page colour faded over 1.2s, and each palette only started once its image had loaded. `heroMarkup` now renders two `.sg-hero-land` plates. `mountHero.paint` loads the next plate and its palette first (`loadArtPlate`, cached, with an error fallback), then on one frame fades the back plate in, the front plate out and the palette in (`applyArtPalette`). It updates the caption, then warms the following plate so its swap never waits on the network.
+    - **One shared ease.** The plates' opacity and the five `@property` ground colours share a single 2s `cubic-bezier(.45,0,.25,1)` (`--hub-fade`), and reduced motion turns both off.
+    - **Parallax.** The parallax offset moved to `.sg-hero-art`, so both plates inherit it.
+    - Cache pins: `home-redesign.css?v=155`, `home-redesign.js?v=151`.
+  - **Verification.** `node --check`. Headless Chromium at 390x844 with live rotation, sampling every animation frame across the Bearby → Frostag swap:
+    - the colour eased from `rgb(73,35,13)` to `rgb(26,48,81)` over ~1.7s visible change, with no frame stepping any channel by more than 2;
+    - the picture crossfade began on the same beat and ended with exactly one plate at opacity 1;
+    - no page errors.
+
+    `tests/hub-workspaces-check.cjs` passes.
+
+Original prompt: The blue color should change dynamically based on the colors in the art being displayed at the top so for the best I would expect more red and black and then for the ice I would expect a more icey blues
+
+- October 25, 2026 **Home's page colour follows the hero art.**
+  - **Change.**
+    - **Sampling the plate.** Each time the portrait Home hero paints a plate, `home-redesign.js` `tintFromArt` reads it once (cached per URL) at 40x40 through a canvas. `readArtPalette` finds the strongest hue: 15° bins weighted by saturation², ignoring near-black and near-white, so a vivid accent outweighs a large muted field. It also finds a clearly different second hue (≥45° away) if one carries weight, and takes the darkest quarter of pixels as the shadow tone. A one-colour plate pairs its hue with its own shadows, so Bearby is red and black rather than two oranges.
+    - **Tone lightness.** Each tone is pitched to a target WCAG luminance (`hslAtLuminance`) instead of a fixed HSL lightness. That deepens warm art toward ember red and lifts blue art toward ice. The base tones sit at luminance ≈0.02–0.03, so the white copy keeps its contrast.
+    - **Applying the colours.** The results land in `--hero-*` on `.sg-app`. CSS reads them only under `.sg-app[data-screen="home"]`, through `--hub-glow`, `--hub-glow-two` and new `--hub-base-a/b/c` that replace the fixed `#174766/#0e3448/#184c56` base gradient. Those five are `@property`-registered colours with a 1.2s transition (none under reduced motion), so the ground fades between plates. The hero's bottom tint also follows `--hub-base-b` instead of fixed navy.
+    - **Timer leak fix.** The hero's 7s timer now clears itself once its hero is detached. Every Home visit used to start another timer that never stopped, and those would have fought over the page colour.
+    - Cache pins: `home-redesign.css?v=154`, `home-redesign.js?v=150`.
+  - **Verification.** `node --check`. Headless Chromium at 390x844 with the hero frozen on each scene:
+    - **Bearby (The Long Fuse):** glow `rgb(178,78,21)` over near-black `rgb(26,22,10)`.
+    - **Frostag (Morning Drills):** glow `rgb(49,108,196)` over `rgb(10,16,26)` / `rgb(26,48,81)`.
+    - **Skydon:** sky blue plus gold.
+    - **CactyJacked'ty:** desert orange plus cactus green.
+
+    Screenshots confirm each ground matches its art. With live rotation, after bouncing Home ↔ Collection/Shop/Decks three times, the colour changed with the scene within 8s and then held steady, so no stale timers fought over it. Collection and Settings keep their own glows (`rgb(40,122,183)`, `rgb(40,139,164)`). No page errors. `tests/hub-workspaces-check.cjs` passes.
+
 Original prompt: make sure buttons fits no matter what screen size
 
 - October 25, 2026 **Shield menu: every button fits inside the frame at any screen size.**
