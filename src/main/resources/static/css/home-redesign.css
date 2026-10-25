@@ -4684,7 +4684,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    the stage - it only exists inside this query, which matches the landscape
    breakpoint the card sheet already uses. The scroller stays in the DOM (its
    sections are lent to the stage's panel) but is retired from layout. */
-.sg-stage { display:none; }
+.sg-stage, .sg-stage-music { display:none; }
 @media (min-width:1024px), (orientation:landscape) {
   .sg-stage ~ .sg-scroll { display:none; }
   .sg-stage {
@@ -4719,28 +4719,26 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     gap:10px 16px; transition:opacity .35s ease;
   }
   .sg-stage-ui > * { pointer-events:auto; }
+  /* The shield FAB is the only bottom chrome and it sits centred, so the
+     corners can run down to the safe area instead of clearing a nav bar. */
+  .has-shield-navigation .sg-stage-ui { padding-bottom:max(12px, calc(var(--sg-sab) * .4 + 8px)); }
 
   .sg-stage-lead { grid-area:left; align-self:start; display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:0; }
-  /* Main destinations as shop plates in one row; the shared .sg-gtab sizes are
-     tuned for the shop rail, so the stage sets its own. */
+  /* Main destinations as a column of shop plates; the shared .sg-gtab sizes
+     are tuned for the shop rail, so the stage sets its own. */
   /* The plate tokens live on the shop root, so the stage restates them. */
-  .sg-stage-cards { --navy-plate:linear-gradient(135deg,rgba(31,105,133,.96),rgba(13,52,73,.96)); --gold-line:#d9b45f; display:grid; grid-template-columns:repeat(5, clamp(78px, 12.5vw, 118px)); gap:6px; }
-  .sg-stage-cards .sg-gtab { height:44px; padding-right:13px; text-decoration:none; }
+  .sg-stage-cards { --navy-plate:linear-gradient(135deg,rgba(31,105,133,.96),rgba(13,52,73,.96)); --gold-line:#d9b45f; display:grid; grid-template-columns:clamp(124px, 16vw, 150px); gap:5px; }
+  .sg-stage-cards .sg-gtab { height:38px; padding-right:13px; text-decoration:none; }
   .sg-stage-cards .sg-gtab-art { flex-basis:38%; margin-right:5px; }
   .sg-stage-cards .sg-gtab-art img { transform:none; }
   .sg-stage-cards .sg-gtab-label { font-size:11px; }
   .sg-stage-cards .sg-gtab-gem { width:7px; height:10px; margin-top:-5px; right:4px; }
   .sg-stage-cards .sg-gtab:active { transform:translateY(1px); border-color:#ffe39a; }
   @media (hover:hover) { .sg-stage-cards .sg-gtab:hover { border-color:#ffe39a; } }
-  /* Narrow landscape phones: thinner art so "Collection" keeps its size. */
-  @media (max-width:700px) {
-    .sg-stage-cards .sg-gtab { padding-right:10px; }
-    .sg-stage-cards .sg-gtab-art { flex-basis:28%; margin-right:4px; }
-    .sg-stage-cards .sg-gtab-gem { display:none; }
-  }
-  /* Shortcut icons in one row, labelled underneath like a launcher. */
+  /* Shortcut icons atop the mode column, three to a row, labelled underneath
+     like a launcher. */
   .sg-stage-left {
-    display:grid; grid-template-columns:repeat(6, 52px); gap:4px;
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:4px; margin-bottom:2px;
   }
   .sg-stage-tile {
     position:relative; display:flex; flex-direction:column; align-items:center; gap:3px;
@@ -4801,8 +4799,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 
   /* Bottom-left: what is on the wall, and the controls for it. */
   .sg-stage-deck { grid-area:deck; align-self:end; display:flex; flex-direction:column; gap:6px; min-width:0; }
+  /* Lives in the header beside the music button, sized to the chips. */
   .sg-stage-music {
-    align-self:flex-start; display:flex; align-items:center; gap:2px; max-width:100%;
+    align-self:center; flex:0 1 auto; min-width:0; max-width:min(240px, 30vw); display:flex; align-items:center; gap:2px; max-width:100%;
     padding:2px 4px 2px 2px; border-radius:999px;
     background:linear-gradient(90deg, rgba(84,168,240,.38), rgba(180,92,255,.30));
     border:1px solid rgba(255,255,255,.2);
@@ -4859,6 +4858,22 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-stage-dots { display:inline-flex; gap:4px; padding:0 6px; }
   .sg-stage-dots i { width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,.3); transition:all .3s ease; }
   .sg-stage-dots i.on { width:14px; border-radius:3px; background:var(--el, var(--gold-bright)); }
+
+  /* Placed after the base stage rules they override.
+     Short landscape phones: the column of five has to clear the caption, and
+     the launcher icons shrink so the mode column fits under the header. */
+  @media (max-height:340px) {
+    .sg-stage-cards { gap:3px; }
+    .sg-stage-cards .sg-gtab { height:29px; }
+    .sg-stage-left { gap:2px; margin-bottom:0; }
+    .sg-stage-tile-ico { width:28px; height:28px; }
+    .sg-stage-right { gap:6px; }
+  }
+  /* Narrow screens: the rotation pill must stay left of the centred shield
+     button, so it drops its dots and the "Rotation" word. */
+  @media (max-width:700px) {
+    .sg-stage-dots, .sg-stage-player button.is-wide span { display:none; }
+  }
 
   /* On-demand panels. Its body is the one region that scrolls. */
   .sg-stage-panel {

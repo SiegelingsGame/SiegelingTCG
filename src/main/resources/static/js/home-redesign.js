@@ -1060,7 +1060,7 @@
 
   var MUSIC_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle><path class="sg-music-slash" d="M3 3l18 18"></path></svg>';
 
-  function topMarkup(opts) {
+  function topMarkup(opts, beforeMusic) {
     var guest = Boolean(opts && opts.guest);
     var unread = unreadNotifCount(opts);
     return '<header class="sg-top' + (guest ? ' is-guest' : '') + '">' +
@@ -1069,6 +1069,7 @@
       '<span class="sg-chip coin"><img src="/img/ui/home-stats/siegecoin.png" alt="">' +
         esc(formatCoins(opts, guest)) + '</span>' +
       // hub-music.js owns the state and repaints this on every change.
+      (beforeMusic || '') +
       '<button class="sg-music" type="button" data-music-open aria-label="Music" aria-haspopup="dialog" aria-expanded="false">' + MUSIC_ICON + '</button>' +
       (guest
         ? '<a class="sg-signin" href="/login" data-screen="auth">Sign In</a>'
@@ -1276,6 +1277,17 @@
     eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>'
   };
 
+  // The soundtrack's own pill, like the lobby jukebox it is modelled on.
+  function stageMusicMarkup() {
+    return '<div class="sg-stage-music">' +
+      '<button type="button" class="sg-stage-music-toggle" data-music-toggle aria-label="Mute music">' +
+        '<span class="sg-stage-eq" aria-hidden="true"><i></i><i></i><i></i></span></button>' +
+      '<span class="sg-stage-music-title" data-music-title></span>' +
+      '<button type="button" data-music-prev aria-label="Previous song">' + STAGE_ICON.prev + '</button>' +
+      '<button type="button" data-music-next aria-label="Next song">' + STAGE_ICON.next + '</button>' +
+    '</div>';
+  }
+
   function stageMarkup(opts) {
     var runs = (opts && opts.siegeRuns) || [];
     var quests = liveQuests(opts);
@@ -1302,8 +1314,8 @@
       '<button type="button" class="sg-stage-reveal" data-stage-reveal aria-label="Show menus"></button>' +
       '<div class="sg-stage-ui">' +
         '<div class="sg-stage-lead">' +
-        // The main destinations wear the shop's portrait plates; the panel
-        // shortcuts stay as the smaller launcher icons underneath.
+        // The main destinations wear the shop's portrait plates down the left;
+        // the panel shortcuts sit as launcher icons atop the mode column.
         '<nav class="sg-stage-cards" aria-label="Main destinations">' +
           [['play', 'Play'], ['collection', 'Collection'], ['shop', 'Shop'], ['social', 'Social'], ['settings', 'Settings']].map(function (item) {
             return '<a class="sg-gtab" href="' + pathForScreen(item[0]) + '" data-screen="' + item[0] + '">' +
@@ -1311,7 +1323,9 @@
               '<span class="sg-gtab-label">' + item[1] + '</span><i class="sg-gtab-gem" aria-hidden="true"></i></a>';
           }).join('') +
         '</nav>' +
-        '<nav class="sg-stage-left" aria-label="Home shortcuts">' +
+        '</div>' +
+        '<div class="sg-stage-right">' +
+          '<nav class="sg-stage-left" aria-label="Home shortcuts">' +
           tile('quests', 'Objectives', 'data-stage-panel="Daily Objectives"', openQuests ? String(openQuests) : '') +
           tile('hall', 'Hall', 'data-stage-panel="Hall of Siege"') +
           tile('expedition', 'Expedition', 'data-stage-panel="Continue Playing"', runs.length ? '!' : '') +
@@ -1319,8 +1333,6 @@
           link('gallery', 'Gallery', pathForScreen('art'), ' data-screen="art"') +
           link('lobbies', 'Lobbies', HREF.lobbies, lobbiesAttrs().replace(' href="' + HREF.lobbies + '"', '')) +
         '</nav>' +
-        '</div>' +
-        '<div class="sg-stage-right">' +
           '<a class="sg-stage-mode" href="' + HREF.siege + '">' +
             '<span class="sg-stage-mode-kicker">' + (run ? 'Expedition saved' : 'Roguelike') + '</span>' +
             '<strong>' + (run ? 'Resume Siege' : 'Siege') + '</strong></a>' +
@@ -1329,15 +1341,6 @@
           '<a class="sg-stage-play" href="' + HREF.battle + '">Arena</a>' +
         '</div>' +
         '<div class="sg-stage-deck">' +
-          // The soundtrack's own pill, like the lobby jukebox it is modelled on.
-          '<div class="sg-stage-music">' +
-            '<button type="button" class="sg-stage-music-toggle" data-music-toggle aria-label="Mute music">' +
-              '<span class="sg-stage-eq" aria-hidden="true"><i></i><i></i><i></i></span></button>' +
-            '<span class="sg-stage-music-title" data-music-title></span>' +
-            '<button type="button" data-music-prev aria-label="Previous song">' + STAGE_ICON.prev + '</button>' +
-            '<button type="button" data-music-next aria-label="Next song">' + STAGE_ICON.next + '</button>' +
-          '</div>' +
-          '<div class="sg-stage-caption" data-stage-caption></div>' +
           '<div class="sg-stage-player">' +
             '<button type="button" data-stage-prev aria-label="Previous art">' + STAGE_ICON.prev + '</button>' +
             '<button type="button" data-stage-pause aria-label="Pause rotation">' + STAGE_ICON.pause + '</button>' +
@@ -1347,6 +1350,8 @@
               STAGE_ICON.frames + '<span>Rotation</span></button>' +
             '<button type="button" data-stage-hide aria-label="Hide menus to view the art">' + STAGE_ICON.eye + '</button>' +
           '</div>' +
+          // The title of the piece on the wall holds the far bottom-left corner.
+          '<div class="sg-stage-caption" data-stage-caption></div>' +
         '</div>' +
       '</div>' +
       '<div class="sg-stage-panel" data-stage-sheet hidden role="dialog" aria-modal="false">' +
@@ -1561,7 +1566,8 @@
     opts = opts || {};
     // The stage precedes the scroller so the landscape rule can retire the
     // scroller with a sibling selector rather than :has().
-    return topMarkup(opts) + stageMarkup(opts) +
+    // The stage's soundtrack pill rides in the header beside the music button.
+    return topMarkup(opts, stageMusicMarkup()) + stageMarkup(opts) +
       '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + expeditionsSection(opts) +
       '<div style="height:96px"></div></div>' +
       sheetHost() +
