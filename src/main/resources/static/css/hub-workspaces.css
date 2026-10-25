@@ -93,9 +93,14 @@
 @media (min-width:1024px) {
   .sg-stage { --stage-top:calc(80px + var(--sg-sat,0px)); --stage-bottom:96px; }
   .sg-stage-ui { padding-inline:40px; gap:24px; }
-  .sg-stage-left { grid-template-columns:repeat(3,84px); gap:14px; }
-  .sg-stage-tile-ico { width:58px; height:58px; }
-  .sg-stage-tile-label { font-size:13px; }
+  .sg-stage-cards { grid-template-columns:clamp(210px, 14vw, 260px); gap:12px; }
+  .sg-stage-cards .sg-gtab { height:clamp(60px, 7vh, 80px); padding-right:22px; border-radius:16px 8px 8px 16px; }
+  .sg-stage-cards .sg-gtab-art { border-radius:15px 0 0 15px; margin-right:8px; }
+  .sg-stage-cards .sg-gtab-label { font-size:clamp(15px, 1.1vw, 19px); }
+  .sg-stage-cards .sg-gtab-gem { width:10px; height:15px; margin-top:-7px; right:8px; }
+  .sg-stage-left { gap:10px 8px; margin-bottom:6px; }
+  .sg-stage-tile-ico { width:44px; height:44px; }
+  .sg-stage-tile-label { font-size:12px; }
   .sg-stage-right { width:clamp(240px,21vw,340px); gap:14px; }
   .sg-app a.sg-stage-mode { min-height:76px; padding:14px 22px; }
   .sg-stage-mode strong { font-size:25px; }

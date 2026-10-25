@@ -1060,15 +1060,22 @@
 
   var MUSIC_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle><path class="sg-music-slash" d="M3 3l18 18"></path></svg>';
 
-  function topMarkup(opts) {
+  // `extra` lets a screen add its own header controls: { logoHref, afterLogo,
+  // beforeMusic }. Only Home's landscape stage uses it today.
+  function topMarkup(opts, extra) {
+    extra = extra || {};
     var guest = Boolean(opts && opts.guest);
+    var logo = '<img class="sg-logo" src="/img/siegelings-icon-256.webp" alt="Siegelings">';
     var unread = unreadNotifCount(opts);
     return '<header class="sg-top' + (guest ? ' is-guest' : '') + '">' +
-      '<img class="sg-logo" src="/img/siegelings-icon-256.webp" alt="Siegelings">' +
+      // No data-screen: this is a real page change, not a hub route.
+      (extra.logoHref ? '<a class="sg-logo-link" href="' + esc(extra.logoHref) + '" aria-label="Siegelings home page">' + logo + '</a>' : logo) +
+      (extra.afterLogo || '') +
       '<span class="sg-top-spacer"></span>' +
       '<span class="sg-chip coin"><img src="/img/ui/home-stats/siegecoin.png" alt="">' +
         esc(formatCoins(opts, guest)) + '</span>' +
       // hub-music.js owns the state and repaints this on every change.
+      (extra.beforeMusic || '') +
       '<button class="sg-music" type="button" data-music-open aria-label="Music" aria-haspopup="dialog" aria-expanded="false">' + MUSIC_ICON + '</button>' +
       (guest
         ? '<a class="sg-signin" href="/login" data-screen="auth">Sign In</a>'
@@ -1276,6 +1283,17 @@
     eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>'
   };
 
+  // The soundtrack's own pill, like the lobby jukebox it is modelled on.
+  function stageMusicMarkup() {
+    return '<div class="sg-stage-music">' +
+      '<button type="button" class="sg-stage-music-toggle" data-music-toggle aria-label="Mute music">' +
+        '<span class="sg-stage-eq" aria-hidden="true"><i></i><i></i><i></i></span></button>' +
+      '<span class="sg-stage-music-title" data-music-title></span>' +
+      '<button type="button" data-music-prev aria-label="Previous song">' + STAGE_ICON.prev + '</button>' +
+      '<button type="button" data-music-next aria-label="Next song">' + STAGE_ICON.next + '</button>' +
+    '</div>';
+  }
+
   function stageMarkup(opts) {
     var runs = (opts && opts.siegeRuns) || [];
     var quests = liveQuests(opts);
@@ -1301,7 +1319,19 @@
       // Tapping bare art while the chrome is hidden brings it back.
       '<button type="button" class="sg-stage-reveal" data-stage-reveal aria-label="Show menus"></button>' +
       '<div class="sg-stage-ui">' +
-        '<nav class="sg-stage-left" aria-label="Home shortcuts">' +
+        '<div class="sg-stage-lead">' +
+        // The main destinations wear the shop's portrait plates down the left;
+        // the panel shortcuts sit as launcher icons atop the mode column.
+        '<nav class="sg-stage-cards" aria-label="Main destinations">' +
+          [['play', 'Play'], ['collection', 'Collection'], ['shop', 'Shop'], ['social', 'Social'], ['settings', 'Settings']].map(function (item) {
+            return '<a class="sg-gtab" href="' + pathForScreen(item[0]) + '" data-screen="' + item[0] + '">' +
+              '<span class="sg-gtab-art">' + hubPanelImage('stage-' + item[0]) + '</span>' +
+              '<span class="sg-gtab-label">' + item[1] + '</span><i class="sg-gtab-gem" aria-hidden="true"></i></a>';
+          }).join('') +
+        '</nav>' +
+        '</div>' +
+        '<div class="sg-stage-right">' +
+          '<nav class="sg-stage-left" aria-label="Home shortcuts">' +
           tile('quests', 'Objectives', 'data-stage-panel="Daily Objectives"', openQuests ? String(openQuests) : '') +
           tile('hall', 'Hall', 'data-stage-panel="Hall of Siege"') +
           tile('expedition', 'Expedition', 'data-stage-panel="Continue Playing"', runs.length ? '!' : '') +
@@ -1309,7 +1339,6 @@
           link('gallery', 'Gallery', pathForScreen('art'), ' data-screen="art"') +
           link('lobbies', 'Lobbies', HREF.lobbies, lobbiesAttrs().replace(' href="' + HREF.lobbies + '"', '')) +
         '</nav>' +
-        '<div class="sg-stage-right">' +
           '<a class="sg-stage-mode" href="' + HREF.siege + '">' +
             '<span class="sg-stage-mode-kicker">' + (run ? 'Expedition saved' : 'Roguelike') + '</span>' +
             '<strong>' + (run ? 'Resume Siege' : 'Siege') + '</strong></a>' +
@@ -1318,24 +1347,15 @@
           '<a class="sg-stage-play" href="' + HREF.battle + '">Arena</a>' +
         '</div>' +
         '<div class="sg-stage-deck">' +
-          // The soundtrack's own pill, like the lobby jukebox it is modelled on.
-          '<div class="sg-stage-music">' +
-            '<button type="button" class="sg-stage-music-toggle" data-music-toggle aria-label="Mute music">' +
-              '<span class="sg-stage-eq" aria-hidden="true"><i></i><i></i><i></i></span></button>' +
-            '<span class="sg-stage-music-title" data-music-title></span>' +
-            '<button type="button" data-music-prev aria-label="Previous song">' + STAGE_ICON.prev + '</button>' +
-            '<button type="button" data-music-next aria-label="Next song">' + STAGE_ICON.next + '</button>' +
-          '</div>' +
-          '<div class="sg-stage-caption" data-stage-caption></div>' +
           '<div class="sg-stage-player">' +
             '<button type="button" data-stage-prev aria-label="Previous art">' + STAGE_ICON.prev + '</button>' +
             '<button type="button" data-stage-pause aria-label="Pause rotation">' + STAGE_ICON.pause + '</button>' +
             '<button type="button" data-stage-next aria-label="Next art">' + STAGE_ICON.next + '</button>' +
             '<span class="sg-stage-dots" data-stage-dots></span>' +
-            '<button type="button" class="is-wide" data-stage-pick aria-haspopup="dialog">' +
-              STAGE_ICON.frames + '<span>Rotation</span></button>' +
             '<button type="button" data-stage-hide aria-label="Hide menus to view the art">' + STAGE_ICON.eye + '</button>' +
           '</div>' +
+          // The title of the piece on the wall holds the far bottom-left corner.
+          '<div class="sg-stage-caption" data-stage-caption></div>' +
         '</div>' +
       '</div>' +
       '<div class="sg-stage-panel" data-stage-sheet hidden role="dialog" aria-modal="false">' +
@@ -1529,6 +1549,9 @@
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && stage.isConnected && !sheet.hidden) closeSheet();
     });
+    // The wallpaper picker lives in the header, outside the stage's listener.
+    var headerPick = app.querySelector('.sg-top [data-stage-pick]');
+    if (headerPick) headerPick.addEventListener('click', openPicker);
 
     if (mq) {
       var onChange = function () {
@@ -1550,7 +1573,13 @@
     opts = opts || {};
     // The stage precedes the scroller so the landscape rule can retire the
     // scroller with a sibling selector rather than :has().
-    return topMarkup(opts) + stageMarkup(opts) +
+    // The stage's soundtrack pill rides in the header beside the music button,
+    // its wallpaper picker beside the logo, and the logo leads to the landing.
+    return topMarkup(opts, {
+        logoHref: '/landing',
+        afterLogo: '<button type="button" class="sg-stage-pick-btn" data-stage-pick aria-haspopup="dialog">' +
+          STAGE_ICON.frames + '<span>Rotation</span></button>',
+        beforeMusic: stageMusicMarkup() }) + stageMarkup(opts) +
       '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + expeditionsSection(opts) +
       '<div style="height:96px"></div></div>' +
       sheetHost() +
@@ -3096,7 +3125,13 @@
     friends: { src:'/img/shop/scene-poison.webp', thumb:'50% 30%', stage:'50% 35%' },
     messages: { src:'/img/shop/scene-psychic.webp', thumb:'60% 30%', stage:'55% 40%' },
     lobbies: { src:'/img/gallery/bearnade-payload.webp', thumb:'10% 50%', stage:'32% 45%' },
-    history: { src:'/img/gallery/draco-brood.webp', thumb:'65% 45%', stage:'55% 45%' }
+    history: { src:'/img/gallery/draco-brood.webp', thumb:'65% 45%', stage:'55% 45%' },
+    // Home stage plates are at most ~110px of art, so they take the small cuts.
+    'stage-play': { src:'/img/gallery/bearby-blastoff-thumb.webp', thumb:'30% 40%' },
+    'stage-collection': { src:'/img/shop/scene-cards-480.webp', thumb:'22% 45%' },
+    'stage-shop': { src:'/img/shop/scene-market-480.webp', thumb:'20% 40%' },
+    'stage-social': { src:'/img/shop/scene-throne-480.webp', thumb:'85% 50%' },
+    'stage-settings': { src:'/img/shop/scene-armory-480.webp', thumb:'15% 45%' }
   };
 
   function hubPanelImage(key, use) {
