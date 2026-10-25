@@ -1,3 +1,18 @@
+Original prompt: it should have a very smooth color transition
+
+- October 25, 2026 **Home's art and page colour now melt into the next piece together.**
+  - **Change.**
+    - **Crossfading picture.** The portrait hero picture used to swap instantly while the page colour faded over 1.2s, and each palette only started once its image had loaded. `heroMarkup` now renders two `.sg-hero-land` plates. `mountHero.paint` loads the next plate and its palette first (`loadArtPlate`, cached, with an error fallback), then on one frame fades the back plate in, the front plate out and the palette in (`applyArtPalette`). It updates the caption, then warms the following plate so its swap never waits on the network.
+    - **One shared ease.** The plates' opacity and the five `@property` ground colours share a single 2s `cubic-bezier(.45,0,.25,1)` (`--hub-fade`), and reduced motion turns both off.
+    - **Parallax.** The parallax offset moved to `.sg-hero-art`, so both plates inherit it.
+    - Cache pins: `home-redesign.css?v=155`, `home-redesign.js?v=151`.
+  - **Verification.** `node --check`. Headless Chromium at 390x844 with live rotation, sampling every animation frame across the Bearby → Frostag swap:
+    - the colour eased from `rgb(73,35,13)` to `rgb(26,48,81)` over ~1.7s visible change, with no frame stepping any channel by more than 2;
+    - the picture crossfade began on the same beat and ended with exactly one plate at opacity 1;
+    - no page errors.
+
+    `tests/hub-workspaces-check.cjs` passes.
+
 Original prompt: The blue color should change dynamically based on the colors in the art being displayed at the top so for the best I would expect more red and black and then for the ice I would expect a more icey blues
 
 - October 25, 2026 **Home's page colour follows the hero art.**

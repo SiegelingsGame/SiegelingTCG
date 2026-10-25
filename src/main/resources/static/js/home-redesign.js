@@ -297,6 +297,7 @@
     return '' +
       '<section class="sg-hero is-scene" data-hero>' +
         '<div class="sg-hero-art">' +
+          '<div class="sg-hero-land is-on" data-hero-land></div>' +
           '<div class="sg-hero-land" data-hero-land></div>' +
           '<div class="sg-hero-tint"></div>' +
           '<div class="sg-motes" data-motes></div>' +
@@ -411,23 +412,26 @@
       baseC: p2 ? hslAtLuminance(p2[0], Math.min(p2[1], 0.7), 0.018) : shadow
     };
   }
-  function tintFromArt(app, url, isCurrent) {
-    function apply(pal) {
-      if (!pal || !isCurrent()) return;
-      app.style.setProperty('--hero-glow', pal.glow);
-      app.style.setProperty('--hero-glow-two', pal.glowTwo);
-      app.style.setProperty('--hero-base-a', pal.baseA);
-      app.style.setProperty('--hero-base-b', pal.baseB);
-      app.style.setProperty('--hero-base-c', pal.baseC);
-    }
-    if (artPaletteCache[url] !== undefined) { apply(artPaletteCache[url]); return; }
+  function applyArtPalette(app, pal) {
+    if (!pal) return;
+    app.style.setProperty('--hero-glow', pal.glow);
+    app.style.setProperty('--hero-glow-two', pal.glowTwo);
+    app.style.setProperty('--hero-base-a', pal.baseA);
+    app.style.setProperty('--hero-base-b', pal.baseB);
+    app.style.setProperty('--hero-base-c', pal.baseC);
+  }
+  // Loads a plate and its palette once; `done` runs when both are ready, so
+  // the crossfade and the colour fade can start on the same frame.
+  function loadArtPlate(url, done) {
+    if (artPaletteCache[url] !== undefined) { if (done) done(artPaletteCache[url]); return; }
     var img = new Image();
     img.decoding = 'async';
     img.onload = function () {
       // A tainted or undecodable plate keeps the default ground.
       try { artPaletteCache[url] = readArtPalette(img); } catch (e) { artPaletteCache[url] = null; }
-      apply(artPaletteCache[url]);
+      if (done) done(artPaletteCache[url]);
     };
+    img.onerror = function () { artPaletteCache[url] = null; if (done) done(null); };
     img.src = url;
   }
 
@@ -435,7 +439,9 @@
     var hero = app.querySelector('[data-hero]');
     if (!hero) return;
     var idx = (opts && opts.heroIndex) || 0;
-    var landEl = hero.querySelector('[data-hero-land]');
+    // Two plates crossfade, so the picture eases over in step with the colour.
+    var lands = [].slice.call(hero.querySelectorAll('[data-hero-land]')), front = 0;
+    var artBox = hero.querySelector('.sg-hero-art');
     var dots = hero.querySelector('[data-dots]');
     var subEl = hero.querySelector('[data-hero-sub]');
     var creditEl = hero.querySelector('[data-hero-credit]');
@@ -443,14 +449,10 @@
 
     var heroScenes = HERO_SCENES.filter(function (id) { return !artRemoved(id); }).map(scene);
     if (!heroScenes.length) heroScenes = galleryScenes().slice(0, HERO_SCENES.length);
-    function paint(i) {
+    function label(i) {
       var scene = heroScenes[i % heroScenes.length];
       var card = byId(scene.card) || CARDS[0];
-      var c = color(card.element);
-      hero.style.setProperty('--el', c);
-      var art = heroPlate(scene), shown = i;
-      landEl.style.backgroundImage = "url('" + art + "')";
-      tintFromArt(app, art, function () { return hero.isConnected && idx === shown; });
+      hero.style.setProperty('--el', color(card.element));
       subEl.innerHTML = '<b>' + esc(card.name) + '</b> &middot; ' + esc(title(card.element)) +
         ' &middot; ' + esc(title(card.rarity));
       creditEl.innerHTML = '<span>' + esc(scene.title) + '</span>' + esc(scene.place);
@@ -459,7 +461,25 @@
       for (var k = 0; k < heroScenes.length; k++) d += '<i class="sg-dot' + (k === i % heroScenes.length ? ' on' : '') + '"></i>';
       dots.innerHTML = d;
     }
-    paint(idx);
+    function paint(i, instant) {
+      var art = heroPlate(heroScenes[i % heroScenes.length]);
+      loadArtPlate(art, function (pal) {
+        if (!hero.isConnected || idx !== i) return;
+        var next = instant ? lands[front] : lands[1 - front];
+        next.style.backgroundImage = "url('" + art + "')";
+        if (!instant) {
+          lands[front].classList.remove('is-on');
+          front = 1 - front;
+        }
+        next.classList.add('is-on');
+        applyArtPalette(app, pal);
+        label(i);
+        // Warm the next plate so its swap never waits on the network.
+        loadArtPlate(heroPlate(heroScenes[(i + 1) % heroScenes.length]));
+      });
+    }
+    label(idx);
+    paint(idx, true);
 
     if (!opts || !opts.freeze) {
       // Home re-renders on every visit; a detached hero stops its own timer so
@@ -475,7 +495,7 @@
     var scroll = app.querySelector('.sg-scroll');
     if (scroll) {
       scroll.addEventListener('scroll', function () {
-        landEl.style.setProperty('--par', (scroll.scrollTop * 0.30).toFixed(1) + 'px');
+        artBox.style.setProperty('--par', (scroll.scrollTop * 0.30).toFixed(1) + 'px');
       }, { passive: true });
     }
   }
