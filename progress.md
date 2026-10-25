@@ -1,3 +1,38 @@
+Original prompt: make sure buttons fits no matter what screen size
+
+- October 25, 2026 **Shield menu: every button fits inside the frame at any screen size.**
+  - **Change.** `shield-navigation.css`:
+    - **Shield-relative sizing.** `.sn-shield` is now a size container. The title (`min(36px, 7cqw)`), option labels (`clamp(12px, 4.6cqw, 18px)`), Play label and corner glyph boxes (`--sn-btn: min(36px, 9cqw)`, with Messages offset by that box) all size from the shield, not the viewport. A short landscape window on a wide screen used to put 36px text and 18px labels in a ~300px shield.
+    - **Short shields.** `@container (max-height:470px)` shrinks the title row so the four 44px option rows fit.
+    - **Wide short-landscape shield.** It now applies only at 500px tall and below (it used to reach 600px, where a normal shield fits). It lays the six options out 3 across and 2 down, with chevrons dropped and 14% side insets, so the bottom row stays on the frame's straight sides instead of running into the curve and the Social/Help row.
+    - **Small portrait phones.** Phones of 520px tall and below get a compact title row.
+    - **Fallback.** Viewport-based sizes stay as fallback declarations, and `@supports not (width:1cqw)` pins the glyph box at 34px for iOS 15.
+    - Cache pin: `shield-navigation.css?v=3`.
+  - **Verification.** Headless Chromium, shield open on the preview hub, at 41 viewports. These cover portrait phones 320x480 → 430x932, tablets, landscape phones 480x320 → 932x430, short desktop windows (1024x500/520/560/600, 1366x560, 2560x600, 1920x700) and desktops up to 2560x1440. At every one:
+    - All four corners of every option, corner glyph, × and Social/Help link pass `isPointInFill` against the frame's inner gold line.
+    - No two controls overlap.
+    - No label clips, and every option is at least 44px tall.
+    - The shield stays on screen and clear of the FAB.
+    - There are no page errors.
+
+    Before the change, 13 sizes failed (all landscape phones and the 1024/1280x600 windows), and a further 7 added 500–600px sizes failed on the first rerun. Home, Messages and × still navigate and close at 7 sizes. `tests/shield-navigation-check.cjs` passes.
+
+Original prompt: make the buttons here more glass like, move the background switches and reattach to the rotation button in the top hud, add a home and message button to the pause screen (follow-up: the buttons should fit within the shield bounds, no round outlines including the exit X, just keep the gold emblem)
+
+- October 25, 2026 **Home stage: glass destination plates, art controls joined to the Rotation button in the header; shield menu gains Home and Messages glyphs.**
+  - **Change.**
+    - **Glass plates.** The Play/Collection/Shop/Social/Settings plates (`.sg-stage-cards .sg-gtab`) are now frosted glass: a 16%→4% white tint, `backdrop-filter: blur(14px) saturate(1.5)`, a white hairline border and inset highlights. This replaces the solid teal fill.
+    - **Header art bar.** `stageArtBarMarkup()` builds one header pill, placed right of the logo through `topMarkup`'s `afterLogo`: Rotation, then the art's prev/pause/next, dots and hide-menus buttons. The bottom-left deck now holds only the caption. `mountStage` finds the dots and pause button from the app, sends header clicks through the same `onStageClick` handler as the stage, and copies the piece's `--el` accent onto the header bar so the dots keep their element colour.
+    - **Narrow headers.** At 900px wide and below, Rotation shows its icon only. At 700px and below, the prev button, the dots and the soundtrack title step aside.
+    - **Shield Home and Messages.** `shield-navigation.js` adds Home (house) and Messages (speech bubble) corner buttons using `data-destination="home"` / `"messages"`. The hub maps `messages` to the Social screen's Messages tab via `setSocialTab`. The text row drops its now-duplicate Home link.
+    - **Shield glyph styling.** Home, Messages and the close × are bare gold glyphs with a soft gold glow: no circle or fill. Their positions were measured against the frame's inner gold line, so every corner of each touch box sits inside it, beside the title and above the option grid. The wide short-landscape shield sizes them from its own height.
+    - Cache pins: `home-redesign.css?v=153`, `home-redesign.js?v=149`, `shield-navigation.css?v=2`, `shield-navigation.js?v=2`.
+  - **Verification.** `node --check` on both scripts. Headless Chromium on the preview hub:
+    - **Header bar.** At 8 viewports (1920x1080 → 568x320, plus portrait 390x844) the bar sits right of the logo, no header controls overlap, the header fits the width and there is no horizontal scroll. The plates compute the glass filter, the active dot takes the element colour, and the deck holds only the caption. Header Next changes the caption, Pause flips to "Resume rotation", Rotation opens the picker and the eye hides the chrome. Portrait shows no bar.
+    - **Shield glyphs.** At 7 viewports (1920x1080, 1024x768, 852x393, 667x375, 568x320, 390x844, 320x568) all four corners of the Home, Messages and × boxes pass `isPointInFill` against the inner frame path. None of the three paints a background or border, and none overlaps the title, the options or each other.
+    - **Shield behaviour.** Messages opens Social on the Messages tab, × closes and Home goes Home.
+    - `tests/hub-workspaces-check.cjs` (7 viewports) and `tests/shield-navigation-check.cjs` (4 viewports) pass.
+
 Original prompt: move the gallery wallpaper button to the top header to the right of the siegeling logo, on this page the logo takes you back to landing
 
 - October 25, 2026 **Home: the wallpaper (Rotation) picker moves into the header beside the logo, and Home's logo links to the landing page.**

@@ -1294,6 +1294,19 @@
     '</div>';
   }
 
+  // The wallpaper picker and the art's own transport share one header pill.
+  function stageArtBarMarkup() {
+    return '<div class="sg-stage-player">' +
+      '<button type="button" class="sg-stage-pick-btn" data-stage-pick aria-haspopup="dialog">' +
+        STAGE_ICON.frames + '<span>Rotation</span></button>' +
+      '<button type="button" data-stage-prev aria-label="Previous art">' + STAGE_ICON.prev + '</button>' +
+      '<button type="button" data-stage-pause aria-label="Pause rotation">' + STAGE_ICON.pause + '</button>' +
+      '<button type="button" data-stage-next aria-label="Next art">' + STAGE_ICON.next + '</button>' +
+      '<span class="sg-stage-dots" data-stage-dots></span>' +
+      '<button type="button" data-stage-hide aria-label="Hide menus to view the art">' + STAGE_ICON.eye + '</button>' +
+    '</div>';
+  }
+
   function stageMarkup(opts) {
     var runs = (opts && opts.siegeRuns) || [];
     var quests = liveQuests(opts);
@@ -1347,13 +1360,6 @@
           '<a class="sg-stage-play" href="' + HREF.battle + '">Arena</a>' +
         '</div>' +
         '<div class="sg-stage-deck">' +
-          '<div class="sg-stage-player">' +
-            '<button type="button" data-stage-prev aria-label="Previous art">' + STAGE_ICON.prev + '</button>' +
-            '<button type="button" data-stage-pause aria-label="Pause rotation">' + STAGE_ICON.pause + '</button>' +
-            '<button type="button" data-stage-next aria-label="Next art">' + STAGE_ICON.next + '</button>' +
-            '<span class="sg-stage-dots" data-stage-dots></span>' +
-            '<button type="button" data-stage-hide aria-label="Hide menus to view the art">' + STAGE_ICON.eye + '</button>' +
-          '</div>' +
           // The title of the piece on the wall holds the far bottom-left corner.
           '<div class="sg-stage-caption" data-stage-caption></div>' +
         '</div>' +
@@ -1392,8 +1398,10 @@
     var mq = window.matchMedia ? window.matchMedia(STAGE_QUERY) : null;
     var plates = [].slice.call(stage.querySelectorAll('[data-stage-plate]'));
     var caption = stage.querySelector('[data-stage-caption]');
-    var dots = stage.querySelector('[data-stage-dots]');
-    var pauseBtn = stage.querySelector('[data-stage-pause]');
+    // The art controls render in the header, so they are found from the app.
+    var stageBar = app.querySelector('.sg-top .sg-stage-player');
+    var dots = app.querySelector('[data-stage-dots]');
+    var pauseBtn = app.querySelector('[data-stage-pause]');
     var sheet = stage.querySelector('[data-stage-sheet]');
     var sheetTitle = stage.querySelector('[data-stage-sheet-title]');
     var sheetBody = stage.querySelector('[data-stage-sheet-body]');
@@ -1418,6 +1426,8 @@
       next.classList.add('is-on');
       var card = stageCard(piece);
       stage.style.setProperty('--el', color(card && card.element));
+      // The header bar is outside the stage, so it takes the accent itself.
+      if (stageBar) stageBar.style.setProperty('--el', color(card && card.element));
       caption.innerHTML = '<strong>' + esc(piece.title) + '</strong>' +
         '<span>' + esc([card && card.name, piece.place].filter(Boolean).join(' · ')) + '</span>';
       var d = '';
@@ -1519,7 +1529,7 @@
       };
     }
 
-    stage.addEventListener('click', function (e) {
+    function onStageClick(e) {
       var t = e.target.closest ? e.target : null;
       if (!t) return;
       var panelBtn = t.closest('[data-stage-panel]');
@@ -1531,7 +1541,10 @@
       if (t.closest('[data-stage-pick]')) { openPicker(); return; }
       if (t.closest('[data-stage-hide]')) { closeSheet(); app.classList.add('is-stage-bare'); return; }
       if (t.closest('[data-stage-reveal]')) { app.classList.remove('is-stage-bare'); return; }
-    });
+    }
+    stage.addEventListener('click', onStageClick);
+    // The header is outside the stage, and it carries the art controls.
+    if (stageBar) stageBar.addEventListener('click', onStageClick);
 
     // Swiping the art steps through the rotation.
     var sx = null, sy = 0;
@@ -1549,9 +1562,6 @@
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && stage.isConnected && !sheet.hidden) closeSheet();
     });
-    // The wallpaper picker lives in the header, outside the stage's listener.
-    var headerPick = app.querySelector('.sg-top [data-stage-pick]');
-    if (headerPick) headerPick.addEventListener('click', openPicker);
 
     if (mq) {
       var onChange = function () {
@@ -1574,11 +1584,11 @@
     // The stage precedes the scroller so the landscape rule can retire the
     // scroller with a sibling selector rather than :has().
     // The stage's soundtrack pill rides in the header beside the music button,
-    // its wallpaper picker beside the logo, and the logo leads to the landing.
+    // its wallpaper picker and art controls beside the logo, and the logo leads
+    // to the landing.
     return topMarkup(opts, {
         logoHref: '/landing',
-        afterLogo: '<button type="button" class="sg-stage-pick-btn" data-stage-pick aria-haspopup="dialog">' +
-          STAGE_ICON.frames + '<span>Rotation</span></button>',
+        afterLogo: stageArtBarMarkup(),
         beforeMusic: stageMusicMarkup() }) + stageMarkup(opts) +
       '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + expeditionsSection(opts) +
       '<div style="height:96px"></div></div>' +
@@ -10995,6 +11005,8 @@
          screenForPath(location.pathname) || 'home', false);
     if (window.SiegelingsShieldNavigation) {
       shieldNavigation = window.SiegelingsShieldNavigation.mount(host, function (screen) {
+        // Messages is a tab of Social, so it names the tab before the render.
+        if (screen === 'messages') { setSocialTab('messages'); screen = 'social'; }
         show(screen, true);
       }, function () { return current; });
     }
