@@ -24,7 +24,8 @@
      binder renders. It must load BEFORE home-redesign.css so the art-first
      palette and layout win where the two overlap. -->
 <link rel="stylesheet" href="/css/style.css?v=296">
-<link rel="stylesheet" href="/css/home-redesign.css?v=144">
+<link rel="stylesheet" href="/css/shield-navigation.css?v=1">
+<link rel="stylesheet" href="/css/home-redesign.css?v=146">
 <link rel="stylesheet" href="/css/match-review.css?v=6">
 <link rel="stylesheet" href="/css/install-guide.css?v=2">
 <style>
@@ -35,7 +36,7 @@
   /* height:100% measured the layout viewport, so once iOS Safari hid its
      toolbar the shell stayed short and the tab bar stranded above a dead band.
      --sg-vh is the visible height (viewport-unit.js). */
-  html, body { margin:0; background:#0d0a26 !important; display:block !important;
+  html, body { margin:0; background:#092434 !important; display:block !important;
                height:var(--sg-vh, 100vh);
                /* See .sg-app in home-redesign.css: max() so an installed web app
                   whose dvh under-reports the glass still fills it. */
@@ -44,15 +45,15 @@
   /* The boot screen was a spinner on a flat colour while the game already owns
      two libraries of artwork for exactly this moment. It now carries one piece
      from the gallery scenes plus the original site's loading library. */
-  .boot { position:fixed; inset:0; z-index:80; background:#0d0a26;
+  .boot { position:fixed; inset:0; z-index:80; background:#092434;
           transition:opacity .4s ease; overflow:hidden; }
   .boot.gone { opacity:0; pointer-events:none; }
   .boot-plate { position:absolute; inset:0; background-size:cover; background-position:center;
                 filter:saturate(1.15) brightness(.82); transform:scale(1.04);
                 animation:bootDrift 18s ease-in-out infinite alternate; }
   .boot-veil { position:absolute; inset:0;
-    background:linear-gradient(180deg, rgba(13,10,38,.42) 0%, rgba(13,10,38,.20) 38%,
-               rgba(13,10,38,.78) 78%, #0d0a26 100%); }
+    background:linear-gradient(180deg, rgba(9,36,52,.42) 0%, rgba(9,36,52,.20) 38%,
+               rgba(9,36,52,.78) 78%, #092434 100%); }
   .boot-foot { position:absolute; left:0; right:0; bottom:0;
     padding:0 22px calc(38px + env(safe-area-inset-bottom,0px));
     display:flex; flex-direction:column; align-items:center; gap:13px; text-align:center; }
@@ -153,7 +154,8 @@
 <script src="/js/home-redesign-data.js?v=1"></script>
 <script src="/js/match-review.js?v=6"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
-<script src="/js/home-redesign.js?v=140"></script>
+<script src="/js/shield-navigation.js?v=1"></script>
+<script src="/js/home-redesign.js?v=143"></script>
 <script src="/js/home-redesign-live.js?v=23"></script>
 <script src="/js/install-guide.js?v=3"></script>
 <script src="/js/hub-music.js?v=6"></script>
