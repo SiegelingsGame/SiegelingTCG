@@ -10173,7 +10173,9 @@
   function settingsScreen(opts) {
     opts = opts || {};
     return topMarkup(opts) +
-      '<div class="sg-scroll">' +
+      // Landscape and desktop lay the sections out as a no-scroll grid of
+      // cards over the full artwork (hub-workspaces.css .sg-settings-workspace).
+      '<div class="sg-scroll sg-settings-workspace">' +
         '<section class="sg-crest sg-crest-short">' +
           '<img class="sg-crest-bg" src="/img/gallery/skydon-skyreach.webp" alt="">' +
           '<div class="sg-crest-veil"></div>' +
@@ -10183,7 +10185,7 @@
             '</p></div>' +
         '</section>' +
         SETTINGS.map(function (group, gi) {
-          return '<section class="sg-section" style="--sec:' +
+          return '<section class="sg-section sg-settings-card" style="--sec:' +
             ['var(--acc-coral)', 'var(--acc-cyan)', 'var(--acc-violet)'][gi % 3] + '">' +
             '<div class="sg-section-head"><h3>' + esc(group[0]) + '</h3></div>' +
             '<div class="sg-stack sg-stack-tight">' + group[1].map(function (row) {
@@ -10194,7 +10196,7 @@
             }).join('') + '</div>' +
           '</section>';
         }).join('') +
-        '<section class="sg-section" style="--sec:var(--acc-lemon)">' +
+        '<section class="sg-section sg-settings-card" style="--sec:var(--acc-lemon)">' +
           '<div class="sg-section-head"><h3>Account</h3></div>' +
           '<div class="sg-stack sg-stack-tight">' +
             (opts.guest
@@ -10207,7 +10209,7 @@
           '</div>' +
         '</section>' +
         // These three were on the old hub and were simply not carried over.
-        '<section class="sg-section" style="--sec:var(--acc-cyan)">' +
+        '<section class="sg-section sg-settings-card" style="--sec:var(--acc-cyan)">' +
           '<div class="sg-section-head"><h3>Community &amp; tools</h3></div>' +
           '<div class="sg-stack sg-stack-tight">' +
             '<a class="sg-toggle-row is-link" href="' + DISCORD_URL + '" target="_blank" rel="noreferrer noopener">' +
@@ -10220,7 +10222,7 @@
         // Deletion is irreversible, so it is its own section, behind a typed
         // confirmation, and never a row a thumb can hit by accident.
         (opts.guest ? '' :
-          '<section class="sg-section" style="--sec:var(--acc-coral)">' +
+          '<section class="sg-section sg-settings-card" style="--sec:var(--acc-coral)">' +
             '<div class="sg-section-head"><h3>Danger zone</h3></div>' +
             '<div class="sg-danger" data-danger>' +
               '<button class="sg-toggle-row is-link is-danger" type="button" data-delete-open>' +

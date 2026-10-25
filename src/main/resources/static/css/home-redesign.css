@@ -2797,6 +2797,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   border:1px solid rgba(255,120,96,.42); background:rgba(60,14,14,.34);
   display:flex; flex-direction:column; gap:11px;
 }
+/* `display:flex` above outranked the hidden attribute, so the typed delete
+   confirmation showed before Delete account was ever tapped. */
+.sg-danger-body[hidden] { display:none; }
 .sg-danger-body p { margin:0; font-size:12.5px; line-height:1.55; color:#f0d6d0; }
 .sg-danger-actions { display:flex; gap:9px; }
 .sg-danger-actions .sg-ghost-btn { flex:1 1 auto; }

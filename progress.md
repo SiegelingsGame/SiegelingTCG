@@ -1,3 +1,24 @@
+Original prompt: Update landscape and desktop setting page so it does not require scrolling
+
+- October 25, 2026 **Settings fits one screen on landscape and desktop; the delete confirmation no longer shows before it is asked for.**
+  - **Change.**
+    - **Markup hooks.** `settingsScreen` tags its scroller `.sg-settings-workspace` and its six sections `.sg-settings-card`.
+    - **Layout.** At `(min-width:1024px), (orientation:landscape)`, `hub-workspaces.css` turns the page into a non-scrolling 3x2 grid of frosted-glass cards over the full Skyreach artwork.
+      - Grid rows size to content and the grid is centred, so roomy screens get compact cards.
+      - The title becomes a small glass pill in the header's empty space beside the logo. It uses solid gold, because the crest's gradient text washed out on the sky.
+      - The one-row Danger zone takes the bottom-centre slot and alone keeps clearance for the shield button. For a guest the slot stays empty.
+      - Padding uses `env(safe-area-inset-*)`. The owner's landscape iPhone screenshot showed the notch covering "Audio".
+      - A grown card (the delete confirmation) scrolls inside itself instead of the page.
+    - **Short landscape phones (≤500px).** Rows slim to 28–32px, the notes under link rows hide and switches shrink. Each switch keeps a wider invisible hit halo. Phones 700px wide and under tighten text further.
+    - **Bug fix.** `home-redesign.css` adds `.sg-danger-body[hidden] { display:none }`. The panel's `display:flex` was outranking the `hidden` attribute, so the "Type DELETE to confirm" panel was always visible, in portrait too.
+    - Cache pins: `hub-workspaces.css?v=4`, `home-redesign.css?v=156`, `home-redesign.js?v=152`.
+  - **Verification.** `node --check`.
+    - **Fit.** Headless Chromium on the preview hub, signed in and as a guest, at 17 landscape/desktop viewports (2560x1440 → 568x320, including 1024/1280x600 and 640x360). At every one: the scroller does not scroll, no card overflows, no row or switch sits under the header or the shield button, the title clears every header control, no label clips, and no page errors.
+    - **Before the fixes.** The first passes failed on title-row height, the bottom-centre FAB, the always-visible delete panel and a wrapping "Background parallax" label.
+    - **Behaviour.** At 852x393, 1920x1080 and 390x844: the delete panel starts hidden and opens on tap, scrolling within its card at 852x393 with the page still not scrolling. The Battle voice switch toggles and the Profile row routes to Profile.
+    - **Portrait.** 390x844 keeps the scrolling page.
+    - `tests/hub-workspaces-check.cjs` passes.
+
 Original prompt: it should have a very smooth color transition
 
 - October 25, 2026 **Home's art and page colour now melt into the next piece together.**
