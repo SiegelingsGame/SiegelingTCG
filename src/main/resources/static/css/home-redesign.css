@@ -6828,3 +6828,31 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 @media (orientation:landscape) and (max-height:500px) {
   .sg-feat-fav { top:4px; left:4px; padding:2px 6px; font-size:8px; }
 }
+
+/* Landscape Arena Art: the skin rail runs along the bottom edge level with
+   the shield button instead of stacking above it. A circular hole is cut out
+   of the rail around the button (mask), so the rail's top line breaks into a
+   gold ring and skins scrolling along disappear into the gap and come out the
+   other side. --fab-cy/--fab-r mirror .sn-fab in shield-navigation.css. */
+@media (orientation:landscape) {
+  .sg-shop { --fab-cy:calc(44px + env(safe-area-inset-bottom, 0px)); --fab-r:31px; --notch-r:calc(var(--fab-r) + 10px); }
+  .sg-arena-dock { bottom:0; }
+  .sg-arena-skins {
+    box-sizing:border-box; height:calc(var(--fab-cy) + var(--notch-r) - 8px); align-items:center;
+    padding:6px 12px calc(4px + env(safe-area-inset-bottom, 0px));
+    -webkit-mask-image:radial-gradient(circle at 50vw calc(100% - var(--fab-cy)), transparent var(--notch-r), #000 calc(var(--notch-r) + 1px));
+    mask-image:radial-gradient(circle at 50vw calc(100% - var(--fab-cy)), transparent var(--notch-r), #000 calc(var(--notch-r) + 1px));
+  }
+  .sg-arena-skin { flex-shrink:0; }
+  .sg-arena-gallery::after {
+    content:''; position:absolute; z-index:5; pointer-events:none; left:50%;
+    bottom:calc(var(--fab-cy) - var(--notch-r)); width:calc(var(--notch-r) * 2); height:calc(var(--notch-r) * 2);
+    transform:translateX(-50%); border-radius:50%; border:1px solid #d9b45f;
+    box-shadow:0 0 12px rgba(217,180,95,.35), inset 0 0 10px rgba(217,180,95,.18);
+  }
+  .sg-arena-half.is-ai > span { bottom:calc(var(--fab-cy) + var(--notch-r) + 12px); }
+}
+@media (orientation:landscape) and (max-height:500px) {
+  .sg-shop { --fab-cy:calc(39px + env(safe-area-inset-bottom, 0px)); --fab-r:26px; --notch-r:calc(var(--fab-r) + 8px); }
+  .sg-arena-skin { flex-basis:72px; }
+}

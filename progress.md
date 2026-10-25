@@ -1,3 +1,17 @@
+Original prompt: On landscape view for arenas well in shop in general. Instead of placing the arena options bar above the circle instead place the button on top of it. But around the button just create a circle shape break in the line where the options essentially pass over to the next side
+
+- October 25, 2026 **Shop › Arena Art (landscape): the skin rail runs under the shield button through a circular break.**
+  - **Change.**
+    - **Rail position.** In landscape the skin rail moves from above the shield FAB down to the bottom edge, level with the button: the dock sits at `bottom:0`, and the rail's height is sized so the button's centre sits inside the band.
+    - **Circular break.** A radial `mask-image` cuts a circular hole out of the rail around the FAB. Its centre is `50vw` (the rail starts at x=0) at `--fab-cy` (44px above the safe area, 39px on landscape phones under 500px tall), and its radius is the FAB radius plus 10px (8px on phones). The rail's top line therefore breaks around the button, and skins scrolling along disappear into the gap and come out the other side. A 1px gold ring with a soft glow (`.sg-arena-gallery::after`) outlines the hole.
+    - **Selected-arena plate.** The plate still sits above the rail at the right. The AI label moved up to clear it.
+    - **Cache pins.** Bumped to `home-redesign.css?v=158` / `home-redesign.js?v=154`: main's #1199 had also taken v=157/153 for different content.
+  - **Verification.** Headless Chromium on the preview shop with 11 mock skins:
+    - **Geometry.** At 1920x1080, 1366x768, 1024x600, 932x430, 852x393, 667x375 and 568x320, the FAB centre lies inside the rail band, and the ring's centre equals the FAB centre (44px up; 39px up under 500px tall). The selected plate clears the rail, and there is no horizontal page scroll.
+    - **Visual.** Cropped screenshots, including one after scrolling the rail, show thumbnails clipped along the circle and the rail's top line breaking into the ring.
+    - **Portrait.** 430x932 is unchanged: no mask, no ring.
+    - `tests/hub-workspaces-check.cjs` passes.
+
 Original prompt: Image 2 that screen should be end to end on my display not cut off or showing the purple background. Image 1 make the collection scaled 4 wide on portrait at this resolution. Image 3 arena in shop needs a full screen display on portrait. Also the landscape display is horrendous you cannot see the arena at all. Image 4 profile on landscape use the top header for much of the player details such as name rank wins status. Anything in that bubble can be shown dynamically with nice flavor text across the top. Update the rest of the elements combining showcase and favorite cards. The favorite card must be in the showcase and it gets a special border in the showcase.
 
 - October 25, 2026 **Loadout edge to edge, 4-wide binder, full-screen Arena Art, and a landscape Profile with a header strip and a merged showcase.**
