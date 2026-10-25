@@ -8,8 +8,14 @@
     decks: '<path d="M3 3h14v17H3zM7 6h14v17H7zM11 10h6m-6 4h6m-6 4h4"/>',
     shop: '<path d="M3 9h18v12H3zM3 9c0-9 18-9 18 0M3 13h18M10 11h4v5h-4z"/>',
     profile: '<circle cx="12" cy="7" r="4"/><path d="M3 22v-4c0-8 18-8 18 0v4z"/>',
-    settings: '<path d="m9 3 1-2h4l1 2 3 2 3 1v4l-2 2 2 3v4l-3 1-3 2h-5l-2-2-4-1v-4l2-3-2-2V6l3-1z"/><circle cx="12" cy="12" r="4"/>'
+    settings: '<path d="m9 3 1-2h4l1 2 3 2 3 1v4l-2 2 2 3v4l-3 1-3 2h-5l-2-2-4-1v-4l2-3-2-2V6l3-1z"/><circle cx="12" cy="12" r="4"/>',
+    home: '<path d="M3 11 12 3l9 8M5 10v10h5v-6h4v6h5V10"/>',
+    messages: '<path d="M3 5h18v12H8l-5 4z"/><path d="M7 9h10M7 13h6"/>'
   };
+  // Home and Messages ride the shield's top corners, mirroring the close button.
+  function corner(id, label) {
+    return '<button type="button" class="sn-corner sn-corner-' + id + '" data-destination="' + id + '" aria-label="' + label + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + icons[id] + '</svg></button>';
+  }
   function gem(cls) { return '<span class="sn-gem ' + cls + '" aria-hidden="true"></span>'; }
   function mount(host, navigate, current) {
     var existing = host.querySelector('.sn-root');
@@ -32,7 +38,8 @@
         '<nav class="sn-options" aria-label="Main navigation">' +
           [['play','Play',0],['collection','Collection',1],['decks','Decks',1],['shop','Shop',2],['profile','Profile',2],['settings','Settings',3]].map(function (item) {
             return '<button type="button" class="sn-option sn-' + item[0] + '" data-destination="' + item[0] + '" data-group="' + item[2] + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + icons[item[0]] + '</svg><span>' + item[1] + '</span><b aria-hidden="true">›</b><i class="sn-option-light" aria-hidden="true"></i></button>';
-          }).join('') + '</nav><nav class="sn-utilities" aria-label="More destinations"><button data-destination="home">Home</button><button data-destination="social">Social</button><button data-destination="help">Help</button></nav></div>' +
+          }).join('') + '</nav><nav class="sn-utilities" aria-label="More destinations"><button data-destination="social">Social</button><button data-destination="help">Help</button></nav></div>' +
+        corner('home', 'Home') + corner('messages', 'Messages') +
         '<button class="sn-close" type="button" aria-label="Close navigation">×</button>' +
       '</section></div>' +
       '<button class="sn-fab" type="button" aria-label="Summon navigation" aria-haspopup="dialog" aria-expanded="false"><span class="sn-pulse"></span><span class="sn-emblem"><img src="/img/siegelings-icon-256.webp" alt="">' + gem('sn-core') + '</span></button>';

@@ -4684,7 +4684,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    the stage - it only exists inside this query, which matches the landscape
    breakpoint the card sheet already uses. The scroller stays in the DOM (its
    sections are lent to the stage's panel) but is retired from layout. */
-.sg-stage, .sg-stage-music, .sg-stage-pick-btn { display:none; }
+.sg-stage, .sg-stage-music, .sg-stage-player { display:none; }
 .sg-logo-link { display:flex; align-items:center; }
 @media (min-width:1024px), (orientation:landscape) {
   .sg-stage ~ .sg-scroll { display:none; }
@@ -4728,8 +4728,15 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   /* Main destinations as a column of shop plates; the shared .sg-gtab sizes
      are tuned for the shop rail, so the stage sets its own. */
   /* The plate tokens live on the shop root, so the stage restates them. */
-  .sg-stage-cards { --navy-plate:linear-gradient(135deg,rgba(31,105,133,.96),rgba(13,52,73,.96)); --gold-line:#d9b45f; display:grid; grid-template-columns:clamp(124px, 16vw, 150px); gap:5px; }
-  .sg-stage-cards .sg-gtab { height:38px; padding-right:13px; text-decoration:none; }
+  /* Glass plates: a faint frosted tint over the art rather than a solid fill.
+     The plate tokens live on the shop root, so the stage restates them. */
+  .sg-stage-cards { --navy-plate:linear-gradient(135deg,rgba(255,255,255,.16),rgba(255,255,255,.04) 60%,rgba(140,210,255,.08)); --gold-line:#d9b45f; display:grid; grid-template-columns:clamp(124px, 16vw, 150px); gap:5px; }
+  .sg-stage-cards .sg-gtab {
+    height:38px; padding-right:13px; text-decoration:none;
+    border-color:rgba(255,255,255,.3);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35), inset 0 -1px 0 rgba(255,255,255,.06), 0 6px 18px rgba(0,0,0,.25);
+    backdrop-filter:blur(14px) saturate(1.5); -webkit-backdrop-filter:blur(14px) saturate(1.5);
+  }
   .sg-stage-cards .sg-gtab-art { flex-basis:38%; margin-right:5px; }
   .sg-stage-cards .sg-gtab-art img { transform:none; }
   .sg-stage-cards .sg-gtab-label { font-size:11px; }
@@ -4843,28 +4850,22 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     content:''; display:inline-block; width:7px; height:7px; margin:0 7px 1px 0; border-radius:50%;
     background:var(--el, var(--gold-bright)); box-shadow:0 0 6px var(--el, var(--gold-bright));
   }
+  /* Header pill beside the logo: the wallpaper picker, then the art's
+     transport, sized to the header's 32px controls. */
   .sg-stage-player {
-    align-self:flex-start; display:flex; align-items:center; gap:2px; padding:3px 6px;
-    border-radius:999px; background:rgba(9,36,52,.62); border:1px solid rgba(255,255,255,.16);
-    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); max-width:100%;
+    display:flex; align-items:center; flex:0 0 auto; gap:0; height:34px; padding:0 2px 0 0;
+    border-radius:999px; background:rgba(9,36,52,.55); border:1px solid rgba(255,255,255,.2);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
   }
   .sg-stage-player button {
-    flex:0 0 auto; height:34px; min-width:34px; padding:0 8px; border:none; background:none; border-radius:999px;
+    flex:0 0 auto; height:32px; min-width:30px; padding:0 7px; border:none; background:none; border-radius:999px;
     color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px;
     font:inherit; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
   }
   .sg-stage-player button svg { width:16px; height:16px; }
   .sg-stage-player button:active { background:rgba(255,255,255,.12); }
   .sg-stage-player [data-stage-hide] { border-left:1px solid rgba(255,255,255,.14); border-radius:0 999px 999px 0; margin-left:4px; }
-  /* Wallpaper picker beside the logo, sized to the header's 32px controls. */
-  .sg-stage-pick-btn {
-    display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px; flex:0 0 auto;
-    border-radius:999px; border:1px solid rgba(255,255,255,.2); background:rgba(9,36,52,.55);
-    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-    color:var(--ink); cursor:pointer; font:inherit; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
-  }
-  .sg-stage-pick-btn svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
-  .sg-stage-pick-btn:active { background:rgba(255,255,255,.12); }
+  .sg-stage-player button.sg-stage-pick-btn { padding:0 12px; border-right:1px solid rgba(255,255,255,.14); border-radius:999px 0 0 999px; margin-right:2px; }
   .sg-stage-dots { display:inline-flex; gap:4px; padding:0 6px; }
   .sg-stage-dots i { width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,.3); transition:all .3s ease; }
   .sg-stage-dots i.on { width:14px; border-radius:3px; background:var(--el, var(--gold-bright)); }
@@ -4879,10 +4880,15 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     .sg-stage-tile-ico { width:28px; height:28px; }
     .sg-stage-right { gap:6px; }
   }
-  /* Narrow screens: the rotation pill must stay left of the centred shield
-     button, so it drops its dots. */
+  /* Narrow screens: the header holds the art controls, the soundtrack pill and
+     the account chips in one row, so the extras step aside. */
+  @media (max-width:900px) {
+    .sg-stage-player button.sg-stage-pick-btn span { display:none; }
+    .sg-stage-player button.sg-stage-pick-btn { padding:0 9px; }
+  }
   @media (max-width:700px) {
-    .sg-stage-dots { display:none; }
+    .sg-stage-dots, .sg-stage-player [data-stage-prev], .sg-stage-music-title { display:none; }
+    .sg-app .sg-top { gap:7px; }
   }
 
   /* On-demand panels. Its body is the one region that scrolls. */

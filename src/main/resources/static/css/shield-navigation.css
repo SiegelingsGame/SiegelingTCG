@@ -32,7 +32,32 @@
 .sn-root button:focus-visible { outline:2px solid #a6dcff; outline-offset:3px; }
 .sn-utilities { display:flex; align-items:center; justify-content:center; gap:16px; margin-top:8px; }
 .sn-utilities button { border:0; background:none; color:#ccb586; padding:5px 0; font:11px/1.3 system-ui,sans-serif; cursor:pointer; }
-.sn-close { position:absolute; top:15%; right:8%; border:0; width:44px; height:44px; background:#0a1422; border-radius:50%; color:#d8be86; font:24px/1 Georgia,serif; cursor:pointer; }
+/* Close, Home and Messages are bare gold glyphs inside the frame's top
+   corners; the button box stays a touch target but paints nothing. Positions
+   are measured against the frame's inner gold line (about 18% down at 12% in)
+   so every corner of each box sits inside it, beside the title and above the
+   option grid. */
+.sn-close, .sn-corner { position:absolute; top:19%; z-index:1; width:36px; height:36px; display:grid; place-items:center; padding:0; border:0; background:none; color:#e2c07a; cursor:pointer; touch-action:manipulation; filter:drop-shadow(0 1px 2px #000) drop-shadow(0 0 6px #d9a94e55); transition:color 120ms, transform 120ms; }
+.sn-close { right:12%; font:26px/1 Georgia,serif; }
+.sn-corner svg { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.sn-corner-home { left:12%; }
+.sn-corner-messages { right:calc(12% + 38px); }
+@media (hover:hover) { .sn-close:hover, .sn-corner:hover { color:#fff0c4; } }
+.sn-close:active, .sn-corner:active { transform:scale(.92); }
+/* The wide, short shield has a shallow brand row: the glyphs take a share of
+   the shield's height so they always fit between the frame and the options. */
+@media (max-height:600px) and (orientation:landscape) {
+  .sn-close, .sn-corner { top:18%; width:30px; height:11%; }
+  .sn-close { right:14%; font-size:20px; }
+  .sn-corner-home { left:14%; }
+  .sn-corner svg { width:16px; height:16px; }
+  .sn-corner-messages { right:calc(14% + 32px); }
+}
+@media (max-width:360px) and (orientation:portrait) {
+  .sn-close, .sn-corner { width:34px; height:34px; }
+  .sn-corner svg { width:18px; height:18px; }
+  .sn-corner-messages { right:calc(12% + 34px); }
+}
 .sn-gem { display:block; width:21px; height:21px; transform:rotate(45deg); border:2px solid #f5d994; background:conic-gradient(from 45deg,#b6eeff,#0878e2,#052951,#6dc8ff,#b6eeff); box-shadow:0 0 12px #2e9fff99,0 0 0 3px #70502b; pointer-events:none; }
 .sn-crown { position:absolute; top:4%; left:calc(50% - 10px); }
 .sn-tip { position:absolute; bottom:7%; left:calc(50% - 10px); width:24px; height:24px; }

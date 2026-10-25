@@ -1,3 +1,19 @@
+Original prompt: make the buttons here more glass like, move the background switches and reattach to the rotation button in the top hud, add a home and message button to the pause screen (follow-up: the buttons should fit within the shield bounds, no round outlines including the exit X, just keep the gold emblem)
+
+- October 25, 2026 **Home stage: glass destination plates, art controls joined to the Rotation button in the header; shield menu gains Home and Messages glyphs.**
+  - **Change.**
+    - **Glass plates.** The Play/Collection/Shop/Social/Settings plates (`.sg-stage-cards .sg-gtab`) are now frosted glass: a 16%→4% white tint, `backdrop-filter: blur(14px) saturate(1.5)`, a white hairline border and inset highlights. This replaces the solid teal fill.
+    - **Header art bar.** `stageArtBarMarkup()` builds one header pill, placed right of the logo through `topMarkup`'s `afterLogo`: Rotation, then the art's prev/pause/next, dots and hide-menus buttons. The bottom-left deck now holds only the caption. `mountStage` finds the dots and pause button from the app, sends header clicks through the same `onStageClick` handler as the stage, and copies the piece's `--el` accent onto the header bar so the dots keep their element colour.
+    - **Narrow headers.** At 900px wide and below, Rotation shows its icon only. At 700px and below, the prev button, the dots and the soundtrack title step aside.
+    - **Shield Home and Messages.** `shield-navigation.js` adds Home (house) and Messages (speech bubble) corner buttons using `data-destination="home"` / `"messages"`. The hub maps `messages` to the Social screen's Messages tab via `setSocialTab`. The text row drops its now-duplicate Home link.
+    - **Shield glyph styling.** Home, Messages and the close × are bare gold glyphs with a soft gold glow: no circle or fill. Their positions were measured against the frame's inner gold line, so every corner of each touch box sits inside it, beside the title and above the option grid. The wide short-landscape shield sizes them from its own height.
+    - Cache pins: `home-redesign.css?v=153`, `home-redesign.js?v=149`, `shield-navigation.css?v=2`, `shield-navigation.js?v=2`.
+  - **Verification.** `node --check` on both scripts. Headless Chromium on the preview hub:
+    - **Header bar.** At 8 viewports (1920x1080 → 568x320, plus portrait 390x844) the bar sits right of the logo, no header controls overlap, the header fits the width and there is no horizontal scroll. The plates compute the glass filter, the active dot takes the element colour, and the deck holds only the caption. Header Next changes the caption, Pause flips to "Resume rotation", Rotation opens the picker and the eye hides the chrome. Portrait shows no bar.
+    - **Shield glyphs.** At 7 viewports (1920x1080, 1024x768, 852x393, 667x375, 568x320, 390x844, 320x568) all four corners of the Home, Messages and × boxes pass `isPointInFill` against the inner frame path. None of the three paints a background or border, and none overlaps the title, the options or each other.
+    - **Shield behaviour.** Messages opens Social on the Messages tab, × closes and Home goes Home.
+    - `tests/hub-workspaces-check.cjs` (7 viewports) and `tests/shield-navigation-check.cjs` (4 viewports) pass.
+
 Original prompt: move the gallery wallpaper button to the top header to the right of the siegeling logo, on this page the logo takes you back to landing
 
 - October 25, 2026 **Home: the wallpaper (Rotation) picker moves into the header beside the logo, and Home's logo links to the landing page.**
