@@ -5,21 +5,26 @@
 .sn-overlay { position:absolute; inset:0; display:grid; place-items:center; padding:12px 8px calc(86px + env(safe-area-inset-bottom, 0px)); perspective:1000px; pointer-events:auto; isolation:isolate; }
 .sn-overlay[hidden] { display:none; }
 .sn-scrim { position:absolute; inset:0; background:rgba(2,6,15,.68); touch-action:none; }
-.sn-shield { position:relative; width:min(450px, 96vw, calc((100dvh - 108px - env(safe-area-inset-bottom, 0px)) * .741)); aspect-ratio:400 / 540; outline:none; transform-origin:center; }
+.sn-shield { position:relative; width:min(450px, 96vw, calc((100dvh - 108px - env(safe-area-inset-bottom, 0px)) * .741)); aspect-ratio:400 / 540; outline:none; transform-origin:center;
+  /* Its contents size from the shield, not the viewport: a short landscape
+     window can make a narrow shield on a wide screen. */
+  container-type:size; --sn-btn:min(36px, 9cqw); }
+/* Without container units (iOS 15 and older) the glyphs keep a fixed box. */
+@supports not (width:1cqw) { .sn-shield { --sn-btn:34px; } }
 .sn-frame { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
 .sn-metal, .sn-energy { stroke-dasharray:1; stroke-dashoffset:0; }
 .sn-energy, .sn-sweep { opacity:0; }
 .sn-content { position:absolute; inset:13% 10% 16%; display:flex; flex-direction:column; align-items:center; }
 .sn-brand { display:flex; flex-direction:column; align-items:center; height:30%; flex-shrink:0; justify-content:center; text-shadow:0 2px 2px #000, 0 0 18px #be904e66; }
 .sn-brand img { width:20%; min-width:28px; max-width:46px; border-radius:50%; margin-bottom:-8px; }
-.sn-brand strong { font-size:clamp(21px, 6.6vw, 36px); font-weight:normal; font-variant:small-caps; letter-spacing:.02em; }
+.sn-brand strong { font-size:clamp(21px, 6.6vw, 36px); font-size:min(36px, 7cqw); font-weight:normal; font-variant:small-caps; letter-spacing:.02em; }
 .sn-brand small { font:8px/1.6 system-ui, sans-serif; letter-spacing:.17em; color:#ba9f6b; }
 .sn-options { width:100%; flex:1; min-height:0; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1.16fr 1fr 1fr 1fr; gap:9px; }
-.sn-option { position:relative; display:flex; align-items:center; justify-content:flex-start; gap:7px; min-width:0; min-height:44px; padding:8px 10px; border:1px solid #a78a53; border-radius:4px 12px 4px 12px; background:linear-gradient(135deg,#263341,#0a1422 70%); color:#f6e7bc; font:clamp(12px, 3.5vw, 18px)/1.2 Georgia,serif; box-shadow:inset 0 0 0 2px #080f1e,0 3px 7px #0008; cursor:pointer; touch-action:manipulation; transition:transform 120ms ease, border-color 120ms ease; }
+.sn-option { position:relative; display:flex; align-items:center; justify-content:flex-start; gap:7px; min-width:0; min-height:44px; padding:8px 10px; border:1px solid #a78a53; border-radius:4px 12px 4px 12px; background:linear-gradient(135deg,#263341,#0a1422 70%); color:#f6e7bc; font:clamp(12px, 3.5vw, 18px)/1.2 Georgia,serif; font-size:clamp(12px, 4.6cqw, 18px); box-shadow:inset 0 0 0 2px #080f1e,0 3px 7px #0008; cursor:pointer; touch-action:manipulation; transition:transform 120ms ease, border-color 120ms ease; }
 .sn-option svg { width:24px; height:28px; flex-shrink:0; fill:none; stroke:#dfbf7e; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; transition:filter 120ms; }
 .sn-option span { white-space:nowrap; }
 .sn-option b { margin-left:auto; font-weight:normal; color:#d6bc88; }
-.sn-play { grid-column:1 / -1; background:linear-gradient(110deg,#5a4325,#211e20 80%); border-color:#e6bd68; font-size:clamp(21px,6vw,30px); box-shadow:inset 0 0 0 2px #392a19,0 0 14px #ddb05322; }
+.sn-play { grid-column:1 / -1; background:linear-gradient(110deg,#5a4325,#211e20 80%); border-color:#e6bd68; font-size:clamp(21px,6vw,30px); font-size:clamp(21px,7cqw,30px); box-shadow:inset 0 0 0 2px #392a19,0 0 14px #ddb05322; }
 .sn-play svg { width:38px; height:38px; margin-right:10px; }
 .sn-settings { grid-column:1 / -1; width:74%; justify-self:center; }
 .sn-option-light { position:absolute; inset:-1px; border:2px solid #ffdf94; border-radius:inherit; background:linear-gradient(105deg,#f9d88c33,transparent); box-shadow:0 0 12px #eab85d66; opacity:0; pointer-events:none; }
@@ -36,27 +41,31 @@
    corners; the button box stays a touch target but paints nothing. Positions
    are measured against the frame's inner gold line (about 18% down at 12% in)
    so every corner of each box sits inside it, beside the title and above the
-   option grid. */
-.sn-close, .sn-corner { position:absolute; top:19%; z-index:1; width:36px; height:36px; display:grid; place-items:center; padding:0; border:0; background:none; color:#e2c07a; cursor:pointer; touch-action:manipulation; filter:drop-shadow(0 1px 2px #000) drop-shadow(0 0 6px #d9a94e55); transition:color 120ms, transform 120ms; }
+   option grid; the box scales with the shield so Messages clears the title. */
+.sn-close, .sn-corner { position:absolute; top:19%; z-index:1; width:var(--sn-btn); height:var(--sn-btn); display:grid; place-items:center; padding:0; border:0; background:none; color:#e2c07a; cursor:pointer; touch-action:manipulation; filter:drop-shadow(0 1px 2px #000) drop-shadow(0 0 6px #d9a94e55); transition:color 120ms, transform 120ms; }
 .sn-close { right:12%; font:26px/1 Georgia,serif; }
 .sn-corner svg { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 .sn-corner-home { left:12%; }
-.sn-corner-messages { right:calc(12% + 38px); }
+.sn-corner-messages { right:calc(12% + var(--sn-btn) + 2px); }
 @media (hover:hover) { .sn-close:hover, .sn-corner:hover { color:#fff0c4; } }
 .sn-close:active, .sn-corner:active { transform:scale(.92); }
 /* The wide, short shield has a shallow brand row: the glyphs take a share of
    the shield's height so they always fit between the frame and the options. */
-@media (max-height:600px) and (orientation:landscape) {
+@media (max-height:500px) and (orientation:landscape) {
   .sn-close, .sn-corner { top:18%; width:30px; height:11%; }
   .sn-close { right:14%; font-size:20px; }
   .sn-corner-home { left:14%; }
   .sn-corner svg { width:16px; height:16px; }
   .sn-corner-messages { right:calc(14% + 32px); }
 }
-@media (max-width:360px) and (orientation:portrait) {
-  .sn-close, .sn-corner { width:34px; height:34px; }
-  .sn-corner svg { width:18px; height:18px; }
-  .sn-corner-messages { right:calc(12% + 34px); }
+/* A short shield (a low landscape window, or a small phone) gives the title
+   row less height so the four rows of options keep their 44px. */
+@container (max-height:470px) {
+  .sn-brand { height:20%; }
+  .sn-brand img, .sn-brand small { display:none; }
+  .sn-options { gap:5px; }
+  .sn-utilities { margin-top:3px; }
+  .sn-corner svg { width:17px; height:17px; }
 }
 .sn-gem { display:block; width:21px; height:21px; transform:rotate(45deg); border:2px solid #f5d994; background:conic-gradient(from 45deg,#b6eeff,#0878e2,#052951,#6dc8ff,#b6eeff); box-shadow:0 0 12px #2e9fff99,0 0 0 3px #70502b; pointer-events:none; }
 .sn-crown { position:absolute; top:4%; left:calc(50% - 10px); }
@@ -78,17 +87,21 @@
 @keyframes sn-hover-light { from { opacity:.55; } to { opacity:0; } }
 @keyframes sn-selected-light { 0% { opacity:0; } 35% { opacity:1; } 100% { opacity:0; } }
 /* Short viewports use a wider heraldic silhouette, retaining 44px targets. */
-@media (max-height:600px) and (orientation:landscape) {
+@media (max-height:500px) and (orientation:landscape) {
   .sn-overlay { padding-bottom:76px; }
   .sn-shield { width:min(560px,96vw); height:calc(100dvh - 92px - env(safe-area-inset-bottom,0px)); aspect-ratio:auto; }
-  .sn-content { inset:16% 10% 14%; }
-  .sn-brand { height:19%; }
+  /* The frame curves in from ~72% down, so the six options take three
+     columns and two rows: they keep 44px targets and stay on the straight
+     sides of the inner gold line. */
+  .sn-content { inset:16% 14% 16%; }
+  .sn-brand { height:21%; }
   .sn-brand img, .sn-brand small { display:none; }
   .sn-brand strong { font-size:23px; }
-  .sn-options { gap:5px; grid-template-rows:repeat(3,1fr); }
+  .sn-options { gap:5px; grid-template-columns:repeat(3,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(44px,1fr)); }
   .sn-play, .sn-settings { grid-column:auto; width:100%; }
-  .sn-option { padding:4px 8px; font-size:14px; }
-  .sn-play svg { width:24px; height:24px; margin:0; }
+  .sn-option { padding:4px 8px; gap:6px; font-size:14px; }
+  .sn-option svg, .sn-play svg { width:20px; height:22px; margin:0; }
+  .sn-option b { display:none; }
   .sn-utilities { margin-top:2px; }
   .sn-fab { width:52px; height:52px; }
   .sn-crown,.sn-tip { width:14px; height:14px; left:calc(50% - 7px); }
@@ -106,4 +119,14 @@
   .sn-play { font-size:22px; }
   .sn-option svg { width:20px; }
   .sn-utilities { margin-top:4px; }
+}
+/* Very short portrait phones: the title row and gaps give the four rows of
+   options their 44px. */
+@media (max-height:520px) and (orientation:portrait) {
+  .sn-content { inset:12% 10% 14%; }
+  .sn-brand { height:20%; }
+  .sn-options { gap:4px; }
+  .sn-utilities { margin-top:2px; }
+  .sn-close, .sn-corner { top:18.5%; }
+  .sn-close { font-size:20px; }
 }

@@ -1,3 +1,22 @@
+Original prompt: make sure buttons fits no matter what screen size
+
+- October 25, 2026 **Shield menu: every button fits inside the frame at any screen size.**
+  - **Change.** `shield-navigation.css`:
+    - **Shield-relative sizing.** `.sn-shield` is now a size container. The title (`min(36px, 7cqw)`), option labels (`clamp(12px, 4.6cqw, 18px)`), Play label and corner glyph boxes (`--sn-btn: min(36px, 9cqw)`, with Messages offset by that box) all size from the shield, not the viewport. A short landscape window on a wide screen used to put 36px text and 18px labels in a ~300px shield.
+    - **Short shields.** `@container (max-height:470px)` shrinks the title row so the four 44px option rows fit.
+    - **Wide short-landscape shield.** It now applies only at 500px tall and below (it used to reach 600px, where a normal shield fits). It lays the six options out 3 across and 2 down, with chevrons dropped and 14% side insets, so the bottom row stays on the frame's straight sides instead of running into the curve and the Social/Help row.
+    - **Small portrait phones.** Phones of 520px tall and below get a compact title row.
+    - **Fallback.** Viewport-based sizes stay as fallback declarations, and `@supports not (width:1cqw)` pins the glyph box at 34px for iOS 15.
+    - Cache pin: `shield-navigation.css?v=3`.
+  - **Verification.** Headless Chromium, shield open on the preview hub, at 41 viewports. These cover portrait phones 320x480 → 430x932, tablets, landscape phones 480x320 → 932x430, short desktop windows (1024x500/520/560/600, 1366x560, 2560x600, 1920x700) and desktops up to 2560x1440. At every one:
+    - All four corners of every option, corner glyph, × and Social/Help link pass `isPointInFill` against the frame's inner gold line.
+    - No two controls overlap.
+    - No label clips, and every option is at least 44px tall.
+    - The shield stays on screen and clear of the FAB.
+    - There are no page errors.
+
+    Before the change, 13 sizes failed (all landscape phones and the 1024/1280x600 windows), and a further 7 added 500–600px sizes failed on the first rerun. Home, Messages and × still navigate and close at 7 sizes. `tests/shield-navigation-check.cjs` passes.
+
 Original prompt: make the buttons here more glass like, move the background switches and reattach to the rotation button in the top hud, add a home and message button to the pause screen (follow-up: the buttons should fit within the shield bounds, no round outlines including the exit X, just keep the gold emblem)
 
 - October 25, 2026 **Home stage: glass destination plates, art controls joined to the Rotation button in the header; shield menu gains Home and Messages glyphs.**
