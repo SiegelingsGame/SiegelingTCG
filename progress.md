@@ -1,3 +1,9 @@
+Original prompt: remove the blue background from the top header make it liquid glass mostly transparent
+
+- October 25, 2026 **Hub header is now liquid glass instead of a blue bar.**
+  - **Change.** `home-redesign.css` replaces the `.sg-app .sg-top` blue gradient with a mostly clear glass: a 10%→3% white tint, `backdrop-filter: blur(14px) saturate(1.5)` (with the `-webkit-` prefix for iOS Safari), a white inset highlight along the top and a faint 18% white hairline along the bottom. The status-bar scrim (`.sg-top::before`) and the chips' own fills are untouched, so coins, music, avatar and bell keep their contrast. Cache pin: `home-redesign.css?v=149`.
+  - **Verification.** Headless Chromium on the preview hub (Home at 852x393, 1920x1080, 390x844; Shop at 852x393; Collection at 390x844): computed `.sg-top` background is the new white glass gradient with the blur filter, the stage art shows through blurred with no blue band, chips stay legible, no page errors.
+
 Original prompt: on the new landscape home page and desktop version page replace the plain buttons with cards similar to shop where it says Play, Collection, Shop, Social and Settings (follow-ups: no art on the buttons in the pause screen; keep both sets)
 
 - October 25, 2026 **Landscape/desktop Home: Play, Collection, Shop, Social and Settings get shop-style portrait plates above the shortcut icons.**

@@ -6524,7 +6524,14 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-app[data-screen="decks"], .sg-app[data-screen="builder"] { --hub-glow:#157f83; --hub-glow-two:#b2853a; }
 .sg-app[data-screen="help"], .sg-app[data-screen="settings"] { --hub-glow:#288ba4; --hub-glow-two:#326c95; }
 .sg-app[data-screen="lobbies"] { --hub-glow:#b86b3c; --hub-glow-two:#176f91; }
-.sg-app .sg-top { background:linear-gradient(90deg,rgba(9,38,57,.78),rgba(15,77,93,.58),rgba(9,38,57,.78)); border-bottom:1px solid rgba(170,231,245,.22); }
+/* Liquid glass: mostly clear so the art runs under the header; the blur and
+   edge highlights carry the shape instead of a tinted fill. */
+.sg-app .sg-top {
+  background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.03));
+  border-bottom:1px solid rgba(255,255,255,.18);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 6px 18px rgba(0,0,0,.12);
+  backdrop-filter:blur(14px) saturate(1.5); -webkit-backdrop-filter:blur(14px) saturate(1.5);
+}
 .sg-app .sg-sheet-card, .sg-profile-history { background:linear-gradient(145deg,#1c5067,#102c40); }
 .sg-shop { --navy-plate:linear-gradient(135deg,rgba(31,105,133,.96),rgba(13,52,73,.96)); }
 .sg-profile-nav .sg-gtab { --rail-accent:#3c8ed8; background:linear-gradient(120deg,color-mix(in srgb,var(--rail-accent) 55%,#123443),rgba(9,34,48,.92)); border-color:color-mix(in srgb,var(--rail-accent) 65%,#f3d58b); }
