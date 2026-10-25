@@ -1510,19 +1510,32 @@
         });
     }
 
-    // ── Trailer modal ─────────────────────────────────────────────────────
+    // ── Trailer modal (15s official promo) ────────────────────────────────
     function bindTrailerModal() {
         const modal = document.getElementById('trailerModal');
         const trigger = document.getElementById('ctaTrailer');
+        const video = document.getElementById('trailerVideo');
         if (!modal || !trigger) return;
 
         function open() {
             modal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
+            if (video) {
+                try {
+                    video.currentTime = 0;
+                    const playPromise = video.play();
+                    if (playPromise && typeof playPromise.catch === 'function') {
+                        playPromise.catch(function () { /* autoplay may be blocked; controls remain */ });
+                    }
+                } catch (e) { /* ignore */ }
+            }
         }
         function close() {
             modal.classList.add('hidden');
             document.body.style.overflow = '';
+            if (video) {
+                try { video.pause(); } catch (e) { /* ignore */ }
+            }
         }
         trigger.addEventListener('click', open);
         modal.querySelectorAll('[data-close-trailer]').forEach((el) => {

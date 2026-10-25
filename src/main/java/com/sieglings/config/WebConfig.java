@@ -116,6 +116,9 @@ public class WebConfig implements WebMvcConfigurer {
         // reaches it from a room invite.
         registry.addViewController("/social/lobby/**").setViewName("forward:/home.html");
 
+        // ---- Marketing cinematic (15s promo) — also served as /promo.html.
+        registry.addViewController("/promo").setViewName("forward:/promo.html");
+
         // ---- Gameplay is unchanged.
         registry.addViewController("/play").setViewName("forward:/play.html");
         // Same page, but the hub's Battle button lands here so the player skips

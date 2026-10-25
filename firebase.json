@@ -24,7 +24,7 @@
         ]
       },
       {
-        "source": "**/*.@(png|webp|jpg|jpeg|svg|gif|ico|mp3|fbx)",
+        "source": "**/*.@(png|webp|jpg|jpeg|svg|gif|ico|mp3|mp4|fbx)",
         "headers": [
           {
             "key": "Cache-Control",
@@ -42,7 +42,7 @@
         ]
       },
       {
-        "source": "/@(landing|home|login|social|cards|decks|lobbies|profile|achievements|deck-builder|shop|play|battle|siege|gauntlet|keep|chronicles|dominion|help|legacy|settings|next|gallery|room)",
+        "source": "/@(landing|home|login|social|cards|decks|lobbies|profile|achievements|deck-builder|shop|play|battle|siege|gauntlet|keep|chronicles|dominion|help|legacy|settings|next|gallery|room|promo)",
         "headers": [
           {
             "key": "Cache-Control",
@@ -235,6 +235,10 @@
       {
         "source": "/social/lobby/**",
         "destination": "/home.html"
+      },
+      {
+        "source": "/promo",
+        "destination": "/promo.html"
       },
       {
         "source": "/play",

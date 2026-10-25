@@ -758,6 +758,10 @@ img { display: block; }
     box-shadow: 0 28px 60px rgba(0, 0, 0, 0.55);
     text-align: center;
 }
+.trailer-modal-inner.trailer-modal-player {
+    width: min(920px, 100%);
+    padding: 22px 18px 18px;
+}
 .trailer-modal-title {
     margin: 0 0 10px;
     font-family: 'Cinzel', Georgia, serif;
@@ -770,6 +774,31 @@ img { display: block; }
     font-size: 0.94rem;
     line-height: 1.5;
 }
+.trailer-video-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    margin: 0 0 12px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.trailer-video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+.trailer-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+.trailer-modal-actions .cta { margin: 0; }
 .trailer-close {
     position: absolute;
     top: 12px; right: 12px;

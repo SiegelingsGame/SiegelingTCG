@@ -1,3 +1,13 @@
+Original prompt: Build a 15 second commercial for the Siegelings TCG website a promo video to generate hype and curiosity
+
+- October 25, 2026 **Official 15s Siegelings promo commercial — cinematic page, MP4, and Watch Trailer wired live.**
+  - **Change.**
+    - **Cinematic.** New `/promo` (`promo.html` + `css/promo.css` + `js/promo.js`): seekable 15s timeline — energy notches → world art smash cuts with Collect / Command / Conquer → SIEGELINGS end card, Play Now, and site URL. Uses gallery art and Cinzel.
+    - **MP4.** `tools/promo/record-promo.cjs` captures the stage at 24fps and muxes a 15s theme excerpt into `static/video/siegelings-promo-15s.mp4` (+ poster webp). Exact duration 15.000s, 1920×1080 H.264 + AAC.
+    - **Landing.** Watch Trailer opens a player modal (autoplay when allowed) instead of “coming soon”; Play Now + fullscreen `/promo` links. Cache pins `landing.css?v=59`, `landing.js?v=61`.
+    - **Routing.** `/promo` forward in `WebConfig` and `firebase.json`; mp4 added to immutable cache headers.
+  - **Verification.** `node --check` on promo/landing/recorder. Recorder probe: 15.000s, 1920×1080. Headless Chrome: Watch Trailer opens modal, video `duration===15`, `readyState===4`, playback advances. Video review confirms beat order, audio present, no blank frames.
+
 Original prompt: Update landscape and desktop setting page so it does not require scrolling
 
 - October 25, 2026 **Settings fits one screen on landscape and desktop; the delete confirmation no longer shows before it is asked for.**
