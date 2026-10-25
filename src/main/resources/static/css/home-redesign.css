@@ -4720,10 +4720,27 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   }
   .sg-stage-ui > * { pointer-events:auto; }
 
-  /* Shortcut icons, three to a row, labelled underneath like a launcher. */
+  .sg-stage-lead { grid-area:left; align-self:start; display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:0; }
+  /* Main destinations as shop plates in one row; the shared .sg-gtab sizes are
+     tuned for the shop rail, so the stage sets its own. */
+  /* The plate tokens live on the shop root, so the stage restates them. */
+  .sg-stage-cards { --navy-plate:linear-gradient(135deg,rgba(31,105,133,.96),rgba(13,52,73,.96)); --gold-line:#d9b45f; display:grid; grid-template-columns:repeat(5, clamp(78px, 12.5vw, 118px)); gap:6px; }
+  .sg-stage-cards .sg-gtab { height:44px; padding-right:13px; text-decoration:none; }
+  .sg-stage-cards .sg-gtab-art { flex-basis:38%; margin-right:5px; }
+  .sg-stage-cards .sg-gtab-art img { transform:none; }
+  .sg-stage-cards .sg-gtab-label { font-size:11px; }
+  .sg-stage-cards .sg-gtab-gem { width:7px; height:10px; margin-top:-5px; right:4px; }
+  .sg-stage-cards .sg-gtab:active { transform:translateY(1px); border-color:#ffe39a; }
+  @media (hover:hover) { .sg-stage-cards .sg-gtab:hover { border-color:#ffe39a; } }
+  /* Narrow landscape phones: thinner art so "Collection" keeps its size. */
+  @media (max-width:700px) {
+    .sg-stage-cards .sg-gtab { padding-right:10px; }
+    .sg-stage-cards .sg-gtab-art { flex-basis:28%; margin-right:4px; }
+    .sg-stage-cards .sg-gtab-gem { display:none; }
+  }
+  /* Shortcut icons in one row, labelled underneath like a launcher. */
   .sg-stage-left {
-    grid-area:left; align-self:start;
-    display:grid; grid-template-columns:repeat(3, 58px); gap:6px 4px;
+    display:grid; grid-template-columns:repeat(6, 52px); gap:4px;
   }
   .sg-stage-tile {
     position:relative; display:flex; flex-direction:column; align-items:center; gap:3px;
@@ -4731,7 +4748,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     text-decoration:none; font:inherit;
   }
   .sg-stage-tile-ico {
-    width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center;
     background:rgba(9,36,52,.58); border:1px solid rgba(255,255,255,.22);
     box-shadow:0 4px 14px rgba(0,0,0,.35);
     backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
@@ -4743,7 +4760,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   }
   .sg-stage-tile:active .sg-stage-tile-ico { transform:scale(.92); border-color:var(--el, var(--gold)); }
   .sg-stage-tile-label {
-    font-size:10.5px; font-weight:700; letter-spacing:.02em; white-space:nowrap;
+    font-size:9.5px; font-weight:700; letter-spacing:.02em; white-space:nowrap;
     text-shadow:0 1px 2px #000, 0 0 8px rgba(0,0,0,.8);
   }
   .sg-stage-badge {
