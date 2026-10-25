@@ -1,3 +1,15 @@
+Original prompt: The Circle should break the line completely along the top and bottom of the bar to enhance the illusion of it passing behind
+
+- October 25, 2026 **Arena Art rail: the ring around the shield button now breaks both edges of the bar.**
+  - **Change.** The landscape skin rail is now a band centred on the shield button (`--fab-cy`), 14px shorter than the hole's diameter (`--rail-h`), with a gold line on its bottom edge as well as its top. Before, it ran down to the screen edge, so the ring only notched its top. The mask hole is centred in the band (`circle at 50vw 50%`), so the ring passes about 7px beyond both lines and the bar reads as sliding behind the button. Each skin is now a column whose thumbnail takes the height its label leaves (`object-fit:cover`), so the label always fits in the shorter band. Cache pin: `home-redesign.css?v=160`.
+  - **Verification.** Headless Chromium on the preview shop with 11 mock skins, at 1920x1080, 1366x768, 1024x600, 932x430, 852x393, 667x375 and 568x320:
+    - the rail's midline equals the FAB centre;
+    - the ring's top and bottom both lie outside the rail (for example 995/1077 against a 1002–1070 rail at 1920x1080);
+    - every skin, its label and its content fit inside the band;
+    - no horizontal scroll and no page errors.
+
+    The first pass of the label check failed at every landscape size, which is what prompted the column layout. Cropped screenshots, including one after scrolling, show both lines stopping at the ring. Portrait is unchanged. `tests/hub-workspaces-check.cjs` passes.
+
 Original prompt: On landscape view for arenas well in shop in general. Instead of placing the arena options bar above the circle instead place the button on top of it. But around the button just create a circle shape break in the line where the options essentially pass over to the next side
 
 - October 25, 2026 **Shop › Arena Art (landscape): the skin rail runs under the shield button through a circular break.**

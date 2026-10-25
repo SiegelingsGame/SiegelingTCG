@@ -6829,21 +6829,29 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-feat-fav { top:4px; left:4px; padding:2px 6px; font-size:8px; }
 }
 
-/* Landscape Arena Art: the skin rail runs along the bottom edge level with
-   the shield button instead of stacking above it. A circular hole is cut out
-   of the rail around the button (mask), so the rail's top line breaks into a
-   gold ring and skins scrolling along disappear into the gap and come out the
-   other side. --fab-cy/--fab-r mirror .sn-fab in shield-navigation.css. */
+/* Landscape Arena Art: the skin rail runs level with the shield button
+   instead of stacking above it. The rail is a band centred on the button and
+   a little shorter than the circular hole cut out of it (mask), so the ring
+   breaks both its top and bottom lines and skins scrolling along seem to pass
+   behind the button to the other side. --fab-cy/--fab-r mirror .sn-fab in
+   shield-navigation.css. */
 @media (orientation:landscape) {
-  .sg-shop { --fab-cy:calc(44px + env(safe-area-inset-bottom, 0px)); --fab-r:31px; --notch-r:calc(var(--fab-r) + 10px); }
-  .sg-arena-dock { bottom:0; }
-  .sg-arena-skins {
-    box-sizing:border-box; height:calc(var(--fab-cy) + var(--notch-r) - 8px); align-items:center;
-    padding:6px 12px calc(4px + env(safe-area-inset-bottom, 0px));
-    -webkit-mask-image:radial-gradient(circle at 50vw calc(100% - var(--fab-cy)), transparent var(--notch-r), #000 calc(var(--notch-r) + 1px));
-    mask-image:radial-gradient(circle at 50vw calc(100% - var(--fab-cy)), transparent var(--notch-r), #000 calc(var(--notch-r) + 1px));
+  .sg-shop {
+    --fab-cy:calc(44px + env(safe-area-inset-bottom, 0px)); --fab-r:31px;
+    --notch-r:calc(var(--fab-r) + 10px); --rail-h:calc(var(--notch-r) * 2 - 14px);
   }
-  .sg-arena-skin { flex-shrink:0; }
+  .sg-arena-dock { bottom:calc(var(--fab-cy) - var(--rail-h) / 2); }
+  .sg-arena-skins {
+    box-sizing:border-box; height:var(--rail-h); align-items:center; padding:3px 12px;
+    border-bottom:1px solid #d9b45f;
+    -webkit-mask-image:radial-gradient(circle at 50vw 50%, transparent var(--notch-r), #000 calc(var(--notch-r) + 1px));
+    mask-image:radial-gradient(circle at 50vw 50%, transparent var(--notch-r), #000 calc(var(--notch-r) + 1px));
+  }
+  /* The band is shorter than a 16:9 thumb plus its label, so each skin is a
+     column whose thumbnail takes whatever height the label leaves. */
+  .sg-arena-skin { flex-shrink:0; height:100%; box-sizing:border-box; display:flex; flex-direction:column; }
+  .sg-arena-skin img { flex:1 1 auto; min-height:0; height:auto; aspect-ratio:auto; object-fit:cover; }
+  .sg-arena-skin span { flex:0 0 auto; line-height:1.2; }
   .sg-arena-gallery::after {
     content:''; position:absolute; z-index:5; pointer-events:none; left:50%;
     bottom:calc(var(--fab-cy) - var(--notch-r)); width:calc(var(--notch-r) * 2); height:calc(var(--notch-r) * 2);
@@ -6853,6 +6861,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-arena-half.is-ai > span { bottom:calc(var(--fab-cy) + var(--notch-r) + 12px); }
 }
 @media (orientation:landscape) and (max-height:500px) {
-  .sg-shop { --fab-cy:calc(39px + env(safe-area-inset-bottom, 0px)); --fab-r:26px; --notch-r:calc(var(--fab-r) + 8px); }
-  .sg-arena-skin { flex-basis:72px; }
+  .sg-shop { --fab-cy:calc(39px + env(safe-area-inset-bottom, 0px)); --fab-r:26px; --notch-r:calc(var(--fab-r) + 10px); }
+  .sg-arena-skins { padding:2px 10px; gap:6px; }
+  .sg-arena-skin { flex-basis:66px; padding:3px; }
+  .sg-arena-skin span { font-size:8px; padding:1px 2px 0; }
 }
