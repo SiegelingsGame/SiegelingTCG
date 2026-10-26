@@ -1,3 +1,12 @@
+Original prompt: In the site outside of the home page the Siegeling logo in the top left should serve as the back /home button. Also featured should open up a view of the 3 featured Siegeling of the day
+
+- October 26, 2026 **Hub: the header logo goes back to Home, and Featured opens the day's three Siegelings.**
+  - **Change.** `topMarkup` now wraps the logo in an `a.sg-logo-link` with `href="/home" data-screen="home"` on every hub screen (binder, decks, shop, social, profile, and the rest), so it routes back to Home in place. Home itself keeps its `/landing` link. The stage's Featured shortcut used to send players to the binder. It is now a `data-stage-panel="Featured Siegelings"` tile that borrows the Featured section into the stage panel, the same way Objectives and Hall work. `FEATURED_COUNT` dropped from 8 to 3. The daily seeded pick is unchanged: deterministic per local day, one card per element first. Inside the panel the trio is a 3-column grid instead of a swipe rail, with the name stacked over the marks. A "Today's three · new at midnight" note sits beside a Binder link. Tapping a tile opens the existing card sheet. Cache pins: `home-redesign.css?v=163`, `home-redesign.js?v=155`.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844 and 1920x1080, with statics served and `/cards` and `/home` rewritten to `home-next.html`:
+    - On `/cards` the logo link reads `href=/home`, `data-screen=home`, and clicking it lands on `/home` with the stage mounted. Home's logo still reads `/landing`.
+    - The Featured tile opens a "Featured Siegelings" panel with exactly 3 tiles in one row (104x146 on phone, 183x257 on desktop). Tapping one opens the card sheet.
+    - Card art is served from Firebase Storage, which the sandbox cannot reach, so the plates rendered empty here.
+
 Original prompt: Let's go with 3 wide on portrait mobile
 
 - October 26, 2026 **Binder: 3 cards across on portrait phones.**

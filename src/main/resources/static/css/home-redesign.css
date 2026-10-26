@@ -464,6 +464,8 @@ body.concept-board {
   scroll-snap-type:x mandatory; scrollbar-width:none;
 }
 .sg-swipe::-webkit-scrollbar { display:none; }
+.sg-feat-note { margin-right:auto; padding-left:10px; font-size:11px; color:var(--muted); letter-spacing:.04em; }
+.sg-stage-panel-body .sg-feat-note { padding-left:0; }
 
 /* featured Siegeling tiles — art is nearly the whole tile.
    It used to be MORE than the whole tile: the art was scaled 1.16 inside an
@@ -4937,6 +4939,20 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-stage-panel-body .sg-strip { margin:0 14px; cursor:default; }
   .sg-stage-panel-body .sg-exps { margin:4px 14px 0; }
   .sg-stage-panel-body .sg-lb-empty { margin:0 18px; height:150px; }
+  /* The day's three Siegelings sit side by side instead of as a swipe rail, so
+     the whole trio is visible the moment the panel opens. */
+  .sg-stage-panel-body .sg-feat-trio {
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px;
+    overflow:visible; padding:4px 14px 6px; scroll-snap-type:none;
+  }
+  .sg-stage-panel-body .sg-feat-trio .sg-feat { flex:none; height:auto; aspect-ratio:3 / 4.2; }
+  /* A third of a phone is too narrow for name and marks on one line, so the
+     name gets the full width and the marks sit under it. */
+  .sg-stage-panel-body .sg-feat-trio .sg-feat-art { bottom:50px; }
+  .sg-stage-panel-body .sg-feat-trio .sg-feat-foot {
+    flex-direction:column; align-items:center; gap:5px; padding:8px 6px 10px;
+  }
+  .sg-stage-panel-body .sg-feat-trio .sg-feat-name { max-width:100%; text-align:center; }
 
   .sg-stage-pick-note { margin:0 18px 10px; font-size:12px; color:var(--muted); }
   .sg-stage-pick-note b { color:var(--gold-bright); margin-left:4px; display:inline-block; }
