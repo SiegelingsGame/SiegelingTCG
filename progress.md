@@ -1,3 +1,15 @@
+Original prompt: Do the same thing in portrait mode the options should "skip" behind the non viewable space onto the other side if that makes sense
+
+- October 25, 2026 **Arena Art: the ringed skin rail now runs under the shield button in portrait too.**
+  - **Change.** The rail rules (a band centred on the FAB at `--fab-cy`, a circular mask hole around it, a gold ring breaking both edges, and flexing thumbnails) moved from `@media (orientation:landscape)` to `@media all`, so portrait uses them as well. Skins scrolling along pass behind the button and reappear on the other side. Only the landscape AI-label offset stays landscape-only. The selected-arena plate keeps a 10px gap above the band in portrait. Cache pin: `home-redesign.css?v=161`.
+  - **Verification.** Headless Chromium on the preview shop with 11 mock skins at 430x932, 390x844, 375x667, 320x568 and 768x1024, plus 852x393 and 1920x1080 for landscape regressions. At every size:
+    - the rail's midline equals the FAB centre;
+    - the ring passes beyond both rail edges;
+    - every skin and label fits, and the selected plate clears the rail;
+    - no horizontal scroll and no page errors.
+
+    Cropped screenshots, including one after scrolling the rail at 430x932, show skins clipped along the circle. `tests/hub-workspaces-check.cjs` passes.
+
 Original prompt: The Circle should break the line completely along the top and bottom of the bar to enhance the illusion of it passing behind
 
 - October 25, 2026 **Arena Art rail: the ring around the shield button now breaks both edges of the bar.**
