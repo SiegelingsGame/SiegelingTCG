@@ -213,6 +213,16 @@ html, body.promo-body {
     font-size: clamp(0.9rem, 2.2vw, 1.25rem);
     color: rgba(255, 230, 180, 0.92);
 }
+.whisper-mode {
+    top: 82%;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-size: clamp(0.9rem, 2.2vw, 1.25rem);
+    color: rgba(210, 240, 255, 0.94);
+}
+.whisper-dominion {
+    color: rgba(255, 228, 180, 0.94);
+}
 .art-gameplay {
     /* Mobile phone plates — keep the full bezel readable; less soft blur. */
     filter: saturate(1.04) contrast(1.06);

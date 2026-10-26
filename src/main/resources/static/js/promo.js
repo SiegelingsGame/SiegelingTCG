@@ -3,31 +3,34 @@
 (function () {
     'use strict';
 
-    var DURATION_MS = 24000;
+    var DURATION_MS = 36000;
     var params = new URLSearchParams(window.location.search);
     var recordMode = params.get('record') === '1';
     var autoplay = !recordMode || params.get('autoplay') === '1';
 
     document.body.dataset.mode = recordMode ? 'record' : 'live';
 
-    /* Beat schedule: [startMs, beatName, flash?] */
+    /* Beat schedule: [startMs, beatName, flash?]
+       Brand → Arena board angles + attack → Siege map/battle → Dominion → end. */
     var BEATS = [
         [0, 'void', false],
         [600, 'presents', false],
         [1800, 'art0', true],
-        [4000, 'collect', true],
-        [4200, 'art1', false],
-        [6000, 'command', true],
-        [6200, 'art2', false],
-        [8000, 'conquer', true],
-        [8200, 'art3', false],
-        [10000, 'battle', true],
-        [10200, 'game0', false],
-        [12800, 'game1', true],
-        [15000, 'game2', true],
-        [17200, 'game3', true],
-        [19400, 'game4', true],
-        [21000, 'end', true]
+        [3600, 'collect', true],
+        [3800, 'art1', false],
+        [5200, 'command', true],
+        [5400, 'art2', false],
+        [6800, 'conquer', true],
+        [7000, 'art3', false],
+        [8400, 'battle', true],
+        [8600, 'game0', false],
+        [11200, 'game1', true],
+        [13600, 'game2', true],
+        [16200, 'game3', true],
+        [19800, 'game4', true],
+        [23600, 'game5', true],
+        [27800, 'game6', true],
+        [31800, 'end', true]
     ];
 
     var ART_BEATS = {
@@ -42,8 +45,10 @@
         game0: 'g0',
         game1: 'g1',
         game2: 'g2',
-        game3: 'g3',
-        game4: 'g4',
+        game3: 'g0',
+        game4: 'g3',
+        game5: 'g4',
+        game6: 'g5',
         end: '5'
     };
 
@@ -169,8 +174,10 @@
 
     function applyCopy(name, p) {
         var presents = document.querySelector('.presents');
-        var whisper = document.querySelector('.whisper:not(.whisper-game)');
+        var whisper = document.querySelector('.whisper:not(.whisper-game):not(.whisper-mode)');
         var whisperGame = document.querySelector('.whisper-game');
+        var whisperSiege = document.querySelector('.whisper-siege');
+        var whisperDominion = document.querySelector('.whisper-dominion');
         var verbs = document.querySelectorAll('.verb');
         var endCard = document.querySelector('.end-card');
         var ring = document.querySelector('.energy-ring');
@@ -180,6 +187,8 @@
         fade(presents, 0);
         fade(whisper, 0);
         fade(whisperGame, 0);
+        fade(whisperSiege, 0);
+        fade(whisperDominion, 0);
         for (i = 0; i < verbs.length; i++) fade(verbs[i], 0);
         if (endCard) {
             endCard.style.opacity = '0';
@@ -225,12 +234,22 @@
         }
         if (name === 'conquer' || name === 'art3') smashVerb('.verb[data-verb="conquer"]', name === 'conquer');
 
-        if (name === 'battle' || name === 'game0') {
+        if (name === 'battle' || name === 'game0' || name === 'game1' || name === 'game2' || name === 'game3') {
             smashVerb('.verb[data-verb="battle"]', name === 'battle');
-            if (name === 'game0') {
-                var gp = p < 0.2 ? p / 0.2 : (p > 0.75 ? Math.max(0, 1 - (p - 0.75) / 0.25) : 1);
+            if (name === 'game0' || name === 'game1' || name === 'game2' || name === 'game3') {
+                var gp = p < 0.18 ? p / 0.18 : (p > 0.78 ? Math.max(0, 1 - (p - 0.78) / 0.22) : 1);
                 fade(whisperGame, gp * 0.95);
             }
+        }
+
+        if (name === 'game4' || name === 'game5') {
+            var sp = p < 0.18 ? p / 0.18 : (p > 0.78 ? Math.max(0, 1 - (p - 0.78) / 0.22) : 1);
+            fade(whisperSiege, sp * 0.95);
+        }
+
+        if (name === 'game6') {
+            var dp = p < 0.18 ? p / 0.18 : (p > 0.78 ? Math.max(0, 1 - (p - 0.78) / 0.22) : 1);
+            fade(whisperDominion, dp * 0.95);
         }
 
         if (name === 'end' && endCard) {
@@ -262,7 +281,8 @@
         var artId = ART_BEATS[name];
         if (artId != null) {
             var smash = name === 'art1' || name === 'collect' || name === 'battle'
-                || name === 'game1' || name === 'game2' || name === 'game3' || name === 'game4';
+                || name === 'game1' || name === 'game2' || name === 'game3'
+                || name === 'game4' || name === 'game5' || name === 'game6';
             applyKenBurns(artId, p, smash);
         } else {
             applyKenBurns(null, 0, false);
@@ -273,7 +293,7 @@
         applyCopy(name, p);
 
         if (seekMs < 2500 && seekMs % 90 < 20) spawnSparks(1, false);
-        else if (seekMs < 20000 && seekMs % 160 < 20) spawnSparks(2, false);
+        else if (seekMs < 30000 && seekMs % 160 < 20) spawnSparks(2, false);
 
         drawSparks(recordMode ? (1 / 24) : 0.016);
 

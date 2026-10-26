@@ -30,7 +30,7 @@ const PORT = 8942;
 const W = 1920;
 const H = 1080;
 const FPS = 20;
-const DURATION_S = 24;
+const DURATION_S = 36;
 const FRAME_COUNT = FPS * DURATION_S;
 const BATTLE_THEME = path.join(STATIC, 'audio/battle/sieglings-battle-theme-2.mp3');
 // Loudest sustained epic window from energy scan of battle-theme-2.
@@ -104,12 +104,35 @@ async function main() {
 
   const audioClip = path.join(TMP, 'promo-audio-battle.mp3');
   const fadeOutStart = Math.max(0.5, DURATION_S - 1.5);
+  // Extract first, then normalize — a single-filter loudnorm pass can truncate
+  // the clip below -t when the measured window is shorter than requested.
+  const rawClip = path.join(TMP, 'promo-audio-raw.mp3');
   run('ffmpeg', [
     '-y', '-ss', AUDIO_START_S, '-i', BATTLE_THEME,
     '-t', String(DURATION_S),
+    '-c:a', 'libmp3lame', '-b:a', '192k', rawClip
+  ]);
+  run('ffmpeg', [
+    '-y', '-i', rawClip,
     '-af', `afade=t=in:st=0:d=0.4,afade=t=out:st=${fadeOutStart}:d=1.45,loudnorm=I=-12:TP=-1.2:LRA=10`,
     '-c:a', 'libmp3lame', '-b:a', '192k', audioClip
   ]);
+  // If loudnorm still shortens, pad with silence back to the target duration.
+  const probed = run('ffprobe', [
+    '-v', 'error', '-show_entries', 'format=duration',
+    '-of', 'default=nw=1:nk=1', audioClip
+  ]);
+  const audioDur = Number(String(probed.stdout || '').trim());
+  if (Number.isFinite(audioDur) && audioDur + 0.2 < DURATION_S) {
+    const pad = path.join(TMP, 'promo-audio-padded.mp3');
+    run('ffmpeg', [
+      '-y', '-i', audioClip,
+      '-af', `apad=pad_dur=${(DURATION_S - audioDur).toFixed(3)}`,
+      '-t', String(DURATION_S),
+      '-c:a', 'libmp3lame', '-b:a', '192k', pad
+    ]);
+    fs.copyFileSync(pad, audioClip);
+  }
 
   const server = await startServer();
   const bundled = '/opt/pw-browsers/chromium';
@@ -163,7 +186,6 @@ async function main() {
     '-c:a', 'aac',
     '-b:a', '192k',
     '-movflags', '+faststart',
-    '-shortest',
     finalMp4
   ]);
   fs.copyFileSync(finalMp4, artifactMp4);
@@ -171,13 +193,13 @@ async function main() {
   const poster = path.join(OUT_DIR, 'siegelings-promo-poster.webp');
   const posterArt = path.join(ARTIFACT_DIR, 'siegelings-promo-poster.webp');
   run('ffmpeg', [
-    '-y', '-ss', '21.4', '-i', finalMp4,
+    '-y', '-ss', '28.5', '-i', finalMp4,
     '-frames:v', '1', poster
   ]);
   fs.copyFileSync(poster, posterArt);
 
-  // Beat stills: open, collect, battle clash, siege hand, end card.
-  ['00000', '00090', '00210', '00350', '00440'].forEach((id, idx) => {
+  // Beat stills: open, battle clash, attack, siege map, dominion, end.
+  ['00000', '00200', '00280', '00420', '00560', '00680'].forEach((id, idx) => {
     const src = path.join(FRAMES, `frame-${id}.png`);
     if (fs.existsSync(src)) {
       fs.copyFileSync(src, path.join(ARTIFACT_DIR, `promo-beat-${idx + 1}.png`));

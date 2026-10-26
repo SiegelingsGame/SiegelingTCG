@@ -1,3 +1,9 @@
+Original prompt: In the trailer show multiple views of the board also with a full Board with notches attached correctly 10 cards on both sides. So a quick clip of an attack in arena mode. Show a clip of siege mode on the map navigating and a battle clip then a clip of dominion mode
+
+- October 26, 2026 **Promo trailer extended to ~36s with Arena board/attack, Siege map+battle, and Dominion plates.**
+  - **Change.** Live mobile captures (`tools/promo/capture-promo-modes.cjs`) drive Arena until both halves show linked notches (peak ~3v3 with reciprocal links), grab an attack/resolving beat, then Siege tutorial map navigation + Ruined Gate battle, then Dominion keep/expeditions. `promo.js`/`promo.html` timeline adds game beats for board angle, attack, siege map, siege battle, dominion (`?v=6`). `record-promo.cjs` records 36s and no longer truncates on `-shortest` after loudnorm. Re-encoded `video/siegelings-promo.mp4` (~35.96s).
+  - **Verification.** Capture logs show peak boards with linked notches and siege `battleScreen`. Trailer probe 1920×1080 H.264/AAC ~36s. Beat stills under `/opt/cursor/artifacts/wt-*.png` cover arena / siege / dominion.
+
 Original prompt: I want to show the battles in mobile format
 
 - October 26, 2026 **Promo battle beats now show live mobile (390×844) UI in a phone plate.**
