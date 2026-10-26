@@ -83,14 +83,24 @@ function pad(n) {
 async function waitReady(page) {
   await page.waitForFunction(() => typeof window.__promoPlay === 'function', null, { timeout: 20000 });
   await page.evaluate(async () => {
-    const urls = Array.from(document.querySelectorAll('.art-plate')).map((el) => {
+    const urls = Array.from(document.querySelectorAll('.art-plate:not(video)')).map((el) => {
       const raw = getComputedStyle(el).getPropertyValue('--art').trim();
       return raw.replace(/^url\(["']?/, '').replace(/["']?\)$/, '');
-    });
+    }).filter(Boolean);
     await Promise.all(urls.map((src) => new Promise((resolve) => {
       const img = new Image();
       img.onload = img.onerror = () => resolve();
       img.src = src;
+    })));
+    const vids = Array.from(document.querySelectorAll('video.art-video'));
+    await Promise.all(vids.map((v) => new Promise((resolve) => {
+      if (v.readyState >= 2) return resolve();
+      const done = () => resolve();
+      v.addEventListener('loadeddata', done, { once: true });
+      v.addEventListener('error', done, { once: true });
+      // Force load in case preload stalled.
+      try { v.load(); } catch (e) { /* ignore */ }
+      setTimeout(done, 8000);
     })));
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
   });
@@ -158,11 +168,14 @@ async function main() {
   const frameIntervalMs = 1000 / FPS;
   for (var i = 0; i < FRAME_COUNT; i++) {
     const ms = Math.min(DURATION_S * 1000, Math.round(i * frameIntervalMs));
-    await page.evaluate((t) => window.__promoSeek(t), ms);
-    // Two rAFs so canvas sparks + layout settle before the capture.
+    await page.evaluate(async (t) => {
+      const maybe = window.__promoSeek(t);
+      if (maybe && typeof maybe.then === 'function') await maybe;
+    }, ms);
+    // Two rAFs so canvas sparks + video paint settle before the capture.
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     const file = path.join(FRAMES, `frame-${pad(i)}.png`);
-    await page.screenshot({ path: file, type: 'png' });
+    await page.screenshot({ path: file, type: 'png', animations: 'disabled' });
     if (i % 30 === 0) process.stderr.write(`frame ${i}/${FRAME_COUNT} @ ${ms}ms\n`);
   }
 

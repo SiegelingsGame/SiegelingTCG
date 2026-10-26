@@ -1,5 +1,5 @@
-/* Siegelings promo — seekable timeline + spark canvas (extended w/ gameplay).
-   Live: plays in real time. Record (?record=1): awaits __promoSeek(ms). */
+/* Siegelings promo — seekable timeline + spark canvas (extended w/ live gameplay clips).
+   Live: plays in real time. Record (?record=1): awaits __promoSeek(ms) and syncs videos. */
 (function () {
     'use strict';
 
@@ -11,8 +11,7 @@
     document.body.dataset.mode = recordMode ? 'record' : 'live';
 
     /* Beat schedule: [startMs, beatName, flash?]
-       Brand → Battle once → distinct Arena board + attack → Siege → Dominion → end.
-       Do not remount the clash plate or re-smash "Battle." — that reads as a stutter. */
+       Brand → Battle once → Arena live clip → Siege live clip → Dominion live clip → end. */
     var BEATS = [
         [0, 'void', false],
         [600, 'presents', false],
@@ -26,14 +25,15 @@
         [8400, 'battle', true],
         [8600, 'game0', false],
         [11200, 'game1', true],
-        [14200, 'game2', true],
-        [17200, 'game3', true],
-        [21000, 'game4', true],
-        [24800, 'game5', true],
-        [28600, 'game6', false],
+        [14800, 'game2', true],
+        [18800, 'game3', true],
+        [22800, 'game4', true],
+        [26800, 'game5', true],
+        [30000, 'game6', false],
         [31800, 'end', true]
     ];
 
+    /* Still art ids are numeric; live gameplay clips use va / vs / vd. */
     var ART_BEATS = {
         art0: '0',
         collect: '1',
@@ -42,14 +42,14 @@
         art2: '2',
         conquer: '3',
         art3: '3',
-        battle: 'g0',
-        game0: 'g0',
-        game1: 'g1',
-        game2: 'g2',
-        game3: 'g3',
-        game4: 'g4',
-        game5: 'g5',
-        game6: 'g5',
+        battle: 'va',
+        game0: 'va',
+        game1: 'va',
+        game2: 'vs',
+        game3: 'vs',
+        game4: 'vd',
+        game5: 'vd',
+        game6: 'vd',
         end: '5'
     };
 
@@ -62,6 +62,8 @@
     var lastBeat = '';
     var lastFlashAt = -9999;
     var seekMs = 0;
+    var lastVideoArt = '';
+    var videoBeatStartMs = 0;
 
     function resize() {
         if (!canvas) return;
@@ -137,19 +139,21 @@
         return Math.min(1, Math.max(0, (ms - beatStart) / span));
     }
 
+    function isVideoArt(artId) {
+        return artId === 'va' || artId === 'vs' || artId === 'vd';
+    }
+
     function applyKenBurns(artId, p, smash) {
         var plates = document.querySelectorAll('.art-plate');
         for (var i = 0; i < plates.length; i++) {
             var plate = plates[i];
             var id = plate.getAttribute('data-art');
             if (id === artId) {
-                var isGameplay = String(artId).charAt(0) === 'g';
+                var isGameplay = isVideoArt(artId) || String(artId).charAt(0) === 'g';
                 plate.style.opacity = artId === '5' ? '0.35' : '1';
-                // Phone plates are already composed into 16:9 — keep Ken Burns gentle
-                // so the mobile HUD isn't cropped off the bezel.
                 var scale = smash
-                    ? (isGameplay ? (1.06 - p * 0.04) : (1.22 - p * 0.18))
-                    : (isGameplay ? (1.03 - p * 0.02) : (1.16 - p * 0.12));
+                    ? (isGameplay ? (1.04 - p * 0.02) : (1.22 - p * 0.18))
+                    : (isGameplay ? (1.02 - p * 0.015) : (1.16 - p * 0.12));
                 var x = smash ? 0 : (id === '2' ? (-3 + p * 5) : 0);
                 var y = smash ? 0 : (id === '0' ? (2 - p * 2) : 0);
                 plate.style.transform = 'scale(' + scale + ') translate(' + x + '%, ' + y + '%)';
@@ -162,6 +166,58 @@
                 plate.style.opacity = '0';
             }
         }
+    }
+
+    function syncVideos(artId) {
+        var vids = document.querySelectorAll('video.art-video');
+        var i;
+        if (artId !== lastVideoArt) {
+            lastVideoArt = artId || '';
+            videoBeatStartMs = seekMs;
+        }
+        for (i = 0; i < vids.length; i++) {
+            var v = vids[i];
+            var id = v.getAttribute('data-art');
+            if (id === artId && isVideoArt(artId)) {
+                var dur = (v.duration && isFinite(v.duration) && v.duration > 0.2) ? v.duration : 4.5;
+                var offsetSec = Math.max(0, (seekMs - videoBeatStartMs) / 1000);
+                var t = offsetSec % dur;
+                if (Math.abs(v.currentTime - t) > 0.08) {
+                    try { v.currentTime = t; } catch (e) { /* ignore seek race */ }
+                }
+                if (recordMode) {
+                    if (!v.paused) v.pause();
+                } else if (v.paused) {
+                    var playP = v.play();
+                    if (playP && playP.catch) playP.catch(function () {});
+                }
+            } else {
+                if (!v.paused) v.pause();
+            }
+        }
+    }
+
+    /** Wait until the active gameplay video finishes seeking (record mode). */
+    function waitVideoSeeked() {
+        var vids = document.querySelectorAll('video.art-video');
+        var active = null;
+        var i;
+        for (i = 0; i < vids.length; i++) {
+            if (parseFloat(vids[i].style.opacity || '0') > 0.4) {
+                active = vids[i];
+                break;
+            }
+        }
+        if (!active) return Promise.resolve();
+        if (!active.seeking) return Promise.resolve();
+        return new Promise(function (resolve) {
+            var done = function () {
+                active.removeEventListener('seeked', done);
+                resolve();
+            };
+            active.addEventListener('seeked', done);
+            window.setTimeout(done, 120);
+        });
     }
 
     function fade(el, visible, blur) {
@@ -235,21 +291,20 @@
         }
         if (name === 'conquer' || name === 'art3') smashVerb('.verb[data-verb="conquer"]', name === 'conquer');
 
-        /* "Battle." smash only on the battle beat — later Arena cuts keep the plate, not the verb. */
         if (name === 'battle') {
             smashVerb('.verb[data-verb="battle"]', true);
         }
-        if (name === 'game0' || name === 'game1' || name === 'game2') {
+        if (name === 'game0' || name === 'game1') {
             var gp = p < 0.18 ? p / 0.18 : (p > 0.78 ? Math.max(0, 1 - (p - 0.78) / 0.22) : 1);
             fade(whisperGame, gp * 0.95);
         }
 
-        if (name === 'game3' || name === 'game4') {
+        if (name === 'game2' || name === 'game3') {
             var sp = p < 0.18 ? p / 0.18 : (p > 0.78 ? Math.max(0, 1 - (p - 0.78) / 0.22) : 1);
             fade(whisperSiege, sp * 0.95);
         }
 
-        if (name === 'game5' || name === 'game6') {
+        if (name === 'game4' || name === 'game5' || name === 'game6') {
             var dp = p < 0.18 ? p / 0.18 : (p > 0.78 ? Math.max(0, 1 - (p - 0.78) / 0.22) : 1);
             fade(whisperDominion, dp * 0.95);
         }
@@ -283,11 +338,12 @@
         var artId = ART_BEATS[name];
         if (artId != null) {
             var smash = name === 'art1' || name === 'collect' || name === 'battle'
-                || name === 'game1' || name === 'game2'
-                || name === 'game3' || name === 'game4' || name === 'game5';
+                || name === 'game1' || name === 'game2' || name === 'game4';
             applyKenBurns(artId, p, smash);
+            syncVideos(artId);
         } else {
             applyKenBurns(null, 0, false);
+            syncVideos(null);
             var plates = document.querySelectorAll('.art-plate');
             for (var i = 0; i < plates.length; i++) plates[i].style.opacity = '0';
         }
@@ -320,6 +376,8 @@
         sparks = [];
         lastBeat = '';
         lastFlashAt = -9999;
+        lastVideoArt = '';
+        videoBeatStartMs = 0;
         document.body.removeAttribute('data-complete');
         playing = true;
         startTs = performance.now();
@@ -332,6 +390,7 @@
         playing = false;
         cancelAnimationFrame(raf);
         renderAt(ms);
+        return waitVideoSeeked();
     }
 
     window.__promoPlay = play;

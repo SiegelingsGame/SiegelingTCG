@@ -229,6 +229,12 @@ html, body.promo-body {
     background-position: center center;
     background-size: cover;
 }
+video.art-video {
+    /* Live gameplay clips — cover the stage like still plates; no CSS bg image. */
+    object-fit: cover;
+    background: #050b1a;
+    pointer-events: none;
+}
 .art-gameplay::after {
     /* Lighter vignette so the phone screen stays bright */
     background:

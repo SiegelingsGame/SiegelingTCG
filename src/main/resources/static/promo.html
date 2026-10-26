@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/promo.css?v=7">
+    <link rel="stylesheet" href="/css/promo.css?v=8">
 </head>
 <body class="promo-body" data-mode="live">
     <div id="promoStage" class="promo-stage" aria-label="Siegelings promo">
@@ -19,13 +19,16 @@
         <div class="art-plate" data-art="1" style="--art:url('/img/gallery/bearzooka-rampage.webp')"></div>
         <div class="art-plate" data-art="2" style="--art:url('/img/gallery/hurricrane-skyruins.webp')"></div>
         <div class="art-plate" data-art="3" style="--art:url('/img/gallery/frostag-training.webp')"></div>
-        <!-- Gameplay plates — live mobile captures (Arena / Siege / Dominion) -->
-        <div class="art-plate art-gameplay" data-art="g0" style="--art:url('/img/promo/gameplay/battle-clash.webp')"></div>
-        <div class="art-plate art-gameplay" data-art="g1" style="--art:url('/img/promo/gameplay/battle-board.webp')"></div>
-        <div class="art-plate art-gameplay" data-art="g2" style="--art:url('/img/promo/gameplay/battle-attack.webp')"></div>
-        <div class="art-plate art-gameplay" data-art="g3" style="--art:url('/img/promo/gameplay/siege-map.webp')"></div>
-        <div class="art-plate art-gameplay" data-art="g4" style="--art:url('/img/promo/gameplay/siege-strike.webp')"></div>
-        <div class="art-plate art-gameplay" data-art="g5" style="--art:url('/img/promo/gameplay/dominion-keep.webp')"></div>
+        <!-- Live gameplay clips (mobile phone plates) — Arena / Siege / Dominion -->
+        <video class="art-plate art-gameplay art-video" data-art="va" muted playsinline preload="auto"
+            poster="/img/promo/gameplay/arena-poster.webp"
+            src="/video/promo/arena-live.mp4"></video>
+        <video class="art-plate art-gameplay art-video" data-art="vs" muted playsinline preload="auto"
+            poster="/img/promo/gameplay/siege-poster.webp"
+            src="/video/promo/siege-live.mp4"></video>
+        <video class="art-plate art-gameplay art-video" data-art="vd" muted playsinline preload="auto"
+            poster="/img/promo/gameplay/dominion-poster.webp"
+            src="/video/promo/dominion-live.mp4"></video>
         <!-- End-card backdrop -->
         <div class="art-plate" data-art="5" style="--art:url('/img/gallery/skydon-skyreach.webp')"></div>
 
@@ -71,6 +74,6 @@
         <a class="promo-btn" href="/">Back to site</a>
     </div>
 
-    <script src="/js/promo.js?v=7"></script>
+    <script src="/js/promo.js?v=8"></script>
 </body>
 </html>
