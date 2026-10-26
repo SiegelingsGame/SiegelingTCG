@@ -1,3 +1,9 @@
+Original prompt: Yes use short live clips of each mode
+
+- October 26, 2026 **Promo trailer gameplay beats now use short live video clips (Arena / Siege / Dominion).**
+  - **Change.** New `tools/promo/capture-promo-clips.cjs` records live mobile gameplay bursts and composites phone-bezel MP4s under `video/promo/{arena,siege,dominion}-live.mp4`. `promo.html`/`promo.js` swap still plates for seekable `<video>` plates (`va`/`vs`/`vd`); record-mode scrubbing needs HTTP Range (added in `record-promo.cjs`). Cache pins `?v=9`. Re-encoded `siegelings-promo.mp4` (36.000s).
+  - **Verification.** Seek probe advances `currentTime` across Arena/Siege clips. Trailer still pairs at ~9/11s, ~15/17s, ~23/25s differ (motion). Artifact stills `motion2-*-t*.png`.
+
 Original prompt: It flashes battle 3 times with the same image
 
 - October 26, 2026 **Promo trailer no longer repeats the Battle smash on the same Arena plate.**
