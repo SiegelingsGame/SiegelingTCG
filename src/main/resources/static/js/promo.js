@@ -11,7 +11,8 @@
     document.body.dataset.mode = recordMode ? 'record' : 'live';
 
     /* Beat schedule: [startMs, beatName, flash?]
-       Brand → Arena board angles + attack → Siege map/battle → Dominion → end. */
+       Brand → Battle once → distinct Arena board + attack → Siege → Dominion → end.
+       Do not remount the clash plate or re-smash "Battle." — that reads as a stutter. */
     var BEATS = [
         [0, 'void', false],
         [600, 'presents', false],
@@ -25,11 +26,11 @@
         [8400, 'battle', true],
         [8600, 'game0', false],
         [11200, 'game1', true],
-        [13600, 'game2', true],
-        [16200, 'game3', true],
-        [19800, 'game4', true],
-        [23600, 'game5', true],
-        [27800, 'game6', true],
+        [14200, 'game2', true],
+        [17200, 'game3', true],
+        [21000, 'game4', true],
+        [24800, 'game5', true],
+        [28600, 'game6', false],
         [31800, 'end', true]
     ];
 
@@ -45,9 +46,9 @@
         game0: 'g0',
         game1: 'g1',
         game2: 'g2',
-        game3: 'g0',
-        game4: 'g3',
-        game5: 'g4',
+        game3: 'g3',
+        game4: 'g4',
+        game5: 'g5',
         game6: 'g5',
         end: '5'
     };
@@ -234,20 +235,21 @@
         }
         if (name === 'conquer' || name === 'art3') smashVerb('.verb[data-verb="conquer"]', name === 'conquer');
 
-        if (name === 'battle' || name === 'game0' || name === 'game1' || name === 'game2' || name === 'game3') {
-            smashVerb('.verb[data-verb="battle"]', name === 'battle');
-            if (name === 'game0' || name === 'game1' || name === 'game2' || name === 'game3') {
-                var gp = p < 0.18 ? p / 0.18 : (p > 0.78 ? Math.max(0, 1 - (p - 0.78) / 0.22) : 1);
-                fade(whisperGame, gp * 0.95);
-            }
+        /* "Battle." smash only on the battle beat — later Arena cuts keep the plate, not the verb. */
+        if (name === 'battle') {
+            smashVerb('.verb[data-verb="battle"]', true);
+        }
+        if (name === 'game0' || name === 'game1' || name === 'game2') {
+            var gp = p < 0.18 ? p / 0.18 : (p > 0.78 ? Math.max(0, 1 - (p - 0.78) / 0.22) : 1);
+            fade(whisperGame, gp * 0.95);
         }
 
-        if (name === 'game4' || name === 'game5') {
+        if (name === 'game3' || name === 'game4') {
             var sp = p < 0.18 ? p / 0.18 : (p > 0.78 ? Math.max(0, 1 - (p - 0.78) / 0.22) : 1);
             fade(whisperSiege, sp * 0.95);
         }
 
-        if (name === 'game6') {
+        if (name === 'game5' || name === 'game6') {
             var dp = p < 0.18 ? p / 0.18 : (p > 0.78 ? Math.max(0, 1 - (p - 0.78) / 0.22) : 1);
             fade(whisperDominion, dp * 0.95);
         }
@@ -281,8 +283,8 @@
         var artId = ART_BEATS[name];
         if (artId != null) {
             var smash = name === 'art1' || name === 'collect' || name === 'battle'
-                || name === 'game1' || name === 'game2' || name === 'game3'
-                || name === 'game4' || name === 'game5' || name === 'game6';
+                || name === 'game1' || name === 'game2'
+                || name === 'game3' || name === 'game4' || name === 'game5';
             applyKenBurns(artId, p, smash);
         } else {
             applyKenBurns(null, 0, false);
