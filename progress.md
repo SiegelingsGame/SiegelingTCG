@@ -1,3 +1,18 @@
+Original prompt: Example hall of siege shouldn't require scrolling on the type of leaderboard rethink everything from a single pane perspective
+
+- October 26, 2026 **Home sheets: every pop-up reads as one pane, with no scrolling.**
+  - **Change.** Each Home shortcut sheet is now laid out to fit its pane instead of scrolling.
+    - **Hall of Siege.** The seven boards are a 7-column row of icon crests with equal widths, so none hides off the edge. Labels stay for screen readers via `aria-label`, `title` and a visually-hidden label, and chips carry `aria-pressed`. A new `.sg-lb-now` line names the chosen board with its icon and shows "Top N · period". The sheet shows the top 6 rows (`LB_SHEET_ROWS`), with compact rows.
+    - **Short screens (landscape phones).** The sheet widens to 760px so content sits side by side. Hall rows and objectives go two columns, expeditions tile across, and the empty-hall card sizes to the space left.
+    - **Rotation picker.** It tries every column count and picks the largest thumbnails that all fit (`fitPicker`), and re-fits on resize.
+    - **Outside the sheet.** `.sg-lb-now` is hidden, so other surfaces are unchanged.
+  - Cache pins: `home-redesign.css?v=165`, `home-redesign.js?v=157`.
+  - **Verification.** Headless Chromium at 390x844, 375x667, 844x390 and 1920x1080, with mock content injected: 10 leaderboard rows, 5 quests and a saved expedition.
+    - In Hall, Featured, Objectives, Expedition and the Rotation picker, the sheet body's `scrollHeight` is no larger than its `clientHeight` at every size.
+    - All 7 board crests sit inside the card, and 6 rows show.
+    - Switching to Siege Score updates the now-line and the pressed crest. On close the live leaderboard section returns to the scroller, with none left in the sheet.
+    - No page errors.
+
 Original prompt: Stylistically integrate the pop ups so they fit the theme better with the new updates? Maybe they popup in Liquid Glass on the screen, add an opening animation for them as well this current view just doesn't feel right it's placement size and layout is disjointed
 
 - October 26, 2026 **Home: the shortcut pop-ups are now liquid-glass sheets that grow out of their button.**
