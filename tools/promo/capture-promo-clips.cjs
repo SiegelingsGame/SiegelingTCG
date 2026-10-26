@@ -335,134 +335,283 @@ async function buildBoard(page, minEach = 2) {
   return boardSnap(page);
 }
 
+/** Drain one full Arena BATTLE phase (abilities / passes until SETUP/DRAW). */
+async function resolveArenaBattle(page, maxSteps = 28) {
+  for (let i = 0; i < maxSteps; i++) {
+    const st = await boardSnap(page);
+    if (st.phase !== 'BATTLE') return st;
+    await page.evaluate(async () => {
+      const q = window.SieglingsActionQueue;
+      if (q?.isProcessing?.()) {
+        await Promise.race([q.onIdle(), new Promise((r) => setTimeout(r, 2200))]);
+      }
+      try {
+        if (gameState.pendingBattle) {
+          const abs = gameState.pendingBattle.abilities || [];
+          const hit = abs.find((a) => a.canAfford !== false && /damage|deal|strike|burst|blast|flame|ember|shot|spark/i.test((a.name || '') + (a.description || '')))
+            || abs.find((a) => a.canAfford !== false)
+            || null;
+          if (hit) await submitBattleAction(hit.index, -1, -1);
+          else await submitBattleAction(-1, -1, -1);
+        } else if (!q?.isProcessing?.()) {
+          await api('battle');
+        }
+      } catch (e) { /* keep draining */ }
+    });
+    await page.waitForTimeout(320);
+  }
+  return boardSnap(page);
+}
+
 async function captureArena(page) {
   await startArena(page);
-  const st = await buildBoard(page, 2);
+  // Seed a short board so the filmed battle has Siegelings on both sides.
+  const st = await buildBoard(page, 1);
   console.log('arena board ready', st);
 
-  // Clip: place + end-turn / battle resolve motion
-  return captureWhile(page, 'arena-live', 5200, async () => {
+  // Get to the brink of battle (SETUP done / about to fight) before the camera rolls.
+  for (let i = 0; i < 4; i++) {
     let snap = await boardSnap(page);
+    if (snap.phase === 'BATTLE') break;
     if (snap.phase === 'DRAW') {
       await page.evaluate(async () => { try { await playerDraw(); } catch (e) {} });
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(400);
+      await waitQueueIdle(page, 8000);
+      continue;
     }
-    snap = await boardSnap(page);
     if (snap.phase === 'SETUP' && snap.active === 'PLAYER') {
       await placeOne(page);
-      await page.waitForTimeout(600);
+      await page.waitForTimeout(300);
+      break;
+    }
+    await page.waitForTimeout(300);
+  }
+
+  // Clip: enter battle → resolve abilities → leave BATTLE (start + resolve).
+  return captureWhile(page, 'arena-live', 6500, async () => {
+    let snap = await boardSnap(page);
+    console.log('arena clip start', snap.phase, 'P', snap.player.length, 'E', snap.enemy.length);
+    if (snap.phase === 'DRAW') {
+      await page.evaluate(async () => { try { await playerDraw(); } catch (e) {} });
+      await page.waitForTimeout(450);
+      snap = await boardSnap(page);
+    }
+    if (snap.phase === 'SETUP') {
+      if (snap.active === 'PLAYER') {
+        await placeOne(page);
+        await page.waitForTimeout(450);
+      }
       try { await page.evaluate(async () => { await endTurn(); }); } catch (e) {}
-      await page.waitForTimeout(1800);
+      await page.waitForTimeout(900);
+      await waitQueueIdle(page, 12000);
     }
     snap = await boardSnap(page);
+    console.log('arena entering battle?', snap.phase);
     if (snap.phase === 'BATTLE') {
-      for (let i = 0; i < 8; i++) {
-        await page.evaluate(async () => {
-          try {
-            if (gameState.pendingBattle) {
-              const abs = gameState.pendingBattle.abilities || [];
-              const hit = abs.find((a) => a.canAfford !== false) || null;
-              if (hit) await submitBattleAction(hit.index, -1, -1);
-              else await submitBattleAction(-1, -1, -1);
-            } else {
-              await api('battle');
-            }
-          } catch (e) {}
-        });
-        await page.waitForTimeout(380);
-      }
+      const done = await resolveArenaBattle(page, 24);
+      console.log('arena battle resolved →', done.phase, 'P', done.player.length, 'E', done.enemy.length);
     } else {
-      // Hold on a lively board if we couldn't enter battle
-      await page.waitForTimeout(2200);
+      // Force into battle if AI is still setting up.
+      for (let i = 0; i < 6; i++) {
+        snap = await boardSnap(page);
+        if (snap.phase === 'BATTLE') {
+          await resolveArenaBattle(page, 20);
+          break;
+        }
+        if (snap.phase === 'SETUP' && snap.active === 'PLAYER') {
+          try { await page.evaluate(async () => { await endTurn(); }); } catch (e) {}
+        }
+        await page.waitForTimeout(700);
+      }
     }
   });
 }
 
-async function captureSiege(page) {
-  console.log('siege setup');
+async function startStandardSiege(page) {
+  console.log('siege standard setup');
   await page.goto(`${LIVE}/siege`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(2200);
-  await waitArt(page, 2);
-  // Tutorial path reaches battle quickly with a seeded warband.
-  await page.locator('#chooseTutorialMode').click();
-  await page.waitForTimeout(1800);
+  await page.waitForTimeout(2500);
+  await waitArt(page, 1);
 
-  async function smashCoach() {
-    for (let i = 0; i < 8; i++) {
-      const clicked = await page.evaluate(() => {
-        const btns = Array.from(document.querySelectorAll('button'));
-        const hit = btns.find((b) => /got it|continue|next|skip|finish|ok/i.test((b.textContent || '').trim()));
-        if (hit) { hit.click(); return true; }
-        return false;
-      });
-      if (!clicked) break;
-      await page.waitForTimeout(220);
+  // Dismiss resume / account banners if any.
+  for (const name of [/New run|Fresh|Dismiss|Close|Continue without/i]) {
+    const b = page.getByRole('button', { name }).first();
+    if (await b.count() && await b.isVisible().catch(() => false)) {
+      await b.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(400);
     }
-    await dismissCoaches(page);
   }
 
-  await smashCoach();
-  await page.waitForFunction(() => document.body.dataset.screen === 'mapScreen', { timeout: 30000 }).catch(() => {});
-  await smashCoach();
+  await page.locator('#chooseSiegeMode').waitFor({ state: 'visible', timeout: 60000 });
+  await page.locator('#chooseSiegeMode').click();
+  console.log('chose Adventure (standard) mode');
 
-  // Enter the Ruined Gate battle before the camera rolls.
-  for (let attempt = 0; attempt < 6; attempt++) {
-    await page.evaluate(() => {
-      const n = document.querySelector('.map-node-g.reachable') || document.querySelector('.map-node-g.type-BATTLE');
-      if (n) n.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+  // Knight step
+  await page.waitForSelector('#setupStepKnight:not(.hidden), .knight-card', { timeout: 60000 });
+  await page.waitForTimeout(800);
+  await page.waitForFunction(() => {
+    return document.querySelectorAll('.knight-card:not(.locked)').length > 0;
+  }, null, { timeout: 60000 }).catch(() => {});
+
+  const knightPicked = await page.evaluate(() => {
+    const cards = Array.from(document.querySelectorAll('.knight-card:not(.locked)'));
+    const pick = cards[0];
+    if (!pick) return null;
+    pick.click();
+    return pick.getAttribute('data-kid');
+  });
+  console.log('knight', knightPicked);
+  await page.waitForTimeout(500);
+  await page.locator('#knightNextBtn').click({ force: true });
+  await page.waitForTimeout(1000);
+
+  // Warband step — wait for ready siegelings, pick enough for the knight.
+  await page.waitForSelector('#setupStepParty:not(.hidden), .sgl-card', { timeout: 90000 });
+  await page.waitForFunction(() => {
+    const panel = document.getElementById('warbandLoadPanel');
+    const loading = panel && !panel.classList.contains('hidden');
+    const ready = document.querySelectorAll('.sgl-card:not(.locked)').length;
+    return !loading && ready > 0;
+  }, null, { timeout: 120000 }).catch(() => {});
+  await page.waitForTimeout(600);
+
+  const party = await page.evaluate(() => {
+    const needText = (document.getElementById('setupSummary') || {}).textContent || '';
+    const m = /Warband \((\d+)\/(\d+)\)/.exec(needText);
+    let need = m ? parseInt(m[2], 10) : 1;
+    const cards = Array.from(document.querySelectorAll('.sgl-card:not(.locked)'));
+    const picked = [];
+    for (const c of cards) {
+      if (picked.length >= need) break;
+      c.click();
+      picked.push(c.getAttribute('data-sid') || c.querySelector('.sname')?.textContent || '?');
+    }
+    return { need, picked };
+  });
+  console.log('warband', party);
+  await page.waitForTimeout(500);
+
+  // Ensure Begin Expedition is enabled
+  await page.waitForFunction(() => {
+    const btn = document.getElementById('startRunBtn');
+    return btn && !btn.disabled;
+  }, null, { timeout: 30000 }).catch(() => {});
+  await page.locator('#startRunBtn').click({ force: true });
+  console.log('Begin Expedition clicked');
+
+  await page.waitForFunction(() => document.body.dataset.screen === 'mapScreen', { timeout: 90000 });
+  await page.waitForTimeout(1200);
+  await waitArt(page, 2);
+  const screen = await page.evaluate(() => document.body.dataset.screen);
+  console.log('siege on map', screen, 'reachable', await page.locator('.map-node-g.reachable').count());
+}
+
+async function dismissSiegeModals(page) {
+  await page.evaluate(() => {
+    // Battlegrounds is a setup-only secondary mode — strip it so it cannot
+    // steal the map/battle clip (Got it / entry clicks were leaking mid-run).
+    ['bgModal', 'battlegroundsEntry', 'chooseBattlegroundsMode'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.remove();
     });
-    await page.waitForTimeout(900);
-    await smashCoach();
-    await page.evaluate(() => {
-      const btns = Array.from(document.querySelectorAll('button'));
-      const hit = btns.find((b) => /fight|begin|battle|continue/i.test((b.textContent || '').trim()));
-      if (hit) hit.click();
-    });
-    await page.waitForTimeout(700);
-    const screen = await page.evaluate(() => document.body.dataset.screen);
-    if (screen === 'battleScreen') break;
-  }
-  await smashCoach();
+    document.querySelectorAll('.bg-modal, .bg-entry, [id*="bgModal"]').forEach((el) => el.remove());
+  });
+}
+
+async function captureSiege(page) {
+  await startStandardSiege(page);
+  await dismissSiegeModals(page);
+
+  // Prefer a battle / skirmish node among reachable ones.
+  await page.evaluate(() => {
+    const battle = document.querySelector('.map-node-g.reachable.type-BATTLE')
+      || document.querySelector('.map-node-g.reachable');
+    if (battle) battle.scrollIntoView({ block: 'center', inline: 'center' });
+  });
+  await page.waitForTimeout(400);
+
   let pre = await page.evaluate(() => document.body.dataset.screen);
   console.log('siege pre-clip screen', pre);
 
-  // Clip 1 budget: map travel if still on map, else battle card play.
-  return captureWhile(page, 'siege-live', 5200, async () => {
-    await smashCoach();
+  // Clip: hold map → tap a Skirmish/battle point → fight (no tutorial coaches).
+  return captureWhile(page, 'siege-live', 7200, async () => {
+    await dismissSiegeModals(page);
+    // Let the map read for ~1.6s before travel.
+    await page.waitForTimeout(1600);
+
+    await page.evaluate(() => {
+      const n = document.querySelector('.map-node-g.reachable.type-BATTLE')
+        || document.querySelector('.map-node-g.reachable')
+        || document.querySelector('.map-node-g');
+      if (n) n.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    });
+    await page.waitForTimeout(1000);
+    await dismissSiegeModals(page);
+
+    // Confirm travel/fight only — avoid loose /go/ which matches "Got it".
+    await page.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll('button'));
+      const hit = btns.find((b) => /^(fight|begin battle|enter|travel|embark)/i.test((b.textContent || '').trim()));
+      if (hit) hit.click();
+    });
+    await page.waitForTimeout(1100);
+    await dismissSiegeModals(page);
+
     let screen = await page.evaluate(() => document.body.dataset.screen);
+    console.log('siege after node', screen);
+
+    // Non-battle nodes: leave and try another reachable battle.
     if (screen !== 'battleScreen') {
       await page.evaluate(() => {
-        const map = document.querySelector('#mapSvg, .map-svg, svg.map, #adventureMap, .map-wrap');
-        const host = map && (map.parentElement || map);
-        if (host && host.scrollTop != null) host.scrollTop += 70;
-        const n = document.querySelector('.map-node-g.reachable') || document.querySelector('.map-node-g');
+        const btns = Array.from(document.querySelectorAll('button'));
+        const hit = btns.find((b) => /^(continue|done|leave|back to map|claim)$/i.test((b.textContent || '').trim()));
+        if (hit) hit.click();
+      });
+      await page.waitForTimeout(700);
+      await page.evaluate(() => {
+        const n = document.querySelector('.map-node-g.reachable.type-BATTLE')
+          || document.querySelector('.map-node-g.reachable');
         if (n) n.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
       });
+      await page.waitForTimeout(900);
+      await page.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll('button'));
+        const hit = btns.find((b) => /^(fight|begin battle|enter|travel)/i.test((b.textContent || '').trim()));
+        if (hit) hit.click();
+      });
       await page.waitForTimeout(1000);
-      await smashCoach();
+      screen = await page.evaluate(() => document.body.dataset.screen);
+      console.log('siege second try', screen);
     }
+
+    await dismissSiegeModals(page);
     screen = await page.evaluate(() => document.body.dataset.screen);
-    console.log('siege during clip', screen);
     if (screen === 'battleScreen') {
       await waitArt(page, 2);
-      await smashCoach();
-      // Drag-ish: click hand card then battlefield
+      await page.waitForTimeout(500);
+      // Play one card for motion, then linger on the battle — avoid End Turn
+      // (skirmish victory was bouncing back into setup + Battlegrounds modal).
       await page.evaluate(() => {
-        const card = document.querySelector('.hand-card, .card-fan .card, .battle-hand .card, .hand .card');
+        const card = document.querySelector('.hand-card, .card-fan .card, .battle-hand .card, .hand .card, .fan-card');
         if (card) card.click();
       });
       await page.waitForTimeout(500);
       await page.evaluate(() => {
-        const slot = document.querySelector('.foe-unit, .enemy-unit, .battle-unit, .battlefield, [data-side="enemy"], .lane');
+        const slot = document.querySelector(
+          '.foe-unit, .enemy-unit, .battle-unit, .battlefield, [data-side="enemy"], .lane'
+        );
         if (slot) slot.click();
       });
-      await page.waitForTimeout(900);
+      await page.waitForTimeout(2500);
+      await dismissSiegeModals(page);
+      const still = await page.evaluate(() => document.body.dataset.screen);
+      console.log('siege linger screen', still);
+    } else {
       await page.evaluate(() => {
-        const end = Array.from(document.querySelectorAll('button')).find((b) => /end turn/i.test(b.textContent || ''));
-        if (end) end.click();
+        const scroll = document.getElementById('mapScroll');
+        if (scroll) scroll.scrollTop += 90;
       });
       await page.waitForTimeout(1200);
-      await smashCoach();
     }
   });
 }
