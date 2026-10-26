@@ -1,3 +1,9 @@
+Original prompt: It flashes battle 3 times with the same image
+
+- October 26, 2026 **Promo trailer no longer repeats the Battle smash on the same Arena plate.**
+  - **Change.** `promo.js` shows the `Battle.` verb only on the `battle` beat; removed the `game3 → g0` art remap that reused clash. Later cuts are distinct: SETUP board (`battle-board.webp` on g1) → Arena attack → Siege map → Siege battle → Dominion. Cache pins `?v=7`. Re-encoded `video/siegelings-promo.mp4` (36.000s).
+  - **Verification.** Seek probe: Battle opacity only at ~8.5s (`g0`); 9s/12s/15s/18s/22s/26s map to `g0→g1→g2→g3→g4→g5` with no repeated Battle verb. Stills under `/opt/cursor/artifacts/fix-battle-*.png`.
+
 Original prompt: In the trailer show multiple views of the board also with a full Board with notches attached correctly 10 cards on both sides. So a quick clip of an attack in arena mode. Show a clip of siege mode on the map navigating and a battle clip then a clip of dominion mode
 
 - October 26, 2026 **Promo trailer extended to ~36s with Arena board/attack, Siege map+battle, and Dominion plates.**
