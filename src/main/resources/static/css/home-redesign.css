@@ -4903,49 +4903,157 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     .sg-app .sg-top { gap:7px; }
   }
 
-  /* On-demand panels. Its body is the one region that scrolls. */
+  /* On-demand panels: a liquid-glass sheet over a dimmed stage. It grows out
+     of the shortcut that opened it (--sheet-ox/--sheet-oy, set by aimSheet),
+     sits centred in the space under the header, and its body is the one
+     region that scrolls. */
   .sg-stage-panel {
-    position:absolute; z-index:3; top:var(--stage-top);
-    left:50%; transform:translateX(-50%); width:min(600px, calc(100% - 2 * max(14px, var(--sal), var(--sar))));
-    display:flex; animation:sgStagePanel .22s ease-out;
+    position:absolute; z-index:6; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    padding:calc(var(--stage-top) + 10px) max(14px, var(--sar)) calc(var(--stage-bottom) + 10px) max(14px, var(--sal));
   }
   .sg-stage-panel[hidden] { display:none; }
-  @keyframes sgStagePanel { from { opacity:0; transform:translate(-50%, 8px); } to { opacity:1; transform:translate(-50%, 0); } }
+  .sg-stage-scrim {
+    position:absolute; inset:0; border:0; padding:0; cursor:pointer;
+    background:radial-gradient(120% 90% at 50% 45%, rgba(4,10,20,.28), rgba(4,10,20,.62));
+    backdrop-filter:blur(5px) saturate(1.1); -webkit-backdrop-filter:blur(5px) saturate(1.1);
+  }
   .sg-stage-panel-card {
-    flex:1 1 auto; min-height:0; display:flex; flex-direction:column; border-radius:20px; overflow:hidden;
-    /* Sized to its content up to the gap between the top chrome and the tab bar. */
-    max-height:calc(var(--sg-vh, 100dvh) - var(--stage-top) - var(--stage-bottom) - 6px);
-    background:rgba(9,36,52,.9); border:1px solid rgba(180,140,255,.3);
-    box-shadow:0 18px 50px rgba(0,0,0,.6);
-    backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+    position:relative; z-index:1;
+    width:min(560px, 100%); min-height:0; max-height:100%;
+    display:flex; flex-direction:column; border-radius:28px; overflow:hidden;
+    color:var(--ink);
+    border:1px solid rgba(255,255,255,.24);
+    background:
+      radial-gradient(130% 70% at 0% 0%, rgba(255,255,255,.2), transparent 55%),
+      linear-gradient(165deg, color-mix(in srgb, var(--el, #8fd3ff) 16%, rgba(255,255,255,.1)), rgba(255,255,255,.04) 42%, rgba(10,16,30,.5)),
+      rgba(14,22,38,.4);
+    box-shadow:
+      0 30px 80px rgba(0,0,0,.55),
+      0 0 0 1px rgba(0,0,0,.18),
+      0 0 60px -12px color-mix(in srgb, var(--el, #8fd3ff) 45%, transparent),
+      inset 0 1px 0 rgba(255,255,255,.45),
+      inset 0 -1px 0 rgba(255,255,255,.08);
+    backdrop-filter:blur(30px) saturate(1.8); -webkit-backdrop-filter:blur(30px) saturate(1.8);
+    transform-origin:var(--sheet-ox, 50%) var(--sheet-oy, 0);
+  }
+  /* The specular sweep along the top rim that sells the glass. */
+  .sg-stage-panel-card::before {
+    content:''; position:absolute; left:18px; right:18px; top:0; height:1px; pointer-events:none;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,.85), transparent);
+    opacity:.7;
   }
   .sg-stage-panel-card > header {
-    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:10px 10px 6px 18px;
+    flex:0 0 auto; display:flex; align-items:center; gap:12px; min-height:68px;
+    padding:12px 12px 10px 14px;
+    border-bottom:1px solid rgba(255,255,255,.1);
   }
-  .sg-stage-panel-card h3 { margin:0; font-family:var(--serif); font-size:19px; font-weight:600; }
+  .sg-stage-panel-ico {
+    flex:0 0 auto; width:40px; height:40px; border-radius:50%; display:grid; place-items:center;
+    color:#fff;
+    background:radial-gradient(circle at 35% 30%, rgba(255,255,255,.4), color-mix(in srgb, var(--el, #8fd3ff) 45%, rgba(255,255,255,.08)) 70%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.5), 0 6px 18px color-mix(in srgb, var(--el, #8fd3ff) 40%, transparent);
+  }
+  .sg-stage-panel-ico svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .sg-stage-panel-titles { flex:1 1 auto; min-width:0; }
+  .sg-stage-panel-card h3 {
+    margin:0; font-family:var(--serif); font-size:20px; font-weight:600; line-height:1.15;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .sg-stage-panel-titles p {
+    margin:3px 0 0; font-size:11.5px; letter-spacing:.03em; color:rgba(234,242,255,.72);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .sg-stage-panel-slot { flex:0 0 auto; width:0; }
+  /* On a phone the title needs the icon's room more than the icon does. */
+  @media (max-width:480px) {
+    .sg-stage-panel-ico { display:none; }
+    .sg-stage-panel-card > header { padding-left:18px; gap:10px; }
+  }
   .sg-stage-close {
-    width:34px; height:34px; border-radius:50%; border:1px solid rgba(255,255,255,.18);
-    background:rgba(255,255,255,.06); color:var(--ink); font-size:20px; line-height:1; cursor:pointer;
+    flex:0 0 auto; width:36px; height:36px; border-radius:50%; border:1px solid rgba(255,255,255,.24);
+    background:rgba(255,255,255,.1); color:var(--ink); font-size:20px; line-height:1; cursor:pointer;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.3);
   }
   .sg-stage-panel-body {
     flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain;
-    -webkit-overflow-scrolling:touch; padding:0 0 12px;
+    -webkit-overflow-scrolling:touch; padding:14px 0 16px;
   }
-  /* Lent sections bring their own titles; the panel header already says it. */
+
+  /* Opening: the glass swells out of its button with a slight overshoot while
+     the art behind dims, then the contents rise in. Closing runs it back. */
+  .sg-stage-panel.is-opening .sg-stage-scrim { animation:sgSheetFade .3s ease-out both; }
+  .sg-stage-panel.is-opening .sg-stage-panel-card { animation:sgSheetIn .46s cubic-bezier(.2,.9,.25,1.12) both; }
+  .sg-stage-panel.is-opening .sg-stage-panel-card > header { animation:sgSheetRise .42s .08s cubic-bezier(.2,.8,.25,1) both; }
+  /* Opacity only: a transform here would make the lent section the containing
+     block of its header chip and the chip would jump mid-animation. */
+  .sg-stage-panel.is-opening .sg-stage-panel-body > * { animation:sgSheetFade .4s .16s ease-out both; }
+  .sg-stage-panel.is-closing .sg-stage-scrim { animation:sgSheetFade .2s ease-in reverse both; }
+  .sg-stage-panel.is-closing .sg-stage-panel-card { animation:sgSheetOut .2s cubic-bezier(.4,0,.8,.4) both; }
+  @keyframes sgSheetFade { from { opacity:0; } to { opacity:1; } }
+  @keyframes sgSheetIn {
+    0% { opacity:0; transform:scale(.38); filter:blur(10px); }
+    55% { opacity:1; filter:blur(0); }
+    100% { opacity:1; transform:scale(1); filter:blur(0); }
+  }
+  @keyframes sgSheetOut { to { opacity:0; transform:scale(.5); filter:blur(6px); } }
+  @keyframes sgSheetRise { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion:reduce) {
+    .sg-stage-panel.is-opening .sg-stage-panel-card,
+    .sg-stage-panel.is-opening .sg-stage-panel-card > header,
+    .sg-stage-panel.is-opening .sg-stage-panel-body > *,
+    .sg-stage-panel.is-closing .sg-stage-panel-card { animation:sgSheetFade .15s ease-out both; }
+  }
+
+  /* Lent sections bring their own titles; the sheet header already says it.
+     Their action link (Binder, the period cycle, Siege) is lifted into the
+     header as a glass chip beside the close button. The card, not the
+     scrolling body, is its containing block, so it stays put on scroll. */
   /* An empty strip is nothing but its head ("Sign in to track them"), so it keeps it. */
   .sg-stage-panel-body .sg-section-head h3,
-  .sg-stage-panel-body .sg-strip:not(.is-empty) .sg-strip-head { display:none; }
-  .sg-stage-panel-body .sg-section-head { justify-content:flex-end; padding-top:0; }
-  .sg-stage-panel-body .sg-strip { margin:0 14px; cursor:default; }
-  .sg-stage-panel-body .sg-exps { margin:4px 14px 0; }
-  .sg-stage-panel-body .sg-lb-empty { margin:0 18px; height:150px; }
+  .sg-stage-panel-body .sg-strip:not(.is-empty) .sg-strip-head,
+  .sg-stage-panel-body .sg-feat-note { display:none; }
+  .sg-stage-panel-body .sg-section { padding:0; }
+  /* Doubled class: .sg-section:first-of-type .sg-section-head adds top padding. */
+  .sg-stage-panel-body .sg-section .sg-section-head {
+    position:absolute; z-index:2; top:18px; right:56px; margin:0; padding:0; display:flex;
+  }
+  .sg-stage-panel-body .sg-section-head a,
+  .sg-stage-panel-body .sg-lb-cycle {
+    display:inline-flex; align-items:center; height:36px; padding:0 14px; border-radius:999px;
+    font-size:10.5px; font-weight:700; letter-spacing:.14em; color:var(--gold-bright, #ffe08a);
+    border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.1);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.3);
+  }
+  /* Inner blocks lose their own dark plates and frost with the sheet instead. */
+  .sg-stage-panel-body .sg-strip {
+    margin:0 16px; cursor:default; border-radius:18px;
+    border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06);
+    backdrop-filter:none; -webkit-backdrop-filter:none;
+  }
+  .sg-stage-panel-body .sg-quest { padding:13px 16px; border-top-color:rgba(255,255,255,.08); }
+  .sg-stage-panel-body .sg-quest:first-child { border-top:0; }
+  .sg-stage-panel-body .sg-quest .qt { font-size:13px; }
+  .sg-stage-panel-body .sg-bar { margin:4px 16px 14px; background:rgba(255,255,255,.12); }
+  .sg-stage-panel-body .sg-exps { margin:0 16px; }
+  .sg-stage-panel-body .sg-exp { border-radius:20px; box-shadow:0 12px 30px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.16); }
+  .sg-stage-panel-body .sg-lb-boards {
+    padding:2px 16px 12px;
+    -webkit-mask-image:linear-gradient(90deg, #000 85%, transparent);
+    mask-image:linear-gradient(90deg, #000 85%, transparent);
+  }
+  .sg-stage-panel-body .sg-lb-chip:not(.on) { background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.18); }
+  .sg-stage-panel-body .sg-lb-body { padding:0 16px; }
+  .sg-stage-panel-body .sg-lb-row { background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.12); }
+  .sg-stage-panel-body .sg-lb-empty { margin:0; height:170px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.16); }
   /* The day's three Siegelings sit side by side instead of as a swipe rail, so
      the whole trio is visible the moment the panel opens. */
   .sg-stage-panel-body .sg-feat-trio {
     display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px;
-    overflow:visible; padding:4px 14px 6px; scroll-snap-type:none;
+    overflow:visible; padding:0 16px; scroll-snap-type:none;
   }
   .sg-stage-panel-body .sg-feat-trio .sg-feat { flex:none; height:auto; aspect-ratio:3 / 4.2; }
+  .sg-stage-panel-body .sg-feat-plate { box-shadow:0 12px 26px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.18); }
   /* A third of a phone is too narrow for name and marks on one line, so the
      name gets the full width and the marks sit under it. */
   .sg-stage-panel-body .sg-feat-trio .sg-feat-art { bottom:50px; }
@@ -4953,6 +5061,11 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     flex-direction:column; align-items:center; gap:5px; padding:8px 6px 10px;
   }
   .sg-stage-panel-body .sg-feat-trio .sg-feat-name { max-width:100%; text-align:center; }
+  /* Landscape phones: the trio fits the sheet whole rather than scrolling. */
+  @media (max-height:520px) {
+    .sg-stage-panel-body .sg-feat-trio { width:min(100%, 520px); margin:0 auto; }
+    .sg-stage-panel-body .sg-feat-trio .sg-feat { aspect-ratio:auto; height:max(120px, calc(var(--sg-vh, 100dvh) - 236px)); }
+  }
 
   .sg-stage-pick-note { margin:0 18px 10px; font-size:12px; color:var(--muted); }
   .sg-stage-pick-note b { color:var(--gold-bright); margin-left:4px; display:inline-block; }
@@ -5077,9 +5190,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-stage-deck { grid-area:deck; }
   .sg-stage-caption strong { font-size:21px; }
 
-  /* Panels open under the art pill rather than over it. */
-  .sg-stage-panel { top:calc(var(--stage-top) + 42px); }
-  .sg-stage-panel-card { max-height:calc(var(--sg-vh, 100dvh) - var(--stage-top) - 42px - var(--stage-bottom) - 6px); }
+  /* Panels centre under the art pill rather than over it. */
+  .sg-stage-panel { padding-top:calc(var(--stage-top) + 46px); }
 
   /* Tall pieces are tall in the picker too. */
   .sg-stage-pick-grid { grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); }

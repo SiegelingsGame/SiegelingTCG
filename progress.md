@@ -1,3 +1,22 @@
+Original prompt: Stylistically integrate the pop ups so they fit the theme better with the new updates? Maybe they popup in Liquid Glass on the screen, add an opening animation for them as well this current view just doesn't feel right it's placement size and layout is disjointed
+
+- October 26, 2026 **Home: the shortcut pop-ups are now liquid-glass sheets that grow out of their button.**
+  - **Change.** The stage panel used for Featured, Objectives, Hall, Expedition and the Rotation picker was an opaque teal box pinned under the header. Its action link floated on a row of its own. It is now:
+    - **A glass sheet over a backdrop.** The sheet uses the same liquid-glass recipe as the binder filter sheet: frosted, saturated, a specular top rim, and a glow tinted by the current art's element. It is centred over a dimmed, blurred scrim, and tapping the scrim closes it.
+    - **A real header.** The header holds the shortcut's icon, the title, a subtitle (today's three, x/y complete, the saved-expedition count, Leaderboards), the section's own action as a glass chip (Binder, the Today period cycle, Siege) and the close button. The chip is positioned against the card, not the scrolling body, so it stays put. A slot reserves its width so the title ellipsizes instead of running under it. Phones under 480px drop the icon so "Featured Siegelings" fits.
+    - **Frosted inner blocks.** The objectives strip, leaderboard chips and rows, the empty-hall card and the expedition card lose their own dark plates and pick up the sheet's frost. Their margins are evened to 16px. Before this, the empty-hall card was inset twice.
+    - **An entrance and an exit.** The sheet scales up from the tapped button with a slight overshoot and a blur-in (origin from `aimSheet`). The header rises in and the contents fade in. Closing runs it back in 200ms (`STAGE_SHEET_CLOSE_MS`). Reduced motion gets a plain fade.
+    - **The featured trio on short screens.** Landscape phones cap the tile height so all three fit without scrolling.
+  - **Leaderboard fix.** Changing board or period while the Hall was open replaced the section, and closing then put the stale node back. `returnBorrowed` now re-finds the live one.
+  - Cache pins: `home-redesign.css?v=164`, `home-redesign.js?v=156`.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844, 844x390 and 1920x1080:
+    - Each of the 4 shortcut sheets opens centred with no horizontal overflow, and the chip is level with the close button (36px each).
+    - The title fits (188/188px for "Featured Siegelings" at 390).
+    - Scrim, Escape and the close button all close it, and the lent section returns to the scroller.
+    - The Rotation picker still opens, and tapping a featured tile opens the card sheet above the glass.
+    - The objectives were checked with 5 mock quests injected.
+    - No page errors.
+
 Original prompt: In the site outside of the home page the Siegeling logo in the top left should serve as the back /home button. Also featured should open up a view of the 3 featured Siegeling of the day
 
 - October 26, 2026 **Hub: the header logo goes back to Home, and Featured opens the day's three Siegelings.**
