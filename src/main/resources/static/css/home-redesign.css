@@ -2655,7 +2655,6 @@ body.concept-board {
 }
 .sg-lb-chip span { font-size:13px; }
 .sg-lb-chip-label { font-weight:inherit; }
-.sg-lb-now { display:none; }
 .sg-lb-chip.on {
   color:#170634; border-color:var(--el,#ffc53d);
   background:linear-gradient(180deg, color-mix(in srgb, var(--el,#ffc53d) 78%, #fff), var(--el,#ffc53d));
@@ -5039,36 +5038,34 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-stage-panel-body .sg-bar { margin:4px 16px 14px; background:rgba(255,255,255,.12); }
   .sg-stage-panel-body .sg-exps { margin:0 16px; }
   .sg-stage-panel-body .sg-exp { border-radius:20px; box-shadow:0 12px 30px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.16); }
-  /* Hall of Siege as one pane: all seven boards as a single row of crests
-     (equal columns, so none hides off the edge), the chosen board named under
-     them, then its top six. */
+  /* Hall of Siege as one pane: the seven boards wrap into labelled tiles
+     (icon over name) instead of a sideways-scrolling chip rail - four over
+     three on a phone, one row of seven wherever the sheet is wide enough. */
   .sg-stage-panel-body .sg-lb-boards {
-    display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:6px;
-    overflow:visible; padding:0 16px;
+    display:flex; flex-wrap:wrap; justify-content:center; gap:6px;
+    overflow:visible; padding:0 16px 12px;
   }
   .sg-stage-panel-body .sg-lb-chip {
-    height:42px; padding:0; justify-content:center; border-radius:14px;
+    flex:0 0 calc((100% - 18px) / 4); min-width:0; height:50px; padding:0 4px; border-radius:14px;
+    flex-direction:column; justify-content:center; gap:3px;
+    font-size:10.5px; letter-spacing:.02em;
   }
-  .sg-stage-panel-body .sg-lb-chip span { font-size:17px; line-height:1; }
-  .sg-stage-panel-body .sg-lb-chip-label {
-    position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;
-  }
+  .sg-stage-panel-body .sg-lb-chip span { font-size:15px; line-height:1; }
+  .sg-stage-panel-body .sg-lb-chip-label { max-width:100%; overflow:hidden; text-overflow:ellipsis; }
   .sg-stage-panel-body .sg-lb-chip:not(.on) {
-    color:color-mix(in srgb, var(--el,#ffc53d) 70%, #fff);
+    color:color-mix(in srgb, var(--el,#ffc53d) 45%, #fff);
     background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.16);
   }
-  .sg-stage-panel-body .sg-lb-now {
-    display:flex; align-items:baseline; gap:8px; padding:12px 18px 8px;
-  }
-  .sg-stage-panel-body .sg-lb-now span { color:var(--el,#ffc53d); font-size:14px; }
-  .sg-stage-panel-body .sg-lb-now strong { font-family:var(--serif); font-size:17px; font-weight:600; }
-  .sg-stage-panel-body .sg-lb-now em {
-    margin-left:auto; font-style:normal; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase;
-    color:rgba(234,242,255,.66);
+  @media (min-width:560px) {
+    .sg-stage-panel-body .sg-lb-chip { flex-basis:calc((100% - 36px) / 7); }
   }
   .sg-stage-panel-body .sg-lb-body { padding:0 16px; gap:4px; }
-  /* LB_SHEET_ROWS in home-redesign.js. */
+  /* The sheet shows the top six (five on short phones) so it reads whole
+     without scrolling; the full board is the rest of the list. */
   .sg-stage-panel-body .sg-lb-row:nth-child(n+7) { display:none; }
+  @media (orientation:portrait) and (max-height:720px) {
+    .sg-stage-panel-body .sg-lb-row:nth-child(n+6) { display:none; }
+  }
   .sg-stage-panel-body .sg-lb-row { padding:8px 12px; background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.12); }
   .sg-stage-panel-body .sg-lb-rank { flex-basis:24px; height:24px; }
   .sg-stage-panel-body .sg-lb-empty { margin:0; height:150px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.16); }
@@ -5099,9 +5096,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     .sg-stage-panel-body .sg-quest:nth-child(2) { border-top:0; }
     .sg-stage-panel-body .sg-exps { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); }
     .sg-stage-panel-body .sg-exp { min-height:130px; }
-    .sg-stage-panel-body .sg-lb-chip { height:30px; }
-    .sg-stage-panel-body .sg-lb-now { padding:6px 18px 4px; }
-    .sg-stage-panel-body .sg-lb-now strong { font-size:15px; }
+    .sg-stage-panel-body .sg-lb-chip { height:40px; gap:1px; }
+    .sg-stage-panel-body .sg-lb-boards { padding-bottom:8px; }
     .sg-stage-panel-body .sg-lb-body { display:grid; grid-template-columns:1fr 1fr; gap:4px 8px; }
     .sg-stage-panel-body .sg-lb-row { padding:4px 10px; }
     .sg-stage-panel-body .sg-lb-rank { flex-basis:22px; height:22px; font-size:12px; }
@@ -5116,7 +5112,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   @keyframes sgStageNudge { 25% { transform:translateX(-3px); } 75% { transform:translateX(3px); } }
   .sg-stage-pick-grid {
     display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; padding:0 14px;
-    justify-content:center;
   }
   .sg-stage-pick {
     position:relative; aspect-ratio:16 / 9; border-radius:12px; overflow:hidden; padding:0; cursor:pointer;

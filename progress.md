@@ -1,3 +1,15 @@
+Original prompt: Well the wallpaper selection will have scrolling unlabeled icons don't mean anything just place them strategically so they don't need scrolling
+
+- October 26, 2026 **Hall sheet: labelled board tiles that wrap; the wallpaper picker scrolls again.**
+  - **Change.** The previous entry's icon-only crest row is replaced, along with its `.sg-lb-now` caption and the `LB_SHEET_ROWS` constant. Each board is now a tile with its icon over its name. On phones the tiles wrap four over three, with the short row centred. Where the viewport is at least 560px wide they sit in one row of seven. No tile scrolls and no label clips. The sheet shows the top 6 rows, or 5 on portrait screens under 720px tall. The header subtitle is back to "Leaderboards". The Rotation picker's fit-to-pane sizing (`fitPicker`) is gone, and it is a normal scrolling grid again, as asked. Cache pins: `home-redesign.css?v=166`, `home-redesign.js?v=158`.
+  - **Verification.** Headless Chromium at 390x844, 375x667, 844x390 and 1920x1080, with mock leaderboard, quest and expedition content:
+    - Hall, Featured, Objectives and Expedition do not scroll at any size.
+    - All 7 board tiles sit inside the card with no clipped labels: 4+3 on phones, 7 across in landscape and on desktop.
+    - 375x667 shows 5 rows.
+    - The picker scrolls in landscape.
+    - Switching boards and closing returns the leaderboard to the scroller. This held in 8 of 9 runs. One early run lost the section, and I couldn't reproduce it.
+    - No page errors.
+
 Original prompt: Example hall of siege shouldn't require scrolling on the type of leaderboard rethink everything from a single pane perspective
 
 - October 26, 2026 **Home sheets: every pop-up reads as one pane, with no scrolling.**

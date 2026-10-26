@@ -1652,7 +1652,7 @@
     // is folded into the sheet's header.
     function sheetSubtitle(name, node) {
       if (name === 'Featured Siegelings') return 'Today\'s three \u00b7 new at midnight';
-      if (name === 'Hall of Siege') return 'Tap a crest to switch boards';
+      if (name === 'Hall of Siege') return 'Leaderboards';
       if (name === 'Home Rotation') return 'The art behind Home';
       if (name === 'Daily Objectives') {
         var cnt = node && node.querySelector('.sg-strip-head .cnt');
@@ -1738,36 +1738,9 @@
       sheet.classList.remove('is-opening'); void sheet.offsetWidth; sheet.classList.add('is-opening');
     }
 
-    /* The picker is sized to the sheet rather than scrolled: every column count
-       is tried and the one giving the largest thumbnails that all fit wins. */
-    function fitPicker() {
-      var grid = sheetBody.querySelector('.sg-stage-pick-grid');
-      if (!grid) return;
-      var n = grid.children.length;
-      var panelStyle = getComputedStyle(sheet);
-      var cardH = sheet.clientHeight - parseFloat(panelStyle.paddingTop) - parseFloat(panelStyle.paddingBottom);
-      var head = sheet.querySelector('.sg-stage-panel-card > header');
-      var note = sheetBody.querySelector('.sg-stage-pick-note');
-      var bodyStyle = getComputedStyle(sheetBody);
-      var h = cardH - head.offsetHeight - parseFloat(bodyStyle.paddingTop) - parseFloat(bodyStyle.paddingBottom) -
-        (note ? note.offsetHeight + 10 : 0) - 2;
-      var w = sheetBody.clientWidth - 28;
-      var gap = 8, ratio = tall ? 9 / 16 : 16 / 9, best = { tw: 0, c: 1 };
-      for (var c = 1; c <= n; c++) {
-        var rows = Math.ceil(n / c);
-        var tw = Math.min((w - (c - 1) * gap) / c, ((h - (rows - 1) * gap) / rows) * ratio);
-        if (tw > best.tw) best = { tw: tw, c: c };
-      }
-      grid.style.gridTemplateColumns = 'repeat(' + best.c + ', ' + Math.floor(Math.max(40, best.tw)) + 'px)';
-    }
-    window.addEventListener('resize', function () {
-      if (stage.isConnected && !sheet.hidden) fitPicker();
-    });
-
     function openPicker() {
       var selected = rotation.map(function (p) { return p.id; });
       openSheet('Home Rotation', stagePickerMarkup(selected, tall), app.querySelector('[data-stage-pick]'));
-      fitPicker();
       sheetBody.onclick = function (e) {
         var btn = e.target.closest && e.target.closest('[data-stage-piece]');
         if (!btn || btn.disabled) return;
@@ -8161,9 +8134,6 @@
     // Best single Siege run in the period, not a sum - see LeaderboardService.
     siegeScore:         { label: 'Siege Score', unit: 'pts',     el: 'EARTH',    icon: '⛰', siege: true }
   };
-  // Rows Home's Hall sheet shows; the rest wait for a full leaderboard screen,
-  // because the sheet is sized to be read whole without scrolling.
-  var LB_SHEET_ROWS = 6;
   var BOARD_ORDER = ['wins', 'siegeScore', 'pvpWinRate', 'matchesPlayed', 'siegelingsDefeated', 'spellsCast', 'trapsSprung'];
   var PERIOD_LABEL = { daily: 'Today', weekly: 'This week', monthly: 'This month', year: 'This year', allTime: 'All time' };
 
@@ -8190,14 +8160,9 @@
       '<div class="sg-lb-boards">' + BOARD_ORDER.map(function (id) {
         var m = BOARD_META[id];
         return '<button class="sg-lb-chip' + (id === boardId ? ' on' : '') + '" type="button" data-lb-board="' + id +
-          '" style="--el:' + color(m.el) + '" title="' + esc(m.label) + '" aria-label="' + esc(m.label) + '"' +
-          ' aria-pressed="' + (id === boardId) + '"><span>' + m.icon + '</span><b class="sg-lb-chip-label">' + esc(m.label) + '</b></button>';
+          '" style="--el:' + color(m.el) + '" aria-pressed="' + (id === boardId) + '"><span>' + m.icon + '</span>' +
+          '<b class="sg-lb-chip-label">' + esc(m.label) + '</b></button>';
       }).join('') + '</div>' +
-      // On Home's sheet the boards fold to a single row of crests, so the chosen
-      // board's name is spelled out here instead of on its chip.
-      '<div class="sg-lb-now"><span>' + meta.icon + '</span><strong>' + esc(meta.label) + '</strong>' +
-        '<em>' + (rows.length ? 'Top ' + Math.min(rows.length, LB_SHEET_ROWS) + ' \u00b7 ' : '') +
-        esc(PERIOD_LABEL[period] || title(period)) + '</em></div>' +
       '<div class="sg-lb-body" data-lb-body>' +
         (rows.length ? rows.slice(0, 10).map(function (r, i) { return lbRow(r, i, meta); }).join('')
                      : lbEmpty(meta, period)) +
