@@ -1,3 +1,49 @@
+Original prompt: Well the wallpaper selection will have scrolling unlabeled icons don't mean anything just place them strategically so they don't need scrolling
+
+- October 26, 2026 **Hall sheet: labelled board tiles that wrap; the wallpaper picker scrolls again.**
+  - **Change.** The previous entry's icon-only crest row is replaced, along with its `.sg-lb-now` caption and the `LB_SHEET_ROWS` constant. Each board is now a tile with its icon over its name. On phones the tiles wrap four over three, with the short row centred. Where the viewport is at least 560px wide they sit in one row of seven. No tile scrolls and no label clips. The sheet shows the top 6 rows, or 5 on portrait screens under 720px tall. The header subtitle is back to "Leaderboards". The Rotation picker's fit-to-pane sizing (`fitPicker`) is gone, and it is a normal scrolling grid again, as asked. Cache pins: `home-redesign.css?v=166`, `home-redesign.js?v=158`.
+  - **Verification.** Headless Chromium at 390x844, 375x667, 844x390 and 1920x1080, with mock leaderboard, quest and expedition content:
+    - Hall, Featured, Objectives and Expedition do not scroll at any size.
+    - All 7 board tiles sit inside the card with no clipped labels: 4+3 on phones, 7 across in landscape and on desktop.
+    - 375x667 shows 5 rows.
+    - The picker scrolls in landscape.
+    - Switching boards and closing returns the leaderboard to the scroller. This held in 8 of 9 runs. One early run lost the section, and I couldn't reproduce it.
+    - No page errors.
+
+Original prompt: Example hall of siege shouldn't require scrolling on the type of leaderboard rethink everything from a single pane perspective
+
+- October 26, 2026 **Home sheets: every pop-up reads as one pane, with no scrolling.**
+  - **Change.** Each Home shortcut sheet is now laid out to fit its pane instead of scrolling.
+    - **Hall of Siege.** The seven boards are a 7-column row of icon crests with equal widths, so none hides off the edge. Labels stay for screen readers via `aria-label`, `title` and a visually-hidden label, and chips carry `aria-pressed`. A new `.sg-lb-now` line names the chosen board with its icon and shows "Top N · period". The sheet shows the top 6 rows (`LB_SHEET_ROWS`), with compact rows.
+    - **Short screens (landscape phones).** The sheet widens to 760px so content sits side by side. Hall rows and objectives go two columns, expeditions tile across, and the empty-hall card sizes to the space left.
+    - **Rotation picker.** It tries every column count and picks the largest thumbnails that all fit (`fitPicker`), and re-fits on resize.
+    - **Outside the sheet.** `.sg-lb-now` is hidden, so other surfaces are unchanged.
+  - Cache pins: `home-redesign.css?v=165`, `home-redesign.js?v=157`.
+  - **Verification.** Headless Chromium at 390x844, 375x667, 844x390 and 1920x1080, with mock content injected: 10 leaderboard rows, 5 quests and a saved expedition.
+    - In Hall, Featured, Objectives, Expedition and the Rotation picker, the sheet body's `scrollHeight` is no larger than its `clientHeight` at every size.
+    - All 7 board crests sit inside the card, and 6 rows show.
+    - Switching to Siege Score updates the now-line and the pressed crest. On close the live leaderboard section returns to the scroller, with none left in the sheet.
+    - No page errors.
+
+Original prompt: Stylistically integrate the pop ups so they fit the theme better with the new updates? Maybe they popup in Liquid Glass on the screen, add an opening animation for them as well this current view just doesn't feel right it's placement size and layout is disjointed
+
+- October 26, 2026 **Home: the shortcut pop-ups are now liquid-glass sheets that grow out of their button.**
+  - **Change.** The stage panel used for Featured, Objectives, Hall, Expedition and the Rotation picker was an opaque teal box pinned under the header. Its action link floated on a row of its own. It is now:
+    - **A glass sheet over a backdrop.** The sheet uses the same liquid-glass recipe as the binder filter sheet: frosted, saturated, a specular top rim, and a glow tinted by the current art's element. It is centred over a dimmed, blurred scrim, and tapping the scrim closes it.
+    - **A real header.** The header holds the shortcut's icon, the title, a subtitle (today's three, x/y complete, the saved-expedition count, Leaderboards), the section's own action as a glass chip (Binder, the Today period cycle, Siege) and the close button. The chip is positioned against the card, not the scrolling body, so it stays put. A slot reserves its width so the title ellipsizes instead of running under it. Phones under 480px drop the icon so "Featured Siegelings" fits.
+    - **Frosted inner blocks.** The objectives strip, leaderboard chips and rows, the empty-hall card and the expedition card lose their own dark plates and pick up the sheet's frost. Their margins are evened to 16px. Before this, the empty-hall card was inset twice.
+    - **An entrance and an exit.** The sheet scales up from the tapped button with a slight overshoot and a blur-in (origin from `aimSheet`). The header rises in and the contents fade in. Closing runs it back in 200ms (`STAGE_SHEET_CLOSE_MS`). Reduced motion gets a plain fade.
+    - **The featured trio on short screens.** Landscape phones cap the tile height so all three fit without scrolling.
+  - **Leaderboard fix.** Changing board or period while the Hall was open replaced the section, and closing then put the stale node back. `returnBorrowed` now re-finds the live one.
+  - Cache pins: `home-redesign.css?v=164`, `home-redesign.js?v=156`.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844, 844x390 and 1920x1080:
+    - Each of the 4 shortcut sheets opens centred with no horizontal overflow, and the chip is level with the close button (36px each).
+    - The title fits (188/188px for "Featured Siegelings" at 390).
+    - Scrim, Escape and the close button all close it, and the lent section returns to the scroller.
+    - The Rotation picker still opens, and tapping a featured tile opens the card sheet above the glass.
+    - The objectives were checked with 5 mock quests injected.
+    - No page errors.
+
 Original prompt: In the site outside of the home page the Siegeling logo in the top left should serve as the back /home button. Also featured should open up a view of the 3 featured Siegeling of the day
 
 - October 26, 2026 **Hub: the header logo goes back to Home, and Featured opens the day's three Siegelings.**

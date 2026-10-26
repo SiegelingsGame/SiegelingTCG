@@ -1362,6 +1362,8 @@
   var STAGE_KEY = 'sgStageRotation';
   var STAGE_MAX = 10;
   var STAGE_DWELL_MS = 9000;
+  // Matches the .sg-stage-panel.is-closing animation in home-redesign.css.
+  var STAGE_SHEET_CLOSE_MS = 200;
   var STAGE_TALL_QUERY = '(orientation: portrait) and (max-width: 1023px)';
   // The tall stage's first rotation: the hub's own tall scenes, then the
   // loading library's, up to this many, one per Siegeling where it can.
@@ -1534,9 +1536,15 @@
           '<div class="sg-stage-caption" data-stage-caption></div>' +
         '</div>' +
       '</div>' +
-      '<div class="sg-stage-panel" data-stage-sheet hidden role="dialog" aria-modal="false">' +
+      '<div class="sg-stage-panel" data-stage-sheet hidden role="dialog" aria-modal="false" aria-labelledby="sgStageSheetTitle">' +
+        // Tapping the dimmed art around the glass closes it.
+        '<button type="button" class="sg-stage-scrim" data-stage-close tabindex="-1" aria-label="Close"></button>' +
         '<div class="sg-stage-panel-card">' +
-          '<header><h3 data-stage-sheet-title></h3>' +
+          '<header>' +
+            '<span class="sg-stage-panel-ico" data-stage-sheet-icon aria-hidden="true"></span>' +
+            '<div class="sg-stage-panel-titles"><h3 id="sgStageSheetTitle" data-stage-sheet-title></h3>' +
+              '<p data-stage-sheet-sub hidden></p></div>' +
+            '<span class="sg-stage-panel-slot" data-stage-sheet-slot></span>' +
             '<button type="button" class="sg-stage-close" data-stage-close aria-label="Close">×</button></header>' +
           '<div class="sg-stage-panel-body" data-stage-sheet-body></div>' +
         '</div>' +
@@ -1578,6 +1586,9 @@
     var sheet = stage.querySelector('[data-stage-sheet]');
     var sheetTitle = stage.querySelector('[data-stage-sheet-title]');
     var sheetBody = stage.querySelector('[data-stage-sheet-body]');
+    var sheetSub = stage.querySelector('[data-stage-sheet-sub]');
+    var sheetIcon = stage.querySelector('[data-stage-sheet-icon]');
+    var sheetSlot = stage.querySelector('[data-stage-sheet-slot]');
     var tall = stageTall();
     var rotation = readStageRotation(tall);
     var idx = 0, front = 0, timer = null, paused = false;
@@ -1628,23 +1639,79 @@
 
     function returnBorrowed() {
       if (!borrowed) return;
-      borrowed.marker.parentNode.replaceChild(borrowed.node, borrowed.marker);
+      // Changing board or period redraws the leaderboard by replacing its
+      // section, so the node that was lent may no longer be the live one.
+      var node = borrowed.node.isConnected ? borrowed.node
+        : sheetBody.querySelector('[data-home-section="' + borrowed.name + '"]');
+      if (node) borrowed.marker.parentNode.replaceChild(node, borrowed.marker);
+      else borrowed.marker.parentNode.removeChild(borrowed.marker);
       borrowed = null;
     }
 
-    function closeSheet() {
+    // What each lent section says under its title, now that its own head row
+    // is folded into the sheet's header.
+    function sheetSubtitle(name, node) {
+      if (name === 'Featured Siegelings') return 'Today\'s three \u00b7 new at midnight';
+      if (name === 'Hall of Siege') return 'Leaderboards';
+      if (name === 'Home Rotation') return 'The art behind Home';
+      if (name === 'Daily Objectives') {
+        var cnt = node && node.querySelector('.sg-strip-head .cnt');
+        return cnt ? cnt.textContent : '';
+      }
+      if (name === 'Continue Playing') {
+        var n = node ? node.querySelectorAll('.sg-exp:not(.is-empty)').length : 0;
+        return n ? n + ' saved expedition' + (n === 1 ? '' : 's') : 'Nothing saved yet';
+      }
+      return '';
+    }
+
+    var closing = null;
+    function finishClose() {
+      clearTimeout(closing); closing = null;
       returnBorrowed();
       sheet.hidden = true;
+      sheet.classList.remove('is-closing');
       sheetBody.innerHTML = '';
       sheetBody.onclick = null;
       stage.classList.remove('is-sheet-open');
     }
 
-    function openSheet(name, html) {
+    function closeSheet(instant) {
+      if (sheet.hidden) return;
+      if (instant || closing) { finishClose(); return; }
+      // The glass shrinks back toward the button it came from before it goes.
+      sheet.classList.add('is-closing');
+      closing = setTimeout(finishClose, STAGE_SHEET_CLOSE_MS);
+    }
+
+    // The sheet grows out of the shortcut that opened it, so the transform
+    // origin is that button's centre in the card's own coordinates.
+    function aimSheet(from) {
+      var card = sheet.querySelector('.sg-stage-panel-card');
+      var box = card.getBoundingClientRect();
+      var r = from && from.getBoundingClientRect ? from.getBoundingClientRect() : null;
+      var ox = r && r.width ? r.left + r.width / 2 - box.left : box.width / 2;
+      var oy = r && r.height ? r.top + r.height / 2 - box.top : 0;
+      card.style.setProperty('--sheet-ox', Math.round(ox) + 'px');
+      card.style.setProperty('--sheet-oy', Math.round(oy) + 'px');
+    }
+
+    // The section's own action (Binder, the period cycle, Siege) rides in the
+    // header beside the close button; the slot reserves its width so a long
+    // title ellipsizes instead of running under it.
+    function fitSheetHead() {
+      var act = sheetBody.querySelector('.sg-section-head');
+      sheetSlot.style.width = act && act.offsetWidth ? (act.offsetWidth + 8) + 'px' : '0px';
+    }
+
+    function openSheet(name, html, from) {
+      if (closing) finishClose();
       returnBorrowed();
       sheetBody.onclick = null;
       sheetTitle.textContent = name;
       sheetBody.innerHTML = '';
+      var ico = from && from.querySelector ? from.querySelector('.sg-stage-tile-ico, svg') : null;
+      sheetIcon.innerHTML = ico ? (ico.matches('svg') ? ico.outerHTML : ico.innerHTML) : STAGE_ICON.featured;
       if (html != null) {
         sheetBody.innerHTML = html;
       } else {
@@ -1655,18 +1722,25 @@
         if (!node) return;
         var marker = document.createComment('stage');
         node.parentNode.replaceChild(marker, node);
-        borrowed = { node: node, marker: marker };
+        borrowed = { node: node, marker: marker, name: name };
         sheetBody.appendChild(node);
         var strip = node.matches('[data-strip]') ? node : null;
         if (strip) strip.classList.add('open');
       }
+      var sub = sheetSubtitle(name, sheetBody);
+      sheetSub.textContent = sub;
+      sheetSub.hidden = !sub;
       sheet.hidden = false;
       stage.classList.add('is-sheet-open');
+      fitSheetHead();
+      aimSheet(from);
+      // Restart the entrance even when one sheet replaces another.
+      sheet.classList.remove('is-opening'); void sheet.offsetWidth; sheet.classList.add('is-opening');
     }
 
     function openPicker() {
       var selected = rotation.map(function (p) { return p.id; });
-      openSheet('Home Rotation', stagePickerMarkup(selected, tall));
+      openSheet('Home Rotation', stagePickerMarkup(selected, tall), app.querySelector('[data-stage-pick]'));
       sheetBody.onclick = function (e) {
         var btn = e.target.closest && e.target.closest('[data-stage-piece]');
         if (!btn || btn.disabled) return;
@@ -1705,13 +1779,13 @@
       var t = e.target.closest ? e.target : null;
       if (!t) return;
       var panelBtn = t.closest('[data-stage-panel]');
-      if (panelBtn) { openSheet(panelBtn.getAttribute('data-stage-panel')); return; }
+      if (panelBtn) { openSheet(panelBtn.getAttribute('data-stage-panel'), null, panelBtn); return; }
       if (t.closest('[data-stage-close]')) { closeSheet(); return; }
       if (t.closest('[data-stage-prev]')) { paint(idx - 1); schedule(); return; }
       if (t.closest('[data-stage-next]')) { paint(idx + 1); schedule(); return; }
       if (t.closest('[data-stage-pause]')) { setPaused(!paused); return; }
       if (t.closest('[data-stage-pick]')) { openPicker(); return; }
-      if (t.closest('[data-stage-hide]')) { closeSheet(); app.classList.add('is-stage-bare'); return; }
+      if (t.closest('[data-stage-hide]')) { closeSheet(true); app.classList.add('is-stage-bare'); return; }
       if (t.closest('[data-stage-reveal]')) { app.classList.remove('is-stage-bare'); return; }
     }
     stage.addEventListener('click', onStageClick);
@@ -1739,7 +1813,7 @@
       // Turning the phone swaps the wall for the other orientation's rotation.
       var onChange = function () {
         if (!stage.isConnected) return;
-        closeSheet();
+        closeSheet(true);
         tall = mq.matches;
         rotation = readStageRotation(tall);
         paint(0, true);
@@ -8086,7 +8160,8 @@
       '<div class="sg-lb-boards">' + BOARD_ORDER.map(function (id) {
         var m = BOARD_META[id];
         return '<button class="sg-lb-chip' + (id === boardId ? ' on' : '') + '" type="button" data-lb-board="' + id +
-          '" style="--el:' + color(m.el) + '"><span>' + m.icon + '</span>' + esc(m.label) + '</button>';
+          '" style="--el:' + color(m.el) + '" aria-pressed="' + (id === boardId) + '"><span>' + m.icon + '</span>' +
+          '<b class="sg-lb-chip-label">' + esc(m.label) + '</b></button>';
       }).join('') + '</div>' +
       '<div class="sg-lb-body" data-lb-body>' +
         (rows.length ? rows.slice(0, 10).map(function (r, i) { return lbRow(r, i, meta); }).join('')
