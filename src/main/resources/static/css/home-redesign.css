@@ -2623,14 +2623,10 @@ body.concept-board {
 /* Desktop binder: the tiles are capped at 168px wide (.binder-framed-slot), so a
    two-column grid leaves a whole card's worth of dead air between them. Pack the
    columns to the tile width instead so the sheet reads like the printed binder. */
-/* Portrait phones: four cards across, like a binder sheet, rather than two
-   page-wide cards; a narrow phone (under 360px) keeps three so card text
-   stays legible. */
+/* Portrait phones: three cards across, like a binder sheet, rather than two
+   page-wide cards. Four was tried and left card text too small to read. */
 @media (orientation:portrait) and (max-width:699px) {
-  .sg-gal-grid { grid-template-columns:repeat(4, minmax(0, 1fr)); gap:10px 6px; padding:18px 10px 20px; }
-}
-@media (orientation:portrait) and (max-width:359px) {
-  .sg-gal-grid { grid-template-columns:repeat(3, minmax(0, 1fr)); }
+  .sg-gal-grid { grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px 8px; padding:18px 12px 20px; }
 }
 @media (min-width:700px) {
   .sg-gal-grid {

@@ -1,3 +1,13 @@
+Original prompt: Let's go with 3 wide on portrait mobile
+
+- October 26, 2026 **Binder: 3 cards across on portrait phones.**
+  - **Change.** The portrait binder grid (under 700px wide) went from 4 columns to 3, with slightly wider gaps (12px/8px). The owner's screenshot showed 4-wide cards with their text too small to read. The separate 3-column rule for phones under 360px is gone because it is redundant now. Landscape and desktop are unchanged. Cache pin: `home-redesign.css?v=162`.
+  - **Verification.** Headless Chromium on the preview binder:
+    - **Portrait:** 3 columns at 430x932, 390x844, 375x667 and 320x568, with tiles 123/109/104/86px wide.
+    - **Landscape and desktop:** 852x393 keeps 4 columns, and 1920x1080 keeps its packed desktop grid.
+    - No horizontal scroll and no page errors.
+    - `tests/hub-workspaces-check.cjs` passes.
+
 Original prompt: Do the same thing in portrait mode the options should "skip" behind the non viewable space onto the other side if that makes sense
 
 - October 25, 2026 **Arena Art: the ringed skin rail now runs under the shield button in portrait too.**
