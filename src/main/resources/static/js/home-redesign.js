@@ -236,8 +236,12 @@
      Deterministic, not random: the day number seeds the order, so every player
      sees the same rail on the same day and a re-render within the day (tab
      switch, live catalog arriving) does not reshuffle under them. No server
-     round trip is involved. */
-  var FEATURED_COUNT = 8;
+     round trip is involved.
+
+     Three, not eight: Home's Featured tile opens the day's picks as a single
+     panel, and a trio is a set a player takes in at a glance - eight read as a
+     second binder rather than a "Siegelings of the day". */
+  var FEATURED_COUNT = 3;
   // Days since the epoch in the player's own timezone, so the rail turns over
   // at their local midnight rather than at UTC - a player in UTC+13 should not
   // get tomorrow's rail at lunchtime.
@@ -912,8 +916,10 @@
   function featuredMarkup() {
     return '' +
       '<section class="sg-section" data-home-section="Featured Siegelings">' +
-        '<div class="sg-section-head"><h3>Featured Siegelings</h3><a href="/cards" data-screen="collection">Gallery</a></div>' +
-        '<div class="sg-swipe">' + FEATURED.map(function (c) {
+        '<div class="sg-section-head"><h3>Featured Siegelings</h3>' +
+          '<span class="sg-feat-note">Today\'s three &middot; new at midnight</span>' +
+          '<a href="/cards" data-screen="collection">Binder</a></div>' +
+        '<div class="sg-swipe sg-feat-trio">' + FEATURED.map(function (c) {
           return '<article class="sg-feat" data-card="' + esc(c.id) + '" tabindex="0" style="--el:' + color(c.element) + '">' +
             '<div class="sg-feat-plate"></div>' +
             '<div class="sg-feat-art"><img ' + artAttrs(c.cardArtUrl) + ' alt="' + esc(c.name) + '" loading="lazy"></div>' +
@@ -1199,8 +1205,12 @@
     var logo = '<img class="sg-logo" src="/img/siegelings-icon-256.webp" alt="Siegelings">';
     var unread = unreadNotifCount(opts);
     return '<header class="sg-top' + (guest ? ' is-guest' : '') + '">' +
-      // No data-screen: this is a real page change, not a hub route.
-      (extra.logoHref ? '<a class="sg-logo-link" href="' + esc(extra.logoHref) + '" aria-label="Siegelings home page">' + logo + '</a>' : logo) +
+      // Home's logo is a real page change to the landing, so it carries no
+      // data-screen. Everywhere else the logo is the way back to Home, routed
+      // in place like any other hub link.
+      (extra.logoHref
+        ? '<a class="sg-logo-link" href="' + esc(extra.logoHref) + '" aria-label="Siegelings home page">' + logo + '</a>'
+        : '<a class="sg-logo-link" href="' + pathForScreen('home') + '" data-screen="home" aria-label="Back to Home">' + logo + '</a>') +
       (extra.afterLogo || '') +
       '<span class="sg-top-spacer"></span>' +
       '<span class="sg-chip coin"><img src="/img/ui/home-stats/siegecoin.png" alt="">' +
@@ -1508,7 +1518,7 @@
           tile('quests', 'Objectives', 'data-stage-panel="Daily Objectives"', openQuests ? String(openQuests) : '') +
           tile('hall', 'Hall', 'data-stage-panel="Hall of Siege"') +
           tile('expedition', 'Expedition', 'data-stage-panel="Continue Playing"', runs.length ? '!' : '') +
-          link('featured', 'Featured', pathForScreen('collection'), ' data-screen="collection"') +
+          tile('featured', 'Featured', 'data-stage-panel="Featured Siegelings"') +
           link('gallery', 'Gallery', pathForScreen('art'), ' data-screen="art"') +
           link('lobbies', 'Lobbies', HREF.lobbies, lobbiesAttrs().replace(' href="' + HREF.lobbies + '"', '')) +
         '</nav>' +
