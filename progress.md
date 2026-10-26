@@ -1,3 +1,9 @@
+Original prompt: I want to show the battles in mobile format
+
+- October 26, 2026 **Promo battle beats now show live mobile (390×844) UI in a phone plate.**
+  - **Change.** New `tools/promo/capture-live-mobile.cjs` drives the live Arena/Siege at an iPhone viewport (`isMobile` + touch UA), waits for card art, and composites each portrait shot into a 1920×1080 phone-bezel plate (`img/promo/gameplay/*.webp`). Promo Ken Burns on gameplay plates is gentler so the mobile HUD stays inside the bezel; `promo.css?v=5` / `promo.js?v=5`. Re-encoded `siegelings-promo.mp4`.
+  - **Verification.** Mobile plates reviewed: SETUP/DRAW Arena with Kavoli/Falcool on board, hand cards, and Siege mode picker in portrait. Recorder probe 24.000s.
+
 Original prompt: Run this on the live site so the card images generate
 
 - October 26, 2026 **Promo gameplay plates re-shot on the live site so Firebase card art paints.**

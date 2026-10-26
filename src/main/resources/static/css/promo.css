@@ -214,8 +214,16 @@ html, body.promo-body {
     color: rgba(255, 230, 180, 0.92);
 }
 .art-gameplay {
-    /* Gameplay captures read sharper with less soft blur from the vignette stack */
-    filter: saturate(1.05) contrast(1.08);
+    /* Mobile phone plates — keep the full bezel readable; less soft blur. */
+    filter: saturate(1.04) contrast(1.06);
+    background-position: center center;
+    background-size: cover;
+}
+.art-gameplay::after {
+    /* Lighter vignette so the phone screen stays bright */
+    background:
+        linear-gradient(180deg, rgba(5, 11, 26, 0.12) 0%, transparent 28%, rgba(5, 11, 26, 0.35) 100%),
+        radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.28) 100%);
 }
 
 .end-card {

@@ -139,16 +139,18 @@
             if (id === artId) {
                 var isGameplay = String(artId).charAt(0) === 'g';
                 plate.style.opacity = artId === '5' ? '0.35' : '1';
+                // Phone plates are already composed into 16:9 — keep Ken Burns gentle
+                // so the mobile HUD isn't cropped off the bezel.
                 var scale = smash
-                    ? (1.22 - p * 0.18)
-                    : (isGameplay ? (1.08 - p * 0.05) : (1.16 - p * 0.12));
-                var x = smash ? 0 : (id === '2' ? (-3 + p * 5) : (isGameplay ? (-1 + p * 2) : 0));
+                    ? (isGameplay ? (1.06 - p * 0.04) : (1.22 - p * 0.18))
+                    : (isGameplay ? (1.03 - p * 0.02) : (1.16 - p * 0.12));
+                var x = smash ? 0 : (id === '2' ? (-3 + p * 5) : 0);
                 var y = smash ? 0 : (id === '0' ? (2 - p * 2) : 0);
                 plate.style.transform = 'scale(' + scale + ') translate(' + x + '%, ' + y + '%)';
                 plate.style.filter = artId === '5'
                     ? 'saturate(0.85) brightness(0.55) contrast(1.1)'
                     : (isGameplay
-                        ? 'saturate(1.05) contrast(1.08) brightness(1.02)'
+                        ? 'saturate(1.04) contrast(1.06) brightness(1.01)'
                         : 'saturate(1.15) contrast(1.05)');
             } else {
                 plate.style.opacity = '0';
