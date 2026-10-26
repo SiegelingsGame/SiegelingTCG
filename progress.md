@@ -1,3 +1,9 @@
+Original prompt: For the battle go through a quick battle that starts and resolves for siege don’t do the tutorial do a standard siege select your knight and warband go to map select a point and battle.
+
+- October 26, 2026 **Promo Arena/Siege clips recaptured: resolving Arena battle + standard Siege (no tutorial).**
+  - **Change.** Arena clip seeds a board then films BATTLE→resolve→DRAW. Siege uses Adventure mode (`#chooseSiegeMode`): pick knight + warband → Begin Expedition → map → Skirmish node → battle (Battlegrounds modal stripped during capture). Re-encoded `siegelings-promo.mp4` (36s). Pins `?v=10`.
+  - **Verification.** Capture log: Arena Flameburst resolve; Siege `squire-bob` + `applehead`/`breezee`, mapScreen→battleScreen. Trailer stills show Rootwild map then Siege battle (no tutorial coach).
+
 Original prompt: Yes use short live clips of each mode
 
 - October 26, 2026 **Promo trailer gameplay beats now use short live video clips (Arena / Siege / Dominion).**
