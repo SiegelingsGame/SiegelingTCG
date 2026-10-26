@@ -182,12 +182,12 @@
                 var dur = (v.duration && isFinite(v.duration) && v.duration > 0.2) ? v.duration : 4.5;
                 var offsetSec = Math.max(0, (seekMs - videoBeatStartMs) / 1000);
                 var t = offsetSec % dur;
-                if (Math.abs(v.currentTime - t) > 0.08) {
+                // Always pause before scrubbing so record-mode captures a settled frame.
+                if (!v.paused) v.pause();
+                if (Math.abs(v.currentTime - t) > 0.04) {
                     try { v.currentTime = t; } catch (e) { /* ignore seek race */ }
                 }
-                if (recordMode) {
-                    if (!v.paused) v.pause();
-                } else if (v.paused) {
+                if (!recordMode) {
                     var playP = v.play();
                     if (playP && playP.catch) playP.catch(function () {});
                 }
@@ -209,14 +209,18 @@
             }
         }
         if (!active) return Promise.resolve();
-        if (!active.seeking) return Promise.resolve();
         return new Promise(function (resolve) {
-            var done = function () {
-                active.removeEventListener('seeked', done);
-                resolve();
+            var settled = function () {
+                active.removeEventListener('seeked', settled);
+                // One more paint after seek so the decoded frame is on screen.
+                requestAnimationFrame(function () { requestAnimationFrame(resolve); });
             };
-            active.addEventListener('seeked', done);
-            window.setTimeout(done, 120);
+            if (active.seeking) {
+                active.addEventListener('seeked', settled);
+                window.setTimeout(settled, 180);
+            } else {
+                settled();
+            }
         });
     }
 

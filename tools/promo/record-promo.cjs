@@ -48,10 +48,12 @@ function mime(filePath) {
     '.jpeg': 'image/jpeg',
     '.svg': 'image/svg+xml',
     '.mp3': 'audio/mpeg',
+    '.mp4': 'video/mp4',
     '.woff2': 'font/woff2'
   })[ext] || 'application/octet-stream';
 }
 
+/** Serve static files with HTTP Range support so Chrome can scrub <video> currentTime. */
 function startServer() {
   const server = http.createServer((req, res) => {
     const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
@@ -62,7 +64,40 @@ function startServer() {
       res.end('missing');
       return;
     }
-    res.writeHead(200, { 'Content-Type': mime(filePath), 'Cache-Control': 'no-store' });
+    const stat = fs.statSync(filePath);
+    const total = stat.size;
+    const type = mime(filePath);
+    const range = req.headers.range;
+    if (range) {
+      const m = /^bytes=(\d*)-(\d*)$/.exec(range);
+      if (!m) {
+        res.writeHead(416, { 'Content-Range': `bytes */${total}` });
+        res.end();
+        return;
+      }
+      const start = m[1] ? parseInt(m[1], 10) : 0;
+      const end = m[2] ? parseInt(m[2], 10) : (total - 1);
+      if (start >= total || end >= total || start > end) {
+        res.writeHead(416, { 'Content-Range': `bytes */${total}` });
+        res.end();
+        return;
+      }
+      res.writeHead(206, {
+        'Content-Type': type,
+        'Content-Length': String(end - start + 1),
+        'Content-Range': `bytes ${start}-${end}/${total}`,
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-store'
+      });
+      fs.createReadStream(filePath, { start, end }).pipe(res);
+      return;
+    }
+    res.writeHead(200, {
+      'Content-Type': type,
+      'Content-Length': String(total),
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': 'no-store'
+    });
     fs.createReadStream(filePath).pipe(res);
   });
   return new Promise((resolve) => server.listen(PORT, '127.0.0.1', () => resolve(server)));
@@ -161,9 +196,15 @@ async function main() {
   });
   const page = await context.newPage();
 
-  await page.goto(`http://127.0.0.1:${PORT}/promo.html?record=1`, { waitUntil: 'networkidle' });
+  // domcontentloaded — networkidle never settles while large gameplay clips preload.
+  await page.goto(`http://127.0.0.1:${PORT}/promo.html?record=1`, { waitUntil: 'domcontentloaded' });
   await waitReady(page);
   await page.waitForFunction(() => typeof window.__promoSeek === 'function');
+  // Ensure gameplay videos can scrub before we start capturing frames.
+  await page.waitForFunction(() => {
+    const vids = Array.from(document.querySelectorAll('video.art-video'));
+    return vids.length > 0 && vids.every((v) => v.readyState >= 2 && isFinite(v.duration) && v.duration > 0.5);
+  }, null, { timeout: 30000 });
 
   const frameIntervalMs = 1000 / FPS;
   for (var i = 0; i < FRAME_COUNT; i++) {

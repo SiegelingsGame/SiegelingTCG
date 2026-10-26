@@ -68,6 +68,8 @@ function toPhonePlateVideo(phoneMp4, outName) {
     '-c:v', 'libx264',
     '-preset', 'veryfast',
     '-crf', '20',
+    // All-intra so promo record-mode can scrub currentTime frame-accurately.
+    '-g', '1', '-keyint_min', '1', '-sc_threshold', '0',
     '-pix_fmt', 'yuv420p',
     '-movflags', '+faststart',
     out
