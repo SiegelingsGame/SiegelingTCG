@@ -1,3 +1,9 @@
+Original prompt: Run this on the live site so the card images generate
+
+- October 26, 2026 **Promo gameplay plates re-shot on the live site so Firebase card art paints.**
+  - **Change.** `tools/promo/capture-live-gameplay.cjs` (and a follow-up headless pass) drives `https://siegelingstcgtesting.web.app/play` + `/siege`, waits for Storage/`art-thumbs` images, and rewrites `img/promo/gameplay/*.webp` — Arena boards with live SiegeKnight art (Pyla, Lady Clarice), hand Siegelings (Sundile/Draco/Emberfin), mulligan faces, and the Siege mode picker. Promo timeline g3 now uses the live mulligan plate; g4 uses the Siege mode art. Promo cache pins `?v=4`. Re-encoded `video/siegelings-promo.mp4`.
+  - **Verification.** Capture reported 23 loaded Storage images on Siege. Spot-check screenshots under `/opt/cursor/artifacts/live-gameplay-*.png` show painted knight + creature art (not grey placeholders). Recorder probe still 24.000s.
+
 Original prompt: Extend the trailer so it shows gameplay clips as well. Change the music to something more epic in the library like battle
 
 - October 25, 2026 **Promo extended to 24s with real gameplay plates and battle-theme-2 audio.**
