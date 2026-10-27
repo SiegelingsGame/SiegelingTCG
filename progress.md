@@ -1,3 +1,9 @@
+Original prompt: Create sprite sheets for images I send (production package workflow)
+
+- October 27, 2026 **Sprite production: Pyleer Cluster walk package + hover-puppet tooling.**
+  - **Change.** Started the recommended two-format Siegelings pipeline (preview sheet later; production package first) on the new Pyleer Cluster master. Built an 8-frame hover-walk at 11 FPS with separate transparent frames, shared-pivot cells, horizontal atlas (PNG/WebP), `pyleer-cluster-walk.meta.json` (fps/pivot/validation), and GIF/MP4/contact previews under `output/sprites/pyleer-cluster-production/`. Freehand AI frame redraws were tried and rejected (v1 volume jumps / loop snap; v2 near-static). Shipped frames are locked-master puppets (`tools/sprites/puppet-hover-walk.py`: integer bob, shear lean, drip sway, nearest squash). Also added `tools/sprites/assemble-production-walk.py` for chroma-key assembly of hand/AI stills. Other five poses held pending walk approval. Sundile master cutout from the earlier attachment is parked.
+  - **Verification.** Adjacent-frame alpha XOR mean ~0.13 (all frames > 0.08). Loop preview reviewed: readable bob/lean, seamless last→first, identity locked to master; conditional pass noting shear can shimmer pixel edges vs hand-redrawn grid-locked art. Package cell 386×486.
+
 Original prompt: Landing page update the blue icon to the Siegelings logo
 
 - October 26, 2026 **Landing: the page-navigation button wears the Siegelings emblem.**
