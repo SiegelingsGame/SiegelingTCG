@@ -1,0 +1,82 @@
+{
+  "name": "pyleer-cluster",
+  "animation": "hurt",
+  "method": "master-puppet-pixel-safe",
+  "playback": {
+    "fps": 10.0,
+    "loop": true,
+    "holdLastFrame": false,
+    "frameCount": 4,
+    "notes": "Recoil left, squash, brief settle."
+  },
+  "cell": {
+    "w": 418,
+    "h": 518
+  },
+  "pivot": {
+    "x": 209,
+    "y": 474,
+    "space": "cell",
+    "meaning": "mass-center X, drip-tip baseline Y"
+  },
+  "atlas": {
+    "png": "atlas/pyleer-cluster-hurt.png",
+    "webp": "atlas/pyleer-cluster-hurt.webp",
+    "layout": "horizontal-strip",
+    "frameWidth": 418,
+    "frameHeight": 518
+  },
+  "poses": [
+    {
+      "i": 0,
+      "bob_y": 0,
+      "lean_px": 0,
+      "drip_px": 0,
+      "squash": 1.0,
+      "shift_x": 0,
+      "bright": 1.0
+    },
+    {
+      "i": 1,
+      "bob_y": -4,
+      "lean_px": -16,
+      "drip_px": 8,
+      "squash": 0.9,
+      "shift_x": -14,
+      "bright": 1.15
+    },
+    {
+      "i": 2,
+      "bob_y": -2,
+      "lean_px": -10,
+      "drip_px": 10,
+      "squash": 0.94,
+      "shift_x": -8,
+      "bright": 0.92
+    },
+    {
+      "i": 3,
+      "bob_y": 0,
+      "lean_px": -2,
+      "drip_px": 2,
+      "squash": 1.0,
+      "shift_x": -2,
+      "bright": 1.0
+    }
+  ],
+  "validation": {
+    "adjacentAlphaXorRatio": [
+      0.3313,
+      0.196,
+      0.2267,
+      0.0379
+    ],
+    "minXorRatio": 0.0379,
+    "meanXorRatio": 0.198
+  },
+  "previews": {
+    "gif": "previews/hurt.gif",
+    "mp4": "previews/hurt.mp4",
+    "contact": "previews/hurt-contact.png"
+  }
+}

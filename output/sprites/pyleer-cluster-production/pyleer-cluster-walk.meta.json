@@ -5,16 +5,17 @@
   "playback": {
     "fps": 11.0,
     "loop": true,
+    "holdLastFrame": false,
     "frameCount": 8,
-    "notes": "Hover locomotion from locked master: integer bob, shear lean, drip sway, nearest squash."
+    "notes": "Hover locomotion: bob, lean, drip counter-sway."
   },
   "cell": {
-    "w": 386,
-    "h": 486
+    "w": 418,
+    "h": 518
   },
   "pivot": {
-    "x": 193,
-    "y": 442,
+    "x": 209,
+    "y": 474,
     "space": "cell",
     "meaning": "mass-center X, drip-tip baseline Y"
   },
@@ -22,8 +23,8 @@
     "png": "atlas/pyleer-cluster-walk.png",
     "webp": "atlas/pyleer-cluster-walk.webp",
     "layout": "horizontal-strip",
-    "frameWidth": 386,
-    "frameHeight": 486
+    "frameWidth": 418,
+    "frameHeight": 518
   },
   "poses": [
     {
@@ -31,56 +32,72 @@
       "bob_y": 0,
       "lean_px": -10,
       "drip_px": 0,
-      "squash": 0.97
+      "squash": 0.97,
+      "shift_x": 0,
+      "bright": 1.0
     },
     {
       "i": 1,
       "bob_y": 11,
       "lean_px": -7,
       "drip_px": -6,
-      "squash": 0.9788
+      "squash": 0.9788,
+      "shift_x": 0,
+      "bright": 1.0
     },
     {
       "i": 2,
       "bob_y": 16,
       "lean_px": 0,
       "drip_px": -8,
-      "squash": 1.0
+      "squash": 1.0,
+      "shift_x": 0,
+      "bright": 1.0
     },
     {
       "i": 3,
       "bob_y": 11,
       "lean_px": 7,
       "drip_px": -6,
-      "squash": 1.0212
+      "squash": 1.0212,
+      "shift_x": 0,
+      "bright": 1.0
     },
     {
       "i": 4,
       "bob_y": 0,
       "lean_px": 10,
       "drip_px": 0,
-      "squash": 1.03
+      "squash": 1.03,
+      "shift_x": 0,
+      "bright": 1.0
     },
     {
       "i": 5,
       "bob_y": -11,
       "lean_px": 7,
       "drip_px": 6,
-      "squash": 1.0212
+      "squash": 1.0212,
+      "shift_x": 0,
+      "bright": 1.0
     },
     {
       "i": 6,
       "bob_y": -16,
       "lean_px": 0,
       "drip_px": 8,
-      "squash": 1.0
+      "squash": 1.0,
+      "shift_x": 0,
+      "bright": 1.0
     },
     {
       "i": 7,
       "bob_y": -11,
       "lean_px": -7,
       "drip_px": 6,
-      "squash": 0.9788
+      "squash": 0.9788,
+      "shift_x": 0,
+      "bright": 1.0
     }
   ],
   "validation": {
@@ -101,13 +118,5 @@
     "gif": "previews/walk.gif",
     "mp4": "previews/walk.mp4",
     "contact": "previews/walk-contact.png"
-  },
-  "status": "walk-pending-approval",
-  "remainingAnimations": [
-    "idle",
-    "attack",
-    "cheer",
-    "hurt",
-    "fainted"
-  ]
+  }
 }

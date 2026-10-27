@@ -1,0 +1,92 @@
+{
+  "name": "pyleer-cluster",
+  "animation": "fainted",
+  "method": "master-puppet-pixel-safe",
+  "playback": {
+    "fps": 8.0,
+    "loop": false,
+    "holdLastFrame": true,
+    "frameCount": 5,
+    "notes": "One-shot sink/slump; hold last frame."
+  },
+  "cell": {
+    "w": 418,
+    "h": 518
+  },
+  "pivot": {
+    "x": 209,
+    "y": 474,
+    "space": "cell",
+    "meaning": "mass-center X, drip-tip baseline Y"
+  },
+  "atlas": {
+    "png": "atlas/pyleer-cluster-fainted.png",
+    "webp": "atlas/pyleer-cluster-fainted.webp",
+    "layout": "horizontal-strip",
+    "frameWidth": 418,
+    "frameHeight": 518
+  },
+  "poses": [
+    {
+      "i": 0,
+      "bob_y": 0,
+      "lean_px": 0,
+      "drip_px": 0,
+      "squash": 1.0,
+      "shift_x": 0,
+      "bright": 1.0
+    },
+    {
+      "i": 1,
+      "bob_y": -8,
+      "lean_px": 6,
+      "drip_px": 6,
+      "squash": 0.94,
+      "shift_x": 2,
+      "bright": 0.9
+    },
+    {
+      "i": 2,
+      "bob_y": -18,
+      "lean_px": 12,
+      "drip_px": 12,
+      "squash": 0.88,
+      "shift_x": 4,
+      "bright": 0.72
+    },
+    {
+      "i": 3,
+      "bob_y": -28,
+      "lean_px": 16,
+      "drip_px": 18,
+      "squash": 0.82,
+      "shift_x": 6,
+      "bright": 0.55
+    },
+    {
+      "i": 4,
+      "bob_y": -34,
+      "lean_px": 18,
+      "drip_px": 22,
+      "squash": 0.78,
+      "shift_x": 6,
+      "bright": 0.42
+    }
+  ],
+  "validation": {
+    "adjacentAlphaXorRatio": [
+      0.2587,
+      0.2738,
+      0.2771,
+      0.2103,
+      0.6148
+    ],
+    "minXorRatio": 0.2103,
+    "meanXorRatio": 0.3269
+  },
+  "previews": {
+    "gif": "previews/fainted.gif",
+    "mp4": "previews/fainted.mp4",
+    "contact": "previews/fainted-contact.png"
+  }
+}

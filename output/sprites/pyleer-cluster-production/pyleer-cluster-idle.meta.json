@@ -1,0 +1,112 @@
+{
+  "name": "pyleer-cluster",
+  "animation": "idle",
+  "method": "master-puppet-pixel-safe",
+  "playback": {
+    "fps": 7.0,
+    "loop": true,
+    "holdLastFrame": false,
+    "frameCount": 7,
+    "notes": "Gentle hover breathe: small bob + drip sway."
+  },
+  "cell": {
+    "w": 418,
+    "h": 518
+  },
+  "pivot": {
+    "x": 209,
+    "y": 474,
+    "space": "cell",
+    "meaning": "mass-center X, drip-tip baseline Y"
+  },
+  "atlas": {
+    "png": "atlas/pyleer-cluster-idle.png",
+    "webp": "atlas/pyleer-cluster-idle.webp",
+    "layout": "horizontal-strip",
+    "frameWidth": 418,
+    "frameHeight": 518
+  },
+  "poses": [
+    {
+      "i": 0,
+      "bob_y": 0,
+      "lean_px": 0,
+      "drip_px": 3,
+      "squash": 0.985,
+      "shift_x": 0,
+      "bright": 1.0
+    },
+    {
+      "i": 1,
+      "bob_y": 5,
+      "lean_px": 1,
+      "drip_px": 4,
+      "squash": 0.9906,
+      "shift_x": 0,
+      "bright": 1.0
+    },
+    {
+      "i": 2,
+      "bob_y": 6,
+      "lean_px": 2,
+      "drip_px": 1,
+      "squash": 1.0033,
+      "shift_x": 0,
+      "bright": 1.0
+    },
+    {
+      "i": 3,
+      "bob_y": 3,
+      "lean_px": 3,
+      "drip_px": -2,
+      "squash": 1.0135,
+      "shift_x": 0,
+      "bright": 1.0
+    },
+    {
+      "i": 4,
+      "bob_y": -3,
+      "lean_px": 3,
+      "drip_px": -4,
+      "squash": 1.0135,
+      "shift_x": 0,
+      "bright": 1.0
+    },
+    {
+      "i": 5,
+      "bob_y": -6,
+      "lean_px": 2,
+      "drip_px": -3,
+      "squash": 1.0033,
+      "shift_x": 0,
+      "bright": 1.0
+    },
+    {
+      "i": 6,
+      "bob_y": -5,
+      "lean_px": 1,
+      "drip_px": 1,
+      "squash": 0.9906,
+      "shift_x": 0,
+      "bright": 1.0
+    }
+  ],
+  "validation": {
+    "adjacentAlphaXorRatio": [
+      0.0979,
+      0.0606,
+      0.0232,
+      0.0913,
+      0.0828,
+      0.04,
+      0.0628
+    ],
+    "minXorRatio": 0.0232,
+    "meanXorRatio": 0.0655
+  },
+  "previews": {
+    "gif": "previews/idle.gif",
+    "mp4": "previews/idle.mp4",
+    "contact": "previews/idle-contact.png"
+  }
+}

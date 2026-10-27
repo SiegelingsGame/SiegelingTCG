@@ -1,0 +1,92 @@
+{
+  "name": "pyleer-cluster",
+  "animation": "cheer",
+  "method": "master-puppet-pixel-safe",
+  "playback": {
+    "fps": 8.0,
+    "loop": true,
+    "holdLastFrame": false,
+    "frameCount": 5,
+    "notes": "Upward celebratory bounce with stretch."
+  },
+  "cell": {
+    "w": 418,
+    "h": 518
+  },
+  "pivot": {
+    "x": 209,
+    "y": 474,
+    "space": "cell",
+    "meaning": "mass-center X, drip-tip baseline Y"
+  },
+  "atlas": {
+    "png": "atlas/pyleer-cluster-cheer.png",
+    "webp": "atlas/pyleer-cluster-cheer.webp",
+    "layout": "horizontal-strip",
+    "frameWidth": 418,
+    "frameHeight": 518
+  },
+  "poses": [
+    {
+      "i": 0,
+      "bob_y": 0,
+      "lean_px": 0,
+      "drip_px": 0,
+      "squash": 1.0,
+      "shift_x": 0,
+      "bright": 1.0
+    },
+    {
+      "i": 1,
+      "bob_y": 14,
+      "lean_px": -4,
+      "drip_px": -4,
+      "squash": 1.06,
+      "shift_x": 0,
+      "bright": 1.08
+    },
+    {
+      "i": 2,
+      "bob_y": 22,
+      "lean_px": 0,
+      "drip_px": -6,
+      "squash": 1.1,
+      "shift_x": 0,
+      "bright": 1.12
+    },
+    {
+      "i": 3,
+      "bob_y": 12,
+      "lean_px": 4,
+      "drip_px": -2,
+      "squash": 1.04,
+      "shift_x": 0,
+      "bright": 1.06
+    },
+    {
+      "i": 4,
+      "bob_y": 0,
+      "lean_px": 0,
+      "drip_px": 0,
+      "squash": 1.0,
+      "shift_x": 0,
+      "bright": 1.0
+    }
+  ],
+  "validation": {
+    "adjacentAlphaXorRatio": [
+      0.2637,
+      0.189,
+      0.2401,
+      0.2188,
+      0.0
+    ],
+    "minXorRatio": 0.0,
+    "meanXorRatio": 0.1823
+  },
+  "previews": {
+    "gif": "previews/cheer.gif",
+    "mp4": "previews/cheer.mp4",
+    "contact": "previews/cheer-contact.png"
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "name": "pyleer-cluster",
+  "method": "master-puppet-pixel-safe",
+  "cell": {
+    "w": 418,
+    "h": 518
+  },
+  "pivot": {
+    "x": 209,
+    "y": 474
+  },
+  "animations": {
+    "idle": {
+      "frames": 7,
+      "fps": 7.0,
+      "loop": true,
+      "holdLastFrame": false,
+      "meta": "pyleer-cluster-idle.meta.json",
+      "meanXorRatio": 0.0655
+    },
+    "walk": {
+      "frames": 8,
+      "fps": 11.0,
+      "loop": true,
+      "holdLastFrame": false,
+      "meta": "pyleer-cluster-walk.meta.json",
+      "meanXorRatio": 0.1337
+    },
+    "attack": {
+      "frames": 8,
+      "fps": 12.0,
+      "loop": true,
+      "holdLastFrame": false,
+      "meta": "pyleer-cluster-attack.meta.json",
+      "meanXorRatio": 0.2443
+    },
+    "cheer": {
+      "frames": 5,
+      "fps": 8.0,
+      "loop": true,
+      "holdLastFrame": false,
+      "meta": "pyleer-cluster-cheer.meta.json",
+      "meanXorRatio": 0.1823
+    },
+    "hurt": {
+      "frames": 4,
+      "fps": 10.0,
+      "loop": true,
+      "holdLastFrame": false,
+      "meta": "pyleer-cluster-hurt.meta.json",
+      "meanXorRatio": 0.198
+    },
+    "fainted": {
+      "frames": 5,
+      "fps": 8.0,
+      "loop": false,
+      "holdLastFrame": true,
+      "meta": "pyleer-cluster-fainted.meta.json",
+      "meanXorRatio": 0.3269
+    }
+  },
+  "siegeSpritesHint": {
+    "w": 418,
+    "h": 518,
+    "frames": {
+      "idle": 7,
+      "walk": 8,
+      "attack": 8,
+      "cheer": 5,
+      "hurt": 4,
+      "fainted": 5
+    },
+    "note": "fit/base still need measuring against idle body once registered in siege-sprites.js"
+  }
+}

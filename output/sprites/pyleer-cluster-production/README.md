@@ -1,7 +1,8 @@
-# Pyleer Cluster — production sprite package (walk first)
+# Pyleer Cluster — production sprite package
 
 Siegelings production workflow: **master → frames → atlas + metadata → preview/validate**.
-Only the walk cycle is built so far; remaining poses wait on approval.
+
+All six poses share one cell (**418×518**) and drip-tip baseline so pose swaps do not jump.
 
 ## Master
 
@@ -9,33 +10,39 @@ Only the walk cycle is built so far; remaining poses wait on approval.
 - `master/user-master-game-scale.png` — nearest-neighbor scale used for frames
 - `master/master-cropped.png` — keyed crop (puppet base)
 
-## Walk (8 frames @ 11 FPS, cell 386×486)
+## Animations
 
-Floating Siegeling → **walk = hover locomotion** (bob, shear lean, drip sway).
+| Pose | Frames | FPS | Loop | Notes |
+|---|---:|---:|---|---|
+| idle | 7 | 7 | yes | gentle hover breathe |
+| walk | 8 | 11 | yes | hover locomotion |
+| attack | 8 | 12 | yes | coil → lunge right → impact → recover |
+| cheer | 5 | 8 | yes | upward bounce |
+| hurt | 4 | 10 | yes | recoil left |
+| fainted | 5 | 8 | no | one-shot sink/slump, hold last (darkened) |
 
-| Deliverable | Path |
-|---|---|
-| Separate transparent frames | `frames/walk/transparent/00.png` … `07.png` |
-| Shared-pivot cells | `frames/walk/transparent/00-cell.png` … |
-| Packed atlas | `atlas/pyleer-cluster-walk.png` (+ `.webp`) |
-| Timing / pivot metadata | `pyleer-cluster-walk.meta.json` |
-| Loop previews | `previews/walk.gif`, `walk.mp4`, `walk-contact.png` |
+Deliverables per pose:
 
-### Method
+- `frames/<pose>/transparent/NN.png` (+ `NN-cell.png`)
+- `atlas/pyleer-cluster-<pose>.png` (+ `.webp`)
+- `pyleer-cluster-<pose>.meta.json`
+- `previews/<pose>.{gif,mp4}` + `<pose>-contact.png`
 
-Freehand AI redraws failed twice (volume jumps; then near-static). Shipped frames
-are **master-puppeted** via `tools/sprites/puppet-hover-walk.py` so identity and
-the loop stay locked — matching the note that AI stills alone do not guarantee
-alignment.
+Package rollup: `pyleer-cluster-package.meta.json`
 
-## Remaining (held)
+## Method
 
-`idle` · `attack` · `cheer` · `hurt` · `fainted`
+Floating Siegeling → no fake legs. Frames are **master-puppeted**
+(`tools/sprites/puppet-siegling-poses.py`: bob, shear lean, drip sway, squash,
+brightness) so identity stays locked. Freehand AI redraws were rejected earlier
+(volume jumps / near-static).
 
 ```bash
-python3 tools/sprites/puppet-hover-walk.py \
+python3 tools/sprites/puppet-siegling-poses.py \
   --master output/sprites/pyleer-cluster-production/master/user-master-game-scale.png \
   --name pyleer-cluster \
-  --out output/sprites/pyleer-cluster-production \
-  --fps 11 --bob 16
+  --out output/sprites/pyleer-cluster-production
 ```
+
+Not yet registered in `siege-sprites.js` — approve the package before shipping
+strips into `img/sprites/pyleer-cluster/`.
