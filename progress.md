@@ -1,3 +1,24 @@
+Original prompt: When loadings screen finish do the splash animation as well from the center outward.
+
+- October 27, 2026 **Loading screens ripple away from the centre.**
+  - **Change.** `page-transitions.js` gains `SgTransition.splashOut(el, done)`. It is the page-transition ripple turned inside out: the loader stays on top and an inverted mask (clear inside a growing radius, two soft bands at the edge, opaque outside) dissolves it from the centre of the screen outward. Light rings (`.sg-splash-rings`) ride the wavefront. It runs 0.9s on the same deceleration curve.
+    - **Why it isn't a view transition.** It is synchronous DOM work, so callers can render and measure the page beneath straight away. Siege's `showScreen` relies on that.
+    - **Centring.** `--sp-x/--sp-y` place the screen's centre in the loader's own box, so a loader that is not full-screen still clears concentrically. `--sp-max` is the half-diagonal plus 90px.
+    - **Fallback.** It returns false, touching nothing, when transitions are off (the `ENABLED` flag, the Page transitions or Reduced motion switches, or the OS setting), when the tab is hidden, or when `CSS.registerProperty` is missing. Each caller then keeps its old exit.
+    - **Safety.** An 1800ms guard means a loader can never stick.
+
+    Wired into three places:
+    - **Hub** (`home-next.html` `paint`). The boot screen is lifted onto `<html>` before `mountApp`, because mountApp clears `<body>`, which had been removing the boot screen before its fade could ever play. The hub then paints underneath and the boot screen ripples away.
+    - **Arena loading gate** (`loading-gate.js` `hide`). It ripples out, then drops `.visible` with its own fade suppressed. It is guarded against being shown again mid-ripple.
+    - **Siege** (`adventure.js` `showScreen`). On leaving `loadingScreen`, a copy of the in-flow loader card is pinned at the same spot (ids stripped, and the id-keyed radius, overflow and colour copied inline) and rippled away, while the real screens switch synchronously.
+
+    Cache pins: `page-transitions.js?v=5` in 12 pages, `loading-gate.js?v=9`, `adventure.js?v=149`.
+  - **Verification.** `node --check` passes on all three JS files. Headless Chromium at 390x844, with the splash slowed to 0.15x from an init script:
+    - **Hub `/home`:** the boot screen gets `.sg-splash-out`. A frame shows the hub revealed through a ring growing from the centre. Afterwards `#boot` and the rings are gone and the stage is mounted.
+    - **`/play.html` (gate driven through `SieglingsLoadingGate.show`/`hide`):** the loadout is revealed from the centre through the gate. Afterwards the gate is `visibility:hidden` without `.visible` or the splash class.
+    - **`/adventure.html` (with a mocked `/api/siege/roster`):** the copy ripples away over the mode-select screen. The screen is `setupScreen` and no copies are left behind.
+    - No page errors.
+
 Original prompt: When the menu is open add a golden corona to the Siegelings button that moves and pulses like a real corona in a eclipse , smooth auras of light
 
 - October 27, 2026 **Shield menu: an eclipse corona around the S button while it is open.**

@@ -375,9 +375,21 @@
             setProgress(1);
             // Allow the final fill animation to be perceived before fading.
             setTimeout(() => {
-                root.classList.remove('visible');
                 visible = false;
                 pendingHide = null;
+                // The arena ripples in from the centre as the gate clears
+                // (page-transitions.js); the gate's own fade is skipped then,
+                // since it is already gone. Without it, the usual fade.
+                const drop = () => {
+                    if (visible) return; // shown again mid-ripple
+                    root.style.transition = 'none';
+                    root.classList.remove('visible');
+                    void root.offsetWidth;
+                    root.style.transition = '';
+                };
+                if (!(window.SgTransition && window.SgTransition.splashOut(root, drop))) {
+                    root.classList.remove('visible');
+                }
             }, 240);
         };
 

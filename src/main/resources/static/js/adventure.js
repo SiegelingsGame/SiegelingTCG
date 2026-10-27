@@ -326,7 +326,33 @@
   function icon(element) { return EL_ICON[element] || '◇'; }
   function elColor(element) { return EL_COLOR[element] || '#95a5a6'; }
 
+  /* Leaving the loading screen, the expedition ripples in from the centre
+     (page-transitions.js). The loader is an in-flow card, so a copy of it is
+     pinned over the page at the same spot and dissolved, while the real screen
+     switches straight away - callers can render and measure as before. */
+  function splashLoadingScreen() {
+    var T = window.SgTransition, node = $('loadingScreen');
+    if (!T || !T.splashOut || !T.enabled() || !node || node.classList.contains('hidden')) return;
+    var box = node.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    var cs = getComputedStyle(node);
+    var ghost = node.cloneNode(true);
+    ghost.removeAttribute('id');
+    [].forEach.call(ghost.querySelectorAll('[id]'), function (n) { n.removeAttribute('id'); });
+    ghost.setAttribute('aria-hidden', 'true');
+    // #loadingScreen's own rules are keyed by its id, which the copy drops.
+    ghost.style.cssText = 'position:fixed;margin:0;left:' + box.left + 'px;top:' + box.top + 'px;' +
+      'width:' + box.width + 'px;height:' + box.height + 'px;min-height:0;overflow:hidden;' +
+      'border-radius:' + cs.borderRadius + ';text-align:' + cs.textAlign + ';color:' + cs.color + ';' +
+      'background-color:' + cs.backgroundColor + ';';
+    document.documentElement.appendChild(ghost);
+    if (!T.splashOut(ghost, function () { ghost.remove(); })) ghost.remove();
+  }
+
   function showScreen(id) {
+    if (id !== 'loadingScreen' && (document.body.dataset.screen || 'loadingScreen') === 'loadingScreen') {
+      splashLoadingScreen();
+    }
     // Leaving battle (or re-entering a fresh screen) must drop any in-flight
     // drag ghost — hand re-renders destroy the source card and otherwise leave
     // a stuck playcard floating over the arena.
