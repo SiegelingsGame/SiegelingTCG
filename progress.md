@@ -1,3 +1,19 @@
+Original prompt: Can we add smooth transitions from page to page almost like the next page fades in smoothly from the place it was selected?
+
+- October 27, 2026 **Page transitions: the next page swells in from where you tapped.**
+  - **Change.** New `static/js/page-transitions.js`, loaded synchronously in the `<head>` of every production page: index, home-next, home, play, adventure, gauntlet, dominion, keep, chronicles, help, card-dashboard, and the home preview. It uses the View Transitions API.
+    - **Between pages.** It injects `@view-transition { navigation: auto; }`, which has to be present on both documents, so the browser animates real page changes such as landing to hub to play.
+    - **The reveal.** The new page grows out of a circle (`clip-path`) centred on the tap point, scaling from 0.94 to 1 and fading in. The old page fades out. Both snapshots blend with `mix-blend-mode: normal`, because the UA's plus-lighter assumes opacities that sum to 1.
+    - **Carrying the tap point.** A capture-phase click listener records every tap as viewport fractions, not just link taps, because many buttons navigate through `location.href`. A keyboard click uses the control's centre. The point is written to `--vt-x`/`--vt-y` and to `sessionStorage` (`sgVtOrigin`). The next page reads it before its first paint and ignores it after 6s, so a later back or forward starts from the centre.
+    - **Inside the hub.** Screens re-render in place, so `show()` in `home-redesign.js` takes an `animate` flag and routes the DOM swap through `SgTransition.run` (`document.startViewTransition`). Link taps, the shield navigation, `onNavigate` and popstate all animate. Popstate is skipped when `hasUAVisualTransition` is set, so an iOS edge-swipe back does not animate twice. The boot render does not animate. `show()` now returns a promise, because the swap runs a frame later, and the Home-section scroll chains on it.
+    - **Fallbacks.** Reduced motion, hidden tabs and browsers without the API swap instantly, as before.
+  - Cache pins: `page-transitions.js?v=1`, `home-redesign.js?v=159`.
+  - **Verification.** `node --check` passes on both files. Headless Chromium at 390x844:
+    - In the hub, a Collection tap ran one view transition, routed to `/cards`, rendered the binder, and set the origin to the tap (19.49%/18.72% for a tap at 19/18). The logo back to Home and browser Back each ran one more.
+    - Cross-document, the landing's Explore CTA (tapped at 53/55%) led to `/home`, whose `pagereveal` reported a view transition with `--vt-x/y` = 53.59%/55.92%.
+    - With animations slowed to 10% over CDP, a frame shows the Shop page revealed as a circle growing from the Shop tab over a fading Home.
+    - No page errors.
+
 Original prompt: Landing page update the blue icon to the Siegelings logo
 
 - October 26, 2026 **Landing: the page-navigation button wears the Siegelings emblem.**

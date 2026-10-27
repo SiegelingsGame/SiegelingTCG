@@ -11272,26 +11272,35 @@
         purchasing: opts.deckPurchasePendingId || null, notice: opts.deckPurchaseNotice || null });
     };
 
-    function show(screen, push) {
+    // `animate` routes the swap through page-transitions.js, so the new screen
+    // swells in from the tap like a page change does. The swap then runs a
+    // frame later (after the old screen is captured), so show() returns a
+    // promise for anything that needs the new DOM.
+    function show(screen, push, animate) {
       screen = screen || 'home';
-      if (shieldNavigation) {
-        shieldNavigation.reset();
-        shieldNavigation.element.remove();
-      }
-      host.innerHTML = '';
-      render(host, screen, opts);
       current = screen;
-      if (shieldNavigation) host.appendChild(shieldNavigation.element);
       if (push) {
         try {
           history.pushState({ screen: screen }, '', pathForScreen(screen));
         } catch (e) { /* file:// and sandboxed frames reject pushState */ }
       }
-      host.scrollTop = 0;
-      scheduleFit(host);
+      function swap() {
+        if (shieldNavigation) {
+          shieldNavigation.reset();
+          shieldNavigation.element.remove();
+        }
+        host.innerHTML = '';
+        render(host, screen, opts);
+        if (shieldNavigation) host.appendChild(shieldNavigation.element);
+        host.scrollTop = 0;
+        scheduleFit(host);
+      }
+      if (animate && window.SgTransition) return window.SgTransition.run(swap);
+      swap();
+      return Promise.resolve();
     }
 
-    onNavigate = function (screen) { show(screen, true); };
+    onNavigate = function (screen) { show(screen, true, true); };
 
     // One delegated listener survives every re-render, which a per-element
     // binding would not.
@@ -11303,10 +11312,11 @@
       var socialTabAttr = link.getAttribute('data-social-goto');
       if (socialTabAttr) setSocialTab(socialTabAttr);
       var homeSection = link.getAttribute('data-home-goto');
-      show(link.getAttribute('data-screen'), true);
       // show() re-renders Home and resets the scroller, so the section can only
       // be found - and only stays put - after that has happened.
-      if (homeSection) scrollToHomeSection(host, homeSection);
+      show(link.getAttribute('data-screen'), true, true).then(function () {
+        if (homeSection) scrollToHomeSection(host, homeSection);
+      });
     });
 
     // Rotation and width changes re-flow the tiles, so the fit has to be redone.
@@ -11315,9 +11325,11 @@
       document.fonts.ready.then(function () { scheduleFit(host); });
     }
 
+    // An edge-swipe back on iOS already animates the page itself, and a second
+    // transition on top of it reads as a stutter.
     window.addEventListener('popstate', function (e) {
       show((e.state && e.state.screen) || screenForPath(location.pathname) ||
-           new URLSearchParams(location.search).get('screen') || 'home', false);
+           new URLSearchParams(location.search).get('screen') || 'home', false, !e.hasUAVisualTransition);
     });
 
     // ?screen= still works so existing links and the preview board keep going.
@@ -11327,7 +11339,7 @@
       shieldNavigation = window.SiegelingsShieldNavigation.mount(host, function (screen) {
         // Messages is a tab of Social, so it names the tab before the render.
         if (screen === 'messages') { setSocialTab('messages'); screen = 'social'; }
-        show(screen, true);
+        show(screen, true, true);
       }, function () { return current; });
     }
     warmBinderArt(current);
