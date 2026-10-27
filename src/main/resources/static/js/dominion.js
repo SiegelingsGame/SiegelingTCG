@@ -3664,37 +3664,50 @@
     // they were away - and chooses to go in; a new player reads what Dominion is before
     // founding one. Either way the hub is one tap back.
     let starting = false;
+    // Laid out like the Arena loadout and Siege mode select: an art banner, a grid of
+    // full-art plates, and a bottom bar with Main Menu and one gold call to action.
+    function startPlate(o) {
+        const tag = o.act ? 'button type="button" data-act="' + o.act + '"' + (o.arg ? ' data-arg="' + o.arg + '"' : '') : 'div';
+        return '<' + tag + ' class="dm-start-plate' + (o.on ? ' is-on' : '') + '" style="--el:var(--' + o.el + ')">' +
+            '<img src="' + esc(o.art) + '" alt="" decoding="async"><span class="dm-start-plate-veil" aria-hidden="true"></span>' +
+            (o.badge ? '<em class="dm-start-plate-badge">' + esc(o.badge) + '</em>' : '') +
+            '<span class="dm-start-plate-body"><small>' + esc(o.kicker) + '</small><b>' + esc(o.title) + '</b><span>' + esc(o.desc) + '</span>' +
+            (o.meta ? '<i>' + esc(o.meta) + '</i>' : '') + '</span></' + (o.act ? 'button' : 'div') + '>';
+    }
     function startScreen() {
-        const k = S.knight, back = '<a class="dm-start-back" href="/home" aria-label="Back to the hub">&lsaquo; Hub</a>';
+        const k = S.knight;
         if (!k.made) {
-            return '<img class="dm-start-bg" src="' + esc(namedScene('light-shelter')) + '" alt="" decoding="async"><span class="dm-start-shade" aria-hidden="true"></span>' + back +
-                '<div class="dm-start-card"><span class="ck-kicker">Siegelings</span><h1>Dominion</h1>' +
-                '<p class="dm-start-lede">Found a Keep, raise a company of Siegelings and send them down the roads. Your Dominion keeps working while you are away.</p>' +
-                '<ul class="dm-start-points"><li><span>🏰</span><b>Build your Keep</b><small>Rooms that gather, craft and cook on their own clock.</small></li>' +
-                '<li><span>🐾</span><b>Raise a company</b><small>Befriend Siegelings, give them work and grow your bond.</small></li>' +
-                '<li><span>🧭</span><b>Take the roads</b><small>Expeditions, wild trails and SiegeKnight mentors.</small></li></ul>' +
-                '<div class="dm-start-actions"><button type="button" class="ck-btn is-primary is-big" data-act="start-found">Found your Dominion</button>' +
-                '<a class="ck-btn is-glass" href="/home">Back to Hub</a></div></div>';
+            return '<header class="dm-start-head"><img src="/img/gallery/cactyjackedty-ruins.webp" alt="" decoding="async"><span class="dm-start-head-veil" aria-hidden="true"></span>' +
+                '<div><small>Kingdom &amp; Idle RPG</small><h1>Dominion</h1><p>Found a Keep, raise a company of Siegelings and send them down the roads. It keeps working while you are away.</p></div>' +
+                '<a class="dm-start-x" href="/home" aria-label="Back to the hub">&times;</a></header>' +
+                '<h2 class="dm-start-h">What awaits</h2>' +
+                '<div class="dm-start-grid">' +
+                startPlate({ act: 'start-found', on: true, el: 'gold', art: namedScene('light-shelter'), kicker: 'Begin here', title: 'Found', desc: 'Name your knight, raise your crest and choose your land.', meta: 'Found your Dominion ›' }) +
+                startPlate({ el: 'earth', art: namedScene('earth-shelter'), kicker: 'Your Keep', title: 'Build', desc: 'Rooms that gather, craft and cook on their own clock.', meta: 'Keeps working offline' }) +
+                startPlate({ el: 'wind', art: namedScene('wind-elite'), kicker: 'Your company', title: 'Befriend', desc: 'Raise Siegelings, give them work and grow your bond.', meta: 'Starts with one companion' }) +
+                startPlate({ el: 'water', art: namedScene('water-journey'), kicker: 'The roads', title: 'Explore', desc: 'Expeditions, wild trails and SiegeKnight mentors.', meta: 'Tame what you find' }) +
+                '</div>' +
+                '<footer class="dm-start-bar"><a class="dm-start-menu" href="/home">Main Menu</a><button type="button" class="dm-start-go" data-act="start-found">Found your Dominion</button></footer>';
         }
-        const b = biomeOf(S), ids = joinedIds(S), a = S.away;
+        const b = biomeOf(S), ids = joinedIds(S), a = S.away, el = b.element;
         const td = taskDef(k.task), doing = S.exp ? expTitle(S.exp) : td ? taskLabel(S) : 'Resting at the Keep';
-        const crew = ids.slice(0, 6).map((id) => { const c = C(id); return '<span class="dm-start-crew-one" style="--el:var(--' + c.el + ')" title="' + esc(c.name) + '">' + compArt(id, '') + '</span>'; }).join('') +
-            (ids.length > 6 ? '<span class="dm-start-crew-more">+' + (ids.length - 6) + '</span>' : '');
+        const trails = (S.sightings || []).filter((v) => v.expiresAt > S.t).length, unseen = S.reports.filter((r) => !r.seen).length;
         const awayKeys = a ? Object.keys(a.gains || {}).filter((x) => a.gains[x] > 0) : [];
-        return '<img class="dm-start-bg" src="' + esc(namedScene(b.element + '-shelter')) + '" alt="" decoding="async"><span class="dm-start-shade" aria-hidden="true"></span>' + back +
-            '<div class="dm-start-card is-return"><div class="dm-start-col"><span class="ck-kicker">Your Dominion</span>' +
-            '<div class="dm-start-knight"><span class="dm-start-figure">' + knightFigure(portraitOf(k), 'idle') + '</span><div>' + crest(k) +
-                '<h1>' + esc(k.name) + '</h1><p>' + esc(CALLINGS[k.calling] ? CALLINGS[k.calling][1] : '') + ' · ' + b.icon + ' ' + esc(b.name) + '</p></div></div>' +
-            '<div class="dm-start-stats"><div><small>Rank</small><b>' + rankLvl(S) + '</b><span>' + esc(HALL_RANKS[S.b.hall - 1]) + '</span></div>' +
-                '<div><small>Crowns</small><b>' + fl(S.inv.crowns) + '</b><span>&#128081; treasury</span></div>' +
-                '<div><small>Company</small><b>' + ids.length + '</b><span>Siegeling' + (ids.length === 1 ? '' : 's') + '</span></div></div>' +
-            (crew ? '<div class="dm-start-crew">' + crew + '</div>' : '') +
-            '<p class="dm-start-now"><span class="ck-dot is-on"></span>' + esc(doing) + '</p></div><div class="dm-start-col">' +
-            (a ? '<div class="dm-start-away"><small>While you were away · ' + esc(fmtDur(a.ms)) + '</small>' +
-                (awayKeys.length ? '<ul class="ck-loot">' + awayKeys.slice(0, 6).map((x) => '<li>' + itemIcon(x, 'is-sm') + '<span><b>' + fl(a.gains[x]) + '×</b> ' + esc(itemName(x)) + '</span></li>').join('') + '</ul>' : '<p class="ck-small ck-muted">The Keep was quiet.</p>') +
-                (a.notes && a.notes.length ? '<p class="ck-small ck-muted">' + esc(a.notes[0]) + (a.notes.length > 1 ? ' and ' + (a.notes.length - 1) + ' more.' : '') + '</p>' : '') + '</div>' : '') +
-            '<div class="dm-start-actions"><button type="button" class="ck-btn is-primary is-big" data-act="start-enter">Enter Dominion</button>' +
-                '<a class="ck-btn is-glass" href="/home">Back to Hub</a></div></div></div>';
+        const away = a ? '<p class="dm-start-away"><b>While you were away · ' + esc(fmtDur(a.ms)) + '</b> ' +
+            (awayKeys.length ? awayKeys.slice(0, 4).map((x) => fl(a.gains[x]) + ' ' + esc(itemName(x))).join(' · ') : 'The Keep was quiet.') + '</p>' : '';
+        return '<header class="dm-start-head"><img src="' + esc(namedScene(el + '-shelter')) + '" alt="" decoding="async"><span class="dm-start-head-veil" aria-hidden="true"></span>' +
+            '<div class="dm-start-who"><span class="dm-start-figure">' + knightFigure(portraitOf(k), 'idle') + '</span><div><small>' + crest(k) + ' Your Dominion</small><h1>' + esc(k.name) + '</h1>' +
+            '<p>' + esc(CALLINGS[k.calling] ? CALLINGS[k.calling][1] : '') + ' · ' + b.icon + ' ' + esc(b.name) + ' · Rank ' + rankLvl(S) + ' ' + esc(HALL_RANKS[S.b.hall - 1]) + ' · &#128081; ' + fl(S.inv.crowns) + '</p></div></div>' +
+            '<a class="dm-start-x" href="/home" aria-label="Back to the hub">&times;</a></header>' +
+            away +
+            '<h2 class="dm-start-h">Where to?</h2>' +
+            '<div class="dm-start-grid">' +
+            startPlate({ act: 'start-enter', arg: 'base', on: true, el: el, art: namedScene(el + '-shelter'), kicker: b.icon + ' ' + b.name, title: 'The Keep', desc: doing + '.', meta: 'Enter Dominion ›' }) +
+            startPlate({ act: 'start-enter', arg: 'company', el: 'wind', art: namedScene('wind-elite'), kicker: 'Your company', title: 'Company', desc: ids.length + ' Siegeling' + (ids.length === 1 ? '' : 's') + ' at your side.', meta: 'Work, feed and bond' }) +
+            startPlate({ act: 'start-enter', arg: 'expedition', el: 'water', art: namedScene('water-journey'), kicker: 'The roads', title: 'Expedition', desc: S.exp ? 'On the road: ' + expTitle(S.exp) + '.' : 'Plan a road for your company.', meta: unseen ? unseen + ' new report' + (unseen === 1 ? '' : 's') : 'Explore and gather', badge: unseen ? String(unseen) : '' }) +
+            startPlate({ act: 'start-enter', arg: 'wilds', el: 'earth', art: namedScene('earth-journey'), kicker: 'The wilds', title: 'Wilds', desc: trails ? trails + ' fresh trail' + (trails === 1 ? '' : 's') + ' to follow.' : 'Wild Siegelings spotted on your roads.', meta: 'Tame new companions', badge: trails ? String(trails) : '' }) +
+            '</div>' +
+            '<footer class="dm-start-bar"><a class="dm-start-menu" href="/home">Main Menu</a><button type="button" class="dm-start-go" data-act="start-enter" data-arg="base">Enter Dominion</button></footer>';
     }
     function showStart() {
         starting = true;
@@ -3702,7 +3715,7 @@
         el.innerHTML = startScreen();
         el.hidden = false;
         document.body.dataset.screen = 'start';
-        const go = el.querySelector('.ck-btn.is-primary');
+        const go = el.querySelector('.dm-start-go');
         if (go) go.focus({ preventScroll: true });
     }
     function leaveStart() {
@@ -4804,7 +4817,7 @@
         case 'close-modal': closeModal(); return;
         case 'start-found': startDraft(); openModal('create'); return;
         // The start screen already showed the time-away summary, so entering skips that sheet.
-        case 'start-enter': leaveStart(); S.away = null; save(); renderAll(); maybeShowReport(); return;
+        case 'start-enter': leaveStart(); S.away = null; setTab(arg || 'base'); save(); renderAll(); maybeShowReport(); return;
         // Leaving the creation sheet before founding returns to the start screen; edits just close.
         case 'cc-exit': { const made = S.knight.made; draft = null; closeModal(); if (!made) showStart(); return; }
         case 'menu': openModal('menu'); return;
