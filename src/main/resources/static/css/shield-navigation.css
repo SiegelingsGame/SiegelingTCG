@@ -77,6 +77,23 @@
 .sn-emblem::after { content:''; position:absolute; inset:0; border-radius:50%; background:linear-gradient(115deg,transparent 35%,#ffe8ab66 49%,transparent 60%); opacity:0; animation:sn-idle-shine 11s ease-in-out infinite; }
 .sn-core { position:absolute; top:6px; left:calc(50% - 4px); width:8px; height:8px; border-width:1px; box-shadow:0 0 9px #65caff; opacity:.5; animation:sn-gem-idle 7s ease-in-out infinite; }
 .sn-pulse { position:absolute; inset:-4px; border:2px solid #efcf80; border-radius:50%; box-shadow:0 0 12px #f8cd7777; opacity:0; pointer-events:none; }
+/* Eclipse corona around the emblem while the shield is summoned: a breathing
+   glow, two sets of uneven streamers turning slowly against each other and
+   flickering, and a bright chromosphere rim hugging the disc. The streamers are
+   conic gradients masked to a ring that starts at the emblem's edge, so the S
+   stays clear. Keyed off aria-expanded, which flips as soon as the shield
+   starts to open or close. */
+.sn-corona { position:absolute; inset:-46px; pointer-events:none; opacity:0; transform:scale(.6); transition:opacity .45s ease, transform .7s cubic-bezier(.2,.8,.2,1); }
+.sn-fab[aria-expanded="true"] .sn-corona { opacity:1; transform:scale(1); }
+.sn-corona > i { position:absolute; inset:0; border-radius:50%; }
+.sn-corona-glow { background:radial-gradient(circle closest-side, rgba(255,236,180,.85) 0 40%, rgba(255,206,110,.42) 50%, rgba(240,160,60,.14) 70%, transparent 100%); filter:blur(2px); animation:sn-corona-breathe 3.4s ease-in-out infinite; }
+.sn-corona-rays { background:conic-gradient(from 8deg, transparent 0deg, rgba(255,226,150,.55) 6deg, transparent 13deg, rgba(255,205,110,.28) 24deg, transparent 31deg, transparent 44deg, rgba(255,236,176,.7) 50deg, transparent 58deg, rgba(255,214,128,.35) 71deg, transparent 80deg, transparent 98deg, rgba(255,226,150,.5) 105deg, transparent 112deg, rgba(255,198,96,.25) 128deg, transparent 139deg, rgba(255,240,190,.62) 151deg, transparent 158deg, transparent 176deg, rgba(255,214,128,.42) 186deg, transparent 197deg, rgba(255,232,165,.58) 214deg, transparent 221deg, rgba(255,205,110,.3) 236deg, transparent 247deg, transparent 262deg, rgba(255,238,184,.66) 270deg, transparent 278deg, rgba(255,214,128,.32) 293deg, transparent 303deg, rgba(255,226,150,.5) 322deg, transparent 331deg, rgba(255,205,110,.26) 346deg, transparent 360deg); -webkit-mask-image:radial-gradient(circle closest-side, transparent 38%, #000 45%, rgba(0,0,0,.55) 64%, transparent 100%); mask-image:radial-gradient(circle closest-side, transparent 38%, #000 45%, rgba(0,0,0,.55) 64%, transparent 100%); filter:blur(2.5px); mix-blend-mode:screen; animation:sn-corona-turn 46s linear infinite, sn-corona-flicker 5.2s ease-in-out infinite; }
+.sn-corona > .sn-corona-rays-b { inset:8px; background:conic-gradient(from 31deg, transparent 0deg, rgba(255,240,196,.4) 10deg, transparent 22deg, rgba(255,210,120,.3) 47deg, transparent 63deg, rgba(255,232,170,.45) 92deg, transparent 104deg, rgba(255,214,128,.28) 133deg, transparent 152deg, rgba(255,240,196,.42) 181deg, transparent 193deg, rgba(255,205,110,.3) 224deg, transparent 241deg, rgba(255,232,170,.44) 268deg, transparent 282deg, rgba(255,214,128,.3) 313deg, transparent 334deg); filter:blur(4px); animation:sn-corona-turn 31s linear infinite reverse, sn-corona-flicker 3.7s ease-in-out -1.6s infinite; }
+.sn-corona > .sn-corona-rim { inset:43px; box-shadow:0 0 6px 2px rgba(255,246,214,.95), 0 0 16px 5px rgba(255,214,120,.7), 0 0 30px 10px rgba(255,180,70,.35); animation:sn-corona-rim 2.6s ease-in-out infinite; }
+@keyframes sn-corona-turn { to { transform:rotate(360deg); } }
+@keyframes sn-corona-flicker { 0%,100% { opacity:.78; scale:1; } 30% { opacity:1; scale:1.05; } 55% { opacity:.86; scale:.97; } 80% { opacity:.97; scale:1.03; } }
+@keyframes sn-corona-breathe { 0%,100% { opacity:.7; transform:scale(.96); } 50% { opacity:1; transform:scale(1.06); } }
+@keyframes sn-corona-rim { 0%,100% { opacity:.75; } 50% { opacity:1; } }
 .sn-root[data-state="opening"] .sn-emblem::before, .sn-root[data-state="opening"] .sn-core,
 .sn-root[data-state="closing"] .sn-emblem::before, .sn-root[data-state="closing"] .sn-core { animation:none; }
 .sn-selecting .sn-selected .sn-option-light { animation:sn-selected-light 160ms ease-out; }

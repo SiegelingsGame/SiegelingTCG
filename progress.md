@@ -1,3 +1,20 @@
+Original prompt: When the menu is open add a golden corona to the Siegelings button that moves and pulses like a real corona in a eclipse , smooth auras of light
+
+- October 27, 2026 **Shield menu: an eclipse corona around the S button while it is open.**
+  - **Change.** The shield FAB in `shield-navigation.js` gains a `.sn-corona` span behind the emblem, with four layers:
+    - a breathing radial glow;
+    - two conic-gradient streamer sets with uneven ray widths and strengths, masked to a ring that starts at the emblem's edge and fades outward, blurred and screen-blended, turning against each other over 46s and 31s and each flickering in opacity and scale on its own cycle (5.2s and 3.7s);
+    - a tight chromosphere rim that pulses.
+
+    It is keyed off `.sn-fab[aria-expanded="true"]`, which flips the moment the shield starts opening or closing, so the corona swells in (opacity, and scale from 0.6) and fades out with the menu. It is pointer-transparent. The existing reduced-motion rule freezes it to a static glow.
+
+    In the first render the rim covered the whole corona and drew a hard bright edge, because `.sn-corona > i { inset:0 }` outranked `.sn-corona-rim`. The rim and second-streamer rules are now scoped `.sn-corona > …`. Cache pins: `shield-navigation.css?v=4`, `shield-navigation.js?v=3`.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844 and 844x390:
+    - The corona has opacity 0 closed and 1 open, and its layers run 1, 2, 2 and 1 animations.
+    - Tapping the S again closes the menu (`aria-expanded=false`) and the corona fades back to 0.
+    - 3x crops taken 2.2s apart show soft golden streamers that shift between frames around a clear emblem, with no hard edge.
+    - No page errors.
+
 Original prompt: Merge but make it easy to turn off
 
 - October 27, 2026 **Page transitions: two off switches.**
