@@ -1584,19 +1584,22 @@ img { display: block; }
     align-items: flex-end;
     gap: 10px;
 }
+/* The Siegelings emblem in a gold rim, the same medallion the hub's shield
+   button wears, so the landing's navigation reads as the game's own. */
 .landing-fab-toggle {
     width: 54px;
     height: 54px;
-    border: 1px solid rgba(169, 232, 255, 0.68);
+    padding: 0;
+    border: 2px solid #e6bc70;
     border-radius: 50%;
-    color: #fff;
-    background: radial-gradient(circle at 35% 28%, #4dd9ff, #203d88 58%, #101b46);
-    box-shadow: 0 12px 28px rgba(2, 9, 34, 0.56), 0 0 24px rgba(66, 202, 255, 0.35);
+    background: radial-gradient(circle at 50% 35%, #142b43, #050d1b);
+    box-shadow: 0 12px 28px rgba(2, 9, 34, 0.56), 0 0 22px rgba(230, 188, 112, 0.3), inset 0 0 0 1px rgba(255, 241, 189, .35);
     cursor: pointer;
-    font-size: 1.25rem;
+    overflow: hidden;
     transition: transform .2s ease, box-shadow .2s ease;
 }
-.landing-fab-toggle:hover, .landing-fab-toggle:focus-visible { transform: translateY(-3px) rotate(20deg); box-shadow: 0 16px 32px rgba(2, 9, 34, .62), 0 0 30px rgba(66,202,255,.54); }
+.landing-fab-toggle img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.landing-fab-toggle:hover, .landing-fab-toggle:focus-visible { transform: translateY(-3px) scale(1.04); box-shadow: 0 16px 32px rgba(2, 9, 34, .62), 0 0 30px rgba(230, 188, 112, .5); }
 .landing-fab-toggle:focus-visible, .landing-fab-menu a:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 .landing-fab-menu {
     display: grid;

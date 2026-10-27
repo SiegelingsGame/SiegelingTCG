@@ -1,3 +1,13 @@
+Original prompt: Landing page update the blue icon to the Siegelings logo
+
+- October 26, 2026 **Landing: the page-navigation button wears the Siegelings emblem.**
+  - **Change.** The landing's floating navigation button (`.landing-fab-toggle`, bottom right) used to show a ✦ on a blue radial orb. It now shows `/img/siegelings-icon-256.webp`, the same emblem the hub's shield button uses, in a gold rim on navy. The hover rotation became a lift with a slight scale, because a spinning logo reads as broken. Behaviour is unchanged. Cache pin: `landing.css?v=59`, in both `index.html` and `play.html`.
+  - **Verification.** Headless Chromium at 390x844, served from `index.html`:
+    - The emblem loads (256px source) in the 48px button.
+    - Tapping it opens the menu and sets `aria-expanded=true`.
+    - A screenshot shows the round S emblem in its gold rim.
+    - No page errors.
+
 Original prompt: Well the wallpaper selection will have scrolling unlabeled icons don't mean anything just place them strategically so they don't need scrolling
 
 - October 26, 2026 **Hall sheet: labelled board tiles that wrap; the wallpaper picker scrolls again.**
