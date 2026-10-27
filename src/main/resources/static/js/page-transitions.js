@@ -29,9 +29,17 @@
    the click. It is stored as a fraction of the viewport and only honoured for
    a few seconds, so a later back/forward ripples from the centre instead of a
    stale spot. Loaded synchronously in <head> so the variables and the opt-in
-   exist before the first paint the transition captures. */
+   exist before the first paint the transition captures.
+
+   Turning it off:
+   - For everyone: set ENABLED below to false. Pages then change instantly.
+   - Per player: Settings > Motion > "Page transitions" (and "Reduced motion")
+     in the hub, stored in localStorage `sgHubPrefs` beside the other hub
+     switches. The hub calls SgTransition.refresh() when either is flipped. */
 (function () {
   'use strict';
+  var ENABLED = true;
+  var PREFS_KEY = 'sgHubPrefs';
   var KEY = 'sgVtOrigin';
   var MAX_AGE_MS = 6000;
   var DURATION = '.8s';
@@ -74,6 +82,18 @@
   }
   var RINGS = [ring(1, 34, 0.34), ring(0.72, 22, 0.2), ring(0.46, 14, 0.12)].join(', ');
 
+  // The player's own switches, read fresh each time so a change in Settings
+  // takes effect without a reload.
+  function enabled() {
+    if (!ENABLED) return false;
+    if (reduce && reduce.matches) return false;
+    try {
+      var prefs = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') || {};
+      if (prefs.pageTransitions === false || prefs.reducedMotion === true) return false;
+    } catch (e) { /* storage blocked: keep the default */ }
+    return true;
+  }
+
   var style = document.createElement('style');
   style.setAttribute('data-page-transitions', '');
   style.textContent =
@@ -101,7 +121,15 @@
     '@media (prefers-reduced-motion: reduce) {' +
       ' ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }' +
       ' #sgRipple { display: none; } }';
-  (document.head || root).appendChild(style);
+  // Without the stylesheet there is no cross-page opt-in, so the browser
+  // changes pages instantly; it is attached or detached to follow the switches.
+  function refresh() {
+    var on = enabled();
+    if (on && !style.isConnected) (document.head || root).appendChild(style);
+    if (!on && style.isConnected) style.parentNode.removeChild(style);
+    return on;
+  }
+  refresh();
 
   function addRipple() {
     removeRipple();
@@ -120,7 +148,9 @@
   // A page arriving through a cross-document transition adds its rings before
   // its first frame, which is when the browser captures the new state.
   window.addEventListener('pagereveal', function (e) {
-    if (!e.viewTransition || (reduce && reduce.matches)) return;
+    if (!e.viewTransition) return;
+    // The previous page opted in, but this player has the effect off.
+    if (!enabled()) { e.viewTransition.skipTransition(); return; }
     addRipple();
     e.viewTransition.finished.then(removeRipple, removeRipple);
   });
@@ -146,13 +176,15 @@
     // browser supports one. Always resolves after `update` has run, so callers
     // can chain work that needs the new DOM.
     run: function (update) {
-      if (!document.startViewTransition || (reduce && reduce.matches) || document.hidden) {
+      if (!document.startViewTransition || !refresh() || document.hidden) {
         update();
         return Promise.resolve();
       }
       var vt = document.startViewTransition(function () { update(); addRipple(); });
       vt.finished.then(removeRipple, removeRipple);
       return vt.updateCallbackDone;
-    }
+    },
+    enabled: enabled,
+    refresh: refresh
   };
 })();

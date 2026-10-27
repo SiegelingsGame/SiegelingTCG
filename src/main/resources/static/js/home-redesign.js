@@ -10320,8 +10320,8 @@
   var DISCORD_URL = 'https://discord.gg/T4WrHCGJ9b';
   var SETTINGS = [
     ['Audio', [['music', 'Music', true], ['sfx', 'Sound effects', true], ['voice', 'Battle voice', false]]],
-    ['Motion', [['cardAnim', 'Card animations', true], ['reducedMotion', 'Reduced motion', null],
-                ['parallax', 'Background parallax', true]]],
+    ['Motion', [['cardAnim', 'Card animations', true], ['pageTransitions', 'Page transitions', true],
+                ['reducedMotion', 'Reduced motion', null], ['parallax', 'Background parallax', true]]],
     ['Notifications', [['inviteNotify', 'Match invites', true], ['keepNotify', 'Keep ready', true],
                        ['resetNotify', 'Daily reset', false]]]
   ];
@@ -10353,6 +10353,9 @@
         btn.setAttribute('aria-checked', on ? 'true' : 'false');
         btn.classList.toggle('on', on);
         writePref(btn.getAttribute('data-pref'), on);
+        // page-transitions.js reads both of these; let it re-check now rather
+        // than on the next page load.
+        if (window.SgTransition && window.SgTransition.refresh) window.SgTransition.refresh();
       });
     });
   }

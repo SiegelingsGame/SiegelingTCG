@@ -1,3 +1,17 @@
+Original prompt: Merge but make it easy to turn off
+
+- October 27, 2026 **Page transitions: two off switches.**
+  - **Change.**
+    - **For everyone.** `page-transitions.js` gains `var ENABLED = true;` at its top, and setting it to `false` turns the ripple off for every player.
+    - **Per player.** Settings > Motion gains a "Page transitions" switch (`pageTransitions`, default on). It is stored in `sgHubPrefs` beside the other hub switches. The existing "Reduced motion" switch now turns transitions off as well.
+    - **How the switches act.** `enabled()` re-reads the switches on every call. `refresh()` attaches or detaches the injected stylesheet, and with it the cross-page `@view-transition` opt-in. A switch in Settings calls `SgTransition.refresh()`, so it takes effect immediately with no reload. If the arriving page's player has it off, `pagereveal` calls `skipTransition()`. `SgTransition.run` swaps instantly when it is off.
+  - Cache pins: `page-transitions.js?v=4`, `home-redesign.js?v=160`.
+  - **Verification.** `node --check` passes on both files. Headless Chromium at 390x844, 844x390 and 1920x1080:
+    - The new switch renders on, and the landscape and desktop Settings grids still fit with no scrolling.
+    - Turning it off makes `enabled()` false and detaches the stylesheet. The logo back to Home then runs 0 view transitions. Landing Explore to `/home` arrives with no view transition (`pagereveal` reports false).
+    - Turning it back on restores the transition (`pagereveal` reports true).
+    - No page errors.
+
 Original prompt: I'm thinking more so like tapping the surface of water and it ripples in
 
 - October 27, 2026 **Page transitions: a water ripple from the tap.**
