@@ -1,3 +1,12 @@
+Original prompt: Similar to the buttons on home
+
+- October 27, 2026 **Page transitions now move like Home's shortcut sheets.**
+  - **Change.** The circle-wipe reveal in `page-transitions.js` is replaced with the motion of Home's shortcut sheets (`sgSheetIn`). The new page scales from 0.38 at the tap point to full size, on the same overshooting curve (`cubic-bezier(.2,.9,.25,1.12)`, 0.5s). It blurs in from 10px and is fully opaque by 55%. The old page recedes to 0.97, dims to brightness 0.7 and fades out over 0.34s, like the art behind an open sheet. A comment points each file at the other so the two stay in step. Cache pin: `page-transitions.js?v=2` in all 12 pages.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844, with animations slowed to 10% over CDP:
+    - A mid-frame of Home to Shop shows the Shop page growing from the tapped Shop tab over the dimming Home, and it settles full-screen.
+    - Cross-document, landing Explore to `/home` shows the hub growing, blurred, out of the Explore button over the dimmed landing.
+    - No page errors.
+
 Original prompt: Can we add smooth transitions from page to page almost like the next page fades in smoothly from the place it was selected?
 
 - October 27, 2026 **Page transitions: the next page swells in from where you tapped.**

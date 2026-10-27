@@ -1,4 +1,7 @@
-/* Page transitions: the next page swells in from the spot that was tapped.
+/* Page transitions: the next page swells in from the spot that was tapped,
+   with the same motion as Home's shortcut sheets (sgSheetIn in
+   home-redesign.css): a scale-up from the button with a slight overshoot and
+   a blur that clears as it lands. Keep the two in step.
 
    Built on the View Transitions API, so it is pure progressive enhancement:
    - Between pages (landing -> hub -> play ...) the CSS opt-in
@@ -42,17 +45,16 @@
     // The UA cross-fade blends the two snapshots with plus-lighter, which only
     // looks right when their opacities sum to 1. These don't, so blend normally.
     '::view-transition-old(root), ::view-transition-new(root) { mix-blend-mode: normal; }' +
-    '::view-transition-old(root) { animation: sgVtOld .38s cubic-bezier(.4,0,.2,1) both; }' +
+    '::view-transition-old(root) { animation: sgVtOld .34s cubic-bezier(.4,0,.8,.4) both; }' +
     '::view-transition-new(root) {' +
       ' transform-origin: var(--vt-x, 50%) var(--vt-y, 50%);' +
-      ' animation: sgVtNew .56s cubic-bezier(.2,.8,.2,1) both; }' +
-    '@keyframes sgVtOld { to { opacity: 0; transform: scale(.985); } }' +
+      ' animation: sgVtNew .5s cubic-bezier(.2,.9,.25,1.12) both; }' +
+    // The old page recedes and dims a little, like the art behind a sheet.
+    '@keyframes sgVtOld { to { opacity: 0; transform: scale(.97); filter: brightness(.7); } }' +
     '@keyframes sgVtNew {' +
-      ' from { opacity: 0; transform: scale(.94);' +
-        ' clip-path: circle(3% at var(--vt-x, 50%) var(--vt-y, 50%)); }' +
-      ' 55% { opacity: 1; }' +
-      ' to { opacity: 1; transform: none;' +
-        ' clip-path: circle(150% at var(--vt-x, 50%) var(--vt-y, 50%)); } }' +
+      ' 0% { opacity: 0; transform: scale(.38); filter: blur(10px); }' +
+      ' 55% { opacity: 1; filter: blur(0); }' +
+      ' 100% { opacity: 1; transform: scale(1); filter: blur(0); } }' +
     '@media (prefers-reduced-motion: reduce) {' +
       ' ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }';
   (document.head || root).appendChild(style);
