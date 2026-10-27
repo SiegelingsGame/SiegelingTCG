@@ -1,3 +1,19 @@
+Original prompt: I'm thinking more so like tapping the surface of water and it ripples in
+
+- October 27, 2026 **Page transitions: a water ripple from the tap.**
+  - **Change.** `page-transitions.js` replaces the sheet-style grow with a ripple. It has two layers that run the same keyframes on a registered `@property --vt-r`, from 0 to `--vt-max`. `--vt-max` is the distance from the tap to the farthest corner plus 90px, computed in `setOrigin`.
+    - **The new page.** `::view-transition-new(root)` is revealed through a radial mask that is solid inside and has two dips in opacity at its edge, so the old page shimmers through the wavefront. It also settles from a 1.03 scale.
+    - **The rings.** A ring overlay, `#sgRipple`, has its own `view-transition-name`, so it draws above both snapshots. It paints a light crest at the wavefront and two fading echoes at 0.72 and 0.46 of the radius.
+    - **The old page.** It stays in place and dims to brightness 0.82.
+    - **Timing.** 0.8s, decelerating like a spreading ripple.
+    - **Adding and removing the rings.** The overlay is added inside the update for in-hub screen changes and on `pagereveal` for cross-page navigations. It is removed when the transition finishes. It is appended to `<html>`, not `<body>`, because the hub mounts into `<body>` and clears it on its boot render, which deleted the rings mid-ripple in the first test.
+    - **Reduced motion.** It turns all of this off.
+  - Cache pin: `page-transitions.js?v=3` in all 12 pages.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844:
+    - **In the hub (slowed to 10% over CDP):** frames of Home to Shop show the Shop page spreading in rings from the Shop tab. The rings are present mid-transition and removed afterwards, and the route lands on `/shop`.
+    - **Across pages (playback slowed from inside the arriving page):** after landing Explore to `/home`, `pagereveal` reports a view transition, and `sgVtRings`, `sgVtRipple` and `sgVtSink` are running with the overlay present. A frame shows the hub rippling out from the Explore button with crests at the edge. The overlay survives the hub's boot render and is gone after.
+    - No page errors.
+
 Original prompt: Similar to the buttons on home
 
 - October 27, 2026 **Page transitions now move like Home's shortcut sheets.**

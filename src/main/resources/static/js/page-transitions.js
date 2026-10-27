@@ -1,63 +1,129 @@
-/* Page transitions: the next page swells in from the spot that was tapped,
-   with the same motion as Home's shortcut sheets (sgSheetIn in
-   home-redesign.css): a scale-up from the button with a slight overshoot and
-   a blur that clears as it lands. Keep the two in step.
+/* Page transitions: tapping is like touching the surface of water - the next
+   page ripples out from the spot that was tapped.
+
+   Two layers make the ripple:
+   - The new page is revealed through a radial mask whose radius (--vt-r)
+     grows from the tap to the farthest corner. Its leading edge is a few soft
+     alternating bands rather than a hard line, so the old page shimmers
+     through the wavefront.
+   - A ring overlay (#sgRipple) draws light crests at the wavefront and two
+     fading echoes behind it. It is a real element with its own
+     view-transition-name, so it renders above both snapshots, and it is
+     removed when the transition ends.
+   --vt-r is registered with @property so it can be animated; both layers run
+   the same keyframes and stay in lock-step.
 
    Built on the View Transitions API, so it is pure progressive enhancement:
    - Between pages (landing -> hub -> play ...) the CSS opt-in
-     `@view-transition { navigation: auto; }` lets the browser cross-fade the
-     two documents itself (Safari 18.2+, Chrome 126+). It has to be present on
-     BOTH pages, which is why this file is loaded in the <head> of every page.
+     `@view-transition { navigation: auto; }` lets the browser animate the
+     change itself (Safari 18.2+, Chrome 126+). It has to be present on BOTH
+     pages, which is why this file is loaded in the <head> of every page.
    - Inside the hub, screens are re-rendered in place, so home-redesign.js
      wraps that swap in SgTransition.run(), which uses
      document.startViewTransition.
-   Browsers without the API navigate exactly as before.
+   Browsers without the API, and players who ask for reduced motion, change
+   pages exactly as before.
 
    The tap point travels to the next document through sessionStorage, because
    a cross-document transition is animated by the NEW page, which never saw
    the click. It is stored as a fraction of the viewport and only honoured for
-   a few seconds, so a later back/forward lands centred instead of at a stale
-   spot. Loaded synchronously in <head> so the variables and the opt-in exist
-   before the first paint the transition captures. */
+   a few seconds, so a later back/forward ripples from the centre instead of a
+   stale spot. Loaded synchronously in <head> so the variables and the opt-in
+   exist before the first paint the transition captures. */
 (function () {
   'use strict';
   var KEY = 'sgVtOrigin';
   var MAX_AGE_MS = 6000;
+  var DURATION = '.8s';
+  // Fast off the mark, long glide out - the way a ripple slows as it spreads.
+  var EASE = 'cubic-bezier(.22,.61,.36,1)';
   var root = document.documentElement;
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
 
   function setOrigin(xFrac, yFrac) {
+    var w = window.innerWidth || 1, h = window.innerHeight || 1;
     root.style.setProperty('--vt-x', (xFrac * 100).toFixed(2) + '%');
     root.style.setProperty('--vt-y', (yFrac * 100).toFixed(2) + '%');
+    // The ripple ends once it has passed the farthest corner, plus the width of
+    // its banded edge, so the new page is fully clear when it stops.
+    var dx = Math.max(xFrac, 1 - xFrac) * w, dy = Math.max(yFrac, 1 - yFrac) * h;
+    root.style.setProperty('--vt-max', Math.ceil(Math.sqrt(dx * dx + dy * dy) + 90) + 'px');
   }
+  setOrigin(0.5, 0.5);
 
-  // Arriving from another page: start the reveal where the player tapped there.
+  // Arriving from another page: ripple from where the player tapped there.
   try {
     var saved = JSON.parse(sessionStorage.getItem(KEY) || 'null');
     sessionStorage.removeItem(KEY);
     if (saved && Date.now() - saved.t < MAX_AGE_MS) setOrigin(saved.x, saved.y);
-  } catch (e) { /* storage blocked: the reveal starts from the centre */ }
+  } catch (e) { /* storage blocked: the ripple starts from the centre */ }
+
+  var AT = 'circle at var(--vt-x, 50%) var(--vt-y, 50%)';
+  var R = 'var(--vt-r)';
+  // Solid inside, then two dips in opacity before the edge: the wavefront.
+  var MASK = 'radial-gradient(' + AT + ', #000 calc(' + R + ' - 78px),' +
+    ' rgba(0,0,0,.5) calc(' + R + ' - 58px), #000 calc(' + R + ' - 40px),' +
+    ' rgba(0,0,0,.28) calc(' + R + ' - 20px), rgba(0,0,0,.55) calc(' + R + ' - 9px), transparent ' + R + ')';
+  function ring(scale, width, alpha) {
+    var r = scale === 1 ? R : 'calc(' + R + ' * ' + scale + ')';
+    return 'radial-gradient(' + AT + ', transparent calc(' + r + ' - ' + width + 'px),' +
+      ' rgba(214,238,255,' + alpha + ') calc(' + r + ' - ' + (width * 0.45).toFixed(1) + 'px),' +
+      ' rgba(255,255,255,' + Math.min(1, alpha * 1.4).toFixed(2) + ') calc(' + r + ' - ' + (width * 0.28).toFixed(1) + 'px),' +
+      ' rgba(120,175,230,' + (alpha * 0.35).toFixed(2) + ') calc(' + r + ' - ' + (width * 0.1).toFixed(1) + 'px),' +
+      ' transparent ' + r + ')';
+  }
+  var RINGS = [ring(1, 34, 0.34), ring(0.72, 22, 0.2), ring(0.46, 14, 0.12)].join(', ');
 
   var style = document.createElement('style');
   style.setAttribute('data-page-transitions', '');
   style.textContent =
+    '@property --vt-r { syntax: "<length>"; inherits: true; initial-value: 0px; }' +
     '@view-transition { navigation: auto; }' +
     // The UA cross-fade blends the two snapshots with plus-lighter, which only
     // looks right when their opacities sum to 1. These don't, so blend normally.
     '::view-transition-old(root), ::view-transition-new(root) { mix-blend-mode: normal; }' +
-    '::view-transition-old(root) { animation: sgVtOld .34s cubic-bezier(.4,0,.8,.4) both; }' +
+    // The old page stays put under the spreading water, dimming slightly.
+    '::view-transition-old(root) { animation: sgVtSink ' + DURATION + ' ease-out both; }' +
     '::view-transition-new(root) {' +
       ' transform-origin: var(--vt-x, 50%) var(--vt-y, 50%);' +
-      ' animation: sgVtNew .5s cubic-bezier(.2,.9,.25,1.12) both; }' +
-    // The old page recedes and dims a little, like the art behind a sheet.
-    '@keyframes sgVtOld { to { opacity: 0; transform: scale(.97); filter: brightness(.7); } }' +
-    '@keyframes sgVtNew {' +
-      ' 0% { opacity: 0; transform: scale(.38); filter: blur(10px); }' +
-      ' 55% { opacity: 1; filter: blur(0); }' +
-      ' 100% { opacity: 1; transform: scale(1); filter: blur(0); } }' +
+      ' -webkit-mask-image: ' + MASK + '; mask-image: ' + MASK + ';' +
+      ' animation: sgVtRipple ' + DURATION + ' ' + EASE + ' both; }' +
+    // The rings are drawn by the overlay element itself; its snapshot is live,
+    // so the group needs no animation of its own.
+    '::view-transition-group(sg-ripple), ::view-transition-new(sg-ripple), ::view-transition-old(sg-ripple) { animation: none; }' +
+    '#sgRipple { position: fixed; inset: 0; z-index: 2147483647; pointer-events: none;' +
+      ' view-transition-name: sg-ripple; background: ' + RINGS + ';' +
+      ' animation: sgVtRings ' + DURATION + ' ' + EASE + ' both; }' +
+    '@keyframes sgVtSink { to { filter: brightness(.82); transform: scale(.99); } }' +
+    // A touch of surface lift as the water settles.
+    '@keyframes sgVtRipple { from { --vt-r: 0px; transform: scale(1.03); } to { --vt-r: var(--vt-max); transform: scale(1); } }' +
+    '@keyframes sgVtRings { from { --vt-r: 0px; opacity: 1; } 70% { opacity: .9; } to { --vt-r: var(--vt-max); opacity: 0; } }' +
     '@media (prefers-reduced-motion: reduce) {' +
-      ' ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }';
+      ' ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }' +
+      ' #sgRipple { display: none; } }';
   (document.head || root).appendChild(style);
+
+  function addRipple() {
+    removeRipple();
+    var el = document.createElement('div');
+    el.id = 'sgRipple';
+    el.setAttribute('aria-hidden', 'true');
+    // On <html>, not <body>: the hub mounts into <body> and clears it on every
+    // render, including its boot render mid-way through an arriving ripple.
+    root.appendChild(el);
+  }
+  function removeRipple() {
+    var el = document.getElementById('sgRipple');
+    if (el) el.parentNode.removeChild(el);
+  }
+
+  // A page arriving through a cross-document transition adds its rings before
+  // its first frame, which is when the browser captures the new state.
+  window.addEventListener('pagereveal', function (e) {
+    if (!e.viewTransition || (reduce && reduce.matches)) return;
+    addRipple();
+    e.viewTransition.finished.then(removeRipple, removeRipple);
+  });
 
   // Every tap is remembered, not only taps on links: plenty of buttons here
   // navigate by assigning location.href after a request.
@@ -84,7 +150,8 @@
         update();
         return Promise.resolve();
       }
-      var vt = document.startViewTransition(update);
+      var vt = document.startViewTransition(function () { update(); addRipple(); });
+      vt.finished.then(removeRipple, removeRipple);
       return vt.updateCallbackDone;
     }
   };
