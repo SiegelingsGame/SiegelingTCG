@@ -1,3 +1,22 @@
+Original prompt: Dominion needs a starting page, where you can view your dominion before jumping right in and this initial setup page also need an exit or back button.
+
+- October 28, 2026 **Dominion: a start screen, and a way out of setup.**
+  - **Change.**
+    - **Start screen.** `dominion.js` boot no longer drops straight into the tabs, the away sheet or, for a new player, the un-closable "Found your Dominion" sheet. It shows a full-viewport start screen (`#dmStart`, `startScreen()`/`showStart()`/`leaveStart()`) over the player's biome scene, with a glass card and a "‹ Hub" pill.
+      - **New player.** The card says what Dominion is (Keep, company, roads) and offers **Found your Dominion** or **Back to Hub**.
+      - **Returning player.** The card shows their Dominion: knight sprite, crest, name, calling and land; rank, crowns and company size; up to six companions; what the knight is doing now; and a "While you were away" box with gains and notes, which replaces the old away sheet. It offers **Enter Dominion** or **Back to Hub**.
+      - **Pending reports.** `maybeShowReport` waits while the start screen is up, so reports open once the player has entered.
+    - **Setup exit.** The creation sheet gains a ✕ at the top right of its header. Its first-page footer button reads **Exit** (it used to be an empty slot). Escape works too. All of these run `cc-exit`, which returns a not-yet-founded player to the start screen and simply closes when editing. **Begin Dominion** leaves the start screen and goes in.
+    - **Layout.** On short landscape screens both cards lay out wider so nothing scrolls, and a returning player's card splits into two columns.
+  - Cache pins: `dominion.css?v=20`, `dominion.js?v=27`.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844, 844x390 and 1920x1080, on a fresh save:
+    - Boot shows the start screen with no modal.
+    - Found opens setup. The ✕, the footer Exit and Escape each return to the start screen.
+    - Founding (name, woodland, Sundile) lands on the main screen.
+    - After 3h of simulated time away and a reload, the start screen shows rank 1, 0 crowns, company 1 and the away box. Enter shows the tabs.
+    - Both cards fit the viewport without scrolling at every size.
+    - No page errors.
+
 Original prompt: When loadings screen finish do the splash animation as well from the center outward.
 
 - October 27, 2026 **Loading screens ripple away from the centre.**

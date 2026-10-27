@@ -970,3 +970,104 @@ button.dm-res-strip { border: 0; background: none; padding: 0; color: inherit; f
     .dm-report-gain { position: relative; padding-right: 48px; }
     .dm-report-gain .ck-ico { position: absolute; top: 10px; right: 10px; }
 }
+
+
+/* ---------- Start screen ----------
+   Full-viewport title page shown on every visit (dominion.js startScreen). It sits
+   above the shell and below the modal, so the creation sheet opens over it. The
+   card is the one region that scrolls if a short phone needs it. */
+.dm-start {
+    position: fixed; inset: 0; z-index: 35; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+    padding: calc(64px + var(--sat)) max(14px, var(--sar)) calc(16px + var(--sab)) max(14px, var(--sal));
+    background: var(--navy); color: var(--ink);
+}
+.dm-start[hidden] { display: none; }
+.dm-start-bg {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+    animation: dmStartDrift 22s ease-in-out infinite alternate;
+}
+.dm-start-shade {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(180deg, rgba(7,11,20,.55) 0%, rgba(7,11,20,.05) 26%, rgba(7,11,20,.25) 52%, rgba(7,11,20,.92) 100%);
+}
+@keyframes dmStartDrift { from { transform: scale(1.06) translateY(0); } to { transform: scale(1.12) translateY(-2%); } }
+.dm-start-back {
+    position: absolute; z-index: 1; top: calc(12px + var(--sat)); left: max(12px, var(--sal));
+    display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 14px; border-radius: 999px;
+    color: var(--ink); text-decoration: none; font: 700 14px/1 var(--sans);
+    background: rgba(11,16,32,.55); border: 1px solid var(--glass-line);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.dm-start-card {
+    position: relative; z-index: 1; width: min(560px, 100%); max-height: 100%; overflow-y: auto; overscroll-behavior: contain;
+    padding: 20px 18px 18px; border-radius: 24px;
+    background: var(--glass); border: 1px solid var(--glass-line);
+    box-shadow: 0 24px 60px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.18);
+    backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3);
+    animation: dmStartIn .5s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes dmStartIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.dm-start-card h1 { margin: 2px 0 6px; font: 700 clamp(28px, 7vw, 40px)/1.05 var(--serif); }
+.dm-start-lede { margin: 0 0 14px; color: var(--muted); font-size: 15px; line-height: 1.45; }
+.dm-start-points { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 8px; }
+.dm-start-points li {
+    display: grid; grid-template-columns: 34px 1fr; column-gap: 10px; align-items: center;
+    padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.05); border: 1px solid var(--line);
+}
+.dm-start-points span { grid-row: span 2; font-size: 24px; text-align: center; }
+.dm-start-points b { font-size: 15px; }
+.dm-start-points small { color: var(--muted); font-size: 13px; }
+.dm-start-knight { display: flex; align-items: center; gap: 12px; margin: 4px 0 12px; min-width: 0; }
+.dm-start-figure { flex: 0 0 auto; width: 84px; height: 96px; display: grid; place-items: end center; }
+.dm-start-figure .dm-knight-figure { max-width: 100%; max-height: 100%; }
+.dm-start-knight > div { min-width: 0; }
+.dm-start-knight h1 { margin: 6px 0 2px; font-size: clamp(24px, 6.5vw, 34px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dm-start-knight p { margin: 0; color: var(--gold-bright); font-weight: 700; font-size: 14px; }
+.dm-start-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+.dm-start-stats > div { padding: 9px 10px; border-radius: 14px; background: rgba(255,255,255,.05); border: 1px solid var(--line); min-width: 0; }
+.dm-start-stats small { display: block; color: var(--muted); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.dm-start-stats b { display: block; font: 700 22px/1.15 var(--fun); }
+.dm-start-stats span { display: block; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dm-start-crew { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.dm-start-crew-one {
+    width: 46px; height: 46px; border-radius: 12px; overflow: hidden; display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--el) 40%, transparent), rgba(255,255,255,.04));
+    border: 1px solid color-mix(in srgb, var(--el) 45%, transparent);
+}
+.dm-start-crew-one img { width: 100%; height: 100%; object-fit: contain; }
+.dm-start-crew-more { align-self: center; color: var(--muted); font-weight: 700; padding: 0 6px; }
+.dm-start-now { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 14px; }
+.dm-start-away { margin: 0 0 14px; padding: 10px 12px; border-radius: 14px; background: rgba(95,208,138,.08); border: 1px solid rgba(95,208,138,.28); }
+.dm-start-away > small { display: block; margin-bottom: 6px; color: var(--good); font-weight: 700; letter-spacing: .04em; }
+.dm-start-away .ck-loot { margin: 0; }
+.dm-start-actions { display: grid; gap: 8px; }
+.dm-start-actions .ck-btn { width: 100%; justify-content: center; text-decoration: none; white-space: nowrap; }
+@media (min-width: 720px) {
+    .dm-start { justify-content: center; }
+    .dm-start-actions { grid-template-columns: 2fr 1fr; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+    .dm-start { justify-content: center; padding-top: calc(58px + var(--sat)); }
+    .dm-start-card { width: min(760px, 100%); padding: 14px 16px; }
+    .dm-start-points { grid-template-columns: repeat(3, 1fr); }
+    .dm-start-lede { margin-bottom: 10px; }
+    /* A returning player's overview splits in two, so Enter stays on screen. */
+    .dm-start-card.is-return { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: end; }
+    .dm-start-card.is-return .dm-start-figure { width: 64px; height: 72px; }
+    .dm-start-card.is-return .dm-start-knight { margin: 2px 0 8px; }
+    .dm-start-card.is-return .dm-start-stats { margin-bottom: 8px; }
+    .dm-start-card.is-return .dm-start-stats > div { padding: 6px 8px; }
+    .dm-start-card.is-return .dm-start-now { margin-bottom: 0; }
+    .dm-start-card.is-return .dm-start-crew-one { width: 38px; height: 38px; }
+}
+@media (prefers-reduced-motion: reduce) { .dm-start-bg, .dm-start-card { animation: none; } }
+
+/* The creation sheet's way out: always visible, top-right of its header. */
+.dm-cc-sheet > header { position: relative; padding-right: 46px; }
+.dm-cc-exit {
+    position: absolute; top: 0; right: 0; width: 38px; height: 38px; border-radius: 50%;
+    border: 1px solid var(--glass-line); background: rgba(255,255,255,.06); color: var(--ink);
+    font-size: 22px; line-height: 1; cursor: pointer;
+}
+.dm-cc-exit:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }

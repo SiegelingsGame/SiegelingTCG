@@ -2803,9 +2803,10 @@
         if (!pages.includes(d.page)) d.page = pages[0];
         const i = pages.indexOf(d.page), labels = { identity: 'Knight', crest: 'Crest', biome: 'Land', starter: 'Starter', sprite: 'Sprite', summary: 'Summary' };
         const content = ({ identity: identityPage, crest: crestPage, biome: biomePage, starter: starterPage, sprite: spritePage, summary: summaryPage })[d.page](d);
-        return '<div class="dm-cc-sheet" data-page="' + d.page + '"><header><span class="ck-kicker">' + (S.knight.made ? 'Edit your Dominion' : 'Found your Dominion') + '</span><h2 id="ckModalTitle">' + labels[d.page] + '</h2>' +
+        return '<div class="dm-cc-sheet" data-page="' + d.page + '"><header><button type="button" class="dm-cc-exit" data-act="cc-exit" aria-label="' + (S.knight.made ? 'Close without saving' : 'Exit to the Dominion start screen') + '">&times;</button>' +
+            '<span class="ck-kicker">' + (S.knight.made ? 'Edit your Dominion' : 'Found your Dominion') + '</span><h2 id="ckModalTitle">' + labels[d.page] + '</h2>' +
             '<nav class="dm-cc-steps" aria-label="Creation steps">' + pages.map((p, n) => '<button type="button" data-act="cc-page" data-arg="' + p + '" class="' + (p === d.page ? 'is-on' : n < i ? 'is-done' : '') + '" aria-current="' + (p === d.page ? 'step' : 'false') + '"><i>' + (n + 1) + '</i><span>' + labels[p] + '</span></button>').join('') + '</nav></header>' +
-            '<section class="dm-cc-page">' + content + '</section><footer>' + (i ? '<button type="button" class="ck-btn" data-act="cc-prev">Back</button>' : (S.knight.made ? '<button type="button" class="ck-btn" data-act="close-modal">Cancel</button>' : '<span></span>')) +
+            '<section class="dm-cc-page">' + content + '</section><footer>' + (i ? '<button type="button" class="ck-btn" data-act="cc-prev">Back</button>' : '<button type="button" class="ck-btn" data-act="cc-exit">' + (S.knight.made ? 'Cancel' : 'Exit') + '</button>') +
             '<span>' + (i + 1) + ' / ' + pages.length + '</span><button type="button" class="ck-btn is-primary" data-act="' + (i === pages.length - 1 ? 'cc-save' : 'cc-next') + '">' + (i === pages.length - 1 ? (S.knight.made ? 'Save changes' : 'Begin Dominion') : 'Next') + '</button></footer></div>';
     }
     function updateCreateModal(body) {
@@ -3654,6 +3655,62 @@
         return '<h2 id="ckModalTitle">While you were away</h2><p class="ck-muted">' + fmtDur(a.ms) + ' passed. Rooms filled their stores; collect them in Base.</p><h3>Gained</h3>' + lootRow(a.gains) +
             (a.notes.length ? '<h3>Around the Keep</h3><ul class="ck-milestones">' + a.notes.map((n) => '<li>' + esc(n) + '</li>').join('') + '</ul>' : '') +
             '<div class="ck-actions"><button type="button" class="ck-btn is-primary" data-act="close-modal">Continue</button></div>';
+    }
+
+    // —— Start screen ——
+    // Opening Dominion used to drop straight into the tabs (or, for a new player, the
+    // creation sheet with no way out). The start screen comes first: a returning player
+    // sees their Dominion at a glance - knight, Keep, company and what happened while
+    // they were away - and chooses to go in; a new player reads what Dominion is before
+    // founding one. Either way the hub is one tap back.
+    let starting = false;
+    function startScreen() {
+        const k = S.knight, back = '<a class="dm-start-back" href="/home" aria-label="Back to the hub">&lsaquo; Hub</a>';
+        if (!k.made) {
+            return '<img class="dm-start-bg" src="' + esc(namedScene('light-shelter')) + '" alt="" decoding="async"><span class="dm-start-shade" aria-hidden="true"></span>' + back +
+                '<div class="dm-start-card"><span class="ck-kicker">Siegelings</span><h1>Dominion</h1>' +
+                '<p class="dm-start-lede">Found a Keep, raise a company of Siegelings and send them down the roads. Your Dominion keeps working while you are away.</p>' +
+                '<ul class="dm-start-points"><li><span>🏰</span><b>Build your Keep</b><small>Rooms that gather, craft and cook on their own clock.</small></li>' +
+                '<li><span>🐾</span><b>Raise a company</b><small>Befriend Siegelings, give them work and grow your bond.</small></li>' +
+                '<li><span>🧭</span><b>Take the roads</b><small>Expeditions, wild trails and SiegeKnight mentors.</small></li></ul>' +
+                '<div class="dm-start-actions"><button type="button" class="ck-btn is-primary is-big" data-act="start-found">Found your Dominion</button>' +
+                '<a class="ck-btn is-glass" href="/home">Back to Hub</a></div></div>';
+        }
+        const b = biomeOf(S), ids = joinedIds(S), a = S.away;
+        const td = taskDef(k.task), doing = S.exp ? expTitle(S.exp) : td ? taskLabel(S) : 'Resting at the Keep';
+        const crew = ids.slice(0, 6).map((id) => { const c = C(id); return '<span class="dm-start-crew-one" style="--el:var(--' + c.el + ')" title="' + esc(c.name) + '">' + compArt(id, '') + '</span>'; }).join('') +
+            (ids.length > 6 ? '<span class="dm-start-crew-more">+' + (ids.length - 6) + '</span>' : '');
+        const awayKeys = a ? Object.keys(a.gains || {}).filter((x) => a.gains[x] > 0) : [];
+        return '<img class="dm-start-bg" src="' + esc(namedScene(b.element + '-shelter')) + '" alt="" decoding="async"><span class="dm-start-shade" aria-hidden="true"></span>' + back +
+            '<div class="dm-start-card is-return"><div class="dm-start-col"><span class="ck-kicker">Your Dominion</span>' +
+            '<div class="dm-start-knight"><span class="dm-start-figure">' + knightFigure(portraitOf(k), 'idle') + '</span><div>' + crest(k) +
+                '<h1>' + esc(k.name) + '</h1><p>' + esc(CALLINGS[k.calling] ? CALLINGS[k.calling][1] : '') + ' · ' + b.icon + ' ' + esc(b.name) + '</p></div></div>' +
+            '<div class="dm-start-stats"><div><small>Rank</small><b>' + rankLvl(S) + '</b><span>' + esc(HALL_RANKS[S.b.hall - 1]) + '</span></div>' +
+                '<div><small>Crowns</small><b>' + fl(S.inv.crowns) + '</b><span>&#128081; treasury</span></div>' +
+                '<div><small>Company</small><b>' + ids.length + '</b><span>Siegeling' + (ids.length === 1 ? '' : 's') + '</span></div></div>' +
+            (crew ? '<div class="dm-start-crew">' + crew + '</div>' : '') +
+            '<p class="dm-start-now"><span class="ck-dot is-on"></span>' + esc(doing) + '</p></div><div class="dm-start-col">' +
+            (a ? '<div class="dm-start-away"><small>While you were away · ' + esc(fmtDur(a.ms)) + '</small>' +
+                (awayKeys.length ? '<ul class="ck-loot">' + awayKeys.slice(0, 6).map((x) => '<li>' + itemIcon(x, 'is-sm') + '<span><b>' + fl(a.gains[x]) + '×</b> ' + esc(itemName(x)) + '</span></li>').join('') + '</ul>' : '<p class="ck-small ck-muted">The Keep was quiet.</p>') +
+                (a.notes && a.notes.length ? '<p class="ck-small ck-muted">' + esc(a.notes[0]) + (a.notes.length > 1 ? ' and ' + (a.notes.length - 1) + ' more.' : '') + '</p>' : '') + '</div>' : '') +
+            '<div class="dm-start-actions"><button type="button" class="ck-btn is-primary is-big" data-act="start-enter">Enter Dominion</button>' +
+                '<a class="ck-btn is-glass" href="/home">Back to Hub</a></div></div></div>';
+    }
+    function showStart() {
+        starting = true;
+        const el = $('dmStart');
+        el.innerHTML = startScreen();
+        el.hidden = false;
+        document.body.dataset.screen = 'start';
+        const go = el.querySelector('.ck-btn.is-primary');
+        if (go) go.focus({ preventScroll: true });
+    }
+    function leaveStart() {
+        starting = false;
+        const el = $('dmStart');
+        el.hidden = true;
+        el.innerHTML = '';
+        document.body.dataset.screen = 'main';
     }
 
     // —— Wilds ——
@@ -4711,7 +4768,8 @@
         else { renderHeader(); updateLive(); }
     }
     function maybeShowReport() {
-        if (modal) return;
+        // Reports wait until the player has stepped in from the start screen.
+        if (modal || starting) return;
         const r = S.reports.find((x) => !x.seen);
         if (r) openModal('report', r.id);
     }
@@ -4744,6 +4802,11 @@
         switch (name) {
         case 'tab': if (modal) { modal = null; $('ckModal').hidden = true; } setTab(arg); break;
         case 'close-modal': closeModal(); return;
+        case 'start-found': startDraft(); openModal('create'); return;
+        // The start screen already showed the time-away summary, so entering skips that sheet.
+        case 'start-enter': leaveStart(); S.away = null; save(); renderAll(); maybeShowReport(); return;
+        // Leaving the creation sheet before founding returns to the start screen; edits just close.
+        case 'cc-exit': { const made = S.knight.made; draft = null; closeModal(); if (!made) showStart(); return; }
         case 'menu': openModal('menu'); return;
         case 'objective': openModal('objective'); return;
         case 'report': openModal('report', arg); return;
@@ -4850,7 +4913,10 @@
                 k.stall = '';
                 s.t = now();
             }
-            k.made = true; draft = null; s.rev++; closeModal();
+            k.made = true; draft = null; s.rev++;
+            // Founding is the step into Dominion, so it leaves the start screen too.
+            if (starting) leaveStart();
+            closeModal();
             // First founding should open on the Knight page, not the default Base grounds.
             if (first) setTab('knight');
             toast(first ? 'Welcome, ' + k.name + '.' : 'Your knight is updated.'); break;
@@ -5018,7 +5084,7 @@
         // A brand-new knight must be made before play: that one sheet does not close on a stray tap.
         const mustCreate = () => modal && modal.kind === 'create' && !S.knight.made;
         $('ckModal').addEventListener('click', (e) => { if (e.target === $('ckModal') && !mustCreate()) closeModal(); });
-        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal && !mustCreate()) closeModal(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal) { if (mustCreate()) act('cc-exit'); else closeModal(); } });
         window.addEventListener('resize', () => { if (modal && modal.kind === 'report') renderModal(); });
         document.addEventListener('keydown', (e) => {
             const tab = e.target.closest('.dm-report-tabs [role="tab"]');
@@ -5045,7 +5111,7 @@
         document.body.dataset.screen = 'main';
         ['ckTabs', 'ckRank', 'ckStatus', 'ckAvatar', 'ckCrowns'].forEach((id) => { $(id).hidden = false; });
         renderAll();
-        if (!S.knight.made) { startDraft(); openModal('create'); } else if (S.away) openModal('away'); else maybeShowReport();
+        showStart();
         setInterval(step, 1000);
         setInterval(save, 10000);
         if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(frontLoop);
