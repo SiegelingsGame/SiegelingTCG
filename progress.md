@@ -1,3 +1,58 @@
+Original prompt: Merge but make it easy to turn off
+
+- October 27, 2026 **Page transitions: two off switches.**
+  - **Change.**
+    - **For everyone.** `page-transitions.js` gains `var ENABLED = true;` at its top, and setting it to `false` turns the ripple off for every player.
+    - **Per player.** Settings > Motion gains a "Page transitions" switch (`pageTransitions`, default on). It is stored in `sgHubPrefs` beside the other hub switches. The existing "Reduced motion" switch now turns transitions off as well.
+    - **How the switches act.** `enabled()` re-reads the switches on every call. `refresh()` attaches or detaches the injected stylesheet, and with it the cross-page `@view-transition` opt-in. A switch in Settings calls `SgTransition.refresh()`, so it takes effect immediately with no reload. If the arriving page's player has it off, `pagereveal` calls `skipTransition()`. `SgTransition.run` swaps instantly when it is off.
+  - Cache pins: `page-transitions.js?v=4`, `home-redesign.js?v=160`.
+  - **Verification.** `node --check` passes on both files. Headless Chromium at 390x844, 844x390 and 1920x1080:
+    - The new switch renders on, and the landscape and desktop Settings grids still fit with no scrolling.
+    - Turning it off makes `enabled()` false and detaches the stylesheet. The logo back to Home then runs 0 view transitions. Landing Explore to `/home` arrives with no view transition (`pagereveal` reports false).
+    - Turning it back on restores the transition (`pagereveal` reports true).
+    - No page errors.
+
+Original prompt: I'm thinking more so like tapping the surface of water and it ripples in
+
+- October 27, 2026 **Page transitions: a water ripple from the tap.**
+  - **Change.** `page-transitions.js` replaces the sheet-style grow with a ripple. It has two layers that run the same keyframes on a registered `@property --vt-r`, from 0 to `--vt-max`. `--vt-max` is the distance from the tap to the farthest corner plus 90px, computed in `setOrigin`.
+    - **The new page.** `::view-transition-new(root)` is revealed through a radial mask that is solid inside and has two dips in opacity at its edge, so the old page shimmers through the wavefront. It also settles from a 1.03 scale.
+    - **The rings.** A ring overlay, `#sgRipple`, has its own `view-transition-name`, so it draws above both snapshots. It paints a light crest at the wavefront and two fading echoes at 0.72 and 0.46 of the radius.
+    - **The old page.** It stays in place and dims to brightness 0.82.
+    - **Timing.** 0.8s, decelerating like a spreading ripple.
+    - **Adding and removing the rings.** The overlay is added inside the update for in-hub screen changes and on `pagereveal` for cross-page navigations. It is removed when the transition finishes. It is appended to `<html>`, not `<body>`, because the hub mounts into `<body>` and clears it on its boot render, which deleted the rings mid-ripple in the first test.
+    - **Reduced motion.** It turns all of this off.
+  - Cache pin: `page-transitions.js?v=3` in all 12 pages.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844:
+    - **In the hub (slowed to 10% over CDP):** frames of Home to Shop show the Shop page spreading in rings from the Shop tab. The rings are present mid-transition and removed afterwards, and the route lands on `/shop`.
+    - **Across pages (playback slowed from inside the arriving page):** after landing Explore to `/home`, `pagereveal` reports a view transition, and `sgVtRings`, `sgVtRipple` and `sgVtSink` are running with the overlay present. A frame shows the hub rippling out from the Explore button with crests at the edge. The overlay survives the hub's boot render and is gone after.
+    - No page errors.
+
+Original prompt: Similar to the buttons on home
+
+- October 27, 2026 **Page transitions now move like Home's shortcut sheets.**
+  - **Change.** The circle-wipe reveal in `page-transitions.js` is replaced with the motion of Home's shortcut sheets (`sgSheetIn`). The new page scales from 0.38 at the tap point to full size, on the same overshooting curve (`cubic-bezier(.2,.9,.25,1.12)`, 0.5s). It blurs in from 10px and is fully opaque by 55%. The old page recedes to 0.97, dims to brightness 0.7 and fades out over 0.34s, like the art behind an open sheet. A comment points each file at the other so the two stay in step. Cache pin: `page-transitions.js?v=2` in all 12 pages.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844, with animations slowed to 10% over CDP:
+    - A mid-frame of Home to Shop shows the Shop page growing from the tapped Shop tab over the dimming Home, and it settles full-screen.
+    - Cross-document, landing Explore to `/home` shows the hub growing, blurred, out of the Explore button over the dimmed landing.
+    - No page errors.
+
+Original prompt: Can we add smooth transitions from page to page almost like the next page fades in smoothly from the place it was selected?
+
+- October 27, 2026 **Page transitions: the next page swells in from where you tapped.**
+  - **Change.** New `static/js/page-transitions.js`, loaded synchronously in the `<head>` of every production page: index, home-next, home, play, adventure, gauntlet, dominion, keep, chronicles, help, card-dashboard, and the home preview. It uses the View Transitions API.
+    - **Between pages.** It injects `@view-transition { navigation: auto; }`, which has to be present on both documents, so the browser animates real page changes such as landing to hub to play.
+    - **The reveal.** The new page grows out of a circle (`clip-path`) centred on the tap point, scaling from 0.94 to 1 and fading in. The old page fades out. Both snapshots blend with `mix-blend-mode: normal`, because the UA's plus-lighter assumes opacities that sum to 1.
+    - **Carrying the tap point.** A capture-phase click listener records every tap as viewport fractions, not just link taps, because many buttons navigate through `location.href`. A keyboard click uses the control's centre. The point is written to `--vt-x`/`--vt-y` and to `sessionStorage` (`sgVtOrigin`). The next page reads it before its first paint and ignores it after 6s, so a later back or forward starts from the centre.
+    - **Inside the hub.** Screens re-render in place, so `show()` in `home-redesign.js` takes an `animate` flag and routes the DOM swap through `SgTransition.run` (`document.startViewTransition`). Link taps, the shield navigation, `onNavigate` and popstate all animate. Popstate is skipped when `hasUAVisualTransition` is set, so an iOS edge-swipe back does not animate twice. The boot render does not animate. `show()` now returns a promise, because the swap runs a frame later, and the Home-section scroll chains on it.
+    - **Fallbacks.** Reduced motion, hidden tabs and browsers without the API swap instantly, as before.
+  - Cache pins: `page-transitions.js?v=1`, `home-redesign.js?v=159`.
+  - **Verification.** `node --check` passes on both files. Headless Chromium at 390x844:
+    - In the hub, a Collection tap ran one view transition, routed to `/cards`, rendered the binder, and set the origin to the tap (19.49%/18.72% for a tap at 19/18). The logo back to Home and browser Back each ran one more.
+    - Cross-document, the landing's Explore CTA (tapped at 53/55%) led to `/home`, whose `pagereveal` reported a view transition with `--vt-x/y` = 53.59%/55.92%.
+    - With animations slowed to 10% over CDP, a frame shows the Shop page revealed as a circle growing from the Shop tab over a fading Home.
+    - No page errors.
+
 Original prompt: Landing page update the blue icon to the Siegelings logo
 
 - October 26, 2026 **Landing: the page-navigation button wears the Siegelings emblem.**
