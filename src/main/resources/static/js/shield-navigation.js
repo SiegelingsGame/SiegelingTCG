@@ -42,7 +42,7 @@
         corner('home', 'Home') + corner('messages', 'Messages') +
         '<button class="sn-close" type="button" aria-label="Close navigation">×</button>' +
       '</section></div>' +
-      '<button class="sn-fab" type="button" aria-label="Summon navigation" aria-haspopup="dialog" aria-expanded="false"><span class="sn-pulse"></span><span class="sn-emblem"><img src="/img/siegelings-icon-256.webp" alt="">' + gem('sn-core') + '</span></button>';
+      '<button class="sn-fab" type="button" aria-label="Summon navigation" aria-haspopup="dialog" aria-expanded="false"><span class="sn-corona" aria-hidden="true"><i class="sn-corona-glow"></i><i class="sn-corona-rays"></i><i class="sn-corona-rays sn-corona-rays-b"></i><i class="sn-corona-rim"></i></span><span class="sn-pulse"></span><span class="sn-emblem"><img src="/img/siegelings-icon-256.webp" alt="">' + gem('sn-core') + '</span></button>';
     host.appendChild(root);
     host.classList.add('has-shield-navigation');
     var overlay = root.querySelector('.sn-overlay'), shield = root.querySelector('.sn-shield');
