@@ -1,3 +1,54 @@
+Original prompt: I don't think it needs 4 options. Just one option with art.
+
+- October 28, 2026 **Dominion start screen: one art option instead of four.**
+  - **Change.** The four-plate grid is now a single full-art plate (`.dm-start-grid.is-one`) that fills the stage between the banner and the bar, with larger copy.
+    - **New player:** **Found your Dominion** over the light-shelter scene, which opens setup.
+    - **Returning player:** **Enter Dominion** over their land's shelter scene, with a line combining their current activity, company size and any unread reports or fresh trails, plus a badge with the count. It enters Dominion on the Base tab.
+    - The "What awaits" and "Where to?" headings are gone. The banner, the away strip and the Main Menu / gold button bar are unchanged.
+  - Cache pins: `dominion.css?v=22`, `dominion.js?v=29`.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844, 844x390 and 1920x1080, on a new save and a returning save after 3h away:
+    - Exactly 1 plate (198 to 747px tall), no scrolling, the bar on screen and the copy inside the plate.
+    - Setup's ✕, Exit and Escape return to the start screen. Founding goes in. The plate enters on Base.
+    - No page errors.
+
+Original prompt: Make sure there is a screen after selecting dominion from the play page as well it should be a full screen art focused page similar to The arena and siege mode pages
+
+- October 28, 2026 **Dominion start screen: art-led, like the Arena loadout and Siege mode select.**
+  - **Change.** The start screen from the previous entry, which was a glass card over one scene, is rebuilt in the Arena and Siege mode-select layout as one viewport with no page scroll:
+    - an art banner header with a kicker, a large title and a ✕ back to the hub;
+    - a "Where to?" or "What awaits" heading;
+    - a grid of full-art plates, two by two on phones and four across in landscape or at 900px and wider, using chronicles scenes with an element-coloured border, kicker, title, a short line and a coloured call to action;
+    - a bottom bar with **Main Menu** and one gold button.
+
+    For a **new player** the plates are Found (which opens setup), Build, Befriend and Explore, and the gold button is **Found your Dominion**. For a **returning player** the banner shows the knight sprite, crest, name, calling, land, rank and crowns. A one-line "While you were away" strip sits under it. The plates are The Keep (current activity), Company (size), Expedition (current road, with an unread-report badge) and Wilds (fresh trails, with a badge), and each enters Dominion on that tab (`start-enter` now takes a tab). The gold button is **Enter Dominion**.
+
+    On short phones the descriptions drop so the art keeps its room, and short landscape screens compact the banner and bar. Plates stagger in, and the banner art drifts unless reduced motion is set. Cache pins: `dominion.css?v=21`, `dominion.js?v=28`.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844, 844x390 and 1920x1080, on a new save and on a returning save after 3h away:
+    - The start screen never scrolls and the bar is on screen. All 4 plates are present, from 204px tall in landscape, with their copy inside them.
+    - Setup's ✕, Exit and Escape return to the start screen, and founding goes in.
+    - The Company plate opens Dominion on the Company tab.
+    - The screenshots match the Arena and Siege pattern.
+    - No page errors.
+
+Original prompt: Dominion needs a starting page, where you can view your dominion before jumping right in and this initial setup page also need an exit or back button.
+
+- October 28, 2026 **Dominion: a start screen, and a way out of setup.**
+  - **Change.**
+    - **Start screen.** `dominion.js` boot no longer drops straight into the tabs, the away sheet or, for a new player, the un-closable "Found your Dominion" sheet. It shows a full-viewport start screen (`#dmStart`, `startScreen()`/`showStart()`/`leaveStart()`) over the player's biome scene, with a glass card and a "‹ Hub" pill.
+      - **New player.** The card says what Dominion is (Keep, company, roads) and offers **Found your Dominion** or **Back to Hub**.
+      - **Returning player.** The card shows their Dominion: knight sprite, crest, name, calling and land; rank, crowns and company size; up to six companions; what the knight is doing now; and a "While you were away" box with gains and notes, which replaces the old away sheet. It offers **Enter Dominion** or **Back to Hub**.
+      - **Pending reports.** `maybeShowReport` waits while the start screen is up, so reports open once the player has entered.
+    - **Setup exit.** The creation sheet gains a ✕ at the top right of its header. Its first-page footer button reads **Exit** (it used to be an empty slot). Escape works too. All of these run `cc-exit`, which returns a not-yet-founded player to the start screen and simply closes when editing. **Begin Dominion** leaves the start screen and goes in.
+    - **Layout.** On short landscape screens both cards lay out wider so nothing scrolls, and a returning player's card splits into two columns.
+  - Cache pins: `dominion.css?v=20`, `dominion.js?v=27`.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844, 844x390 and 1920x1080, on a fresh save:
+    - Boot shows the start screen with no modal.
+    - Found opens setup. The ✕, the footer Exit and Escape each return to the start screen.
+    - Founding (name, woodland, Sundile) lands on the main screen.
+    - After 3h of simulated time away and a reload, the start screen shows rank 1, 0 crowns, company 1 and the away box. Enter shows the tabs.
+    - Both cards fit the viewport without scrolling at every size.
+    - No page errors.
+
 Original prompt: When loadings screen finish do the splash animation as well from the center outward.
 
 - October 27, 2026 **Loading screens ripple away from the centre.**
