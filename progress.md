@@ -1,3 +1,16 @@
+Original prompt: I don't think it needs 4 options. Just one option with art.
+
+- October 28, 2026 **Dominion start screen: one art option instead of four.**
+  - **Change.** The four-plate grid is now a single full-art plate (`.dm-start-grid.is-one`) that fills the stage between the banner and the bar, with larger copy.
+    - **New player:** **Found your Dominion** over the light-shelter scene, which opens setup.
+    - **Returning player:** **Enter Dominion** over their land's shelter scene, with a line combining their current activity, company size and any unread reports or fresh trails, plus a badge with the count. It enters Dominion on the Base tab.
+    - The "What awaits" and "Where to?" headings are gone. The banner, the away strip and the Main Menu / gold button bar are unchanged.
+  - Cache pins: `dominion.css?v=22`, `dominion.js?v=29`.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844, 844x390 and 1920x1080, on a new save and a returning save after 3h away:
+    - Exactly 1 plate (198 to 747px tall), no scrolling, the bar on screen and the copy inside the plate.
+    - Setup's ✕, Exit and Escape return to the start screen. Founding goes in. The plate enters on Base.
+    - No page errors.
+
 Original prompt: Make sure there is a screen after selecting dominion from the play page as well it should be a full screen art focused page similar to The arena and siege mode pages
 
 - October 28, 2026 **Dominion start screen: art-led, like the Arena loadout and Siege mode select.**

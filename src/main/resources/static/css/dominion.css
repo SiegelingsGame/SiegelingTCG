@@ -1075,6 +1075,13 @@ button.dm-start-plate:hover > img { transform: scale(1.04); }
 }
 .dm-start-go:active { transform: translateY(1px); }
 .dm-start-go:focus-visible, .dm-start-menu:focus-visible, .dm-start-x:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+/* A single plate takes the whole stage, with its copy at a size to match. */
+.dm-start-grid.is-one { grid-template-columns: minmax(0, 1fr) !important; padding-top: 14px; }
+.dm-start-grid.is-one .dm-start-plate { border-radius: 26px; }
+.dm-start-grid.is-one .dm-start-plate-body { padding: 18px 20px 20px; gap: 5px; }
+.dm-start-grid.is-one .dm-start-plate-body b { font-size: clamp(28px, 8vw, 46px); }
+.dm-start-grid.is-one .dm-start-plate-body > span { font-size: 15px; -webkit-line-clamp: 3; max-width: 52ch; }
+.dm-start-grid.is-one .dm-start-plate-body i { font-size: 16px; }
 /* Short phones: the copy steps back so the plates keep their art. */
 @media (max-height: 700px) and (orientation: portrait) {
     .dm-start-head { min-height: 120px; }

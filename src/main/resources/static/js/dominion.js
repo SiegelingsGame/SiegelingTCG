@@ -3664,8 +3664,8 @@
     // they were away - and chooses to go in; a new player reads what Dominion is before
     // founding one. Either way the hub is one tap back.
     let starting = false;
-    // Laid out like the Arena loadout and Siege mode select: an art banner, a grid of
-    // full-art plates, and a bottom bar with Main Menu and one gold call to action.
+    // Laid out like the Arena loadout and Siege mode select: an art banner, one full-art
+    // plate, and a bottom bar with Main Menu and one gold call to action.
     function startPlate(o) {
         const tag = o.act ? 'button type="button" data-act="' + o.act + '"' + (o.arg ? ' data-arg="' + o.arg + '"' : '') : 'div';
         return '<' + tag + ' class="dm-start-plate' + (o.on ? ' is-on' : '') + '" style="--el:var(--' + o.el + ')">' +
@@ -3680,12 +3680,9 @@
             return '<header class="dm-start-head"><img src="/img/gallery/cactyjackedty-ruins.webp" alt="" decoding="async"><span class="dm-start-head-veil" aria-hidden="true"></span>' +
                 '<div><small>Kingdom &amp; Idle RPG</small><h1>Dominion</h1><p>Found a Keep, raise a company of Siegelings and send them down the roads. It keeps working while you are away.</p></div>' +
                 '<a class="dm-start-x" href="/home" aria-label="Back to the hub">&times;</a></header>' +
-                '<h2 class="dm-start-h">What awaits</h2>' +
-                '<div class="dm-start-grid">' +
-                startPlate({ act: 'start-found', on: true, el: 'gold', art: namedScene('light-shelter'), kicker: 'Begin here', title: 'Found', desc: 'Name your knight, raise your crest and choose your land.', meta: 'Found your Dominion ›' }) +
-                startPlate({ el: 'earth', art: namedScene('earth-shelter'), kicker: 'Your Keep', title: 'Build', desc: 'Rooms that gather, craft and cook on their own clock.', meta: 'Keeps working offline' }) +
-                startPlate({ el: 'wind', art: namedScene('wind-elite'), kicker: 'Your company', title: 'Befriend', desc: 'Raise Siegelings, give them work and grow your bond.', meta: 'Starts with one companion' }) +
-                startPlate({ el: 'water', art: namedScene('water-journey'), kicker: 'The roads', title: 'Explore', desc: 'Expeditions, wild trails and SiegeKnight mentors.', meta: 'Tame what you find' }) +
+                '<div class="dm-start-grid is-one">' +
+                startPlate({ act: 'start-found', on: true, el: 'gold', art: namedScene('light-shelter'), kicker: 'Begin here', title: 'Found your Dominion',
+                    desc: 'Name your knight, raise your crest, choose your land and your first Siegeling.', meta: 'Begin ›' }) +
                 '</div>' +
                 '<footer class="dm-start-bar"><a class="dm-start-menu" href="/home">Main Menu</a><button type="button" class="dm-start-go" data-act="start-found">Found your Dominion</button></footer>';
         }
@@ -3700,12 +3697,10 @@
             '<p>' + esc(CALLINGS[k.calling] ? CALLINGS[k.calling][1] : '') + ' · ' + b.icon + ' ' + esc(b.name) + ' · Rank ' + rankLvl(S) + ' ' + esc(HALL_RANKS[S.b.hall - 1]) + ' · &#128081; ' + fl(S.inv.crowns) + '</p></div></div>' +
             '<a class="dm-start-x" href="/home" aria-label="Back to the hub">&times;</a></header>' +
             away +
-            '<h2 class="dm-start-h">Where to?</h2>' +
-            '<div class="dm-start-grid">' +
-            startPlate({ act: 'start-enter', arg: 'base', on: true, el: el, art: namedScene(el + '-shelter'), kicker: b.icon + ' ' + b.name, title: 'The Keep', desc: doing + '.', meta: 'Enter Dominion ›' }) +
-            startPlate({ act: 'start-enter', arg: 'company', el: 'wind', art: namedScene('wind-elite'), kicker: 'Your company', title: 'Company', desc: ids.length + ' Siegeling' + (ids.length === 1 ? '' : 's') + ' at your side.', meta: 'Work, feed and bond' }) +
-            startPlate({ act: 'start-enter', arg: 'expedition', el: 'water', art: namedScene('water-journey'), kicker: 'The roads', title: 'Expedition', desc: S.exp ? 'On the road: ' + expTitle(S.exp) + '.' : 'Plan a road for your company.', meta: unseen ? unseen + ' new report' + (unseen === 1 ? '' : 's') : 'Explore and gather', badge: unseen ? String(unseen) : '' }) +
-            startPlate({ act: 'start-enter', arg: 'wilds', el: 'earth', art: namedScene('earth-journey'), kicker: 'The wilds', title: 'Wilds', desc: trails ? trails + ' fresh trail' + (trails === 1 ? '' : 's') + ' to follow.' : 'Wild Siegelings spotted on your roads.', meta: 'Tame new companions', badge: trails ? String(trails) : '' }) +
+            '<div class="dm-start-grid is-one">' +
+            startPlate({ act: 'start-enter', arg: 'base', on: true, el: el, art: namedScene(el + '-shelter'), kicker: b.icon + ' ' + b.name, title: 'Enter Dominion',
+                desc: doing + ' · ' + ids.length + ' Siegeling' + (ids.length === 1 ? '' : 's') + ' in your company' + (unseen ? ' · ' + unseen + ' new report' + (unseen === 1 ? '' : 's') : '') + (trails ? ' · ' + trails + ' fresh trail' + (trails === 1 ? '' : 's') : '') + '.',
+                meta: 'Enter ›', badge: unseen + trails ? String(unseen + trails) : '' }) +
             '</div>' +
             '<footer class="dm-start-bar"><a class="dm-start-menu" href="/home">Main Menu</a><button type="button" class="dm-start-go" data-act="start-enter" data-arg="base">Enter Dominion</button></footer>';
     }
