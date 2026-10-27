@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<script src="/js/page-transitions.js?v=4"></script>
+<script src="/js/page-transitions.js?v=5"></script>
 <title>Siegelings TCG</title>
 <link rel="icon" href="/favicon.ico">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -179,11 +179,19 @@
       lobbies: live ? live.lobbies : null,
       siegeRuns: live ? live.siegeRuns : []
     };
+    // mountApp renders into <body> and clears it, which used to take the boot
+    // screen with it before its fade could play. Lifted onto <html> it stays
+    // on top of the freshly painted hub until it has finished leaving.
+    document.documentElement.appendChild(boot);
     window.SiegelingsHomeConcept.mountApp(document.body, opts);
     if (window.SiegelingsHubMusic) window.SiegelingsHubMusic.init();
-    boot.classList.add('gone');
     if (window.sgStopBootHints) window.sgStopBootHints();
-    setTimeout(function () { boot.remove(); }, 450);
+    function drop() { boot.remove(); }
+    // Ripples away from the centre (page-transitions.js), else fades as before.
+    if (!(window.SgTransition && window.SgTransition.splashOut(boot, drop))) {
+      boot.classList.add('gone');
+      setTimeout(drop, 450);
+    }
   }
 
   // The catalog is the only slice worth waiting on; everything else the

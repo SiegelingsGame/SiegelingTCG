@@ -1,5 +1,6 @@
 /* Page transitions: tapping is like touching the surface of water - the next
-   page ripples out from the spot that was tapped.
+   page ripples out from the spot that was tapped. Loading screens leave with
+   the same ripple from the centre of the screen (splashOut, below).
 
    Two layers make the ripple:
    - The new page is revealed through a radial mask whose radius (--vt-r)
@@ -72,15 +73,28 @@
   var MASK = 'radial-gradient(' + AT + ', #000 calc(' + R + ' - 78px),' +
     ' rgba(0,0,0,.5) calc(' + R + ' - 58px), #000 calc(' + R + ' - 40px),' +
     ' rgba(0,0,0,.28) calc(' + R + ' - 20px), rgba(0,0,0,.55) calc(' + R + ' - 9px), transparent ' + R + ')';
-  function ring(scale, width, alpha) {
+  function ring(scale, width, alpha, at) {
     var r = scale === 1 ? R : 'calc(' + R + ' * ' + scale + ')';
-    return 'radial-gradient(' + AT + ', transparent calc(' + r + ' - ' + width + 'px),' +
+    return 'radial-gradient(' + (at || AT) + ', transparent calc(' + r + ' - ' + width + 'px),' +
       ' rgba(214,238,255,' + alpha + ') calc(' + r + ' - ' + (width * 0.45).toFixed(1) + 'px),' +
       ' rgba(255,255,255,' + Math.min(1, alpha * 1.4).toFixed(2) + ') calc(' + r + ' - ' + (width * 0.28).toFixed(1) + 'px),' +
       ' rgba(120,175,230,' + (alpha * 0.35).toFixed(2) + ') calc(' + r + ' - ' + (width * 0.1).toFixed(1) + 'px),' +
       ' transparent ' + r + ')';
   }
   var RINGS = [ring(1, 34, 0.34), ring(0.72, 22, 0.2), ring(0.46, 14, 0.12)].join(', ');
+
+  // Loading screens leave the same way, but from the centre of the screen and
+  // the other way round: the loader stays on top and the water clears it from
+  // the middle outward, so the page beneath shows through the widening ring.
+  // --sp-x/--sp-y are the screen's centre in the loader's own box (it is not
+  // always full-screen), so the hole and the rings stay concentric.
+  var SPLASH_AT = 'circle at var(--sp-x, 50%) var(--sp-y, 50%)';
+  var SPLASH_MASK = 'radial-gradient(' + SPLASH_AT + ', transparent calc(' + R + ' - 78px),' +
+    ' rgba(0,0,0,.5) calc(' + R + ' - 58px), transparent calc(' + R + ' - 40px),' +
+    ' rgba(0,0,0,.72) calc(' + R + ' - 20px), rgba(0,0,0,.45) calc(' + R + ' - 9px), #000 ' + R + ')';
+  var SPLASH_RINGS = [ring(1, 34, 0.34, 'circle at 50% 50%'), ring(0.72, 22, 0.2, 'circle at 50% 50%'),
+    ring(0.46, 14, 0.12, 'circle at 50% 50%')].join(', ');
+  var SPLASH_DURATION = '.9s';
 
   // The player's own switches, read fresh each time so a change in Settings
   // takes effect without a reload.
@@ -118,9 +132,18 @@
     // A touch of surface lift as the water settles.
     '@keyframes sgVtRipple { from { --vt-r: 0px; transform: scale(1.03); } to { --vt-r: var(--vt-max); transform: scale(1); } }' +
     '@keyframes sgVtRings { from { --vt-r: 0px; opacity: 1; } 70% { opacity: .9; } to { --vt-r: var(--vt-max); opacity: 0; } }' +
+    // z-index is forced: the hub's own chrome stacks above its boot screen's
+    // usual 80 once the boot screen is lifted out of <body>.
+    '.sg-splash-out { z-index: 2147483000 !important; pointer-events: none !important;' +
+      ' -webkit-mask-image: ' + SPLASH_MASK + '; mask-image: ' + SPLASH_MASK + ';' +
+      ' animation: sgSplashOut ' + SPLASH_DURATION + ' ' + EASE + ' both; }' +
+    '.sg-splash-rings { position: fixed; inset: 0; z-index: 2147483647; pointer-events: none;' +
+      ' background: ' + SPLASH_RINGS + '; animation: sgSplashRings ' + SPLASH_DURATION + ' ' + EASE + ' both; }' +
+    '@keyframes sgSplashOut { from { --vt-r: 0px; } to { --vt-r: var(--sp-max); } }' +
+    '@keyframes sgSplashRings { from { --vt-r: 0px; opacity: 1; } 70% { opacity: .9; } to { --vt-r: var(--sp-max); opacity: 0; } }' +
     '@media (prefers-reduced-motion: reduce) {' +
       ' ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }' +
-      ' #sgRipple { display: none; } }';
+      ' #sgRipple, .sg-splash-rings { display: none; } }';
   // Without the stylesheet there is no cross-page opt-in, so the browser
   // changes pages instantly; it is attached or detached to follow the switches.
   function refresh() {
@@ -143,6 +166,44 @@
   function removeRipple() {
     var el = document.getElementById('sgRipple');
     if (el) el.parentNode.removeChild(el);
+  }
+
+  /* Dissolves a loading screen from the centre of the screen outward. `el`
+     must already be painted on top of the page (fixed); it is left in place
+     and `done` runs once it is fully clear, which is where the caller hides or
+     removes it. Returns false - having touched nothing - when the effect is
+     off or the browser cannot animate the ripple's radius (no @property), so
+     the caller falls back to its usual exit. Synchronous: the page beneath can
+     be rendered and measured straight away. */
+  function splashOut(el, done) {
+    if (!el || !refresh() || !(window.CSS && CSS.registerProperty) || document.hidden) return false;
+    var w = window.innerWidth || 1, h = window.innerHeight || 1;
+    var box = el.getBoundingClientRect();
+    var reach = Math.ceil(Math.sqrt(w * w + h * h) / 2 + 90) + 'px';
+    el.style.setProperty('--sp-x', (w / 2 - box.left) + 'px');
+    el.style.setProperty('--sp-y', (h / 2 - box.top) + 'px');
+    el.style.setProperty('--sp-max', reach);
+    var rings = document.createElement('div');
+    rings.className = 'sg-splash-rings';
+    rings.setAttribute('aria-hidden', 'true');
+    rings.style.setProperty('--sp-max', reach);
+    root.appendChild(rings);
+    el.classList.add('sg-splash-out');
+    var over = false;
+    function finish() {
+      if (over) return;
+      over = true;
+      clearTimeout(guard);
+      el.removeEventListener('animationend', onEnd);
+      if (rings.parentNode) rings.parentNode.removeChild(rings);
+      el.classList.remove('sg-splash-out');
+      if (done) done();
+    }
+    function onEnd(e) { if (e.target === el && e.animationName === 'sgSplashOut') finish(); }
+    el.addEventListener('animationend', onEnd);
+    // A backgrounded tab can hold animations; the loader must never stick.
+    var guard = setTimeout(finish, 1800);
+    return true;
   }
 
   // A page arriving through a cross-document transition adds its rings before
@@ -184,6 +245,7 @@
       vt.finished.then(removeRipple, removeRipple);
       return vt.updateCallbackDone;
     },
+    splashOut: splashOut,
     enabled: enabled,
     refresh: refresh
   };
