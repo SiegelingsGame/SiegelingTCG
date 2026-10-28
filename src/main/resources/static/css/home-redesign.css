@@ -3860,8 +3860,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 
 /* editor sheet */
 .sg-prof-sheet .sg-sheet-card { padding:0 16px 16px; max-height:86%; display:flex; flex-direction:column; }
-.sg-prof-head { display:flex; align-items:center; justify-content:space-between; padding:10px 0 4px; }
-.sg-prof-head h3 { font-family:var(--serif); font-size:20px; margin:0; font-weight:600; }
+/* Its own class: .sg-prof-head is the landscape header strip, whose rules hid
+   this title row (and its close button) in portrait and floated it in landscape. */
+.sg-prof-sheet-head { display:flex; align-items:center; justify-content:space-between; padding:10px 0 4px; }
+.sg-prof-sheet-head h3 { font-family:var(--serif); font-size:20px; margin:0; font-weight:600; }
 .sg-prof-x {
   width:32px; height:32px; border-radius:50%; font-size:20px; line-height:1; color:var(--muted);
   border:1px solid var(--steel-soft); background:rgba(11,17,32,.6);
@@ -6696,11 +6698,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-profile-nav .sg-gtab-label { font-size:15px; }
 .sg-profile-nav-icon { display:grid; place-items:center; align-self:stretch; width:40%; flex-shrink:0; margin-right:8px; color:#ffe39a; font-size:26px; background:linear-gradient(140deg,#51517e,#201c3f); clip-path:polygon(0 0,100% 0,82% 100%,0 100%); border-radius:inherit; }
 .sg-profile-nav ~ .sg-scroll { padding-left:216px; }
-.sg-profile-history { width:min(620px,92vw); max-height:85dvh; overflow:auto; border:1px solid #c9a665; border-radius:18px; color:var(--ink); background:#14102b; padding:18px; }
-.sg-profile-history::backdrop { background:#050712bb; }
-.sg-profile-history header { display:flex; align-items:center; justify-content:space-between; gap:20px; }
-.sg-profile-history h2 { margin:0; font:24px var(--serif); }
-.sg-profile-history header button { width:44px; height:44px; background:none; color:var(--gold); border:0; font-size:28px; cursor:pointer; }
 @media (min-width:1024px), (orientation:landscape) {
   .sg-profile-nav ~ .sg-scroll:has(.sg-prof-layout) { position:absolute; inset:calc(68px + var(--sg-sat,0px)) 18px calc(84px + env(safe-area-inset-bottom,0px)) 216px; width:auto; height:auto; padding:0; overflow:hidden; display:block; }
   .sg-profile-nav ~ .sg-scroll > [data-social-body] { height:100%; min-height:0; margin:0; }
@@ -6821,7 +6818,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    own fills, so the bar itself paints nothing. */
 .sg-app .sg-top { background:none; border-bottom:0; box-shadow:none; }
 .sg-app .sg-top::before { display:none; }
-.sg-app .sg-sheet-card, .sg-profile-history { background:linear-gradient(145deg,#1c5067,#102c40); }
+.sg-app .sg-sheet-card { background:linear-gradient(145deg,#1c5067,#102c40); }
 .sg-shop { --navy-plate:linear-gradient(135deg,rgba(31,105,133,.96),rgba(13,52,73,.96)); }
 .sg-profile-nav .sg-gtab { --rail-accent:#3c8ed8; background:linear-gradient(120deg,color-mix(in srgb,var(--rail-accent) 55%,#123443),rgba(9,34,48,.92)); border-color:color-mix(in srgb,var(--rail-accent) 65%,#f3d58b); }
 .sg-profile-nav .sg-gtab:nth-child(2) { --rail-accent:#36ac85; }
@@ -6993,4 +6990,201 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-arena-skins { padding:2px 10px; gap:6px; }
   .sg-arena-skin { flex-basis:66px; padding:3px; }
   .sg-arena-skin span { font-size:8px; padding:1px 2px 0; }
+}
+
+/* ==========================================================================
+   PROFILE: ONE SCREEN, HOME'S MOTION
+   The side plates are Home's glass plates. Match history is a view of the
+   profile (setProfileView): it fills the profile's own space, swelling out of
+   the Recent matches plate the way Home's panels grow from their buttons, and
+   the editor sheet does the same from whichever button opened it. A portrait
+   phone gets the landscape treatment: every block on one screen, no scroll.
+   ========================================================================== */
+.sg-profile-nav {
+  --navy-plate:linear-gradient(135deg,rgba(255,255,255,.16),rgba(255,255,255,.04) 60%,rgba(140,210,255,.08));
+  --gold-line:#d9b45f;
+}
+.sg-profile-nav .sg-gtab {
+  border-color:rgba(255,255,255,.3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35), inset 0 -1px 0 rgba(255,255,255,.06), 0 6px 18px rgba(0,0,0,.25);
+  backdrop-filter:blur(14px) saturate(1.5); -webkit-backdrop-filter:blur(14px) saturate(1.5);
+}
+.sg-profile-nav .sg-gtab:active { transform:translateY(1px); border-color:#ffe39a; }
+@media (hover:hover) { .sg-profile-nav .sg-gtab:hover { border-color:#ffe39a; } }
+.sg-profile-nav .sg-gtab.on {
+  border-color:#ffe39a;
+  box-shadow:0 0 0 1px rgba(255,227,154,.6), 0 0 18px rgba(255,200,90,.45), inset 0 1px 0 rgba(255,255,255,.35);
+}
+
+/* --- match history view --- */
+.sg-prof-history[hidden] { display:none !important; }
+.sg-prof-layout.is-history > [data-prof-block]:not([data-prof-block="history"]) { display:none !important; }
+.sg-prof-layout > .sg-prof-history {
+  grid-column:1 / -1; grid-row:1 / -1;
+  display:flex; flex-direction:column; min-height:0; margin:0; padding:0; overflow:hidden;
+  border-radius:24px; border:1px solid rgba(255,255,255,.24);
+  background:
+    radial-gradient(130% 70% at 0% 0%, rgba(255,255,255,.16), transparent 55%),
+    linear-gradient(165deg, rgba(143,211,255,.12), rgba(255,255,255,.03) 42%, rgba(10,16,30,.55)),
+    rgba(14,22,38,.62);
+  box-shadow:0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.4);
+  transform-origin:var(--sheet-ox, 50%) var(--sheet-oy, 0);
+}
+.sg-prof-history-head {
+  flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:14px 14px 12px 18px; border-bottom:1px solid rgba(255,255,255,.1);
+}
+.sg-prof-history-head h3 { margin:0; font-family:var(--serif); font-size:20px; font-weight:600; }
+.sg-prof-history-head p { margin:3px 0 0; font-size:11.5px; letter-spacing:.06em; color:var(--muted); }
+.sg-prof-history-x {
+  flex:0 0 auto; width:36px; height:36px; border-radius:50%; border:1px solid rgba(255,255,255,.24);
+  background:rgba(255,255,255,.1); color:var(--ink); font-size:20px; line-height:1; cursor:pointer;
+}
+.sg-prof-history-list {
+  flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
+  padding:12px 12px 16px;
+}
+.sg-prof-history-list .sg-stack { padding:0; }
+.sg-prof-history-list .sg-empty-row { margin:6px; }
+/* The same entrance and exit as Home's panels (sgSheetIn / sgSheetOut). */
+.sg-prof-history.is-opening { animation:sgSheetIn .46s cubic-bezier(.2,.9,.25,1.12) both; }
+.sg-prof-history.is-opening .sg-prof-history-head { animation:sgSheetRise .42s .08s cubic-bezier(.2,.8,.25,1) both; }
+.sg-prof-history.is-opening .sg-stack > * { animation:sgSheetRise .4s cubic-bezier(.2,.8,.25,1) both; }
+.sg-prof-history.is-opening .sg-stack > :nth-child(1) { animation-delay:.12s; }
+.sg-prof-history.is-opening .sg-stack > :nth-child(2) { animation-delay:.16s; }
+.sg-prof-history.is-opening .sg-stack > :nth-child(3) { animation-delay:.2s; }
+.sg-prof-history.is-opening .sg-stack > :nth-child(4) { animation-delay:.24s; }
+.sg-prof-history.is-opening .sg-stack > :nth-child(n+5) { animation-delay:.28s; }
+.sg-prof-history.is-closing { animation:sgSheetOut .2s cubic-bezier(.4,0,.8,.4) both; }
+/* Coming back, the profile's blocks rise into place in reading order. */
+.sg-prof-layout.is-returning > [data-prof-block]:not([data-prof-block="history"]) { animation:sgSheetRise .4s cubic-bezier(.2,.8,.25,1) both; }
+.sg-prof-layout.is-returning > [data-prof-block="tiles"] { animation-delay:.05s; }
+.sg-prof-layout.is-returning > [data-prof-block="showcase"] { animation-delay:.1s; }
+.sg-prof-layout.is-returning > [data-prof-block="signature"] { animation-delay:.15s; }
+
+/* --- editor sheet: swells from its button like Home's panels --- */
+.sg-prof-sheet .sg-sheet-card { transform-origin:var(--sheet-ox, 50%) var(--sheet-oy, 0); }
+/* Liquid Glass, the same panel as Home's side-button sheets (.sg-stage-panel-card):
+   a frosted pane over the profile, an element-tinted wash and a specular rim. */
+.sg-prof-sheet { background:rgba(3,10,20,.38); backdrop-filter:blur(5px) saturate(1.1); -webkit-backdrop-filter:blur(5px) saturate(1.1); }
+.sg-app .sg-prof-sheet .sg-sheet-card {
+  border-radius:28px; color:var(--ink);
+  border:1px solid rgba(255,255,255,.24);
+  background:
+    radial-gradient(130% 70% at 0% 0%, rgba(255,255,255,.2), transparent 55%),
+    linear-gradient(165deg, color-mix(in srgb, var(--el, #8fd3ff) 16%, rgba(255,255,255,.1)), rgba(255,255,255,.04) 42%, rgba(10,16,30,.5)),
+    rgba(14,22,38,.4);
+  box-shadow:
+    0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.18),
+    0 0 60px -12px color-mix(in srgb, var(--el, #8fd3ff) 45%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.45), inset 0 -1px 0 rgba(255,255,255,.08);
+  backdrop-filter:blur(30px) saturate(1.8); -webkit-backdrop-filter:blur(30px) saturate(1.8);
+}
+.sg-app .sg-prof-sheet .sg-sheet-card::before {
+  content:''; position:absolute; left:18px; right:18px; top:0; height:1px; pointer-events:none;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.85), transparent); opacity:.7;
+}
+/* Glass controls inside the glass, like the panel's close button. */
+.sg-prof-sheet .sg-prof-x { border-color:rgba(255,255,255,.24); background:rgba(255,255,255,.1); color:var(--ink); }
+.sg-prof-sheet .sg-sheet-tabs { background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.16); }
+.sg-prof-sheet.is-opening .sg-sheet-card { animation:sgSheetIn .46s cubic-bezier(.2,.9,.25,1.12) both; }
+.sg-prof-sheet.is-opening .sg-sheet-card > * { animation:sgSheetFade .4s .16s ease-out both; }
+.sg-prof-sheet.is-closing { opacity:0; transition:opacity .2s ease-in; }
+.sg-prof-sheet.is-closing .sg-sheet-card { animation:sgSheetOut .2s cubic-bezier(.4,0,.8,.4) both; }
+/* Cancel and Save flank the shield FAB, which stands over the sheet's foot,
+   the same pair every launch screen ends on. The card keeps its 10px margin;
+   its bottom padding puts the row's centre on the FAB's. */
+.has-shield-navigation .sg-prof-sheet .sg-sheet-card {
+  margin-bottom:10px;
+  padding-bottom:max(4px, calc(var(--sn-fab-bottom, 13px) + var(--sn-fab-size, 62px) / 2 - var(--sn-flank-h, 56px) / 2 - 10px));
+}
+.has-shield-navigation .sg-prof-actions {
+  display:grid; grid-template-columns:minmax(0,1fr) calc(var(--sn-flank-tuck, 22.6px) * 2) minmax(0,1fr);
+  align-items:center; gap:0; padding-top:12px;
+}
+.has-shield-navigation .sg-prof-actions .sn-flank {
+  height:var(--sn-flank-h, 56px); border:0; border-radius:0; background:var(--flank-rim); color:var(--flank-ink);
+  font-size:13px; letter-spacing:.12em; text-transform:uppercase;
+}
+.has-shield-navigation .sg-prof-actions .sn-flank.is-left { grid-column:1; justify-self:end; padding:0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px) 0 22px; }
+.has-shield-navigation .sg-prof-actions .sn-flank.is-right { grid-column:3; justify-self:start; padding:0 22px 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px); }
+@media (prefers-reduced-motion:reduce) {
+  .sg-prof-history.is-opening, .sg-prof-history.is-opening *, .sg-prof-history.is-closing,
+  .sg-prof-layout.is-returning > *, .sg-prof-sheet.is-opening .sg-sheet-card,
+  .sg-prof-sheet.is-opening .sg-sheet-card > *, .sg-prof-sheet.is-closing .sg-sheet-card { animation:none !important; }
+}
+
+/* --- portrait phone: the whole profile on one screen --- */
+@media (max-width:1023px) and (orientation:portrait) {
+  .sg-profile-nav ~ .sg-scroll:has(.sg-prof-layout) {
+    overflow:hidden; display:flex; flex-direction:column;
+    /* Ends above the shield FAB (shield-navigation.css tokens). */
+    padding:2px 12px calc(var(--sn-fab-bottom, 13px) + var(--sn-fab-size, 62px) + 10px);
+  }
+  .sg-profile-nav ~ .sg-scroll:has(.sg-prof-layout) > [data-social-body] { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; margin:0; }
+  .sg-profile-nav ~ .sg-scroll .sg-prof-layout {
+    flex:1 1 auto; min-height:0; display:grid; grid-template-columns:minmax(0,1fr);
+    grid-template-rows:auto auto minmax(0,1fr) auto; gap:10px;
+  }
+  .sg-profile-nav ~ .sg-scroll .sg-prof-layout > [data-prof-block] { margin:0; padding:0; min-width:0; min-height:0; max-width:none; }
+
+  /* Crest: a banner with the avatar beside the name rather than a 330px tower. */
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="crest"] { grid-row:1; height:auto; border-radius:18px; }
+  /* In flow, so the crest is as tall as what it says. */
+  .sg-profile-nav ~ .sg-scroll .sg-crest-body {
+    position:relative; bottom:auto; padding:clamp(12px, 2dvh, 18px) 14px; text-align:left;
+    display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:12px; align-items:center;
+  }
+  .sg-profile-nav ~ .sg-scroll .sg-crest-ring { grid-column:1; grid-row:1 / span 4; width:clamp(48px, 7dvh, 64px); height:clamp(48px, 7dvh, 64px); }
+  .sg-profile-nav ~ .sg-scroll .sg-crest-ring i { font-size:22px; }
+  .sg-profile-nav ~ .sg-scroll .sg-crest-body > :not(.sg-crest-ring) { grid-column:2; min-width:0; }
+  .sg-profile-nav ~ .sg-scroll .sg-crest-body h2 { margin:0; padding-right:96px; font-size:clamp(20px, 6vw, 26px); line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sg-profile-nav ~ .sg-scroll .sg-crest-title { justify-self:start; max-width:100%; margin:3px 0 0; padding:2px 8px; font-size:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sg-profile-nav ~ .sg-scroll .sg-crest-body > p { margin:4px 0 0; font-size:9.5px; letter-spacing:.1em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sg-profile-nav ~ .sg-scroll .sg-crest-body .sg-xp-note { margin-top:3px; font-size:9.5px; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sg-profile-nav ~ .sg-scroll .sg-crest-body .sg-crest-bio { width:auto; max-width:100%; margin:3px 0 0; font-size:10px; text-transform:none; letter-spacing:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sg-profile-nav ~ .sg-scroll .sg-crest-edit { z-index:2; top:10px; right:10px; padding:6px 10px; font-size:9px; }
+
+  /* Four figures across. */
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="tiles"] { grid-row:2; grid-template-columns:repeat(4, minmax(0,1fr)); gap:6px; padding:0; }
+  .sg-profile-nav ~ .sg-scroll .sg-tiles div { padding:8px 2px 7px; border-radius:12px; }
+  .sg-profile-nav ~ .sg-scroll .sg-tiles span { font-size:7.5px; letter-spacing:.08em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sg-profile-nav ~ .sg-scroll .sg-tiles b { margin-top:3px; font-size:clamp(15px, 4.6vw, 20px); }
+
+  /* Showcase: three cards sharing the height that is left. */
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="showcase"] { grid-row:3; display:flex; flex-direction:column; }
+  .sg-profile-nav ~ .sg-scroll .sg-section-head { flex:0 0 auto; padding:0 2px 6px; }
+  .sg-profile-nav ~ .sg-scroll .sg-section-head h3 { font-size:16px; }
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="showcase"] .sg-swipe {
+    flex:1 1 auto; min-height:0; display:grid; grid-template-columns:repeat(3, minmax(0,1fr));
+    gap:8px; padding:0; overflow:visible; scroll-snap-type:none;
+  }
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="showcase"] .sg-feat { width:auto; height:100%; min-height:0; flex:none; border-radius:16px; }
+  .sg-profile-nav ~ .sg-scroll .sg-feat-plate { border-radius:16px; }
+  .sg-profile-nav ~ .sg-scroll .sg-feat-art { bottom:26px; }
+  .sg-profile-nav ~ .sg-scroll .sg-feat-foot { padding:6px 8px 7px; }
+  .sg-profile-nav ~ .sg-scroll .sg-feat-name { font-size:11px; }
+  .sg-profile-nav ~ .sg-scroll .sg-feat-fav { transform:scale(.82); transform-origin:top left; }
+
+  /* Card back: one short row, the back beside its name. */
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="signature"] { grid-row:4; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:10px; }
+  /* The slot already says Card back; only the Change link stays, at its side. */
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="signature"] .sg-section-head { grid-column:2; grid-row:1; padding:0 4px 0 0; }
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="signature"] .sg-section-head h3 { display:none; }
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="signature"] .sg-sig { grid-column:1; grid-row:1; display:block; padding:0; margin:0; max-width:none; }
+  .sg-profile-nav ~ .sg-scroll .sg-sig-slot { display:grid; grid-template-columns:auto minmax(0,1fr); grid-template-rows:auto auto; column-gap:12px; row-gap:2px; align-items:center; padding:8px 12px 8px 8px; border-radius:14px; }
+  .sg-profile-nav ~ .sg-scroll :is(.sg-sig-art, .sg-sig-back) { grid-column:1; grid-row:1 / span 2; width:auto; height:clamp(52px, 8dvh, 72px); border-radius:8px; }
+  .sg-profile-nav ~ .sg-scroll .sg-sig-label { grid-column:2; align-self:end; text-align:left; }
+  .sg-profile-nav ~ .sg-scroll .sg-sig-name { grid-column:2; align-self:start; text-align:left; font-size:13px; }
+}
+/* Short portrait phones (SE class): the crest and card back give up height first. */
+@media (max-width:1023px) and (orientation:portrait) and (max-height:700px) {
+  .sg-profile-nav ~ .sg-scroll .sg-crest-body .sg-crest-bio { display:none; }
+  .sg-profile-nav ~ .sg-scroll .sg-prof-layout { gap:7px; }
+  .sg-profile-nav ~ .sg-scroll :is(.sg-sig-art, .sg-sig-back) { height:44px; }
+  .sg-profile-nav ~ .sg-scroll .sg-tiles div { padding:6px 2px 5px; }
+}
+/* A wide history panel would stretch each row across the screen: two columns. */
+@media (min-width:700px) and (orientation:landscape), (min-width:1024px) {
+  .sg-prof-history-list .sg-stack { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); align-content:start; }
 }
