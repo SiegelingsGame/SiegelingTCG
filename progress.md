@@ -1,3 +1,29 @@
+Original prompt: Reformat the portrait profile page and the popups that open. Make them use the smooth animations from the Home Screen as well from the side buttons. But reformat so it all fits on one page without scroll similar to landscape. Instead of a popup window for recent matches use the profile space and change the screen to focus on match history
+
+- October 28, 2026 **Profile: one screen in portrait, match history in place, Home's swell animations.**
+  - **Change.**
+    - **Portrait layout (`home-redesign.css`, at max-width 1023px portrait).** The profile no longer scrolls, matching landscape. The crest is a banner sized by its content, with the avatar beside the name and Customize in its corner. The four stat tiles sit in one row. The three showcase cards share whatever height is left. The card back is a single row: the back, its name, and Change. On short phones the bio hides and the gaps tighten. The page ends above the shield FAB.
+    - **Match history (`home-redesign.js`).** The `dialog.sg-profile-history` popup is gone. `profileHistoryMarkup` renders a history block, with a W-L and Siege-run summary and up to 40 rows that scroll inside the panel, in the profile's own grid. `setProfileView` swaps it in for the other blocks.
+      - **Entering:** the panel swells out of the Recent matches plate (Home's `sgSheetIn`, with the origin at the plate) and its rows rise in.
+      - **Leaving:** the Profile plate, the panel's × or Escape shrinks it back (`sgSheetOut`) and the profile blocks rise into place.
+      - **From Friends or Messages:** the plate opens the profile straight onto the list.
+      - **Layout:** on wide screens the rows sit in two columns. The old Recent section is gone from the profile body.
+    - **Editor sheet.** It swells out of whichever button opened it (Customize or a Change link) and shrinks back toward it on close. Cancel and Save are flank buttons around the S FAB, level with it.
+      - **Bug fix:** the sheet's title row now has its own class (`sg-prof-sheet-head`). It used to share `.sg-prof-head` with the landscape header strip, which hid it (with its ×) in portrait and floated it to the top in landscape.
+    - **Side plates.** They get Home's glass plate treatment and press feedback.
+  - **Test.** `tests/profile-dashboard-check.cjs` now:
+    - asserts the no-scroll fit in portrait as well;
+    - checks the in-place history view in place of the dialog, including opening it from Messages;
+    - waits for the transition-delayed screen swaps that it used to read instantly (it already failed on base at the Lobbies step for that reason).
+  - Cache pins: `home-redesign.css?v=168`, `home-redesign.js?v=162`.
+  - **Verification.** `node --check` passes. Headless Chromium with mocked history:
+    - **Portrait profile:** no scroll at 390x844 (scroll 680 = client 680), 430x932 and 320x568. Blocks stack crest, tiles, showcase, card back, ending above the FAB.
+    - **History view** at 390x844, 844x390, 320x568 and 1920x1080: it fills the profile's space (portrait 12–378 x 166–759), its 13 rows scroll inside it, the page doesn't scroll, and the plate states flip. Mid-open it is scaled (0.38–0.92, grown from the plate), and closing runs `is-closing` and then restores the blocks.
+    - **From Friends:** the plate opens `/profile` with the history showing.
+    - **Editor sheet:** mid-open it scales from the button's origin, and closing returns it to hidden. Cancel and Save centres are within 1px of the FAB centre at 390x844, 844x390, 320x568 and 1920x1080.
+    - **`profile-dashboard-check`:** its profile steps pass at 1313x900. It then stops at the shield menu's Social link ("sn-content intercepts pointer events"), a step that base never reached. With the menu settled, `elementsFromPoint` shows the link on top on both this branch and base, so it reads as the test clicking mid-animation, not a dead link.
+    - No page errors.
+
 Original prompt: Make the animations more efficient the site is slogging now
 
 - October 28, 2026 **Animations: cheaper page transitions, a session fallback for slow devices, and the shield corona only animating while open.**
