@@ -6818,7 +6818,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    own fills, so the bar itself paints nothing. */
 .sg-app .sg-top { background:none; border-bottom:0; box-shadow:none; }
 .sg-app .sg-top::before { display:none; }
-.sg-app .sg-sheet-card, .sg-profile-history { background:linear-gradient(145deg,#1c5067,#102c40); }
+.sg-app .sg-sheet-card { background:linear-gradient(145deg,#1c5067,#102c40); }
 .sg-shop { --navy-plate:linear-gradient(135deg,rgba(31,105,133,.96),rgba(13,52,73,.96)); }
 .sg-profile-nav .sg-gtab { --rail-accent:#3c8ed8; background:linear-gradient(120deg,color-mix(in srgb,var(--rail-accent) 55%,#123443),rgba(9,34,48,.92)); border-color:color-mix(in srgb,var(--rail-accent) 65%,#f3d58b); }
 .sg-profile-nav .sg-gtab:nth-child(2) { --rail-accent:#36ac85; }
@@ -7064,6 +7064,29 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 
 /* --- editor sheet: swells from its button like Home's panels --- */
 .sg-prof-sheet .sg-sheet-card { transform-origin:var(--sheet-ox, 50%) var(--sheet-oy, 0); }
+/* Liquid Glass, the same panel as Home's side-button sheets (.sg-stage-panel-card):
+   a frosted pane over the profile, an element-tinted wash and a specular rim. */
+.sg-prof-sheet { background:rgba(3,10,20,.38); backdrop-filter:blur(5px) saturate(1.1); -webkit-backdrop-filter:blur(5px) saturate(1.1); }
+.sg-app .sg-prof-sheet .sg-sheet-card {
+  border-radius:28px; color:var(--ink);
+  border:1px solid rgba(255,255,255,.24);
+  background:
+    radial-gradient(130% 70% at 0% 0%, rgba(255,255,255,.2), transparent 55%),
+    linear-gradient(165deg, color-mix(in srgb, var(--el, #8fd3ff) 16%, rgba(255,255,255,.1)), rgba(255,255,255,.04) 42%, rgba(10,16,30,.5)),
+    rgba(14,22,38,.4);
+  box-shadow:
+    0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.18),
+    0 0 60px -12px color-mix(in srgb, var(--el, #8fd3ff) 45%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.45), inset 0 -1px 0 rgba(255,255,255,.08);
+  backdrop-filter:blur(30px) saturate(1.8); -webkit-backdrop-filter:blur(30px) saturate(1.8);
+}
+.sg-app .sg-prof-sheet .sg-sheet-card::before {
+  content:''; position:absolute; left:18px; right:18px; top:0; height:1px; pointer-events:none;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.85), transparent); opacity:.7;
+}
+/* Glass controls inside the glass, like the panel's close button. */
+.sg-prof-sheet .sg-prof-x { border-color:rgba(255,255,255,.24); background:rgba(255,255,255,.1); color:var(--ink); }
+.sg-prof-sheet .sg-sheet-tabs { background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.16); }
 .sg-prof-sheet.is-opening .sg-sheet-card { animation:sgSheetIn .46s cubic-bezier(.2,.9,.25,1.12) both; }
 .sg-prof-sheet.is-opening .sg-sheet-card > * { animation:sgSheetFade .4s .16s ease-out both; }
 .sg-prof-sheet.is-closing { opacity:0; transition:opacity .2s ease-in; }
