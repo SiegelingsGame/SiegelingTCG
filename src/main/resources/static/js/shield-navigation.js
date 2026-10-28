@@ -145,6 +145,12 @@
         if (token !== generation) return;
         if (open) {
           cancel(); root.dataset.state = 'open';
+          // After the hub has swapped screens beneath it, Chromium can keep
+          // hit-testing the Social/Help row against stale data once the
+          // entrance animations are cancelled, so taps land on .sn-content.
+          // One re-layout of that row brings its hit-testing up to date.
+          var utilities = root.querySelector('.sn-utilities');
+          utilities.style.display = 'none'; void utilities.offsetHeight; utilities.style.display = '';
           if (document.activeElement === shield) options[0].focus({ preventScroll: true });
         } else {
           var destination = pending; pending = null;
