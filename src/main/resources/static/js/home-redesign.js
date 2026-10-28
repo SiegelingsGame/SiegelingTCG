@@ -1810,13 +1810,24 @@
     });
 
     if (mq) {
-      // Turning the phone swaps the wall for the other orientation's rotation.
+      // Turning the phone keeps the picture on the wall: the same piece in the
+      // other orientation's file (its portrait version on a tall stage when
+      // the dashboard has one, otherwise its landscape file cropped to fill),
+      // and the rotation carries on from it through that orientation's list.
       var onChange = function () {
         if (!stage.isConnected) return;
         closeSheet(true);
+        var showing = rotation[idx] && rotation[idx].id;
         tall = mq.matches;
         rotation = readStageRotation(tall);
-        paint(0, true);
+        var at = -1;
+        rotation.forEach(function (p, i) { if (at < 0 && p.id === showing) at = i; });
+        if (at < 0 && showing) {
+          var find = function (list) { return list.filter(function (p) { return p.id === showing; })[0]; };
+          var same = find(stagePieces(tall)) || find(stagePieces(false));
+          if (same) { rotation = [same].concat(rotation); at = 0; }
+        }
+        paint(Math.max(0, at), true);
         schedule();
       };
       if (mq.addEventListener) mq.addEventListener('change', onChange);

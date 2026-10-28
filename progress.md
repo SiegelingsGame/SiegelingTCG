@@ -1,3 +1,16 @@
+Original prompt: When the orientation changes from portrait to landscape and vice versa the wallpaper should stay the same. Using either the landscape or portrait view based on the dashboard. If the image has a portrait version already use that instead
+
+- October 28, 2026 **Home: turning the phone keeps the same wallpaper.**
+  - **Change.** Each orientation keeps its own rotation list, and turning the phone used to jump to the first piece of the other list (Morning Drills in landscape became Apple Grove in portrait). The orientation handler in `mountStage` now keeps the piece that is showing.
+    - **If the other list has it,** the rotation continues from it there.
+    - **If not,** the piece is put at the front of that list, using its portrait file on a tall stage when the dashboard/gallery has one and its landscape file (cover-cropped) otherwise.
+    - From there the rotation carries on through that orientation's own list. Cache pin: `home-redesign.js?v=164`.
+  - **Verification.** `node --check` passes. Headless Chromium, rotating 844x390 to 390x844 and back on four successive pieces, plus once from a portrait-first piece:
+    - The caption and piece stay the same every time.
+    - Morning Drills switches `frostag-training.webp` to `frostag-training-portrait.webp` and back.
+    - The Long Fuse, Above the Skyreach and Deeper Roots, which have no portrait file, keep their landscape file in portrait.
+    - No page errors.
+
 Original prompt: Still seeing the shift from fully transparent to Liquid Glass cloud on the buttons can we prevent this shift from being visible? Also review performance. Experiencing some lag since the rotation button change.
 
 - October 28, 2026 **Home: painted frost instead of live blurs; no hidden full-screen blur.**
