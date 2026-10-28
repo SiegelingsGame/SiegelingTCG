@@ -1,3 +1,13 @@
+Original prompt: Menu buttons (play collection etc) have a brief pop in after the animation completes. Can we fix this
+
+- October 28, 2026 **Home: the frosted menu plates fade their frost in after a page transition instead of popping.**
+  - **Change.** Safari renders view-transition snapshots without `backdrop-filter`, so Home's glass plates (Play, Collection, Shop, Social, Settings) played every page transition unfrosted, and the frost snapped on the instant the transition ended. The same applied to the shortcut icons, the mode buttons, the music pill, the rotation player and the profile/social side plates. While a transition plays (`html[data-vt-fx]`, set by `page-transitions.js`), those elements now drop their backdrop blur. Once it ends, the blur transitions in over 0.45s. Their existing transform/border transitions are kept. Cache pin: `home-redesign.css?v=171`.
+  - **Verification.** Headless Chromium at 390x844, Shop to Home with fire forced, sampling every 120ms:
+    - While `data-vt-fx` is set, the Play plate's `backdrop-filter` is `none`.
+    - After it clears, the blur climbs over the next ~0.4s (0.3px, 7px, 12px, then 14px with saturate 1.5) to the plate's resting frost.
+    - Mid-transition and settled screenshots of the plates match apart from the frost.
+    - WebKit is not installed here, so Safari's snapshot behaviour was not reproduced directly.
+
 Original prompt: Reformat the portrait profile page and the popups that open. Make them use the smooth animations from the Home Screen as well from the side buttons. But reformat so it all fits on one page without scroll similar to landscape. Instead of a popup window for recent matches use the profile space and change the screen to focus on match history
 
 - October 28, 2026 **Profile: one screen in portrait, match history in place, Home's swell animations.**
