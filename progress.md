@@ -1,3 +1,12 @@
+Original prompt: Use light instead of brown
+
+- October 28, 2026 **Earth transition: cracks of light.**
+  - **Change.** The salt-flat seams are no longer rust-brown. They are now a bright near-white core (2.2px) with a soft warm glow (two drop-shadows, 2px and 7px), as if light shows through between the plates. Nothing else changed. Cache pin: `page-transitions.js?v=8` in all 12 pages.
+  - **Verification.** `node --check` passes. Headless Chromium with earth forced, hub Home to Shop at 390x844 and 1920x1080, slowed to 10%:
+    - Frames show glowing light seams spreading over the pale crust, then plates opening onto the Shop page.
+    - There are 36 or 40 plates, cleanup is complete and the route is `/shop`.
+    - No page errors.
+
 Original prompt: Earth looks rough let's make it more like cracks in the ground and sand like salt flats and then appears from underneath
 
 - October 28, 2026 **Earth transition: salt-flat cracks instead of falling rocks.**

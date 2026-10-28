@@ -385,9 +385,10 @@
     '#sgFx.is-earth { animation: sgFxOut ' + EARTH_S + 's linear both; }' +
     '.sg-fx-cracks { position: absolute; inset: 0; animation: sgFxCrackFade ' + EARTH_S + 's linear both; }' +
     '.sg-fx-cracks svg { width: 100%; height: 100%; overflow: visible; }' +
-    // Rust-brown seams with a pale salt lip, like the ridges between salt plates.
-    '.sg-fx-cracks polygon { fill: none; stroke: rgba(150,92,58,.92); stroke-width: 2.6; stroke-linejoin: round; stroke-linecap: round;' +
-      ' stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 1.2px rgba(255,246,232,.95)) drop-shadow(0 1px 1px rgba(90,50,30,.35));' +
+    // Seams of light: a bright core with a soft warm glow, as if the light
+    // underneath shows through the cracks between the salt plates.
+    '.sg-fx-cracks polygon { fill: none; stroke: rgba(255,252,240,.96); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round;' +
+      ' stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 2px rgba(255,244,214,.95)) drop-shadow(0 0 7px rgba(255,226,170,.7));' +
       ' animation: sgFxCrack .4s ease-out forwards; }' +
     '.sg-fx-sand { opacity: 0; border-radius: 50%; background: radial-gradient(circle, rgba(236,222,204,.75) 0, rgba(214,190,160,.45) 38%, rgba(214,190,160,0) 70%);' +
       ' filter: blur(3px); animation: sgFxSand .5s ease-out forwards; }' +
