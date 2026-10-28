@@ -91,23 +91,14 @@ button { font-family: inherit; touch-action: manipulation; }
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: calc(8px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+  /* --sn-sat clears the standalone iOS blur band as well as the status bar,
+     and the back pill takes the same corner as every launch screen's. */
+  padding: calc(8px + var(--sn-sat)) max(16px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(11, 16, 32, 0.96), rgba(11, 16, 32, 0.82));
 }
 
-.gt-home {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid var(--line-strong);
-  color: var(--gold);
-  text-decoration: none;
-  font-size: 18px;
-}
+.gt-home { flex: 0 0 auto; }
 
 /* The title keeps its width; the result banner beside it takes what is left. */
 .gt-title { flex: 1 0 auto; min-width: 0; }
@@ -935,8 +926,8 @@ body[data-screen="over"] #screenOver { display: flex; }
   .gt-h2 { font-size: 16px; }
 }
 @media (max-height: 520px) {
-  .gt-top { padding-top: calc(4px + env(safe-area-inset-top)); padding-bottom: 4px; }
-  .gt-home { width: 30px; height: 30px; font-size: 15px; }
+  .gt-top { padding-top: calc(4px + var(--sn-sat)); padding-bottom: 4px; }
+  .gt-home { height: 32px; }
   .gt-main { padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
   .gt-screen { gap: 6px; }
   .gt-h2 { font-size: 14px; }
@@ -1092,3 +1083,14 @@ ins.gt-now { background: rgba(230, 205, 140, 0.12); border-radius: 4px; padding:
 .gt-cost.is-changed .gt-was { color: inherit; opacity: 0.6; }
 .gt-was-chip { opacity: 0.55; text-decoration: line-through; text-decoration-color: rgba(255, 107, 107, 0.85); text-decoration-thickness: 2px; }
 .gt-was-chip .gt-chip { text-decoration: inherit; }
+
+/* ---- Start screen: Draft my ten flanks the shield FAB ----
+   The FAB stacks over the screens and under the card sheet (20). */
+:root { --sn-z: 19; }
+.gt-cta.sn-dock { display: grid; justify-content: normal; --sn-dock-fill: rgba(11, 16, 32, .94); }
+.gt-screen#screenStart { padding-bottom: calc(var(--sn-dock-h) + 4px); }
+/* Past the shell's max width the column centres; the back pill keeps the
+   screen corner every other launch screen uses. */
+@media (min-width: 1181px) {
+  .gt-home { position: fixed; z-index: 2; top: calc(var(--sn-sat) + 8px); left: max(12px, env(safe-area-inset-left)); }
+}

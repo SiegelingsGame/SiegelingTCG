@@ -77,16 +77,14 @@
   .sg-app[data-screen="play"] .sg-exp { min-height:60px; padding:8px 14px; }
   .sg-app[data-screen="play"] .sg-lobbies { margin:0; padding:10px 14px; min-width:0; height:60px; }
   .sg-app[data-screen="play"] .sg-guest, .sg-app[data-screen="play"] .sg-scroll > div[style] { display:none; }
-  /* Reserve the full footer width for selectors and summoning actions. */
-  .sg-shop .sg-gstage-body { left:calc(var(--gtabs-w) + 32px); right:24px; bottom:calc(82px + env(safe-area-inset-bottom,0px)); grid-template-columns:minmax(0,1fr) auto; grid-template-rows:auto 1fr auto auto; gap:10px 20px; }
-  .sg-shop .sg-gplaque { grid-column:1 / -1; grid-row:1; }
-  .sg-shop .sg-gselwrap { grid-column:1 / -1; grid-row:3; margin:0; }
-  .sg-shop .sg-gutil { grid-column:1; grid-row:4; }
-  .sg-shop .sg-gbuy { grid-column:2; grid-row:4; }
+  /* The selector takes the body's full width above the buy dock, which
+     flanks the shield FAB (the utilities ride beside the ribbon). */
+  .sg-shop .sg-gstage-body { left:calc(var(--gtabs-w) + 32px); right:24px; bottom:var(--gnav); gap:10px 20px; }
+  .sg-shop .sg-gselwrap { margin:0; }
   .sg-shop .sg-gselect { gap:12px; }
   .sg-shop .sg-gel { width:46px; height:46px; flex-shrink:0; }
   .sg-shop .sg-gel img { width:34px; height:34px; }
-  .sg-shop .sg-gbtn { width:clamp(165px,18vw,280px); }
+  .sg-shop .sg-gbuy .sn-flank { max-width:clamp(165px,18vw,280px); }
   .sg-shop .sg-gstage-card { bottom:calc(var(--gnav) + 205px); }
   .sg-shop .sg-gpennant { bottom:auto; }
 }
@@ -154,12 +152,10 @@
   .sg-app[data-screen="play"] :is(.sg-exp,.sg-lobbies) { min-height:44px; height:44px; padding:5px 10px; font-size:11px; }
   .sg-app[data-screen="play"] .sg-exp-meta { display:none; }
   .sg-app[data-screen="play"] .sg-exp-name { font-size:12px; }
-  .sg-shop .sg-gstage-body { left:calc(var(--gtabs-w) + 20px); right:14px; bottom:calc(66px + env(safe-area-inset-bottom,0px)); gap:4px 10px; }
+  .sg-shop .sg-gstage-body { left:calc(var(--gtabs-w) + 20px); right:14px; bottom:var(--gnav); gap:4px 10px; }
   .sg-shop .sg-gel { width:36px; height:36px; }
   .sg-shop .sg-gel img { width:27px; height:27px; }
-  .sg-shop .sg-gbtn { width:clamp(128px,20vw,190px); height:46px; }
-  .sg-shop .sg-gutil-btn span { width:34px; height:34px; font-size:16px; }
-  .sg-shop .sg-gutil-btn { width:42px; }
+  .sg-shop .sg-gbuy .sn-flank { max-width:clamp(128px,22vw,190px); }
   .sg-shop .sg-gselect { gap:6px; }
   .sg-shop .sg-gstage-card { display:none; }
   .sg-app[data-screen="auth"] > .sg-scroll { padding:calc(50px + var(--sg-sat,0px)) 18px 64px; gap:18px; grid-template-columns:1fr minmax(340px,1.2fr); }

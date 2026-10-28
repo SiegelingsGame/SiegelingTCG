@@ -1064,7 +1064,21 @@
     });
   }
 
+  // The shield FAB belongs to the start screen, the Gauntlet's launch screen;
+  // the climb's own screens keep the bottom edge for their actions.
+  function mountShieldNavigation() {
+    if (!window.SiegelingsShieldNavigation) return;
+    var nav = window.SiegelingsShieldNavigation.mountLinks();
+    function sync() {
+      var screen = document.body.dataset.screen;
+      nav.setHidden(screen !== 'start' && screen !== 'loading');
+    }
+    new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['data-screen'] });
+    sync();
+  }
+
   bind();
+  mountShieldNavigation();
   if (read(RUN_TOKEN_KEY)) {
     loadRun();
   } else {

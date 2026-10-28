@@ -1,3 +1,31 @@
+Original prompt: Update the position of the odds binder and in art buttons next to the (starter) tag under the pack name. Move the two open buttons on the left and right side of the siegeling FAB and make them flush with FAB with semicircle cuts in directional points outward. Update the play mode launch menus screens to have the same locations for a dedicated back button and reformat them to support the new logo FAB button menu in the center of the screen. Mesh the design and feel of game mode launch screens. Fix the blur in the top safe zone of the phone as well so all text is visible prior to any blur
+
+- October 28, 2026 **Shop and play-mode launch screens: buttons flank the S FAB, one back pill, text clears the iOS blur band.**
+  - **Shared pieces (`shield-navigation.css`/`.js`).**
+    - FAB geometry is now tokens (`--sn-fab-size`, `--sn-fab-bottom`, and 52px on short landscape) that other parts can follow.
+    - New `.sn-flank` button: it points outward and has a concave semicircle cut where it meets the FAB (FAB radius plus a 5px gap). The rim is 2px all round, including the cut, because the element paints the rim and `::before` paints the fill inset by 2px. There are `.is-left`/`.is-right` and `.is-blue`/`.is-gold` variants.
+    - New `.sn-dock`: a fixed bottom row `[left] FAB [right]` whose middle column is exactly the width between the two cuts' corners.
+    - New `.sn-back` pill, and `--sn-sat`, a top inset that adds the same +40pt as `chronicles.css` in an installed web app, so text starts below the blur iOS 26 draws under the status bar.
+    - `mountLinks()` mounts the shield on pages outside the hub; its destinations are hub URLs. `setHidden()` hides the FAB. `--sn-z` lets each page stack the FAB above its screen and below its own dialogs.
+  - **Shop (`home-redesign.js`/`.css`, `hub-workspaces.css`).** Odds, Binder, In art and Equip are now small pills in a row with the tag ribbon under the name. The buy buttons moved out of the footer into a dock: Open ×1 (blue) on the FAB's left, Open ×10 (gold) on its right. A single daily or title buy takes the right side. `--gnav` is now the dock height, and the landscape and desktop grids no longer reserve a footer row.
+  - **Arena loadout (`play.html`, `play-next.css`, `game.js`).** The × became a ‹ Play pill top-left, which goes to the hub's Play screen. Main Menu/Back and the step's primary button are flanks in a dock. The FAB shows only while the loadout overlay is visible, so it hides in battle.
+  - **Siege (`adventure.html`/`.js`, `siege-next.css`, `adventure.css`).** The back link is the shared pill, and the app gutter on the launch screens is 12px.
+    - The resume screen's dock holds New run and Continue. Continue resumes the top save. With one save the plate keeps only Start Over, which moves to the plate's corner on short landscape.
+    - The Knight and Warband footers are docks with the summary centred above.
+    - The step slide-in now animates each step's children, so the fixed dock doesn't move with it.
+    - The FAB shows only on the loading, resume and setup screens.
+  - **Dominion start (`dominion.js`/`.css`).** The pill replaces the ×, and Main Menu and the gold action are flanks. The FAB is mounted with the start screen and hidden on leaving it, and it sits below the creation modal.
+  - **Gauntlet (`gauntlet.html`/`.js`/`.css`).** The ← is now a ‹ Arena pill. Main Menu and Draft my ten are flanks on the start screen, which is the only screen that shows the FAB.
+  - **Cache pins.** `shield-navigation.css?v=5` and `shield-navigation.js?v=4` (6 pages); `home-redesign.css?v=167`; `home-redesign.js?v=161`; `hub-workspaces.css?v=6`; `game.js?v=340` (6 pages); `play-next.css?v=17`; `adventure.css?v=113`; `adventure.js?v=150`; `siege-next.css?v=20`; `dominion.css?v=23`; `dominion.js?v=31`; `gauntlet.css?v=16`; `gauntlet.js?v=11`.
+  - **Verification.** `node --check` passes on all six edited scripts. Headless Chromium:
+    - **Shop** (mocked packs and offers; Packs, Summon, Daily and Titles tabs at 390x844, 320x568, 844x390, 568x320, 1366x768 and 1920x1080): the flanks sit level with the FAB, and every flank's height matches the FAB row. The utility pills sit in the ribbon row. The selector ends above the dock. There is no horizontal scroll. A 3x zoom shows the cut ring 5px off the FAB.
+    - **Arena** (account fixture server, all four steps at 390x844, 844x390 and 1920x1080): the dock buttons don't overflow, and the box ends above the dock. The FAB hides and returns as the overlay's `visible` class toggles. Opening the shield inerts the loadout, and Collection navigates to `/cards`.
+    - **Siege:** resume with 1 and 2 saves, and the mode, knight (also scrolled to the bottom) and warband steps, at 390x844, 844x390, 568x320 and 1920x1080. The pill is at (12, 8) everywhere. The dock stays fixed while scrolling, and the FAB hides on the map screen.
+    - **Dominion and Gauntlet** at 390x844, 844x390, 320x568 and 1920x1080 (Gauntlet with mocked options): the FAB is hit-testable and sits under Dominion's creation modal.
+    - **Blur band:** with `--sn-sat` forced to 99px on all four launch screens at 390x844 and 1920x1080, no topmost visible text starts above 99px, and every back pill sits at y=107.
+    - **Repo checks:** `tests/shield-navigation-check.cjs` passes at all 4 viewports, and `tests/hub-workspaces-check.cjs` passes at all 7. `tests/siege-mode-saves-check.cjs` reports the same 6 failures as on the base commit (stale mode-label and accent assertions plus static-server 404s), so these changes add none.
+    - No page errors.
+
 Original prompt: Match the light to the background it shouldn't feel like something drawn overtop
 
 - October 28, 2026 **Earth transition: the crack light comes from the page.**

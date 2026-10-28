@@ -1585,3 +1585,68 @@
 @media (prefers-reduced-motion: reduce) {
     .battle-mode-card { transition: none; }
 }
+
+/* ---- Launch-screen chrome, shared with Siege, Gauntlet and Dominion ----
+   The back pill holds the top-left corner below the status bar, and on an
+   installed iPhone app below the blur band iOS draws under it (--sn-sat), so no
+   text sits in the blur. Back and forward are flank buttons either side of the
+   shield FAB, in a fixed dock; the box ends above that dock. */
+/* The loadout overlay stacks at 1900 and the HUD's dialogs at 2200. */
+:root { --sn-z: 2050; }
+
+.loadout-overlay.visible {
+    padding-top: 0;
+    padding-bottom: var(--sn-dock-h);
+}
+
+.loadout-dock { --sn-dock-fill: #0d0a26; }
+.loadout-dock-btn {
+    white-space: normal;
+    text-wrap: balance;
+    font-size: 14px;
+}
+.loadout-dock-btn.is-loading { flex-direction: row; gap: 8px; cursor: progress; }
+.loadout-dock-btn.is-loading:disabled { filter: none; opacity: 1; }
+.loadout-dock-btn.is-loading::after {
+    content: '';
+    flex: 0 0 auto;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(16, 24, 40, 0.28);
+    border-top-color: rgba(16, 24, 40, 0.95);
+    animation: loadout-btn-spin 0.7s linear infinite;
+}
+
+/* The hero's side padding changes per step; the pill stays 12px in. */
+.loadout-back-link { position: relative; z-index: 1; align-self: flex-start; margin-left: calc(12px - var(--loadout-padding)); }
+
+/* The step-specific compact heroes above set their own top padding; the inset
+   has to win over all of them, or the pill slides back under the blur band. */
+.loadout-overlay .loadout-box > .loadout-hero {
+    padding-top: calc(var(--sn-sat) + 8px) !important;
+}
+
+@media (orientation: portrait), (min-height: 601px) {
+    .loadout-overlay .loadout-box > .loadout-hero {
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        gap: 10px;
+    }
+
+    .loadout-overlay .loadout-hero-copy { padding-right: 0; }
+}
+
+/* A short landscape screen keeps its one-line top bar: the pill leads it. */
+@media (orientation: landscape) and (max-height: 600px) {
+    .loadout-overlay .loadout-box > .loadout-hero { gap: 10px; }
+    .loadout-overlay .loadout-back-link { align-self: center; height: 32px; }
+    .loadout-overlay[data-loadout-step="setup"] .loadout-steps { margin-right: 0; }
+}
+
+/* With the buttons in the dock, a nav whose summary is hidden is empty. */
+.loadout-overlay[data-loadout-step="setup"] .loadout-nav { display: none; }
+@media (max-width: 900px) and (orientation: portrait) {
+    .loadout-overlay[data-loadout-step="review"] .loadout-nav { display: none; }
+}

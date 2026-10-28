@@ -10154,10 +10154,21 @@ function openLoadoutSelector() {
     syncEntryOverlays();
 }
 
-function returnToHome() {
+// The loadout's back pill names the hub's Play screen, where the modes are.
+function returnToHome(screen) {
     if (loadoutStartPending) return;
     clearMultiplayerSession();
-    window.location.href = '/home';
+    window.location.href = screen === 'play' ? '/home?screen=play' : '/home';
+}
+
+// The shield FAB belongs to the loadout, a launch screen; the battle table
+// keeps its own chrome, so the FAB hides whenever the loadout does.
+function mountLoadoutShieldNavigation(overlay) {
+    if (!window.SiegelingsShieldNavigation) return;
+    const nav = window.SiegelingsShieldNavigation.mountLinks();
+    const sync = () => nav.setHidden(!overlay.classList.contains('visible'));
+    new MutationObserver(sync).observe(overlay, { attributes: true, attributeFilter: ['class'] });
+    sync();
 }
 
 function selectDeckOption(deckId) {
@@ -18116,6 +18127,7 @@ window.SieglingsCardShowcase = {
 };
 
 if (document.getElementById('loadoutOverlay')) {
+    mountLoadoutShieldNavigation(document.getElementById('loadoutOverlay'));
     renderDesktopMenuMeta();
     renderDesktopActionHistory();
     bindAuthStorageSync();

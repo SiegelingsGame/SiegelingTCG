@@ -18,12 +18,13 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <!-- The battle stylesheet dresses the real card faces (frames, notches, finishes). -->
 <link rel="stylesheet" href="/css/style.css?v=296">
-<link rel="stylesheet" href="/css/gauntlet.css?v=15">
+<link rel="stylesheet" href="/css/shield-navigation.css?v=5">
+<link rel="stylesheet" href="/css/gauntlet.css?v=16">
 </head>
 <body data-screen="loading">
 <div class="gt-shell">
   <header class="gt-top">
-    <a class="gt-home" href="/battle" aria-label="Back to Battle modes">&#8592;</a>
+    <a class="sn-back gt-home" href="/battle" aria-label="Back to Battle modes"><span aria-hidden="true">&lsaquo;</span>Arena</a>
     <div class="gt-title">
       <span class="gt-eyebrow">Roguelike</span>
       <h1>The Gauntlet</h1>
@@ -58,8 +59,10 @@
       <div class="gt-strip" id="gtDecks"></div>
       <h2 class="gt-h2"><span>2</span> Your SiegeKnight</h2>
       <div class="gt-fit" id="gtKnights" data-min="84" data-max="220"></div>
-      <div class="gt-cta">
-        <button class="gt-btn gt-btn-primary" id="gtStartBtn" type="button" disabled>Draft my ten</button>
+      <!-- Flanks the shield FAB, like every play-mode launch screen. -->
+      <div class="gt-cta sn-dock gt-start-dock">
+        <a class="sn-flank is-left" href="/home">Main Menu</a>
+        <button class="sn-flank is-right is-gold" id="gtStartBtn" type="button" disabled>Draft my ten</button>
       </div>
     </section>
 
@@ -166,8 +169,9 @@
 <!-- The shared card renderer: card-binder-visual.js draws faces through game.js's
      renderShowcaseCard, exactly as the hub binder does. game.js only boots its
      battle UI when #loadoutOverlay exists, so here it is a library. -->
-<script src="/js/game.js?v=339"></script>
+<script src="/js/game.js?v=340"></script>
 <script src="/js/card-binder-visual.js?v=36"></script>
-<script src="/js/gauntlet.js?v=10"></script>
+<script src="/js/shield-navigation.js?v=4"></script>
+<script src="/js/gauntlet.js?v=11"></script>
 </body>
 </html>

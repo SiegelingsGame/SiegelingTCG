@@ -747,11 +747,24 @@
     window.addEventListener('orientationchange', onBattleOrientationFlip);
     guardViewportZoom();
     wireStaticButtons();
+    mountShieldNavigation();
     // Prefer the account checkpoint over this device's old token so phone and
     // desktop always resume the same signed-in expedition. Guests retain the
     // local token fallback, and a transient account lookup failure does not
     // hide a run already open on this device.
     resumeOrRoster();
+  }
+
+  // The shield FAB belongs to the launch screens (loading, resume, setup), the
+  // same as the Arena loadout; a run's map, stops and battles keep their own
+  // bottom HUD, so it hides as soon as the run is under way.
+  var LAUNCH_SCREENS = { loadingScreen: 1, resumeScreen: 1, setupScreen: 1 };
+  function mountShieldNavigation() {
+    if (!window.SiegelingsShieldNavigation) return;
+    var nav = window.SiegelingsShieldNavigation.mountLinks();
+    function sync() { nav.setHidden(!LAUNCH_SCREENS[document.body.dataset.screen || 'loadingScreen']); }
+    new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['data-screen'] });
+    sync();
   }
 
   /** Boot check, also re-run after abandoning one save: show what is still saved. */
@@ -822,6 +835,15 @@
 
     var host = $('resumeSaves');
     host.innerHTML = '';
+    // The dock's Continue (beside the FAB) takes the top save; with one save it
+    // is the only Continue, so the plate keeps just Start Over.
+    function resume(run) {
+      state.run = run;
+      setToken(run.token);
+      renderRun();
+      afterRunApplied(run);
+    }
+    $('resumeContinueBtn').onclick = function () { resume(saves[0]); };
     saves.forEach(function (run) {
       var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
       var floor = node ? (node.row + 1) : 1;
@@ -837,18 +859,17 @@
           : '');
       var head = el('div', 'resume-save-head', runSlotBadge(run));
       var actions = el('div', 'resume-save-actions');
-      var go = el('button', 'siege-btn primary', 'Continue ▸');
-      go.type = 'button';
-      go.addEventListener('click', function () {
-        state.run = run;
-        setToken(run.token);
-        renderRun();
-        afterRunApplied(run);
-      });
+      if (saves.length > 1) {
+        var go = el('button', 'siege-btn primary', 'Continue ▸');
+        go.type = 'button';
+        go.addEventListener('click', function () { resume(run); });
+        actions.appendChild(go);
+      } else {
+        actions.classList.add('is-solo');
+      }
       var drop = el('button', 'siege-btn', 'Start Over');
       drop.type = 'button';
       drop.addEventListener('click', function () { restartRun(run.token); });
-      actions.appendChild(go);
       actions.appendChild(drop);
 
       card.appendChild(head);
