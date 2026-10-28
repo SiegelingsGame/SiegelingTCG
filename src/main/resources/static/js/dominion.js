@@ -3664,6 +3664,8 @@
     // they were away - and chooses to go in; a new player reads what Dominion is before
     // founding one. Either way the hub is one tap back.
     let starting = false;
+    // Off for now: an existing Dominion opens straight onto its tabs.
+    const RETURN_START = false;
     // Laid out like the Arena loadout and Siege mode select: an art banner, one full-art
     // plate, and a bottom bar with Main Menu and one gold call to action.
     function startPlate(o) {
@@ -5119,7 +5121,11 @@
         document.body.dataset.screen = 'main';
         ['ckTabs', 'ckRank', 'ckStatus', 'ckAvatar', 'ckCrowns'].forEach((id) => { $(id).hidden = false; });
         renderAll();
-        showStart();
+        // A new player always gets the start screen. A returning player goes straight in
+        // for now; RETURN_START brings back their start-screen overview.
+        if (!S.knight.made || RETURN_START) showStart();
+        else if (S.away) openModal('away');
+        else maybeShowReport();
         setInterval(step, 1000);
         setInterval(save, 10000);
         if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(frontLoop);
