@@ -1,3 +1,19 @@
+Original prompt: Still seeing the shift from fully transparent to Liquid Glass cloud on the buttons can we prevent this shift from being visible? Also review performance. Experiencing some lag since the rotation button change.
+
+- October 28, 2026 **Home: painted frost instead of live blurs; no hidden full-screen blur.**
+  - **Change.**
+    - **Painted frost.** Home's frosted controls (the menu plates, shortcut icons, mode buttons, music pill, rotation bar, and the profile/social side plates) no longer use `backdrop-filter`. The plates take a deep translucent blue fill with a soft top highlight, colour-matched to the old blurred frost by sampling screenshots (Play ~(73,110,159) vs (66,104,151) before). The darker controls keep their tint, slightly more opaque.
+      - **Why it fixes the shift.** Safari drops `backdrop-filter` from view-transition snapshots, so the plates crossed each page change clear and then frosted. Painted frost looks the same in the snapshot as live, so there is nothing to shift. The previous round's fade-in rules (#1219) are removed.
+      - **Why it fixes the lag.** The stage art never stops moving (`sgStageDrift` plus crossfades), so each of the 15 blurred controls re-blurred its patch of art every frame.
+    - **Hidden full-screen blur.** The card-detail sheet host `.sg-sheet` sits on every hub screen at opacity 0, yet its `blur(3px)` backdrop still ran full-screen over the moving stage. The profile's Customize sheet scrim did the same. The blur now applies only while a sheet is `.open`, and on close it waits out the 0.3s fade before dropping.
+  - Cache pin: `home-redesign.css?v=173`.
+  - **Verification.** Headless Chromium at 390x844@3x on Home:
+    - Live backdrop blurs while idle: 15 plus the hidden sheet before, 0 after.
+    - Main-thread time over 4s at 4x CPU throttle, 3 runs each: 787ms average before, 632ms after. Style recalc: 383ms average before, 287ms after. The GPU cost of the removed blurs, the bigger saving on phones, is not measured by headless CPU rendering.
+    - Across a Shop-to-Home transition, the plates' paint is identical mid-transition and after, with no backdrop either time.
+    - Profile sheet: no blur closed, `blur(5px)` open, the blur kept through the closing fade, gone after.
+    - `tests/hub-workspaces-check.cjs` passes at all 7 viewports.
+
 Original prompt: The rotation bar should always fit between the logo and the coin counter
 
 - October 28, 2026 **Home: the rotation bar always fits between the logo and the coin counter.**
