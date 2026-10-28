@@ -1838,7 +1838,8 @@
     // to the landing.
     return topMarkup(opts, {
         logoHref: '/landing',
-        afterLogo: stageArtBarMarkup(),
+        // The slot spans logo to coin chip; the bar sizes itself to it.
+        afterLogo: '<div class="sg-stage-player-slot">' + stageArtBarMarkup() + '</div>',
         beforeMusic: stageMusicMarkup() }) + stageMarkup(opts) +
       '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + expeditionsSection(opts) +
       '<div style="height:96px"></div></div>' +
