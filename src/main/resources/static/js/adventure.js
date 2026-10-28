@@ -193,6 +193,59 @@
   function token() { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } }
   function setToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
 
+  // Guests have no account checkpoint, so the only way back to a run is a token
+  // kept on this device. One key cannot hold an expedition and an Endless march
+  // at once — "New run" on an empty slot used to delete that key before the new
+  // run existed, and a cancelled setup or a failed roster load stranded the save.
+  var TOKEN_SLOTS_KEY = 'siegeSlotTokens';
+  function slotTokens() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(TOKEN_SLOTS_KEY) || '{}');
+      return raw && typeof raw === 'object' ? raw : {};
+    } catch (e) { return {}; }
+  }
+  function writeSlotTokens(slots) {
+    try { localStorage.setItem(TOKEN_SLOTS_KEY, JSON.stringify(slots)); } catch (e) {}
+  }
+  /** Remember this run under its mode without changing which run the device last opened. */
+  function storeSlotToken(run) {
+    if (!run || !run.token) return;
+    var slots = slotTokens();
+    var kind = runSlotKind(run);
+    var changed = slots[kind] !== run.token;
+    Object.keys(slots).forEach(function (k) {
+      if (k !== kind && slots[k] === run.token) { delete slots[k]; changed = true; }
+    });
+    if (!changed) return;
+    slots[kind] = run.token;
+    writeSlotTokens(slots);
+  }
+  /** This run is the one the device should reopen, and its slot keeps its own token. */
+  function rememberSlotToken(run) {
+    storeSlotToken(run);
+    if (run && run.token) setToken(run.token);
+  }
+  function forgetSlotToken(t) {
+    if (!t) return;
+    var slots = slotTokens();
+    var changed = false;
+    Object.keys(slots).forEach(function (k) {
+      if (slots[k] === t) { delete slots[k]; changed = true; }
+    });
+    if (changed) writeSlotTokens(slots);
+    if (token() === t) setToken(null);
+  }
+  function knownTokens() {
+    var slots = slotTokens();
+    var list = [];
+    Object.keys(slots).forEach(function (k) {
+      if (slots[k] && list.indexOf(slots[k]) < 0) list.push(slots[k]);
+    });
+    var current = token();
+    if (current && list.indexOf(current) < 0) list.push(current);
+    return list;
+  }
+
   // ---- helpers -------------------------------------------------------
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, html) {
@@ -783,17 +836,37 @@
   }
 
   function bootFromLocalToken() {
-    var t = token();
-    if (t) {
-      showScreen('loadingScreen');
-      if ($('bootLoadStatus')) $('bootLoadStatus').textContent = 'Checking saved expedition...';
-      api('/api/siege/state?token=' + encodeURIComponent(t)).then(function (run) {
-        if (run.status === 'ACTIVE') { renderResumePrompt([run]); }
-        else { setToken(null); loadRoster(); }
-      }).catch(function () { setToken(null); loadRoster(); });
-    } else {
-      loadRoster();
-    }
+    var tokens = knownTokens();
+    if (!tokens.length) { loadRoster(); return; }
+    showScreen('loadingScreen');
+    if ($('bootLoadStatus')) $('bootLoadStatus').textContent = 'Checking saved expedition...';
+    Promise.all(tokens.map(function (t) {
+      return api('/api/siege/state?token=' + encodeURIComponent(t)).then(function (run) {
+        if (run && run.status === 'ACTIVE' && run.token) return run;
+        forgetSlotToken(t);
+        return null;
+      }, function (e) {
+        // A dead token must not block the others. A network failure must not
+        // forget a run the device can still resume once the connection returns.
+        var msg = String(e && e.message || '');
+        if (/not found|already ended|no longer/i.test(msg)) forgetSlotToken(t);
+        return null;
+      });
+    })).then(function (runs) {
+      var active = [];
+      var seen = {};
+      runs.forEach(function (run) {
+        if (!run || !run.token || seen[run.token]) return;
+        seen[run.token] = 1;
+        active.push(run);
+      });
+      if (active.length) { renderResumePrompt(active); return; }
+      if (!knownTokens().length) loadRoster();
+      else {
+        if ($('bootLoadStatus')) $('bootLoadStatus').textContent = 'Could not reach your saved expedition. Check your connection and reload.';
+        toast('Could not reach your saved expedition.');
+      }
+    });
   }
 
   /** Mode label shared by the map HUD and the resume prompt, so both name a run alike. */
@@ -845,11 +918,12 @@
     // is the only Continue, so that plate keeps just Start Over.
     function resume(run) {
       state.run = run;
-      setToken(run.token);
+      rememberSlotToken(run);
       renderRun();
       afterRunApplied(run);
     }
     $('resumeContinueBtn').onclick = function () { resume(saves[0]); };
+    saves.forEach(storeSlotToken);
     RUN_SLOTS.forEach(function (slot) {
       var run = saves.filter(function (r) { return runSlotKind(r) === slot.kind; })[0];
       if (!run) {
@@ -910,7 +984,9 @@
   /** New run from a resume card: load the roster, then open that mode's setup. */
   function startFreshRun(mode) {
     state.run = null; state.party = []; state.knightId = null; state.landView = null;
-    setToken(null);
+    // Leave every slot token in place. The new run takes its own key only after
+    // /run/new succeeds; backing out, or a roster load that fails, must still
+    // be able to reopen the expedition that was already on this device.
     state.pendingRunMode = mode;
     loadRoster();
   }
@@ -1353,7 +1429,7 @@
     setRunMenuBusy(true, 'Restarting expedition...');
     api('/api/siege/run/abandon', { method: 'POST', body: { token: t } })
       .then(function () {
-        if (t === token()) setToken(null);
+        forgetSlotToken(t);
         state.run = null; state.party = []; state.knightId = null; state.landView = null;
         closeRunMenu(false);
         // The other mode's save survives an abandon, so go back through the boot
@@ -2013,7 +2089,7 @@
       .then(function (run) {
         closeBattlegroundsModal();
         state.bgPicks = []; state.bgKnightTeamId = null;
-        setToken(run.token); applyRun(run);
+        rememberSlotToken(run); applyRun(run);
       })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
@@ -2621,7 +2697,7 @@
       });
     }
     api('/api/siege/run/new', { method: 'POST', body: body })
-      .then(function (run) { state.endlessVets = []; setToken(run.token); applyRun(run); })
+      .then(function (run) { state.endlessVets = []; rememberSlotToken(run); applyRun(run); })
       .catch(function (e) { toast(e.message); })
       .then(function () { state.busy = false; });
   }
