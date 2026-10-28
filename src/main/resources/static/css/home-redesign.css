@@ -7196,22 +7196,40 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-prof-history-list .sg-stack { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); align-content:start; }
 }
 
-/* Frosted controls across a page transition. Safari leaves backdrop-filter
-   out of the view-transition snapshots, so these plates played the whole
-   transition unfrosted and the frost snapped on the moment it ended. Their
-   frost is off for the transition (page-transitions.js sets data-vt-fx on
-   <html> while one plays) and fades in once it is over, in every browser. */
-.sg-stage-cards .sg-gtab, .sg-profile-nav .sg-gtab {
-  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease,
-    backdrop-filter .45s ease, -webkit-backdrop-filter .45s ease;
+/* Home's frosted controls are painted frost, not a live backdrop blur.
+   The stage art never stops moving (sgStageDrift, the crossfades), so each
+   backdrop-filter had to re-blur its patch of art every frame - fifteen of
+   them on Home, the main cost behind the lag on phones. Safari also leaves
+   backdrop-filter out of view-transition snapshots, so the plates crossed
+   every page change clear and then frosted over. A milky translucent fill
+   with the glass's own highlights looks the same in a snapshot as live and
+   costs nothing per frame. */
+.sg-stage-cards {
+  /* Matched to the old blurred frost: a deep saturated blue, lighter low down. */
+  --navy-plate:
+    linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,0) 45%),
+    linear-gradient(135deg, rgba(44,86,142,.7), rgba(58,104,166,.6) 52%, rgba(86,136,200,.56));
 }
-.sg-stage-tile-ico {
-  transition:transform .15s ease, border-color .2s ease, backdrop-filter .45s ease, -webkit-backdrop-filter .45s ease;
+.sg-stage-cards .sg-gtab, .sg-profile-nav .sg-gtab,
+.sg-stage-tile-ico, .sg-app a.sg-stage-mode, .sg-stage-music, .sg-stage-player {
+  backdrop-filter:none; -webkit-backdrop-filter:none;
 }
-.sg-app a.sg-stage-mode, .sg-stage-music, .sg-stage-player {
-  transition:backdrop-filter .45s ease, -webkit-backdrop-filter .45s ease;
+.sg-stage-cards .sg-gtab { text-shadow:0 1px 3px rgba(9,30,52,.55); }
+.sg-profile-nav {
+  --navy-plate:
+    linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,0) 45%),
+    linear-gradient(135deg, rgba(44,86,142,.7), rgba(58,104,166,.6) 52%, rgba(86,136,200,.56));
 }
-html[data-vt-fx] :is(.sg-stage-cards .sg-gtab, .sg-profile-nav .sg-gtab, .sg-stage-tile-ico,
-  .sg-app a.sg-stage-mode, .sg-stage-music, .sg-stage-player) {
-  backdrop-filter:none !important; -webkit-backdrop-filter:none !important; transition:none;
+/* The darker controls keep their tint, a little more opaque without the blur. */
+.sg-stage-tile-ico { background:rgba(9,36,52,.7); }
+.sg-stage-player { background:rgba(9,36,52,.68); }
+.sg-stage-music { background:linear-gradient(90deg, rgba(60,130,200,.62), rgba(130,70,200,.56)); }
+.sg-app a.sg-stage-mode { background:linear-gradient(100deg, rgba(9,36,52,.9), rgba(40,22,96,.78)); }
+/* A closed sheet sits at opacity 0 over the whole screen, and its backdrop
+   blur still ran there, re-blurring the moving stage every frame on every hub
+   screen. The blur exists only while the sheet is open; on close it waits out
+   the 0.3s fade before it goes. */
+.sg-sheet:not(.open) {
+  backdrop-filter:none; -webkit-backdrop-filter:none;
+  transition:opacity .3s ease, backdrop-filter 0s linear .3s, -webkit-backdrop-filter 0s linear .3s;
 }
