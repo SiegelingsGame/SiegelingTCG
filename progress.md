@@ -1,3 +1,13 @@
+Original prompt: If a dominion already exist just go straight to dominion for now
+
+- October 28, 2026 **Dominion: an existing Dominion opens straight in.**
+  - **Change.** `boot()` in `dominion.js` shows the start screen only to a player who has not founded yet. A returning player goes straight onto their tabs, as before the start screen existed, with the "While you were away" sheet when time has passed, or any pending report otherwise. The returning-player overview is kept behind `const RETURN_START = false` so it can be switched back on. Cache pin: `dominion.js?v=30`.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844:
+    - A fresh save boots to the start screen, and founding lands on the main screen.
+    - A reload with no time gap goes straight to the main screen with no modal.
+    - A reload after 3h of simulated time away goes straight to the main screen with the away sheet open.
+    - No page errors.
+
 Original prompt: I don't think it needs 4 options. Just one option with art.
 
 - October 28, 2026 **Dominion start screen: one art option instead of four.**
