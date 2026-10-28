@@ -1,3 +1,63 @@
+Original prompt: Match the light to the background it shouldn't feel like something drawn overtop
+
+- October 28, 2026 **Earth transition: the crack light comes from the page.**
+  - **Change.** The earth overlay's view-transition group now uses `mix-blend-mode: color-dodge`, scoped to `html[data-vt-fx="earth"]::view-transition-group(sg-fx)`, so it blends onto both page snapshots beneath. The seams and sand puffs are now neutral grey (seam rgb 170 with 3px and 9px grey glows) rather than white or tan. Under colour-dodge a mid grey lifts each pixel's own colour, so the seams glow gold over embers, cool blue over ice, and stay dim over dark areas, instead of reading as white lines drawn on top. Cache pin: `page-transitions.js?v=9` in all 12 pages.
+  - **Verification.** `node --check` passes. Headless Chromium with earth forced, hub Home to Shop at 390x844 and 1920x1080, slowed to 10%:
+    - Frames show the seams tinted by the art beneath: warm over the Bearby ember scene, pale blue over Frostag's snow, dim across the dark bear.
+    - The plates open onto the Shop page, cleanup is complete and the route is `/shop`.
+    - No page errors.
+
+Original prompt: Use light instead of brown
+
+- October 28, 2026 **Earth transition: cracks of light.**
+  - **Change.** The salt-flat seams are no longer rust-brown. They are now a bright near-white core (2.2px) with a soft warm glow (two drop-shadows, 2px and 7px), as if light shows through between the plates. Nothing else changed. Cache pin: `page-transitions.js?v=8` in all 12 pages.
+  - **Verification.** `node --check` passes. Headless Chromium with earth forced, hub Home to Shop at 390x844 and 1920x1080, slowed to 10%:
+    - Frames show glowing light seams spreading over the pale crust, then plates opening onto the Shop page.
+    - There are 36 or 40 plates, cleanup is complete and the route is `/shop`.
+    - No page errors.
+
+Original prompt: Earth looks rough let's make it more like cracks in the ground and sand like salt flats and then appears from underneath
+
+- October 28, 2026 **Earth transition: salt-flat cracks instead of falling rocks.**
+  - **Change.** The earth effect in `page-transitions.js` is rebuilt, and the rock cells, stone shards and quake are gone.
+    - **The plates.** The screen is cut into a Voronoi pattern of up to about 40 irregular plates, the shape dried salt and mud crack into. Sites are on a jittered grid with every other row offset, so the plates come out hex-like. `voronoiCell` builds each one by clipping the viewport against each neighbour's bisector.
+    - **Cracking.** The plate outlines draw in as rust-brown seams with a pale salt lip (two drop-shadows), with slightly wavering edges. They start as the crack front from the tap reaches each plate. Meanwhile the old page dries to a pale crust (sepia, desaturate, brighten).
+    - **Giving way.** From 30% the plates give way nearest-first. Each one is a mask layer of its own polygon, stroked so neighbours overlap a hair, grown about its centroid from nothing out to its cracks. A puff of sand rises as each opens, and the new page shows from beneath. The cracks fade over the last 30%.
+    - **Timing.** The effect lasts 1.4s (`EARTH_S`).
+  - Cache pin: `page-transitions.js?v=7` in all 12 pages.
+  - **Verification.** `node --check` passes. Headless Chromium with earth forced, hub Home to Shop at 390x844 and 1920x1080, slowed to 10% over CDP:
+    - 36 or 40 plates (37 or 41 mask layers, including the final cover) with matching crack outlines and sand puffs.
+    - Frames at 20/40/60/80% show the crack network spreading over a pale crust, then the plates opening nearest-first onto the Shop page.
+    - Afterwards the attribute and overlay are gone and the route is `/shop`.
+    - No page errors.
+
+Original prompt: Now what if we had different random effects that played. The splashWater is good for water, what if we had one when the page burned away, for ice, the page frost over and wipes to reveal, for earth it crumbles like rocks for wind a rolling dust like appearances accross the screen
+
+- October 28, 2026 **Page transitions: five elemental effects, picked at random.**
+  - **Change.** `page-transitions.js` now picks one of five effects per transition from `EFFECTS`, never repeating the last one (`sessionStorage sgVtLastFx`). `SgTransition.force(name)` pins one on a device for testing.
+  - **The effects:**
+    - **Water:** the existing ripple and rings.
+    - **Fire (1s):** the new page shows through a lumpy hole made of ten circles whose centres drift outward as `--vt-r` grows. The overlay paints a white-hot edge, an orange rim and a scorch band for each circle. It is masked to the outside of the hole (an intersection of complements, `mask-composite: intersect` with `-webkit` `source-in`), so no edge shows inside the burnt area. 22 embers fly out from the tap, and the old page warms (sepia and saturate).
+    - **Ice (1.25s):** frost gathers over the old page (noise tile, cross-hatch and an edge-weighted white veil) while the old page desaturates and blurs. From 42% a diagonal sweep from the tap's side wipes the frost and the new page in together along one line, with a bright edge.
+    - **Earth (1.15s):** cracks draw out from the tap and the old page quakes. Rock-shaped cells (about 45 at most, sized to the screen) open nearest-first as mask layers growing to overlapping rocks, while a shaded stone shard falls and spins from each cell as it opens.
+    - **Wind (1.05s):** the new page arrives behind a wavy front of 12 bands with sine offsets, moving from the tap's side. A cloud of blurred dust puffs rolls along the front and wind streaks overtake it, while the old page drifts and blurs.
+  - **How it is built.**
+    - Two registered properties drive everything: `--vt-r` and `--vt-t`.
+    - Static rules are scoped by `html[data-vt-fx]`. Shapes that depend on the tap and the screen are generated per transition into `#sgVtFxCss`.
+    - The `#sgFx` overlay replaces `#sgRipple`.
+    - A generation counter means only the latest transition cleans up.
+    - Loading screens (`splashOut`) now run through the same view transition, from the centre. The old mask-based water ripple remains only for browsers without View Transitions.
+    - A skipped transition's `ready` rejection is caught. That happens when the hub finishes loading while the page's arrival effect still plays.
+    - The existing off switches (`ENABLED`, Settings, reduced motion) are unchanged.
+  - Cache pin: `page-transitions.js?v=6` in all 12 pages.
+  - **Verification.** `node --check` passes. Headless Chromium, with each effect forced in turn:
+    - **In the hub at 390x844 and 1920x1080:** Home to Shop sets `data-vt-fx`, the new and old pseudos run the effect's animations with the expected mask layer counts (water 1, fire 10, ice 1, earth 36 or 46, wind 12), and the overlay carries its parts (22 embers, 46 shards and cracks, dust and streaks). Afterwards the attribute, overlay and generated CSS are all gone and the route is `/shop`.
+    - **Frames slowed to 10% over CDP:** the hole burns from the tapped tab; the screen frosts then wipes clear; the screen cracks then crumbles into falling rocks; dust rolls across.
+    - **Hub boot screen:** leaves with the forced effect and is removed.
+    - **Cross-page (landing Explore to `/home`):** runs the effect.
+    - **Random:** 12 hub navigations ran with no effect twice in a row.
+    - No page errors (the only console errors were API 404s from the static server).
+
 Original prompt: If a dominion already exist just go straight to dominion for now
 
 - October 28, 2026 **Dominion: an existing Dominion opens straight in.**
