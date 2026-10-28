@@ -7,8 +7,9 @@
             rim spreads from the tap and embers fly ahead of it.
    - ice:   the old page frosts over, then a sweep wipes the frost away to
             reveal the next page.
-   - earth: cracks run out from the tap, then the page crumbles into rock
-            chunks that fall away, nearest first.
+   - earth: the ground cracks into salt-flat plates from the tap and dries
+            to a pale crust, then the plates give way, nearest first, with a
+            puff of sand, and the next page shows from beneath.
    - wind:  a rolling dust front sweeps across the screen, the next page
             arriving in its wake.
 
@@ -169,60 +170,73 @@
       };
     },
 
-    // The screen splits into rock-shaped cells that open nearest-first. Each
-    // cell's mask grows from nothing to an overlapping rock; as it opens, a
-    // stone shard drops from the same spot, and cracks run out from the tap
-    // before any of it falls.
+    // Salt flat: the ground cracks into irregular plates (a Voronoi pattern,
+    // the shape real dried salt and mud crack into), the cracks running out
+    // from the tap while the old page dries to a pale crust. Then the plates
+    // give way nearest-first, each one opening from its middle out to its own
+    // cracks with a small puff of sand, and the new page shows from beneath.
+    // Each plate is one mask layer - its own polygon, grown about its centroid.
     earth: function (w, h) {
-      // About 45 cells at most: every cell is a mask layer, redrawn each frame.
-      var cell = Math.max(95, Math.sqrt(w * h / 44));
-      var cols = Math.max(3, Math.min(10, Math.round(w / cell))), rows = Math.max(3, Math.min(10, Math.round(h / cell)));
-      var cw = w / cols, ch = h / rows, cx = ox * w, cy = oy * h;
-      var far = Math.sqrt(Math.pow(Math.max(cx, w - cx), 2) + Math.pow(Math.max(cy, h - cy), 2)) || 1;
-      var imgs = [], sizes = [], poss = [], cells = [];
+      // About 40 plates at most: every plate is a mask layer, redrawn each frame.
+      var size = Math.max(85, Math.sqrt(w * h / 40));
+      var cols = Math.max(3, Math.min(9, Math.round(w / size))), rows = Math.max(3, Math.min(11, Math.round(h / size)));
+      var cw = w / cols, ch = h / rows, cx = ox * w, cy = oy * h, sites = [];
       for (var r = 0; r < rows; r++) {
         for (var c = 0; c < cols; c++) {
-          var mx = (c + 0.5) * cw + rand(-0.12, 0.12) * cw, my = (r + 0.5) * ch + rand(-0.12, 0.12) * ch;
-          var d = Math.min(0.66, 0.05 + 0.55 * Math.sqrt(Math.pow(mx - cx, 2) + Math.pow(my - cy, 2)) / far + rand(0, 0.06));
-          var bw = cw * 1.5, bh = ch * 1.5, shape = ROCKS[(r * cols + c) % ROCKS.length];
-          var s = 'clamp(0, (var(--vt-t) - ' + d.toFixed(3) + ') * 6, 1)';
-          imgs.push(rockImage(shape));
-          sizes.push('calc(' + px(bw) + ' * ' + s + ') calc(' + px(bh) + ' * ' + s + ')');
-          poss.push('calc(' + px(mx) + ' - ' + px(bw / 2) + ' * ' + s + ') calc(' + px(my) + ' - ' + px(bh / 2) + ' * ' + s + ')');
-          cells.push({ x: mx, y: my, d: d, shape: shape });
+          // Odd rows shift half a cell, so the plates come out hex-like, not square.
+          sites.push([(c + 0.5 + (r % 2 ? 0.25 : -0.25) + rand(-0.22, 0.22)) * cw, (r + 0.5 + rand(-0.22, 0.22)) * ch]);
         }
       }
-      // Whatever slivers the rocks miss are covered in the last frames.
+      var far = Math.sqrt(Math.pow(Math.max(cx, w - cx), 2) + Math.pow(Math.max(cy, h - cy), 2)) || 1;
+      var imgs = [], sizes = [], poss = [], plates = [];
+      sites.forEach(function (site, k) {
+        var poly = voronoiCell(site, sites, k, w, h);
+        if (poly.length < 3) return;
+        var g = centroid(poly), bx = Infinity, by = Infinity, bx2 = -Infinity, by2 = -Infinity;
+        poly.forEach(function (p) { bx = Math.min(bx, p[0]); by = Math.min(by, p[1]); bx2 = Math.max(bx2, p[0]); by2 = Math.max(by2, p[1]); });
+        var dist = Math.sqrt(Math.pow(g[0] - cx, 2) + Math.pow(g[1] - cy, 2)) / far;
+        var d = Math.min(0.76, 0.3 + 0.44 * dist + rand(0, 0.04));
+        var s = 'clamp(0, (var(--vt-t) - ' + d.toFixed(3) + ') * 4.5, 1)';
+        // The polygon is drawn with a stroke, so neighbouring plates overlap a
+        // hair and no seam shows once they have all opened.
+        imgs.push(polyImage(poly, bx - 3, by - 3, bx2 - bx + 6, by2 - by + 6));
+        sizes.push('calc(' + px(bx2 - bx + 6) + ' * ' + s + ') calc(' + px(by2 - by + 6) + ' * ' + s + ')');
+        poss.push('calc(' + px(g[0]) + ' + ' + px(bx - 3 - g[0]) + ' * ' + s + ') calc(' + px(g[1]) + ' + ' + px(by - 3 - g[1]) + ' * ' + s + ')');
+        plates.push({ poly: poly, g: g, d: d, crack: 0.04 + 0.26 * dist });
+      });
+      // Whatever slivers remain are covered in the last frames.
       imgs.push('linear-gradient(#000, #000)');
-      sizes.push('calc(100% * clamp(0, (var(--vt-t) - .9) * 1000, 1)) 100%');
+      sizes.push('calc(100% * clamp(0, (var(--vt-t) - .97) * 1000, 1)) 100%');
       poss.push('0 0');
       return {
         css: 'html[data-vt-fx="earth"]::view-transition-new(root){' + mask(imgs, { size: sizes, pos: poss, repeat: 'no-repeat' }) + '}',
         fill: function (el) {
-          cells.forEach(function (cell) {
-            var sh = document.createElement('i');
-            sh.className = 'sg-fx-shard';
-            sh.style.cssText = 'left:' + px(cell.x - cw * 0.55) + ';top:' + px(cell.y - ch * 0.55) + ';width:' + px(cw * 1.1) + ';height:' + px(ch * 1.1) +
-              ';clip-path:polygon(' + cell.shape.map(function (p) { return p[0] + '% ' + p[1] + '%'; }).join(',') + ')' +
-              ';--fall:' + px(h * rand(0.45, 0.7)) + ';--drift:' + px(rand(-40, 40)) + ';--spin:' + rand(-70, 70).toFixed(0) + 'deg' +
-              ';animation-delay:' + (cell.d * EARTH_S).toFixed(3) + 's';
-            el.appendChild(sh);
-          });
           var svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true">';
-          var len = Math.sqrt(w * w + h * h) * 0.38;
-          for (var k = 0; k < 7; k++) {
-            var a = (k / 7) * Math.PI * 2 + rand(-0.35, 0.35), x = cx, y = cy, pts = [px0(x, y)];
-            for (var seg = 0; seg < 6; seg++) {
-              a += rand(-0.5, 0.5);
-              x += Math.cos(a) * len / 6; y += Math.sin(a) * len / 6;
-              pts.push(px0(x, y));
-            }
-            svg += '<polyline pathLength="1" points="' + pts.join(' ') + '"/>';
-          }
+          plates.forEach(function (pl) {
+            // Each plate's rim is drawn as a slightly wavering line, starting as
+            // the crack front from the tap reaches it.
+            var pts = [];
+            pl.poly.forEach(function (p, i) {
+              var q = pl.poly[(i + 1) % pl.poly.length], ex = q[0] - p[0], ey = q[1] - p[1], L = Math.sqrt(ex * ex + ey * ey) || 1;
+              pts.push(px0(p[0], p[1]));
+              for (var f = 1; f < 3; f++) {
+                var wob = rand(-2.2, 2.2);
+                pts.push(px0(p[0] + ex * f / 3 - ey / L * wob, p[1] + ey * f / 3 + ex / L * wob));
+              }
+            });
+            svg += '<polygon pathLength="1" points="' + pts.join(' ') + '" style="animation-delay:' + (pl.crack * EARTH_S).toFixed(3) + 's"/>';
+          });
           var wrap = document.createElement('div');
           wrap.className = 'sg-fx-cracks';
           wrap.innerHTML = svg + '</svg>';
           el.appendChild(wrap);
+          plates.forEach(function (pl) {
+            var puff = document.createElement('i'), sz = Math.min(cw, ch) * rand(0.7, 1);
+            puff.className = 'sg-fx-sand';
+            puff.style.cssText = 'left:' + px(pl.g[0] - sz / 2) + ';top:' + px(pl.g[1] - sz / 2) + ';width:' + px(sz) + ';height:' + px(sz) +
+              ';--rise:' + px(-rand(10, 28)) + ';animation-delay:' + (pl.d * EARTH_S).toFixed(3) + 's';
+            el.appendChild(puff);
+          });
         }
       };
     },
@@ -266,18 +280,40 @@
     }
   };
   function px0(x, y) { return x.toFixed(1) + ',' + y.toFixed(1); }
-  // Rough rock outlines, as points in a 100x100 box.
-  var ROCKS = [
-    [[8, 22], [38, 4], [76, 10], [97, 38], [90, 78], [60, 97], [22, 92], [3, 60]],
-    [[14, 6], [58, 2], [94, 24], [98, 64], [74, 96], [30, 98], [4, 72], [2, 30]],
-    [[4, 14], [46, 8], [88, 2], [99, 46], [86, 90], [48, 99], [10, 86], [0, 48]]
-  ];
-  function rockImage(shape) {
-    return 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\' preserveAspectRatio=\'none\'%3E%3Cpolygon points=\'' +
-      shape.map(function (p) { return p[0] + ',' + p[1]; }).join(' ') + '\'/%3E%3C/svg%3E")';
+  // The plate around `site`: the viewport, cut by the perpendicular bisector
+  // with every other site (Sutherland-Hodgman against each half-plane).
+  function voronoiCell(site, sites, self, w, h) {
+    var poly = [[0, 0], [w, 0], [w, h], [0, h]];
+    for (var i = 0; i < sites.length && poly.length; i++) {
+      if (i === self) continue;
+      var o = sites[i], mx = (site[0] + o[0]) / 2, my = (site[1] + o[1]) / 2, nx = o[0] - site[0], ny = o[1] - site[1];
+      // Sites far away cannot cut this plate; skipping them keeps it cheap.
+      if (nx * nx + ny * ny > 9 * (w * h / sites.length)) continue;
+      var inside = function (p) { return (p[0] - mx) * nx + (p[1] - my) * ny <= 0; }, out = [];
+      for (var k = 0; k < poly.length; k++) {
+        var a = poly[k], b = poly[(k + 1) % poly.length], ia = inside(a), ib = inside(b);
+        if (ia) out.push(a);
+        if (ia !== ib) {
+          var da = (a[0] - mx) * nx + (a[1] - my) * ny, db = (b[0] - mx) * nx + (b[1] - my) * ny, t = da / (da - db);
+          out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+        }
+      }
+      poly = out;
+    }
+    return poly;
+  }
+  function centroid(poly) {
+    var x = 0, y = 0;
+    poly.forEach(function (p) { x += p[0]; y += p[1]; });
+    return [x / poly.length, y / poly.length];
+  }
+  function polyImage(poly, x, y, bw, bh) {
+    var pts = poly.map(function (p) { return (p[0] - x).toFixed(1) + ',' + (p[1] - y).toFixed(1); }).join(' ');
+    return 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 ' + bw.toFixed(1) + ' ' + bh.toFixed(1) +
+      '\' preserveAspectRatio=\'none\'%3E%3Cpolygon points=\'' + pts + '\' stroke=\'%23000\' stroke-width=\'3\' stroke-linejoin=\'round\'/%3E%3C/svg%3E")';
   }
 
-  var EARTH_S = 1.15;
+  var EARTH_S = 1.4;
   // Frost grain: a static noise tile, so nothing is computed per frame.
   var FROST_NOISE = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'220\' height=\'220\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'.85\' numOctaves=\'2\' seed=\'4\'/%3E%3CfeColorMatrix values=\'0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 -.32\'/%3E%3C/filter%3E%3Crect width=\'220\' height=\'220\' filter=\'url(%23n)\'/%3E%3C/svg%3E")';
 
@@ -343,23 +379,24 @@
     '@keyframes sgFxSweep { 0%, 42% { --vt-t: 0; animation-timing-function: cubic-bezier(.5,.05,.3,1); } 100% { --vt-t: 1; } }' +
     '@keyframes sgFxFrost { 0% { opacity: 0; transform: scale(1.06); } 40% { opacity: 1; transform: scale(1); } 100% { opacity: 1; transform: scale(1); } }' +
 
-    // earth
-    FX + 'earth"]::view-transition-old(root) { animation: sgFxQuake ' + EARTH_S + 's linear both; }' +
+    // earth (salt flat)
+    FX + 'earth"]::view-transition-old(root) { animation: sgFxSalt ' + EARTH_S + 's ease-out both; }' +
     FX + 'earth"]::view-transition-new(root) { animation: sgFxT ' + EARTH_S + 's linear both; }' +
     '#sgFx.is-earth { animation: sgFxOut ' + EARTH_S + 's linear both; }' +
-    '.sg-fx-shard { opacity: 0; background: radial-gradient(120% 90% at 28% 22%, #cdb48c 0, #9a7f5d 30%, #6b5440 62%, #3c2e21 100%),' +
-      ' repeating-linear-gradient(35deg, rgba(0,0,0,0) 0 9px, rgba(0,0,0,.08) 9px 11px);' +
-      ' animation: sgFxShard .62s cubic-bezier(.55,0,.9,.6) forwards; }' +
     '.sg-fx-cracks { position: absolute; inset: 0; animation: sgFxCrackFade ' + EARTH_S + 's linear both; }' +
-    '.sg-fx-cracks svg { width: 100%; height: 100%; }' +
-    '.sg-fx-cracks polyline { fill: none; stroke: rgba(40,26,14,.9); stroke-width: 4; stroke-linejoin: round;' +
-      ' stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 1.5px rgba(255,230,190,.6)); animation: sgFxCrack .3s ease-out forwards; }' +
+    '.sg-fx-cracks svg { width: 100%; height: 100%; overflow: visible; }' +
+    // Rust-brown seams with a pale salt lip, like the ridges between salt plates.
+    '.sg-fx-cracks polygon { fill: none; stroke: rgba(150,92,58,.92); stroke-width: 2.6; stroke-linejoin: round; stroke-linecap: round;' +
+      ' stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 1.2px rgba(255,246,232,.95)) drop-shadow(0 1px 1px rgba(90,50,30,.35));' +
+      ' animation: sgFxCrack .4s ease-out forwards; }' +
+    '.sg-fx-sand { opacity: 0; border-radius: 50%; background: radial-gradient(circle, rgba(236,222,204,.75) 0, rgba(214,190,160,.45) 38%, rgba(214,190,160,0) 70%);' +
+      ' filter: blur(3px); animation: sgFxSand .5s ease-out forwards; }' +
     '@keyframes sgFxT { from { --vt-t: 0; } to { --vt-t: 1; } }' +
-    '@keyframes sgFxQuake { 0% { transform: none; } 6% { transform: translate(-4px, 2px); } 12% { transform: translate(4px, -2px); }' +
-      ' 18% { transform: translate(-3px, -1px); } 24% { transform: translate(2px, 2px); } 30% { transform: none; filter: none; } 100% { filter: brightness(.7) sepia(.3); } }' +
-    '@keyframes sgFxShard { 0% { opacity: 1; transform: translate(0, 0) rotate(0) scale(1); } 100% { opacity: 0; transform: translate(var(--drift), var(--fall)) rotate(var(--spin)) scale(.8); } }' +
+    // The old page dries out to a pale, salty crust before it gives way.
+    '@keyframes sgFxSalt { 0% { filter: none; } 30%, 100% { filter: sepia(.32) saturate(.45) brightness(1.2) contrast(.86); } }' +
     '@keyframes sgFxCrack { to { stroke-dashoffset: 0; } }' +
-    '@keyframes sgFxCrackFade { 0%, 35% { opacity: 1; } 65%, 100% { opacity: 0; } }' +
+    '@keyframes sgFxCrackFade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }' +
+    '@keyframes sgFxSand { 0% { opacity: 0; transform: translateY(0) scale(.5); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(var(--rise)) scale(1.3); } }' +
 
     // wind
     FX + 'wind"]::view-transition-old(root) { animation: sgFxGust 1.05s ease-in both; }' +

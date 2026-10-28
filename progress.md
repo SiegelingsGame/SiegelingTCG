@@ -1,3 +1,18 @@
+Original prompt: Earth looks rough let's make it more like cracks in the ground and sand like salt flats and then appears from underneath
+
+- October 28, 2026 **Earth transition: salt-flat cracks instead of falling rocks.**
+  - **Change.** The earth effect in `page-transitions.js` is rebuilt, and the rock cells, stone shards and quake are gone.
+    - **The plates.** The screen is cut into a Voronoi pattern of up to about 40 irregular plates, the shape dried salt and mud crack into. Sites are on a jittered grid with every other row offset, so the plates come out hex-like. `voronoiCell` builds each one by clipping the viewport against each neighbour's bisector.
+    - **Cracking.** The plate outlines draw in as rust-brown seams with a pale salt lip (two drop-shadows), with slightly wavering edges. They start as the crack front from the tap reaches each plate. Meanwhile the old page dries to a pale crust (sepia, desaturate, brighten).
+    - **Giving way.** From 30% the plates give way nearest-first. Each one is a mask layer of its own polygon, stroked so neighbours overlap a hair, grown about its centroid from nothing out to its cracks. A puff of sand rises as each opens, and the new page shows from beneath. The cracks fade over the last 30%.
+    - **Timing.** The effect lasts 1.4s (`EARTH_S`).
+  - Cache pin: `page-transitions.js?v=7` in all 12 pages.
+  - **Verification.** `node --check` passes. Headless Chromium with earth forced, hub Home to Shop at 390x844 and 1920x1080, slowed to 10% over CDP:
+    - 36 or 40 plates (37 or 41 mask layers, including the final cover) with matching crack outlines and sand puffs.
+    - Frames at 20/40/60/80% show the crack network spreading over a pale crust, then the plates opening nearest-first onto the Shop page.
+    - Afterwards the attribute and overlay are gone and the route is `/shop`.
+    - No page errors.
+
 Original prompt: Now what if we had different random effects that played. The splashWater is good for water, what if we had one when the page burned away, for ice, the page frost over and wipes to reveal, for earth it crumbles like rocks for wind a rolling dust like appearances accross the screen
 
 - October 28, 2026 **Page transitions: five elemental effects, picked at random.**
