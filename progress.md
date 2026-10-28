@@ -1,3 +1,30 @@
+Original prompt: Now what if we had different random effects that played. The splashWater is good for water, what if we had one when the page burned away, for ice, the page frost over and wipes to reveal, for earth it crumbles like rocks for wind a rolling dust like appearances accross the screen
+
+- October 28, 2026 **Page transitions: five elemental effects, picked at random.**
+  - **Change.** `page-transitions.js` now picks one of five effects per transition from `EFFECTS`, never repeating the last one (`sessionStorage sgVtLastFx`). `SgTransition.force(name)` pins one on a device for testing.
+  - **The effects:**
+    - **Water:** the existing ripple and rings.
+    - **Fire (1s):** the new page shows through a lumpy hole made of ten circles whose centres drift outward as `--vt-r` grows. The overlay paints a white-hot edge, an orange rim and a scorch band for each circle. It is masked to the outside of the hole (an intersection of complements, `mask-composite: intersect` with `-webkit` `source-in`), so no edge shows inside the burnt area. 22 embers fly out from the tap, and the old page warms (sepia and saturate).
+    - **Ice (1.25s):** frost gathers over the old page (noise tile, cross-hatch and an edge-weighted white veil) while the old page desaturates and blurs. From 42% a diagonal sweep from the tap's side wipes the frost and the new page in together along one line, with a bright edge.
+    - **Earth (1.15s):** cracks draw out from the tap and the old page quakes. Rock-shaped cells (about 45 at most, sized to the screen) open nearest-first as mask layers growing to overlapping rocks, while a shaded stone shard falls and spins from each cell as it opens.
+    - **Wind (1.05s):** the new page arrives behind a wavy front of 12 bands with sine offsets, moving from the tap's side. A cloud of blurred dust puffs rolls along the front and wind streaks overtake it, while the old page drifts and blurs.
+  - **How it is built.**
+    - Two registered properties drive everything: `--vt-r` and `--vt-t`.
+    - Static rules are scoped by `html[data-vt-fx]`. Shapes that depend on the tap and the screen are generated per transition into `#sgVtFxCss`.
+    - The `#sgFx` overlay replaces `#sgRipple`.
+    - A generation counter means only the latest transition cleans up.
+    - Loading screens (`splashOut`) now run through the same view transition, from the centre. The old mask-based water ripple remains only for browsers without View Transitions.
+    - A skipped transition's `ready` rejection is caught. That happens when the hub finishes loading while the page's arrival effect still plays.
+    - The existing off switches (`ENABLED`, Settings, reduced motion) are unchanged.
+  - Cache pin: `page-transitions.js?v=6` in all 12 pages.
+  - **Verification.** `node --check` passes. Headless Chromium, with each effect forced in turn:
+    - **In the hub at 390x844 and 1920x1080:** Home to Shop sets `data-vt-fx`, the new and old pseudos run the effect's animations with the expected mask layer counts (water 1, fire 10, ice 1, earth 36 or 46, wind 12), and the overlay carries its parts (22 embers, 46 shards and cracks, dust and streaks). Afterwards the attribute, overlay and generated CSS are all gone and the route is `/shop`.
+    - **Frames slowed to 10% over CDP:** the hole burns from the tapped tab; the screen frosts then wipes clear; the screen cracks then crumbles into falling rocks; dust rolls across.
+    - **Hub boot screen:** leaves with the forced effect and is removed.
+    - **Cross-page (landing Explore to `/home`):** runs the effect.
+    - **Random:** 12 hub navigations ran with no effect twice in a row.
+    - No page errors (the only console errors were API 404s from the static server).
+
 Original prompt: If a dominion already exist just go straight to dominion for now
 
 - October 28, 2026 **Dominion: an existing Dominion opens straight in.**
