@@ -4897,13 +4897,31 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   }
   /* Narrow screens: the header holds the art controls, the soundtrack pill and
      the account chips in one row, so the extras step aside. */
-  @media (max-width:900px) {
+  @media (max-width:700px) {
+    .sg-stage-music-title { display:none; }
+    .sg-app .sg-top { gap:7px; }
+  }
+  /* The art bar always fits between the logo and the coin chip: its slot takes
+     exactly that space (the header spacer steps aside for it), and the bar
+     sheds parts by the slot's width, not the screen's - the word first, then
+     the dots, then Previous - so it never runs under the chips. */
+  .sg-stage-player-slot { flex:1 1 0; min-width:0; display:flex; align-items:center; container:stagebar / inline-size; }
+  .sg-stage-player-slot + .sg-top-spacer { display:none; }
+  .sg-stage-player-slot .sg-stage-player { max-width:100%; }
+  @container stagebar (max-width:300px) {
     .sg-stage-player button.sg-stage-pick-btn span { display:none; }
     .sg-stage-player button.sg-stage-pick-btn { padding:0 9px; }
   }
-  @media (max-width:700px) {
-    .sg-stage-dots, .sg-stage-player [data-stage-prev], .sg-stage-music-title { display:none; }
-    .sg-app .sg-top { gap:7px; }
+  @container stagebar (max-width:222px) { .sg-stage-dots { display:none; } }
+  @container stagebar (max-width:170px) { .sg-stage-player [data-stage-prev] { display:none; } }
+  /* A big coin count on a narrow phone leaves very little: Next goes, then
+     Pause, then the hide-menus eye; the Rotation picker always stays. */
+  @container stagebar (max-width:132px) { .sg-stage-player [data-stage-next] { display:none; } }
+  @container stagebar (max-width:102px) { .sg-stage-player [data-stage-pause] { display:none; } }
+  @container stagebar (max-width:72px) {
+    .sg-stage-player [data-stage-hide] { display:none; }
+    .sg-stage-player button.sg-stage-pick-btn { border-right:0; border-radius:999px; margin-right:0; }
+    .sg-stage-player { padding-right:0; }
   }
 
   /* On-demand panels: a liquid-glass sheet over a dimmed stage. It grows out
@@ -5172,19 +5190,13 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
       linear-gradient(90deg, rgba(9,36,52,.32) 0%, rgba(9,36,52,0) 34%, rgba(9,36,52,0) 78%, rgba(9,36,52,.28) 100%);
   }
 
-  /* Header: the soundtrack pill steps aside (the music button stays), and the
-     art's transport hangs below the chips where it has the full width. */
+  /* Header: the soundtrack pill steps aside (the music button stays); the
+     art bar keeps its slot in the header row between logo and coins. */
   .sg-top .sg-stage-music { display:none; }
-  .sg-top .sg-stage-player {
-    position:absolute; top:calc(100% - 2px); left:max(14px, env(safe-area-inset-left, 0px)); height:32px;
-  }
-  .sg-stage-player button.sg-stage-pick-btn span { display:inline; }
-  .sg-stage-player button.sg-stage-pick-btn { padding:0 11px; }
-  .sg-stage-player [data-stage-prev], .sg-stage-dots { display:inline-flex; }
 
   /* Without the shield the tab bar takes the bottom, and the modes sit above it. */
   .sg-stage-ui {
-    padding:calc(var(--stage-top) + 42px) max(12px, var(--sar)) calc(var(--stage-bottom) - 18px) max(12px, var(--sal));
+    padding:calc(var(--stage-top) + 6px) max(12px, var(--sar)) calc(var(--stage-bottom) - 18px) max(12px, var(--sal));
     grid-template-columns:minmax(0, 1fr) 72px minmax(0, 1fr);
     grid-template-rows:auto minmax(0, 1fr) auto auto 48px;
     grid-template-areas:
@@ -5231,8 +5243,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-stage-deck { grid-area:deck; }
   .sg-stage-caption strong { font-size:21px; }
 
-  /* Panels centre under the art pill rather than over it. */
-  .sg-stage-panel { padding-top:calc(var(--stage-top) + 46px); }
+  .sg-stage-panel { padding-top:calc(var(--stage-top) + 6px); }
 
   /* Tall pieces are tall in the picker too. */
   .sg-stage-pick-grid { grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); }
@@ -5253,10 +5264,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     .sg-stage-left { grid-template-columns:repeat(2, 52px); gap:4px; }
     .sg-stage-caption span { display:none; }
     .sg-stage-cards .sg-gtab { height:30px; }
-  }
-  /* Narrow phones: the picker keeps its icon and the transport, nothing else. */
-  @media (max-width:359px) {
-    .sg-stage-player button.sg-stage-pick-btn span, .sg-stage-dots { display:none; }
   }
 }
 

@@ -1,3 +1,14 @@
+Original prompt: The rotation bar should always fit between the logo and the coin counter
+
+- October 28, 2026 **Home: the rotation bar always fits between the logo and the coin counter.**
+  - **Change.** The art bar (Rotation picker, Previous / Pause / Next, dots, hide-menus eye) now sits in a header slot, `.sg-stage-player-slot`, that spans exactly from the logo to the coin chip at every size. The slot is `flex:1; min-width:0`, and the header spacer steps aside for it. On a portrait phone the bar used to hang in its own row under the header; it is now back in the header row, and the menu plates and panels move up into the row it used to take.
+    - **Shedding.** Instead of screen-width media queries, container queries on the slot drop parts as it narrows, so a big coin count or the Sign In chip can never push the bar under the chips. In order: the "Rotation" word (300px), the dots (222px), Previous (170px), Next (132px), Pause (102px), then the eye (72px). The Rotation picker always stays.
+  - Cache pins: `home-redesign.css?v=172`, `home-redesign.js?v=163`.
+  - **Verification.** `node --check` passes. Headless Chromium at 320x568, 360x780, 375x667, 390x844, 430x932, 568x320, 667x375, 844x390, 932x430, 1024x768, 1366x768 and 1920x1080, member (123,456 coins) and guest:
+    - The bar and every visible button inside it start after the logo and end before the coin chip, vertically centred with it, with no horizontal scroll.
+    - With 69 coins at 390x844 the bar shows Rotation / Pause / Next / eye; 430 wide adds Previous; 667 wide adds the dots; 844 wide adds the word.
+    - `tests/hub-workspaces-check.cjs` passes at all 7 viewports.
+
 Original prompt: Menu buttons (play collection etc) have a brief pop in after the animation completes. Can we fix this
 
 - October 28, 2026 **Home: the frosted menu plates fade their frost in after a page transition instead of popping.**
