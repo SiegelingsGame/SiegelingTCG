@@ -7188,3 +7188,23 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 @media (min-width:700px) and (orientation:landscape), (min-width:1024px) {
   .sg-prof-history-list .sg-stack { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); align-content:start; }
 }
+
+/* Frosted controls across a page transition. Safari leaves backdrop-filter
+   out of the view-transition snapshots, so these plates played the whole
+   transition unfrosted and the frost snapped on the moment it ended. Their
+   frost is off for the transition (page-transitions.js sets data-vt-fx on
+   <html> while one plays) and fades in once it is over, in every browser. */
+.sg-stage-cards .sg-gtab, .sg-profile-nav .sg-gtab {
+  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease,
+    backdrop-filter .45s ease, -webkit-backdrop-filter .45s ease;
+}
+.sg-stage-tile-ico {
+  transition:transform .15s ease, border-color .2s ease, backdrop-filter .45s ease, -webkit-backdrop-filter .45s ease;
+}
+.sg-app a.sg-stage-mode, .sg-stage-music, .sg-stage-player {
+  transition:backdrop-filter .45s ease, -webkit-backdrop-filter .45s ease;
+}
+html[data-vt-fx] :is(.sg-stage-cards .sg-gtab, .sg-profile-nav .sg-gtab, .sg-stage-tile-ico,
+  .sg-app a.sg-stage-mode, .sg-stage-music, .sg-stage-player) {
+  backdrop-filter:none !important; -webkit-backdrop-filter:none !important; transition:none;
+}
