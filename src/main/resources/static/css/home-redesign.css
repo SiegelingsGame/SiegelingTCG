@@ -7119,7 +7119,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-profile-nav ~ .sg-scroll .sg-crest-title { justify-self:start; max-width:100%; margin:3px 0 0; padding:2px 8px; font-size:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sg-profile-nav ~ .sg-scroll .sg-crest-body > p { margin:4px 0 0; font-size:9.5px; letter-spacing:.1em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sg-profile-nav ~ .sg-scroll .sg-crest-body .sg-xp-note { margin-top:3px; font-size:9.5px; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .sg-profile-nav ~ .sg-scroll .sg-crest-body .sg-crest-bio { margin:3px 0 0; font-size:10px; text-transform:none; letter-spacing:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sg-profile-nav ~ .sg-scroll .sg-crest-body .sg-crest-bio { width:auto; max-width:100%; margin:3px 0 0; font-size:10px; text-transform:none; letter-spacing:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sg-profile-nav ~ .sg-scroll .sg-crest-edit { z-index:2; top:10px; right:10px; padding:6px 10px; font-size:9px; }
 
   /* Four figures across. */
