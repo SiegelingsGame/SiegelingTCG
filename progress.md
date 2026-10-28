@@ -21,7 +21,11 @@ Original prompt: Reformat the portrait profile page and the popups that open. Ma
     - **History view** at 390x844, 844x390, 320x568 and 1920x1080: it fills the profile's space (portrait 12–378 x 166–759), its 13 rows scroll inside it, the page doesn't scroll, and the plate states flip. Mid-open it is scaled (0.38–0.92, grown from the plate), and closing runs `is-closing` and then restores the blocks.
     - **From Friends:** the plate opens `/profile` with the history showing.
     - **Editor sheet:** mid-open it scales from the button's origin, and closing returns it to hidden. Cancel and Save centres are within 1px of the FAB centre at 390x844, 844x390, 320x568 and 1920x1080.
-    - **`profile-dashboard-check`:** its profile steps pass at 1313x900. It then stops at the shield menu's Social link ("sn-content intercepts pointer events"), a step that base never reached. With the menu settled, `elementsFromPoint` shows the link on top on both this branch and base, so it reads as the test clicking mid-animation, not a dead link.
+    - **`profile-dashboard-check`:** passes at all 6 viewports, guest and member, after two follow-up fixes:
+      - **Shield menu (`shield-navigation.js?v=5`).** After a navigation from the shield, reopening it at 1313 and 1920 wide left its Social/Help row un-hittable. `elementsFromPoint` skipped the row although it was laid out, visible and on top, so Chromium was hit-testing it against stale data. The trigger is not pinned down: it is cured by turning off every CSS animation in `.sn-root`, but no single group fixes it, nor does a z-index or an earlier fade. One re-layout of that row when the open finishes fixes it at 1920x1080, 1313x900 and 390x844. The test also waits for the page transition to end before its next tap, since the page isn't hit-tested while one plays.
+      - **Portrait crest bio.** It is capped at its column (`width:auto; max-width:100%`), because an earlier fixed width pushed a long bio 7px past the screen at 390 wide.
+      - Cache pin: `home-redesign.css?v=169`.
+    - `tests/shield-navigation-check.cjs` passes at all 4 viewports.
     - No page errors.
 
 Original prompt: Make the animations more efficient the site is slogging now
