@@ -6209,16 +6209,16 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    SHOP: GACHA STOREFRONT
    One screen, no scroll: the tab's art fills the whole viewport behind the
    top bar and the tab bar. On it: framed portrait tabs down the left edge, a
-   plaque (kicker, name, ribbon, pitch), a selector row, round utility buttons
-   and the blue ×1 / gold ×10 pair along the bottom, and a pennant of what the
-   offer holds on the right once there is room for it.
+   plaque (kicker, name, ribbon with the utility pills beside it, pitch), a
+   selector row, the blue ×1 / gold ×10 pair docked either side of the shield
+   FAB, and a pennant of what the offer holds on the right once there is room.
    ========================================================================== */
 .sg-app[data-screen="shop"] .sg-scroll { overflow:hidden; display:flex; flex-direction:column; }
 .sg-shop {
   position:relative; flex:1 1 auto; min-height:0;
   --gtabs-w:118px;
-  /* Clears the floating tab bar (its controls stand ~46px tall on a phone). */
-  --gnav:calc(58px + max(0px, calc(var(--sg-sab, 0px) * .4)));
+  /* Clears the buy dock around the shield FAB (shield-navigation.css). */
+  --gnav:calc(var(--sn-dock-h, 88px) + 6px);
   --gtop:calc(58px + max(6px, var(--sg-sat)));
   --navy-plate:linear-gradient(180deg, rgba(30,34,78,.94), rgba(13,14,40,.94));
   --gold-line:#d9b45f;
@@ -6303,6 +6303,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   text-shadow:0 1px 2px rgba(0,0,0,.6);
 }
 .sg-gplaque p { margin:0; max-width:46ch; font-size:12px; line-height:1.45; color:#e1e6f2; text-shadow:0 1px 6px rgba(0,0,0,.85); }
+/* The tag under the name, with Odds / Binder / In art / Equip beside it. */
+.sg-gtagrow { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; min-height:30px; }
 
 .sg-gselect {
   display:flex; gap:6px; max-width:100%; overflow-x:auto; padding:4px 2px 4px;
@@ -6377,50 +6379,42 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
 }
 
-.sg-gfoot { display:flex; align-items:flex-end; gap:8px; }
-.sg-gutil { display:flex; gap:6px; flex:0 0 auto; }
+.sg-gutil { display:flex; flex-wrap:wrap; gap:6px; }
 .sg-gutil-btn {
-  display:flex; flex-direction:column; align-items:center; gap:2px; width:44px; padding:0; cursor:pointer;
-  background:none; border:0; color:#f4ecd6; text-decoration:none;
+  display:inline-flex; align-items:center; gap:5px; height:30px; padding:0 11px 0 3px; cursor:pointer;
+  border-radius:99px; background:rgba(13,14,40,.8); border:1px solid rgba(217,180,95,.7);
+  color:#f4ecd6; text-decoration:none; box-shadow:0 3px 10px rgba(0,0,0,.45);
 }
 .sg-gutil-btn span {
-  width:40px; height:40px; border-radius:99px; display:grid; place-items:center;
-  font-family:var(--serif); font-size:17px; font-weight:700;
-  background:radial-gradient(circle at 50% 35%, #2c3270, #121236 70%); border:1.5px solid var(--gold-line);
-  box-shadow:0 4px 12px rgba(0,0,0,.5);
+  width:24px; height:24px; border-radius:99px; display:grid; place-items:center;
+  font-family:var(--serif); font-size:13px; font-weight:700; line-height:1;
+  background:radial-gradient(circle at 50% 35%, #2c3270, #121236 70%); border:1px solid var(--gold-line);
 }
-.sg-gutil-btn em { font-style:normal; font-family:var(--serif); font-size:10px; font-weight:700; text-shadow:0 1px 3px #000; }
-.sg-gbuy { display:flex; gap:8px; flex:1 1 auto; justify-content:flex-end; min-width:0; }
-.sg-gbtn {
-  flex:0 1 160px; min-width:0; height:58px; padding:0 14px; cursor:pointer;
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
-  font-family:var(--serif); font-size:15px; font-weight:700; line-height:1;
-  border:0; clip-path:polygon(12px 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 12px 100%, 0 50%);
-  transition:filter .15s ease, transform .1s ease;
-}
-.sg-gbtn:active { transform:scale(.97); }
-.sg-gbtn.is-one {
-  color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.5);
-  background:linear-gradient(180deg,#7fb2ff 0%,#3f78ec 48%,#2448b8 100%);
-  box-shadow:inset 0 0 0 2px #e9c975, inset 0 2px 0 3px rgba(255,255,255,.25);
-}
-.sg-gbtn.is-ten {
-  color:#3b2306;
-  background:linear-gradient(180deg,#fff0b8 0%,#ffc95a 48%,#e89a2a 100%);
-  box-shadow:inset 0 0 0 2px #fff3c9, inset 0 2px 0 3px rgba(255,255,255,.35);
-}
+.sg-gutil-btn em { font-style:normal; font-family:var(--serif); font-size:12px; font-weight:700; white-space:nowrap; }
+.sg-gutil-btn:active { transform:scale(.96); }
+.sg-gutil-btn:focus-visible { outline:2px solid #fff; outline-offset:2px; }
+/* The buy buttons are flank buttons (shield-navigation.css) docked either side
+   of the FAB; the stage reaches the viewport's bottom, so the dock is placed
+   in it rather than fixed. */
+.sg-gstage > .sg-gbuy.sn-dock { position:absolute; z-index:3; --sn-dock-fill:rgba(6,6,24,.55); }
+.sg-gbtn { font-family:var(--serif); font-size:15px; }
 .sg-gbtn-price {
-  display:inline-flex; align-items:center; gap:4px; padding:2px 12px; border-radius:99px;
-  font-family:var(--sans); font-size:12.5px; font-weight:700;
-  background:rgba(10,12,40,.55); color:#fff;
+  display:inline-flex; align-items:center; gap:4px; padding:2px 10px; border-radius:99px;
+  font-family:var(--sans); font-size:12px; font-weight:700; line-height:1.2;
+  background:rgba(10,12,40,.55); color:#fff; text-shadow:none;
 }
 .sg-gbtn-price img, .sg-gbtn.sg-buy img { width:16px; height:16px; }
-.sg-gbtn.sg-buy { flex-direction:row; gap:8px; margin:0; font-size:18px; border:0; }
+.sg-gbtn.sg-buy { flex-direction:row; gap:6px; font-size:18px; }
+/* The daily and title buys are also .sg-buy, whose small-pill rules elsewhere
+   in this sheet would otherwise shrink the flank. */
+.sg-gbuy > .sn-flank.sg-buy, .sg-gbuy > .sn-flank.sg-buy.is-armed, .sg-gbuy > .sn-flank.sg-buy:disabled {
+  height:var(--sn-flank-h); margin:0; border:0; border-radius:0; opacity:1;
+  padding:0 22px 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px);
+  background:var(--flank-rim); color:var(--flank-ink);
+}
 .sg-gbtn.is-armed { filter:brightness(1.12) saturate(1.2); animation:sg-gbtn-armed 1s ease-in-out infinite alternate; }
 @keyframes sg-gbtn-armed { from { transform:scale(1); } to { transform:scale(1.04); } }
 @media (prefers-reduced-motion:reduce) { .sg-gbtn.is-armed { animation:none; } }
-.sg-gbtn:disabled { cursor:default; filter:saturate(.25); opacity:.75; }
-.sg-gbtn:focus-visible { outline:2px solid #fff; outline-offset:3px; }
 
 /* --- daily: headline card on the stage --- */
 .sg-gstage-card {
@@ -6570,7 +6564,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gplaque h2 { font-size:26px; }
   .sg-gplaque p { display:none; }
   .sg-gstage-card { width:min(34vw, 150px); }
-  .sg-gbtn { height:52px; }
 }
 
 /* Tablets and wide phones: wider tabs, the copy column starts past them. */
@@ -6599,13 +6592,12 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gplaque h2 { font-size:26px; }
   .sg-gplaque p, .sg-gpennant { display:none; }
   .sg-gribbon { font-size:11.5px; padding:3px 18px; }
-  .sg-gbtn { height:48px; }
   .sg-gstage-card { width:140px; right:16px; }
 }
 @media (min-width:1024px) {
   /* The art runs edge to edge; the tabs and copy keep the page gutter. */
   .sg-app[data-screen="shop"] .sg-scroll { padding-inline:0; }
-  .sg-shop { --gtabs-w:clamp(240px, 17vw, 300px); --gtop:calc(76px + var(--sg-sat)); --gnav:88px; }
+  .sg-shop { --gtabs-w:clamp(240px, 17vw, 300px); --gtop:calc(76px + var(--sg-sat)); }
   .sg-gtabs { left:var(--sg-gutter); gap:12px; }
   .sg-gtab { height:clamp(84px, 6.4vw, 104px); border-radius:16px 8px 8px 16px; padding-right:26px; }
   .sg-gtab-art { border-radius:15px 0 0 15px; }
@@ -6624,12 +6616,13 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gel { width:46px; height:46px; }
   .sg-gel img { width:34px; height:34px; }
   .sg-gpk { width:52px; }
-  .sg-gutil-btn { width:72px; }
-  .sg-gutil-btn span { width:62px; height:62px; font-size:24px; }
-  .sg-gutil-btn em { font-size:13px; }
-  .sg-gbtn { flex-basis:250px; height:76px; font-size:22px; }
-  .sg-gbtn-price { font-size:15px; padding:3px 18px; }
-  .sg-gbtn.sg-buy { font-size:24px; }
+  .sg-gtagrow { gap:8px 14px; }
+  .sg-gutil-btn { height:38px; padding-right:15px; gap:7px; }
+  .sg-gutil-btn span { width:30px; height:30px; font-size:16px; }
+  .sg-gutil-btn em { font-size:15px; }
+  .sg-gbuy .sn-flank { max-width:250px; font-size:18px; }
+  .sg-gbtn-price { font-size:13.5px; }
+  .sg-gbtn.sg-buy { font-size:21px; }
   .sg-gpennant { right:var(--sg-gutter); width:150px; padding:18px 10px 40px; }
   .sg-gpennant b { font-size:19px; }
   .sg-gpennant-face img { width:84px; height:84px; }
@@ -6641,50 +6634,16 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-gplate b { font-size:20px; }
   .sg-gplate i { font-size:16px; }
 }
-/* Landscape has width to spare but little height, so every tab's selector
-   (pack backs, element gems, daily offers, title chips) shares the bottom row
-   with the utility buttons and the buy buttons. The footer dissolves into the
-   body grid so all three line up on one row. */
+/* Landscape and desktop: the plaque holds the top and the selector rides down
+   to sit just above the buy dock. The utilities travel with the ribbon and the
+   buy buttons flank the FAB, so the selector has the body's full width. */
 @media (orientation:landscape) and (max-height:520px), (min-width:1024px) {
-  .sg-gstage-body {
-    display:grid; grid-template-columns:auto minmax(0, 1fr) max-content; grid-template-rows:auto 1fr auto;
-    align-items:end; column-gap:14px; row-gap:0;
-  }
-  .sg-gplaque { grid-column:1 / -1; grid-row:1; align-self:start; margin-bottom:0; }
-  .sg-gfoot { display:contents; }
-  .sg-gutil { grid-column:1; grid-row:3; }
-  .sg-gselwrap { grid-column:2; grid-row:3; align-self:center; }
+  .sg-gstage-body { display:flex; flex-direction:column; justify-content:space-between; }
   .sg-gstage.is-packs .sg-gselect { padding-top:8px; }
-  /* The row gives way, not the buttons. The buy group is right-justified, so
-     a column narrower than its buttons spills them leftwards over the strip.
-     Safari sizes a max-content column from a flex item's text, not its
-     flex-basis (~200px for two 128px buttons), so the buttons carry a real
-     width that every engine counts. */
-  .sg-gbuy { grid-column:3; grid-row:3; min-width:max-content; }
-  .sg-gbtn { flex:0 0 auto; width:clamp(170px, 13vw, 250px); }
 }
-/* 1024-1279px (iPad landscape, small laptops): the tabs, the pennant gutter
-   and the buy buttons leave the middle column a few pixels wide, so the
-   selector takes its own line just above the footer row instead. */
 @media (min-width:1024px) and (max-width:1279px) and (min-height:521px) {
-  .sg-gselwrap { grid-column:1 / -1; grid-row:2; align-self:end; margin-bottom:10px; }
   /* The daily headline card steps up and in so the offer row clears it. */
-  .sg-gstage-card { bottom:calc(var(--gnav) + 176px); width:190px; }
-}
-@media (orientation:landscape) and (max-height:520px) {
-  .sg-gbtn { width:128px; }
-}
-/* Short landscape phones: the column under the tab rail sat empty while the
-   footer's round utility buttons (Odds, Binder, ...) took width from the pack
-   strip. The body now starts at the stage edge so those buttons drop into
-   that column, centred under the tabs; the copy and selector rows keep their
-   indent past the rail. The rail ends well above the footer row, and its
-   higher z-index keeps it clickable over the wider body. */
-@media (orientation:landscape) and (max-height:520px) {
-  .sg-gstage-body { left:12px; }
-  .sg-gstage-body > .sg-gplaque { margin-left:calc(var(--gtabs-w) + 10px); }
-  .sg-gutil { width:calc(var(--gtabs-w) - 4px); justify-content:center; }
-  .sg-gstage-body { grid-template-columns:calc(var(--gtabs-w) - 4px) minmax(0, 1fr) max-content; column-gap:10px; }
+  .sg-gstage-card { bottom:calc(var(--gnav) + 120px); width:190px; }
 }
 
 /* Dominion test-mode band under the Play plates: gold so it reads as separate from Lobbies. */

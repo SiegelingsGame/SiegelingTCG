@@ -317,16 +317,6 @@ body[data-screen="resumeScreen"] .siege-topbar {
     padding: 10px 2px 4px;
 }
 
-/* Leaving for the hub is the least likely choice on this screen, so the back
-   link steps down to a quiet pill and the resume actions carry the weight. */
-body[data-screen="resumeScreen"] .siege-back {
-    font-size: 12px;
-    font-weight: 650;
-    padding: 5px 11px;
-    border: 1px solid rgba(179, 168, 216, .28);
-    border-radius: 999px;
-    background: rgba(13, 10, 38, .45);
-}
 body[data-screen="resumeScreen"] .siege-title { font-size: 14px; opacity: .85; }
 
 #resumeScreen:not(.hidden) {
@@ -462,23 +452,23 @@ body[data-screen="resumeScreen"] .siege-title { font-size: 14px; opacity: .85; }
     -webkit-backdrop-filter: blur(6px);
 }
 
-/* "Start a new run" leaves every save in place, so it stays a full-width
-   secondary bar below the plates rather than a small floating pill. */
-#resumeScreen .resume-actions { flex: 0 0 auto; margin-top: 12px; }
-#resumeScreen .resume-actions .siege-btn {
-    width: 100%;
-    min-height: 52px;
-    border-radius: 14px;
-    font-size: 16px;
-    font-weight: 750;
+/* With one save the dock's Continue is the resume; the plate keeps Start Over
+   as a quiet action at its foot. */
+.resume-save-actions.is-solo { display: flex; justify-content: flex-end; }
+.resume-save-actions.is-solo .siege-btn { flex: 0 0 auto; min-height: 44px; padding: 0 20px; font-size: 14px; }
+/* A short landscape plate has no room below its warband: Start Over moves up
+   beside the mode badge, so nothing sits under the dock. */
+@media (orientation: landscape) and (max-height: 600px) {
+    .resume-save-actions.is-solo { position: absolute; top: 12px; right: 14px; margin: 0; }
+    #resumeSaves { flex-direction: row; }
+    .resume-save .party-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .resume-save-actions.is-solo .siege-btn { min-height: 34px; padding: 0 14px; font-size: 13px; }
 }
 
 /* Two saves on a wide window sit side by side as tall plates. */
 @media (min-width: 900px) {
     #resumeSaves { flex-direction: row; }
     .resume-save { flex-basis: 0; min-height: 420px; }
-    #resumeScreen .resume-actions { display: flex; justify-content: center; }
-    #resumeScreen .resume-actions .siege-btn { width: auto; min-width: 280px; }
 }
 
 /* Landscape phones: the plate cannot be tall, so it lays the warband and
@@ -809,4 +799,159 @@ body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) .mode-card-desc
 /* The narrowest phones wrapped each step chip onto two lines. */
 @media (max-width: 360px) {
     .setup-step { padding: 3px 8px; font-size: 10px; white-space: nowrap; }
+}
+
+/* ---- Launch-screen chrome, shared with Arena, Gauntlet and Dominion ----
+   Loading, resume and setup are this mode's launch screens. The back pill sits
+   top-left below the status bar, and on an installed iPhone app below the blur
+   band iOS draws under it (--sn-sat in shield-navigation.css), so no text
+   starts inside the blur. The app column already pads by the plain inset. */
+body:is(:not([data-screen]), [data-screen="loadingScreen"], [data-screen="resumeScreen"], [data-screen="setupScreen"]) .siege-app {
+    padding-left: max(12px, env(safe-area-inset-left, 0px));
+    padding-right: max(12px, env(safe-area-inset-right, 0px));
+}
+body:is(:not([data-screen]), [data-screen="loadingScreen"], [data-screen="resumeScreen"], [data-screen="setupScreen"]) .siege-topbar {
+    padding: calc(var(--sn-sat) - env(safe-area-inset-top, 0px) + 8px) 0 6px;
+}
+/* The wide mode step widens the app's gutter; the pill keeps its corner. */
+@media (min-width: 1024px) {
+    .siege-app:has(#setupScreen:not(.hidden) #setupStepMode:not(.hidden)) .siege-topbar {
+        margin-left: calc(12px - max(clamp(24px, 2.4vw, 64px), env(safe-area-inset-left, 0px)));
+    }
+}
+/* In a run the back link stays the quiet text link it was. */
+body:is([data-screen="battleScreen"], [data-screen="mapScreen"]) .sn-back.siege-back {
+    height: auto; padding: 0; border: 0; background: none; box-shadow: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+
+/* Above the screens, below the unit/lock modals (60) and the run menu (70). */
+:root { --sn-z: 58; }
+
+/* The launch screens carry no title banner: the pill alone holds the top. */
+body:is(:not([data-screen]), [data-screen="loadingScreen"], [data-screen="resumeScreen"], [data-screen="setupScreen"]) .siege-title,
+#resumeScreen > h1, #resumeScreen > .siege-sub { display: none; }
+
+/* Resume: New run and Continue flank the shield FAB. */
+body[data-screen="resumeScreen"] .siege-app { padding-bottom: calc(var(--sn-dock-h) + 6px); }
+.resume-dock { --sn-dock-fill: rgba(13, 10, 38, .55); }
+/* The resume screen has no top bar: Play is the dock's left flank, so the
+   cards start just under the status bar and the standalone blur band. */
+body[data-screen="resumeScreen"] .siege-topbar { display: none; }
+#resumeScreen:not(.hidden) { padding-top: calc(var(--sn-sat) - env(safe-area-inset-top, 0px) + 10px); }
+.resume-dock .sn-flank.is-left { flex-direction: row; gap: 4px; }
+.resume-dock .sn-flank span { color: #e2bf72; font-size: 18px; margin-top: -2px; }
+
+/* Three cards, one per slot. A saved run's plate takes the free height; an
+   empty slot is a short plate with its mode, one line and New run. */
+.resume-save.resume-empty { flex: 0 0 auto; min-height: 0; justify-content: flex-start; padding: 12px 14px; }
+.resume-empty .resume-save-head { margin-bottom: 0; padding-bottom: 6px; }
+.resume-empty-blurb { margin: 0 0 10px; max-width: 46ch; color: #e2dbfa; font-size: 13px; line-height: 1.35; text-shadow: 0 2px 8px rgba(0, 0, 0, .8); }
+.resume-empty::before {
+    background:
+        linear-gradient(90deg, rgba(13, 10, 38, .92) 0%, rgba(13, 10, 38, .7) 55%, rgba(13, 10, 38, .35) 100%),
+        linear-gradient(180deg, color-mix(in srgb, var(--save-accent, var(--accent)) 18%, transparent), transparent 60%);
+}
+.resume-empty .resume-save-actions.is-solo { justify-content: flex-start; margin-top: 0; }
+.resume-empty .resume-save-actions.is-solo .siege-btn { min-height: 40px; padding: 0 22px; }
+/* A wide window spends its width on the three plates: the app and the screen
+   drop their reading columns (1120px and 1280px) on this screen, as the mode
+   picker does. */
+@media (min-width: 1024px) {
+    body[data-screen="resumeScreen"] .siege-app { max-width: none; }
+    /* Its auto margins would shrink it to its content in the app's flex column. */
+    body[data-screen="resumeScreen"] #resumeScreen { max-width: none; width: 100%; margin: 0; }
+    #resumeSaves { gap: clamp(12px, 1.4vw, 28px); }
+    #resumeSaves > .resume-save { padding: clamp(16px, 1.6vw, 32px); }
+    .resume-save-head .run-slot-badge { font-size: clamp(12px, .85vw, 16px); padding: 6px 14px; }
+    .resume-empty-blurb { font-size: clamp(13px, .9vw, 17px); }
+    .resume-meta { font-size: clamp(14px, .95vw, 18px); }
+    .resume-save .party-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .resume-save-actions .siege-btn,
+    .resume-empty .resume-save-actions.is-solo .siege-btn { min-height: clamp(44px, 3.4vw, 60px); font-size: clamp(14px, 1vw, 18px); padding: 0 clamp(16px, 1.4vw, 28px); }
+}
+
+/* Side by side (wide windows, landscape phones) the three plates share the row
+   equally and stand full height, the empty ones with their copy at the foot. */
+@media (min-width: 900px), (orientation: landscape) and (max-height: 600px) {
+    #resumeSaves > .resume-save, #resumeSaves > .resume-save.resume-empty { flex: 1 1 0; min-width: 0; }
+    .resume-save.resume-empty { justify-content: flex-end; padding: 16px; }
+    .resume-empty::before {
+        background:
+            linear-gradient(180deg, rgba(13, 10, 38, .1) 0%, rgba(13, 10, 38, .2) 35%, rgba(13, 10, 38, .85) 70%, rgba(13, 10, 38, .96) 100%),
+            linear-gradient(180deg, color-mix(in srgb, var(--save-accent, var(--accent)) 20%, transparent), transparent 40%);
+    }
+    .resume-empty .resume-save-head { margin-bottom: auto; }
+    .resume-empty .resume-save-actions.is-solo { position: static; }
+}
+/* A landscape phone gets one screen: the row of plates takes the height between
+   the top inset and the dock, and each warband is one sideways-scrolling line. */
+@media (orientation: landscape) and (max-height: 600px) {
+    body[data-screen="resumeScreen"] .siege-app { height: var(--siege-vh, 100dvh); min-height: 0; overflow: hidden; }
+    #resumeSaves > .resume-save { padding: 10px 12px; }
+    .resume-save-head { padding-bottom: 6px; }
+    #resumeSaves .resume-save .party-strip { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; margin-bottom: 6px; touch-action: pan-x; }
+    .resume-save .party-strip::-webkit-scrollbar { display: none; }
+    .resume-save .party-strip > * { flex: 0 0 150px; }
+    .resume-meta { flex-wrap: wrap; font-size: 13px; }
+    .resume-save-actions { margin-top: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+    .resume-save-actions .siege-btn { padding: 0 6px; white-space: nowrap; }
+    .resume-save-actions .siege-btn, .resume-save-actions .siege-btn.primary { min-height: 38px; font-size: clamp(12px, 1.7vw, 14px); letter-spacing: 0; }
+    .resume-empty-blurb { font-size: 12px; margin-bottom: 8px; }
+}
+
+/* Knight and warband steps: back and forward flank the FAB, with the running
+   summary centred just above them. The dock is fixed, so the step slide-in
+   moves the step's content rather than the step (a transformed ancestor would
+   drag the fixed dock along with it). */
+#setupScreen .setup-footer.sn-dock {
+    position: fixed;
+    z-index: calc(var(--sn-z) - 1);
+    grid-column: auto;
+    grid-row: auto;
+    display: grid;
+    align-items: end;
+    gap: 0;
+    flex-wrap: nowrap;
+    margin: 0;
+    padding: 0 max(10px, env(safe-area-inset-right, 0px)) calc(var(--sn-fab-bottom) + var(--sn-fab-size) / 2 - var(--sn-flank-h) / 2) max(10px, env(safe-area-inset-left, 0px));
+    border: 0;
+    background: none;
+    box-shadow: none;
+    --sn-dock-fill: rgba(13, 10, 38, .94);
+}
+/* Solid behind the summary line so scrolled cards never show through it. */
+#setupScreen .setup-footer.sn-dock::before {
+    inset: -46px 0 0;
+    background: linear-gradient(0deg, var(--sn-dock-fill) calc(100% - 16px), transparent);
+}
+#setupScreen .setup-footer.sn-dock .setup-summary {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: calc(100% + 2px);
+    text-align: center;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#setupScreen .setup-footer.sn-dock .sn-flank { white-space: normal; text-wrap: balance; font-size: 14px; }
+@media (min-width: 1024px) and (min-height: 601px) {
+    #setupScreen .setup-footer.sn-dock .sn-flank { font-size: clamp(15px, 1.05vw, 19px); }
+}
+#setupStepKnight, #setupStepParty { padding-bottom: calc(var(--sn-dock-h) + 44px); }
+#setupStepMode, #setupStepKnight, #setupStepParty { animation: none; }
+:is(#setupStepMode, #setupStepKnight, #setupStepParty) > :not(.sn-dock) { animation: pagein .28s ease; }
+/* The mode step's plates end above the FAB. */
+@media (orientation: portrait), (min-height: 601px) {
+    body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) .siege-app {
+        padding-bottom: calc(var(--sn-fab-bottom) + var(--sn-fab-size) + 10px);
+    }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+    #setupStepMode { padding-bottom: calc(var(--sn-fab-bottom) + var(--sn-fab-size) + 6px); }
+    #setupStepKnight, #setupStepParty { padding-bottom: calc(var(--sn-dock-h) + 22px); }
+    #setupScreen .setup-footer.sn-dock::before { inset: -30px 0 0; }
+    #setupScreen .setup-footer.sn-dock .setup-summary { font-size: 12px; }
 }

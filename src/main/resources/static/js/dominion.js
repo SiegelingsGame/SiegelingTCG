@@ -3666,8 +3666,12 @@
     let starting = false;
     // Off for now: an existing Dominion opens straight onto its tabs.
     const RETURN_START = false;
-    // Laid out like the Arena loadout and Siege mode select: an art banner, one full-art
-    // plate, and a bottom bar with Main Menu and one gold call to action.
+    // Laid out like the Arena loadout and Siege: the back pill top-left, an art banner,
+    // one full-art plate, and Main Menu and one gold call to action flanking the shield FAB.
+    const START_BACK = '<a class="sn-back dm-start-back" href="/home?screen=play"><span aria-hidden="true">&lsaquo;</span>Play</a>';
+    function startBar(go) {
+        return '<footer class="dm-start-bar sn-dock"><a class="dm-start-menu sn-flank is-left" href="/home">Main Menu</a>' + go + '</footer>';
+    }
     function startPlate(o) {
         const tag = o.act ? 'button type="button" data-act="' + o.act + '"' + (o.arg ? ' data-arg="' + o.arg + '"' : '') : 'div';
         return '<' + tag + ' class="dm-start-plate' + (o.on ? ' is-on' : '') + '" style="--el:var(--' + o.el + ')">' +
@@ -3681,12 +3685,12 @@
         if (!k.made) {
             return '<header class="dm-start-head"><img src="/img/gallery/cactyjackedty-ruins.webp" alt="" decoding="async"><span class="dm-start-head-veil" aria-hidden="true"></span>' +
                 '<div><small>Kingdom &amp; Idle RPG</small><h1>Dominion</h1><p>Found a Keep, raise a company of Siegelings and send them down the roads. It keeps working while you are away.</p></div>' +
-                '<a class="dm-start-x" href="/home" aria-label="Back to the hub">&times;</a></header>' +
+                START_BACK + '</header>' +
                 '<div class="dm-start-grid is-one">' +
                 startPlate({ act: 'start-found', on: true, el: 'gold', art: namedScene('light-shelter'), kicker: 'Begin here', title: 'Found your Dominion',
                     desc: 'Name your knight, raise your crest, choose your land and your first Siegeling.', meta: 'Begin ›' }) +
                 '</div>' +
-                '<footer class="dm-start-bar"><a class="dm-start-menu" href="/home">Main Menu</a><button type="button" class="dm-start-go" data-act="start-found">Found your Dominion</button></footer>';
+                startBar('<button type="button" class="dm-start-go sn-flank is-right is-gold" data-act="start-found">Found your Dominion</button>');
         }
         const b = biomeOf(S), ids = joinedIds(S), a = S.away, el = b.element;
         const td = taskDef(k.task), doing = S.exp ? expTitle(S.exp) : td ? taskLabel(S) : 'Resting at the Keep';
@@ -3697,17 +3701,22 @@
         return '<header class="dm-start-head"><img src="' + esc(namedScene(el + '-shelter')) + '" alt="" decoding="async"><span class="dm-start-head-veil" aria-hidden="true"></span>' +
             '<div class="dm-start-who"><span class="dm-start-figure">' + knightFigure(portraitOf(k), 'idle') + '</span><div><small>' + crest(k) + ' Your Dominion</small><h1>' + esc(k.name) + '</h1>' +
             '<p>' + esc(CALLINGS[k.calling] ? CALLINGS[k.calling][1] : '') + ' · ' + b.icon + ' ' + esc(b.name) + ' · Rank ' + rankLvl(S) + ' ' + esc(HALL_RANKS[S.b.hall - 1]) + ' · &#128081; ' + fl(S.inv.crowns) + '</p></div></div>' +
-            '<a class="dm-start-x" href="/home" aria-label="Back to the hub">&times;</a></header>' +
+            START_BACK + '</header>' +
             away +
             '<div class="dm-start-grid is-one">' +
             startPlate({ act: 'start-enter', arg: 'base', on: true, el: el, art: namedScene(el + '-shelter'), kicker: b.icon + ' ' + b.name, title: 'Enter Dominion',
                 desc: doing + ' · ' + ids.length + ' Siegeling' + (ids.length === 1 ? '' : 's') + ' in your company' + (unseen ? ' · ' + unseen + ' new report' + (unseen === 1 ? '' : 's') : '') + (trails ? ' · ' + trails + ' fresh trail' + (trails === 1 ? '' : 's') : '') + '.',
                 meta: 'Enter ›', badge: unseen + trails ? String(unseen + trails) : '' }) +
             '</div>' +
-            '<footer class="dm-start-bar"><a class="dm-start-menu" href="/home">Main Menu</a><button type="button" class="dm-start-go" data-act="start-enter" data-arg="base">Enter Dominion</button></footer>';
+            startBar('<button type="button" class="dm-start-go sn-flank is-right is-gold" data-act="start-enter" data-arg="base">Enter Dominion</button>');
     }
+    // The shield FAB is part of the start screen, as on the other launch screens;
+    // Dominion's own tabs own the bottom edge once the player is inside.
+    let startNav = null;
     function showStart() {
         starting = true;
+        if (!startNav && window.SiegelingsShieldNavigation) startNav = window.SiegelingsShieldNavigation.mountLinks();
+        if (startNav) startNav.setHidden(false);
         const el = $('dmStart');
         el.innerHTML = startScreen();
         el.hidden = false;
@@ -3721,6 +3730,7 @@
         el.hidden = true;
         el.innerHTML = '';
         document.body.dataset.screen = 'main';
+        if (startNav) startNav.setHidden(true);
     }
 
     // —— Wilds ——

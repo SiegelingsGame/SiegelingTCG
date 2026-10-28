@@ -30,7 +30,8 @@
     </style>
     <!-- Art-first re-skin of the loadout overlay. After style.css on purpose:
          equal-specificity rules in it are meant to win. -->
-    <link rel="stylesheet" href="/css/play-next.css?v=16">
+    <link rel="stylesheet" href="/css/shield-navigation.css?v=6">
+    <link rel="stylesheet" href="/css/play-next.css?v=19">
     <link rel="stylesheet" href="/css/coach.css?v=7">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
@@ -708,6 +709,8 @@
 <div class="loadout-overlay" id="loadoutOverlay">
     <div class="loadout-box">
         <div class="loadout-hero">
+            <!-- Every play-mode launch screen keeps its way back in this spot. -->
+            <button class="sn-back loadout-back-link" type="button" onclick="returnToHome('play')"><span aria-hidden="true">&lsaquo;</span>Play</button>
             <div class="loadout-hero-copy">
                 <div class="loadout-kicker" id="loadoutKicker">Arena Loadout</div>
                 <h2 id="loadoutTitle">Prepare for Battle</h2>
@@ -718,7 +721,6 @@
                     <a class="loadout-local-dev-link" href="/play" target="_blank" rel="noopener">Open Game In New Tab</a>
                 </div>
             </div>
-            <button class="loadout-close-btn" type="button" onclick="returnToHome()" aria-label="Return Home">&times;</button>
             <div class="invite-room-badge hidden" id="inviteRoomBadge"></div>
         </div>
         <div class="loadout-steps" id="loadoutSteps" role="tablist" aria-label="Loadout steps">
@@ -874,10 +876,13 @@
             </section>
         </div>
         <div class="loadout-nav" id="loadoutNav">
-            <button class="btn loadout-back-btn" type="button" id="loadoutBackBtn" onclick="loadoutStepBack()">Main Menu</button>
             <div id="loadoutSummary" class="loadout-summary"></div>
-            <button class="btn btn-primary loadout-start-btn" type="button" id="btnStartLoadout" onclick="startSelectedGame()">Start Battle</button>
         </div>
+    </div>
+    <!-- Step back and step forward flank the shield FAB (shield-navigation.css). -->
+    <div class="sn-dock loadout-dock">
+        <button class="sn-flank is-left loadout-dock-btn" type="button" id="loadoutBackBtn" onclick="loadoutStepBack()">Main Menu</button>
+        <button class="sn-flank is-right is-gold loadout-dock-btn" type="button" id="btnStartLoadout" onclick="startSelectedGame()">Start Battle</button>
     </div>
 </div>
 
@@ -937,7 +942,8 @@
     <script src="/js/coach.js?v=11"></script>
     <script src="/js/arena-tutorial.js?v=52"></script>
     <script src="/js/knight-tutorial.js?v=2"></script>
-<script src="/js/game.js?v=339"></script>
+<script src="/js/shield-navigation.js?v=4"></script>
+<script src="/js/game.js?v=340"></script>
     <script src="/js/play-mode-picker.js?v=6"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,

@@ -178,8 +178,29 @@
     // flying toward stale coordinates, including on an iOS toolbar resize.
     window.addEventListener('resize', function () { if (!overlay.hidden) reset(); });
     motion.addEventListener('change', reset);
-    root.shieldNavigation = { element: root, reset: reset };
+    // Launch screens share their page with a battle or a map, where the FAB has
+    // no place; hiding it also settles an open shield.
+    function setHidden(hidden) {
+      hidden = !!hidden;
+      if (hidden === root.hidden) return;
+      if (hidden) reset();
+      root.hidden = hidden;
+    }
+    root.shieldNavigation = { element: root, reset: reset, setHidden: setHidden };
     return root.shieldNavigation;
   }
-  window.SiegelingsShieldNavigation = { mount: mount };
+  // The play-mode launch screens (Arena, Siege, Gauntlet, Dominion) are their
+  // own pages, so a destination there is a hub URL rather than a hub screen.
+  var HUB_PATHS = {
+    home: '/home', play: '/home?screen=play', collection: '/cards', decks: '/decks',
+    shop: '/shop', profile: '/profile', settings: '/settings', social: '/social',
+    messages: '/social', help: '/help'
+  };
+  function mountLinks() {
+    if (navigator.standalone) document.documentElement.classList.add('sg-standalone');
+    return mount(document.body, function (destination) {
+      window.location.href = HUB_PATHS[destination] || '/home';
+    }, function () { return null; });
+  }
+  window.SiegelingsShieldNavigation = { mount: mount, mountLinks: mountLinks };
 })();

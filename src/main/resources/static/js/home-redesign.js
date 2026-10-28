@@ -4174,9 +4174,9 @@
     }).join('') + '</nav>';
   }
 
-  // One stage, every tab: the art, the plaque (name on a ribbon, then the
-  // pitch), an optional selector row, the pennant, and a footer with the round
-  // utility buttons on the left and the buy buttons on the right.
+  // One stage, every tab: the art, the plaque (name, then the ribbon with the
+  // utility pills beside it, then the pitch), an optional selector row, the
+  // pennant, and the buy buttons docked either side of the shield FAB.
   function stage(o) {
     if (o.piece && artCards(o.piece).length) {
       o.utils = (o.utils || []).concat(utilBtn('&#9673;', 'In art', 'data-art-cards="' + esc(o.piece.id) + '"'));
@@ -4190,7 +4190,10 @@
         '<header class="sg-gplaque">' +
           '<span class="sg-gplaque-kicker"><img src="/img/siegelings-icon-256.webp" alt="">' + esc(o.kicker) + '</span>' +
           '<h2>' + esc(o.title) + '</h2>' +
-          (o.ribbon !== false && o.sub ? '<span class="sg-gribbon">' + esc(o.sub) + '</span>' : '') +
+          '<div class="sg-gtagrow">' +
+            (o.ribbon !== false && o.sub ? '<span class="sg-gribbon">' + esc(o.sub) + '</span>' : '') +
+            ((o.utils || []).length ? '<nav class="sg-gutil" aria-label="More about this offer">' + o.utils.join('') + '</nav>' : '') +
+          '</div>' +
           (o.extra || '') +
           (o.text ? '<p>' + esc(o.text) + '</p>' : '') +
         '</header>' +
@@ -4200,11 +4203,8 @@
               '<button type="button" class="sg-gmore is-next" data-shop-more="1" aria-label="Scroll for more">&rsaquo;</button>' +
             '</div>'
           : '') +
-        '<footer class="sg-gfoot">' +
-          '<nav class="sg-gutil">' + (o.utils || []).join('') + '</nav>' +
-          '<div class="sg-gbuy">' + o.buy + '</div>' +
-        '</footer>' +
       '</div>' +
+      '<div class="sg-gbuy sn-dock">' + o.buy + '</div>' +
     '</section>';
   }
 
@@ -4218,15 +4218,16 @@
     return '<span class="sg-gbtn-price"><img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(price != null ? price : '—') + '</span>';
   }
 
-  // Blue ×1 and gold ×10, the pair every summon screen ends on. ×10 is the
-  // server's own bulk bundle and price; a pack without one gets only ×1.
+  // Blue ×1 left of the FAB and gold ×10 right of it, the pair every summon
+  // screen ends on. ×10 is the server's own bulk bundle and price; a pack
+  // without one gets only ×1.
   function packButtons(pk, verb) {
     var bulk = pk.bulk && pk.bulk.count > 1 ? pk.bulk : null;
-    return '<button class="sg-gbtn is-one" type="button" data-pack="' + esc(pk.id) + '" data-count="1">' +
+    return '<button class="sg-gbtn sn-flank is-left is-blue" type="button" data-pack="' + esc(pk.id) + '" data-count="1">' +
         '<span class="sg-gbtn-label">' + esc(verb) + ' &times;1</span>' + coinLine(pk.price) +
       '</button>' +
       (bulk
-        ? '<button class="sg-gbtn is-ten" type="button" data-pack="' + esc(pk.id) + '" data-count="' + esc(bulk.count) + '">' +
+        ? '<button class="sg-gbtn sn-flank is-right is-gold" type="button" data-pack="' + esc(pk.id) + '" data-count="' + esc(bulk.count) + '">' +
             '<span class="sg-gbtn-label">' + esc(verb) + ' &times;' + esc(bulk.count) + '</span>' + coinLine(bulk.price) +
           '</button>'
         : '');
@@ -4370,8 +4371,8 @@
       }).join('') + '</div>',
       utils: [BINDER_UTIL],
       buy: owned
-        ? '<button class="sg-gbtn is-ten" type="button" disabled><span class="sg-gbtn-label">Owned</span></button>'
-        : '<button class="sg-buy sg-gbtn is-ten" type="button" data-buy-offer="' + esc(head.id) + '" data-price="' + esc(head.price) + '">' +
+        ? '<button class="sg-gbtn sn-flank is-right is-gold" type="button" disabled><span class="sg-gbtn-label">Owned</span></button>'
+        : '<button class="sg-buy sg-gbtn sn-flank is-right is-gold" type="button" data-buy-offer="' + esc(head.id) + '" data-price="' + esc(head.price) + '">' +
             '<img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(head.price) + '</button>'
     });
   }
@@ -4396,8 +4397,8 @@
         }).join('') + '</div>',
         utils: [utilBtn('&#9819;', 'Equip', 'href="/profile" data-screen="profile"')],
         buy: titleOwned(pick, m.live)
-          ? '<button class="sg-gbtn is-ten" type="button" disabled><span class="sg-gbtn-label">Owned</span></button>'
-          : '<button class="sg-buy sg-gbtn is-ten" type="button" data-buy-title="' + esc(pick.id) + '" data-price="' + esc(pick.shopPrice) + '">' +
+          ? '<button class="sg-gbtn sn-flank is-right is-gold" type="button" disabled><span class="sg-gbtn-label">Owned</span></button>'
+          : '<button class="sg-buy sg-gbtn sn-flank is-right is-gold" type="button" data-buy-title="' + esc(pick.id) + '" data-price="' + esc(pick.shopPrice) + '">' +
               '<img src="/img/ui/home-stats/siegecoin.png" alt="">' + esc(pick.shopPrice || 0) + '</button>'
       });
   }

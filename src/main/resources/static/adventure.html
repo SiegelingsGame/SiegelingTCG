@@ -17,10 +17,11 @@
 <link rel="icon" type="image/png" href="/favicon-192x192.png" sizes="192x192">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/coach.css?v=7">
-<link rel="stylesheet" href="/css/adventure.css?v=112">
+<link rel="stylesheet" href="/css/shield-navigation.css?v=6">
+<link rel="stylesheet" href="/css/adventure.css?v=113">
   <!-- Art-first re-skin. After adventure.css on purpose: it restates the same
        tokens and expects to win. -->
-  <link rel="stylesheet" href="/css/siege-next.css?v=19">
+  <link rel="stylesheet" href="/css/siege-next.css?v=23">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -67,7 +68,7 @@
     <!-- The new hub's Play screen, not /play: that path still serves the old
          welcome/mode overlay on the battle table, which is the layout the
          redesign replaced. Kept in sync with SIEGE_EXIT_PATH in adventure.js. -->
-    <a class="siege-back" href="/home?screen=play" title="Back to Play">◄ Play</a>
+    <a class="sn-back siege-back" href="/home?screen=play" title="Back to Play"><span aria-hidden="true">&lsaquo;</span>Play</a>
     <div class="siege-title">SIEGE <span>Adventure Expedition</span></div>
     <!-- Which expedition this is belongs with the run's identity, not with its
          resources: it lives in the top bar (shown on the map screen only) so the
@@ -100,13 +101,14 @@
 
   <!-- Resume prompt: shown at boot when a saved expedition is detected. -->
   <section class="siege-screen hidden" id="resumeScreen">
-    <h1>Welcome Back</h1>
-    <p class="siege-sub" id="resumeNote">A run is already in progress.</p>
-    <!-- One card per save slot: an expedition and a Battlegrounds march can be
-         held at the same time, so this list is built by renderResumePrompt. -->
+    <!-- One card per save slot (Adventure, Battlegrounds, Endless), saved or
+         not, built by renderResumePrompt: an empty slot's card starts that mode. -->
     <div id="resumeSaves"></div>
-    <div class="resume-actions">
-      <button class="siege-btn" id="resumeFreshBtn" type="button">Start a new run</button>
+    <!-- Play (back to the hub) and Continue flank the shield FAB (shield-navigation.css);
+         this screen has no top pill. -->
+    <div class="sn-dock resume-dock">
+      <a class="sn-flank is-left" href="/home?screen=play"><span aria-hidden="true">&lsaquo;</span> Play</a>
+      <button class="sn-flank is-right is-gold" id="resumeContinueBtn" type="button">Continue &#9656;</button>
     </div>
   </section>
 
@@ -154,10 +156,10 @@
       <h1>Choose your SiegeKnight</h1>
       <p class="siege-sub">Each knight brings a <strong>unique ability</strong> from its dashboard card into the deck — and its Ultimate to the field.</p>
       <div class="knight-grid" id="knightGrid"></div>
-      <div class="setup-footer">
-        <button class="siege-btn" id="modeBackBtn" type="button">Mode</button>
+      <div class="setup-footer sn-dock">
+        <button class="sn-flank is-left" id="modeBackBtn" type="button">Mode</button>
         <div class="setup-summary" id="knightSummary">Select a SiegeKnight.</div>
-        <button class="siege-btn primary" id="knightNextBtn" type="button" disabled>Approve Knight ▸</button>
+        <button class="sn-flank is-right is-gold" id="knightNextBtn" type="button" disabled>Approve Knight ▸</button>
       </div>
     </div>
 
@@ -194,10 +196,10 @@
         </div>
         <div class="bg-entry-chevron" aria-hidden="true">›</div>
       </div>
-      <div class="setup-footer">
-        <button class="siege-btn" id="partyBackBtn" type="button">◂ Knight</button>
+      <div class="setup-footer sn-dock">
+        <button class="sn-flank is-left" id="partyBackBtn" type="button">Knight</button>
         <div class="setup-summary" id="setupSummary">Pick your starting Siegeling.</div>
-        <button class="siege-btn primary" id="startRunBtn" type="button" disabled>Begin Expedition</button>
+        <button class="sn-flank is-right is-gold" id="startRunBtn" type="button" disabled>Begin Expedition</button>
       </div>
     </div>
   </section>
@@ -787,6 +789,7 @@
 <script src="/js/coach.js?v=11"></script>
 <script src="/js/siege-tutorial.js?v=28"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
-<script src="/js/adventure.js?v=149"></script>
+<script src="/js/shield-navigation.js?v=4"></script>
+<script src="/js/adventure.js?v=151"></script>
 </body>
 </html>

@@ -1,6 +1,34 @@
+/* FAB geometry, shared with the flank buttons and docks below, so anything that
+   hugs the S button follows it when it shrinks on a short landscape screen.
+   --sn-flank-r is the FAB radius plus a 5px gap; --sn-flank-tuck is how far a
+   flank's corners reach past that circle's edge toward the FAB's centre,
+   sqrt(r^2 - (h/2)^2), so the concave cut meets the top and bottom edges
+   exactly at the corners. */
+:root {
+  --sn-fab-size:62px;
+  --sn-fab-bottom:calc(13px + env(safe-area-inset-bottom, 0px));
+  --sn-flank-h:56px;
+  --sn-flank-r:36px;
+  --sn-flank-tuck:22.6px;
+  /* Everything below this line from the bottom belongs to the FAB row. */
+  --sn-dock-h:calc(var(--sn-fab-bottom) + var(--sn-fab-size) / 2 + var(--sn-flank-h) / 2 + 8px);
+  /* Top inset that clears the blur-and-darken band an installed iOS 26 web app
+     draws over the status bar and ~40pt below it (no CSS reaches that band).
+     Same rule as chronicles.css and the hub: the extra exists only where a top
+     inset does, so a landscape phone and a browser tab keep the plain inset. */
+  --sn-sat:env(safe-area-inset-top, 0px);
+}
+@media (display-mode: standalone) {
+  :root { --sn-sat:calc(env(safe-area-inset-top, 0px) + min(40px, env(safe-area-inset-top, 0px) * 4)); }
+}
+:root.sg-standalone { --sn-sat:calc(env(safe-area-inset-top, 0px) + min(40px, env(safe-area-inset-top, 0px) * 4)); }
+@media (max-height:500px) and (orientation:landscape) {
+  :root { --sn-fab-size:52px; --sn-flank-h:46px; --sn-flank-r:31px; --sn-flank-tuck:20.8px; }
+}
+
 /* Kept outside the screen renderer so summoning never rebuilds game content. */
 .has-shield-navigation .sg-bottom { display:none !important; }
-.sn-root { position:fixed; inset:0; z-index:75; pointer-events:none; color:#f6e7bc; font-family:Georgia, 'Times New Roman', serif; }
+.sn-root { position:fixed; inset:0; z-index:var(--sn-z, 75); pointer-events:none; color:#f6e7bc; font-family:Georgia, 'Times New Roman', serif; }
 .sn-root *, .sn-root *::before, .sn-root *::after { box-sizing:border-box; }
 .sn-overlay { position:absolute; inset:0; display:grid; place-items:center; padding:12px 8px calc(86px + env(safe-area-inset-bottom, 0px)); perspective:1000px; pointer-events:auto; isolation:isolate; }
 .sn-overlay[hidden] { display:none; }
@@ -70,7 +98,7 @@
 .sn-gem { display:block; width:21px; height:21px; transform:rotate(45deg); border:2px solid #f5d994; background:conic-gradient(from 45deg,#b6eeff,#0878e2,#052951,#6dc8ff,#b6eeff); box-shadow:0 0 12px #2e9fff99,0 0 0 3px #70502b; pointer-events:none; }
 .sn-crown { position:absolute; top:4%; left:calc(50% - 10px); }
 .sn-tip { position:absolute; bottom:7%; left:calc(50% - 10px); width:24px; height:24px; }
-.sn-fab { position:absolute; bottom:calc(13px + env(safe-area-inset-bottom, 0px)); left:50%; transform:translateX(-50%); width:62px; height:62px; border:0; border-radius:50%; padding:0; background:none; pointer-events:auto; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+.sn-fab { position:absolute; bottom:var(--sn-fab-bottom); left:50%; transform:translateX(-50%); width:var(--sn-fab-size); height:var(--sn-fab-size); border:0; border-radius:50%; padding:0; background:none; pointer-events:auto; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
 .sn-emblem { position:absolute; inset:0; display:block; border:2px solid #ebcd89; border-radius:50%; background:radial-gradient(circle at 40% 25%,#233f5c,#07142c 75%); box-shadow:0 0 0 3px #72502c,0 4px 14px #0009; }
 .sn-emblem img { width:100%; height:100%; object-fit:contain; border-radius:50%; }
 .sn-emblem::before { content:''; position:absolute; inset:-5px; border:2px solid #f8cb6d; border-radius:50%; box-shadow:0 0 15px #ffd27088; opacity:.2; animation:sn-breathe 5s ease-in-out infinite; }
@@ -120,7 +148,6 @@
   .sn-option svg, .sn-play svg { width:20px; height:22px; margin:0; }
   .sn-option b { display:none; }
   .sn-utilities { margin-top:2px; }
-  .sn-fab { width:52px; height:52px; }
   .sn-crown,.sn-tip { width:14px; height:14px; left:calc(50% - 7px); }
 }
 @media (prefers-reduced-motion:reduce) {
@@ -147,3 +174,95 @@
   .sn-close, .sn-corner { top:18.5%; }
   .sn-close { font-size:20px; }
 }
+
+/* Pages outside the hub (the play-mode launch screens) hide the FAB while they
+   show something that is not a launch screen, such as a battle. */
+.sn-root[hidden] { display:none; }
+/* --sn-z: each launch page sets where the FAB stacks, above its screen and
+   below its own dialogs. A dock sits just under the FAB so its fade never
+   veils the button. */
+
+/* ---- Flank buttons ----
+   The pair of actions either side of the S button: each one points outward and
+   has a semicircle cut where it meets the FAB, so the two read as one control
+   wrapped around it. The element is the rim colour; ::before is the fill, set
+   2px in on every edge including the cut. */
+.sn-flank {
+  --flank-rim:#d9b45f;
+  --flank-bg:linear-gradient(180deg,#2c3374 0%,#1a1c52 52%,#10113a 100%);
+  --flank-ink:#f4ecd6;
+  --flank-cut-x:calc(100% + var(--sn-flank-tuck));
+  position:relative; isolation:isolate; box-sizing:border-box;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  width:100%; max-width:210px; min-width:0; height:var(--sn-flank-h); margin:0;
+  padding:0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px) 0 22px;
+  border:0; border-radius:0; box-shadow:none; background:var(--flank-rim); color:var(--flank-ink);
+  font:800 15px/1.05 ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  letter-spacing:.02em; text-align:center; text-decoration:none; text-transform:none; white-space:nowrap;
+  cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+  clip-path:polygon(16px 0, 100% 0, 100% 100%, 16px 100%, 0 50%);
+  -webkit-mask:radial-gradient(circle at var(--flank-cut-x) 50%, transparent calc(var(--sn-flank-r) - .5px), #000 var(--sn-flank-r));
+  mask:radial-gradient(circle at var(--flank-cut-x) 50%, transparent calc(var(--sn-flank-r) - .5px), #000 var(--sn-flank-r));
+  transition:filter .15s ease, transform .1s ease;
+}
+.sn-flank::before {
+  content:''; position:absolute; inset:0; z-index:-1; background:var(--flank-bg);
+  clip-path:polygon(17.2px 2px, 100% 2px, 100% calc(100% - 2px), 17.2px calc(100% - 2px), 2.3px 50%);
+  -webkit-mask:radial-gradient(circle at var(--flank-cut-x) 50%, transparent calc(var(--sn-flank-r) + 1.5px), #000 calc(var(--sn-flank-r) + 2px));
+  mask:radial-gradient(circle at var(--flank-cut-x) 50%, transparent calc(var(--sn-flank-r) + 1.5px), #000 calc(var(--sn-flank-r) + 2px));
+}
+.sn-flank.is-right {
+  --flank-cut-x:calc(var(--sn-flank-tuck) * -1);
+  padding:0 22px 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px);
+  clip-path:polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%);
+}
+.sn-flank.is-right::before { clip-path:polygon(0 2px, calc(100% - 17.2px) 2px, calc(100% - 2.3px) 50%, calc(100% - 17.2px) calc(100% - 2px), 0 calc(100% - 2px)); }
+.sn-flank.is-gold { --flank-rim:#fff3c9; --flank-bg:linear-gradient(180deg,#fff0b8 0%,#ffc95a 48%,#e89a2a 100%); --flank-ink:#3b2306; }
+.sn-flank.is-blue { --flank-rim:#e9c975; --flank-bg:linear-gradient(180deg,#7fb2ff 0%,#3f78ec 48%,#2448b8 100%); --flank-ink:#fff; text-shadow:0 1px 2px rgba(0,0,0,.5); }
+.sn-flank:active:not(:disabled) { transform:scale(.97); }
+.sn-flank:disabled, .sn-flank[aria-disabled="true"] { cursor:default; filter:saturate(.25) brightness(.85); opacity:.8; }
+.sn-flank:focus-visible { outline:none; filter:brightness(1.18) drop-shadow(0 0 0 #fff); }
+.sn-flank[hidden] { display:none; }
+
+/* A wide screen gives each flank a share of the width rather than a phone's
+   210px; the height stays inside the cut (h <= 2r). */
+@media (min-width:1024px) and (min-height:601px) {
+  .sn-flank { max-width:clamp(210px, 20vw, 380px); font-size:clamp(15px, 1.05vw, 19px); }
+}
+
+/* ---- Dock ----
+   A fixed bottom row centred on the FAB: [left flank] FAB [right flank]. The
+   middle column is exactly the width the two cuts leave between the corners. */
+.sn-dock {
+  position:fixed; z-index:calc(var(--sn-z, 75) - 1); left:0; right:0; bottom:0; box-sizing:border-box;
+  display:grid; grid-template-columns:minmax(0,1fr) calc(var(--sn-flank-tuck) * 2) minmax(0,1fr); align-items:end;
+  height:var(--sn-dock-h);
+  padding:0 max(10px, env(safe-area-inset-right, 0px)) calc(var(--sn-fab-bottom) + var(--sn-fab-size) / 2 - var(--sn-flank-h) / 2) max(10px, env(safe-area-inset-left, 0px));
+  pointer-events:none;
+}
+/* Content scrolling underneath fades out before it reaches the buttons. */
+.sn-dock::before {
+  content:''; position:absolute; inset:-18px 0 0; z-index:-1; pointer-events:none;
+  background:linear-gradient(0deg, var(--sn-dock-fill, rgba(8,7,26,.94)) 62%, transparent);
+}
+.sn-dock > * { pointer-events:auto; }
+.sn-dock > .sn-flank.is-left, .sn-dock > .is-left { grid-column:1; justify-self:end; }
+.sn-dock > .sn-flank.is-right, .sn-dock > .is-right { grid-column:3; justify-self:start; }
+.sn-dock[hidden] { display:none; }
+
+/* ---- Back pill ----
+   Every launch screen's way back, in the same top-left spot under the status
+   bar (and under the standalone blur band). */
+.sn-back {
+  display:inline-flex; align-items:center; gap:6px; box-sizing:border-box; flex:0 0 auto;
+  height:36px; padding:0 14px 0 11px; margin:0; border-radius:99px;
+  border:1px solid rgba(217,180,95,.6); background:rgba(12,11,38,.74); color:#f4e6bf;
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+  box-shadow:0 4px 14px rgba(0,0,0,.4);
+  font:800 13px/1 ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  letter-spacing:.04em; text-decoration:none; text-transform:none; cursor:pointer; touch-action:manipulation;
+}
+.sn-back > span { font-size:17px; line-height:1; color:#e2bf72; margin-top:-2px; }
+.sn-back:hover { border-color:#ffe0a0; }
+.sn-back:active { transform:scale(.96); }
+.sn-back:focus-visible { outline:2px solid #fff; outline-offset:2px; }
