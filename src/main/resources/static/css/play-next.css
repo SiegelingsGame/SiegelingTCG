@@ -1626,6 +1626,9 @@
     text-wrap: balance;
     font-size: 14px;
 }
+@media (min-width: 1024px) and (min-height: 601px) {
+    .loadout-dock-btn { font-size: clamp(15px, 1.05vw, 19px); }
+}
 .loadout-dock-btn.is-loading { flex-direction: row; gap: 8px; cursor: progress; }
 .loadout-dock-btn.is-loading:disabled { filter: none; opacity: 1; }
 .loadout-dock-btn.is-loading::after {

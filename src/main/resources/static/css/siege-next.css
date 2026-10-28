@@ -854,6 +854,23 @@ body[data-screen="resumeScreen"] .siege-topbar { display: none; }
 }
 .resume-empty .resume-save-actions.is-solo { justify-content: flex-start; margin-top: 0; }
 .resume-empty .resume-save-actions.is-solo .siege-btn { min-height: 40px; padding: 0 22px; }
+/* A wide window spends its width on the three plates: the app and the screen
+   drop their reading columns (1120px and 1280px) on this screen, as the mode
+   picker does. */
+@media (min-width: 1024px) {
+    body[data-screen="resumeScreen"] .siege-app { max-width: none; }
+    /* Its auto margins would shrink it to its content in the app's flex column. */
+    body[data-screen="resumeScreen"] #resumeScreen { max-width: none; width: 100%; margin: 0; }
+    #resumeSaves { gap: clamp(12px, 1.4vw, 28px); }
+    #resumeSaves > .resume-save { padding: clamp(16px, 1.6vw, 32px); }
+    .resume-save-head .run-slot-badge { font-size: clamp(12px, .85vw, 16px); padding: 6px 14px; }
+    .resume-empty-blurb { font-size: clamp(13px, .9vw, 17px); }
+    .resume-meta { font-size: clamp(14px, .95vw, 18px); }
+    .resume-save .party-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .resume-save-actions .siege-btn,
+    .resume-empty .resume-save-actions.is-solo .siege-btn { min-height: clamp(44px, 3.4vw, 60px); font-size: clamp(14px, 1vw, 18px); padding: 0 clamp(16px, 1.4vw, 28px); }
+}
+
 /* Side by side (wide windows, landscape phones) the three plates share the row
    equally and stand full height, the empty ones with their copy at the foot. */
 @media (min-width: 900px), (orientation: landscape) and (max-height: 600px) {
@@ -920,6 +937,9 @@ body[data-screen="resumeScreen"] .siege-topbar { display: none; }
     text-overflow: ellipsis;
 }
 #setupScreen .setup-footer.sn-dock .sn-flank { white-space: normal; text-wrap: balance; font-size: 14px; }
+@media (min-width: 1024px) and (min-height: 601px) {
+    #setupScreen .setup-footer.sn-dock .sn-flank { font-size: clamp(15px, 1.05vw, 19px); }
+}
 #setupStepKnight, #setupStepParty { padding-bottom: calc(var(--sn-dock-h) + 44px); }
 #setupStepMode, #setupStepKnight, #setupStepParty { animation: none; }
 :is(#setupStepMode, #setupStepKnight, #setupStepParty) > :not(.sn-dock) { animation: pagein .28s ease; }

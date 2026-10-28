@@ -224,6 +224,12 @@
 .sn-flank:focus-visible { outline:none; filter:brightness(1.18) drop-shadow(0 0 0 #fff); }
 .sn-flank[hidden] { display:none; }
 
+/* A wide screen gives each flank a share of the width rather than a phone's
+   210px; the height stays inside the cut (h <= 2r). */
+@media (min-width:1024px) and (min-height:601px) {
+  .sn-flank { max-width:clamp(210px, 20vw, 380px); font-size:clamp(15px, 1.05vw, 19px); }
+}
+
 /* ---- Dock ----
    A fixed bottom row centred on the FAB: [left flank] FAB [right flank]. The
    middle column is exactly the width the two cuts leave between the corners. */

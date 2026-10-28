@@ -1,3 +1,15 @@
+Original prompt: A screen this wide should take up more space with the buttons use the full screen
+
+- October 28, 2026 **Siege resume fills a wide window; the FAB flanks grow on wide screens.**
+  - **Change.**
+    - **Resume layout (`siege-next.css`).** From 1024px wide, the resume screen drops the app's 1120px column and the screen's 1280px column. `#resumeScreen` also gets `width:100%; margin:0`, because its auto margins had shrunk it to its content inside the app's flex column. The three plates now run edge to edge with a 12px gutter. Their padding, badge, copy, warband grid and buttons scale with `clamp()`.
+    - **Flank buttons (`shield-navigation.css`).** At 1024px+ wide and 601px+ tall, `.sn-flank` widens to `clamp(210px, 20vw, 380px)` and its text grows to `clamp(15px, 1.05vw, 19px)`, staying inside the cut. Dominion's start bar, the Arena loadout dock and Siege's setup docks each pin their own sizes, so they get the same wide-screen rule.
+  - Cache pins: `shield-navigation.css?v=6` (6 pages), `siege-next.css?v=23`, `play-next.css?v=19`, `dominion.css?v=25`.
+  - **Verification.** Headless Chromium on the resume screen with 1 and 2 saves at 1024x768, 1366x768, 1920x1080 and 2560x1440: the plates span x=12 to width-12 (1920: 12–626, 653–1267, 1294–1908; 2560: 12–2548). The dock flanks are 380px wide at 1920 and 2560, and 273px at 1366.
+    - Dominion and Gauntlet at 1920x1080 show the same 380px flanks.
+    - The shop keeps its 280px cap from `hub-workspaces.css`.
+    - Phone sizes are unchanged, because every new rule is gated at 1024px.
+
 Original prompt: Remove the play button at the top and replace the new run button. New run should be selectable on the card of the run which there should only ever be 3. Siege battlegrounds or endless. Each with a start over button
 
 - October 28, 2026 **Siege resume: three slot cards, with Play on the dock.**

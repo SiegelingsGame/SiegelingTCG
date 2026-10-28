@@ -1165,5 +1165,8 @@ button.dm-start-plate:hover > img { transform: scale(1.04); }
     background: var(--flank-rim); color: var(--flank-ink);
     font: 800 15px/1.1 var(--fun); letter-spacing: .02em; text-transform: none; white-space: normal; text-wrap: balance;
 }
+@media (min-width: 1024px) and (min-height: 601px) {
+    .dm-start-bar.sn-dock > .sn-flank { max-width: clamp(210px, 20vw, 380px); font-size: clamp(15px, 1.05vw, 19px); }
+}
 .dm-start-bar.sn-dock > .sn-flank.is-left { padding: 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px) 0 22px; }
 .dm-start-bar.sn-dock > .sn-flank.is-right { padding: 0 22px 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px); }
