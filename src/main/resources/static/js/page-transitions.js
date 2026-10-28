@@ -383,14 +383,18 @@
     FX + 'earth"]::view-transition-old(root) { animation: sgFxSalt ' + EARTH_S + 's ease-out both; }' +
     FX + 'earth"]::view-transition-new(root) { animation: sgFxT ' + EARTH_S + 's linear both; }' +
     '#sgFx.is-earth { animation: sgFxOut ' + EARTH_S + 's linear both; }' +
+    // The cracks are light from the page itself, not paint on top of it: the
+    // overlay's snapshot colour-dodges onto the snapshots beneath, so each seam
+    // brightens whatever colour it crosses - sky stays blue, embers gold.
+    FX + 'earth"]::view-transition-group(sg-fx) { mix-blend-mode: color-dodge; }' +
     '.sg-fx-cracks { position: absolute; inset: 0; animation: sgFxCrackFade ' + EARTH_S + 's linear both; }' +
     '.sg-fx-cracks svg { width: 100%; height: 100%; overflow: visible; }' +
-    // Seams of light: a bright core with a soft warm glow, as if the light
-    // underneath shows through the cracks between the salt plates.
-    '.sg-fx-cracks polygon { fill: none; stroke: rgba(255,252,240,.96); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round;' +
-      ' stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 2px rgba(255,244,214,.95)) drop-shadow(0 0 7px rgba(255,226,170,.7));' +
+    // Seams of light. Neutral grey, not white: under colour-dodge a mid grey
+    // lifts the page's own colours along the seam instead of burning to white.
+    '.sg-fx-cracks polygon { fill: none; stroke: rgb(170,170,170); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round;' +
+      ' stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 3px rgba(150,150,150,.9)) drop-shadow(0 0 9px rgba(110,110,110,.75));' +
       ' animation: sgFxCrack .4s ease-out forwards; }' +
-    '.sg-fx-sand { opacity: 0; border-radius: 50%; background: radial-gradient(circle, rgba(236,222,204,.75) 0, rgba(214,190,160,.45) 38%, rgba(214,190,160,0) 70%);' +
+    '.sg-fx-sand { opacity: 0; border-radius: 50%; background: radial-gradient(circle, rgba(140,140,140,.7) 0, rgba(110,110,110,.4) 38%, rgba(110,110,110,0) 70%);' +
       ' filter: blur(3px); animation: sgFxSand .5s ease-out forwards; }' +
     '@keyframes sgFxT { from { --vt-t: 0; } to { --vt-t: 1; } }' +
     // The old page dries out to a pale, salty crust before it gives way.

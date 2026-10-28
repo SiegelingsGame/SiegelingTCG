@@ -1,3 +1,12 @@
+Original prompt: Match the light to the background it shouldn't feel like something drawn overtop
+
+- October 28, 2026 **Earth transition: the crack light comes from the page.**
+  - **Change.** The earth overlay's view-transition group now uses `mix-blend-mode: color-dodge`, scoped to `html[data-vt-fx="earth"]::view-transition-group(sg-fx)`, so it blends onto both page snapshots beneath. The seams and sand puffs are now neutral grey (seam rgb 170 with 3px and 9px grey glows) rather than white or tan. Under colour-dodge a mid grey lifts each pixel's own colour, so the seams glow gold over embers, cool blue over ice, and stay dim over dark areas, instead of reading as white lines drawn on top. Cache pin: `page-transitions.js?v=9` in all 12 pages.
+  - **Verification.** `node --check` passes. Headless Chromium with earth forced, hub Home to Shop at 390x844 and 1920x1080, slowed to 10%:
+    - Frames show the seams tinted by the art beneath: warm over the Bearby ember scene, pale blue over Frostag's snow, dim across the dark bear.
+    - The plates open onto the Shop page, cleanup is complete and the route is `/shop`.
+    - No page errors.
+
 Original prompt: Use light instead of brown
 
 - October 28, 2026 **Earth transition: cracks of light.**
