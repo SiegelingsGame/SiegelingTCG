@@ -1,3 +1,31 @@
+Original prompt: Make the animations more efficient the site is slogging now
+
+- October 28, 2026 **Animations: cheaper page transitions, a session fallback for slow devices, and the shield corona only animating while open.**
+  - **Change.**
+    - **Page transitions (`page-transitions.js`).**
+      - **Ice and wind:** the old page's snapshot no longer animates `blur()` (ice freeze, wind gust). Re-blurring a whole-screen snapshot every frame was the most expensive thing in any effect. The colour shift stays.
+      - **Particles:** the earth sand and wind dust lose their `blur()`, since their radial gradients are already soft. Wind has 10 dust puffs, down from 16.
+      - **Earth:** the crack glow is a wide translucent under-stroke (`polygon.is-glow`) instead of two `drop-shadow` filters on an SVG that redraws every frame. There are at most about 20 plates (21 mask layers on a phone), down from about 40, since each plate is a mask layer.
+      - **Fire:** 6 circles, down from 10 (each is three gradient layers repainted per frame). It has 14 embers with the glow baked into their gradient, down from 22, each with a box-shadow.
+      - **Wind:** 8 mask bands, down from 12.
+      - **Slow-device fallback:** `watchFrames` counts frames while a non-water effect plays (in-page and cross-page). If one runs under 40fps, `sessionStorage.sgVtLite` makes only the water ripple (one mask layer) play for the rest of the session. A forced effect still wins, for testing.
+    - **Shield FAB (`shield-navigation.css`).** The corona's five infinite animations, on blurred, masked, screen-blended layers, used to run on every page at opacity 0. They now pause unless the shield is expanded, and the corona is `visibility:hidden` while the shield is closed, so nothing is composited.
+    - **Back pill:** it drops `backdrop-filter` for a more opaque fill, so it no longer re-blurs whatever scrolls beneath it.
+  - Cache pins: `page-transitions.js?v=10` (12 pages), `shield-navigation.css?v=7` (6 pages).
+  - **Verification.** `node --check` passes. Headless Chromium (CPU rendering, so the GPU savings from the removed blurs and filters don't show up here):
+    - **Main-thread cost** over 3s at 4x CPU throttle on the hub (390x844 @3x), frames forced:
+      - Idle: 637 to 517ms task, 218 to 144ms style.
+      - Water: 997 to 741ms.
+      - Fire: 1378 to 1207ms.
+      - Ice: 1110 to 1053ms.
+      - Earth: 1960 to 1612ms, with frames up from 102 to 125.
+      - Wind: 1336 to 1129ms, with frames up from 141 to 153.
+    - **Fallback:** unthrottled it stays off. At 20x throttle, the first effect (earth) sets `sgVtLite` and the next transition is water.
+    - **Visual check:** frames slowed to 10% show the fire hole, the earth plates and seams (21 mask layers, 22 overlay parts) and the wind front still reading as before.
+    - **Corona:** while closed it is hidden and its animations are paused. While open it is visible and they run.
+    - `tests/shield-navigation-check.cjs` passes at all 4 viewports.
+    - No page errors.
+
 Original prompt: A screen this wide should take up more space with the buttons use the full screen
 
 - October 28, 2026 **Siege resume fills a wide window; the FAB flanks grow on wide screens.**

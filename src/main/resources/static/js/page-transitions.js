@@ -60,6 +60,10 @@
   var KEY = 'sgVtOrigin';
   var FX_LAST = 'sgVtLastFx';
   var FX_FORCE = 'sgVtFx';
+  // Set for the rest of the session once a transition plays below LITE_FPS:
+  // from then on only the water ripple (one mask layer) plays.
+  var FX_LITE = 'sgVtLite';
+  var LITE_FPS = 40;
   var MAX_AGE_MS = 6000;
   var root = document.documentElement;
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -127,7 +131,8 @@
     // outside of that union (an intersection of complements) so no circle's
     // edge shows inside another's hole.
     fire: function (w, h) {
-      var cx = ox * w, cy = oy * h, n = 9, holes = [], edges = [], outside = [];
+      // Six circles: each one is three gradient layers repainted every frame.
+      var cx = ox * w, cy = oy * h, n = 5, holes = [], edges = [], outside = [];
       for (var i = 0; i <= n; i++) {
         var a = i === n ? 0 : (i / n) * Math.PI * 2 + rand(-0.3, 0.3);
         var off = i === n ? 0 : rand(0.1, 0.2), k = i === n ? 0.86 : rand(0.82, 0.92);
@@ -144,7 +149,7 @@
           '#sgFx.is-fire{background:' + edges.join(',') + ';' + mask(outside, { intersect: true }) + '}',
         fill: function (el) {
           var dist = Math.sqrt(w * w + h * h);
-          for (var j = 0; j < 22; j++) {
+          for (var j = 0; j < 14; j++) {
             var e = document.createElement('i'), t = rand(0, Math.PI * 2), d = rand(0.2, 0.55) * dist, s = rand(3, 7);
             e.className = 'sg-fx-ember';
             e.style.cssText = 'left:' + px(cx) + ';top:' + px(cy) + ';width:' + px(s) + ';height:' + px(s) +
@@ -177,9 +182,9 @@
     // cracks with a small puff of sand, and the new page shows from beneath.
     // Each plate is one mask layer - its own polygon, grown about its centroid.
     earth: function (w, h) {
-      // About 40 plates at most: every plate is a mask layer, redrawn each frame.
-      var size = Math.max(85, Math.sqrt(w * h / 40));
-      var cols = Math.max(3, Math.min(9, Math.round(w / size))), rows = Math.max(3, Math.min(11, Math.round(h / size)));
+      // About 20 plates at most: every plate is a mask layer, redrawn each frame.
+      var size = Math.max(110, Math.sqrt(w * h / 20));
+      var cols = Math.max(3, Math.min(6, Math.round(w / size))), rows = Math.max(3, Math.min(7, Math.round(h / size)));
       var cw = w / cols, ch = h / rows, cx = ox * w, cy = oy * h, sites = [];
       for (var r = 0; r < rows; r++) {
         for (var c = 0; c < cols; c++) {
@@ -224,7 +229,10 @@
                 pts.push(px0(p[0] + ex * f / 3 - ey / L * wob, p[1] + ey * f / 3 + ex / L * wob));
               }
             });
-            svg += '<polygon pathLength="1" points="' + pts.join(' ') + '" style="animation-delay:' + (pl.crack * EARTH_S).toFixed(3) + 's"/>';
+            var at = ' points="' + pts.join(' ') + '" style="animation-delay:' + (pl.crack * EARTH_S).toFixed(3) + 's"/>';
+            // A wide faint stroke under the seam is its glow; drop-shadow
+            // filters on a redrawn SVG cost a full repaint every frame.
+            svg += '<polygon class="is-glow" pathLength="1"' + at + '<polygon pathLength="1"' + at;
           });
           var wrap = document.createElement('div');
           wrap.className = 'sg-fx-cracks';
@@ -245,10 +253,10 @@
     // each with its front a little ahead or behind, and a cloud of dust puffs
     // rolls along that front with wind streaks overtaking it.
     wind: function (w, h) {
-      var ltr = ox < 0.5, ang = ltr ? '90deg' : '270deg', bands = 12, bh = h / bands, phase = rand(0, 6);
+      var ltr = ox < 0.5, ang = ltr ? '90deg' : '270deg', bands = 8, bh = h / bands, phase = rand(0, 6);
       var imgs = [], sizes = [], poss = [];
       for (var i = 0; i < bands; i++) {
-        var off = (Math.sin(i * 0.9 + phase) * 7 + rand(-2, 2)).toFixed(1);
+        var off = (Math.sin(i * 1.3 + phase) * 7 + rand(-2, 2)).toFixed(1);
         var P = 'calc(var(--vt-t) * 150% - 20% + ' + off + '%)';
         imgs.push('linear-gradient(' + ang + ', #000 calc(' + P + ' - 20%), transparent ' + P + ')');
         sizes.push('100% ' + px(bh + 2));
@@ -261,7 +269,7 @@
         fill: function (el) {
           var dust = document.createElement('div');
           dust.className = 'sg-fx-dust';
-          for (var j = 0; j < 16; j++) {
+          for (var j = 0; j < 10; j++) {
             var p = document.createElement('i'), s = rand(90, 230);
             p.style.cssText = 'top:' + rand(-8, 92).toFixed(1) + '%;left:' + rand(15, 70).toFixed(1) + '%;width:' + px(s) + ';height:' + px(s) +
               ';--spin:' + (ltr ? 1 : -1) * rand(180, 420) + 'deg;animation-delay:' + rand(-0.4, 0).toFixed(2) + 's';
@@ -359,8 +367,10 @@
     FX + 'fire"]::view-transition-old(root) { animation: sgFxHeat 1s ease-in both; }' +
     FX + 'fire"]::view-transition-new(root) { animation: sgFxBurn 1s cubic-bezier(.45,.05,.35,1) both; }' +
     '#sgFx.is-fire { animation: sgFxBurn 1s cubic-bezier(.45,.05,.35,1) both, sgFxOut 1s linear both; }' +
-    '.sg-fx-ember { border-radius: 50%; margin: -3px 0 0 -3px; background: radial-gradient(circle, #fff6c8 0 30%, #ffb43c 55%, rgba(255,90,20,0) 72%);' +
-      ' box-shadow: 0 0 8px 2px rgba(255,140,40,.75); animation: sgFxEmber .8s ease-out both; }' +
+    // The gradient is the glow: a box-shadow per ember cost a repaint each frame.
+    '.sg-fx-ember { border-radius: 50%; margin: -6px 0 0 -6px; padding: 3px; box-sizing: content-box;' +
+      ' background: radial-gradient(circle, #fff6c8 0 18%, #ffb43c 38%, rgba(255,140,40,.45) 58%, rgba(255,90,20,0) 72%);' +
+      ' animation: sgFxEmber .8s ease-out both; }' +
     '@keyframes sgFxHeat { to { filter: sepia(.4) saturate(1.5) brightness(.9); } }' +
     '@keyframes sgFxBurn { from { --vt-r: 0px; } to { --vt-r: calc(var(--vt-max) * 1.2); } }' +
     '@keyframes sgFxOut { 0%, 86% { opacity: 1; } 100% { opacity: 0; } }' +
@@ -375,7 +385,8 @@
       ' repeating-linear-gradient(118deg, rgba(255,255,255,0) 0 34px, rgba(255,255,255,.12) 34px 35px),' +
       ' ' + FROST_NOISE + ', linear-gradient(rgba(200,230,255,.28), rgba(200,230,255,.28)); }' +
     '#sgFx.is-ice::after { content: ""; position: absolute; inset: 0; }' +
-    '@keyframes sgFxFreeze { 0% { filter: none; } 42%, 100% { filter: saturate(.35) brightness(1.12) contrast(.9) blur(1.5px); } }' +
+    // No blur: re-blurring a whole-screen snapshot every frame stalled phones.
+    '@keyframes sgFxFreeze { 0% { filter: none; } 42%, 100% { filter: saturate(.35) brightness(1.12) contrast(.9); } }' +
     '@keyframes sgFxSweep { 0%, 42% { --vt-t: 0; animation-timing-function: cubic-bezier(.5,.05,.3,1); } 100% { --vt-t: 1; } }' +
     '@keyframes sgFxFrost { 0% { opacity: 0; transform: scale(1.06); } 40% { opacity: 1; transform: scale(1); } 100% { opacity: 1; transform: scale(1); } }' +
 
@@ -392,10 +403,10 @@
     // Seams of light. Neutral grey, not white: under colour-dodge a mid grey
     // lifts the page's own colours along the seam instead of burning to white.
     '.sg-fx-cracks polygon { fill: none; stroke: rgb(170,170,170); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round;' +
-      ' stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 3px rgba(150,150,150,.9)) drop-shadow(0 0 9px rgba(110,110,110,.75));' +
-      ' animation: sgFxCrack .4s ease-out forwards; }' +
+      ' stroke-dasharray: 1; stroke-dashoffset: 1; animation: sgFxCrack .4s ease-out forwards; }' +
+    '.sg-fx-cracks polygon.is-glow { stroke: rgba(120,120,120,.45); stroke-width: 9; }' +
     '.sg-fx-sand { opacity: 0; border-radius: 50%; background: radial-gradient(circle, rgba(140,140,140,.7) 0, rgba(110,110,110,.4) 38%, rgba(110,110,110,0) 70%);' +
-      ' filter: blur(3px); animation: sgFxSand .5s ease-out forwards; }' +
+      ' animation: sgFxSand .5s ease-out forwards; }' +
     '@keyframes sgFxT { from { --vt-t: 0; } to { --vt-t: 1; } }' +
     // The old page dries out to a pale, salty crust before it gives way.
     '@keyframes sgFxSalt { 0% { filter: none; } 30%, 100% { filter: sepia(.32) saturate(.45) brightness(1.2) contrast(.86); } }' +
@@ -409,11 +420,11 @@
     '#sgFx.is-wind { animation: sgFxT 1.05s cubic-bezier(.4,.1,.5,1) both, sgFxOut 1.05s linear both; }' +
     '.sg-fx-dust { position: absolute; top: 0; left: 0; width: 70vw; height: 100%; }' +
     '.sg-fx-dust > i { position: absolute; display: block; border-radius: 50%; margin: -50px 0 0 -50px;' +
-      ' background: radial-gradient(circle, rgba(226,208,172,.62) 0, rgba(204,184,148,.38) 38%, rgba(190,170,135,0) 70%);' +
-      ' filter: blur(5px); animation: sgFxRoll 1.05s linear both; }' +
+      ' background: radial-gradient(circle, rgba(226,208,172,.58) 0, rgba(204,184,148,.34) 34%, rgba(190,170,135,.12) 54%, rgba(190,170,135,0) 70%);' +
+      ' animation: sgFxRoll 1.05s linear both; }' +
     '.sg-fx-streak { height: 2px; left: 0; border-radius: 2px; background: linear-gradient(90deg, rgba(255,250,235,0), rgba(255,250,235,.6), rgba(255,250,235,0));' +
       ' opacity: 0; animation: sgFxStreak .55s ease-in both; }' +
-    '@keyframes sgFxGust { to { transform: translateX(calc(var(--vt-dir, 1) * 2%)); filter: blur(1.5px) brightness(.88) sepia(.2); } }' +
+    '@keyframes sgFxGust { to { transform: translateX(calc(var(--vt-dir, 1) * 2%)); filter: brightness(.88) sepia(.2); } }' +
     '@keyframes sgFxRoll { from { transform: rotate(0) scale(.7); } to { transform: rotate(var(--spin)) scale(1.3); } }' +
     '@keyframes sgFxStreak { 0% { opacity: 0; transform: translateX(var(--from)); } 25% { opacity: 1; } 100% { opacity: 0; transform: translateX(var(--to)); } }' +
 
@@ -459,6 +470,7 @@
       var forced = localStorage.getItem(FX_FORCE);
       if (forced && EFFECTS.indexOf(forced) !== -1) return forced;
     } catch (e) { /* storage blocked: random */ }
+    try { if (sessionStorage.getItem(FX_LITE)) return 'water'; } catch (e) { /* ignore */ }
     var last = '';
     try { last = sessionStorage.getItem(FX_LAST) || ''; } catch (e) { /* ignore */ }
     var pool = EFFECTS.length > 1 ? EFFECTS.filter(function (f) { return f !== last; }) : EFFECTS;
@@ -492,6 +504,24 @@
     // render, including its boot render mid-way through an arriving effect.
     root.appendChild(el);
   }
+  // Counts frames while an effect plays. A device that can't hold LITE_FPS
+  // drops to the water ripple for the session instead of stuttering through
+  // the heavier effects on every navigation.
+  function watchFrames(run) {
+    if (run.fx === 'water' || !window.requestAnimationFrame || !window.performance) return function () {};
+    var frames = 0, start = performance.now(), live = true;
+    (function tick() { if (!live) return; frames++; requestAnimationFrame(tick); })();
+    return function () {
+      live = false;
+      var secs = (performance.now() - start) / 1000;
+      // Too short to judge: a skipped or interrupted transition.
+      if (secs < 0.5) return;
+      if (frames / secs < LITE_FPS) {
+        try { sessionStorage.setItem(FX_LITE, '1'); } catch (e) { /* ignore */ }
+      }
+    };
+  }
+
   // A newer transition may have started before an older one's promise settles;
   // only the latest one tidies up.
   function cleanup(run) {
@@ -510,7 +540,8 @@
     }
     var r = prepare();
     var vt = document.startViewTransition(function () { update(); attach(r); });
-    var done = function () { cleanup(r); };
+    var judge = watchFrames(r);
+    var done = function () { judge(); cleanup(r); };
     vt.finished.then(done, done);
     // A transition is skipped (and `ready` rejects) when another is already
     // playing - say the hub finishes loading while the page's arrival effect
@@ -573,7 +604,8 @@
     if (!enabled()) { e.viewTransition.skipTransition(); return; }
     var r = prepare();
     attach(r);
-    var done = function () { cleanup(r); };
+    var judge = watchFrames(r);
+    var done = function () { judge(); cleanup(r); };
     e.viewTransition.finished.then(done, done);
   });
 

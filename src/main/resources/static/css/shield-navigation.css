@@ -113,6 +113,10 @@
    starts to open or close. */
 .sn-corona { position:absolute; inset:-46px; pointer-events:none; opacity:0; transform:scale(.6); transition:opacity .45s ease, transform .7s cubic-bezier(.2,.8,.2,1); }
 .sn-fab[aria-expanded="true"] .sn-corona { opacity:1; transform:scale(1); }
+/* The corona's blurred, screen-blended layers only animate while it shows:
+   left running at opacity 0, they kept the GPU compositing them on every page. */
+.sn-fab:not([aria-expanded="true"]) .sn-corona > i { animation-play-state:paused; }
+.sn-root:not([data-state]) .sn-corona, .sn-root[data-state="closed"] .sn-corona { visibility:hidden; }
 .sn-corona > i { position:absolute; inset:0; border-radius:50%; }
 .sn-corona-glow { background:radial-gradient(circle closest-side, rgba(255,236,180,.85) 0 40%, rgba(255,206,110,.42) 50%, rgba(240,160,60,.14) 70%, transparent 100%); filter:blur(2px); animation:sn-corona-breathe 3.4s ease-in-out infinite; }
 .sn-corona-rays { background:conic-gradient(from 8deg, transparent 0deg, rgba(255,226,150,.55) 6deg, transparent 13deg, rgba(255,205,110,.28) 24deg, transparent 31deg, transparent 44deg, rgba(255,236,176,.7) 50deg, transparent 58deg, rgba(255,214,128,.35) 71deg, transparent 80deg, transparent 98deg, rgba(255,226,150,.5) 105deg, transparent 112deg, rgba(255,198,96,.25) 128deg, transparent 139deg, rgba(255,240,190,.62) 151deg, transparent 158deg, transparent 176deg, rgba(255,214,128,.42) 186deg, transparent 197deg, rgba(255,232,165,.58) 214deg, transparent 221deg, rgba(255,205,110,.3) 236deg, transparent 247deg, transparent 262deg, rgba(255,238,184,.66) 270deg, transparent 278deg, rgba(255,214,128,.32) 293deg, transparent 303deg, rgba(255,226,150,.5) 322deg, transparent 331deg, rgba(255,205,110,.26) 346deg, transparent 360deg); -webkit-mask-image:radial-gradient(circle closest-side, transparent 38%, #000 45%, rgba(0,0,0,.55) 64%, transparent 100%); mask-image:radial-gradient(circle closest-side, transparent 38%, #000 45%, rgba(0,0,0,.55) 64%, transparent 100%); filter:blur(2.5px); mix-blend-mode:screen; animation:sn-corona-turn 46s linear infinite, sn-corona-flicker 5.2s ease-in-out infinite; }
@@ -256,8 +260,9 @@
 .sn-back {
   display:inline-flex; align-items:center; gap:6px; box-sizing:border-box; flex:0 0 auto;
   height:36px; padding:0 14px 0 11px; margin:0; border-radius:99px;
-  border:1px solid rgba(217,180,95,.6); background:rgba(12,11,38,.74); color:#f4e6bf;
-  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+  /* Opaque enough to read over art without a backdrop blur, which re-blurs
+     whatever scrolls beneath it every frame. */
+  border:1px solid rgba(217,180,95,.6); background:rgba(12,11,38,.86); color:#f4e6bf;
   box-shadow:0 4px 14px rgba(0,0,0,.4);
   font:800 13px/1 ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   letter-spacing:.04em; text-decoration:none; text-transform:none; cursor:pointer; touch-action:manipulation;
