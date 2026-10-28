@@ -7276,7 +7276,8 @@
   // "All 42" beside them: no endpoint reports a badge, so the section is gone
   // rather than decorated with fiction. Recent now reads the account's own
   // match history, which /api/player/progression really does return.
-  function recentMarkup(opts) {
+  function recentMarkup(opts, limit) {
+    limit = limit || 5;
     var live = opts.live || {};
     var review = window.SiegelingsMatchReview;
     var hist = live.matchHistory || [];
@@ -7290,9 +7291,9 @@
     // list still renders as plain rows.
     if (review) {
       return '<div class="sg-stack sg-stack-tight">' +
-        review.mergeRecent(hist, sieges, 5).map(review.rowMarkup).join('') + '</div>';
+        review.mergeRecent(hist, sieges, limit).map(review.rowMarkup).join('') + '</div>';
     }
-    return '<div class="sg-stack sg-stack-tight">' + hist.slice(0, 5).map(function (m) {
+    return '<div class="sg-stack sg-stack-tight">' + hist.slice(0, limit).map(function (m) {
       var won = m.result === 'WIN' || m.result === 'win' || m.won === true;
       var mode = title(m.matchType || 'Match');
       var against = m.opponentName ? 'vs ' + m.opponentName : (m.loadoutLabel || '');
@@ -7455,21 +7456,113 @@
         '<span class="sg-gtab-art">' + hubPanelImage(item[0]) + '</span>' +
         '<span class="sg-gtab-label">' + item[1] + '</span><i class="sg-gtab-gem"></i>' +
         (item[0] === 'messages' && unreadThreadCount(opts) ? '<i class="sg-tab-badge">' + esc(unreadThreadCount(opts)) + '</i>' : '') + '</a>';
-    }).join('') + '<button class="sg-gtab" type="button" data-profile-history><span class="sg-gtab-art">' + hubPanelImage('history') + '</span><span class="sg-gtab-label">Recent matches</span><i class="sg-gtab-gem"></i></button></nav>';
+    }).join('') + '<button class="sg-gtab" type="button" data-profile-history aria-pressed="false"><span class="sg-gtab-art">' + hubPanelImage('history') + '</span><span class="sg-gtab-label">Recent matches</span><i class="sg-gtab-gem"></i></button></nav>';
+  }
+
+  /* Match history is a view of the profile, not a popup: the Recent matches
+     plate swaps the profile's blocks for the full list in the same space, the
+     list swelling out of the plate the way Home's panels grow from their
+     buttons. The Profile plate (or the list's close) swaps back. From Friends,
+     Messages or Lobbies the plate opens the profile straight on the list. */
+  var PROFILE_HISTORY_LIMIT = 40;
+  var profileOpenHistory = false;
+  var PROFILE_VIEW_CLOSE_MS = 200;
+
+  function profileHistoryMarkup(opts) {
+    var live = opts.live || {};
+    var hist = live.matchHistory || [];
+    var wins = hist.filter(function (m) { return m && (m.won === true || String(m.result).toUpperCase() === 'WIN'); }).length;
+    var runs = (live.siegeHistory || []).length;
+    var bits = [];
+    if (hist.length) bits.push(wins + 'W \u2013 ' + (hist.length - wins) + 'L');
+    if (runs) bits.push(runs + ' Siege run' + (runs === 1 ? '' : 's'));
+    return '<section class="sg-section sg-prof-history" data-prof-block="history" hidden aria-label="Match history">' +
+      '<header class="sg-prof-history-head">' +
+        '<div><h3>Match history</h3>' + (bits.length ? '<p>' + esc(bits.join(' \u00b7 ')) + '</p>' : '') + '</div>' +
+        '<button type="button" class="sg-prof-history-x" data-prof-history-close aria-label="Back to profile">&times;</button>' +
+      '</header>' +
+      '<div class="sg-prof-history-list">' + recentMarkup(opts, PROFILE_HISTORY_LIMIT) + '</div>' +
+    '</section>';
+  }
+
+  // Grow from (or shrink back into) `from`: the origin is its centre in the
+  // panel's own coordinates, as aimSheet does for Home's panels.
+  function aimFrom(panel, from) {
+    var box = panel.getBoundingClientRect();
+    var r = from && from.getBoundingClientRect ? from.getBoundingClientRect() : null;
+    panel.style.setProperty('--sheet-ox', Math.round(r && r.width ? r.left + r.width / 2 - box.left : box.width / 2) + 'px');
+    panel.style.setProperty('--sheet-oy', Math.round(r && r.height ? r.top + r.height / 2 - box.top : 0) + 'px');
+  }
+
+  function setProfileView(app, history, animate) {
+    var layout = app.querySelector('.sg-prof-layout');
+    var panel = layout && layout.querySelector('[data-prof-block="history"]');
+    if (!panel) return false;
+    var plate = app.querySelector('[data-profile-history]');
+    var home = app.querySelector('.sg-profile-nav [data-screen="profile"]');
+    var showing = layout.classList.contains('is-history');
+    if (plate) { plate.classList.toggle('on', history); plate.setAttribute('aria-pressed', String(history)); }
+    if (home) home.classList.toggle('on', !history);
+    if (history === showing && !panel.classList.contains('is-closing')) return true;
+    clearTimeout(layout.__viewTimer);
+    var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (history) {
+      panel.classList.remove('is-closing');
+      panel.hidden = false;
+      layout.classList.add('is-history');
+      layout.classList.remove('is-returning');
+      if (animate && !still) {
+        aimFrom(panel, plate);
+        panel.classList.remove('is-opening'); void panel.offsetWidth; panel.classList.add('is-opening');
+      }
+      var list = panel.querySelector('.sg-prof-history-list');
+      if (list) list.scrollTop = 0;
+      return true;
+    }
+    function done() {
+      panel.hidden = true;
+      panel.classList.remove('is-opening', 'is-closing');
+      layout.classList.remove('is-history');
+      layout.classList.remove('is-returning'); void layout.offsetWidth; layout.classList.add('is-returning');
+    }
+    if (!animate || still) { done(); return true; }
+    aimFrom(panel, plate);
+    panel.classList.remove('is-opening');
+    panel.classList.add('is-closing');
+    layout.__viewTimer = setTimeout(done, PROFILE_VIEW_CLOSE_MS);
+    return true;
   }
 
   function mountProfileNavigation(app, opts) {
+    if (profileOpenHistory) { profileOpenHistory = false; setProfileView(app, true, true); }
     app.addEventListener('click', function (event) {
-      if (!event.target.closest('[data-profile-history]')) return;
-      var dialog = document.createElement('dialog');
-      dialog.className = 'sg-profile-history';
-      dialog.setAttribute('aria-label', 'Recent matches');
-      dialog.innerHTML = '<header><h2>Recent matches</h2><button type="button" aria-label="Close recent matches">×</button></header>' + recentMarkup(opts);
-      app.appendChild(dialog);
-      dialog.querySelector('header button').onclick = function () { dialog.close(); };
-      dialog.addEventListener('click', function (e) { if (e.target === dialog || e.target.closest('[data-review]')) dialog.close(); });
-      dialog.addEventListener('close', function () { dialog.remove(); });
-      dialog.showModal();
+      if (!event.target.closest) return;
+      var plate = event.target.closest('[data-profile-history]');
+      if (plate) {
+        var layout = app.querySelector('.sg-prof-layout');
+        // Friends, Messages and Lobbies carry no profile: open it on the list.
+        if (!layout) {
+          profileOpenHistory = true;
+          if (onNavigate) onNavigate('profile');
+          return;
+        }
+        setProfileView(app, !layout.classList.contains('is-history'), true);
+        return;
+      }
+      if (event.target.closest('[data-prof-history-close]')) { setProfileView(app, false, true); return; }
+      // The Profile plate, while the list is showing, swaps back in place
+      // rather than re-rendering the screen it is already on.
+      var home = event.target.closest('.sg-profile-nav [data-screen="profile"]');
+      var open = app.querySelector('.sg-prof-layout.is-history');
+      if (home && open) {
+        event.preventDefault();
+        event.stopPropagation();
+        setProfileView(app, false, true);
+      }
+    });
+    app.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && app.querySelector('.sg-prof-layout.is-history') &&
+          !app.querySelector('.sg-sheet.open')) setProfileView(app, false, true);
     });
   }
 
@@ -7597,12 +7690,8 @@
           '<div class="sg-swipe" data-art-fit-group="showcase" data-count="' + cards.length + '">' + cards.map(function (c) { return featTile(c, prefs().favoriteCardId); }).join('') + '</div>' +
         '</section>' +
         signatureSection(opts) +
-        '<section class="sg-section" data-prof-block="recent">' +
-          '<div class="sg-section-head"><h3>Recent</h3></div>' +
-          recentMarkup(opts) +
-        '</section>' +
-      '</div>' +
-      '<div style="height:96px"></div>';
+        profileHistoryMarkup(opts) +
+      '</div>';
   }
 
   /* ---------- profile editor ----------
@@ -7754,7 +7843,7 @@
     var panels = { showcase: showcasePanel, favorite: favoritePanel, look: lookPanel, details: detailsPanel };
     var active = panels[tab] ? tab : 'showcase';
     return '<div class="sg-sheet-grab"></div>' +
-      '<div class="sg-prof-head"><h3>Customize profile</h3>' +
+      '<div class="sg-prof-sheet-head"><h3>Customize profile</h3>' +
         '<button class="sg-prof-x" type="button" data-prof-close aria-label="Close">×</button></div>' +
       '<div class="sg-sheet-tabs" role="tablist">' + PROFILE_TABS.map(function (t) {
         return '<button class="sg-sheet-tab' + (t[0] === active ? ' on' : '') + '" type="button" role="tab" ' +
@@ -7763,8 +7852,8 @@
       '<div class="sg-prof-panel" data-prof-panel>' + panels[active](opts) + '</div>' +
       '<p class="sg-prof-error" data-prof-error hidden></p>' +
       '<div class="sg-prof-actions">' +
-        '<button class="sg-prof-cancel" type="button" data-prof-close>Cancel</button>' +
-        '<button class="sg-prof-save" type="button" data-prof-save>Save</button>' +
+        '<button class="sg-prof-cancel sn-flank is-left" type="button" data-prof-close>Cancel</button>' +
+        '<button class="sg-prof-save sn-flank is-right is-gold" type="button" data-prof-save>Save</button>' +
       '</div>';
   }
 
@@ -7814,16 +7903,34 @@
         if (kept.rows[i]) row.scrollLeft = kept.rows[i];
       });
     }
-    function open(which) {
+    // Opens like Home's panels: the card swells out of the button that was
+    // tapped, and shrinks back toward it on close.
+    var opener = null, closing = null;
+    var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+    function open(which, from) {
+      clearTimeout(closing); closing = null;
+      sheet.classList.remove('is-closing');
       tab = which || 'showcase';
       PROFILE_DRAFT = null;
       draft();
       paint();
+      opener = from || null;
       sheet.classList.add('open');
+      if (still && still.matches) return;
+      aimFrom(card, opener);
+      sheet.classList.remove('is-opening'); void sheet.offsetWidth; sheet.classList.add('is-opening');
     }
     function close() {
-      sheet.classList.remove('open');
       PROFILE_DRAFT = null;
+      if (!sheet.classList.contains('open') || closing) return;
+      if (still && still.matches) { sheet.classList.remove('open', 'is-opening'); return; }
+      aimFrom(card, opener && opener.isConnected ? opener : null);
+      sheet.classList.remove('is-opening');
+      sheet.classList.add('is-closing');
+      closing = setTimeout(function () {
+        closing = null;
+        sheet.classList.remove('open', 'is-closing');
+      }, PROFILE_VIEW_CLOSE_MS);
     }
     function fail(message) {
       var box = card.querySelector('[data-prof-error]');
@@ -7833,10 +7940,10 @@
     }
 
     app.addEventListener('click', function (e) {
-      var opener = e.target.closest ? e.target.closest('[data-prof-open]') : null;
-      if (opener && !sheet.contains(opener)) {
+      var btn = e.target.closest ? e.target.closest('[data-prof-open]') : null;
+      if (btn && !sheet.contains(btn)) {
         e.preventDefault();
-        open(opener.getAttribute('data-prof-open'));
+        open(btn.getAttribute('data-prof-open'), btn);
       }
     });
     sheet.addEventListener('click', function (e) {
