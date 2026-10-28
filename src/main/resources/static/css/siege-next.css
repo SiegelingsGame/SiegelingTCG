@@ -460,6 +460,7 @@ body[data-screen="resumeScreen"] .siege-title { font-size: 14px; opacity: .85; }
    beside the mode badge, so nothing sits under the dock. */
 @media (orientation: landscape) and (max-height: 600px) {
     .resume-save-actions.is-solo { position: absolute; top: 12px; right: 14px; margin: 0; }
+    #resumeSaves > .resume-save:only-child .resume-save-actions.is-solo { top: calc(var(--sn-sat) + 54px); right: max(12px, env(safe-area-inset-right, 0px)); width: auto; }
     .resume-save-actions.is-solo .siege-btn { min-height: 34px; padding: 0 14px; font-size: 13px; }
 }
 
@@ -826,9 +827,37 @@ body:is([data-screen="battleScreen"], [data-screen="mapScreen"]) .sn-back.siege-
 /* Above the screens, below the unit/lock modals (60) and the run menu (70). */
 :root { --sn-z: 58; }
 
+/* The launch screens carry no title banner: the pill alone holds the top. */
+body:is(:not([data-screen]), [data-screen="loadingScreen"], [data-screen="resumeScreen"], [data-screen="setupScreen"]) .siege-title,
+#resumeScreen > h1, #resumeScreen > .siege-sub { display: none; }
+
 /* Resume: New run and Continue flank the shield FAB. */
 body[data-screen="resumeScreen"] .siege-app { padding-bottom: calc(var(--sn-dock-h) + 6px); }
-.resume-dock { --sn-dock-fill: rgba(13, 10, 38, .9); }
+.resume-dock { --sn-dock-fill: rgba(13, 10, 38, .55); }
+/* One save: its scene is the backdrop of the whole screen, running under the
+   pill and the dock, with the warband and meta at its foot above the dock. */
+#resumeSaves > .resume-save:only-child {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding:
+        calc(var(--sn-sat) + 54px)
+        max(12px, env(safe-area-inset-right, 0px))
+        calc(var(--sn-dock-h) + 10px)
+        max(12px, env(safe-area-inset-left, 0px));
+}
+#resumeSaves > .resume-save:only-child > * { width: 100%; max-width: 1120px; margin-left: auto; margin-right: auto; }
+/* auto-fit, so a wide screen gives the warband's chips the row rather than empty tracks. */
+#resumeSaves > .resume-save:only-child .party-strip { grid-template-columns: repeat(auto-fit, minmax(150px, 270px)); }
+#resumeSaves > .resume-save:only-child::before {
+    background:
+        linear-gradient(180deg, rgba(13, 10, 38, .5) 0%, rgba(13, 10, 38, 0) 18%, rgba(13, 10, 38, .1) 36%, rgba(13, 10, 38, .78) 60%, rgba(13, 10, 38, .94) 100%),
+        linear-gradient(180deg, color-mix(in srgb, var(--save-accent, var(--accent)) 18%, transparent), transparent 40%);
+}
 
 /* Knight and warband steps: back and forward flank the FAB, with the running
    summary centred just above them. The dock is fixed, so the step slide-in

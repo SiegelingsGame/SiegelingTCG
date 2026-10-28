@@ -1,3 +1,19 @@
+Original prompt: The top headers in play modes can be removed it's just taking up space. Instead use that space place the art as the background same as widescreen. On landscape the artwork should extend behind the fab button action area with back etc. it shop always be full screen
+
+- October 28, 2026 **Launch screens: no title banners, full-screen art behind everything including the FAB dock.**
+  - **Change.**
+    - **Arena (`play-next.css`).** The hero band collapses to the back pill. The kicker, title and pitch are gone, except on an invite, where that line is the only place the room is named. The Battle art is now the whole box's backdrop in every orientation, as it already was on landscape phones. The overlay no longer stops above the dock: the box runs to the bottom edge with the dock height as bottom padding, so the art continues under the flanks. The dock fade and the summary bar are translucent.
+    - **Dominion (`dominion.css`).** The banner is gone, leaving only the pill. The single plate fills the screen as the backdrop, with its copy at the foot above the dock.
+    - **Siege (`siege-next.css`).** "Welcome Back", its sub line and the SIEGE wordmark are hidden on the launch screens. A single save's plate is the full-screen backdrop (`position:fixed; inset:0`) with the warband and meta at its foot, and its chips use `auto-fit` so a wide screen fills the row. Two saves keep their stacked plates.
+    - **Gauntlet (`gauntlet.css`).** On the start screen the title and the header's bar are gone, and the earth-warband scene from the Arena's Gauntlet card covers the screen.
+  - Cache pins: `play-next.css?v=18`, `siege-next.css?v=21`, `dominion.css?v=24`, `gauntlet.css?v=17`.
+  - **Verification.** Headless Chromium:
+    - **Arena:** all four steps at 390x844, 844x390 and 1920x1080. The box spans the full viewport (0 to the bottom edge), the art shows under the dock, the dock buttons sit level with the FAB, and the pill is at x=12 on every step.
+    - **Dominion and Gauntlet:** 390x844, 844x390 and 1920x1080. On Dominion the plate covers 0,0 to the full viewport.
+    - **Siege:** resume with one and two saves, and the mode, knight and warband steps, at the same sizes.
+    - **Blur band:** with `--sn-sat` forced to 99px, none of the four launch screens has topmost visible text above 99px.
+    - No page errors.
+
 Original prompt: Update the position of the odds binder and in art buttons next to the (starter) tag under the pack name. Move the two open buttons on the left and right side of the siegeling FAB and make them flush with FAB with semicircle cuts in directional points outward. Update the play mode launch menus screens to have the same locations for a dedicated back button and reformat them to support the new logo FAB button menu in the center of the screen. Mesh the design and feel of game mode launch screens. Fix the blur in the top safe zone of the phone as well so all text is visible prior to any blur
 
 - October 28, 2026 **Shop and play-mode launch screens: buttons flank the S FAB, one back pill, text clears the iOS blur band.**

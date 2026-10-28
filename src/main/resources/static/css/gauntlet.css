@@ -1087,7 +1087,18 @@ ins.gt-now { background: rgba(230, 205, 140, 0.12); border-radius: 4px; padding:
 /* ---- Start screen: Draft my ten flanks the shield FAB ----
    The FAB stacks over the screens and under the card sheet (20). */
 :root { --sn-z: 19; }
-.gt-cta.sn-dock { display: grid; justify-content: normal; --sn-dock-fill: rgba(11, 16, 32, .94); }
+/* No title banner on the start screen: the pill holds the top, and the
+   Gauntlet's art (the same scene as its Arena mode card) is the backdrop of
+   the whole screen, running under the dock in every orientation. */
+body[data-screen="start"] {
+  background:
+    linear-gradient(180deg, rgba(11, 16, 32, 0.6) 0%, rgba(11, 16, 32, 0.5) 40%, rgba(11, 16, 32, 0.88) 100%),
+    url('/img/gallery/earth-warband.webp') center 35% / cover no-repeat,
+    var(--gt-bg);
+}
+body[data-screen="start"] .gt-top { border-bottom: 0; background: none; }
+body[data-screen="start"] .gt-title { display: none; }
+.gt-cta.sn-dock { display: grid; justify-content: normal; --sn-dock-fill: rgba(11, 16, 32, .5); }
 .gt-screen#screenStart { padding-bottom: calc(var(--sn-dock-h) + 4px); }
 /* Past the shell's max width the column centres; the back pill keeps the
    screen corner every other launch screen uses. */

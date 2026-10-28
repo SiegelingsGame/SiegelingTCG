@@ -1587,19 +1587,40 @@
 }
 
 /* ---- Launch-screen chrome, shared with Siege, Gauntlet and Dominion ----
-   The back pill holds the top-left corner below the status bar, and on an
-   installed iPhone app below the blur band iOS draws under it (--sn-sat), so no
-   text sits in the blur. Back and forward are flank buttons either side of the
-   shield FAB, in a fixed dock; the box ends above that dock. */
+   No title banner: the back pill holds the top-left corner below the status
+   bar (and below the blur band iOS draws under it in an installed app,
+   --sn-sat), and the Battle artwork is the backdrop of the whole screen in
+   every orientation, as on a landscape phone. The box runs to the bottom edge
+   so the art carries on under the dock, where Back and forward flank the
+   shield FAB; the box's own bottom padding keeps content clear of the dock. */
 /* The loadout overlay stacks at 1900 and the HUD's dialogs at 2200. */
 :root { --sn-z: 2050; }
 
 .loadout-overlay.visible {
     padding-top: 0;
-    padding-bottom: var(--sn-dock-h);
+    padding-bottom: 0;
 }
 
-.loadout-dock { --sn-dock-fill: #0d0a26; }
+.loadout-overlay .loadout-box {
+    padding-bottom: var(--sn-dock-h) !important;
+    background-color: #0d0a26;
+    background-image:
+        radial-gradient(ellipse 60% 70% at 8% 100%, rgba(240, 91, 47, 0.36), transparent 70%),
+        radial-gradient(ellipse 55% 65% at 100% 0%, rgba(123, 92, 255, 0.36), transparent 70%),
+        linear-gradient(180deg, rgba(13, 10, 38, 0.55) 0%, rgba(13, 10, 38, 0.42) 40%, rgba(13, 10, 38, 0.78) 100%),
+        url('/img/gallery/bearzooka-rampage.webp');
+    background-size: cover;
+    background-position: center, center, center, center 30%;
+}
+
+/* The art shows through the dock and the summary line above it. */
+.loadout-dock { --sn-dock-fill: rgba(13, 10, 38, 0.6); }
+.loadout-overlay .loadout-box > .loadout-nav {
+    background: linear-gradient(0deg, rgba(13, 10, 38, 0.82), rgba(13, 10, 38, 0.45));
+    border-top: 0;
+    box-shadow: none;
+}
+
 .loadout-dock-btn {
     white-space: normal;
     text-wrap: balance;
@@ -1618,30 +1639,35 @@
     animation: loadout-btn-spin 0.7s linear infinite;
 }
 
-/* The hero's side padding changes per step; the pill stays 12px in. */
-.loadout-back-link { position: relative; z-index: 1; align-self: flex-start; margin-left: calc(12px - var(--loadout-padding)); }
-
-/* The step-specific compact heroes above set their own top padding; the inset
-   has to win over all of them, or the pill slides back under the blur band. */
+/* The hero shrinks to the pill (plus the room badge on an invite). The step
+   heroes above set their own padding with heavier selectors, so the inset and
+   the collapse have to win over all of them. */
 .loadout-overlay .loadout-box > .loadout-hero {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    min-height: 0;
+    margin-bottom: 10px;
     padding-top: calc(var(--sn-sat) + 8px) !important;
+    padding-bottom: 0 !important;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    overflow: visible;
 }
+.loadout-overlay .loadout-box > .loadout-hero::after { display: none; }
+/* An invite keeps its line: it is the only place the room is named. */
+.loadout-overlay:not(.invite-flow) .loadout-hero-copy { display: none; }
 
-@media (orientation: portrait), (min-height: 601px) {
-    .loadout-overlay .loadout-box > .loadout-hero {
-        flex-direction: column;
-        align-items: stretch;
-        justify-content: flex-start;
-        gap: 10px;
-    }
-
-    .loadout-overlay .loadout-hero-copy { padding-right: 0; }
-}
+/* The hero's side padding changes per step; the pill stays 12px in. */
+.loadout-back-link { position: relative; z-index: 1; margin-left: calc(12px - var(--loadout-padding)); }
 
 /* A short landscape screen keeps its one-line top bar: the pill leads it. */
 @media (orientation: landscape) and (max-height: 600px) {
-    .loadout-overlay .loadout-box > .loadout-hero { gap: 10px; }
-    .loadout-overlay .loadout-back-link { align-self: center; height: 32px; }
+    .loadout-overlay .loadout-box > .loadout-hero { margin-bottom: 0; }
+    /* The box pads 12px here whatever the step's --loadout-padding says. */
+    .loadout-overlay .loadout-back-link { height: 32px; margin-left: 0; }
     .loadout-overlay[data-loadout-step="setup"] .loadout-steps { margin-right: 0; }
 }
 

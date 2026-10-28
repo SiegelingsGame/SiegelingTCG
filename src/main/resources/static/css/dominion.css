@@ -1127,18 +1127,38 @@ button.dm-start-plate:hover > img { transform: scale(1.04); }
 .dm-cc-exit:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
 
 /* ---- Start screen: launch-screen chrome, shared with Arena, Siege and Gauntlet ----
-   The back pill holds the top-left corner, below the status bar and the
-   standalone blur band (--sn-sat), and the banner's copy starts under it.
-   Main Menu and the gold action are flank buttons around the shield FAB. The
-   FAB stacks over the start screen (35) and under the modal (40). */
+   No title banner: the plate's art is the backdrop of the whole screen, the
+   back pill holds the top-left corner below the status bar and the standalone
+   blur band (--sn-sat), and the plate's copy sits at its foot above Main Menu
+   and the gold action, which flank the shield FAB. The art runs under the dock
+   in every orientation. The FAB stacks over the start screen (35) and under
+   the modal (40). */
 :root { --sn-z: 38; }
-.dm-start-head { padding-top: calc(var(--sn-sat) + 52px); }
-.dm-start-back { position: absolute; z-index: 1; top: calc(var(--sn-sat) + 8px); left: max(12px, var(--sal)); }
-.dm-start-grid { padding-bottom: calc(var(--sn-dock-h) + 4px); }
+.dm-start-head {
+    position: absolute; z-index: 2; inset: 0 0 auto 0; min-height: 0; padding: 0; overflow: visible;
+    border-radius: 0; box-shadow: none; pointer-events: none;
+}
+.dm-start-head > :not(.dm-start-back) { display: none; }
+.dm-start-back { position: absolute; z-index: 1; top: calc(var(--sn-sat) + 8px); left: max(12px, var(--sal)); pointer-events: auto; }
+.dm-start-away { position: absolute; z-index: 2; top: calc(var(--sn-sat) + 52px); left: 0; right: 0; }
+.dm-start-grid.is-one { position: absolute; inset: 0; padding: 0; gap: 0; }
+.dm-start-grid.is-one .dm-start-plate { border: 0; border-radius: 0; box-shadow: none; animation: none; }
+.dm-start-grid.is-one .dm-start-plate:active { transform: none; }
+.dm-start-grid.is-one .dm-start-plate-veil {
+    background: linear-gradient(180deg, rgba(13,10,38,.45) 0%, rgba(13,10,38,0) 22%, rgba(13,10,38,0) 40%, rgba(13,10,38,.66) 64%, rgba(13,10,38,.95) 100%),
+        linear-gradient(180deg, color-mix(in srgb, var(--el) 18%, transparent), transparent 40%);
+}
+.dm-start-grid.is-one .dm-start-plate-body {
+    padding: 0 max(20px, var(--sal)) calc(var(--sn-dock-h) + 14px) max(20px, var(--sal));
+}
+.dm-start-grid.is-one .dm-start-plate-badge { top: calc(var(--sn-sat) + 12px); right: max(12px, var(--sar)); }
+@media (min-width: 900px) {
+    .dm-start-grid.is-one .dm-start-plate-body { padding-left: 48px; padding-right: 48px; }
+}
 .dm-start-bar.sn-dock {
     display: grid; grid-template-columns: minmax(0, 1fr) calc(var(--sn-flank-tuck) * 2) minmax(0, 1fr); gap: 0;
     padding: 0 max(10px, var(--sar)) calc(var(--sn-fab-bottom) + var(--sn-fab-size) / 2 - var(--sn-flank-h) / 2) max(10px, var(--sal));
-    background: none; border: 0; --sn-dock-fill: rgba(11, 9, 32, .92);
+    background: none; border: 0; --sn-dock-fill: rgba(11, 9, 32, .5);
 }
 .dm-start-bar.sn-dock > .sn-flank {
     display: flex; min-height: 0; max-width: 210px; border: 0; border-radius: 0; box-shadow: none;
@@ -1147,6 +1167,3 @@ button.dm-start-plate:hover > img { transform: scale(1.04); }
 }
 .dm-start-bar.sn-dock > .sn-flank.is-left { padding: 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px) 0 22px; }
 .dm-start-bar.sn-dock > .sn-flank.is-right { padding: 0 22px 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px); }
-@media (max-height: 520px) and (orientation: landscape) {
-    .dm-start-head { padding-top: calc(var(--sn-sat) + 50px); }
-}
