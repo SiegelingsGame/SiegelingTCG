@@ -460,7 +460,8 @@ body[data-screen="resumeScreen"] .siege-title { font-size: 14px; opacity: .85; }
    beside the mode badge, so nothing sits under the dock. */
 @media (orientation: landscape) and (max-height: 600px) {
     .resume-save-actions.is-solo { position: absolute; top: 12px; right: 14px; margin: 0; }
-    #resumeSaves > .resume-save:only-child .resume-save-actions.is-solo { top: calc(var(--sn-sat) + 54px); right: max(12px, env(safe-area-inset-right, 0px)); width: auto; }
+    #resumeSaves { flex-direction: row; }
+    .resume-save .party-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .resume-save-actions.is-solo .siege-btn { min-height: 34px; padding: 0 14px; font-size: 13px; }
 }
 
@@ -834,29 +835,52 @@ body:is(:not([data-screen]), [data-screen="loadingScreen"], [data-screen="resume
 /* Resume: New run and Continue flank the shield FAB. */
 body[data-screen="resumeScreen"] .siege-app { padding-bottom: calc(var(--sn-dock-h) + 6px); }
 .resume-dock { --sn-dock-fill: rgba(13, 10, 38, .55); }
-/* One save: its scene is the backdrop of the whole screen, running under the
-   pill and the dock, with the warband and meta at its foot above the dock. */
-#resumeSaves > .resume-save:only-child {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    margin: 0;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-    padding:
-        calc(var(--sn-sat) + 54px)
-        max(12px, env(safe-area-inset-right, 0px))
-        calc(var(--sn-dock-h) + 10px)
-        max(12px, env(safe-area-inset-left, 0px));
-}
-#resumeSaves > .resume-save:only-child > * { width: 100%; max-width: 1120px; margin-left: auto; margin-right: auto; }
-/* auto-fit, so a wide screen gives the warband's chips the row rather than empty tracks. */
-#resumeSaves > .resume-save:only-child .party-strip { grid-template-columns: repeat(auto-fit, minmax(150px, 270px)); }
-#resumeSaves > .resume-save:only-child::before {
+/* The resume screen has no top bar: Play is the dock's left flank, so the
+   cards start just under the status bar and the standalone blur band. */
+body[data-screen="resumeScreen"] .siege-topbar { display: none; }
+#resumeScreen:not(.hidden) { padding-top: calc(var(--sn-sat) - env(safe-area-inset-top, 0px) + 10px); }
+.resume-dock .sn-flank.is-left { flex-direction: row; gap: 4px; }
+.resume-dock .sn-flank span { color: #e2bf72; font-size: 18px; margin-top: -2px; }
+
+/* Three cards, one per slot. A saved run's plate takes the free height; an
+   empty slot is a short plate with its mode, one line and New run. */
+.resume-save.resume-empty { flex: 0 0 auto; min-height: 0; justify-content: flex-start; padding: 12px 14px; }
+.resume-empty .resume-save-head { margin-bottom: 0; padding-bottom: 6px; }
+.resume-empty-blurb { margin: 0 0 10px; max-width: 46ch; color: #e2dbfa; font-size: 13px; line-height: 1.35; text-shadow: 0 2px 8px rgba(0, 0, 0, .8); }
+.resume-empty::before {
     background:
-        linear-gradient(180deg, rgba(13, 10, 38, .5) 0%, rgba(13, 10, 38, 0) 18%, rgba(13, 10, 38, .1) 36%, rgba(13, 10, 38, .78) 60%, rgba(13, 10, 38, .94) 100%),
-        linear-gradient(180deg, color-mix(in srgb, var(--save-accent, var(--accent)) 18%, transparent), transparent 40%);
+        linear-gradient(90deg, rgba(13, 10, 38, .92) 0%, rgba(13, 10, 38, .7) 55%, rgba(13, 10, 38, .35) 100%),
+        linear-gradient(180deg, color-mix(in srgb, var(--save-accent, var(--accent)) 18%, transparent), transparent 60%);
+}
+.resume-empty .resume-save-actions.is-solo { justify-content: flex-start; margin-top: 0; }
+.resume-empty .resume-save-actions.is-solo .siege-btn { min-height: 40px; padding: 0 22px; }
+/* Side by side (wide windows, landscape phones) the three plates share the row
+   equally and stand full height, the empty ones with their copy at the foot. */
+@media (min-width: 900px), (orientation: landscape) and (max-height: 600px) {
+    #resumeSaves > .resume-save, #resumeSaves > .resume-save.resume-empty { flex: 1 1 0; min-width: 0; }
+    .resume-save.resume-empty { justify-content: flex-end; padding: 16px; }
+    .resume-empty::before {
+        background:
+            linear-gradient(180deg, rgba(13, 10, 38, .1) 0%, rgba(13, 10, 38, .2) 35%, rgba(13, 10, 38, .85) 70%, rgba(13, 10, 38, .96) 100%),
+            linear-gradient(180deg, color-mix(in srgb, var(--save-accent, var(--accent)) 20%, transparent), transparent 40%);
+    }
+    .resume-empty .resume-save-head { margin-bottom: auto; }
+    .resume-empty .resume-save-actions.is-solo { position: static; }
+}
+/* A landscape phone gets one screen: the row of plates takes the height between
+   the top inset and the dock, and each warband is one sideways-scrolling line. */
+@media (orientation: landscape) and (max-height: 600px) {
+    body[data-screen="resumeScreen"] .siege-app { height: var(--siege-vh, 100dvh); min-height: 0; overflow: hidden; }
+    #resumeSaves > .resume-save { padding: 10px 12px; }
+    .resume-save-head { padding-bottom: 6px; }
+    #resumeSaves .resume-save .party-strip { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; margin-bottom: 6px; touch-action: pan-x; }
+    .resume-save .party-strip::-webkit-scrollbar { display: none; }
+    .resume-save .party-strip > * { flex: 0 0 150px; }
+    .resume-meta { flex-wrap: wrap; font-size: 13px; }
+    .resume-save-actions { margin-top: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+    .resume-save-actions .siege-btn { padding: 0 6px; white-space: nowrap; }
+    .resume-save-actions .siege-btn, .resume-save-actions .siege-btn.primary { min-height: 38px; font-size: clamp(12px, 1.7vw, 14px); letter-spacing: 0; }
+    .resume-empty-blurb { font-size: 12px; margin-bottom: 8px; }
 }
 
 /* Knight and warband steps: back and forward flank the FAB, with the running

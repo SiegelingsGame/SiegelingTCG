@@ -1,3 +1,21 @@
+Original prompt: Remove the play button at the top and replace the new run button. New run should be selectable on the card of the run which there should only ever be 3. Siege battlegrounds or endless. Each with a start over button
+
+- October 28, 2026 **Siege resume: three slot cards, with Play on the dock.**
+  - **Change.**
+    - **Layout.** The resume screen has no top bar now, so the ‹ Play pill is gone. Play (`/home?screen=play`) replaced New run as the dock's left flank, and Continue on the right still resumes the most recent save.
+    - **Cards.** `renderResumePrompt` always builds three cards in a fixed order: Adventure, Battlegrounds, Endless. These match the server's three `RunSlot`s.
+      - **Saved slot:** the card shows the warband, meta and Start Over, plus its own Continue when more than one run is saved.
+      - **Empty slot:** the card is a short plate with its mode, one line about it and **New run**. `startFreshRun(mode)` loads the roster, then goes straight to that mode's SiegeKnight step (Adventure, Endless) or opens the Battlegrounds dialog.
+    - **Removed.** `#resumeNote`, "Welcome Back" and `#resumeFreshBtn` are gone.
+    - **Sizing.** On a phone, a saved plate takes the free height. On wide windows and landscape phones the three plates stand in an equal row. On a landscape phone the screen fits without scrolling, each warband is one sideways-scrolling line, and the buttons shrink.
+    - **Test.** `tests/siege-mode-saves-check.cjs` now probes only the saved plates and expects an Endless New run card in place of the old note.
+  - Cache pins: `adventure.js?v=151`, `siege-next.css?v=22`.
+  - **Verification.** `node --check` passes.
+    - **Layout.** Headless Chromium with 1 and 2 saves at 390x844, 844x390, 568x320 and 1920x1080: three cards every time, saved ones with Start Over and empty ones with New run. The top bar isn't displayed, and the dock reads "‹ Play" and Continue level with the FAB. Landscape doesn't scroll (390/390 and 320/320).
+    - **New run.** On the account fixture server, the Endless card's New run lands on the SiegeKnight step and the Battlegrounds card's opens `#bgModal`.
+    - **Test.** `siege-mode-saves-check` still has only the 6 failures the base commit already had, and its new Endless check passes.
+    - No page errors.
+
 Original prompt: The top headers in play modes can be removed it's just taking up space. Instead use that space place the art as the background same as widescreen. On landscape the artwork should extend behind the fab button action area with back etc. it shop always be full screen
 
 - October 28, 2026 **Launch screens: no title banners, full-screen art behind everything including the FAB dock.**

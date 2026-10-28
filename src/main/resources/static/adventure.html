@@ -21,7 +21,7 @@
 <link rel="stylesheet" href="/css/adventure.css?v=113">
   <!-- Art-first re-skin. After adventure.css on purpose: it restates the same
        tokens and expects to win. -->
-  <link rel="stylesheet" href="/css/siege-next.css?v=21">
+  <link rel="stylesheet" href="/css/siege-next.css?v=22">
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -101,14 +101,13 @@
 
   <!-- Resume prompt: shown at boot when a saved expedition is detected. -->
   <section class="siege-screen hidden" id="resumeScreen">
-    <h1>Welcome Back</h1>
-    <p class="siege-sub" id="resumeNote">A run is already in progress.</p>
-    <!-- One card per save slot: an expedition and a Battlegrounds march can be
-         held at the same time, so this list is built by renderResumePrompt. -->
+    <!-- One card per save slot (Adventure, Battlegrounds, Endless), saved or
+         not, built by renderResumePrompt: an empty slot's card starts that mode. -->
     <div id="resumeSaves"></div>
-    <!-- New run and Continue flank the shield FAB (shield-navigation.css). -->
+    <!-- Play (back to the hub) and Continue flank the shield FAB (shield-navigation.css);
+         this screen has no top pill. -->
     <div class="sn-dock resume-dock">
-      <button class="sn-flank is-left" id="resumeFreshBtn" type="button">New run</button>
+      <a class="sn-flank is-left" href="/home?screen=play"><span aria-hidden="true">&lsaquo;</span> Play</a>
       <button class="sn-flank is-right is-gold" id="resumeContinueBtn" type="button">Continue &#9656;</button>
     </div>
   </section>
@@ -791,6 +790,6 @@
 <script src="/js/siege-tutorial.js?v=28"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
 <script src="/js/shield-navigation.js?v=4"></script>
-<script src="/js/adventure.js?v=150"></script>
+<script src="/js/adventure.js?v=151"></script>
 </body>
 </html>

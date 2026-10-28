@@ -19,7 +19,7 @@
   // overlay, so leaving Siege used to drop the player into the layout the
   // redesign replaced. The hub addresses its Play screen by query rather than by
   // path (SCREEN_PATH maps it to '/home'), and ?screen= survives a reload, which
-  // a pushed '/home' would not. The same href is on .siege-back in adventure.html.
+  // a pushed '/home' would not. The same href is on .siege-back and the resume dock's Play in adventure.html.
   var SIEGE_EXIT_PATH = '/home?screen=play';
   var state = {
     roster: null,
@@ -817,7 +817,18 @@
       runSlotBadgeText(run) + '</span>';
   }
 
-  /** Saved runs were found: one card per save, since the two modes are kept apart. */
+  // The three save slots, in the order their cards stand. An empty slot's card
+  // starts that mode; a saved one resumes or restarts it.
+  var RUN_SLOTS = [
+    { kind: 'siege', badge: '🏳️ Adventure', mode: 'STANDARD',
+      blurb: 'Pick a SiegeKnight, assemble a Warband and push through the expedition.' },
+    { kind: 'bg', badge: '⚔️ Battlegrounds', mode: 'BATTLEGROUNDS',
+      blurb: 'Take veterans banked from Siege into a higher-stakes run.' },
+    { kind: 'endless', badge: '♾️ Endless', mode: 'ENDLESS',
+      blurb: 'A road that never ends. Play until the warband falls and bank your score.' }
+  ];
+
+  /** The boot check found saves: one card per slot, saved or not. */
   function renderResumePrompt(saves) {
     showScreen('resumeScreen');
     updateRunMenu(false);
@@ -827,16 +838,11 @@
     saves = saves.slice().sort(function (a, b) {
       return (b.token === here ? 1 : 0) - (a.token === here ? 1 : 0);
     });
-    $('resumeNote').textContent = saves.length > 1
-      ? 'You have a run saved in each mode — pick up either one.'
-      : (saves[0].battle
-        ? 'You closed the app mid-battle — pick up right where you left off.'
-        : 'A run is already in progress.');
 
     var host = $('resumeSaves');
     host.innerHTML = '';
     // The dock's Continue (beside the FAB) takes the top save; with one save it
-    // is the only Continue, so the plate keeps just Start Over.
+    // is the only Continue, so that plate keeps just Start Over.
     function resume(run) {
       state.run = run;
       setToken(run.token);
@@ -844,7 +850,12 @@
       afterRunApplied(run);
     }
     $('resumeContinueBtn').onclick = function () { resume(saves[0]); };
-    saves.forEach(function (run) {
+    RUN_SLOTS.forEach(function (slot) {
+      var run = saves.filter(function (r) { return runSlotKind(r) === slot.kind; })[0];
+      if (!run) {
+        host.appendChild(emptySlotCard(slot));
+        return;
+      }
       var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
       var floor = node ? (node.row + 1) : 1;
       var card = el('div', 'resume-summary resume-save ' + runSlotKind(run));
@@ -881,6 +892,29 @@
     });
   }
 
+  /** A slot with no save: its mode, one line on it, and New run. */
+  function emptySlotCard(slot) {
+    var card = el('div', 'resume-summary resume-save resume-empty ' + slot.kind);
+    card.appendChild(el('div', 'resume-save-head',
+      '<span class="run-slot-badge ' + slot.kind + '">' + slot.badge + '</span>'));
+    card.appendChild(el('p', 'resume-empty-blurb', slot.blurb));
+    var actions = el('div', 'resume-save-actions is-solo');
+    var start = el('button', 'siege-btn primary', 'New run');
+    start.type = 'button';
+    start.addEventListener('click', function () { startFreshRun(slot.mode); });
+    actions.appendChild(start);
+    card.appendChild(actions);
+    return card;
+  }
+
+  /** New run from a resume card: load the roster, then open that mode's setup. */
+  function startFreshRun(mode) {
+    state.run = null; state.party = []; state.knightId = null; state.landView = null;
+    setToken(null);
+    state.pendingRunMode = mode;
+    loadRoster();
+  }
+
   function loadRoster() {
     showScreen('loadingScreen');
     var prog = createLoadProgress($('bootLoadFill'), $('bootLoadCount'));
@@ -896,8 +930,17 @@
           : 'Expedition roster is empty — retrying on the warband step.';
       }
       state.setupStep = 'mode';
+      var pending = state.pendingRunMode;
+      state.pendingRunMode = null;
       try {
         renderSetup();
+        // A resume card's New run names its mode: skip the picker into it.
+        if (pending === 'BATTLEGROUNDS') {
+          refreshBattlegroundsEntry();
+          openBattlegroundsModal();
+        } else if (pending) {
+          chooseRunMode(pending);
+        }
       } catch (e) {
         if ($('bootLoadStatus')) $('bootLoadStatus').textContent = e.message || 'Could not open expedition setup.';
         toast(e.message || 'Could not open expedition setup.');
@@ -1115,13 +1158,6 @@
     paintSiegeMusicToggle();
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('runMenu').classList.contains('hidden')) closeRunMenu();
-    });
-    // Per-save Continue/Start Over buttons are built by renderResumePrompt; this
-    // one starts a run in whichever mode has no save yet.
-    $('resumeFreshBtn').addEventListener('click', function () {
-      state.run = null; state.party = []; state.knightId = null; state.landView = null;
-      setToken(null);
-      loadRoster();
     });
   }
 

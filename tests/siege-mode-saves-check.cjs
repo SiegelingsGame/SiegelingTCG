@@ -78,8 +78,9 @@ function serve() {
 
 const probeResume = () => ({
   screen: document.body.dataset.screen || null,
-  note: (document.getElementById('resumeNote').textContent || '').trim(),
-  cards: Array.from(document.querySelectorAll('#resumeSaves .resume-save')).map(c => ({
+  empty: Array.from(document.querySelectorAll('#resumeSaves .resume-empty')).map(c => c.textContent.replace(/\s+/g, ' ').trim()),
+  // Empty slots get a New run card of their own; only saved plates are probed.
+  cards: Array.from(document.querySelectorAll('#resumeSaves .resume-save:not(.resume-empty)')).map(c => ({
     cls: c.className,
     badge: (c.querySelector('.run-slot-badge').textContent || '').trim(),
     badgeCls: c.querySelector('.run-slot-badge').className,
@@ -191,7 +192,6 @@ async function page2Hud(browser, vp, check) {
     const check = (cond, msg) => { if (!cond) failures.push(`[${vp.name}] ${msg}`); };
 
     console.log(`\n== ${vp.name} (${vp.width}x${vp.height})  screen=${m.screen}`);
-    console.log(`   note: ${m.note}`);
     for (const c of m.cards) {
       console.log(`   card ${c.badge}  accent=${c.accent}  [${c.buttons.join(' | ')}]`);
       console.log(`        ${c.meta}`);
@@ -202,7 +202,8 @@ async function page2Hud(browser, vp, check) {
 
     // 3. Two saves, side by side, each with its own controls.
     check(m.cards.length === 2, `expected one card per mode, got ${m.cards.length}`);
-    check(/each mode/i.test(m.note), `the prompt should say both modes are saved, got "${m.note}"`);
+    // The third slot (Endless) has no save, so it stands as a New run card.
+    check(m.empty.length === 1 && /Endless/.test(m.empty[0]), `expected an Endless New run card, got ${JSON.stringify(m.empty)}`);
 
     // The two must be tellable apart: different label AND different accent colour.
     if (m.cards.length === 2) {
