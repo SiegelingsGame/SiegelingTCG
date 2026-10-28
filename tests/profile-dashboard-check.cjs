@@ -39,6 +39,8 @@ for(const [width,height] of [[1313,900],[1920,1080],[1024,768],[844,390],[667,37
   for(const dest of ['home','social','help','profile']){
    await page.locator('.sn-fab').click();await page.waitForFunction(()=>document.querySelector('.sn-root').dataset.state==='open');
    await page.locator(`[data-destination="${dest}"]`).click();await page.waitForFunction(dest=>document.querySelector('.sg-app').dataset.screen===dest,dest);
+   // The page isn't hit-tested while a page transition plays; let it finish.
+   await page.waitForFunction(()=>!document.documentElement.hasAttribute('data-vt-fx'),null,{timeout:5000});
   }
   if(!guest){await page.locator('[data-prof-open="look"]:visible').first().click();assert(await page.locator('[data-prof-sheet]').evaluate(e=>e.classList.contains('open')));await page.locator('[data-prof-close]').first().click();}
   await page.waitForTimeout(500);await page.screenshot({path:path.join(out,`${width}-${guest?'guest':'member'}.png`)});
