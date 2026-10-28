@@ -1,3 +1,10 @@
+Original prompt: Daily critical-bug scan
+
+- October 28, 2026 **Siege resume: an empty slot's New run no longer drops the other save's device token.**
+  - **Change.** `startFreshRun` used to clear `siegeToken` before the roster loaded. Guests have no account checkpoint, so that was the only pointer to an active expedition. Tapping New run on Endless or Battlegrounds, then leaving or hitting a failed roster load, made the saved run unresumable. The device now keeps one token per slot (`siegeSlotTokens`). New run leaves them in place. A run is recorded under its slot when the resume list renders and again when a new run or Battlegrounds march actually starts, and Start Over forgets only the run it abandons. Boot, when the account list is empty, reopens every token still on the device. A missing run is forgotten; a network failure is not.
+  - Cache pin: `adventure.js?v=152`.
+  - **Verification.** `node --check` on `adventure.js`. `tests/siege-guest-slot-tokens.cjs` (headless Chromium): a guest with one local token still has it after New run and a failed roster load, a reload still shows that expedition, and a second slot token reloads as its own card beside the first.
+
 Original prompt: Make the animations more efficient the site is slogging now
 
 - October 28, 2026 **Animations: cheaper page transitions, a session fallback for slow devices, and the shield corona only animating while open.**
