@@ -3668,7 +3668,7 @@
     const RETURN_START = false;
     // Laid out like the Arena loadout and Siege: the back pill top-left, an art banner,
     // one full-art plate, and Main Menu and one gold call to action flanking the shield FAB.
-    const START_BACK = '<a class="sn-back dm-start-back" href="/home?screen=play"><span aria-hidden="true">&lsaquo;</span>Play</a>';
+    const START_BACK = '<a class="sn-back dm-start-back" href="/home?screen=play"><span aria-hidden="true">&lsaquo;</span>Play Menu</a>';
     function startBar(go) {
         return '<footer class="dm-start-bar sn-dock"><a class="dm-start-menu sn-flank is-left" href="/home">Main Menu</a>' + go + '</footer>';
     }

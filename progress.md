@@ -1,3 +1,13 @@
+Original prompt: In ui where it says play it should read Play Menu or Main Menu if it returns to main menu. Play is too subtle
+
+- October 29, 2026 **Launch screens: back buttons say where they go.**
+  - **Change.** The back pills and dock buttons that said "Play" now name their destination.
+    - **"Play Menu"**: every one that goes to `/home?screen=play`. That is Siege's back pill and its resume-dock flank, the Arena loadout pill in `play.html`, and the Dominion start pill (`START_BACK` in `dominion.js`).
+    - **"Arena Menu"**: Gauntlet's back pill, which goes to `/battle`.
+    - The existing "Main Menu" buttons are unchanged.
+    - Cache pin: `dominion.js?v=32`.
+  - **Verification.** `node --check js/dominion.js` passes. Headless Chromium at 320x568, 390x844, 844x390 and 1920x1080: no relabelled pill or flank overflows its box. The Siege flank is 127px wide at 320 and 162px at 390. The pills are about 113px ("Play Menu") and 125px ("Arena Menu").
+
 Original prompt: When the orientation changes from portrait to landscape and vice versa the wallpaper should stay the same. Using either the landscape or portrait view based on the dashboard. If the image has a portrait version already use that instead
 
 - October 28, 2026 **Home: turning the phone keeps the same wallpaper.**
