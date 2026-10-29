@@ -1,3 +1,17 @@
+Original prompt: Lastly the bottom of GSP cards are being cut off in view
+
+- October 29, 2026 **GSP (holo gold) card faces: drop the showcase drop-shadow that Safari mis-renders with the gold blend layers.**
+  - **Change.** On iPhone, a GSP card face in the card sheet (and the binder) lost its bottom edge: the bottom notches were cut in half and the frame's bottom border and rounded corners were gone. Meanwhile the top kept its gold border.
+    - **Why GSP only.** GSP is the only finish whose `mix-blend-mode` layers (`.card-holo-gold-finish` tint, warm, sheen and rim) live inside the showcase card, under its notches. That showcase carries `filter: drop-shadow(0 8px 16px …)` (`style.css`). GOLD's blend layer sits on the slot, outside the filter.
+    - **Likely cause.** WebKit renders blend layers under a filtered ancestor into an offset layer, which matches a bottom-only cut against a 0/8px shadow.
+    - **Fix.** `holographic.css` now sets `filter: none` on GSP showcase cards inside a slot. The selectors are specific enough to beat style.css's rule, which loads after the import. The shadow was already clipped by the slot's `overflow: hidden`, and the finish has its own glow, so nothing visible is lost. The Battle Table's own hand-card filters are untouched.
+    - **Cache pins.** `holographic.css?v=10` (style.css and home.css imports, `index.html`, `card-dashboard.html`), `style.css?v=297` in every page that loads it, `home.css?v=156`.
+  - **Verification.** Headless Chromium at 440x956 (the reporter's iPhone Pro Max viewport) on Kilokong's real card sheet, with the API forwarded to the live backend:
+    - GSP's showcase `filter` computes to `none`, while Standard, Holo, HSP and Gold keep the drop-shadow.
+    - The card box is unchanged (260–405 in a 257–408 slot).
+    - The GSP face renders identically.
+    - **Not reproduced here.** Chromium never showed the cut, and no WebKit build is available in this environment, so the iOS result still needs checking on a device.
+
 Original prompt: In card via integrate the buttons and bottom of the window with the Fav
 
 - October 29, 2026 **Card sheet: Make Holo and Use in a deck flank the S FAB.**

@@ -463,6 +463,20 @@
 .is-holo-gold-finish {
     box-shadow: 0 0 0 1px rgba(122, 84, 16, .8), 0 0 18px rgba(255, 190, 60, .45);
 }
+/* HOLO GOLD is the one finish whose blend layers live inside the showcase card
+   (they must sit under its notches), and the showcase carries a drop-shadow
+   filter. iOS Safari renders blend layers under a filtered ancestor into an
+   offset layer and cut the card's bottom edge off - the bottom notches and
+   frame - in the binder and the card sheet. The slot clips that shadow away
+   anyway (overflow: hidden) and the finish brings its own glow, so the
+   filter goes. */
+/* Specific enough to beat style.css's showcase drop-shadow, which loads
+   after this file (style.css @imports it first). */
+.mulligan-card-slot .hand-card.mulligan-showcase.is-holo-gold-finish,
+.mulligan-card-slot .hand-card.mulligan-showcase.element-frame.is-holo-gold-finish,
+.mulligan-card-slot.is-holo-gold-finish .hand-card.mulligan-showcase.element-frame {
+    filter: none;
+}
 /* ---------- Gold Activated Notches ----------
    GSP used to lift every notch above the gold cast so element colour always
    read true. Settled direction: fold the notches into the cast like the rest
