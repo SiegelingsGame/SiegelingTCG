@@ -1,8 +1,8 @@
-Original prompt: Combine signature and showcase, when building your showcase you can select which of the three is the signature. Make title a drop down list and move icon and favorite elements to the details page. Once showcase is only 3 Siegelings make better use of the full screen space
+Original prompt: Combine signature and showcase, when building your showcase you can select which of the three is the signature. (Follow-up: no separate Signature selection; a small star badge on the picked cards in the collection grid.) Make title a drop down list and move icon and favorite elements to the details page. Once showcase is only 3 Siegelings make better use of the full screen space
 
 - October 29, 2026 **Profile: one Showcase of three with a Signature; title dropdown; Signature-led showcase layout.**
   - **Change.** The profile editor goes from four tabs to three (Showcase, Look, Details).
-    - **Showcase tab.** It now holds the Signature. Three slots show the showcase being built. Tapping a slot's card makes it the Signature: gold frame, "★ Signature", moved to the front. The corner × drops it. Dropping the Signature passes it to the next card, and the first card picked into an empty showcase becomes it. The collection grid below badges the Signature ★ and the others 2/3, and a 4th pick is refused.
+    - **Showcase tab.** It now holds the Signature, in the collection grid itself. Tapping a card toggles it in or out of the three, which are numbered 1–3, and a 4th pick is refused. Each picked card wears a small star badge in its bottom-right corner; tapping it makes that card the Signature. The Signature's star is filled gold, its tile is framed in gold, and it moves to #1. Dropping the Signature passes it to the next card, and the first card picked into an empty showcase becomes it. There is no separate Signature selection.
     - **Saving.** It sends `favoriteCardIds` as the three cards (Signature first) and `favoriteCardId` as one of them. The server already caps the list at 3, so no backend change.
     - **Look tab.** Background plus the card back, which moved from the old Signature tab. The profile's card-back Change link opens Look.
     - **Details tab.** Name, status and avatar URL, then **Title as a dropdown** (earned titles to pick, locked ones listed disabled under "Locked (n)", deduplicated by id, with the chosen title's description beneath), then Icon style and Favorite element.
@@ -16,7 +16,7 @@ Original prompt: Combine signature and showcase, when building your showcase you
     - **Profile page.** It shows exactly 3 tiles with the favourite first.
     - **Editor tabs.** Showcase, Look, Details.
     - **Editor flow at 390x844:**
-      - Making the 3rd card the Signature moves it to the front.
+      - Tapping the 3rd card's star makes it the Signature and moves it to #1.
       - Dropping the Signature passes it on.
       - Adding a card fills the empty slot, and a 4th pick shows "Drop one of your three picks first."
       - Details has the select (earned, selected, locked disabled, duplicate removed), the icon chips and 13 elements.

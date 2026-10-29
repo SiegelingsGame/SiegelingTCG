@@ -7911,19 +7911,22 @@
         : 'Your collection is still loading.') + '</div>';
   }
 
-  function showcaseSlot(id, d) {
-    var c = id ? byIdIn(ALL_CARDS, id) : null;
-    if (!c) return '<div class="sg-sc-slot is-empty"><span>Pick a card below</span></div>';
-    var sig = id === d.favoriteCardId;
-    return '<div class="sg-sc-slot' + (sig ? ' is-sig' : '') + '" style="--el:' + color(c.element) + '">' +
-      // The whole card is the Signature switch; the corner x drops it.
-      '<button class="sg-sc-card" type="button" data-pick-signature="' + esc(c.id) + '" aria-pressed="' + sig + '" ' +
-        'aria-label="' + esc(sig ? c.name + ' is your Signature' : 'Make ' + c.name + ' your Signature') + '">' +
-        '<img ' + artAttrs(c.cardArtUrl) + ' alt="" loading="lazy">' +
-        '<span class="sg-sc-name">' + esc(c.name) + '</span>' +
-        '<span class="sg-sc-sig">' + (sig ? '\u2605 Signature' : '\u2606 Make Signature') + '</span>' +
-      '</button>' +
-      '<button class="sg-sc-drop" type="button" data-pick-showcase="' + esc(c.id) + '" aria-label="Remove ' + esc(c.name) + '">\u00d7</button>' +
+  // A collection tile in the showcase picker. The card toggles it in or out of
+  // the three; a picked card also wears a star at its foot, and tapping that
+  // star makes it the Signature (filled gold), all in the same grid.
+  function showcasePickTile(c, d) {
+    var at = d.favoriteCardIds.indexOf(c.id);
+    var on = at >= 0;
+    var sig = on && c.id === d.favoriteCardId;
+    return '<div class="sg-pick-wrap' + (sig ? ' is-sig' : '') + '">' +
+      pickTile(c, on, 'data-pick-showcase', on ? String(at + 1) : '') +
+      (on
+        ? '<button class="sg-pick-star' + (sig ? ' on' : '') + '" type="button" data-pick-signature="' + esc(c.id) + '" ' +
+            'aria-pressed="' + sig + '" aria-label="' + esc(sig ? c.name + ' is your Signature' : 'Make ' + c.name + ' your Signature') + '" ' +
+            'title="' + (sig ? 'Signature' : 'Make Signature') + '">' +
+            '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z"/></svg>' +
+          '</button>'
+        : '') +
     '</div>';
   }
 
@@ -7931,17 +7934,9 @@
     var d = draft();
     var pool = ownedPool(opts);
     if (!pool.length) return emptyPickNote(opts);
-    var slots = '';
-    for (var i = 0; i < PROFILE_SHOWCASE_MAX; i++) slots += showcaseSlot(d.favoriteCardIds[i], d);
-    return '<p class="sg-prof-hint">Your showcase is ' + PROFILE_SHOWCASE_MAX + ' cards. Tap one to make it your ' +
-        '<b>Signature</b>: it leads the showcase in a gold frame.</p>' +
-      '<div class="sg-sc-slots">' + slots + '</div>' +
-      '<h4 class="sg-prof-sub">Your collection</h4>' +
-      '<div class="sg-pick-grid">' + pool.map(function (c) {
-        var at = d.favoriteCardIds.indexOf(c.id);
-        return pickTile(c, at >= 0, 'data-pick-showcase',
-          at < 0 ? '' : c.id === d.favoriteCardId ? '\u2605' : String(at + 1));
-      }).join('') + '</div>';
+    return '<p class="sg-prof-hint">Pick ' + PROFILE_SHOWCASE_MAX + ' cards for your showcase. ' +
+        'Tap the star on one to make it your <b>Signature</b>: it leads the showcase in a gold frame.</p>' +
+      '<div class="sg-pick-grid">' + pool.map(function (c) { return showcasePickTile(c, d); }).join('') + '</div>';
   }
 
   function lookPanel(opts) {
