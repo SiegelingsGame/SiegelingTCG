@@ -1,3 +1,18 @@
+Original prompt: Update the drop rates (clarified: fix the stale displays; keep the server odds)
+
+- October 29, 2026 **Legacy hub odds popup shows the real per-finish drop rates.**
+  - **Change.** The legacy hub's Drop Rates popup (`home.js` `showPackOdds`, still served at `/legacy/*`) read `odds.holoPerCard`, a field the server stopped sending. So it always fell back to made-up holo-only numbers (Common 8% … Legendary 1%).
+    - **New table.** It now reads `finishPerCard` from the pack payload, the same numbers `PackCatalogService` rolls with and that the new hub's Odds sheet shows. It is a finish-by-rarity table: Holo, SP, HSP, Gold, CARAT, GSP, GSPx × Common to Legendary, in the hub's "x%" / "1 in Nk" format.
+    - **Fallback.** For a cached payload with no odds field, the fallback now mirrors `FINISH_DROP_CHANCE` and `TRAINER_DROP_CHANCE` exactly.
+    - **Unchanged.** The server's odds, the new hub's sheet, and the help text's quoted rates (which already match).
+    - **Cache pins.** `home.js?v=188`, `home.css?v=158`.
+  - **Verification.** `node --check js/home.js` passes. Headless Chromium on `home.html` with the API forwarded to the live backend, opening a pack's odds at 390x844 and 1920x1080:
+    - All 7 finish rows by 5 rarities show the live odds, from Holo 6% on a Common to GSPx 1 in 100k on a Legendary.
+    - Bonus SiegeKnight shows 3%.
+    - The table fits the panel without horizontal scroll.
+    - No page errors.
+    - Screenshot checked.
+
 Original prompt: Make sure this is compatible with the #1225 changes
 
 - October 29, 2026 **PR #1224 brought up to date with #1225 (finish ladder: Gold, CARAT, GSP, GSPx).**

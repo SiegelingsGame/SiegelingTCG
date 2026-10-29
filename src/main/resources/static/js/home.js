@@ -5582,13 +5582,33 @@
         </article>`;
     }
 
-    // Mirrors PackCatalogService odds so the modal still works when the
-    // cached /api/shop/packs payload predates the odds field.
+    // Mirrors PackCatalogService.FINISH_DROP_CHANCE / TRAINER_DROP_CHANCE so the
+    // modal still works when the cached /api/shop/packs payload predates the
+    // odds field. The live payload's finishPerCard always wins.
+    const FINISH_ODDS_TIERS = [
+        ['HOLO', 'Holo'], ['SP', 'SP'], ['HSP', 'HSP'], ['GOLD', 'Gold'],
+        ['CARAT', 'CARAT'], ['GSP', 'GSP'], ['GSPX', 'GSPx']
+    ];
     const FALLBACK_PACK_ODDS = {
         siegeKnight: 0.03,
         cardsPerPack: 5,
-        holoPerCard: { COMMON: 0.08, UNCOMMON: 0.06, RARE: 0.04, EPIC: 0.02, LEGENDARY: 0.01 }
+        finishPerCard: {
+            COMMON:    { HOLO: 0.06, SP: 0.02,  HSP: 0.008,  GOLD: 0.002,   CARAT: 0.001,   GSP: 0.0005,  GSPX: 0.00005 },
+            UNCOMMON:  { HOLO: 0.05, SP: 0.016, HSP: 0.006,  GOLD: 0.0015,  CARAT: 0.00075, GSP: 0.00035, GSPX: 0.000035 },
+            RARE:      { HOLO: 0.04, SP: 0.012, HSP: 0.0045, GOLD: 0.0011,  CARAT: 0.00055, GSP: 0.00025, GSPX: 0.000025 },
+            EPIC:      { HOLO: 0.03, SP: 0.009, HSP: 0.003,  GOLD: 0.00075, CARAT: 0.00037, GSP: 0.00015, GSPX: 0.000015 },
+            LEGENDARY: { HOLO: 0.02, SP: 0.006, HSP: 0.002,  GOLD: 0.0005,  CARAT: 0.00025, GSP: 0.0001,  GSPX: 0.00001 }
+        }
     };
+
+    // Tiny odds read better as "1 in N" than as a string of zeros (same as the hub's sheet).
+    function oddsChance(p) {
+        const value = Number(p);
+        if (!value) return '\u2014';
+        if (value >= 0.001) return `${Math.round(value * 1000) / 10}%`;
+        const n = 1 / value;
+        return `1 in ${n >= 10000 ? `${Math.round(n / 1000)}k` : `${Math.round(n / 100) / 10}k`}`;
+    }
 
     function showPackOdds(packId) {
         const pack = (state.packs || []).find(item => item.id === packId);
@@ -5596,9 +5616,11 @@
         // No pack guarantees a knight any more, so the fallback needs no
         // per-pack special case: every pack rolls the same slim chance.
         const odds = pack.odds || { ...FALLBACK_PACK_ODDS };
-        const holo = odds.holoPerCard || FALLBACK_PACK_ODDS.holoPerCard;
-        const pct = value => `${Math.round(Number(value || 0) * 1000) / 10}%`;
-        const knightLine = Number(odds.siegeKnight) >= 1 ? 'Guaranteed' : pct(odds.siegeKnight);
+        const finish = odds.finishPerCard && Object.keys(odds.finishPerCard).length
+            ? odds.finishPerCard : FALLBACK_PACK_ODDS.finishPerCard;
+        const rarities = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'].filter(r => finish[r]);
+        const knightChance = odds.siegeKnight ?? FALLBACK_PACK_ODDS.siegeKnight;
+        const knightLine = Number(knightChance) >= 1 ? 'Guaranteed' : oddsChance(knightChance);
         const overlay = document.createElement('div');
         overlay.className = 'pack-odds-modal';
         overlay.innerHTML = `<div class="pack-odds-panel panel">
@@ -5608,8 +5630,11 @@
             </div>
             <p class="pack-odds-note">Every pack contains ${odds.cardsPerPack || 5} cards.</p>
             <div class="pack-odds-row"><span>Bonus SiegeKnight</span><strong>${knightLine}</strong></div>
-            <p class="pack-odds-note">Holographic finish chance, rolled separately for each card pulled. Rarer cards are rarer holos:</p>
-            ${['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'].map(rarity => `<div class="pack-odds-row"><span>${format(rarity)} holo</span><strong>${pct(holo[rarity])}</strong></div>`).join('')}
+            <p class="pack-odds-note">Finish chance, rolled separately for each card pulled. Each finish is rarer than the one above it, and rarer on rarer cards:</p>
+            <div class="pack-odds-table-wrap"><table class="pack-odds-table">
+                <tr><th></th>${rarities.map(r => `<th>${escapeHtml(format(r).slice(0, 4))}</th>`).join('')}</tr>
+                ${FINISH_ODDS_TIERS.map(([key, label]) => `<tr><th>${escapeHtml(label)}</th>${rarities.map(r => `<td>${oddsChance(finish[r][key])}</td>`).join('')}</tr>`).join('')}
+            </table></div>
         </div>`;
         overlay.addEventListener('click', (event) => {
             if (event.target === overlay || event.target.closest('[data-odds-close]')) overlay.remove();
