@@ -99,7 +99,27 @@
     PLAYER_HOLO_ART = holoIdMap(ids);
     PLAYER_HOLO_ART_IDS = Object.keys(PLAYER_HOLO_ART);
   }
-  // GOLD, the top finish (a gold card also stays in PLAYER_HOLO).
+  // GOLD: the standard art on a gold card (every gold tier also stays in PLAYER_HOLO).
+  var PLAYER_PLAIN_GOLD = {};
+  var PLAYER_PLAIN_GOLD_IDS = [];
+  function setPlayerPlainGold(ids) {
+    PLAYER_PLAIN_GOLD = holoIdMap(ids);
+    PLAYER_PLAIN_GOLD_IDS = Object.keys(PLAYER_PLAIN_GOLD);
+  }
+  function hasPlayerPlainGold(card) {
+    return Boolean(card && PLAYER_PLAIN_GOLD[String(card.id || '').trim().toLowerCase()]);
+  }
+  // CARAT: the standard art with the whole card cast in gold.
+  var PLAYER_CARAT = {};
+  var PLAYER_CARAT_IDS = [];
+  function setPlayerCarat(ids) {
+    PLAYER_CARAT = holoIdMap(ids);
+    PLAYER_CARAT_IDS = Object.keys(PLAYER_CARAT);
+  }
+  function hasPlayerCarat(card) {
+    return Boolean(card && PLAYER_CARAT[String(card.id || '').trim().toLowerCase()]);
+  }
+  // GSP: the SP art on a gold card (the server's goldCards list).
   var PLAYER_GOLD = {};
   var PLAYER_GOLD_IDS = [];
   function setPlayerGold(ids) {
@@ -109,7 +129,7 @@
   function hasPlayerGold(card) {
     return Boolean(card && PLAYER_GOLD[String(card.id || '').trim().toLowerCase()]);
   }
-  // HOLO GOLD, the final finish (a HOLO GOLD card also stays in PLAYER_GOLD).
+  // GSPx, the final finish: the SP art cast in gold (a GSPx card also stays in PLAYER_GOLD).
   var PLAYER_HOLO_GOLD = {};
   var PLAYER_HOLO_GOLD_IDS = [];
   function setPlayerHoloGold(ids) {
@@ -140,13 +160,17 @@
     var holo = card.holographic !== true && hasPlayerHolo(card);
     var gold = card.goldFinish !== true && hasPlayerGold(card);
     var holoGold = card.holoGoldFinish !== true && hasPlayerHoloGold(card);
+    var plainGold = card.plainGoldFinish !== true && hasPlayerPlainGold(card);
+    var carat = card.caratFinish !== true && hasPlayerCarat(card);
     var holoPlain = card.holoPlainFinish !== true && hasPlayerHoloPlain(card);
-    if (!holo && !gold && !holoGold && !holoPlain) return card;
+    if (!holo && !gold && !holoGold && !plainGold && !carat && !holoPlain) return card;
     var copy = {};
     for (var key in card) if (Object.prototype.hasOwnProperty.call(card, key)) copy[key] = card[key];
     if (holo) copy.holographic = true;
     if (gold) copy.goldFinish = true;
     if (holoGold) copy.holoGoldFinish = true;
+    if (plainGold) copy.plainGoldFinish = true;
+    if (carat) copy.caratFinish = true;
     if (holoPlain) copy.holoPlainFinish = true;
     return copy;
   }
@@ -2456,8 +2480,9 @@
     if (!visual) return '';
     var rarity = String(card.rarity || 'common').toLowerCase();
     var el = String(card.element || 'NEUTRAL').toLowerCase();
-    var holoGold = card.holoGoldFinish === true;
-    var gold = card.goldFinish === true && !holoGold;
+    // CARAT and GSPx cast the card in gold; GOLD and GSP give it a gold frame.
+    var holoGold = card.holoGoldFinish === true || (card.caratFinish === true && card.goldFinish !== true);
+    var gold = !holoGold && (card.goldFinish === true || card.plainGoldFinish === true);
     var holo = card.holographic === true || gold || holoGold;
     var plain = !holo && card.holoPlainFinish === true;
     var holoClass = (holo ? ' is-holographic' : plain ? ' is-holo-plain' : '') +
@@ -2525,6 +2550,8 @@
           playerHoloArtIds: PLAYER_HOLO_ART_IDS,
           playerGoldIds: PLAYER_GOLD_IDS,
           playerHoloGoldIds: PLAYER_HOLO_GOLD_IDS,
+          playerPlainGoldIds: PLAYER_PLAIN_GOLD_IDS,
+          playerCaratIds: PLAYER_CARAT_IDS,
           playerHoloPlainIds: PLAYER_HOLO_PLAIN_IDS
         }) +
       '</button>';
@@ -4484,7 +4511,7 @@
           (rarities.length
             ? '<div class="sg-godds-finish"><dt>Finish per card</dt><dd><table>' +
                 '<tr><th></th>' + rarities.map(function (r) { return '<th>' + esc(title(r).slice(0, 4)) + '</th>'; }).join('') + '</tr>' +
-                ['HOLO', 'SP', 'HSP', 'GOLD', 'GSP'].map(function (f) {
+                ['HOLO', 'SP', 'HSP', 'GOLD', 'CARAT', 'GSP', 'GSPX'].map(function (f) {
                   return '<tr><th class="is-' + f.toLowerCase() + '">' + esc(versionLabel(f)) + '</th>' + rarities.map(function (r) {
                     return '<td>' + esc(chance((finishOdds[r] || {})[f])) + '</td>';
                   }).join('') + '</tr>';
@@ -5198,8 +5225,10 @@
   /* ---------- card finishes ----------
      The ladder (CardFinish on the server): Standard -> Holo (a plain sheen over
      the standard art) -> SP (the card's holo art; only cards that have some) ->
-     HSP (holo art plus the rainbow foil) -> GOLD (holo art in a gold frame) ->
-     GSP (the whole card cast in gold, notches left in colour). Each tier has a
+     HSP (holo art plus the rainbow foil) -> GOLD (the standard art on a gold
+     card) -> CARAT (the standard art cast in gold) -> GSP (the SP art on a gold
+     card) -> GSPx (the SP art cast in gold, notches left in colour). GSP and
+     GSPx show the standard art on a card with no SP art yet. Each tier has a
      cumulative price in craft-cost multiples and a step costs the difference,
      so climbing one at a time costs what jumping does. Packs and other card
      grants can drop any finish too. The server re-checks ownership, balance and
@@ -5210,8 +5239,10 @@
     { key: 'HOLO', label: 'Holo', name: 'Holographic', total: 1 },
     { key: 'SP', label: 'SP', name: 'Special', total: 2 },
     { key: 'HSP', label: 'HSP', name: 'Holographic Special', total: 4 },
-    { key: 'GOLD', label: 'GOLD', name: 'Gold', total: 12 },
-    { key: 'GSP', label: 'GSP', name: 'Gold Special', total: 28 }
+    { key: 'GOLD', label: 'Gold', name: 'Gold', total: 6 },
+    { key: 'CARAT', label: 'CARAT', name: 'Carat', total: 9 },
+    { key: 'GSP', label: 'GSP', name: 'Gold Special', total: 12 },
+    { key: 'GSPX', label: 'GSPx', name: 'Gold Special Cast', total: 28 }
   ];
 
   function finishIndex(key) {
@@ -5232,6 +5263,10 @@
     return FINISH_LADDER.filter(function (v) { return v.key !== 'SP' || hasHoloArtwork(card); });
   }
 
+  function isGoldKey(key) {
+    return key === 'GOLD' || key === 'CARAT' || key === 'GSP' || key === 'GSPX';
+  }
+
   function versionLabel(key) {
     return FINISH_LADDER[finishIndex(key)].label;
   }
@@ -5239,8 +5274,10 @@
   // The finish the player's own copy shows everywhere else in the hub.
   function bestVersion(card) {
     if (!card) return 'STANDARD';
-    if (card.holoGoldFinish === true || hasPlayerHoloGold(card)) return 'GSP';
-    if (card.goldFinish === true || hasPlayerGold(card)) return 'GOLD';
+    if (card.holoGoldFinish === true || hasPlayerHoloGold(card)) return 'GSPX';
+    if (card.goldFinish === true || hasPlayerGold(card)) return 'GSP';
+    if (card.caratFinish === true || hasPlayerCarat(card)) return 'CARAT';
+    if (card.plainGoldFinish === true || hasPlayerPlainGold(card)) return 'GOLD';
     if (card.holographic === true || hasPlayerHolo(card)) return 'HSP';
     if (hasHoloArtwork(card) && hasPlayerHoloArt(card)) return 'SP';
     if (card.holoPlainFinish === true || hasPlayerHoloPlain(card)) return 'HOLO';
@@ -5289,7 +5326,8 @@
     // as the whole truth; without it, a false flag falls back to this account's
     // finish lists, so the Standard face would wear the player's holo or SP art.
     var base = copyCard(card, {
-      holographic: key === 'HSP', goldFinish: key === 'GOLD', holoGoldFinish: key === 'GSP', holoPlainFinish: key === 'HOLO',
+      holographic: key === 'HSP', plainGoldFinish: key === 'GOLD', caratFinish: key === 'CARAT',
+      goldFinish: key === 'GSP', holoGoldFinish: key === 'GSPX', holoPlainFinish: key === 'HOLO',
       finish: key === 'STANDARD' ? '' : key
     });
     var inner;
@@ -5316,7 +5354,7 @@
         var owned = versionOwned(card, v.key, opts);
         var cls = 'sg-sheet-version' + (v.key === viewing ? ' on' : '') +
           (owned === true ? ' is-owned' : owned === false ? ' is-locked' : '') +
-          (v.key === 'GOLD' || v.key === 'GSP' ? ' is-gold' : v.key === 'HSP' ? ' is-holo' : v.key === 'HOLO' ? ' is-holo-lite' : '');
+          (isGoldKey(v.key) ? ' is-gold' : v.key === 'HSP' ? ' is-holo' : v.key === 'HOLO' ? ' is-holo-lite' : '');
         return '<button class="' + cls + '" type="button" data-sheet-version="' + v.key + '"' +
           ' aria-pressed="' + (v.key === viewing) + '" title="' + esc(v.name) + '"' +
           (owned === false ? ' aria-label="' + esc(v.label) + ' (not owned)"' : '') + '>' +
@@ -5702,6 +5740,7 @@
   function applyFinishLists(live, p) {
     if (!p) return;
     [['holoCards', setPlayerHoloPlain], ['holoArtCards', setPlayerHoloArt], ['holographicCards', setPlayerHolo],
+     ['plainGoldCards', setPlayerPlainGold], ['caratCards', setPlayerCarat],
      ['goldCards', setPlayerGold], ['holoGoldCards', setPlayerHoloGold]].forEach(function (pair) {
       if (!Array.isArray(p[pair[0]])) return;
       if (live) live[pair[0]] = p[pair[0]];
@@ -5760,7 +5799,7 @@
       if (onSheet) sheetCard.setAttribute('data-version', version);
       var block = sheetCard.querySelector('.sg-sheet-holo');
       if (block) block.outerHTML = holoBlock(card, opts, version);
-      playHoloTwirl(face, versionFace(card, version), null, tier === 'GOLD' || tier === 'GSP');
+      playHoloTwirl(face, versionFace(card, version), null, isGoldKey(tier));
     });
   }
 
@@ -5828,7 +5867,7 @@
      Drag sideways and the card turns on its vertical axis, tilting a little with
      the finger's height; let go and it settles face-on or back-on, a flick
      carrying it round to the other side. Swipe up or down and the card leaves
-     the screen that way and the next version (Standard, Holo, SP, HSP, GOLD, GSP)
+     the screen that way and the next version (Standard, Holo, SP, HSP, Gold, CARAT, GSP, GSPx)
      comes in from the opposite edge. Arrow keys and the wheel do the same.
 
      The card is still magnified rather than re-laid-out: it is measured and its
@@ -6405,9 +6444,9 @@
     buzzForRarity(card);
   }
 
-  /* A pulled finish gets its moment. HSP throws a rainbow burst; GOLD and GSP
+  /* A pulled finish gets its moment. HSP throws a rainbow burst; the gold tiers
      are rare enough to be an event - the gold screen glow, a gold burst and the
-     unlock chime, twice over for GSP. The flip is a tap, so audio may start. */
+     unlock chime, twice over for GSPx. The flip is a tap, so audio may start. */
   // The full-screen bursts are the heaviest effect on the page, and the best
   // cards now sit together at the back of the pile, so a fast swipe through
   // them used to stack several bursts and screen glows at once. One runs at a
@@ -6436,7 +6475,7 @@
       holoAudioPrime();
       holoScreenGlow(420, true);
       playHoloSound(300);
-      if (finish === 'GSP') {
+      if (finish === 'GSPX') {
         setTimeout(function () { holoScreenGlow(520, true); burst(60); }, 900);
       }
     }
@@ -6523,9 +6562,9 @@
       note.textContent = '';
 
       // Best last, the way a real pack is sorted: commons on top, rarer cards
-      // toward the back, and every special finish (holo up to GSP) behind all
+      // toward the back, and every special finish (holo up to GSPx) behind all
       // the plain cards, so the pull builds to its headline card. A finish
-      // outranks rarity - a GSP Common is the story of the pull, not the plain
+      // outranks rarity - a GSPx Common is the story of the pull, not the plain
       // Legendary beside it. A `holo` flag without a finish still counts as Holo.
       function finishRank(card) {
         return Math.max(finishIndex(card.finish), card.holo ? finishIndex('HOLO') : 0);
@@ -10683,8 +10722,8 @@
         ['Holographic (Holo)', 'A soft pastel sheen.'],
         ['Special (SP)', 'An iridescent colour drift.'],
         ['Holographic Special (HSP)', 'The iridescent drift inside a rainbow aura.'],
-        ['Gold (GOLD)', 'Its own colours inside a pulsing gold aura.'],
-        ['Gold Special (GSP)', 'The whole creature cast in gold.']
+        ['Gold', 'Its own colours inside a pulsing gold aura.'],
+        ['CARAT', 'The whole creature cast in gold. Owning GSP or GSPx unlocks both gold skins.']
       ]],
       ['link', ['/siege', 'Start an expedition']]
     ]],
@@ -10693,28 +10732,30 @@
         ['Choose a starter pack', 'It sets your first element, grants its SiegeKnight and fills a playable deck.'],
         ['Play the Arena', 'Fight the AI from Play. Wins pay Siegecoins and Remnants, and a win streak pays more.'],
         ['Build a deck', 'Collection › Deck Builder, from the cards you own, with at most 3 copies of any card. Preset decks run 40 cards: 20 Siegelings, 10 Strategies and 10 Deceptions.'],
-        ['Open packs', 'Spend Siegecoins in the Shop. Every card can arrive with a finish, from Holo all the way up to GSP.'],
+        ['Open packs', 'Spend Siegecoins in the Shop. Every card can arrive with a finish, from Holo all the way up to GSPx.'],
         ['Upgrade finishes', 'Spend Remnants on a card in your Collection to climb its finish ladder.'],
         ['Go on a Siege', 'Take a warband on the roguelike, bank veterans, then try Endless and Battlegrounds.'],
         ['Enter Dominion', 'Found your knight, raise the keep, and send expeditions between matches.']
       ]],
       ['note', 'Missions on Home refresh daily, and the Daily Objectives strip shows what is left.']
     ]],
-    ['Card finishes', 'Holo, SP, HSP, GOLD and GSP', '/img/lands/light.webp', 'LIGHT', [
-      ['p', 'Every card can be owned in a finish. The ladder runs Standard › Holographic › Special › Holographic Special › Gold › Gold Special, shortened on cards and buttons to Holo, SP, HSP, GOLD and GSP. Each finish contains the ones below it, and a card only ever moves up.'],
+    ['Card finishes', 'Holo, SP, HSP, Gold, CARAT, GSP and GSPx', '/img/lands/light.webp', 'LIGHT', [
+      ['p', 'Every card can be owned in a finish. The ladder runs Standard › Holo › SP › HSP › Gold › CARAT › GSP › GSPx, and a card only ever moves up. The four gold finishes pair a gold look with an art: Gold and GSP put the art on a gold card, CARAT and GSPx cast the whole card in gold; Gold and CARAT keep the standard art, GSP and GSPx show the special art.'],
       ['defs', [
         ['Standard', 'The printed card.'],
         ['Holographic (Holo)', 'A plain holographic sheen over the standard art.'],
         ['Special (SP)', 'The card’s special holo artwork. Only cards that have holo art can be Special.'],
         ['Holographic Special (HSP)', 'The special holo artwork with the full rainbow foil.'],
-        ['Gold (GOLD)', 'The special holo artwork in a polished gold frame with a gold shine.'],
-        ['Gold Special (GSP)', 'The final finish: the whole card cast in gold, with the notches left in colour so they still read in play.']
+        ['Gold', 'The standard art on a polished gold card with a gold shine.'],
+        ['CARAT', 'The standard art with the whole card cast in gold, notches left in colour.'],
+        ['Gold Special (GSP)', 'The special holo artwork on a polished gold card with a gold shine.'],
+        ['GSPx', 'The final finish: the special holo artwork with the whole card cast in gold, notches left in colour so they still read in play. A card with no special art yet shows its standard art in GSP and GSPx.']
       ]],
       ['sub', 'How to get them'],
       ['list', [
-        'Upgrade with Remnants from a card’s sheet in your Collection. Each finish has a running price in craft costs (Holo 1, SP 2, HSP 4, GOLD 12, GSP 28), and a step costs the difference.',
+        'Upgrade with Remnants from a card’s sheet in your Collection. Each finish has a running price in craft costs (Holo 1, SP 2, HSP 4, Gold 6, CARAT 9, GSP 12, GSPx 28), and a step costs the difference.',
         'Drops: any card you get, from packs, daily shop cards, crafting, Siege prizes or missions, can arrive in a finish. A dropped finish above yours upgrades your card, even when the copy itself turns into Remnants.',
-        'Each finish is rarer than the one below it and rarer on rarer cards. GOLD is a once-in-thousands pull, and GSP is an act of god: about 1 in 20,000 on a Common and 1 in 100,000 on a Legendary. Shop › Packs › Odds lists every number.'
+        'Each finish is rarer than the one below it and rarer on rarer cards. GSP is a once-in-thousands pull, and GSPx is an act of god: about 1 in 20,000 on a Common and 1 in 100,000 on a Legendary. Shop › Packs › Odds lists every number.'
       ]],
       ['sub', 'Where they show'],
       ['list', [
@@ -10722,7 +10763,7 @@
         'Arena matches: each card shows its owner’s finish, so online opponents see yours and you see theirs.',
         'Siege: every finish you own for a Siegeling unlocks its matching skin for that Siegeling’s battle sprite.'
       ]],
-      ['note', 'Open a card full screen to see every version: drag sideways to turn it over, swipe up or down to step through Standard to GSP.']
+      ['note', 'Open a card full screen to see every version: drag sideways to turn it over, swipe up or down to step through Standard to GSPx.']
     ]],
     ['Arena & multiplayer', 'Solo, rooms and tournaments', '/img/lands/fire.webp', 'FIRE', [
       ['p', 'The Arena is the core card game. Play it solo against the AI, or live against another player.'],
@@ -10812,7 +10853,7 @@
         ['Siegecoins', 'The main currency: packs, decks, daily shop cards and some Dominion store lots.'],
         ['Remnants', 'Earned from duplicates past the 3-copy cap, wins and pack openings. Spent on crafting cards and upgrading finishes.'],
         ['Crowns', 'Dominion’s currency for the keep economy, gifts and realm market.'],
-        ['Finish', 'A card’s look: Standard, Holographic (Holo), Special (SP), Holographic Special (HSP), Gold (GOLD) or Gold Special (GSP). See Card finishes.'],
+        ['Finish', 'A card’s look: Standard, Holographic (Holo), Special (SP), Holographic Special (HSP), Gold, CARAT, Gold Special (GSP) or GSPx. See Card finishes.'],
         ['Arena Art', 'A cosmetic battlefield skin for your board half, bought or earned in Shop › Arena Art and equipped from there.'],
         ['Veteran', 'A Siegeling banked from a won Siege run, used again in Endless and Battlegrounds.']
       ]]
@@ -11096,6 +11137,8 @@
     noteNewGalleryUnlocks(model);
     if (Array.isArray(model.holographicCards)) setPlayerHolo(model.holographicCards);
     if (Array.isArray(model.holoArtCards)) setPlayerHoloArt(model.holoArtCards);
+    if (Array.isArray(model.plainGoldCards)) setPlayerPlainGold(model.plainGoldCards);
+    if (Array.isArray(model.caratCards)) setPlayerCarat(model.caratCards);
     if (Array.isArray(model.goldCards)) setPlayerGold(model.goldCards);
     if (Array.isArray(model.holoGoldCards)) setPlayerHoloGold(model.holoGoldCards);
     if (Array.isArray(model.holoCards)) setPlayerHoloPlain(model.holoCards);

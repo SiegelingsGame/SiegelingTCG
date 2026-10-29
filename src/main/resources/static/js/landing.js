@@ -1071,6 +1071,8 @@
         EPIC: { label: 'Epic', bounty: 8 },
         LEGENDARY: { label: 'Legendary', bounty: 10 }
     };
+    const GOLD_CARD_OVERLAY = '<div class="card-gold-finish" aria-hidden="true"><i class="card-gold-frame"></i><i class="card-gold-sheen"></i></div>';
+    const GOLD_CAST_OVERLAY = '<div class="card-holo-gold-finish" aria-hidden="true"><i class="card-holo-gold-tint"></i><i class="card-holo-gold-warm"></i><i class="card-gold-sheen"></i><i class="card-holo-gold-rim"></i></div>';
     const CARD_FINISHES = [
         { id: 'STANDARD', label: 'Standard', blurb: 'The printed card.', spArt: false, cardClass: '', overlay: '' },
         { id: 'HOLO', label: 'Holo', blurb: 'A holographic sheen over the standard art.', spArt: false,
@@ -1078,12 +1080,14 @@
         { id: 'SP', label: 'SP', blurb: 'Special art: a new illustration of the card.', spArt: true, cardClass: '', overlay: '' },
         { id: 'HSP', label: 'HSP', blurb: 'Special art under full rainbow foil.', spArt: true,
             cardClass: ' is-holographic', overlay: '<div class="card-holographic-overlay" aria-hidden="true"></div>' },
-        { id: 'GOLD', label: 'Gold', blurb: 'Special art in a polished gold frame.', spArt: true,
-            cardClass: ' is-holographic is-gold-finish',
-            overlay: '<div class="card-gold-finish" aria-hidden="true"><i class="card-gold-frame"></i><i class="card-gold-sheen"></i></div>' },
-        { id: 'GSP', label: 'GSP', blurb: 'The whole card cast in gold leaf, notches included — a link still flares gold.', spArt: true,
-            cardClass: ' is-holographic is-holo-gold-finish',
-            overlay: '<div class="card-holo-gold-finish" aria-hidden="true"><i class="card-holo-gold-tint"></i><i class="card-holo-gold-warm"></i><i class="card-gold-sheen"></i><i class="card-holo-gold-rim"></i></div>' }
+        { id: 'GOLD', label: 'Gold', blurb: 'The standard art on a polished gold card.', spArt: false,
+            cardClass: ' is-holographic is-gold-finish', overlay: GOLD_CARD_OVERLAY },
+        { id: 'CARAT', label: 'CARAT', blurb: 'The standard art with the whole card cast in gold leaf, notches included.', spArt: false,
+            cardClass: ' is-holographic is-holo-gold-finish', overlay: GOLD_CAST_OVERLAY },
+        { id: 'GSP', label: 'GSP', blurb: 'Special art on a polished gold card.', spArt: true,
+            cardClass: ' is-holographic is-gold-finish', overlay: GOLD_CARD_OVERLAY },
+        { id: 'GSPX', label: 'GSPx', blurb: 'Special art with the whole card cast in gold leaf, notches included — a link still flares gold.', spArt: true,
+            cardClass: ' is-holographic is-holo-gold-finish', overlay: GOLD_CAST_OVERLAY }
     ];
 
     // The finish wraps renderBinderFace's markup: its class goes on the card

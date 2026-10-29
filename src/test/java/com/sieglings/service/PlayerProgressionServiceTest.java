@@ -335,14 +335,22 @@ class PlayerProgressionServiceTest {
         assertEquals(18000, store.saved.getRemnants());
         assertTrue(store.saved.getHoloArtCardIds().isEmpty(), "HSP replaces the SP-only entry.");
         service.purchaseHolographicFinish(user(), "glimmer", CardFinish.GOLD);
-        assertEquals(14000, store.saved.getRemnants());
+        assertEquals(17000, store.saved.getRemnants());
+        assertEquals("GOLD", service.cardFinishesForUser("player@example.com").get("glimmer"));
+        service.purchaseHolographicFinish(user(), "glimmer", CardFinish.CARAT);
+        assertEquals(15500, store.saved.getRemnants());
+        assertEquals("CARAT", service.cardFinishesForUser("player@example.com").get("glimmer"));
         service.purchaseHolographicFinish(user(), "glimmer", CardFinish.GSP);
+        assertEquals(14000, store.saved.getRemnants());
+        assertEquals("GSP", service.cardFinishesForUser("player@example.com").get("glimmer"));
+        service.purchaseHolographicFinish(user(), "glimmer", CardFinish.GSPX);
         assertEquals(6000, store.saved.getRemnants());
         assertTrue(store.saved.getGoldCardIds().contains("glimmer"));
+        assertTrue(store.saved.getHoloGoldCardIds().contains("glimmer"));
         assertTrue(store.saved.getHolographicCardIds().contains("glimmer"));
-        assertEquals("GSP", service.cardFinishesForUser("player@example.com").get("glimmer"));
+        assertEquals("GSPX", service.cardFinishesForUser("player@example.com").get("glimmer"));
         assertThrows(IllegalArgumentException.class,
-                () -> service.purchaseHolographicFinish(user(), "glimmer", CardFinish.GSP));
+                () -> service.purchaseHolographicFinish(user(), "glimmer", CardFinish.GSPX));
         assertThrows(IllegalArgumentException.class,
                 () -> service.purchaseHolographicFinish(user(), "glimmer", CardFinish.HOLO),
                 "A finish never goes down.");
@@ -355,10 +363,43 @@ class PlayerProgressionServiceTest {
         store.saved = ownerOf("draco", 7000);
         PlayerProgressionService service = createService(store, new FakePackCatalogService(), new HoloArtCardDefinitionService());
 
-        service.purchaseHolographicFinish(user(), "draco", CardFinish.GOLD);
+        service.purchaseHolographicFinish(user(), "draco", CardFinish.GSP);
 
-        assertEquals(1000, store.saved.getRemnants(), "STANDARD -> GOLD is craft x 12.");
-        assertEquals("GOLD", service.cardFinishesForUser("player@example.com").get("draco"));
+        assertEquals(1000, store.saved.getRemnants(), "STANDARD -> GSP is craft x 12.");
+        assertEquals("GSP", service.cardFinishesForUser("player@example.com").get("draco"));
+    }
+
+    @Test
+    void goldListsWrittenBeforeGoldAndCaratExistedReadAsGspAndGspx() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        PlayerProgressionEntity progression = ownerOf("draco", 0);
+        progression.getOwnedCards().put("glimmer", 1);
+        // The old GOLD tier stored draco on goldCardIds; the old GSP added holoGoldCardIds.
+        progression.setHolographicCardIds(List.of("draco", "glimmer"));
+        progression.setGoldCardIds(List.of("draco", "glimmer"));
+        progression.setHoloGoldCardIds(List.of("glimmer"));
+        store.saved = progression;
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new FakeCardDefinitionService());
+        Card draco = new SieglingCard("draco", "Draco", Element.FIRE, Rarity.COMMON, 7, 3, List.of(), Row.FRONT);
+
+        assertEquals(CardFinish.GSP, service.currentFinish(progression, draco));
+        assertEquals("GSP", service.cardFinishesForUser("player@example.com").get("draco"));
+        assertEquals("GSPX", service.cardFinishesForUser("player@example.com").get("glimmer"));
+    }
+
+    @Test
+    void goldTiersNeedNoSpArt() throws Exception {
+        FakeProgressionStore store = new FakeProgressionStore();
+        store.saved = ownerOf("draco", 20000);
+        PlayerProgressionService service = createService(store, new FakePackCatalogService(), new HoloArtCardDefinitionService());
+
+        // Without SP art, GSP and GSPx fall back to the standard art on the client.
+        service.purchaseHolographicFinish(user(), "draco", CardFinish.GOLD);
+        assertTrue(store.saved.getPlainGoldCardIds().contains("draco"));
+        service.purchaseHolographicFinish(user(), "draco", CardFinish.CARAT);
+        assertTrue(store.saved.getCaratCardIds().contains("draco"));
+        service.purchaseHolographicFinish(user(), "draco", CardFinish.GSPX);
+        assertEquals("GSPX", service.cardFinishesForUser("player@example.com").get("draco"));
     }
 
     @Test
@@ -391,7 +432,8 @@ class PlayerProgressionServiceTest {
 
     @Test
     void finishDropOddsShrinkUpTheLadderAndUpTheRarities() {
-        CardFinish[] ladder = { CardFinish.HOLO, CardFinish.SP, CardFinish.HSP, CardFinish.GOLD, CardFinish.GSP };
+        CardFinish[] ladder = { CardFinish.HOLO, CardFinish.SP, CardFinish.HSP, CardFinish.GOLD,
+                CardFinish.CARAT, CardFinish.GSP, CardFinish.GSPX };
         Rarity[] rarities = Rarity.values();
         for (Rarity rarity : rarities) {
             Map<CardFinish, Double> odds = PackCatalogService.FINISH_DROP_CHANCE.get(rarity);
@@ -406,8 +448,8 @@ class PlayerProgressionServiceTest {
                         finish + " must be rarer on " + rarities[r] + " than on " + rarities[r - 1]);
             }
         }
-        assertTrue(PackCatalogService.FINISH_DROP_CHANCE.get(Rarity.COMMON).get(CardFinish.GSP) <= 1.0 / 10000,
-                "GSP is an act of god even on a Common.");
+        assertTrue(PackCatalogService.FINISH_DROP_CHANCE.get(Rarity.COMMON).get(CardFinish.GSPX) <= 1.0 / 10000,
+                "GSPx is an act of god even on a Common.");
     }
 
     @Test

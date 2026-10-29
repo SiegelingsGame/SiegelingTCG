@@ -154,7 +154,13 @@
 
     // Holo art shows for both upgrade tiers: Holo Art (art only) and Holo
     // Flair (art plus the foil overlay). Only isHolographic() earns the overlay.
+    // GOLD and CARAT keep the standard art even though they sit above HSP; GSP
+    // and GSPx show the SP art, and fall back to the standard art (via
+    // holographicArtMode) on a card that has none yet.
     function showsHolographicArt(card, options = {}) {
+        if (isStandardArtGold(card, options)) {
+            return false;
+        }
         return Boolean(options.useHolographicFullCardArt
             && (isHolographic(card, options) || hasHoloArtTier(card, options) || isGold(card, options) || isHoloGold(card, options))
             && holographicArtMode(card));
@@ -269,8 +275,57 @@
         return false;
     }
 
-    // GOLD, the top finish: holo art in a gold frame with a gold shine in place
-    // of the rainbow foil. The art keeps its colours so notches stay readable.
+    function hasId(ids, card) {
+        const cardId = String(card?.id || '').trim().toLowerCase();
+        if (!cardId || !ids) {
+            return false;
+        }
+        if (ids instanceof Set) {
+            return ids.has(cardId);
+        }
+        if (Array.isArray(ids)) {
+            return ids.some((entry) => String(entry || '').trim().toLowerCase() === cardId);
+        }
+        return false;
+    }
+
+    // GOLD: the standard art on a gold card (gold frame and shine).
+    function isPlainGold(card, options = {}) {
+        return card?.plainGoldFinish === true || hasId(options.playerPlainGoldIds, card);
+    }
+
+    // CARAT: the standard art with the whole card cast in gold.
+    function isCarat(card, options = {}) {
+        return card?.caratFinish === true || hasId(options.playerCaratIds, card);
+    }
+
+    // The highest gold tier the card shows: GSPX > GSP > CARAT > GOLD, else ''.
+    function goldTier(card, options = {}) {
+        if (isHoloGold(card, options)) return 'GSPX';
+        if (isGold(card, options)) return 'GSP';
+        if (isCarat(card, options)) return 'CARAT';
+        if (isPlainGold(card, options)) return 'GOLD';
+        return '';
+    }
+
+    // CARAT and GSPx cast the whole card in gold; GOLD and GSP are a gold card.
+    function castsInGold(card, options = {}) {
+        const tier = goldTier(card, options);
+        return tier === 'GSPX' || tier === 'CARAT';
+    }
+
+    function hasGoldFrame(card, options = {}) {
+        const tier = goldTier(card, options);
+        return tier === 'GSP' || tier === 'GOLD';
+    }
+
+    function isStandardArtGold(card, options = {}) {
+        const tier = goldTier(card, options);
+        return tier === 'GOLD' || tier === 'CARAT';
+    }
+
+    // GSP: the SP art on a gold card, a gold shine in place of the rainbow foil.
+    // The art keeps its colours so notches stay readable.
     function isGold(card, options = {}) {
         if (card?.goldFinish === true) {
             return true;
@@ -289,7 +344,7 @@
         return false;
     }
 
-    // HOLO GOLD, the final finish: the whole card cast in gold, notches kept in colour.
+    // GSPx, the final finish: the SP art, the whole card cast in gold, notches kept in colour.
     function isHoloGold(card, options = {}) {
         if (card?.holoGoldFinish === true) {
             return true;
@@ -328,11 +383,11 @@
     }
 
     function holographicClass(card, options = {}) {
-        if (isHoloGold(card, options)) {
+        if (castsInGold(card, options)) {
             return ' is-holographic is-holo-gold-finish';
         }
-        if (isHolographic(card, options) || isGold(card, options)) {
-            return ' is-holographic' + (isGold(card, options) ? ' is-gold-finish' : '');
+        if (isHolographic(card, options) || hasGoldFrame(card, options)) {
+            return ' is-holographic' + (hasGoldFrame(card, options) ? ' is-gold-finish' : '');
         }
         return isHoloPlain(card, options) ? ' is-holo-plain' : '';
     }
@@ -349,13 +404,13 @@
         return '<div class="card-gold-finish" aria-hidden="true"><i class="card-gold-frame"></i><i class="card-gold-sheen"></i></div>';
     }
 
-    // The finish layer over a card: the gold frame and shine for GOLD, else the
-    // rainbow foil for HOLO SP, else nothing.
+    // The finish layer over a card: the gold cast for CARAT/GSPx, the gold frame
+    // and shine for GOLD/GSP, else the rainbow foil for HSP, else nothing.
     function renderFinishOverlay(card, options = {}) {
-        if (isHoloGold(card, options)) {
+        if (castsInGold(card, options)) {
             return renderHoloGoldFinish();
         }
-        if (isGold(card, options)) {
+        if (hasGoldFrame(card, options)) {
             return renderGoldFinish();
         }
         if (isHolographic(card, options)) {
@@ -672,8 +727,9 @@
         // HOLO GOLD tints everything under the notches, so it must live inside the
         // showcase card next to its notch layer: an outer layer on this slot would
         // sit above the showcase's own stacking context and tint the notches too.
-        const holoGold = isHoloGold(card, options);
-        const framed = renderFramedShowcaseCard(holoGold ? { ...card, holoGoldFinish: true } : card, {
+        const holoGold = castsInGold(card, options);
+        const castFlag = goldTier(card, options) === 'CARAT' ? { caratFinish: true } : { holoGoldFinish: true };
+        const framed = renderFramedShowcaseCard(holoGold ? { ...card, ...castFlag } : card, {
             cardClass: options.cardClass || 'mulligan-showcase binder-grid-showcase',
             compactAbilityLimit: options.compactAbilityLimit ?? 2,
             summaryMode: options.summaryMode,
@@ -906,6 +962,12 @@
         hasHoloArtTier,
         isGold,
         isHoloGold,
+        isPlainGold,
+        isCarat,
+        goldTier,
+        castsInGold,
+        hasGoldFrame,
+        isStandardArtGold,
         isHoloPlain,
         renderHoloPlainOverlay,
         renderGoldFinish,

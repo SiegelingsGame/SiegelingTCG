@@ -140,6 +140,8 @@ public class PlayerProgressionStore {
         payload.put("craftCount", progression.getCraftCount());
         payload.put("holographicCardIds", progression.getHolographicCardIds());
         payload.put("holoArtCardIds", progression.getHoloArtCardIds());
+        payload.put("plainGoldCardIds", progression.getPlainGoldCardIds());
+        payload.put("caratCardIds", progression.getCaratCardIds());
         payload.put("goldCardIds", progression.getGoldCardIds());
         payload.put("plainHoloCardIds", progression.getPlainHoloCardIds());
         payload.put("holoGoldCardIds", progression.getHoloGoldCardIds());
@@ -211,6 +213,8 @@ public class PlayerProgressionStore {
         progression.setCraftCount(craftCount == null ? 0 : craftCount.intValue());
         progression.setHolographicCardIds(readStringList(snapshot.get("holographicCardIds")));
         progression.setHoloArtCardIds(readStringList(snapshot.get("holoArtCardIds")));
+        progression.setPlainGoldCardIds(readStringList(snapshot.get("plainGoldCardIds")));
+        progression.setCaratCardIds(readStringList(snapshot.get("caratCardIds")));
         progression.setGoldCardIds(readStringList(snapshot.get("goldCardIds")));
         progression.setPlainHoloCardIds(readStringList(snapshot.get("plainHoloCardIds")));
         progression.setHoloGoldCardIds(readStringList(snapshot.get("holoGoldCardIds")));

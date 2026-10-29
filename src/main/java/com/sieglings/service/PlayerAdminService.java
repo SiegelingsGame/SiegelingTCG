@@ -166,6 +166,14 @@ public class PlayerAdminService {
             progression.setPlainHoloCardIds(parseIdList(body.get("plainHoloCardIds")));
             changed = true;
         }
+        if (body.containsKey("plainGoldCardIds")) {
+            progression.setPlainGoldCardIds(parseIdList(body.get("plainGoldCardIds")));
+            changed = true;
+        }
+        if (body.containsKey("caratCardIds")) {
+            progression.setCaratCardIds(parseIdList(body.get("caratCardIds")));
+            changed = true;
+        }
         if (body.containsKey("goldCardIds")) {
             progression.setGoldCardIds(parseIdList(body.get("goldCardIds")));
             changed = true;
@@ -237,6 +245,8 @@ public class PlayerAdminService {
         progressionView.put("holographicCardIds", progression.getHolographicCardIds());
         progressionView.put("holoArtCardIds", progression.getHoloArtCardIds());
         progressionView.put("plainHoloCardIds", progression.getPlainHoloCardIds());
+        progressionView.put("plainGoldCardIds", progression.getPlainGoldCardIds());
+        progressionView.put("caratCardIds", progression.getCaratCardIds());
         progressionView.put("goldCardIds", progression.getGoldCardIds());
         progressionView.put("holoGoldCardIds", progression.getHoloGoldCardIds());
         progressionView.put("updatedAt", progression.getUpdatedAt() == null ? null : progression.getUpdatedAt().toString());
