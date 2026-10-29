@@ -1,3 +1,32 @@
+Original prompt: Combine signature and showcase, when building your showcase you can select which of the three is the signature. (Follow-up: no separate Signature selection; a small star badge on the picked cards in the collection grid.) Make title a drop down list and move icon and favorite elements to the details page. Once showcase is only 3 Siegelings make better use of the full screen space
+
+- October 29, 2026 **Profile: one Showcase of three with a Signature; title dropdown; Signature-led showcase layout.**
+  - **Change.** The profile editor goes from four tabs to three (Showcase, Look, Details).
+    - **Showcase tab.** It now holds the Signature, in the collection grid itself. Tapping a card toggles it in or out of the three, which are numbered 1–3, and a 4th pick is refused. Each picked card wears a small star badge in its bottom-right corner; tapping it makes that card the Signature. The Signature's star is filled gold, its tile is framed in gold, and it moves to #1. Dropping the Signature passes it to the next card, and the first card picked into an empty showcase becomes it. There is no separate Signature selection.
+    - **Saving.** It sends `favoriteCardIds` as the three cards (Signature first) and `favoriteCardId` as one of them. The server already caps the list at 3, so no backend change.
+    - **Look tab.** Background plus the card back, which moved from the old Signature tab. The profile's card-back Change link opens Look.
+    - **Details tab.** Name, status and avatar URL, then **Title as a dropdown** (earned titles to pick, locked ones listed disabled under "Locked (n)", deduplicated by id, with the chosen title's description beneath), then Icon style and Favorite element.
+    - **Old links.** `data-prof-open="favorite"` / `signature` land on Showcase.
+  - **Profile page.** The showcase is now 3 cards including the Signature. `mergeFavorite` caps the total at 3, so accounts saved under the old favourite-plus-three rule show their favourite and first two picks. The tile badge reads "★ Signature".
+    - **Portrait phones.** The Signature takes the left of the showcase band at full height and the other two stack on the right, instead of three thin slivers.
+    - **Short phones (≤700px tall)** keep three across, since the band is too short to stack.
+    - Landscape and desktop are unchanged (three across).
+    - **Cache pins.** `home-redesign.js?v=169`, `home-redesign.css?v=178`.
+  - **Verification.** `node --check` passes. Headless Chromium on `home-next.html?screen=profile`, with the public API forwarded to the live site and a signed-in fixture for `/api/auth/me`, progression and settings (saved under the old rule: favourite + 3):
+    - **Profile page.** It shows exactly 3 tiles with the favourite first.
+    - **Editor tabs.** Showcase, Look, Details.
+    - **Editor flow at 390x844:**
+      - Tapping the 3rd card's star makes it the Signature and moves it to #1.
+      - Dropping the Signature passes it on.
+      - Adding a card fills the empty slot, and a 4th pick shows "Drop one of your three picks first."
+      - Details has the select (earned, selected, locked disabled, duplicate removed), the icon chips and 13 elements.
+      - Changing the title updates its description in place.
+      - Look has the 12 card backs and no icon chips.
+    - **Save.** It posted `favoriteCardId: applehead`, `favoriteCardIds: [applehead, cacty, jackedty]` and `playerTitleId: t1`, and the profile re-rendered with those three, Signature first.
+    - **Layouts.** Signature tile 202x274 beside two 156x133 tiles at 390x844, and 225x352 beside two 173x172 at 430x932. Three across at 375x667 (112x165), 320x568, 844x390 and 1920x1080.
+    - No page errors.
+    - Screenshots checked.
+
 Original prompt: Update the drop rates (clarified: fix the stale displays; keep the server odds)
 
 - October 29, 2026 **Legacy hub odds popup shows the real per-finish drop rates.**
