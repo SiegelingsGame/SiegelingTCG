@@ -5283,6 +5283,72 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-stage-deck { grid-area:deck; }
   .sg-stage-caption strong { font-size:21px; }
 
+  /* With the shield, the three ways to play wrap the S button as one control:
+     Siege and Dominion are its flanks (the shield's own flank shape, a
+     semicircle cut where they meet the FAB, pointing outward) and Arena is the
+     crown across the top, notched where the FAB rises into it. The last row is
+     the FAB's height and ends at its bottom inset, so its centre is the FAB's;
+     the middle column is the width the flank cuts reach into. */
+  .has-shield-navigation .sg-stage-ui {
+    grid-template-columns:minmax(0, 1fr) calc(var(--sn-flank-tuck) * 2) minmax(0, 1fr);
+    grid-template-rows:auto minmax(0, 1fr) auto auto var(--sn-fab-size);
+    padding-bottom:var(--sn-fab-bottom);
+    column-gap:0;
+  }
+  .has-shield-navigation .sg-app a.sg-stage-mode,
+  .has-shield-navigation .sg-app a.sg-stage-play { isolation:isolate; position:relative; }
+  .has-shield-navigation .sg-app a.sg-stage-mode {
+    --mode-rim:#d9b45f;
+    --mode-fill:linear-gradient(180deg, #2c3374 0%, #1a1c52 52%, #10113a 100%);
+    --cut-x:calc(100% + var(--sn-flank-tuck));
+    align-self:center; justify-self:end; width:100%; max-width:230px; height:var(--sn-flank-h); min-height:0;
+    padding:0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 8px) 0 22px;
+    align-items:flex-end; text-align:right;
+    border:0; border-radius:0; box-shadow:none; background:var(--mode-rim);
+    clip-path:polygon(16px 0, 100% 0, 100% 100%, 16px 100%, 0 50%);
+    -webkit-mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) - .5px), #000 var(--sn-flank-r));
+    mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) - .5px), #000 var(--sn-flank-r));
+    filter:drop-shadow(0 6px 12px rgba(0,0,0,.45));
+  }
+  .has-shield-navigation .sg-app a.sg-stage-mode::before {
+    content:''; position:absolute; inset:0; z-index:-1; background:var(--mode-fill);
+    clip-path:polygon(17.2px 2px, 100% 2px, 100% calc(100% - 2px), 17.2px calc(100% - 2px), 2.3px 50%);
+    -webkit-mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) + 1.5px), #000 calc(var(--sn-flank-r) + 2px));
+    mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) + 1.5px), #000 calc(var(--sn-flank-r) + 2px));
+  }
+  .has-shield-navigation .sg-app a.sg-stage-mode.is-keep {
+    --mode-fill:linear-gradient(180deg, #23527f 0%, #173a66 52%, #0e2547 100%);
+    --cut-x:calc(var(--sn-flank-tuck) * -1);
+    justify-self:start; align-items:flex-start; text-align:left;
+    padding:0 22px 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 8px);
+    clip-path:polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%);
+  }
+  .has-shield-navigation .sg-app a.sg-stage-mode.is-keep::before {
+    clip-path:polygon(0 2px, calc(100% - 17.2px) 2px, calc(100% - 2.3px) 50%, calc(100% - 17.2px) calc(100% - 2px), 0 calc(100% - 2px));
+  }
+  .has-shield-navigation .sg-stage-mode-kicker { color:rgba(244,236,214,.72); }
+  .has-shield-navigation .sg-stage-mode strong { color:#f4ecd6; }
+  .has-shield-navigation .sg-app a.sg-stage-mode:active { transform:scale(.97); }
+
+  /* Arena spans both flanks, sitting 2px above the FAB's top; the notch is a
+     circle on the FAB's centre a few px wider than the flank cuts. */
+  .has-shield-navigation .sg-app a.sg-stage-play {
+    --notch-y:calc(100% + var(--sn-fab-size) / 2 + 2px);
+    width:100%; max-width:calc(230px * 2 + var(--sn-flank-tuck) * 2); margin-bottom:-6px;
+    border-radius:16px 16px 22px 22px;
+    background:#fff3c9;
+    box-shadow:none; filter:drop-shadow(0 8px 18px rgba(255,120,45,.42));
+    padding-bottom:6px;
+    -webkit-mask:radial-gradient(circle at 50% var(--notch-y), transparent calc(var(--sn-flank-r) + 2.5px), #000 calc(var(--sn-flank-r) + 3px));
+    mask:radial-gradient(circle at 50% var(--notch-y), transparent calc(var(--sn-flank-r) + 2.5px), #000 calc(var(--sn-flank-r) + 3px));
+  }
+  .has-shield-navigation .sg-app a.sg-stage-play::before {
+    content:''; position:absolute; inset:2px; z-index:-1; border-radius:14px 14px 20px 20px;
+    background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
+    -webkit-mask:radial-gradient(circle at 50% calc(var(--notch-y) - 2px), transparent calc(var(--sn-flank-r) + 4.5px), #000 calc(var(--sn-flank-r) + 5px));
+    mask:radial-gradient(circle at 50% calc(var(--notch-y) - 2px), transparent calc(var(--sn-flank-r) + 4.5px), #000 calc(var(--sn-flank-r) + 5px));
+  }
+
   .sg-stage-panel { padding-top:calc(var(--stage-top) + 6px); }
 
   /* Tall pieces are tall in the picker too. */

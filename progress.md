@@ -1,3 +1,19 @@
+Original prompt: On portrait can you integrate the siege, play and dominion buttons into the Fab attachments in a cool intuitive way?
+
+- October 29, 2026 **Home (portrait): Arena, Siege and Dominion wrap the S FAB as one control.**
+  - **Change.** Portrait Home used to stack the Arena pill above two rounded Siege and Dominion cards that merely sat either side of the shield FAB. With the shield on screen (`.has-shield-navigation`, portrait under 1024px wide) they now form one cluster around it:
+    - **Siege** is the FAB's left flank and **Dominion** its right. Each uses the shield's own flank shape: a 2px gold rim, a point facing outward, and a semicircle cut where it meets the FAB. Siege is navy and Dominion steel-blue. The kicker and title are aligned toward the FAB.
+    - **Arena** is the crown across the top, spanning both flanks. It has a gold rim over its amber gradient, and a notch curving around the FAB's top. The notch is a circle on the FAB's centre, slightly wider than the flank cuts. Arena sits 2px above the FAB.
+    - **Layout.** The grid's last row is exactly the FAB's height and ends at its bottom inset, so it shares the FAB's centre. The middle column is the width the flank cuts reach into, with no column gap, so everything follows the shield's `--sn-fab-*` and `--sn-flank-*` variables.
+    - Landscape and desktop are unchanged.
+    - **Cache pin.** `home-redesign.css?v=174`, still unreleased in this PR.
+  - **Verification.** Headless Chromium at 390x844, 430x932, 375x667 and 320x568, no page errors:
+    - Both flanks are vertically centred on the FAB, and each flank's inner edge sits exactly at FAB centre ± the tuck (172 / 218 around a 195 centre at 390 wide).
+    - Arena ends 2px above the FAB's top.
+    - Tapping each of Siege, Dominion, Arena and the FAB hits that control.
+    - No flank text overflows.
+    - Screenshots at 390 and 320 wide checked.
+
 Original prompt: In collection the evolve souls show the small siegeling instead of name that spoils be consistent across the site unless it fails back to the name
 
 - October 29, 2026 **Hub binder: Evo chips show the precursor's thumbnail, like the rest of the site.**
