@@ -1,3 +1,24 @@
+Original prompt: Need a way to integrate the filter and fab button also sometimes the rotated image fails to load on many
+
+- October 29, 2026 **Binder: Filters docks to the S FAB. Home: the wallpaper never hangs a file that has not loaded.**
+  - **Change.**
+    - **Binder filter button.** It was a second gold FAB at the bottom right, next to the shield's S FAB. It is now the S FAB's right flank: `sn-flank is-right is-gold` with a filter icon, a "Filters" label and an inline count badge.
+      - The flank is placed from the shield's own `--sn-fab-*` and `--sn-flank-*` variables, so it hugs the FAB at every size.
+      - It keeps its scroll-in reveal and still opens the filter sheet.
+      - The rules sit under `.has-shield-navigation`, so a page without the shield keeps the round button.
+    - **Wallpaper.** `mountStage` used to set a plate's background and crossfade to it straight away, and nothing handled a load error. Now:
+      - **Load first.** Each piece is loaded with an `Image` before it is hung; the current piece stays up until the next one has loaded.
+      - **Retry, then skip.** A file that fails is retried once with the art pool's current link. If it still fails, the stage steps on to the next piece in the same direction. If nothing in the list loads, it falls back to the first bundled scene.
+      - **Fresh links.** When the background `/api/art/loading` refresh lands (`sg:art-refreshed`), the rotation picks up any changed links.
+      - **Why.** Dashboard art lives behind tokenised Firebase Storage links, and Home reads last visit's cached list first. A re-uploaded piece's old link answers 403 (confirmed with a bad token). All 137 live art files return 200 `image/webp` with year-long caching, so a failure is a stale link or a slow load, not a missing file.
+    - **Cache pins.** `home-redesign.js?v=165` and `home-redesign.css?v=174` in `home-next.html` and `home-redesign-preview.html`.
+  - **Verification.** `node --check` passes. Headless Chromium, no page errors in any run.
+    - **Binder.** At 390x844, 320x568, 844x390 and 1920x1080, once scrolled, the Filters flank is vertically centred on the S FAB and tucks 5–8px into its cut, as the flanks are designed to. It opens the filter sheet. Screenshots checked.
+    - **Wallpaper, broken piece.** With a 404 piece first in the rotation, the stage hangs Morning Drills, using `-portrait.webp` on a tall screen.
+    - **Wallpaper, nothing loads.** With every piece broken, it hangs The Long Fuse.
+    - **Wallpaper, normal list.** It still advances (The Long Fuse, Morning Drills, Above the Skyreach).
+    - **Orientation.** Turning the phone still keeps the same piece (Morning Drills switches to its portrait file and back).
+
 Original prompt: In gallery the fab sits over the siegeling name
 
 - October 29, 2026 **Gallery: the piece's caption and card chips clear the FAB.**

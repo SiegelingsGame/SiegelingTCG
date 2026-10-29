@@ -812,6 +812,24 @@ body.concept-board {
     inset 0 1px 0 rgba(255,255,255,.55);
 }
 .sg-filter-fab-ico { display:grid; place-items:center; }
+/* With the shield on screen the filter button is the S FAB's right flank: it
+   keeps its reveal-on-scroll fade but takes the flank's shape, size and spot. */
+.has-shield-navigation .sg-filter-fab {
+  left:calc(50% + var(--sn-flank-tuck)); right:auto;
+  bottom:calc(var(--sn-fab-bottom) + var(--sn-fab-size) / 2 - var(--sn-flank-h) / 2);
+  width:auto; height:var(--sn-flank-h); border-radius:0; border:0; display:flex;
+  max-width:calc(50% - var(--sn-flank-tuck) - max(10px, env(safe-area-inset-right, 0px)));
+  background:var(--flank-rim); color:var(--flank-ink);
+  box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none;
+  transform:translateX(-12px); filter:drop-shadow(0 8px 16px rgba(0,0,0,.45));
+}
+.has-shield-navigation .sg-app.is-filter-compact .sg-filter-fab:not([hidden]) { transform:none; }
+.has-shield-navigation .sg-app.is-filter-compact .sg-filter-fab:not([hidden]):active { transform:scale(.97); }
+.has-shield-navigation .sg-filter-fab.has-filters { box-shadow:none; filter:drop-shadow(0 8px 16px rgba(0,0,0,.45)) drop-shadow(0 0 6px rgba(255,214,120,.7)); }
+.sg-filter-fab-row { display:flex; align-items:center; gap:7px; }
+.has-shield-navigation .sg-filter-fab .sg-filter-fab-badge {
+  position:static; min-width:20px; height:20px; color:#fff4d2; background:#3b2306; border:0; box-shadow:none;
+}
 .sg-filter-fab-badge[hidden] { display:none !important; }
 .sg-filter-fab-badge {
   position:absolute; top:-2px; right:-2px;
