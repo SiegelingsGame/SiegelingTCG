@@ -3480,7 +3480,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   color:var(--muted); border:1px solid rgba(160,220,255,.2); background:rgba(36,26,96,.35);
 }
 /* The x of "GSPx" (smallFinishX) stays lower-case and small inside upper-cased labels. */
-.finish-x { font-size:.72em; text-transform:none; letter-spacing:0; margin-left:.04em; }
+/* The label's letter-spacing would trail the P and push the x off it. */
+.finish-p { letter-spacing:0; }
+.finish-x { font-size:.72em; text-transform:none; letter-spacing:0; margin-left:.02em; }
 .sg-sheet-version.is-owned { color:#dff6ff; border-color:rgba(160,220,255,.42); }
 .sg-sheet-version.is-locked { color:rgba(220,220,240,.5); }
 .sg-sheet-version svg { flex:0 0 auto; opacity:.8; }

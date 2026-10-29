@@ -1,3 +1,9 @@
+Original prompt: Bring it close to the p
+
+- October 29, 2026 **GSPx: the x sits against the P.**
+  - **Change.** The gap between "GSP" and the small x came from the label's letter-spacing, which trails the P, plus a .04em margin. The P now sits in its own `finish-p` span with `letter-spacing:0`, and the x margin is .02em. G and S keep the label's spacing. Covered in `home-redesign.js`/`landing.js` (`smallFinishX`), `help.html`, and the `.finish-p` rules in `home-redesign.css`, `landing.css` and `help.css`. Cache pins bumped for all five.
+  - **Verification.** `node --check` passes on both JS files. Headless Chromium at 390x844 (4x scale), hub preview GSPx chip: the gap between the P's box and the x's box measures 0.14px, and the zoomed screenshot shows the x tucked against the P.
+
 Original prompt: Make sure the x is lowercase and small
 
 - October 29, 2026 **GSPx: the x prints small and lower-case.**

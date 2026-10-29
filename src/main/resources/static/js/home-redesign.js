@@ -5270,7 +5270,7 @@
   // "GSPx" prints its x small and lower-case, so it reads as a mark on GSP
   // rather than a fourth letter. Takes escaped HTML and returns HTML.
   function smallFinishX(html) {
-    return String(html).replace(/\bGSPx\b/g, '<span class="finish-gspx">GSP<small class="finish-x">x</small></span>');
+    return String(html).replace(/\bGSPx\b/g, '<span class="finish-gspx">GS<span class="finish-p">P</span><small class="finish-x">x</small></span>');
   }
 
   function versionLabel(key) {

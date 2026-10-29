@@ -1092,7 +1092,7 @@
 
     // "GSPx" prints its x small and lower-case. Takes escaped HTML.
     function smallFinishX(html) {
-        return String(html).replace(/\bGSPx\b/g, '<span class="finish-gspx">GSP<small class="finish-x">x</small></span>');
+        return String(html).replace(/\bGSPx\b/g, '<span class="finish-gspx">GS<span class="finish-p">P</span><small class="finish-x">x</small></span>');
     }
 
     // The finish wraps renderBinderFace's markup: its class goes on the card
