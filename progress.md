@@ -1,3 +1,9 @@
+Original prompt: Make sure the x is lowercase and small
+
+- October 29, 2026 **GSPx: the x prints small and lower-case.**
+  - **Change.** Every place the label "GSPx" is shown now renders it as `GSP<small class="finish-x">x</small>`, wrapped in one `finish-gspx` span so a flex chip keeps it as a single item. The `.finish-x` style is `font-size:.72em`, `text-transform:none`, which beats the upper-cased chip styling. This covers the hub card-sheet version chips, the full-screen version label, pack-pull badges, the pack odds table, the upgrade button and the in-hub help chapters (`smallFinishX` in `home-redesign.js`); the landing finish chips and blurb (`landing.js`); and `help.html`, whose `data-help-keywords` stays plain text. The upgrade button now restores its resting label with `innerHTML`, so the markup survives a failed purchase. Cache pins: `home-redesign.js`, `home-redesign.css`, `landing.js`, `landing.css`, `help.css`.
+  - **Verification.** `node --check` passes on `home-redesign.js` and `landing.js`. Headless Chromium at 390x844, hub preview: the GSPx chip's text reads "GSPx" with the x at 7.2px against the chip's 10px and `text-transform:none`. A first pass showed the chip's flex gap splitting the x off as its own item; that is what the wrapper span fixes. On `help.html#finishes` the x renders at 11.52px in 16px text.
+
 Original prompt: Add another 2 card tier change the current GSP to GSPx. Turn the current gold to GSP. Gold will now be the standard image on a gold card. GSP will be the SP image on a gold card. GSPx will be the SP image gold overlayed (current GSP). CARAT will be the standard image gold overlayed. Displayed show them Standard, Holo, SP, HSP, Gold, CARAT, GSP, GSPx. If the SP image is not available for GSP and GSPx show standard
 
 - October 29, 2026 **Card finishes: eight tiers, with Gold and CARAT added.**

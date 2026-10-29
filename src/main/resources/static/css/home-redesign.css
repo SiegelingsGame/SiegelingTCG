@@ -3479,8 +3479,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap;
   color:var(--muted); border:1px solid rgba(160,220,255,.2); background:rgba(36,26,96,.35);
 }
-/* "GSPx" keeps its lower-case x through the upper-cased chip and badge labels. */
-.sg-sheet-version[data-sheet-version="GSPX"], .sg-flip-finish.is-gspx, .sg-zoom-version[data-version="GSPX"] b { text-transform:none; }
+/* The x of "GSPx" (smallFinishX) stays lower-case and small inside upper-cased labels. */
+.finish-x { font-size:.72em; text-transform:none; letter-spacing:0; margin-left:.04em; }
 .sg-sheet-version.is-owned { color:#dff6ff; border-color:rgba(160,220,255,.42); }
 .sg-sheet-version.is-locked { color:rgba(220,220,240,.5); }
 .sg-sheet-version svg { flex:0 0 auto; opacity:.8; }

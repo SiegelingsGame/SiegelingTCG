@@ -4512,7 +4512,7 @@
             ? '<div class="sg-godds-finish"><dt>Finish per card</dt><dd><table>' +
                 '<tr><th></th>' + rarities.map(function (r) { return '<th>' + esc(title(r).slice(0, 4)) + '</th>'; }).join('') + '</tr>' +
                 ['HOLO', 'SP', 'HSP', 'GOLD', 'CARAT', 'GSP', 'GSPX'].map(function (f) {
-                  return '<tr><th class="is-' + f.toLowerCase() + '">' + esc(versionLabel(f)) + '</th>' + rarities.map(function (r) {
+                  return '<tr><th class="is-' + f.toLowerCase() + '">' + smallFinishX(esc(versionLabel(f))) + '</th>' + rarities.map(function (r) {
                     return '<td>' + esc(chance((finishOdds[r] || {})[f])) + '</td>';
                   }).join('') + '</tr>';
                 }).join('') +
@@ -5267,6 +5267,12 @@
     return key === 'GOLD' || key === 'CARAT' || key === 'GSP' || key === 'GSPX';
   }
 
+  // "GSPx" prints its x small and lower-case, so it reads as a mark on GSP
+  // rather than a fourth letter. Takes escaped HTML and returns HTML.
+  function smallFinishX(html) {
+    return String(html).replace(/\bGSPx\b/g, '<span class="finish-gspx">GSP<small class="finish-x">x</small></span>');
+  }
+
   function versionLabel(key) {
     return FINISH_LADDER[finishIndex(key)].label;
   }
@@ -5297,7 +5303,7 @@
   }
 
   function holoButtonLabel(step) {
-    return '✦ ' + step.label + ' · ' + step.cost.toLocaleString() + ' remnants';
+    return '✦ ' + smallFinishX(esc(step.label)) + ' · ' + step.cost.toLocaleString() + ' remnants';
   }
 
   // Each tier includes the ones below it. null when ownership is unknown
@@ -5358,7 +5364,7 @@
         return '<button class="' + cls + '" type="button" data-sheet-version="' + v.key + '"' +
           ' aria-pressed="' + (v.key === viewing) + '" title="' + esc(v.name) + '"' +
           (owned === false ? ' aria-label="' + esc(v.label) + ' (not owned)"' : '') + '>' +
-          (owned === false ? LOCK_GLYPH : '') + esc(v.label) + '</button>';
+          (owned === false ? LOCK_GLYPH : '') + smallFinishX(esc(v.label)) + '</button>';
       }).join('') +
     '</div>';
   }
@@ -5754,7 +5760,7 @@
     var requested = btn.getAttribute('data-holo-tier');
     var tier = FINISH_LADDER[finishIndex(requested)].key;
     var cost = Number(btn.getAttribute('data-holo-cost')) || 0;
-    var restingLabel = btn.textContent;
+    var restingLabel = btn.innerHTML;
     var note = sheetCard.querySelector('[data-holo-note]');
     // Up to 32,000 remnants in one tap is too easy to spend by accident, so
     // the first tap arms and the second one spends.
@@ -5771,7 +5777,7 @@
       if (!data || data.error || !data.progression) {
         btn.disabled = false;
         btn.classList.remove('is-armed');
-        btn.textContent = restingLabel;
+        btn.innerHTML = restingLabel;
         if (note) note.textContent = (data && data.error) || 'The finish could not be applied. Try again.';
         return;
       }
@@ -5911,7 +5917,7 @@
     function paintLabel() {
       var v = versions[index];
       var owned = versionOwned(card, v.key, opts);
-      label.innerHTML = '<b>' + esc(v.label) + '</b>' +
+      label.innerHTML = '<b>' + smallFinishX(esc(v.label)) + '</b>' +
         (v.name && v.name !== v.label ? '<em>' + esc(v.name) + '</em>' : '') +
         (owned === true ? '<span class="is-owned">Owned</span>'
           : owned === false ? '<span>Not owned</span>' : '');
@@ -6676,7 +6682,7 @@
         if (finish !== 'STANDARD') {
           var badge = document.createElement('span');
           badge.className = 'sg-flip-finish is-' + finish.toLowerCase();
-          badge.textContent = versionLabel(finish) + (card.finishUpgraded ? ' · upgraded' : '');
+          badge.innerHTML = smallFinishX(esc(versionLabel(finish))) + (card.finishUpgraded ? ' · upgraded' : '');
           btn.appendChild(badge);
         }
         var tag = btn.querySelector('[data-flip-tag]');
@@ -10920,9 +10926,9 @@
       '<header class="sg-guide-head">' +
         '<img src="' + esc(chapter[2]) + '" alt="">' +
         '<div class="sg-guide-veil"></div>' +
-        '<div class="sg-guide-title"><strong>' + esc(chapter[0]) + '</strong><span>' + esc(chapter[1]) + '</span></div>' +
+        '<div class="sg-guide-title"><strong>' + esc(chapter[0]) + '</strong><span>' + smallFinishX(esc(chapter[1])) + '</span></div>' +
       '</header>' +
-      '<div class="sg-guide-body">' + guideBlocks(chapter[4]) + '</div>';
+      '<div class="sg-guide-body">' + smallFinishX(guideBlocks(chapter[4])) + '</div>';
   }
 
   // The popup is the whole point of the chapter grid, so it is mounted with the

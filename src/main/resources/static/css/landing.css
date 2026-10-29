@@ -2341,8 +2341,8 @@ img { display: block; }
     cursor: pointer;
     transition: background .2s ease, border-color .2s ease, color .2s ease;
 }
-/* "GSPx" keeps its lower-case x. */
-.finish-chip.finish-gspx { text-transform: none; }
+/* The x of "GSPx" stays lower-case and small inside the upper-cased chip. */
+.finish-chip .finish-x, .finish-blurb .finish-x, #finishBlurb .finish-x { font-size: .72em; text-transform: none; letter-spacing: 0; margin-left: .04em; }
 .finish-chip:hover { border-color: rgba(245, 166, 35, .6); }
 .finish-chip:focus-visible { outline: 2px solid var(--siegelings-gold); outline-offset: 2px; }
 .finish-chip.is-active { color: #1a1206; border-color: var(--siegelings-gold); background: var(--siegelings-gold); }

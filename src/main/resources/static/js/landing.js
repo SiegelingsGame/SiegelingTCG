@@ -1090,6 +1090,11 @@
             cardClass: ' is-holographic is-holo-gold-finish', overlay: GOLD_CAST_OVERLAY }
     ];
 
+    // "GSPx" prints its x small and lower-case. Takes escaped HTML.
+    function smallFinishX(html) {
+        return String(html).replace(/\bGSPx\b/g, '<span class="finish-gspx">GSP<small class="finish-x">x</small></span>');
+    }
+
     // The finish wraps renderBinderFace's markup: its class goes on the card
     // face and its overlay is the face's last child, as game.js draws it.
     function renderFinishedFace(card, finish) {
@@ -1135,7 +1140,7 @@
                     <p>Bounty ${tier.bounty}</p>
                 </article>`;
             }).join('');
-            if (blurb) blurb.textContent = `${current.label}: ${current.blurb}`;
+            if (blurb) blurb.innerHTML = smallFinishX(escapeHtml(`${current.label}: ${current.blurb}`));
             picker.querySelectorAll('.finish-chip').forEach((chip) => {
                 const on = chip.dataset.finish === current.id;
                 chip.classList.toggle('is-active', on);
@@ -1145,7 +1150,7 @@
             scheduleDescriptionFit(host);
         };
         picker.innerHTML = CARD_FINISHES.map((finish) =>
-            `<button type="button" class="finish-chip finish-${finish.id.toLowerCase()}" role="radio" data-finish="${finish.id}">${escapeHtml(finish.label)}</button>`
+            `<button type="button" class="finish-chip finish-${finish.id.toLowerCase()}" role="radio" data-finish="${finish.id}">${smallFinishX(escapeHtml(finish.label))}</button>`
         ).join('');
         const select = (id, focus) => {
             const next = CARD_FINISHES.find((finish) => finish.id === id);
