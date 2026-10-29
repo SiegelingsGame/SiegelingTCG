@@ -147,10 +147,12 @@
       }
     });
     audio.addEventListener('timeupdate', function () {
+      paintProgress();
       var now = Date.now();
       if (now - lastSave > 3000) { lastSave = now; saveResume(); }
     });
     audio.addEventListener('play', paint);
+    audio.addEventListener('durationchange', paintProgress);
     audio.addEventListener('pause', paint);
     // A missing or undecodable file skips on rather than leaving silence.
     audio.addEventListener('error', function () { if (on && started) step(1); });
@@ -201,41 +203,96 @@
   /* "Now playing" panel, opened from the top-bar note on any screen and in
      either orientation - the landscape stage has its own pill, but a portrait
      player had no way to change songs. Built on open into the current shell
-     (a screen change re-renders the shell and so simply closes it). */
+     (a screen change re-renders the shell and so simply closes it).
+     It wears the hub's glass sheet: it swells out of the note button, and the
+     playing song's element dresses it - its land as the hero art, its notch
+     as the song's mark, its colour as the tint - the same marks a card uses. */
+  var EL_LAND = { FIRE: 'fire', EARTH: 'earth', WIND: 'wind', WATER: 'water', ICE: 'ice',
+    ELECTRIC: 'electric', METAL: 'metal', PSYCHIC: 'psychic', SHADOW: 'shadow',
+    POISON: 'poison', LIGHT: 'light', UNDEAD: 'undead', NEUTRAL: 'relic' };
+  function landArt(el) { return '/img/lands/' + (EL_LAND[el] || 'relic') + '.webp'; }
+  function notchArt(el) { return '/img/notches/notch-' + String(el || 'NEUTRAL').toLowerCase() + '.webp'; }
+  function kind(t) { return isBattle(t) ? 'battle' : (t.id === 'main' || t.id === 'loading') ? 'theme' : 'biome'; }
+  var KIND_LABEL = { biome: 'Biomes', theme: 'Themes', battle: 'Battle' };
+  var KIND_ONE = { biome: 'Biome theme', theme: 'Siegelings soundtrack', battle: 'Battle track' };
+
+  function fmt(sec) {
+    if (!isFinite(sec) || sec < 0) return '0:00';
+    sec = Math.floor(sec);
+    return Math.floor(sec / 60) + ':' + (sec % 60 < 10 ? '0' : '') + (sec % 60);
+  }
+
   function panelMarkup() {
-    return '<div class="hm-panel" data-music-panel role="dialog" aria-label="Music">' +
-      '<div class="hm-head"><strong>Now Playing</strong>' +
-        '<button type="button" class="hm-close" data-music-close aria-label="Close">\u00d7</button></div>' +
-      '<div class="hm-now">' + EQ + '<span class="hm-now-title" data-music-title></span></div>' +
-      '<div class="hm-controls">' +
-        '<button type="button" data-music-prev aria-label="Previous song">' + ICON.prev + '</button>' +
-        '<button type="button" class="hm-main" data-music-toggle aria-label="Pause music">' + ICON.play + ICON.pause + '</button>' +
-        '<button type="button" data-music-next aria-label="Next song">' + ICON.next + '</button>' +
-      '</div>' +
-      '<ul class="hm-list">' + TRACKS.map(function (t, i) {
+    var groups = ['biome', 'theme', 'battle'].map(function (k) {
+      var rows = TRACKS.map(function (t, i) {
+        if (kind(t) !== k) return '';
         return '<li><button type="button" data-music-pick="' + i + '" data-el="' + t.el + '">' +
-          '<i class="hm-pip"></i><span>' + t.title + '</span>' + EQ + '</button></li>';
-      }).join('') + '</ul>' +
+          '<img class="hm-notch" src="' + notchArt(t.el) + '" alt="" decoding="async">' +
+          '<span>' + t.title + '</span>' + EQ + '</button></li>';
+      }).join('');
+      return '<li class="hm-group"><h4>' + KIND_LABEL[k] + '</h4><ul>' + rows + '</ul></li>';
+    }).join('');
+    return '<div class="hm-panel" data-music-panel role="dialog" aria-label="Music">' +
+      '<section class="hm-hero">' +
+        '<div class="hm-hero-art" data-music-art aria-hidden="true"></div>' +
+        '<div class="hm-head"><strong>Now Playing</strong>' +
+          '<button type="button" class="hm-close" data-music-close aria-label="Close">\u00d7</button></div>' +
+        '<div class="hm-now">' +
+          '<img class="hm-now-notch" data-music-notch alt="" decoding="async">' +
+          '<div class="hm-now-text"><span class="hm-now-title" data-music-title></span>' +
+            '<span class="hm-now-sub" data-music-sub></span></div>' + EQ +
+        '</div>' +
+        '<div class="hm-progress">' +
+          '<span data-music-elapsed>0:00</span>' +
+          '<input type="range" min="0" max="1000" value="0" step="1" data-music-seek aria-label="Seek">' +
+          '<span data-music-duration>0:00</span>' +
+        '</div>' +
+        '<div class="hm-controls">' +
+          '<button type="button" data-music-prev aria-label="Previous song">' + ICON.prev + '</button>' +
+          '<button type="button" class="hm-main" data-music-toggle aria-label="Pause music">' + ICON.play + ICON.pause + '</button>' +
+          '<button type="button" data-music-next aria-label="Next song">' + ICON.next + '</button>' +
+        '</div>' +
+      '</section>' +
+      '<ul class="hm-list">' + groups + '</ul>' +
     '</div>';
   }
 
   function panel() { return document.querySelector('[data-music-panel]'); }
 
+  var reduceMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+
   function closePanel() {
     var p = panel();
-    if (p) p.parentNode.removeChild(p);
     var opens = document.querySelectorAll('[data-music-open]');
     for (var i = 0; i < opens.length; i++) opens[i].setAttribute('aria-expanded', 'false');
+    if (!p || p.classList.contains('is-closing')) return;
+    if (reduceMotion.matches) { p.parentNode.removeChild(p); return; }
+    // Shrinks back into the note button, then goes.
+    p.classList.add('is-closing');
+    setTimeout(function () { if (p.parentNode) p.parentNode.removeChild(p); }, 200);
   }
 
   function openPanel(btn) {
-    if (panel()) { closePanel(); return; }
+    var open = panel();
+    if (open && !open.classList.contains('is-closing')) { closePanel(); return; }
+    if (open) open.parentNode.removeChild(open);
     var host = (btn && btn.closest('.sg-app')) || document.body;
     var wrap = document.createElement('div');
     wrap.innerHTML = panelMarkup();
-    host.appendChild(wrap.firstChild);
-    if (btn) btn.setAttribute('aria-expanded', 'true');
+    var p = wrap.firstChild;
+    host.appendChild(p);
+    if (btn) {
+      btn.setAttribute('aria-expanded', 'true');
+      // Swells out of the button that opened it, as the hub's sheets do.
+      var box = p.getBoundingClientRect(), r = btn.getBoundingClientRect();
+      p.style.setProperty('--hm-ox', Math.round(r.left + r.width / 2 - box.left) + 'px');
+      p.style.setProperty('--hm-oy', Math.round(r.top + r.height / 2 - box.top) + 'px');
+    }
     paint();
+    // The playing song is in view without hunting for it.
+    var cur = p.querySelector('[data-music-pick].on');
+    var list = p.querySelector('.hm-list');
+    if (cur && list) list.scrollTop = Math.max(0, cur.offsetTop - list.clientHeight / 2 + cur.offsetHeight / 2);
   }
 
   function pick(trackIndex) {
@@ -287,6 +344,43 @@
       titles[k].textContent = t.title;
       titles[k].setAttribute('data-el', t.el);
     }
+    if (p) {
+      p.setAttribute('data-el', t.el);
+      var art = p.querySelector('[data-music-art]');
+      var url = landArt(t.el);
+      if (art && art.getAttribute('data-src') !== url) {
+        art.setAttribute('data-src', url);
+        // A fresh layer per song so the land crossfades instead of snapping.
+        var layer = document.createElement('i');
+        layer.style.backgroundImage = "url('" + url + "')";
+        art.appendChild(layer);
+        var old = art.querySelectorAll('i');
+        for (var m = 0; m < old.length - 2; m++) art.removeChild(old[m]);
+      }
+      var notch = p.querySelector('[data-music-notch]');
+      if (notch && notch.getAttribute('src') !== notchArt(t.el)) notch.setAttribute('src', notchArt(t.el));
+      var sub = p.querySelector('[data-music-sub]');
+      if (sub) sub.textContent = KIND_ONE[kind(t)];
+    }
+    paintProgress();
+  }
+
+  var seeking = false;
+  function paintProgress() {
+    var p = panel();
+    if (!p) return;
+    var d = audio && isFinite(audio.duration) ? audio.duration : 0;
+    var c = audio ? audio.currentTime || 0 : 0;
+    var el = p.querySelector('[data-music-elapsed]');
+    var du = p.querySelector('[data-music-duration]');
+    var seek = p.querySelector('[data-music-seek]');
+    if (el) el.textContent = fmt(c);
+    if (du) du.textContent = d ? fmt(d) : '--:--';
+    if (seek && !seeking) {
+      seek.value = d ? String(Math.round(c / d * 1000)) : '0';
+      seek.disabled = !d;
+    }
+    if (seek) seek.style.setProperty('--hm-fill', (seek.value / 10) + '%');
   }
 
   var CONTROLS = '[data-music-toggle],[data-music-next],[data-music-prev],[data-music-pick],[data-music-open],[data-music-close]';
@@ -338,6 +432,22 @@
     ready = true;
     ensureAudio();
     document.addEventListener('click', onClick);
+    // The seek bar: dragging previews the time, letting go moves the song.
+    document.addEventListener('input', function (e) {
+      if (!e.target.matches || !e.target.matches('[data-music-seek]')) return;
+      seeking = true;
+      var d = audio && isFinite(audio.duration) ? audio.duration : 0;
+      var el = panel() && panel().querySelector('[data-music-elapsed]');
+      if (el && d) el.textContent = fmt(e.target.value / 1000 * d);
+      e.target.style.setProperty('--hm-fill', (e.target.value / 10) + '%');
+    });
+    document.addEventListener('change', function (e) {
+      if (!e.target.matches || !e.target.matches('[data-music-seek]')) return;
+      seeking = false;
+      var d = audio && isFinite(audio.duration) ? audio.duration : 0;
+      if (d) { try { audio.currentTime = e.target.value / 1000 * d; } catch (err) { /* not seekable */ } }
+      paintProgress();
+    });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePanel(); });
     // pagehide is the reliable "leaving" signal on iOS, where unload never fires.
     window.addEventListener('pagehide', saveResume);

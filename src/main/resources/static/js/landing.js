@@ -1465,9 +1465,32 @@
         const toggle = nav?.querySelector('.landing-fab-toggle');
         const menu = nav?.querySelector('.landing-fab-menu');
         if (!nav || !toggle || !menu) return;
-        function close() { menu.hidden = true; toggle.setAttribute('aria-expanded', 'false'); }
-        function open() { menu.hidden = false; toggle.setAttribute('aria-expanded', 'true'); }
-        toggle.addEventListener('click', () => menu.hidden ? open() : close());
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+        // The sheet shrinks back into the medallion before it is hidden; the
+        // timer covers browsers that skip animationend (reduced motion, hidden tab).
+        let closeTimer = 0;
+        function finishClose() {
+            clearTimeout(closeTimer);
+            menu.classList.remove('is-closing');
+            menu.hidden = true;
+        }
+        menu.addEventListener('animationend', (event) => {
+            if (event.target === menu && menu.classList.contains('is-closing')) finishClose();
+        });
+        function close() {
+            if (menu.hidden || menu.classList.contains('is-closing')) return;
+            toggle.setAttribute('aria-expanded', 'false');
+            if (reduceMotion.matches) { finishClose(); return; }
+            menu.classList.add('is-closing');
+            closeTimer = setTimeout(finishClose, 260);
+        }
+        function open() {
+            clearTimeout(closeTimer);
+            menu.classList.remove('is-closing');
+            menu.hidden = false;
+            toggle.setAttribute('aria-expanded', 'true');
+        }
+        toggle.addEventListener('click', () => (menu.hidden || menu.classList.contains('is-closing')) ? open() : close());
         menu.querySelectorAll('a').forEach((link) => link.addEventListener('click', close));
         document.addEventListener('click', (event) => { if (!nav.contains(event.target)) close(); });
         document.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });

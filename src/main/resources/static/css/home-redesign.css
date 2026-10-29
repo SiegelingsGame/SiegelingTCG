@@ -150,68 +150,162 @@ body.concept-board {
 .sg-music.is-playing { color:var(--gold-bright); border-color:rgba(200,165,79,.4); }
 .sg-music[aria-expanded="true"] { border-color:rgba(200,165,79,.6); }
 
-/* Music panel (hub-music.js): opens under the top bar from the note button. */
+/* Music panel (hub-music.js): the hub's glass sheet, opened under the top bar
+   from the note button. The playing song's element (data-el) sets --el, which
+   tints the glass, the hero, the seek bar and the playing row. */
 .hm-panel {
+  --el:var(--neutral);
   position:absolute; top:calc(max(6px, var(--sg-sat)) + 42px); right:12px; z-index:52;
-  width:min(300px, calc(100% - 24px)); max-height:calc(100% - max(6px, var(--sg-sat)) - 120px);
-  display:flex; flex-direction:column; overflow:hidden;
-  border-radius:18px; border:1px solid rgba(200,165,79,.28);
-  background:rgba(9,14,26,.96); box-shadow:0 22px 48px rgba(0,0,0,.55);
-  backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
-  animation:hmIn .18s ease-out;
+  width:min(340px, calc(100% - 24px));
+  /* Stops above the shield FAB (or the tab bar where there is no shield). */
+  max-height:calc(100% - max(6px, var(--sg-sat)) - 52px - var(--sn-fab-bottom, 60px) - var(--sn-fab-size, 0px));
+  display:flex; flex-direction:column; overflow:hidden; color:var(--ink);
+  border-radius:26px; border:1px solid rgba(255,255,255,.22);
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--el) 18%, rgba(255,255,255,.08)), rgba(255,255,255,.03) 40%, rgba(8,12,24,.2)),
+    rgba(10,16,30,.97);
+  box-shadow:
+    0 26px 64px rgba(0,0,0,.6),
+    0 0 54px -14px color-mix(in srgb, var(--el) 55%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.4);
+  transform-origin:var(--hm-ox, 85%) var(--hm-oy, 0);
+  animation:hmIn .42s cubic-bezier(.2,.9,.25,1.12) both;
+  transition:box-shadow .5s ease;
 }
-@keyframes hmIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
-.hm-head { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:10px 10px 4px 16px; }
-.hm-head strong { font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-bright); }
+.hm-panel.is-closing { animation:hmOut .2s cubic-bezier(.4,0,.8,.4) both; pointer-events:none; }
+@keyframes hmIn { 0% { opacity:0; transform:scale(.3); } 55% { opacity:1; } 100% { opacity:1; transform:none; } }
+@keyframes hmOut { to { opacity:0; transform:scale(.4); } }
+.hm-panel[data-el="FIRE"] { --el:var(--fire); }
+.hm-panel[data-el="WATER"] { --el:var(--water); }
+.hm-panel[data-el="WIND"] { --el:var(--wind); }
+.hm-panel[data-el="ELECTRIC"] { --el:var(--electric); }
+.hm-panel[data-el="EARTH"] { --el:var(--earth); }
+.hm-panel[data-el="SHADOW"] { --el:var(--shadow); }
+.hm-panel[data-el="POISON"] { --el:var(--poison); }
+.hm-panel[data-el="ICE"] { --el:var(--ice); }
+.hm-panel[data-el="METAL"] { --el:var(--metal); }
+.hm-panel[data-el="LIGHT"] { --el:var(--light); }
+.hm-panel[data-el="UNDEAD"] { --el:var(--undead); }
+.hm-panel[data-el="PSYCHIC"] { --el:var(--psychic); }
+
+/* Hero: the song's land behind the title, controls and seek bar. */
+.hm-hero { position:relative; isolation:isolate; flex:0 0 auto; padding:0 0 14px; }
+.hm-hero-art { position:absolute; inset:0; z-index:-1; overflow:hidden; }
+.hm-hero-art i {
+  position:absolute; inset:0; background:center 40% / cover no-repeat;
+  animation:hmArtIn .6s ease-out both;
+}
+.hm-hero-art::after {
+  content:''; position:absolute; inset:0;
+  background:
+    linear-gradient(180deg, rgba(8,12,24,.35) 0%, rgba(8,12,24,.25) 35%, rgba(8,12,24,.88) 100%),
+    linear-gradient(90deg, color-mix(in srgb, var(--el) 26%, transparent), transparent 70%);
+}
+@keyframes hmArtIn { from { opacity:0; transform:scale(1.06); } to { opacity:1; transform:none; } }
+.hm-head { display:flex; align-items:center; justify-content:space-between; padding:12px 12px 2px 18px; }
+.hm-head strong {
+  font-size:10px; letter-spacing:.24em; text-transform:uppercase; color:var(--gold-bright);
+  text-shadow:0 1px 6px rgba(0,0,0,.7);
+}
 .hm-close {
-  width:30px; height:30px; border-radius:50%; border:none; background:rgba(255,255,255,.06);
-  color:var(--ink); font-size:18px; line-height:1; cursor:pointer;
+  width:34px; height:34px; border-radius:50%; border:1px solid rgba(255,255,255,.24);
+  background:rgba(8,12,24,.45); color:var(--ink); font-size:19px; line-height:1; cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.25);
 }
-.hm-now { flex:0 0 auto; display:flex; align-items:center; gap:9px; padding:2px 16px 6px; min-width:0; }
-.hm-now-title { font-family:var(--serif); font-size:19px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.hm-controls { flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:18px; padding:4px 0 12px; }
+.hm-now { display:flex; align-items:center; gap:12px; padding:8px 18px 2px; min-width:0; }
+.hm-now-notch {
+  width:44px; height:44px; flex:0 0 auto; border-radius:50%;
+  box-shadow:0 0 0 2px rgba(255,236,190,.55), 0 6px 18px color-mix(in srgb, var(--el) 55%, transparent);
+}
+.hm-now-text { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.hm-now-title {
+  font-family:var(--serif); font-size:21px; font-weight:600; line-height:1.15;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 2px 10px rgba(0,0,0,.7);
+}
+.hm-now-sub { font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:rgba(234,242,255,.72); }
+
+/* Seek bar: the played part in the element's colour. */
+.hm-progress {
+  display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px;
+  padding:12px 18px 4px; font-size:10.5px; font-variant-numeric:tabular-nums; color:rgba(234,242,255,.75);
+}
+.hm-progress input {
+  -webkit-appearance:none; appearance:none; width:100%; height:18px; margin:0; background:none; cursor:pointer;
+  touch-action:none;
+}
+.hm-progress input:disabled { cursor:default; opacity:.55; }
+.hm-progress input::-webkit-slider-runnable-track {
+  height:4px; border-radius:2px;
+  background:linear-gradient(90deg, var(--el) 0 var(--hm-fill, 0%), rgba(255,255,255,.18) var(--hm-fill, 0%));
+}
+.hm-progress input::-moz-range-track { height:4px; border-radius:2px; background:rgba(255,255,255,.18); }
+.hm-progress input::-moz-range-progress { height:4px; border-radius:2px; background:var(--el); }
+.hm-progress input::-webkit-slider-thumb {
+  -webkit-appearance:none; width:14px; height:14px; margin-top:-5px; border-radius:50%;
+  background:#fff3c9; box-shadow:0 0 0 2px var(--el), 0 2px 6px rgba(0,0,0,.5);
+}
+.hm-progress input::-moz-range-thumb {
+  width:14px; height:14px; border:0; border-radius:50%;
+  background:#fff3c9; box-shadow:0 0 0 2px var(--el), 0 2px 6px rgba(0,0,0,.5);
+}
+
+.hm-controls { display:flex; align-items:center; justify-content:center; gap:22px; padding:8px 0 0; }
 .hm-controls button {
-  width:40px; height:40px; border-radius:50%; border:1px solid rgba(255,255,255,.16);
-  background:rgba(255,255,255,.05); color:var(--ink); cursor:pointer;
+  width:44px; height:44px; border-radius:50%; border:1px solid rgba(255,255,255,.26);
+  background:rgba(8,12,24,.5); color:var(--ink); cursor:pointer;
   display:inline-flex; align-items:center; justify-content:center; padding:0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22);
 }
+/* The play button wears the S FAB's gold rim, so it reads as the panel's one big action. */
 .hm-controls button.hm-main {
-  width:52px; height:52px; border:none; color:#2b0d02;
+  width:60px; height:60px; border:2px solid #ebcd89; color:#2b0d02;
   background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
-  box-shadow:0 8px 22px rgba(255,120,45,.4);
+  box-shadow:0 0 0 3px #72502c, 0 10px 26px rgba(255,120,45,.45), inset 0 1px 0 rgba(255,255,255,.55);
 }
-.hm-panel svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-.hm-controls .hm-main svg { width:20px; height:20px; fill:currentColor; }
+.hm-panel svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.hm-controls .hm-main svg { width:22px; height:22px; fill:currentColor; }
 .hm-main .hm-ic-pause { display:none; }
 .hm-panel.is-playing .hm-main .hm-ic-pause { display:block; }
 .hm-panel.is-playing .hm-main .hm-ic-play { display:none; }
 .hm-controls button:active { transform:scale(.94); }
-/* The track list is the panel's one scrolling region. */
+
+/* The track list is the panel's one scrolling region, grouped as the soundtrack is. */
 .hm-list {
   flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
-  list-style:none; margin:0; padding:6px 8px 10px; border-top:1px solid rgba(112,142,180,.16);
+  list-style:none; margin:0; padding:4px 10px 12px; border-top:1px solid rgba(255,255,255,.1);
+}
+.hm-list ul { list-style:none; margin:0; padding:0; display:grid; gap:2px; }
+.hm-group h4 {
+  position:sticky; top:-4px; z-index:1; margin:0; padding:10px 8px 6px;
+  font-size:9.5px; font-weight:800; letter-spacing:.22em; text-transform:uppercase; color:var(--gold-bright);
+  background:linear-gradient(180deg, rgba(12,18,32,.97) 70%, rgba(12,18,32,0));
 }
 .hm-list button {
-  width:100%; display:flex; align-items:center; gap:10px; padding:9px 10px; min-height:40px;
-  border:none; border-radius:11px; background:none; color:var(--ink); cursor:pointer;
-  font:inherit; font-size:13px; text-align:left;
+  --row:var(--neutral);
+  width:100%; display:flex; align-items:center; gap:11px; padding:6px 10px 6px 6px; min-height:42px;
+  border:1px solid transparent; border-radius:14px; background:none; color:var(--ink); cursor:pointer;
+  font:inherit; font-size:13.5px; text-align:left;
 }
-.hm-list button span { flex:1 1 auto; min-width:0; }
+.hm-list button span { flex:1 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hm-list button:active { background:rgba(255,255,255,.08); }
-.hm-list button.on { background:rgba(200,165,79,.13); color:var(--gold-bright); font-weight:700; }
-.hm-pip { width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:var(--pip, var(--neutral)); }
-.hm-list [data-el="FIRE"] { --pip:var(--fire); }
-.hm-list [data-el="WATER"] { --pip:var(--water); }
-.hm-list [data-el="WIND"] { --pip:var(--wind); }
-.hm-list [data-el="ELECTRIC"] { --pip:var(--electric); }
-.hm-list [data-el="EARTH"] { --pip:var(--earth); }
-.hm-list [data-el="SHADOW"] { --pip:var(--shadow); }
-.hm-list [data-el="POISON"] { --pip:var(--poison); }
-.hm-list [data-el="ICE"] { --pip:var(--ice); }
-.hm-list [data-el="METAL"] { --pip:var(--metal); }
-.hm-list [data-el="LIGHT"] { --pip:var(--light); }
-.hm-list [data-el="UNDEAD"] { --pip:var(--undead); }
-.hm-list .hm-eq { visibility:hidden; }
+.hm-notch { width:28px; height:28px; flex:0 0 auto; border-radius:50%; }
+.hm-list button.on {
+  color:#fff; font-weight:700;
+  border-color:color-mix(in srgb, var(--row) 55%, transparent);
+  background:linear-gradient(90deg, color-mix(in srgb, var(--row) 30%, transparent), color-mix(in srgb, var(--row) 8%, transparent));
+}
+.hm-list [data-el="FIRE"] { --row:var(--fire); }
+.hm-list [data-el="WATER"] { --row:var(--water); }
+.hm-list [data-el="WIND"] { --row:var(--wind); }
+.hm-list [data-el="ELECTRIC"] { --row:var(--electric); }
+.hm-list [data-el="EARTH"] { --row:var(--earth); }
+.hm-list [data-el="SHADOW"] { --row:var(--shadow); }
+.hm-list [data-el="POISON"] { --row:var(--poison); }
+.hm-list [data-el="ICE"] { --row:var(--ice); }
+.hm-list [data-el="METAL"] { --row:var(--metal); }
+.hm-list [data-el="LIGHT"] { --row:var(--light); }
+.hm-list [data-el="UNDEAD"] { --row:var(--undead); }
+.hm-list .hm-eq { visibility:hidden; color:#fff; }
 .hm-list button.on .hm-eq { visibility:visible; }
 .hm-eq { display:inline-flex; align-items:flex-end; gap:2px; height:12px; flex:0 0 auto; color:var(--gold-bright); }
 .hm-eq i { width:3px; height:4px; border-radius:1px; background:currentColor; }
@@ -220,8 +314,17 @@ body.concept-board {
 .hm-eq i:nth-child(2) { animation-delay:-.3s !important; }
 .hm-eq i:nth-child(3) { animation-delay:-.6s !important; }
 @keyframes hmEq { from { height:3px; } to { height:12px; } }
+/* Short landscape screens: the hero would leave the list a sliver, so the
+   player and the list sit side by side. */
+@media (max-height:500px) and (orientation:landscape) {
+  .hm-panel {
+    flex-direction:row; width:min(620px, calc(100% - 24px));
+  }
+  .hm-hero { flex:0 0 280px; display:flex; flex-direction:column; justify-content:center; padding-bottom:12px; }
+  .hm-list { border-top:0; border-left:1px solid rgba(255,255,255,.1); }
+}
 @media (prefers-reduced-motion:reduce) {
-  .hm-panel { animation:none; }
+  .hm-panel, .hm-panel.is-closing, .hm-hero-art i { animation:none; }
   .hm-panel.is-playing .hm-now .hm-eq i, .hm-list button.is-playing .hm-eq i { animation:none; height:8px; }
 }
 .sg-bell.active, .sg-bell:hover { color:var(--gold-bright); border-color:rgba(200,165,79,.4); }
@@ -812,6 +915,24 @@ body.concept-board {
     inset 0 1px 0 rgba(255,255,255,.55);
 }
 .sg-filter-fab-ico { display:grid; place-items:center; }
+/* With the shield on screen the filter button is the S FAB's right flank: it
+   keeps its reveal-on-scroll fade but takes the flank's shape, size and spot. */
+.has-shield-navigation .sg-filter-fab {
+  left:calc(50% + var(--sn-flank-tuck)); right:auto;
+  bottom:calc(var(--sn-fab-bottom) + var(--sn-fab-size) / 2 - var(--sn-flank-h) / 2);
+  width:auto; height:var(--sn-flank-h); border-radius:0; border:0; display:flex;
+  max-width:calc(50% - var(--sn-flank-tuck) - max(10px, env(safe-area-inset-right, 0px)));
+  background:var(--flank-rim); color:var(--flank-ink);
+  box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none;
+  transform:translateX(-12px); filter:drop-shadow(0 8px 16px rgba(0,0,0,.45));
+}
+.has-shield-navigation .sg-app.is-filter-compact .sg-filter-fab:not([hidden]) { transform:none; }
+.has-shield-navigation .sg-app.is-filter-compact .sg-filter-fab:not([hidden]):active { transform:scale(.97); }
+.has-shield-navigation .sg-filter-fab.has-filters { box-shadow:none; filter:drop-shadow(0 8px 16px rgba(0,0,0,.45)) drop-shadow(0 0 6px rgba(255,214,120,.7)); }
+.sg-filter-fab-row { display:flex; align-items:center; gap:7px; }
+.has-shield-navigation .sg-filter-fab .sg-filter-fab-badge {
+  position:static; min-width:20px; height:20px; color:#fff4d2; background:#3b2306; border:0; box-shadow:none;
+}
 .sg-filter-fab-badge[hidden] { display:none !important; }
 .sg-filter-fab-badge {
   position:absolute; top:-2px; right:-2px;
@@ -3300,6 +3421,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-art-foot em { font-style:normal; font-size:10.5px; letter-spacing:.1em;
   text-transform:uppercase; color:var(--muted); }
 
+/* The art keeps the whole screen (portrait pieces fill it); the caption and
+   its card chips float over the art's foot on a fade, lifted clear of the
+   shield FAB, which stays on screen over the lightbox. */
 .sg-lightbox {
   position:absolute; inset:0; z-index:75; display:flex; align-items:center; justify-content:center;
   background:rgba(7,5,22,.96); padding:var(--sg-sat) 0 var(--sg-sab);
@@ -3307,9 +3431,28 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-lightbox[hidden] { display:none; }
 .sg-lightbox img { max-width:100%; max-height:100%; object-fit:contain; }
 .sg-lightbox-foot {
-  position:absolute; left:0; right:0; bottom:calc(16px + var(--sg-sab));
+  position:absolute; z-index:1; left:0; right:0;
+  bottom:calc(var(--sn-fab-bottom, var(--sg-sab)) + var(--sn-fab-size, 0px) + 10px);
   display:flex; flex-direction:column; align-items:center; gap:3px; text-align:center;
   padding:0 18px; text-shadow:0 2px 12px rgba(0,0,0,.9);
+}
+.sg-lightbox-foot:not(:empty)::before {
+  content:""; position:absolute; z-index:-1; left:0; right:0; top:-64px;
+  bottom:calc(-1 * (var(--sn-fab-bottom, var(--sg-sab)) + var(--sn-fab-size, 0px) + 10px));
+  background:linear-gradient(0deg, rgba(7,5,22,.94) 0, rgba(7,5,22,.86) 62%, rgba(7,5,22,0));
+  pointer-events:none;
+}
+/* Landscape phones: the height is too short to stack the caption over the
+   FAB, so it moves to the bottom-left corner, level with the FAB. */
+@media (max-height:500px) and (orientation:landscape) {
+  .sg-lightbox-foot {
+    right:auto; max-width:calc(50% - var(--sn-fab-size, 0px) / 2 - 16px);
+    left:max(16px, env(safe-area-inset-left, 0px)); bottom:var(--sn-fab-bottom, var(--sg-sab));
+    align-items:flex-start; text-align:left; padding:0;
+  }
+  .sg-lightbox-foot:not(:empty)::before { display:none; }
+  .sg-lightbox-foot .sg-artcards { align-items:flex-start; }
+  .sg-lightbox-foot .sg-artcards > div { justify-content:flex-start; max-height:48px; }
 }
 .sg-lightbox-foot strong { font-family:var(--serif); font-size:17px; font-weight:600; }
 .sg-lightbox-foot em { font-style:normal; font-size:11px; letter-spacing:.14em;
@@ -3469,6 +3612,42 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 .sg-sheet-holo-btn.is-armed { border-color:#fff; box-shadow:0 0 22px rgba(255,255,255,.45); }
 .sg-sheet-holo-btn:disabled { cursor:default; opacity:.5; }
+/* The sheet's actions are the shield FAB's flanks: the card sheet's bottom
+   padding puts this row's centre on the FAB's centre, as the profile sheet's
+   does, so Make Holo (or Close) and Use in a deck wrap the S. */
+.sg-sheet[data-sheet] .sg-sheet-card {
+  /* 11px = the card's 10px bottom margin (restated here: the wide-screen
+     rule centres the card with margin:0 auto) plus its 1px border. */
+  margin-bottom:10px;
+  padding-bottom:max(0px, calc(var(--sn-fab-bottom, 13px) + var(--sn-fab-size, 62px) / 2 - var(--sn-flank-h, 56px) / 2 - 11px));
+}
+.sg-sheet-actions {
+  flex:0 0 auto; display:grid; align-items:center; gap:0; padding-top:12px;
+  grid-template-columns:minmax(0,1fr) calc(var(--sn-flank-tuck, 22.6px) * 2) minmax(0,1fr);
+}
+.sg-sheet-card .sg-sheet-actions .sn-flank {
+  display:flex; margin:0; height:var(--sn-flank-h, 56px); border:0; border-radius:0; box-shadow:none;
+  background:var(--flank-rim); color:var(--flank-ink); text-shadow:none;
+  font-size:12px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap;
+  filter:drop-shadow(0 6px 12px rgba(0,0,0,.45));
+}
+.sg-sheet-actions .sn-flank.is-left { grid-column:1; justify-self:end; padding:0 calc(var(--sn-flank-r, 36px) - var(--sn-flank-tuck, 22.6px) + 8px) 0 20px; }
+.sg-sheet-actions .sn-flank.is-right { grid-column:3; justify-self:start; padding:0 20px 0 calc(var(--sn-flank-r, 36px) - var(--sn-flank-tuck, 22.6px) + 8px); }
+.sg-sheet-actions .sn-flank > small {
+  font-size:9.5px; font-weight:700; letter-spacing:.08em; opacity:.8; text-transform:none;
+}
+/* The finish flank keeps the holo button's iridescence. */
+.sg-sheet-actions .sn-flank.is-holo {
+  --flank-rim:#bfeaff; --flank-ink:#f4fbff;
+  --flank-bg:linear-gradient(115deg, #7a2e6e 0%, #1f6f9c 38%, #1e7a5a 68%, #4b2f8f 100%);
+  text-shadow:0 1px 2px rgba(0,0,0,.5);
+}
+.sg-sheet-actions .sn-flank.is-holo.is-armed { --flank-rim:#fff; filter:drop-shadow(0 0 10px rgba(255,255,255,.6)); }
+.sg-sheet-actions .sn-flank:disabled { opacity:.6; }
+/* The smallest phones leave a flank ~70px of text: labels wrap to two lines. */
+@media (max-width:359px) {
+  .sg-sheet-card .sg-sheet-actions .sn-flank { white-space:normal; font-size:11px; letter-spacing:.05em; line-height:1.1; }
+}
 /* Card versions: every look of the card, owned or not. Tapping one shows it
    on the face; a lock marks a version this account does not have. */
 /* Five versions don't fit one row beside a padlock at phone widths, so the row wraps. */
@@ -5246,6 +5425,72 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   }
   .sg-stage-deck { grid-area:deck; }
   .sg-stage-caption strong { font-size:21px; }
+
+  /* With the shield, the three ways to play wrap the S button as one control:
+     Siege and Dominion are its flanks (the shield's own flank shape, a
+     semicircle cut where they meet the FAB, pointing outward) and Arena is the
+     crown across the top, notched where the FAB rises into it. The last row is
+     the FAB's height and ends at its bottom inset, so its centre is the FAB's;
+     the middle column is the width the flank cuts reach into. */
+  .has-shield-navigation .sg-stage-ui {
+    grid-template-columns:minmax(0, 1fr) calc(var(--sn-flank-tuck) * 2) minmax(0, 1fr);
+    grid-template-rows:auto minmax(0, 1fr) auto auto var(--sn-fab-size);
+    padding-bottom:var(--sn-fab-bottom);
+    column-gap:0;
+  }
+  .has-shield-navigation .sg-app a.sg-stage-mode,
+  .has-shield-navigation .sg-app a.sg-stage-play { isolation:isolate; position:relative; }
+  .has-shield-navigation .sg-app a.sg-stage-mode {
+    --mode-rim:#d9b45f;
+    --mode-fill:linear-gradient(180deg, #2c3374 0%, #1a1c52 52%, #10113a 100%);
+    --cut-x:calc(100% + var(--sn-flank-tuck));
+    align-self:center; justify-self:end; width:100%; max-width:230px; height:var(--sn-flank-h); min-height:0;
+    padding:0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 8px) 0 22px;
+    align-items:flex-end; text-align:right;
+    border:0; border-radius:0; box-shadow:none; background:var(--mode-rim);
+    clip-path:polygon(16px 0, 100% 0, 100% 100%, 16px 100%, 0 50%);
+    -webkit-mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) - .5px), #000 var(--sn-flank-r));
+    mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) - .5px), #000 var(--sn-flank-r));
+    filter:drop-shadow(0 6px 12px rgba(0,0,0,.45));
+  }
+  .has-shield-navigation .sg-app a.sg-stage-mode::before {
+    content:''; position:absolute; inset:0; z-index:-1; background:var(--mode-fill);
+    clip-path:polygon(17.2px 2px, 100% 2px, 100% calc(100% - 2px), 17.2px calc(100% - 2px), 2.3px 50%);
+    -webkit-mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) + 1.5px), #000 calc(var(--sn-flank-r) + 2px));
+    mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) + 1.5px), #000 calc(var(--sn-flank-r) + 2px));
+  }
+  .has-shield-navigation .sg-app a.sg-stage-mode.is-keep {
+    --mode-fill:linear-gradient(180deg, #23527f 0%, #173a66 52%, #0e2547 100%);
+    --cut-x:calc(var(--sn-flank-tuck) * -1);
+    justify-self:start; align-items:flex-start; text-align:left;
+    padding:0 22px 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 8px);
+    clip-path:polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%);
+  }
+  .has-shield-navigation .sg-app a.sg-stage-mode.is-keep::before {
+    clip-path:polygon(0 2px, calc(100% - 17.2px) 2px, calc(100% - 2.3px) 50%, calc(100% - 17.2px) calc(100% - 2px), 0 calc(100% - 2px));
+  }
+  .has-shield-navigation .sg-stage-mode-kicker { color:rgba(244,236,214,.72); }
+  .has-shield-navigation .sg-stage-mode strong { color:#f4ecd6; }
+  .has-shield-navigation .sg-app a.sg-stage-mode:active { transform:scale(.97); }
+
+  /* Arena spans both flanks, sitting 2px above the FAB's top; the notch is a
+     circle on the FAB's centre a few px wider than the flank cuts. */
+  .has-shield-navigation .sg-app a.sg-stage-play {
+    --notch-y:calc(100% + var(--sn-fab-size) / 2 + 2px);
+    width:100%; max-width:calc(230px * 2 + var(--sn-flank-tuck) * 2); margin-bottom:-6px;
+    border-radius:16px 16px 22px 22px;
+    background:#fff3c9;
+    box-shadow:none; filter:drop-shadow(0 8px 18px rgba(255,120,45,.42));
+    padding-bottom:6px;
+    -webkit-mask:radial-gradient(circle at 50% var(--notch-y), transparent calc(var(--sn-flank-r) + 2.5px), #000 calc(var(--sn-flank-r) + 3px));
+    mask:radial-gradient(circle at 50% var(--notch-y), transparent calc(var(--sn-flank-r) + 2.5px), #000 calc(var(--sn-flank-r) + 3px));
+  }
+  .has-shield-navigation .sg-app a.sg-stage-play::before {
+    content:''; position:absolute; inset:2px; z-index:-1; border-radius:14px 14px 20px 20px;
+    background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
+    -webkit-mask:radial-gradient(circle at 50% calc(var(--notch-y) - 2px), transparent calc(var(--sn-flank-r) + 4.5px), #000 calc(var(--sn-flank-r) + 5px));
+    mask:radial-gradient(circle at 50% calc(var(--notch-y) - 2px), transparent calc(var(--sn-flank-r) + 4.5px), #000 calc(var(--sn-flank-r) + 5px));
+  }
 
   .sg-stage-panel { padding-top:calc(var(--stage-top) + 6px); }
 

@@ -120,6 +120,11 @@
             progressionResponse = r[8], missions = r[9], decks = r[10], presence = r[11], keep = r[12],
             profile = r[13], threads = r[14];
         var catalog = (options && options.cardCatalog) || [];
+        // The shared card renderer (game.js getEvolutionSourceOverlayUrl) finds a
+        // precursor's art in this global to draw the Evo chip's thumbnail; the
+        // old hub set it, and without it every binder card fell back to the
+        // precursor's name, ellipsised to a few letters.
+        if (catalog.length) window.SieglingsCardCatalog = catalog;
         // /api/player/progression answers {progression:{gold, ownedTotal, …},
         // packs, dailyOffers, …} - the wallet is NESTED. Reading it off the root
         // is why a signed-in player saw an em-dash where their coins should be.

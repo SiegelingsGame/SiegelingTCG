@@ -1618,10 +1618,57 @@
     var idx = 0, front = 0, timer = null, paused = false;
     var borrowed = null;   // { node, marker } while a Home section is shown in the panel
 
-    function paint(i, instant) {
+    // A piece is hung only once its file has loaded, so a slow or broken file
+    // never crossfades the wall to an empty box. Dashboard art lives behind
+    // tokenised Storage links, and the pool Home reads first is last visit's
+    // cached list: a re-uploaded piece answers 403 until the background
+    // refresh brings its new link. A failure retries with the pool's current
+    // link once, and otherwise steps on to the next piece.
+    var loaded = {}, failed = {}, paintSeq = 0, fellBack = false;
+    function loadArt(url) {
+      if (loaded[url]) return Promise.resolve(true);
+      if (failed[url]) return Promise.resolve(false);
+      return new Promise(function (resolve) {
+        var img = new Image();
+        img.onload = function () { loaded[url] = true; resolve(true); };
+        img.onerror = function () { failed[url] = true; resolve(false); };
+        img.src = url;
+      });
+    }
+
+    function freshArt(piece) {
+      var same = stagePieces(tall).filter(function (p) { return p.id === piece.id; })[0];
+      return same && same.art !== piece.art ? same.art : '';
+    }
+
+    function paint(i, instant, step, tries) {
       if (!rotation.length) return;
-      idx = (i + rotation.length) % rotation.length;
-      var piece = rotation[idx];
+      step = step || ((i < idx && !instant) ? -1 : 1);
+      tries = tries || 0;
+      var at = (i + rotation.length) % rotation.length;
+      var piece = rotation[at];
+      var seq = ++paintSeq;
+      loadArt(piece.art).then(function (ok) {
+        if (seq !== paintSeq || !stage.isConnected) return;
+        if (ok) { hang(at, piece, instant); return; }
+        var fresh = freshArt(piece);
+        if (fresh) { piece.art = piece.thumb = fresh; paint(at, instant, step, tries); return; }
+        if (tries + 1 < rotation.length) { paint(at + step, instant, step, tries + 1); return; }
+        // Nothing in the rotation loads: hang the first bundled scene, which
+        // ships with the site and so does not depend on Storage at all.
+        var scene = galleryScenes()[0];
+        if (scene && !fellBack) {
+          fellBack = true;
+          rotation = rotation.concat([{ id: scene.img, title: scene.title, place: scene.place,
+            thumb: tall && scene.portrait ? heroPlate(scene) : plate(scene, true),
+            art: tall && scene.portrait ? heroPlate(scene) : plate(scene) }]);
+          paint(rotation.length - 1, instant, 1, rotation.length);
+        }
+      });
+    }
+
+    function hang(at, piece, instant) {
+      idx = at;
       var next = instant ? plates[front] : plates[1 - front];
       next.style.backgroundImage = "url('" + piece.art + "')";
       if (!instant) {
@@ -1640,8 +1687,8 @@
       var d = '';
       for (var k = 0; k < rotation.length; k++) d += '<i class="' + (k === idx ? 'on' : '') + '"></i>';
       dots.innerHTML = d;
-      // Warm the next plate so the crossfade never lands on an unpainted box.
-      if (rotation.length > 1) { var pre = new Image(); pre.src = rotation[(idx + 1) % rotation.length].art; }
+      // Warm the next plate so the crossfade never waits on the network.
+      if (rotation.length > 1) loadArt(rotation[(idx + 1) % rotation.length].art);
     }
 
     function schedule() {
@@ -1857,6 +1904,20 @@
       if (mq.addEventListener) mq.addEventListener('change', onChange);
       else if (mq.addListener) mq.addListener(onChange);
     }
+
+    // The background refresh can bring new links for pieces already on the
+    // wall's list (a re-upload changes a Storage token); take them in place so
+    // the next turn of the rotation does not ask for a dead one.
+    var onArtRefresh = function () {
+      if (!stage.isConnected) { window.removeEventListener('sg:art-refreshed', onArtRefresh); return; }
+      var current = {};
+      stagePieces(tall).forEach(function (p) { current[p.id] = p; });
+      rotation.forEach(function (p) {
+        var c = current[p.id];
+        if (c && c.art && c.art !== p.art) { p.art = c.art; p.thumb = c.thumb; }
+      });
+    };
+    window.addEventListener('sg:art-refreshed', onArtRefresh);
 
     paint(0, true);
     schedule();
@@ -2434,16 +2495,21 @@
         '<div class="sg-gal-more" data-more hidden><button type="button">Show more</button></div>' +
         '<div style="height:96px"></div>' +
       '</div>' +
-      '<button class="sg-filter-fab" type="button" data-filter-fab aria-label="Open filters and search" hidden>' +
+      // Docks to the shield FAB as its right flank (shield-navigation.css), so
+      // the binder's one tool reads as part of the bottom control, not a second FAB.
+      '<button class="sg-filter-fab sn-flank is-right is-gold" type="button" data-filter-fab aria-label="Open filters and search" hidden>' +
+        '<span class="sg-filter-fab-row">' +
         '<span class="sg-filter-fab-ico" aria-hidden="true">' +
-          '<svg viewBox="0 0 24 24" width="22" height="22" fill="none">' +
+          '<svg viewBox="0 0 24 24" width="20" height="20" fill="none">' +
             '<path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>' +
             '<circle cx="18.5" cy="6" r="2.2" fill="currentColor"/>' +
             '<circle cx="8.5" cy="12" r="2.2" fill="currentColor"/>' +
             '<circle cx="13.5" cy="18" r="2.2" fill="currentColor"/>' +
           '</svg>' +
         '</span>' +
+        '<span>Filters</span>' +
         '<span class="sg-filter-fab-badge" data-filter-fab-badge hidden>0</span>' +
+        '</span>' +
       '</button>' +
       '<div class="sg-filter-glass" data-filter-glass aria-hidden="true">' +
         '<button class="sg-filter-glass-scrim" type="button" data-filter-glass-close aria-label="Close filters"></button>' +
@@ -5219,7 +5285,7 @@
           : '') +
       '</div>' +
       holoBlock(card, opts) +
-      '<a class="sg-sheet-cta" href="/deck-builder" data-screen="builder">Use in a deck \u203a</a>';
+      sheetActions(card, opts);
   }
 
   /* ---------- card finishes ----------
@@ -5303,7 +5369,9 @@
   }
 
   function holoButtonLabel(step) {
-    return '✦ ' + smallFinishX(esc(step.label)) + ' · ' + step.cost.toLocaleString() + ' remnants';
+    // A flank holds ~10 characters a line, so it names the tier ("Get GSPx")
+    // and the full wording ("Upgrade to GSPx") rides on the aria-label.
+    return '<span>\u2726 Get ' + smallFinishX(esc(versionLabel(step.tier))) + '</span><small>' + step.cost.toLocaleString() + ' remnants</small>';
   }
 
   // Each tier includes the ones below it. null when ownership is unknown
@@ -5369,21 +5437,48 @@
     '</div>';
   }
 
+  // The finish the player can buy next for this card, or null: cards that ship
+  // foil have nothing to buy, and guests and the offline board cannot spend
+  // remnants.
+  function holoStepFor(card, opts) {
+    var live = opts && opts.live;
+    var isOwned = live && !opts.guest ? binderOwnership(live) : null;
+    var step = nextHoloStep(card);
+    return step && isOwned && isOwned(card) ? step : null;
+  }
+
+  /* The sheet's two actions are the shield FAB's flanks (shield-navigation.css):
+     the finish to buy on the left - or Close when there is none, so the S is
+     always flanked - and the deck builder on the right in gold. */
+  function sheetActions(card, opts) {
+    var step = holoStepFor(card, opts);
+    var left;
+    if (step) {
+      var balance = Number(opts.live.remnants);
+      var short = isFinite(balance) && balance < step.cost;
+      left = '<button class="sn-flank is-left is-holo sg-sheet-holo-btn" type="button" data-holo-buy="' + esc(card.id) + '"' +
+        ' aria-label="' + esc(step.label + ' \u00b7 ' + step.cost.toLocaleString() + ' remnants') + '" title="' + esc(step.label) + '"' +
+        ' data-holo-tier="' + step.tier + '" data-holo-cost="' + step.cost + '"' + (short ? ' disabled' : '') + '>' +
+        holoButtonLabel(step) + '</button>';
+    } else {
+      left = '<button class="sn-flank is-left" type="button" data-sheet-close>Close</button>';
+    }
+    return '<div class="sg-sheet-actions">' + left +
+      '<a class="sn-flank is-right is-gold sg-sheet-cta" href="/deck-builder" data-screen="builder">Use in a deck</a>' +
+    '</div>';
+  }
+
   function holoBlock(card, opts, viewing) {
     var live = opts && opts.live;
     var out = '<div class="sg-sheet-holo">' + versionsRow(card, viewing || bestVersion(card), opts);
     // Cards that ship foil have nothing to buy; guests and the offline board
     // cannot spend remnants.
-    var isOwned = live && !opts.guest ? binderOwnership(live) : null;
-    var step = nextHoloStep(card);
-    if (step && isOwned && isOwned(card)) {
+    var step = holoStepFor(card, opts);
+    if (step) {
       var balance = Number(live.remnants);
       var known = isFinite(balance);
       var short = known && balance < step.cost;
-      out += '<button class="sg-sheet-holo-btn" type="button" data-holo-buy="' + esc(card.id) + '"' +
-          ' data-holo-tier="' + step.tier + '" data-holo-cost="' + step.cost + '"' + (short ? ' disabled' : '') + '>' +
-          holoButtonLabel(step) + '</button>' +
-        '<p class="sg-sheet-holo-note" data-holo-note>' + (known
+      out += '<p class="sg-sheet-holo-note" data-holo-note>' + (known
           ? (short ? 'You have ' + balance.toLocaleString() + ' remnants. Duplicates and wins earn more.'
                    : 'You have ' + balance.toLocaleString() + ' remnants.')
           : '') + '</p>';
@@ -5766,13 +5861,13 @@
     // the first tap arms and the second one spends.
     if (!btn.classList.contains('is-armed')) {
       btn.classList.add('is-armed');
-      btn.textContent = 'Tap again to spend ' + cost.toLocaleString() + ' remnants';
+      btn.innerHTML = '<span>Tap to confirm</span><small>' + cost.toLocaleString() + ' remnants</small>';
       return;
     }
     if (!api || !api.post) return;
     holoAudioPrime();
     btn.disabled = true;
-    btn.textContent = 'Applying finish\u2026';
+    btn.innerHTML = '<span>Applying\u2026</span>';
     api.post('/api/cards/holographic', { cardId: id, tier: tier }).then(function (data) {
       if (!data || data.error || !data.progression) {
         btn.disabled = false;
@@ -5805,6 +5900,8 @@
       if (onSheet) sheetCard.setAttribute('data-version', version);
       var block = sheetCard.querySelector('.sg-sheet-holo');
       if (block) block.outerHTML = holoBlock(card, opts, version);
+      var actions = sheetCard.querySelector('.sg-sheet-actions');
+      if (actions) actions.outerHTML = sheetActions(card, opts);
       playHoloTwirl(face, versionFace(card, version), null, isGoldKey(tier));
     });
   }
@@ -6202,6 +6299,7 @@
         else paintSheetFace(vCard);
         return;
       }
+      if (e.target.closest && e.target.closest('[data-sheet-close]')) { close(); return; }
       var holoBtn = e.target.closest ? e.target.closest('[data-holo-buy]') : null;
       if (holoBtn) {
         if (!holoBtn.disabled) buyHoloFinish(app, opts || {}, sheetCard, holoBtn);

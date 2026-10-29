@@ -1,3 +1,170 @@
+Original prompt: Update the drop rates (clarified: fix the stale displays; keep the server odds)
+
+- October 29, 2026 **Legacy hub odds popup shows the real per-finish drop rates.**
+  - **Change.** The legacy hub's Drop Rates popup (`home.js` `showPackOdds`, still served at `/legacy/*`) read `odds.holoPerCard`, a field the server stopped sending. So it always fell back to made-up holo-only numbers (Common 8% … Legendary 1%).
+    - **New table.** It now reads `finishPerCard` from the pack payload, the same numbers `PackCatalogService` rolls with and that the new hub's Odds sheet shows. It is a finish-by-rarity table: Holo, SP, HSP, Gold, CARAT, GSP, GSPx × Common to Legendary, in the hub's "x%" / "1 in Nk" format.
+    - **Fallback.** For a cached payload with no odds field, the fallback now mirrors `FINISH_DROP_CHANCE` and `TRAINER_DROP_CHANCE` exactly.
+    - **Unchanged.** The server's odds, the new hub's sheet, and the help text's quoted rates (which already match).
+    - **Cache pins.** `home.js?v=188`, `home.css?v=158`.
+  - **Verification.** `node --check js/home.js` passes. Headless Chromium on `home.html` with the API forwarded to the live backend, opening a pack's odds at 390x844 and 1920x1080:
+    - All 7 finish rows by 5 rarities show the live odds, from Holo 6% on a Common to GSPx 1 in 100k on a Legendary.
+    - Bonus SiegeKnight shows 3%.
+    - The table fits the panel without horizontal scroll.
+    - No page errors.
+    - Screenshot checked.
+
+Original prompt: Make sure this is compatible with the #1225 changes
+
+- October 29, 2026 **PR #1224 brought up to date with #1225 (finish ladder: Gold, CARAT, GSP, GSPx).**
+  - **Change.** `main` merged into the branch.
+    - **Conflicts.** Cache pins plus two code spots in `home-redesign.js`:
+      - The holo flank label takes #1225's `smallFinishX`.
+      - After a purchase, the sheet re-renders the FAB dock and plays the twirl with #1225's `isGoldKey(tier)`.
+    - **Shorter flank label.** The finish flank now names the tier ("✦ Get GSPx", "✦ Get CARAT") over its cost. The full wording ("Upgrade to GSPx · 28,000 remnants") is the button's aria-label and title, because "Upgrade to GSPx" would not fit a flank.
+    - **Cost-line selector.** The flank's cost-line rule is now `> small`, so it no longer restyles the small "x" in GSPx.
+    - **Cast-finish fix.** The Safari drop-shadow fix keys on `.is-holo-gold-finish`, which #1225 now uses for both cast tiers (CARAT and GSPx), so it covers both with no change. GSP (now the plain gold card) keeps its shadow.
+    - **Cache pins.** Both sides had bumped some of the same assets to the same numbers, so every one is now above both: `holographic.css?v=11`, `style.css?v=298` (all pages), `home.css?v=157`, `landing.css?v=63`, `landing.js?v=64`, `home-redesign.css?v=177`, `home-redesign.js?v=168`, `home-redesign-live.js?v=25`.
+  - **Verification.** `node --check` passes for `home-redesign.js`, `home-redesign-live.js`, `hub-music.js`, `landing.js`, `game.js` and `card-binder-visual.js`. Headless Chromium on the merged tree:
+    - **Cast tiers.** On Kilokong's sheet at 440x956, CARAT and GSPX compute `filter: none` and the other six tiers keep the drop-shadow, with the card box unchanged.
+    - **Card sheet.** With the eight version chips wrapping to two rows, the dock is still centred on the FAB at 390, 844x390, 1920 and 320. "✦ Get GSPx / 28,000 remnants" fits at 390 and 320.
+    - **Other surfaces.** The landing menu, binder Filters flank, Home dock, music player (seeking 2:46/5:33), wallpaper skip and fallback, Evo thumbnails (52/52) and gallery caption all pass as before.
+    - No page errors.
+
+Original prompt: Lastly the bottom of GSP cards are being cut off in view
+
+- October 29, 2026 **GSP (holo gold) card faces: drop the showcase drop-shadow that Safari mis-renders with the gold blend layers.**
+  - **Change.** On iPhone, a GSP card face in the card sheet (and the binder) lost its bottom edge: the bottom notches were cut in half and the frame's bottom border and rounded corners were gone. Meanwhile the top kept its gold border.
+    - **Why GSP only.** GSP is the only finish whose `mix-blend-mode` layers (`.card-holo-gold-finish` tint, warm, sheen and rim) live inside the showcase card, under its notches. That showcase carries `filter: drop-shadow(0 8px 16px …)` (`style.css`). GOLD's blend layer sits on the slot, outside the filter.
+    - **Likely cause.** WebKit renders blend layers under a filtered ancestor into an offset layer, which matches a bottom-only cut against a 0/8px shadow.
+    - **Fix.** `holographic.css` now sets `filter: none` on GSP showcase cards inside a slot. The selectors are specific enough to beat style.css's rule, which loads after the import. The shadow was already clipped by the slot's `overflow: hidden`, and the finish has its own glow, so nothing visible is lost. The Battle Table's own hand-card filters are untouched.
+    - **Cache pins.** `holographic.css?v=10` (style.css and home.css imports, `index.html`, `card-dashboard.html`), `style.css?v=297` in every page that loads it, `home.css?v=156`.
+  - **Verification.** Headless Chromium at 440x956 (the reporter's iPhone Pro Max viewport) on Kilokong's real card sheet, with the API forwarded to the live backend:
+    - GSP's showcase `filter` computes to `none`, while Standard, Holo, HSP and Gold keep the drop-shadow.
+    - The card box is unchanged (260–405 in a 257–408 slot).
+    - The GSP face renders identically.
+    - **Not reproduced here.** Chromium never showed the cut, and no WebKit build is available in this environment, so the iOS result still needs checking on a device.
+
+Original prompt: In card via integrate the buttons and bottom of the window with the Fav
+
+- October 29, 2026 **Card sheet: Make Holo and Use in a deck flank the S FAB.**
+  - **Change.** The card detail sheet ended in a full-width Make Holo pill and a full-width gold "Use in a deck" pill, and the shield FAB sat on top of the second one. The sheet's bottom is now a dock around the FAB, the same pattern as the profile sheet's Cancel/Save (`sheetActions` in `home-redesign.js`):
+    - **Left flank.** The finish to buy, as an iridescent `sn-flank is-left is-holo` with a "Make Holo" line and a smaller "8,000 remnants" line. Its two-tap confirm reads "Tap to confirm"; while buying it reads "Applying…".
+    - **No finish to buy.** For a guest, an unowned card or a card that ships foil, the left flank is **Close** (`data-sheet-close`), so the S is always flanked.
+    - **Right flank.** **Use in a deck**, in gold.
+    - **Above the dock.** The remnants balance line sits just above it.
+    - **After a purchase.** Both the finish block and the dock re-render.
+    - **Placement.** The sheet card's bottom padding is computed from the shield's FAB and flank variables minus the card's 10px margin and 1px border, so the flank row's centre is the FAB's centre. The wide-screen rule's `margin:0 auto` was zeroing that margin, so it is restated. The old `.sg-sheet-cta` `display:block` was beating the flank's flex centring, so the flank sets `display:flex` itself.
+    - **Narrow phones.** Under 360px wide the flank labels wrap.
+    - **Cache pins.** `home-redesign.js?v=165` and `home-redesign.css?v=174`, both still unreleased in this PR.
+  - **Verification.** `node --check` passes. Headless Chromium with the API forwarded to the live backend, opening a binder card's sheet, at 390x844, 844x390, 1920x1080 and 320x568:
+    - **Centring.** Both flanks are vertically centred on the FAB: 800/800, 351/351, 1036/1036 and 524/524.
+    - **Shape.** Each flank meets the FAB's cut at centre ± the tuck.
+    - **Fit.** No label overflows, including the Make Holo flank, which was injected for the layout check since the test runs signed out.
+    - **Taps.** Each flank hit-tests to itself, and Close closes the sheet.
+    - No page errors.
+    - Screenshots checked.
+
+Original prompt: Upgrade the music player and song selection display to better match the theme and flow of the current app
+
+- October 29, 2026 **Hub music player: a themed glass sheet with the song's element, seeking and a grouped song list.**
+  - **Change.** The music panel (`hub-music.js` + `.hm-*` in `home-redesign.css`) was a plain dark dropdown with a flat list. It now follows the hub's sheets:
+    - **Opening and closing.** It swells out of the note button (origin measured from the button) with the sheets' overshoot, and shrinks back into it on close.
+    - **Element theming.** The playing song's element sets `--el`, which tints the glass edge glow, the hero, the seek bar and the playing row.
+    - **Hero.** The song's element land (`img/lands/*`) is the hero art and crossfades when the song changes. The song's element notch sits beside the title, with a "Biome theme" / "Siegelings soundtrack" / "Battle track" line under it.
+    - **Seek bar.** A seekable progress bar (range input) shows elapsed and total time, filled in the element's colour. Dragging previews the time; letting go moves the song.
+    - **Controls.** Previous and next sit either side of a gold-rimmed play button that wears the S FAB's rim.
+    - **Song list.** It is grouped under sticky Biomes / Themes / Battle headings. Each row carries its element's notch, and the playing row is tinted in its element's colour. Opening the panel scrolls the playing song into view.
+    - **Short landscape screens.** The player and list sit side by side.
+    - **Placement.** The panel always stops above the shield FAB.
+    - Reduced motion drops the swell, crossfade and equaliser animation.
+    - **Cache pins.** `hub-music.js?v=7`; `home-redesign.css?v=174` is still unreleased in this PR.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844, 844x390, 1920x1080 and 320x568, with audio served from the live site (Python's dev server can't serve partial audio, so it can't seek):
+    - Picking Fire Biome tints the panel FIRE, plays it and shows 5:32.
+    - Seeking to the midpoint lands at 2:46 of 5:33.
+    - The panel shows all 27 songs in 3 groups, stays on screen and ends above the FAB (315 vs 325 at 844x390).
+    - Escape closes it.
+    - No page errors.
+    - Portrait and landscape screenshots checked.
+
+Original prompt: On portrait can you integrate the siege, play and dominion buttons into the Fab attachments in a cool intuitive way?
+
+- October 29, 2026 **Home (portrait): Arena, Siege and Dominion wrap the S FAB as one control.**
+  - **Change.** Portrait Home used to stack the Arena pill above two rounded Siege and Dominion cards that merely sat either side of the shield FAB. With the shield on screen (`.has-shield-navigation`, portrait under 1024px wide) they now form one cluster around it:
+    - **Siege** is the FAB's left flank and **Dominion** its right. Each uses the shield's own flank shape: a 2px gold rim, a point facing outward, and a semicircle cut where it meets the FAB. Siege is navy and Dominion steel-blue. The kicker and title are aligned toward the FAB.
+    - **Arena** is the crown across the top, spanning both flanks. It has a gold rim over its amber gradient, and a notch curving around the FAB's top. The notch is a circle on the FAB's centre, slightly wider than the flank cuts. Arena sits 2px above the FAB.
+    - **Layout.** The grid's last row is exactly the FAB's height and ends at its bottom inset, so it shares the FAB's centre. The middle column is the width the flank cuts reach into, with no column gap, so everything follows the shield's `--sn-fab-*` and `--sn-flank-*` variables.
+    - Landscape and desktop are unchanged.
+    - **Cache pin.** `home-redesign.css?v=174`, still unreleased in this PR.
+  - **Verification.** Headless Chromium at 390x844, 430x932, 375x667 and 320x568, no page errors:
+    - Both flanks are vertically centred on the FAB, and each flank's inner edge sits exactly at FAB centre ± the tuck (172 / 218 around a 195 centre at 390 wide).
+    - Arena ends 2px above the FAB's top.
+    - Tapping each of Siege, Dominion, Arena and the FAB hits that control.
+    - No flank text overflows.
+    - Screenshots at 390 and 320 wide checked.
+
+Original prompt: In collection the evolve souls show the small siegeling instead of name that spoils be consistent across the site unless it fails back to the name
+
+- October 29, 2026 **Hub binder: Evo chips show the precursor's thumbnail, like the rest of the site.**
+  - **Change.** The shared card renderer draws the Evo corner chip as a small thumbnail of the precursor Siegeling, falling back to its name when no art resolves or the image fails. That was already the case on the Battle Table and the landing page.
+    - **The bug.** `getEvolutionSourceOverlayUrl` in `game.js` finds the precursor in `window.SieglingsCardCatalog`. The old hub (`home.js`) sets that global; the redesigned hub never did. So in the binder, deck builder and every other hub card face, every evolution showed the precursor's name, ellipsised ("Dril…").
+    - **The fix.** `home-redesign-live.js` now sets the global from `/api/game/options`' card catalog.
+    - The name fallback is unchanged: `sgEvoThumbFallback`, and the name when the precursor has no overlay art.
+    - **Cache pin.** `home-redesign-live.js?v=24`.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844 on `home-next.html?screen=collection`, with the page's API calls forwarded to the live backend and scrolled through the whole binder:
+    - **With the fix.** All 52 Evo chips render a loaded thumbnail and none falls back to the name.
+    - **Same run against `main`'s file.** All 52 show names ("Evolves from Sundile", "Bearby", "Emberfin" …).
+    - No page errors.
+    - Card screenshot checked.
+
+Original prompt: Need a way to integrate the filter and fab button also sometimes the rotated image fails to load on many
+
+- October 29, 2026 **Binder: Filters docks to the S FAB. Home: the wallpaper never hangs a file that has not loaded.**
+  - **Change.**
+    - **Binder filter button.** It was a second gold FAB at the bottom right, next to the shield's S FAB. It is now the S FAB's right flank: `sn-flank is-right is-gold` with a filter icon, a "Filters" label and an inline count badge.
+      - The flank is placed from the shield's own `--sn-fab-*` and `--sn-flank-*` variables, so it hugs the FAB at every size.
+      - It keeps its scroll-in reveal and still opens the filter sheet.
+      - The rules sit under `.has-shield-navigation`, so a page without the shield keeps the round button.
+    - **Wallpaper.** `mountStage` used to set a plate's background and crossfade to it straight away, and nothing handled a load error. Now:
+      - **Load first.** Each piece is loaded with an `Image` before it is hung; the current piece stays up until the next one has loaded.
+      - **Retry, then skip.** A file that fails is retried once with the art pool's current link. If it still fails, the stage steps on to the next piece in the same direction. If nothing in the list loads, it falls back to the first bundled scene.
+      - **Fresh links.** When the background `/api/art/loading` refresh lands (`sg:art-refreshed`), the rotation picks up any changed links.
+      - **Why.** Dashboard art lives behind tokenised Firebase Storage links, and Home reads last visit's cached list first. A re-uploaded piece's old link answers 403 (confirmed with a bad token). All 137 live art files return 200 `image/webp` with year-long caching, so a failure is a stale link or a slow load, not a missing file.
+    - **Cache pins.** `home-redesign.js?v=165` and `home-redesign.css?v=174` in `home-next.html` and `home-redesign-preview.html`.
+  - **Verification.** `node --check` passes. Headless Chromium, no page errors in any run.
+    - **Binder.** At 390x844, 320x568, 844x390 and 1920x1080, once scrolled, the Filters flank is vertically centred on the S FAB and tucks 5–8px into its cut, as the flanks are designed to. It opens the filter sheet. Screenshots checked.
+    - **Wallpaper, broken piece.** With a 404 piece first in the rotation, the stage hangs Morning Drills, using `-portrait.webp` on a tall screen.
+    - **Wallpaper, nothing loads.** With every piece broken, it hangs The Long Fuse.
+    - **Wallpaper, normal list.** It still advances (The Long Fuse, Morning Drills, Above the Skyreach).
+    - **Orientation.** Turning the phone still keeps the same piece (Morning Drills switches to its portrait file and back).
+
+Original prompt: In gallery the fab sits over the siegeling name
+
+- October 29, 2026 **Gallery: the piece's caption and card chips clear the FAB.**
+  - **Change.** The hub gallery's full-screen viewer (`.sg-lightbox`) pinned its caption to 16px above the bottom inset. The shield FAB stays on screen over the viewer, so it covered the Siegeling's name and the "Cards in this image" chip.
+    - **First attempt, dropped.** Reserving a strip for the caption under the art cleared the FAB but shrank tall art. A portrait piece at 390x844 went from 82% of the screen to 59%, and from 26% to 7% in landscape.
+    - **Final version.** The art keeps the whole screen. The caption floats over the art's bottom on a dark fade, lifted clear of the FAB using the shield's own `--sn-fab-bottom` and `--sn-fab-size`. The caption has its own stacking layer; without it, its `z-index:-1` fade painted behind the image.
+    - **Landscape phones.** The caption sits in the bottom-left corner, level with the FAB, with one row of chips.
+    - **Cache pin.** `home-redesign.css?v=174` in `home-next.html` and `home-redesign-preview.html`.
+  - **Verification.** Headless Chromium on `home-next.html?screen=art`, tapping a real gallery tile, with a caption and card chip in the footer:
+    - **Caption vs FAB.** At 390x844, 320x568 and 1920x1080 the caption ends above the FAB's top. At 844x390 it sits at x 16–154 and the FAB at x 396–448, so they don't overlap.
+    - **Art size.** `frostag-training-portrait.webp` is back to 390x693 on a phone (82%) and 220x390 in landscape, the same as before this change. The wide piece is 694x390 in landscape.
+    - **Screenshots.** The fade makes the label readable over bright snow art.
+    - No page errors.
+
+Original prompt: Fix this display so the menu is more integrated with thr FAB
+
+- October 29, 2026 **Landing: the page menu unfolds out of the FAB.**
+  - **Change.** The landing page's section menu used to sit beside the emblem FAB in a flex row. Opening it pushed the FAB about 200px left, and a separate dropdown appeared next to it.
+    - **The sheet.** The menu is now a sheet the FAB sits inside. The FAB stays where it is, nested in the sheet's bottom-right corner, which is rounded around it. The sheet's border is gold like the FAB's rim. A gold "Explore" caption shares the FAB's row.
+    - **Animation.** Opening, the sheet grows out of the FAB's centre and the links fade in one after another. Closing (FAB, outside tap, Escape or a link), it shrinks back into the FAB. With reduced motion it opens and closes without animating.
+    - **Landscape phones.** Under 520px tall the links split into two columns so the sheet fits on screen.
+    - **Cache pins.** `landing.css?v=60` in `index.html` and `play.html`; `landing.js?v=61`.
+  - **Verification.** `node --check js/landing.js` passes. Headless Chromium at 390x844, 320x568, 844x390 and 1920x1080, with the install guide dismissed:
+    - The FAB does not move when the menu opens, and it sits inside the sheet's box.
+    - No link overlaps the FAB, and the sheet stays on screen.
+    - Escape and a link tap both close the sheet.
+    - No page errors.
+    - Screenshots checked.
 Original prompt: Bring it close to the p
 
 - October 29, 2026 **GSPx: the x sits against the P.**
