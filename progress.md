@@ -1,3 +1,19 @@
+Original prompt: In gallery the fab sits over the siegeling name
+
+- October 29, 2026 **Gallery: the piece's caption and card chips clear the FAB.**
+  - **Change.** The hub gallery's full-screen viewer (`.sg-lightbox`) pinned its caption to 16px above the bottom inset. The shield FAB stays on screen over the viewer, so it covered the "Cards in this image" chip and the Siegeling's name.
+    - The viewer is now a column: the art, then the caption directly under it.
+    - The bottom padding is computed from the shield's own `--sn-fab-bottom` and `--sn-fab-size`, so it always clears the FAB.
+    - The top padding clears the close button.
+    - On landscape phones there is less top padding and the chips get one row.
+    - Cache pin: `home-redesign.css?v=174` in `home-next.html` and `home-redesign-preview.html`.
+  - **Verification.** Headless Chromium on `home-next.html?screen=art`, tapping a real gallery tile, with a caption and card chip in the footer, at 390x844, 320x568, 844x390 and 1920x1080:
+    - The caption's bottom is above the FAB's top every time.
+    - The art ends above the caption.
+    - The art is 219px tall at 390 wide and 202px tall in landscape.
+    - No page errors.
+    - Screenshot checked.
+
 Original prompt: Fix this display so the menu is more integrated with thr FAB
 
 - October 29, 2026 **Landing: the page menu unfolds out of the FAB.**
