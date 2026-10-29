@@ -1,3 +1,18 @@
+Original prompt: Fix this display so the menu is more integrated with thr FAB
+
+- October 29, 2026 **Landing: the page menu unfolds out of the FAB.**
+  - **Change.** The landing page's section menu used to sit beside the emblem FAB in a flex row. Opening it pushed the FAB about 200px left, and a separate dropdown appeared next to it.
+    - **The sheet.** The menu is now a sheet the FAB sits inside. The FAB stays where it is, nested in the sheet's bottom-right corner, which is rounded around it. The sheet's border is gold like the FAB's rim. A gold "Explore" caption shares the FAB's row.
+    - **Animation.** Opening, the sheet grows out of the FAB's centre and the links fade in one after another. Closing (FAB, outside tap, Escape or a link), it shrinks back into the FAB. With reduced motion it opens and closes without animating.
+    - **Landscape phones.** Under 520px tall the links split into two columns so the sheet fits on screen.
+    - **Cache pins.** `landing.css?v=60` in `index.html` and `play.html`; `landing.js?v=61`.
+  - **Verification.** `node --check js/landing.js` passes. Headless Chromium at 390x844, 320x568, 844x390 and 1920x1080, with the install guide dismissed:
+    - The FAB does not move when the menu opens, and it sits inside the sheet's box.
+    - No link overlaps the FAB, and the sheet stays on screen.
+    - Escape and a link tap both close the sheet.
+    - No page errors.
+    - Screenshots checked.
+
 Original prompt: In ui where it says play it should read Play Menu or Main Menu if it returns to main menu. Play is too subtle
 
 - October 29, 2026 **Launch screens: back buttons say where they go.**

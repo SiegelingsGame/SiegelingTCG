@@ -1576,19 +1576,21 @@ img { display: block; }
 .cta-explore:hover { background: rgba(39, 132, 194, 0.52); box-shadow: 0 14px 32px rgba(18, 152, 255, 0.33); }
 
 .landing-fab {
+    --fab-size: 54px;
+    --fab-inset: 8px;
     position: fixed;
     z-index: 150;
     right: max(18px, env(safe-area-inset-right));
     bottom: max(22px, env(safe-area-inset-bottom));
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
 }
 /* The Siegelings emblem in a gold rim, the same medallion the hub's shield
    button wears, so the landing's navigation reads as the game's own. */
 .landing-fab-toggle {
-    width: 54px;
-    height: 54px;
+    position: relative;
+    z-index: 2;
+    display: block;
+    width: var(--fab-size);
+    height: var(--fab-size);
     padding: 0;
     border: 2px solid #e6bc70;
     border-radius: 50%;
@@ -1600,21 +1602,73 @@ img { display: block; }
 }
 .landing-fab-toggle img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .landing-fab-toggle:hover, .landing-fab-toggle:focus-visible { transform: translateY(-3px) scale(1.04); box-shadow: 0 16px 32px rgba(2, 9, 34, .62), 0 0 30px rgba(230, 188, 112, .5); }
+.landing-fab-toggle[aria-expanded="true"] { transform: none; box-shadow: 0 0 0 4px rgba(230, 188, 112, .22), 0 0 26px rgba(230, 188, 112, .55); }
 .landing-fab-toggle:focus-visible, .landing-fab-menu a:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+/* The menu is a sheet the medallion sits inside: its bottom-right corner is
+   rounded around the FAB and it grows out of the FAB's centre, so opening it
+   reads as the button unfolding rather than a dropdown parked beside it. */
 .landing-fab-menu {
+    --fab-corner: calc(var(--fab-size) / 2 + var(--fab-inset));
+    position: absolute;
+    z-index: 1;
+    right: calc(var(--fab-inset) * -1);
+    bottom: calc(var(--fab-inset) * -1);
     display: grid;
-    gap: 6px;
-    padding: 8px;
-    min-width: 142px;
-    border: 1px solid rgba(164, 218, 255, .24);
-    border-radius: 14px;
-    background: rgba(7, 15, 42, .92);
-    box-shadow: 0 18px 42px rgba(0,0,0,.42);
-    backdrop-filter: blur(14px);
+    gap: 2px;
+    width: max-content;
+    min-width: 206px;
+    max-height: calc(100dvh - 28px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow-y: auto;
+    padding: 10px 10px calc(var(--fab-size) + var(--fab-inset) * 2 + 4px);
+    border: 1px solid rgba(230, 188, 112, .42);
+    border-radius: 20px 20px var(--fab-corner) 20px;
+    background: linear-gradient(180deg, rgba(14, 26, 58, .97), rgba(6, 12, 32, .98));
+    box-shadow: 0 22px 48px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 241, 189, .12);
+    transform-origin: calc(100% - var(--fab-corner)) calc(100% - var(--fab-corner));
+    animation: landingFabOpen .26s cubic-bezier(.2, .9, .3, 1.15) both;
 }
+.landing-fab-menu.is-closing { animation: landingFabClose .16s ease-in both; pointer-events: none; }
 .landing-fab-menu[hidden] { display: none; }
-.landing-fab-menu a { padding: 9px 11px; border-radius: 9px; color: rgba(247,249,255,.9); font-size: .75rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+/* Caption on the FAB's row so the bottom strip of the sheet is not dead space. */
+.landing-fab-menu::after {
+    content: "Explore";
+    position: absolute;
+    left: 20px;
+    bottom: calc(var(--fab-corner) - .5em);
+    color: var(--siegelings-gold, #e6bc70);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .2em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+.landing-fab-menu a {
+    padding: 10px 12px;
+    border-radius: 11px;
+    color: rgba(247,249,255,.9);
+    font-size: .75rem;
+    font-weight: 800;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    animation: landingFabItem .24s ease-out both;
+}
+.landing-fab-menu a:nth-child(1) { animation-delay: .02s; }
+.landing-fab-menu a:nth-child(2) { animation-delay: .04s; }
+.landing-fab-menu a:nth-child(3) { animation-delay: .06s; }
+.landing-fab-menu a:nth-child(4) { animation-delay: .08s; }
+.landing-fab-menu a:nth-child(5) { animation-delay: .10s; }
+.landing-fab-menu a:nth-child(6) { animation-delay: .12s; }
+.landing-fab-menu a:nth-child(7) { animation-delay: .14s; }
+.landing-fab-menu a:nth-child(8) { animation-delay: .16s; }
+.landing-fab-menu a:nth-child(9) { animation-delay: .18s; }
 .landing-fab-menu a:hover { background: rgba(80, 196, 255, .16); color: #fff; }
+@keyframes landingFabOpen { from { opacity: 0; transform: scale(.25); border-radius: 50%; } to { opacity: 1; transform: none; } }
+@keyframes landingFabClose { to { opacity: 0; transform: scale(.3); } }
+@keyframes landingFabItem { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* Landscape phones: nine rows would overrun the height, so split in two. */
+@media (max-height: 520px) {
+    .landing-fab-menu { grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 300px; }
+}
 
 .landing-section-heading { width: min(720px, 100%); margin: 0 auto 38px; text-align: center; }
 .section-kicker { display: inline-block; color: var(--siegelings-gold); font-size: .73rem; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; }
@@ -2201,12 +2255,12 @@ img { display: block; }
     .arena-section { grid-template-columns: 1fr; padding-left: 24px; padding-right: 24px; text-align: center; }
     .arena-visual { max-width: 276px; }
     .arena-actions { justify-content: center; }
-    .landing-fab { right: 14px; bottom: max(14px, env(safe-area-inset-bottom)); }
-    .landing-fab-toggle { width: 48px; height: 48px; }
+    .landing-fab { --fab-size: 48px; right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .ring-one, .ring-two { animation: none; }
+    .landing-fab-menu, .landing-fab-menu a { animation: none; }
 }
 
 /* iOS Safari zooms focused inputs under 16px. Touch-primary devices only. */
