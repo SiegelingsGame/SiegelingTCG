@@ -1,3 +1,23 @@
+Original prompt: In card via integrate the buttons and bottom of the window with the Fav
+
+- October 29, 2026 **Card sheet: Make Holo and Use in a deck flank the S FAB.**
+  - **Change.** The card detail sheet ended in a full-width Make Holo pill and a full-width gold "Use in a deck" pill, and the shield FAB sat on top of the second one. The sheet's bottom is now a dock around the FAB, the same pattern as the profile sheet's Cancel/Save (`sheetActions` in `home-redesign.js`):
+    - **Left flank.** The finish to buy, as an iridescent `sn-flank is-left is-holo` with a "Make Holo" line and a smaller "8,000 remnants" line. Its two-tap confirm reads "Tap to confirm"; while buying it reads "Applying…".
+    - **No finish to buy.** For a guest, an unowned card or a card that ships foil, the left flank is **Close** (`data-sheet-close`), so the S is always flanked.
+    - **Right flank.** **Use in a deck**, in gold.
+    - **Above the dock.** The remnants balance line sits just above it.
+    - **After a purchase.** Both the finish block and the dock re-render.
+    - **Placement.** The sheet card's bottom padding is computed from the shield's FAB and flank variables minus the card's 10px margin and 1px border, so the flank row's centre is the FAB's centre. The wide-screen rule's `margin:0 auto` was zeroing that margin, so it is restated. The old `.sg-sheet-cta` `display:block` was beating the flank's flex centring, so the flank sets `display:flex` itself.
+    - **Narrow phones.** Under 360px wide the flank labels wrap.
+    - **Cache pins.** `home-redesign.js?v=165` and `home-redesign.css?v=174`, both still unreleased in this PR.
+  - **Verification.** `node --check` passes. Headless Chromium with the API forwarded to the live backend, opening a binder card's sheet, at 390x844, 844x390, 1920x1080 and 320x568:
+    - **Centring.** Both flanks are vertically centred on the FAB: 800/800, 351/351, 1036/1036 and 524/524.
+    - **Shape.** Each flank meets the FAB's cut at centre ± the tuck.
+    - **Fit.** No label overflows, including the Make Holo flank, which was injected for the layout check since the test runs signed out.
+    - **Taps.** Each flank hit-tests to itself, and Close closes the sheet.
+    - No page errors.
+    - Screenshots checked.
+
 Original prompt: Upgrade the music player and song selection display to better match the theme and flow of the current app
 
 - October 29, 2026 **Hub music player: a themed glass sheet with the song's element, seeking and a grouped song list.**

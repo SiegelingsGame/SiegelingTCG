@@ -3612,6 +3612,42 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 .sg-sheet-holo-btn.is-armed { border-color:#fff; box-shadow:0 0 22px rgba(255,255,255,.45); }
 .sg-sheet-holo-btn:disabled { cursor:default; opacity:.5; }
+/* The sheet's actions are the shield FAB's flanks: the card sheet's bottom
+   padding puts this row's centre on the FAB's centre, as the profile sheet's
+   does, so Make Holo (or Close) and Use in a deck wrap the S. */
+.sg-sheet[data-sheet] .sg-sheet-card {
+  /* 11px = the card's 10px bottom margin (restated here: the wide-screen
+     rule centres the card with margin:0 auto) plus its 1px border. */
+  margin-bottom:10px;
+  padding-bottom:max(0px, calc(var(--sn-fab-bottom, 13px) + var(--sn-fab-size, 62px) / 2 - var(--sn-flank-h, 56px) / 2 - 11px));
+}
+.sg-sheet-actions {
+  flex:0 0 auto; display:grid; align-items:center; gap:0; padding-top:12px;
+  grid-template-columns:minmax(0,1fr) calc(var(--sn-flank-tuck, 22.6px) * 2) minmax(0,1fr);
+}
+.sg-sheet-card .sg-sheet-actions .sn-flank {
+  display:flex; margin:0; height:var(--sn-flank-h, 56px); border:0; border-radius:0; box-shadow:none;
+  background:var(--flank-rim); color:var(--flank-ink); text-shadow:none;
+  font-size:12px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap;
+  filter:drop-shadow(0 6px 12px rgba(0,0,0,.45));
+}
+.sg-sheet-actions .sn-flank.is-left { grid-column:1; justify-self:end; padding:0 calc(var(--sn-flank-r, 36px) - var(--sn-flank-tuck, 22.6px) + 8px) 0 20px; }
+.sg-sheet-actions .sn-flank.is-right { grid-column:3; justify-self:start; padding:0 20px 0 calc(var(--sn-flank-r, 36px) - var(--sn-flank-tuck, 22.6px) + 8px); }
+.sg-sheet-actions .sn-flank small {
+  font-size:9.5px; font-weight:700; letter-spacing:.08em; opacity:.8; text-transform:none;
+}
+/* The finish flank keeps the holo button's iridescence. */
+.sg-sheet-actions .sn-flank.is-holo {
+  --flank-rim:#bfeaff; --flank-ink:#f4fbff;
+  --flank-bg:linear-gradient(115deg, #7a2e6e 0%, #1f6f9c 38%, #1e7a5a 68%, #4b2f8f 100%);
+  text-shadow:0 1px 2px rgba(0,0,0,.5);
+}
+.sg-sheet-actions .sn-flank.is-holo.is-armed { --flank-rim:#fff; filter:drop-shadow(0 0 10px rgba(255,255,255,.6)); }
+.sg-sheet-actions .sn-flank:disabled { opacity:.6; }
+/* The smallest phones leave a flank ~70px of text: labels wrap to two lines. */
+@media (max-width:359px) {
+  .sg-sheet-card .sg-sheet-actions .sn-flank { white-space:normal; font-size:11px; letter-spacing:.05em; line-height:1.1; }
+}
 /* Card versions: every look of the card, owned or not. Tapping one shows it
    on the face; a lock marks a version this account does not have. */
 /* Five versions don't fit one row beside a padlock at phone widths, so the row wraps. */

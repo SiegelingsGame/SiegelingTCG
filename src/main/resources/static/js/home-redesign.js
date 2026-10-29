@@ -5258,7 +5258,7 @@
           : '') +
       '</div>' +
       holoBlock(card, opts) +
-      '<a class="sg-sheet-cta" href="/deck-builder" data-screen="builder">Use in a deck \u203a</a>';
+      sheetActions(card, opts);
   }
 
   /* ---------- card finishes ----------
@@ -5326,7 +5326,7 @@
   }
 
   function holoButtonLabel(step) {
-    return '✦ ' + step.label + ' · ' + step.cost.toLocaleString() + ' remnants';
+    return '<span>\u2726 ' + esc(step.label) + '</span><small>' + step.cost.toLocaleString() + ' remnants</small>';
   }
 
   // Each tier includes the ones below it. null when ownership is unknown
@@ -5391,21 +5391,47 @@
     '</div>';
   }
 
+  // The finish the player can buy next for this card, or null: cards that ship
+  // foil have nothing to buy, and guests and the offline board cannot spend
+  // remnants.
+  function holoStepFor(card, opts) {
+    var live = opts && opts.live;
+    var isOwned = live && !opts.guest ? binderOwnership(live) : null;
+    var step = nextHoloStep(card);
+    return step && isOwned && isOwned(card) ? step : null;
+  }
+
+  /* The sheet's two actions are the shield FAB's flanks (shield-navigation.css):
+     the finish to buy on the left - or Close when there is none, so the S is
+     always flanked - and the deck builder on the right in gold. */
+  function sheetActions(card, opts) {
+    var step = holoStepFor(card, opts);
+    var left;
+    if (step) {
+      var balance = Number(opts.live.remnants);
+      var short = isFinite(balance) && balance < step.cost;
+      left = '<button class="sn-flank is-left is-holo sg-sheet-holo-btn" type="button" data-holo-buy="' + esc(card.id) + '"' +
+        ' data-holo-tier="' + step.tier + '" data-holo-cost="' + step.cost + '"' + (short ? ' disabled' : '') + '>' +
+        holoButtonLabel(step) + '</button>';
+    } else {
+      left = '<button class="sn-flank is-left" type="button" data-sheet-close>Close</button>';
+    }
+    return '<div class="sg-sheet-actions">' + left +
+      '<a class="sn-flank is-right is-gold sg-sheet-cta" href="/deck-builder" data-screen="builder">Use in a deck</a>' +
+    '</div>';
+  }
+
   function holoBlock(card, opts, viewing) {
     var live = opts && opts.live;
     var out = '<div class="sg-sheet-holo">' + versionsRow(card, viewing || bestVersion(card), opts);
     // Cards that ship foil have nothing to buy; guests and the offline board
     // cannot spend remnants.
-    var isOwned = live && !opts.guest ? binderOwnership(live) : null;
-    var step = nextHoloStep(card);
-    if (step && isOwned && isOwned(card)) {
+    var step = holoStepFor(card, opts);
+    if (step) {
       var balance = Number(live.remnants);
       var known = isFinite(balance);
       var short = known && balance < step.cost;
-      out += '<button class="sg-sheet-holo-btn" type="button" data-holo-buy="' + esc(card.id) + '"' +
-          ' data-holo-tier="' + step.tier + '" data-holo-cost="' + step.cost + '"' + (short ? ' disabled' : '') + '>' +
-          holoButtonLabel(step) + '</button>' +
-        '<p class="sg-sheet-holo-note" data-holo-note>' + (known
+      out += '<p class="sg-sheet-holo-note" data-holo-note>' + (known
           ? (short ? 'You have ' + balance.toLocaleString() + ' remnants. Duplicates and wins earn more.'
                    : 'You have ' + balance.toLocaleString() + ' remnants.')
           : '') + '</p>';
@@ -5781,24 +5807,24 @@
     var requested = btn.getAttribute('data-holo-tier');
     var tier = FINISH_LADDER[finishIndex(requested)].key;
     var cost = Number(btn.getAttribute('data-holo-cost')) || 0;
-    var restingLabel = btn.textContent;
+    var restingLabel = btn.innerHTML;
     var note = sheetCard.querySelector('[data-holo-note]');
     // Up to 32,000 remnants in one tap is too easy to spend by accident, so
     // the first tap arms and the second one spends.
     if (!btn.classList.contains('is-armed')) {
       btn.classList.add('is-armed');
-      btn.textContent = 'Tap again to spend ' + cost.toLocaleString() + ' remnants';
+      btn.innerHTML = '<span>Tap to confirm</span><small>' + cost.toLocaleString() + ' remnants</small>';
       return;
     }
     if (!api || !api.post) return;
     holoAudioPrime();
     btn.disabled = true;
-    btn.textContent = 'Applying finish\u2026';
+    btn.innerHTML = '<span>Applying\u2026</span>';
     api.post('/api/cards/holographic', { cardId: id, tier: tier }).then(function (data) {
       if (!data || data.error || !data.progression) {
         btn.disabled = false;
         btn.classList.remove('is-armed');
-        btn.textContent = restingLabel;
+        btn.innerHTML = restingLabel;
         if (note) note.textContent = (data && data.error) || 'The finish could not be applied. Try again.';
         return;
       }
@@ -5826,6 +5852,8 @@
       if (onSheet) sheetCard.setAttribute('data-version', version);
       var block = sheetCard.querySelector('.sg-sheet-holo');
       if (block) block.outerHTML = holoBlock(card, opts, version);
+      var actions = sheetCard.querySelector('.sg-sheet-actions');
+      if (actions) actions.outerHTML = sheetActions(card, opts);
       playHoloTwirl(face, versionFace(card, version), null, tier === 'GOLD' || tier === 'GSP');
     });
   }
@@ -6223,6 +6251,7 @@
         else paintSheetFace(vCard);
         return;
       }
+      if (e.target.closest && e.target.closest('[data-sheet-close]')) { close(); return; }
       var holoBtn = e.target.closest ? e.target.closest('[data-holo-buy]') : null;
       if (holoBtn) {
         if (!holoBtn.disabled) buyHoloFinish(app, opts || {}, sheetCard, holoBtn);
