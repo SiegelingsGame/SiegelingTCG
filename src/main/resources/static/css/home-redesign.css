@@ -150,68 +150,162 @@ body.concept-board {
 .sg-music.is-playing { color:var(--gold-bright); border-color:rgba(200,165,79,.4); }
 .sg-music[aria-expanded="true"] { border-color:rgba(200,165,79,.6); }
 
-/* Music panel (hub-music.js): opens under the top bar from the note button. */
+/* Music panel (hub-music.js): the hub's glass sheet, opened under the top bar
+   from the note button. The playing song's element (data-el) sets --el, which
+   tints the glass, the hero, the seek bar and the playing row. */
 .hm-panel {
+  --el:var(--neutral);
   position:absolute; top:calc(max(6px, var(--sg-sat)) + 42px); right:12px; z-index:52;
-  width:min(300px, calc(100% - 24px)); max-height:calc(100% - max(6px, var(--sg-sat)) - 120px);
-  display:flex; flex-direction:column; overflow:hidden;
-  border-radius:18px; border:1px solid rgba(200,165,79,.28);
-  background:rgba(9,14,26,.96); box-shadow:0 22px 48px rgba(0,0,0,.55);
-  backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
-  animation:hmIn .18s ease-out;
+  width:min(340px, calc(100% - 24px));
+  /* Stops above the shield FAB (or the tab bar where there is no shield). */
+  max-height:calc(100% - max(6px, var(--sg-sat)) - 52px - var(--sn-fab-bottom, 60px) - var(--sn-fab-size, 0px));
+  display:flex; flex-direction:column; overflow:hidden; color:var(--ink);
+  border-radius:26px; border:1px solid rgba(255,255,255,.22);
+  background:
+    linear-gradient(165deg, color-mix(in srgb, var(--el) 18%, rgba(255,255,255,.08)), rgba(255,255,255,.03) 40%, rgba(8,12,24,.2)),
+    rgba(10,16,30,.97);
+  box-shadow:
+    0 26px 64px rgba(0,0,0,.6),
+    0 0 54px -14px color-mix(in srgb, var(--el) 55%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.4);
+  transform-origin:var(--hm-ox, 85%) var(--hm-oy, 0);
+  animation:hmIn .42s cubic-bezier(.2,.9,.25,1.12) both;
+  transition:box-shadow .5s ease;
 }
-@keyframes hmIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
-.hm-head { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:10px 10px 4px 16px; }
-.hm-head strong { font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-bright); }
+.hm-panel.is-closing { animation:hmOut .2s cubic-bezier(.4,0,.8,.4) both; pointer-events:none; }
+@keyframes hmIn { 0% { opacity:0; transform:scale(.3); } 55% { opacity:1; } 100% { opacity:1; transform:none; } }
+@keyframes hmOut { to { opacity:0; transform:scale(.4); } }
+.hm-panel[data-el="FIRE"] { --el:var(--fire); }
+.hm-panel[data-el="WATER"] { --el:var(--water); }
+.hm-panel[data-el="WIND"] { --el:var(--wind); }
+.hm-panel[data-el="ELECTRIC"] { --el:var(--electric); }
+.hm-panel[data-el="EARTH"] { --el:var(--earth); }
+.hm-panel[data-el="SHADOW"] { --el:var(--shadow); }
+.hm-panel[data-el="POISON"] { --el:var(--poison); }
+.hm-panel[data-el="ICE"] { --el:var(--ice); }
+.hm-panel[data-el="METAL"] { --el:var(--metal); }
+.hm-panel[data-el="LIGHT"] { --el:var(--light); }
+.hm-panel[data-el="UNDEAD"] { --el:var(--undead); }
+.hm-panel[data-el="PSYCHIC"] { --el:var(--psychic); }
+
+/* Hero: the song's land behind the title, controls and seek bar. */
+.hm-hero { position:relative; isolation:isolate; flex:0 0 auto; padding:0 0 14px; }
+.hm-hero-art { position:absolute; inset:0; z-index:-1; overflow:hidden; }
+.hm-hero-art i {
+  position:absolute; inset:0; background:center 40% / cover no-repeat;
+  animation:hmArtIn .6s ease-out both;
+}
+.hm-hero-art::after {
+  content:''; position:absolute; inset:0;
+  background:
+    linear-gradient(180deg, rgba(8,12,24,.35) 0%, rgba(8,12,24,.25) 35%, rgba(8,12,24,.88) 100%),
+    linear-gradient(90deg, color-mix(in srgb, var(--el) 26%, transparent), transparent 70%);
+}
+@keyframes hmArtIn { from { opacity:0; transform:scale(1.06); } to { opacity:1; transform:none; } }
+.hm-head { display:flex; align-items:center; justify-content:space-between; padding:12px 12px 2px 18px; }
+.hm-head strong {
+  font-size:10px; letter-spacing:.24em; text-transform:uppercase; color:var(--gold-bright);
+  text-shadow:0 1px 6px rgba(0,0,0,.7);
+}
 .hm-close {
-  width:30px; height:30px; border-radius:50%; border:none; background:rgba(255,255,255,.06);
-  color:var(--ink); font-size:18px; line-height:1; cursor:pointer;
+  width:34px; height:34px; border-radius:50%; border:1px solid rgba(255,255,255,.24);
+  background:rgba(8,12,24,.45); color:var(--ink); font-size:19px; line-height:1; cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.25);
 }
-.hm-now { flex:0 0 auto; display:flex; align-items:center; gap:9px; padding:2px 16px 6px; min-width:0; }
-.hm-now-title { font-family:var(--serif); font-size:19px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.hm-controls { flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:18px; padding:4px 0 12px; }
+.hm-now { display:flex; align-items:center; gap:12px; padding:8px 18px 2px; min-width:0; }
+.hm-now-notch {
+  width:44px; height:44px; flex:0 0 auto; border-radius:50%;
+  box-shadow:0 0 0 2px rgba(255,236,190,.55), 0 6px 18px color-mix(in srgb, var(--el) 55%, transparent);
+}
+.hm-now-text { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.hm-now-title {
+  font-family:var(--serif); font-size:21px; font-weight:600; line-height:1.15;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 2px 10px rgba(0,0,0,.7);
+}
+.hm-now-sub { font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:rgba(234,242,255,.72); }
+
+/* Seek bar: the played part in the element's colour. */
+.hm-progress {
+  display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px;
+  padding:12px 18px 4px; font-size:10.5px; font-variant-numeric:tabular-nums; color:rgba(234,242,255,.75);
+}
+.hm-progress input {
+  -webkit-appearance:none; appearance:none; width:100%; height:18px; margin:0; background:none; cursor:pointer;
+  touch-action:none;
+}
+.hm-progress input:disabled { cursor:default; opacity:.55; }
+.hm-progress input::-webkit-slider-runnable-track {
+  height:4px; border-radius:2px;
+  background:linear-gradient(90deg, var(--el) 0 var(--hm-fill, 0%), rgba(255,255,255,.18) var(--hm-fill, 0%));
+}
+.hm-progress input::-moz-range-track { height:4px; border-radius:2px; background:rgba(255,255,255,.18); }
+.hm-progress input::-moz-range-progress { height:4px; border-radius:2px; background:var(--el); }
+.hm-progress input::-webkit-slider-thumb {
+  -webkit-appearance:none; width:14px; height:14px; margin-top:-5px; border-radius:50%;
+  background:#fff3c9; box-shadow:0 0 0 2px var(--el), 0 2px 6px rgba(0,0,0,.5);
+}
+.hm-progress input::-moz-range-thumb {
+  width:14px; height:14px; border:0; border-radius:50%;
+  background:#fff3c9; box-shadow:0 0 0 2px var(--el), 0 2px 6px rgba(0,0,0,.5);
+}
+
+.hm-controls { display:flex; align-items:center; justify-content:center; gap:22px; padding:8px 0 0; }
 .hm-controls button {
-  width:40px; height:40px; border-radius:50%; border:1px solid rgba(255,255,255,.16);
-  background:rgba(255,255,255,.05); color:var(--ink); cursor:pointer;
+  width:44px; height:44px; border-radius:50%; border:1px solid rgba(255,255,255,.26);
+  background:rgba(8,12,24,.5); color:var(--ink); cursor:pointer;
   display:inline-flex; align-items:center; justify-content:center; padding:0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22);
 }
+/* The play button wears the S FAB's gold rim, so it reads as the panel's one big action. */
 .hm-controls button.hm-main {
-  width:52px; height:52px; border:none; color:#2b0d02;
+  width:60px; height:60px; border:2px solid #ebcd89; color:#2b0d02;
   background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
-  box-shadow:0 8px 22px rgba(255,120,45,.4);
+  box-shadow:0 0 0 3px #72502c, 0 10px 26px rgba(255,120,45,.45), inset 0 1px 0 rgba(255,255,255,.55);
 }
-.hm-panel svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-.hm-controls .hm-main svg { width:20px; height:20px; fill:currentColor; }
+.hm-panel svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.hm-controls .hm-main svg { width:22px; height:22px; fill:currentColor; }
 .hm-main .hm-ic-pause { display:none; }
 .hm-panel.is-playing .hm-main .hm-ic-pause { display:block; }
 .hm-panel.is-playing .hm-main .hm-ic-play { display:none; }
 .hm-controls button:active { transform:scale(.94); }
-/* The track list is the panel's one scrolling region. */
+
+/* The track list is the panel's one scrolling region, grouped as the soundtrack is. */
 .hm-list {
   flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
-  list-style:none; margin:0; padding:6px 8px 10px; border-top:1px solid rgba(112,142,180,.16);
+  list-style:none; margin:0; padding:4px 10px 12px; border-top:1px solid rgba(255,255,255,.1);
+}
+.hm-list ul { list-style:none; margin:0; padding:0; display:grid; gap:2px; }
+.hm-group h4 {
+  position:sticky; top:-4px; z-index:1; margin:0; padding:10px 8px 6px;
+  font-size:9.5px; font-weight:800; letter-spacing:.22em; text-transform:uppercase; color:var(--gold-bright);
+  background:linear-gradient(180deg, rgba(12,18,32,.97) 70%, rgba(12,18,32,0));
 }
 .hm-list button {
-  width:100%; display:flex; align-items:center; gap:10px; padding:9px 10px; min-height:40px;
-  border:none; border-radius:11px; background:none; color:var(--ink); cursor:pointer;
-  font:inherit; font-size:13px; text-align:left;
+  --row:var(--neutral);
+  width:100%; display:flex; align-items:center; gap:11px; padding:6px 10px 6px 6px; min-height:42px;
+  border:1px solid transparent; border-radius:14px; background:none; color:var(--ink); cursor:pointer;
+  font:inherit; font-size:13.5px; text-align:left;
 }
-.hm-list button span { flex:1 1 auto; min-width:0; }
+.hm-list button span { flex:1 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hm-list button:active { background:rgba(255,255,255,.08); }
-.hm-list button.on { background:rgba(200,165,79,.13); color:var(--gold-bright); font-weight:700; }
-.hm-pip { width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:var(--pip, var(--neutral)); }
-.hm-list [data-el="FIRE"] { --pip:var(--fire); }
-.hm-list [data-el="WATER"] { --pip:var(--water); }
-.hm-list [data-el="WIND"] { --pip:var(--wind); }
-.hm-list [data-el="ELECTRIC"] { --pip:var(--electric); }
-.hm-list [data-el="EARTH"] { --pip:var(--earth); }
-.hm-list [data-el="SHADOW"] { --pip:var(--shadow); }
-.hm-list [data-el="POISON"] { --pip:var(--poison); }
-.hm-list [data-el="ICE"] { --pip:var(--ice); }
-.hm-list [data-el="METAL"] { --pip:var(--metal); }
-.hm-list [data-el="LIGHT"] { --pip:var(--light); }
-.hm-list [data-el="UNDEAD"] { --pip:var(--undead); }
-.hm-list .hm-eq { visibility:hidden; }
+.hm-notch { width:28px; height:28px; flex:0 0 auto; border-radius:50%; }
+.hm-list button.on {
+  color:#fff; font-weight:700;
+  border-color:color-mix(in srgb, var(--row) 55%, transparent);
+  background:linear-gradient(90deg, color-mix(in srgb, var(--row) 30%, transparent), color-mix(in srgb, var(--row) 8%, transparent));
+}
+.hm-list [data-el="FIRE"] { --row:var(--fire); }
+.hm-list [data-el="WATER"] { --row:var(--water); }
+.hm-list [data-el="WIND"] { --row:var(--wind); }
+.hm-list [data-el="ELECTRIC"] { --row:var(--electric); }
+.hm-list [data-el="EARTH"] { --row:var(--earth); }
+.hm-list [data-el="SHADOW"] { --row:var(--shadow); }
+.hm-list [data-el="POISON"] { --row:var(--poison); }
+.hm-list [data-el="ICE"] { --row:var(--ice); }
+.hm-list [data-el="METAL"] { --row:var(--metal); }
+.hm-list [data-el="LIGHT"] { --row:var(--light); }
+.hm-list [data-el="UNDEAD"] { --row:var(--undead); }
+.hm-list .hm-eq { visibility:hidden; color:#fff; }
 .hm-list button.on .hm-eq { visibility:visible; }
 .hm-eq { display:inline-flex; align-items:flex-end; gap:2px; height:12px; flex:0 0 auto; color:var(--gold-bright); }
 .hm-eq i { width:3px; height:4px; border-radius:1px; background:currentColor; }
@@ -220,8 +314,17 @@ body.concept-board {
 .hm-eq i:nth-child(2) { animation-delay:-.3s !important; }
 .hm-eq i:nth-child(3) { animation-delay:-.6s !important; }
 @keyframes hmEq { from { height:3px; } to { height:12px; } }
+/* Short landscape screens: the hero would leave the list a sliver, so the
+   player and the list sit side by side. */
+@media (max-height:500px) and (orientation:landscape) {
+  .hm-panel {
+    flex-direction:row; width:min(620px, calc(100% - 24px));
+  }
+  .hm-hero { flex:0 0 280px; display:flex; flex-direction:column; justify-content:center; padding-bottom:12px; }
+  .hm-list { border-top:0; border-left:1px solid rgba(255,255,255,.1); }
+}
 @media (prefers-reduced-motion:reduce) {
-  .hm-panel { animation:none; }
+  .hm-panel, .hm-panel.is-closing, .hm-hero-art i { animation:none; }
   .hm-panel.is-playing .hm-now .hm-eq i, .hm-list button.is-playing .hm-eq i { animation:none; height:8px; }
 }
 .sg-bell.active, .sg-bell:hover { color:var(--gold-bright); border-color:rgba(200,165,79,.4); }

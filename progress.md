@@ -1,3 +1,25 @@
+Original prompt: Upgrade the music player and song selection display to better match the theme and flow of the current app
+
+- October 29, 2026 **Hub music player: a themed glass sheet with the song's element, seeking and a grouped song list.**
+  - **Change.** The music panel (`hub-music.js` + `.hm-*` in `home-redesign.css`) was a plain dark dropdown with a flat list. It now follows the hub's sheets:
+    - **Opening and closing.** It swells out of the note button (origin measured from the button) with the sheets' overshoot, and shrinks back into it on close.
+    - **Element theming.** The playing song's element sets `--el`, which tints the glass edge glow, the hero, the seek bar and the playing row.
+    - **Hero.** The song's element land (`img/lands/*`) is the hero art and crossfades when the song changes. The song's element notch sits beside the title, with a "Biome theme" / "Siegelings soundtrack" / "Battle track" line under it.
+    - **Seek bar.** A seekable progress bar (range input) shows elapsed and total time, filled in the element's colour. Dragging previews the time; letting go moves the song.
+    - **Controls.** Previous and next sit either side of a gold-rimmed play button that wears the S FAB's rim.
+    - **Song list.** It is grouped under sticky Biomes / Themes / Battle headings. Each row carries its element's notch, and the playing row is tinted in its element's colour. Opening the panel scrolls the playing song into view.
+    - **Short landscape screens.** The player and list sit side by side.
+    - **Placement.** The panel always stops above the shield FAB.
+    - Reduced motion drops the swell, crossfade and equaliser animation.
+    - **Cache pins.** `hub-music.js?v=7`; `home-redesign.css?v=174` is still unreleased in this PR.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844, 844x390, 1920x1080 and 320x568, with audio served from the live site (Python's dev server can't serve partial audio, so it can't seek):
+    - Picking Fire Biome tints the panel FIRE, plays it and shows 5:32.
+    - Seeking to the midpoint lands at 2:46 of 5:33.
+    - The panel shows all 27 songs in 3 groups, stays on screen and ends above the FAB (315 vs 325 at 844x390).
+    - Escape closes it.
+    - No page errors.
+    - Portrait and landscape screenshots checked.
+
 Original prompt: On portrait can you integrate the siege, play and dominion buttons into the Fab attachments in a cool intuitive way?
 
 - October 29, 2026 **Home (portrait): Arena, Siege and Dominion wrap the S FAB as one control.**
