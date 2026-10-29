@@ -599,8 +599,10 @@ public class PlayerProgressionService {
     /** The highest finish this account has on the card (a card that ships foil is at least HSP). */
     public CardFinish currentFinish(PlayerProgressionEntity progression, Card card) {
         String id = normalizeCardId(card.getId());
-        if (listHas(progression.getHoloGoldCardIds(), id)) return CardFinish.GSP;
-        if (listHas(progression.getGoldCardIds(), id)) return CardFinish.GOLD;
+        if (listHas(progression.getHoloGoldCardIds(), id)) return CardFinish.GSPX;
+        if (listHas(progression.getGoldCardIds(), id)) return CardFinish.GSP;
+        if (listHas(progression.getCaratCardIds(), id)) return CardFinish.CARAT;
+        if (listHas(progression.getPlainGoldCardIds(), id)) return CardFinish.GOLD;
         if (card.isHolographic() || listHas(progression.getHolographicCardIds(), id)) return CardFinish.HSP;
         if (listHas(progression.getHoloArtCardIds(), id)) return CardFinish.SP;
         if (listHas(progression.getPlainHoloCardIds(), id)) return CardFinish.HOLO;
@@ -609,9 +611,10 @@ public class PlayerProgressionService {
 
     /**
      * Raises the card to {@code finish} if that is above what the account has.
-     * Returns whether it changed. Keeps the lists' invariants: GOLD and GSP cards
-     * stay on the HSP list (the cards ship-foil checks read), GSP stays on GOLD,
-     * and anything at HSP or above leaves the SP-only list.
+     * Returns whether it changed. Keeps the lists' invariants: every gold tier
+     * stays on the HSP list (the cards ship-foil checks read), GSPx stays on the
+     * GSP list, and anything at HSP or above leaves the SP-only list. The gold
+     * lists are read highest first, so a lower gold list left behind is harmless.
      */
     public boolean applyFinish(PlayerProgressionEntity progression, Card card, CardFinish finish) {
         if (card == null || finish == null || !finish.isAbove(currentFinish(progression, card))) {
@@ -623,10 +626,16 @@ public class PlayerProgressionService {
             case SP -> progression.setHoloArtCardIds(withId(progression.getHoloArtCardIds(), id));
             default -> {
                 progression.setHolographicCardIds(withId(progression.getHolographicCardIds(), id));
-                if (finish == CardFinish.GOLD || finish == CardFinish.GSP) {
+                if (finish == CardFinish.GOLD) {
+                    progression.setPlainGoldCardIds(withId(progression.getPlainGoldCardIds(), id));
+                }
+                if (finish == CardFinish.CARAT) {
+                    progression.setCaratCardIds(withId(progression.getCaratCardIds(), id));
+                }
+                if (finish == CardFinish.GSP || finish == CardFinish.GSPX) {
                     progression.setGoldCardIds(withId(progression.getGoldCardIds(), id));
                 }
-                if (finish == CardFinish.GSP) {
+                if (finish == CardFinish.GSPX) {
                     progression.setHoloGoldCardIds(withId(progression.getHoloGoldCardIds(), id));
                 }
                 progression.setHoloArtCardIds(progression.getHoloArtCardIds().stream()
@@ -913,6 +922,16 @@ public class PlayerProgressionService {
                 .distinct()
                 .toList());
         out.put("holoCards", progression.getPlainHoloCardIds().stream()
+                .map(this::normalizeCardId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList());
+        out.put("plainGoldCards", progression.getPlainGoldCardIds().stream()
+                .map(this::normalizeCardId)
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList());
+        out.put("caratCards", progression.getCaratCardIds().stream()
                 .map(this::normalizeCardId)
                 .filter(id -> id != null && !id.isBlank())
                 .distinct()
@@ -1311,7 +1330,7 @@ public class PlayerProgressionService {
 
     /**
      * Every finish an account owns, keyed by lower-cased card id: a
-     * {@link CardFinish} name (HOLO, SP, HSP, GOLD, GSP), the highest tier winning. The battle table stamps
+     * {@link CardFinish} name (HOLO, SP, HSP, GOLD, CARAT, GSP, GSPX), the highest tier winning. The battle table stamps
      * these onto each player's own cards so finishes follow the owner into play.
      * Empty for guests, unknown users, or when progression cannot be read.
      */
@@ -1337,8 +1356,10 @@ public class PlayerProgressionService {
         mark.accept(progression.getPlainHoloCardIds(), CardFinish.HOLO.name());
         mark.accept(progression.getHoloArtCardIds(), CardFinish.SP.name());
         mark.accept(progression.getHolographicCardIds(), CardFinish.HSP.name());
-        mark.accept(progression.getGoldCardIds(), CardFinish.GOLD.name());
-        mark.accept(progression.getHoloGoldCardIds(), CardFinish.GSP.name());
+        mark.accept(progression.getPlainGoldCardIds(), CardFinish.GOLD.name());
+        mark.accept(progression.getCaratCardIds(), CardFinish.CARAT.name());
+        mark.accept(progression.getGoldCardIds(), CardFinish.GSP.name());
+        mark.accept(progression.getHoloGoldCardIds(), CardFinish.GSPX.name());
         return finishes;
     }
 

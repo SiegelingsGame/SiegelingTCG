@@ -1060,7 +1060,7 @@
       var head = $('unitModalBody').querySelector('.um-art');
       $('unitModalBody').className = key !== 'NONE' && key !== 'SP' ? 'finish-text-' + key.toLowerCase() : '';
       if (head) {
-        head.classList.remove('fx-holo', 'fx-sp', 'fx-hsp', 'fx-gold', 'fx-gsp');
+        head.classList.remove('fx-holo', 'fx-sp', 'fx-hsp', 'fx-gold', 'fx-carat');
         if (key !== 'NONE') head.classList.add('fx-' + key.toLowerCase());
       }
       if (state.run && state.run.battle && document.body.dataset.screen === 'battleScreen') renderBattle();
@@ -4767,7 +4767,7 @@
         // aura layer: a CSS mask cut from the art would need CORS on an image
         // the page already cached without it, and then silently draws nothing.
         body = '<div class="sp-art fx-' + finish.toLowerCase() + '">' +
-          (finish === 'HSP' || finish === 'GOLD' || finish === 'GSP' ? '<i class="sp-finish-aura" aria-hidden="true"></i>' : '') +
+          (finish === 'HSP' || finish === 'GOLD' || finish === 'CARAT' ? '<i class="sp-finish-aura" aria-hidden="true"></i>' : '') +
           '<img ' + artImgAttrs(u.artUrl, 320,
           'var a=this.parentNode;a.className=\'sp-art sp-art-fallback\';a.innerHTML=\'<span>' + icon(u.element) + '</span>\'') +
           ' alt="" draggable="false"><i class="sp-twinkle" aria-hidden="true"></i></div>';
@@ -6409,22 +6409,24 @@
      account owns for that card in the Collection, each a sprite-sized take on
      the card's look: Holo a soft pastel sheen, SP an iridescent colour drift,
      HSP that plus a rainbow aura, GOLD the creature's own colours in a pulsing
-     gold aura (as the GOLD card keeps its art in colour inside a gold frame),
-     and GSP the whole creature cast in gold (as the GSP card is). A skin needs
-     that version or higher - the ladder includes the tiers below. The pick is
+     gold aura (as the GOLD card keeps its art in colour on a gold card), and
+     CARAT the whole creature cast in gold (as the CARAT card is). A sprite has
+     no SP art, so GSP and GSPx add no skin of their own; owning them unlocks
+     both gold skins. A skin needs that version or higher - the ladder includes
+     the tiers below. The pick is
      a look only - the server never sees it - so it lives in this browser, per
      card. Ownership comes from /api/player/progression; a guest owns none. */
   var SPRITE_FINISH_KEY = 'siegeSpriteFinish';
-  var FINISH_LADDER = ['STANDARD', 'HOLO', 'SP', 'HSP', 'GOLD', 'GSP'];
+  var FINISH_LADDER = ['STANDARD', 'HOLO', 'SP', 'HSP', 'GOLD', 'CARAT', 'GSP', 'GSPX'];
   var SPRITE_FINISHES = [
     { key: 'NONE', label: 'Normal', needs: null },
     { key: 'HOLO', label: 'Holo', name: 'Holographic', needs: 'HOLO' },
     { key: 'SP', label: 'SP', name: 'Special', needs: 'SP' },
     { key: 'HSP', label: 'HSP', name: 'Holographic Special', needs: 'HSP' },
-    { key: 'GOLD', label: 'GOLD', name: 'Gold', needs: 'GOLD' },
-    { key: 'GSP', label: 'GSP', name: 'Gold Special', needs: 'GSP' }
+    { key: 'GOLD', label: 'Gold', name: 'Gold', needs: 'GOLD' },
+    { key: 'CARAT', label: 'CARAT', name: 'Carat', needs: 'CARAT' }
   ];
-  var ownedFinishTiers = {}; // lower-cased card id -> 'HOLO' | 'SP' | 'HSP' | 'GOLD' | 'GSP'
+  var ownedFinishTiers = {}; // lower-cased card id -> a FINISH_LADDER key
 
   function loadOwnedFinishes() {
     fetch('/api/player/progression', { credentials: 'same-origin', headers: authHeaders() })
@@ -6439,8 +6441,10 @@
         mark(p.holoCards, 'HOLO');
         mark(p.holoArtCards, 'SP');
         mark(p.holographicCards, 'HSP');
-        mark(p.goldCards, 'GOLD');
-        mark(p.holoGoldCards, 'GSP');
+        mark(p.plainGoldCards, 'GOLD');
+        mark(p.caratCards, 'CARAT');
+        mark(p.goldCards, 'GSP');
+        mark(p.holoGoldCards, 'GSPX');
         ownedFinishTiers = tiers;
         if (state.run && state.run.battle && document.body.dataset.screen === 'battleScreen') renderBattle();
       })
@@ -6462,6 +6466,8 @@
   function spriteFinishFor(cardId) {
     if (!cardId) return 'NONE';
     var pick = readFinishPrefs()[String(cardId).toLowerCase()];
+    // The gold-cast skin was saved as 'GSP' before CARAT took that look.
+    if (pick === 'GSP') pick = 'CARAT';
     var finish = SPRITE_FINISHES.filter(function (f) { return f.key === pick; })[0];
     return finish && finishUnlocked(cardId, finish) ? finish.key : 'NONE';
   }

@@ -224,8 +224,10 @@
                 fieldFull('Holo flair card ids', '<textarea id="playerHoloFlair" rows="2" spellcheck="false">' + escapeHtml(listToText(progression.holographicCardIds)) + '</textarea>') +
                 fieldFull('Holo art card ids', '<textarea id="playerHoloArt" rows="2" spellcheck="false">' + escapeHtml(listToText(progression.holoArtCardIds)) + '</textarea>') +
                 fieldFull('Plain holo card ids', '<textarea id="playerPlainHolo" rows="2" spellcheck="false">' + escapeHtml(listToText(progression.plainHoloCardIds)) + '</textarea>') +
-                fieldFull('Gold card ids', '<textarea id="playerGoldCards" rows="2" spellcheck="false">' + escapeHtml(listToText(progression.goldCardIds)) + '</textarea>') +
-                fieldFull('Holo gold card ids', '<textarea id="playerHoloGold" rows="2" spellcheck="false">' + escapeHtml(listToText(progression.holoGoldCardIds)) + '</textarea>'),
+                fieldFull('Gold card ids', '<textarea id="playerPlainGold" rows="2" spellcheck="false">' + escapeHtml(listToText(progression.plainGoldCardIds)) + '</textarea>') +
+                fieldFull('CARAT card ids', '<textarea id="playerCarat" rows="2" spellcheck="false">' + escapeHtml(listToText(progression.caratCardIds)) + '</textarea>') +
+                fieldFull('GSP card ids (goldCardIds)', '<textarea id="playerGoldCards" rows="2" spellcheck="false">' + escapeHtml(listToText(progression.goldCardIds)) + '</textarea>') +
+                fieldFull('GSPx card ids (holoGoldCardIds)', '<textarea id="playerHoloGold" rows="2" spellcheck="false">' + escapeHtml(listToText(progression.holoGoldCardIds)) + '</textarea>'),
                 openMap) +
             section('battlegrounds', 'Battlegrounds', 'Warmark unlocks',
                 fieldFull('Battlegrounds unlocks', '<textarea id="playerBgUnlocks" rows="2" spellcheck="false">' + escapeHtml(listToText(progression.battlegroundsUnlocks)) + '</textarea>'),
@@ -325,6 +327,8 @@
             holographicCardIds: parseListText(readText('playerHoloFlair')),
             holoArtCardIds: parseListText(readText('playerHoloArt')),
             plainHoloCardIds: parseListText(readText('playerPlainHolo')),
+            plainGoldCardIds: parseListText(readText('playerPlainGold')),
+            caratCardIds: parseListText(readText('playerCarat')),
             goldCardIds: parseListText(readText('playerGoldCards')),
             holoGoldCardIds: parseListText(readText('playerHoloGold')),
             battlegroundsUnlocks: parseListText(readText('playerBgUnlocks'))

@@ -3335,7 +3335,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-zoom-version[data-version="HSP"] b {
   background:linear-gradient(90deg, #ff9cf0, #9ff3ff, #a6ffcf, #fff59a); -webkit-background-clip:text; background-clip:text; color:transparent;
 }
-.sg-zoom-version[data-version="GOLD"] b, .sg-zoom-version[data-version="GSP"] b { color:#ffd66b; text-shadow:0 0 10px rgba(255,200,60,.5); }
+.sg-zoom-version:is([data-version="GOLD"], [data-version="CARAT"], [data-version="GSP"], [data-version="GSPX"]) b { color:#ffd66b; text-shadow:0 0 10px rgba(255,200,60,.5); }
 .sg-zoom-hint { margin:6px 0 0; font-size:11px; color:rgba(255,255,255,.55); }
 .sg-zoom-close {
   position:absolute; z-index:2; top:calc(10px + env(safe-area-inset-top)); right:12px;
@@ -3633,7 +3633,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 .sg-sheet-actions .sn-flank.is-left { grid-column:1; justify-self:end; padding:0 calc(var(--sn-flank-r, 36px) - var(--sn-flank-tuck, 22.6px) + 8px) 0 20px; }
 .sg-sheet-actions .sn-flank.is-right { grid-column:3; justify-self:start; padding:0 20px 0 calc(var(--sn-flank-r, 36px) - var(--sn-flank-tuck, 22.6px) + 8px); }
-.sg-sheet-actions .sn-flank small {
+.sg-sheet-actions .sn-flank > small {
   font-size:9.5px; font-weight:700; letter-spacing:.08em; opacity:.8; text-transform:none;
 }
 /* The finish flank keeps the holo button's iridescence. */
@@ -3658,6 +3658,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap;
   color:var(--muted); border:1px solid rgba(160,220,255,.2); background:rgba(36,26,96,.35);
 }
+/* The x of "GSPx" (smallFinishX) stays lower-case and small inside upper-cased labels. */
+/* The label's letter-spacing would trail the P and push the x off it. */
+.finish-p { letter-spacing:0; }
+.finish-x { font-size:.72em; text-transform:none; letter-spacing:0; margin-left:.02em; }
 .sg-sheet-version.is-owned { color:#dff6ff; border-color:rgba(160,220,255,.42); }
 .sg-sheet-version.is-locked { color:rgba(220,220,240,.5); }
 .sg-sheet-version svg { flex:0 0 auto; opacity:.8; }
@@ -6915,7 +6919,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-flip-finish.is-sp, .sg-flip-finish.is-hsp {
   background:linear-gradient(115deg, rgba(255,64,160,.85), rgba(64,196,255,.85) 50%, rgba(176,96,255,.85));
 }
-.sg-flip-finish.is-gold, .sg-flip-finish.is-gsp {
+.sg-flip-finish:is(.is-gold, .is-carat, .is-gsp, .is-gspx) {
   color:#2b1a02; border-color:#fff1bd;
   background:linear-gradient(115deg, #b98222, #ffe9a3 45%, #f2c75a 60%, #b98222);
   box-shadow:0 0 14px rgba(255,200,60,.8);
@@ -6933,7 +6937,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-godds-finish table { width:100%; border-collapse:collapse; font-size:11px; }
 .sg-godds-finish th, .sg-godds-finish td { padding:3px 4px; text-align:right; white-space:nowrap; }
 .sg-godds-finish th:first-child { text-align:left; }
-.sg-godds-finish tr th.is-gold, .sg-godds-finish tr th.is-gsp { color:#ffd66b; }
+.sg-godds-finish tr th:is(.is-gold, .is-carat, .is-gsp, .is-gspx) { color:#ffd66b; }
 .sg-gauntlet { margin-top:10px; border-color:rgba(200,150,255,.45); }
 .sg-gauntlet .sg-lobbies-dot { background:#c896ff; box-shadow:0 0 8px rgba(200,150,255,.8); }
 .sg-gauntlet em, .sg-gauntlet .go { color:#c896ff; }

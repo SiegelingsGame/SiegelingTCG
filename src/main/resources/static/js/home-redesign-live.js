@@ -189,6 +189,8 @@
           remnants: progression && progression.remnants,
           holographicCards: (progression && progression.holographicCards) || null,
           holoArtCards: (progression && progression.holoArtCards) || null,
+          plainGoldCards: (progression && progression.plainGoldCards) || null,
+          caratCards: (progression && progression.caratCards) || null,
           goldCards: (progression && progression.goldCards) || null,
           holoGoldCards: (progression && progression.holoGoldCards) || null,
           holoCards: (progression && progression.holoCards) || null,

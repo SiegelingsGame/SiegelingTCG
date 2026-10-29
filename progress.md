@@ -1,3 +1,20 @@
+Original prompt: Make sure this is compatible with the #1225 changes
+
+- October 29, 2026 **PR #1224 brought up to date with #1225 (finish ladder: Gold, CARAT, GSP, GSPx).**
+  - **Change.** `main` merged into the branch.
+    - **Conflicts.** Cache pins plus two code spots in `home-redesign.js`:
+      - The holo flank label takes #1225's `smallFinishX`.
+      - After a purchase, the sheet re-renders the FAB dock and plays the twirl with #1225's `isGoldKey(tier)`.
+    - **Shorter flank label.** The finish flank now names the tier ("✦ Get GSPx", "✦ Get CARAT") over its cost. The full wording ("Upgrade to GSPx · 28,000 remnants") is the button's aria-label and title, because "Upgrade to GSPx" would not fit a flank.
+    - **Cost-line selector.** The flank's cost-line rule is now `> small`, so it no longer restyles the small "x" in GSPx.
+    - **Cast-finish fix.** The Safari drop-shadow fix keys on `.is-holo-gold-finish`, which #1225 now uses for both cast tiers (CARAT and GSPx), so it covers both with no change. GSP (now the plain gold card) keeps its shadow.
+    - **Cache pins.** Both sides had bumped some of the same assets to the same numbers, so every one is now above both: `holographic.css?v=11`, `style.css?v=298` (all pages), `home.css?v=157`, `landing.css?v=63`, `landing.js?v=64`, `home-redesign.css?v=177`, `home-redesign.js?v=168`, `home-redesign-live.js?v=25`.
+  - **Verification.** `node --check` passes for `home-redesign.js`, `home-redesign-live.js`, `hub-music.js`, `landing.js`, `game.js` and `card-binder-visual.js`. Headless Chromium on the merged tree:
+    - **Cast tiers.** On Kilokong's sheet at 440x956, CARAT and GSPX compute `filter: none` and the other six tiers keep the drop-shadow, with the card box unchanged.
+    - **Card sheet.** With the eight version chips wrapping to two rows, the dock is still centred on the FAB at 390, 844x390, 1920 and 320. "✦ Get GSPx / 28,000 remnants" fits at 390 and 320.
+    - **Other surfaces.** The landing menu, binder Filters flank, Home dock, music player (seeking 2:46/5:33), wallpaper skip and fallback, Evo thumbnails (52/52) and gallery caption all pass as before.
+    - No page errors.
+
 Original prompt: Lastly the bottom of GSP cards are being cut off in view
 
 - October 29, 2026 **GSP (holo gold) card faces: drop the showcase drop-shadow that Safari mis-renders with the gold blend layers.**
@@ -133,6 +150,28 @@ Original prompt: Fix this display so the menu is more integrated with thr FAB
     - Escape and a link tap both close the sheet.
     - No page errors.
     - Screenshots checked.
+Original prompt: Bring it close to the p
+
+- October 29, 2026 **GSPx: the x sits against the P.**
+  - **Change.** The gap between "GSP" and the small x came from the label's letter-spacing, which trails the P, plus a .04em margin. The P now sits in its own `finish-p` span with `letter-spacing:0`, and the x margin is .02em. G and S keep the label's spacing. Covered in `home-redesign.js`/`landing.js` (`smallFinishX`), `help.html`, and the `.finish-p` rules in `home-redesign.css`, `landing.css` and `help.css`. Cache pins bumped for all five.
+  - **Verification.** `node --check` passes on both JS files. Headless Chromium at 390x844 (4x scale), hub preview GSPx chip: the gap between the P's box and the x's box measures 0.14px, and the zoomed screenshot shows the x tucked against the P.
+
+Original prompt: Make sure the x is lowercase and small
+
+- October 29, 2026 **GSPx: the x prints small and lower-case.**
+  - **Change.** Every place the label "GSPx" is shown now renders it as `GSP<small class="finish-x">x</small>`, wrapped in one `finish-gspx` span so a flex chip keeps it as a single item. The `.finish-x` style is `font-size:.72em`, `text-transform:none`, which beats the upper-cased chip styling. This covers the hub card-sheet version chips, the full-screen version label, pack-pull badges, the pack odds table, the upgrade button and the in-hub help chapters (`smallFinishX` in `home-redesign.js`); the landing finish chips and blurb (`landing.js`); and `help.html`, whose `data-help-keywords` stays plain text. The upgrade button now restores its resting label with `innerHTML`, so the markup survives a failed purchase. Cache pins: `home-redesign.js`, `home-redesign.css`, `landing.js`, `landing.css`, `help.css`.
+  - **Verification.** `node --check` passes on `home-redesign.js` and `landing.js`. Headless Chromium at 390x844, hub preview: the GSPx chip's text reads "GSPx" with the x at 7.2px against the chip's 10px and `text-transform:none`. A first pass showed the chip's flex gap splitting the x off as its own item; that is what the wrapper span fixes. On `help.html#finishes` the x renders at 11.52px in 16px text.
+
+Original prompt: Add another 2 card tier change the current GSP to GSPx. Turn the current gold to GSP. Gold will now be the standard image on a gold card. GSP will be the SP image on a gold card. GSPx will be the SP image gold overlayed (current GSP). CARAT will be the standard image gold overlayed. Displayed show them Standard, Holo, SP, HSP, Gold, CARAT, GSP, GSPx. If the SP image is not available for GSP and GSPx show standard
+
+- October 29, 2026 **Card finishes: eight tiers, with Gold and CARAT added.**
+  - **Change.** The finish ladder is now Standard, Holo, SP, HSP, Gold, CARAT, GSP, GSPx (`CardFinish` enum: `GOLD, CARAT, GSP, GSPX`; the API sends `GSPX` and the UI labels it "GSPx").
+    - The four gold tiers pair a look with an art. Gold and GSP are a gold card (gold frame and shine); CARAT and GSPx cast the whole card in gold. Gold and CARAT keep the standard art; GSP and GSPx show the SP art, or the standard art on a card that has none.
+    - **No data migration.** The old GOLD tier was stored on `goldCardIds` and the old GSP on `holoGoldCardIds`. Those lists now mean GSP and GSPx, so existing owners keep exactly the look they had. New Firestore lists: `plainGoldCardIds` (Gold) and `caratCardIds` (CARAT), exposed as `plainGoldCards` / `caratCards` on the progression payload and in player admin. Every gold tier still sits on `holographicCardIds`.
+    - **Prices** (craft-cost multiples, cumulative): Holo 1, SP 2, HSP 4, Gold 6, CARAT 9, GSP 12, GSPx 28. GSP and GSPx keep the totals the old GOLD and GSP had. Drop odds put Gold at HSP/4 and CARAT at HSP/8, below GSP's old GOLD odds and GSPx's old GSP odds.
+    - Client: `card-binder-visual.js` resolves the gold tier (`goldTier`, `castsInGold`, `hasGoldFrame`, `isStandardArtGold`). `game.js` derives every finish check from one `cardFinishTier`. The hub (`home-redesign.js`) has the 8-step ladder, sheet chips, pack odds table, pull badges and help copy. Siege sprites get Gold (aura) and CARAT (cast) skins. A saved `GSP` skin pick reads as CARAT, and owning GSP or GSPx unlocks both. Landing showcase, legacy hub, `help.html`, `holographic.css` name colours.
+    - Cache pins: `card-binder-visual.js`, `game.js`, `home-redesign.js`, `home-redesign-live.js`, `home.js`, `adventure.js`, `landing.js`, `player-admin.js`, `home-redesign.css`, `holographic.css` (also its `@import` in `style.css`/`home.css`, so `style.css` and `home.css` were bumped too), `adventure.css` and `landing.css`.
+  - **Verification.** `./mvnw test`: 945 tests, all green except the 2 `PlayerProgressionControllerStarterPackTest` errors, which fail the same way on the untouched base (null `battlefieldSkinCatalog`). New/updated tests: the full ladder pricing, legacy `goldCardIds`/`holoGoldCardIds` reading as GSP/GSPx, gold tiers without SP art, odds ordering for all seven finishes, and the `game.js` regression check that GOLD/CARAT never pick the SP art. `node --check` passes on every touched JS file. Headless Chromium harness (390x844 and 1920x1080) rendered all 8 tiers through `renderBinderCardTile`, with and without SP art. Gold and CARAT used the standard art; GSP and GSPx used the SP art, or the standard art when the card has none. Gold/GSP drew the gold frame, CARAT/GSPx the gold cast. With no stamp, `game.js` read the account lists as GOLD/CARAT/GSP/GSPX. In the hub preview at 390x844, the card sheet's version chips wrap onto two rows without page overflow and read "… GOLD | CARAT | GSP | GSPx". Choosing GSPx casts the card in gold.
 
 Original prompt: In ui where it says play it should read Play Menu or Main Menu if it returns to main menu. Play is too subtle
 

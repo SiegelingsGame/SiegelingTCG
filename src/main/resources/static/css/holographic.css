@@ -595,8 +595,8 @@
 
 /* ---------- finish name colours ----------
    A card's name, and the move names in its detail views, take on its finish:
-   Holo a pastel iridescence, HSP the full rainbow, GOLD polished gold, GSP
-   bright gold leaf. Standard and SP keep their printed colours. The names are
+   Holo a pastel iridescence, HSP the full rainbow, GOLD and GSP (gold cards)
+   polished gold, CARAT and GSPx (cast in gold) bright gold leaf. Standard and SP keep their printed colours. The names are
    outlined with a text-shadow elsewhere for legibility; gradient text painted
    through a text-shadow comes out dark, so here the outline moves to a
    drop-shadow filter. !important beats the per-frame title rules (one keyed by
@@ -627,7 +627,7 @@
 }
 :is(.is-gold-finish :is(.card-title, .holographic-card-name, .card-summary-name),
     .finish-text-gold :is(.battle-queue-card-title, .battle-ability-move-name),
-    .sg-sheet-card[data-version="GOLD"] :is(.sg-sheet-id h3, .sg-sheet-move-name)) {
+    .sg-sheet-card:is([data-version="GOLD"], [data-version="GSP"]) :is(.sg-sheet-id h3, .sg-sheet-move-name)) {
     background: linear-gradient(100deg, #b98222, #ffe9a3 30%, #f2c75a 50%, #fff4c8 65%, #b98222) 0 0 / 220% 100% !important;
     -webkit-background-clip: text !important;
     background-clip: text !important;
@@ -638,7 +638,7 @@
 }
 :is(.is-holo-gold-finish :is(.card-title, .holographic-card-name, .card-summary-name),
     .finish-text-gsp :is(.battle-queue-card-title, .battle-ability-move-name),
-    .sg-sheet-card[data-version="GSP"] :is(.sg-sheet-id h3, .sg-sheet-move-name)) {
+    .sg-sheet-card:is([data-version="CARAT"], [data-version="GSPX"]) :is(.sg-sheet-id h3, .sg-sheet-move-name)) {
     background: linear-gradient(100deg, #ffd66b, #fffbe6 30%, #ffe08a 50%, #fffbe6 70%, #ffd66b) 0 0 / 220% 100% !important;
     -webkit-background-clip: text !important;
     background-clip: text !important;
