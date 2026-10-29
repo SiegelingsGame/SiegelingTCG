@@ -7401,21 +7401,21 @@
     return pickPresent(['bearzooka', 'pylord', 'conchious', 'gymstone']).slice(0, PROFILE_SHOWCASE_MAX);
   }
 
-  // The favourite card always stands in the showcase, first and framed, so the
-  // two never disagree: it leads the player's own picks (up to three) and is
-  // never listed twice.
+  // The showcase is three cards, and the Signature (favourite) is one of them:
+  // it leads, framed, and is never listed twice. Accounts saved under the old
+  // rule (favourite plus three more) show their favourite and first two picks.
   function mergeFavorite(ids, favoriteId) {
     var fav = favoriteId ? byIdIn(ALL_CARDS, favoriteId) : null;
     var rest = (ids || []).filter(function (id) { return id && id !== favoriteId; }).map(function (id) {
       return byIdIn(ALL_CARDS, id);
-    }).filter(Boolean).slice(0, PROFILE_SHOWCASE_MAX);
-    return (fav ? [fav] : []).concat(rest);
+    }).filter(Boolean);
+    return (fav ? [fav] : []).concat(rest).slice(0, PROFILE_SHOWCASE_MAX);
   }
 
   function featTile(c, favoriteId) {
     var fav = favoriteId && c.id === favoriteId;
     return '<article class="sg-feat' + (fav ? ' is-favorite' : '') + '" data-card="' + esc(c.id) + '" tabindex="0" style="--el:' + color(c.element) + '">' +
-      (fav ? '<span class="sg-feat-fav">\u2605 Favorite</span>' : '') +
+      (fav ? '<span class="sg-feat-fav">\u2605 Signature</span>' : '') +
       '<div class="sg-feat-plate"></div>' +
       '<div class="sg-feat-art"><img ' + artAttrs(c.cardArtUrl) + ' alt="" loading="lazy"' +
       // The authored card-face size, carried to the tile so a grouped rail can
@@ -7590,7 +7590,7 @@
     // The favourite card now leads the showcase, so Signature is the card back.
     return '<section class="sg-section" data-prof-block="signature">' +
       '<div class="sg-section-head"><h3>Card back</h3>' +
-        (opts.guest ? '' : '<a href="#" data-prof-open="favorite">Change</a>') + '</div>' +
+        (opts.guest ? '' : '<a href="#" data-prof-open="look">Change</a>') + '</div>' +
       '<div class="sg-sig is-back-only">' +
         '<div class="sg-sig-slot">' +
           '<span class="sg-sig-label">Card back</span>' +
@@ -7850,13 +7850,16 @@
   }
 
   /* ---------- profile editor ----------
-     One bottom sheet, four tabs, because on a phone a nine-field form is a wall.
+     One bottom sheet, three tabs, because on a phone a nine-field form is a wall.
      Showcase is first and opens by default from the rail's Change, which is the
-     thing a player comes here to do most often. */
+     thing a player comes here to do most often; the Signature is picked there,
+     as one of the three. */
 
   var PROFILE_TABS = [
-    ['showcase', 'Showcase'], ['favorite', 'Signature'], ['look', 'Look'], ['details', 'Details']
+    ['showcase', 'Showcase'], ['look', 'Look'], ['details', 'Details']
   ];
+  // Links and callers that still name the old Signature tab land on Showcase.
+  var PROFILE_TAB_ALIAS = { favorite: 'showcase', signature: 'showcase' };
 
   function profileEditorHost() {
     return '<div class="sg-sheet sg-prof-sheet" data-prof-sheet>' +
@@ -7876,10 +7879,20 @@
         bio: p.bio || '',
         preferredCardBack: p.preferredCardBack || '',
         favoriteCardId: p.favoriteCardId || '',
-        favoriteCardIds: (p.favoriteCardIds || []).slice(0, PROFILE_SHOWCASE_MAX)
+        // The editor starts from exactly what the profile shows, Signature first.
+        favoriteCardIds: mergeFavorite(p.favoriteCardIds, p.favoriteCardId).map(function (c) { return c.id; })
       };
     }
     return PROFILE_DRAFT;
+  }
+
+  // The Signature always leads the list, and is always one of the three.
+  function settleSignature(d) {
+    if (d.favoriteCardIds.indexOf(d.favoriteCardId) < 0) d.favoriteCardId = d.favoriteCardIds[0] || '';
+    if (!d.favoriteCardId) return;
+    d.favoriteCardIds = [d.favoriteCardId].concat(d.favoriteCardIds.filter(function (id) {
+      return id !== d.favoriteCardId;
+    }));
   }
 
   function pickTile(c, on, attr, badge) {
@@ -7898,33 +7911,36 @@
         : 'Your collection is still loading.') + '</div>';
   }
 
+  function showcaseSlot(id, d) {
+    var c = id ? byIdIn(ALL_CARDS, id) : null;
+    if (!c) return '<div class="sg-sc-slot is-empty"><span>Pick a card below</span></div>';
+    var sig = id === d.favoriteCardId;
+    return '<div class="sg-sc-slot' + (sig ? ' is-sig' : '') + '" style="--el:' + color(c.element) + '">' +
+      // The whole card is the Signature switch; the corner x drops it.
+      '<button class="sg-sc-card" type="button" data-pick-signature="' + esc(c.id) + '" aria-pressed="' + sig + '" ' +
+        'aria-label="' + esc(sig ? c.name + ' is your Signature' : 'Make ' + c.name + ' your Signature') + '">' +
+        '<img ' + artAttrs(c.cardArtUrl) + ' alt="" loading="lazy">' +
+        '<span class="sg-sc-name">' + esc(c.name) + '</span>' +
+        '<span class="sg-sc-sig">' + (sig ? '\u2605 Signature' : '\u2606 Make Signature') + '</span>' +
+      '</button>' +
+      '<button class="sg-sc-drop" type="button" data-pick-showcase="' + esc(c.id) + '" aria-label="Remove ' + esc(c.name) + '">\u00d7</button>' +
+    '</div>';
+  }
+
   function showcasePanel(opts) {
     var d = draft();
     var pool = ownedPool(opts);
     if (!pool.length) return emptyPickNote(opts);
-    return '<p class="sg-prof-hint">Pick up to ' + PROFILE_SHOWCASE_MAX +
-      ' cards. Tap a picked card to drop it. Your favourite card (set under Signature) always leads the showcase.</p>' +
+    var slots = '';
+    for (var i = 0; i < PROFILE_SHOWCASE_MAX; i++) slots += showcaseSlot(d.favoriteCardIds[i], d);
+    return '<p class="sg-prof-hint">Your showcase is ' + PROFILE_SHOWCASE_MAX + ' cards. Tap one to make it your ' +
+        '<b>Signature</b>: it leads the showcase in a gold frame.</p>' +
+      '<div class="sg-sc-slots">' + slots + '</div>' +
+      '<h4 class="sg-prof-sub">Your collection</h4>' +
       '<div class="sg-pick-grid">' + pool.map(function (c) {
         var at = d.favoriteCardIds.indexOf(c.id);
-        return pickTile(c, at >= 0, 'data-pick-showcase', at >= 0 ? String(at + 1) : '');
-      }).join('') + '</div>';
-  }
-
-  function favoritePanel(opts) {
-    var d = draft();
-    var pool = ownedPool(opts);
-    return '<p class="sg-prof-hint">Your favourite card leads your showcase with a gold frame. Below, the back your decks wear.</p>' +
-      (pool.length
-        ? '<div class="sg-pick-grid">' + pool.map(function (c) {
-            return pickTile(c, c.id === d.favoriteCardId, 'data-pick-favorite', '');
-          }).join('') + '</div>'
-        : emptyPickNote(opts)) +
-      '<h4 class="sg-prof-sub">Card back</h4>' +
-      '<div class="sg-back-row">' + CARD_BACKS.map(function (b) {
-        return '<button class="sg-back' + (b.name === d.preferredCardBack ? ' on' : '') + '" type="button" ' +
-          'data-pick-back="' + esc(b.name) + '">' +
-          '<img src="' + esc(cardBackArt(b)) + '" alt="' + esc(b.name) + '">' +
-          '<span>' + esc(b.name) + '</span></button>';
+        return pickTile(c, at >= 0, 'data-pick-showcase',
+          at < 0 ? '' : c.id === d.favoriteCardId ? '\u2605' : String(at + 1));
       }).join('') + '</div>';
   }
 
@@ -7948,7 +7964,17 @@
               ? '<details class="sg-bg-unowned"><summary>Unowned backgrounds</summary>' + unownedArtList(pieces) + '</details>'
               : '')
         : '<div class="sg-empty-row">The gallery has not loaded yet.</div>') +
-      '<h4 class="sg-prof-sub">Icon style</h4>' +
+      '<h4 class="sg-prof-sub">Card back</h4>' +
+      '<div class="sg-back-row">' + CARD_BACKS.map(function (b) {
+        return '<button class="sg-back' + (b.name === d.preferredCardBack ? ' on' : '') + '" type="button" ' +
+          'data-pick-back="' + esc(b.name) + '">' +
+          '<img src="' + esc(cardBackArt(b)) + '" alt="' + esc(b.name) + '">' +
+          '<span>' + esc(b.name) + '</span></button>';
+      }).join('') + '</div>';
+  }
+
+  function iconPicker(d) {
+    return '<h4 class="sg-prof-sub">Icon style</h4>' +
       '<div class="sg-chip-row">' +
         '<button class="sg-chip-opt' + (d.avatarMode === 'INITIAL' ? ' on' : '') + '" type="button" ' +
           'data-pick-avatar="INITIAL">First initial</button>' +
@@ -7964,21 +7990,44 @@
   }
 
   // Titles are a real unlock: the catalog reports every one with an `unlocked`
-  // flag, and the server rejects a locked id outright, so the locked ones are
-  // shown (they are the reason to keep playing) but cannot be picked.
+  // flag, and the server rejects a locked id outright. One dropdown: the earned
+  // ones to pick from, the locked ones listed beneath (disabled) as the reason
+  // to keep playing, and the chosen one's description under it.
+  function titleOptions(opts) {
+    var seen = {};
+    return ((opts.live && opts.live.titles) || []).filter(function (t) {
+      if (!t || !t.id || seen[t.id]) return false;
+      seen[t.id] = true;
+      return true;
+    });
+  }
+
+  function titleDescription(t) {
+    return t ? (t.description || '') : 'Pick a title you have earned.';
+  }
+
   function titlePanel(opts) {
     var d = draft();
-    var titles = (opts.live && opts.live.titles) || [];
+    var titles = titleOptions(opts);
     if (!titles.length) {
       return '<div class="sg-empty-row">No titles have loaded yet.</div>';
     }
-    return '<div class="sg-title-list">' + titles.map(function (t) {
-      var on = t.id === d.playerTitleId;
-      return '<button class="sg-title-opt' + (on ? ' on' : '') + (t.unlocked ? '' : ' locked') + '" ' +
-        'type="button"' + (t.unlocked ? ' data-pick-title="' + esc(t.id) + '"' : ' disabled') + '>' +
-        '<strong>' + esc(t.label) + '</strong>' +
-        '<em>' + esc(t.unlocked ? (t.description || '') : 'Locked') + '</em></button>';
-    }).join('') + '</div>';
+    var earned = titles.filter(function (t) { return t.unlocked; });
+    var locked = titles.filter(function (t) { return !t.unlocked; });
+    var current = earned.filter(function (t) { return t.id === d.playerTitleId; })[0] || null;
+    return '<label class="sg-prof-field sg-prof-select"><span>Title</span>' +
+      '<select data-prof-select="playerTitleId">' +
+        (current ? '' : '<option value="" selected disabled>Choose a title</option>') +
+        earned.map(function (t) {
+          return '<option value="' + esc(t.id) + '"' + (t.id === d.playerTitleId ? ' selected' : '') + '>' + esc(t.label) + '</option>';
+        }).join('') +
+        (locked.length
+          ? '<optgroup label="Locked (' + locked.length + ')">' + locked.map(function (t) {
+              return '<option value="' + esc(t.id) + '" disabled>' + esc(t.label) + '</option>';
+            }).join('') + '</optgroup>'
+          : '') +
+      '</select></label>' +
+      '<p class="sg-prof-hint sg-title-desc" data-title-desc>' + esc(titleDescription(current)) + '</p>';
   }
 
   function detailsPanel(opts) {
@@ -7991,11 +8040,13 @@
       '<label class="sg-prof-field"><span>Avatar image URL</span>' +
         '<input type="url" maxlength="500" data-prof-input="avatarUrl" value="' + esc(d.avatarUrl) + '" ' +
         'placeholder="Leave blank to use your icon style"></label>' +
-      '<h4 class="sg-prof-sub">Title</h4>' + titlePanel(opts);
+      titlePanel(opts) +
+      iconPicker(d);
   }
 
   function profileEditorMarkup(opts, tab) {
-    var panels = { showcase: showcasePanel, favorite: favoritePanel, look: lookPanel, details: detailsPanel };
+    var panels = { showcase: showcasePanel, look: lookPanel, details: detailsPanel };
+    tab = PROFILE_TAB_ALIAS[tab] || tab;
     var active = panels[tab] ? tab : 'showcase';
     return '<div class="sg-sheet-grab"></div>' +
       '<div class="sg-prof-sheet-head"><h3>Customize profile</h3>' +
@@ -8065,7 +8116,7 @@
     function open(which, from) {
       clearTimeout(closing); closing = null;
       sheet.classList.remove('is-closing');
-      tab = which || 'showcase';
+      tab = PROFILE_TAB_ALIAS[which] || which || 'showcase';
       PROFILE_DRAFT = null;
       draft();
       paint();
@@ -8118,13 +8169,16 @@
         if (at >= 0) d.favoriteCardIds.splice(at, 1);
         else if (d.favoriteCardIds.length < PROFILE_SHOWCASE_MAX) d.favoriteCardIds.push(id);
         else full = true;
+        // Dropping the Signature passes it to the next card; the first card
+        // picked into an empty showcase becomes it.
+        settleSignature(d);
         paint(true);
         // After the repaint: the rebuild recreates the error box hidden.
         if (full) fail('Drop one of your three picks first.');
         return;
       }
-      var fav = e.target.closest('[data-pick-favorite]');
-      if (fav) { d.favoriteCardId = fav.getAttribute('data-pick-favorite'); paint(true); return; }
+      var sig = e.target.closest('[data-pick-signature]');
+      if (sig) { d.favoriteCardId = sig.getAttribute('data-pick-signature'); settleSignature(d); paint(true); return; }
       var back = e.target.closest('[data-pick-back]');
       if (back) { d.preferredCardBack = back.getAttribute('data-pick-back'); paint(true); return; }
       var art = e.target.closest('[data-pick-art]');
@@ -8133,8 +8187,6 @@
       if (avatar) { d.avatarMode = avatar.getAttribute('data-pick-avatar'); paint(true); return; }
       var element = e.target.closest('[data-pick-element]');
       if (element) { d.favoriteElement = element.getAttribute('data-pick-element'); paint(true); return; }
-      var titleBtn = e.target.closest('[data-pick-title]');
-      if (titleBtn) { d.playerTitleId = titleBtn.getAttribute('data-pick-title'); paint(true); return; }
       if (e.target.closest('[data-prof-save]')) save();
     });
 
@@ -8143,6 +8195,15 @@
     sheet.addEventListener('input', function (e) {
       var field = e.target.getAttribute && e.target.getAttribute('data-prof-input');
       if (field) draft()[field] = e.target.value;
+    });
+    // The title dropdown updates its description in place; a repaint would
+    // close the native picker's focus mid-choice.
+    sheet.addEventListener('change', function (e) {
+      if (!e.target.matches || !e.target.matches('[data-prof-select="playerTitleId"]')) return;
+      draft().playerTitleId = e.target.value;
+      var t = titleOptions(opts).filter(function (x) { return x.id === e.target.value; })[0];
+      var desc = card.querySelector('[data-title-desc]');
+      if (desc) desc.textContent = titleDescription(t);
     });
 
     function save() {
@@ -8157,13 +8218,14 @@
         profileArtId: d.profileArtId,
         bio: d.bio,
         preferredCardBack: d.preferredCardBack,
-        favoriteCardIds: d.favoriteCardIds
+        // The three showcase cards, Signature first; the Signature is one of them.
+        favoriteCardIds: d.favoriteCardIds.slice(0, PROFILE_SHOWCASE_MAX)
       };
       // The server treats a blank display name, title or favourite as "leave it
       // alone", so they are only sent when they carry a value.
       if (d.displayName) body.displayName = d.displayName;
       if (d.playerTitleId) body.playerTitleId = d.playerTitleId;
-      if (d.favoriteCardId) body.favoriteCardId = d.favoriteCardId;
+      if (d.favoriteCardId && d.favoriteCardIds.indexOf(d.favoriteCardId) >= 0) body.favoriteCardId = d.favoriteCardId;
 
       fetch('/api/profile/settings', {
         method: 'POST', credentials: 'same-origin',

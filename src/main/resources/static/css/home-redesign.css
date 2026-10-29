@@ -4089,6 +4089,38 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   background:linear-gradient(180deg,#f0cd8a,var(--gold));
 }
 
+/* The showcase being built: three slots, the Signature first and framed in
+   gold. Tapping a card makes it the Signature; the corner x drops it. */
+.sg-sc-slots { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:9px; }
+.sg-sc-slot { position:relative; min-width:0; }
+.sg-sc-card {
+  width:100%; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 6px 8px;
+  border-radius:16px; cursor:pointer; color:var(--ink); font:inherit;
+  border:1px solid color-mix(in srgb, var(--el,#95a5a6) 45%, transparent);
+  background:radial-gradient(90% 80% at 50% 30%, color-mix(in srgb, var(--el,#95a5a6) 28%, transparent), rgba(11,17,32,.85));
+}
+.sg-sc-card img { width:100%; height:clamp(78px, 22vw, 120px); object-fit:contain; filter:drop-shadow(0 6px 10px rgba(0,0,0,.45)); }
+.sg-sc-name { max-width:100%; font-size:11px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-sc-sig {
+  font-size:8.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--muted);
+  text-align:center; line-height:1.25;
+}
+.sg-sc-slot.is-sig .sg-sc-card {
+  border:2px solid var(--gold-bright, #f0cd8a);
+  box-shadow:0 0 0 3px rgba(200,165,79,.22), 0 8px 22px rgba(255,190,80,.22);
+}
+.sg-sc-slot.is-sig .sg-sc-sig { color:var(--gold-bright, #f0cd8a); }
+.sg-sc-drop {
+  position:absolute; top:5px; right:5px; width:24px; height:24px; border-radius:50%; padding:0;
+  font-size:15px; line-height:1; color:var(--ink); cursor:pointer;
+  border:1px solid var(--steel-soft); background:rgba(11,17,32,.95);
+}
+.sg-sc-slot.is-empty {
+  display:grid; place-items:center; min-height:clamp(118px, 30vw, 160px); padding:8px; border-radius:16px;
+  border:1.5px dashed rgba(180,200,230,.25); color:var(--muted); font-size:10px; text-align:center;
+}
+.sg-prof-hint b { color:var(--gold-bright, #f0cd8a); font-weight:700; }
+
 /* card backs */
 .sg-back-row { display:flex; gap:10px; overflow-x:auto; scrollbar-width:none; padding-bottom:4px; }
 .sg-back-row::-webkit-scrollbar { display:none; }
@@ -4153,6 +4185,18 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   border:1px solid var(--steel-soft); background:rgba(6,10,18,.7);
 }
 .sg-prof-field input:focus { outline:none; border-color:var(--gold); }
+/* Title dropdown, dressed like the text fields with its own chevron. */
+.sg-prof-select select {
+  width:100%; padding:12px 38px 12px 13px; border-radius:12px; font:inherit; font-size:13px; color:var(--ink);
+  border:1px solid var(--steel-soft); cursor:pointer;
+  -webkit-appearance:none; appearance:none;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23e6cd8c' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") right 14px center / 12px 8px no-repeat,
+    rgba(6,10,18,.7);
+}
+.sg-prof-select select:focus { outline:none; border-color:var(--gold); }
+.sg-prof-select select option, .sg-prof-select select optgroup { color:#f4ecd6; background:#0c1424; }
+.sg-title-desc { margin-top:-4px; }
 
 /* Four tabs instead of the card sheet's three: at 320px the shared spacing runs
    "Details" off the edge, so the profile sheet's tabs are tightened rather than
@@ -7416,6 +7460,15 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     gap:8px; padding:0; overflow:visible; scroll-snap-type:none;
   }
   .sg-profile-nav ~ .sg-scroll [data-prof-block="showcase"] .sg-feat { width:auto; height:100%; min-height:0; flex:none; border-radius:16px; }
+  /* Three cards in a tall band read as narrow slivers with the creature small
+     at the foot. The Signature takes the left of the band at full height and
+     the other two stack on the right, so every creature gets a wider tile. */
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="showcase"] .sg-swipe[data-count="3"] {
+    grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); grid-template-rows:repeat(2, minmax(0,1fr));
+  }
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="showcase"] .sg-swipe[data-count="3"] > .sg-feat:first-child { grid-row:1 / span 2; }
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="showcase"] .sg-swipe[data-count="2"] { grid-template-columns:repeat(2, minmax(0,1fr)); }
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="showcase"] .sg-swipe[data-count="1"] { grid-template-columns:minmax(0,1fr); }
   .sg-profile-nav ~ .sg-scroll .sg-feat-plate { border-radius:16px; }
   .sg-profile-nav ~ .sg-scroll .sg-feat-art { bottom:26px; }
   .sg-profile-nav ~ .sg-scroll .sg-feat-foot { padding:6px 8px 7px; }
@@ -7435,6 +7488,11 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 }
 /* Short portrait phones (SE class): the crest and card back give up height first. */
 @media (max-width:1023px) and (orientation:portrait) and (max-height:700px) {
+  /* Too little band to stack two tiles: the three sit side by side again. */
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="showcase"] .sg-swipe[data-count="3"] {
+    grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-rows:minmax(0,1fr);
+  }
+  .sg-profile-nav ~ .sg-scroll [data-prof-block="showcase"] .sg-swipe[data-count="3"] > .sg-feat:first-child { grid-row:auto; }
   .sg-profile-nav ~ .sg-scroll .sg-crest-body .sg-crest-bio { display:none; }
   .sg-profile-nav ~ .sg-scroll .sg-prof-layout { gap:7px; }
   .sg-profile-nav ~ .sg-scroll :is(.sg-sig-art, .sg-sig-back) { height:44px; }
