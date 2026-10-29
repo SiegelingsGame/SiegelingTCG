@@ -3300,27 +3300,38 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-art-foot em { font-style:normal; font-size:10.5px; letter-spacing:.1em;
   text-transform:uppercase; color:var(--muted); }
 
-/* A column: the art takes what is left after the caption, and the bottom
-   padding keeps the caption and its card chips above the shield FAB, which
-   stays on screen over the lightbox. */
+/* The art keeps the whole screen (portrait pieces fill it); the caption and
+   its card chips float over the art's foot on a fade, lifted clear of the
+   shield FAB, which stays on screen over the lightbox. */
 .sg-lightbox {
-  position:absolute; inset:0; z-index:75; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; gap:12px;
-  background:rgba(7,5,22,.96);
-  padding:calc(var(--sg-sat) + 64px) 0 calc(var(--sn-fab-bottom, var(--sg-sab)) + var(--sn-fab-size, 0px) + 12px);
+  position:absolute; inset:0; z-index:75; display:flex; align-items:center; justify-content:center;
+  background:rgba(7,5,22,.96); padding:var(--sg-sat) 0 var(--sg-sab);
 }
 .sg-lightbox[hidden] { display:none; }
-.sg-lightbox img { flex:0 1 auto; min-height:0; max-width:100%; max-height:100%; object-fit:contain; }
+.sg-lightbox img { max-width:100%; max-height:100%; object-fit:contain; }
 .sg-lightbox-foot {
-  flex:0 0 auto; max-width:100%;
+  position:absolute; z-index:1; left:0; right:0;
+  bottom:calc(var(--sn-fab-bottom, var(--sg-sab)) + var(--sn-fab-size, 0px) + 10px);
   display:flex; flex-direction:column; align-items:center; gap:3px; text-align:center;
   padding:0 18px; text-shadow:0 2px 12px rgba(0,0,0,.9);
 }
-/* Landscape phones: less headroom (the close button sits beside the art)
-   and one row of chips, so the art keeps most of the short height. */
+.sg-lightbox-foot:not(:empty)::before {
+  content:""; position:absolute; z-index:-1; left:0; right:0; top:-64px;
+  bottom:calc(-1 * (var(--sn-fab-bottom, var(--sg-sab)) + var(--sn-fab-size, 0px) + 10px));
+  background:linear-gradient(0deg, rgba(7,5,22,.94) 0, rgba(7,5,22,.86) 62%, rgba(7,5,22,0));
+  pointer-events:none;
+}
+/* Landscape phones: the height is too short to stack the caption over the
+   FAB, so it moves to the bottom-left corner, level with the FAB. */
 @media (max-height:500px) and (orientation:landscape) {
-  .sg-lightbox { padding-top:calc(var(--sg-sat) + 10px); gap:6px; }
-  .sg-artcards > div { max-height:48px; }
+  .sg-lightbox-foot {
+    right:auto; max-width:calc(50% - var(--sn-fab-size, 0px) / 2 - 16px);
+    left:max(16px, env(safe-area-inset-left, 0px)); bottom:var(--sn-fab-bottom, var(--sg-sab));
+    align-items:flex-start; text-align:left; padding:0;
+  }
+  .sg-lightbox-foot:not(:empty)::before { display:none; }
+  .sg-lightbox-foot .sg-artcards { align-items:flex-start; }
+  .sg-lightbox-foot .sg-artcards > div { justify-content:flex-start; max-height:48px; }
 }
 .sg-lightbox-foot strong { font-family:var(--serif); font-size:17px; font-weight:600; }
 .sg-lightbox-foot em { font-style:normal; font-size:11px; letter-spacing:.14em;

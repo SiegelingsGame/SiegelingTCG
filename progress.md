@@ -1,18 +1,16 @@
 Original prompt: In gallery the fab sits over the siegeling name
 
 - October 29, 2026 **Gallery: the piece's caption and card chips clear the FAB.**
-  - **Change.** The hub gallery's full-screen viewer (`.sg-lightbox`) pinned its caption to 16px above the bottom inset. The shield FAB stays on screen over the viewer, so it covered the "Cards in this image" chip and the Siegeling's name.
-    - The viewer is now a column: the art, then the caption directly under it.
-    - The bottom padding is computed from the shield's own `--sn-fab-bottom` and `--sn-fab-size`, so it always clears the FAB.
-    - The top padding clears the close button.
-    - On landscape phones there is less top padding and the chips get one row.
-    - Cache pin: `home-redesign.css?v=174` in `home-next.html` and `home-redesign-preview.html`.
-  - **Verification.** Headless Chromium on `home-next.html?screen=art`, tapping a real gallery tile, with a caption and card chip in the footer, at 390x844, 320x568, 844x390 and 1920x1080:
-    - The caption's bottom is above the FAB's top every time.
-    - The art ends above the caption.
-    - The art is 219px tall at 390 wide and 202px tall in landscape.
+  - **Change.** The hub gallery's full-screen viewer (`.sg-lightbox`) pinned its caption to 16px above the bottom inset. The shield FAB stays on screen over the viewer, so it covered the Siegeling's name and the "Cards in this image" chip.
+    - **First attempt, dropped.** Reserving a strip for the caption under the art cleared the FAB but shrank tall art. A portrait piece at 390x844 went from 82% of the screen to 59%, and from 26% to 7% in landscape.
+    - **Final version.** The art keeps the whole screen. The caption floats over the art's bottom on a dark fade, lifted clear of the FAB using the shield's own `--sn-fab-bottom` and `--sn-fab-size`. The caption has its own stacking layer; without it, its `z-index:-1` fade painted behind the image.
+    - **Landscape phones.** The caption sits in the bottom-left corner, level with the FAB, with one row of chips.
+    - **Cache pin.** `home-redesign.css?v=174` in `home-next.html` and `home-redesign-preview.html`.
+  - **Verification.** Headless Chromium on `home-next.html?screen=art`, tapping a real gallery tile, with a caption and card chip in the footer:
+    - **Caption vs FAB.** At 390x844, 320x568 and 1920x1080 the caption ends above the FAB's top. At 844x390 it sits at x 16–154 and the FAB at x 396–448, so they don't overlap.
+    - **Art size.** `frostag-training-portrait.webp` is back to 390x693 on a phone (82%) and 220x390 in landscape, the same as before this change. The wide piece is 694x390 in landscape.
+    - **Screenshots.** The fade makes the label readable over bright snow art.
     - No page errors.
-    - Screenshot checked.
 
 Original prompt: Fix this display so the menu is more integrated with thr FAB
 
