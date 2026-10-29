@@ -1,3 +1,17 @@
+Original prompt: In collection the evolve souls show the small siegeling instead of name that spoils be consistent across the site unless it fails back to the name
+
+- October 29, 2026 **Hub binder: Evo chips show the precursor's thumbnail, like the rest of the site.**
+  - **Change.** The shared card renderer draws the Evo corner chip as a small thumbnail of the precursor Siegeling, falling back to its name when no art resolves or the image fails. That was already the case on the Battle Table and the landing page.
+    - **The bug.** `getEvolutionSourceOverlayUrl` in `game.js` finds the precursor in `window.SieglingsCardCatalog`. The old hub (`home.js`) sets that global; the redesigned hub never did. So in the binder, deck builder and every other hub card face, every evolution showed the precursor's name, ellipsised ("Dril…").
+    - **The fix.** `home-redesign-live.js` now sets the global from `/api/game/options`' card catalog.
+    - The name fallback is unchanged: `sgEvoThumbFallback`, and the name when the precursor has no overlay art.
+    - **Cache pin.** `home-redesign-live.js?v=24`.
+  - **Verification.** `node --check` passes. Headless Chromium at 390x844 on `home-next.html?screen=collection`, with the page's API calls forwarded to the live backend and scrolled through the whole binder:
+    - **With the fix.** All 52 Evo chips render a loaded thumbnail and none falls back to the name.
+    - **Same run against `main`'s file.** All 52 show names ("Evolves from Sundile", "Bearby", "Emberfin" …).
+    - No page errors.
+    - Card screenshot checked.
+
 Original prompt: Need a way to integrate the filter and fab button also sometimes the rotated image fails to load on many
 
 - October 29, 2026 **Binder: Filters docks to the S FAB. Home: the wallpaper never hangs a file that has not loaded.**
