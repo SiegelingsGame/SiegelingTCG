@@ -7370,6 +7370,10 @@
                 .map((id) => String(id || '').trim().toLowerCase()).filter(Boolean)),
             playerHoloGoldIds: new Set((state.progression?.holoGoldCards || [])
                 .map((id) => String(id || '').trim().toLowerCase()).filter(Boolean)),
+            playerPlainGoldIds: new Set((state.progression?.plainGoldCards || [])
+                .map((id) => String(id || '').trim().toLowerCase()).filter(Boolean)),
+            playerCaratIds: new Set((state.progression?.caratCards || [])
+                .map((id) => String(id || '').trim().toLowerCase()).filter(Boolean)),
             playerHoloPlainIds: new Set((state.progression?.holoCards || [])
                 .map((id) => String(id || '').trim().toLowerCase()).filter(Boolean)),
             useHolographicFullCardArt: true

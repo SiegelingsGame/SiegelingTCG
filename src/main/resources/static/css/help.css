@@ -781,3 +781,8 @@ body.help-embed .help-chip-nav {
         font-size: 16px;
     }
 }
+
+/* The x of "GSPx" prints small and lower-case. */
+/* The label's letter-spacing would trail the P and push the x off it. */
+.finish-p { letter-spacing: 0; }
+.finish-x { font-size: .72em; text-transform: none; letter-spacing: 0; margin-left: .02em; }

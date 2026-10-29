@@ -30,25 +30,28 @@ public class PackCatalogService {
 
     /**
      * Chance, per card acquired, that it arrives in each finish. Every tier is
-     * rarer than the one below it, and every tier is rarer on a rarer card. GOLD
-     * is a once-in-thousands event and GSP an act of god: about 1 in 20,000 on a
+     * rarer than the one below it, and every tier is rarer on a rarer card. GSP
+     * is a once-in-thousands event and GSPx an act of god: about 1 in 20,000 on a
      * Common and 1 in 100,000 on a Legendary.
      */
     public static final Map<Rarity, Map<CardFinish, Double>> FINISH_DROP_CHANCE = new EnumMap<>(Map.of(
-            Rarity.COMMON, finishOdds(0.06, 0.02, 0.008, 0.0005, 0.00005),
-            Rarity.UNCOMMON, finishOdds(0.05, 0.016, 0.006, 0.00035, 0.000035),
-            Rarity.RARE, finishOdds(0.04, 0.012, 0.0045, 0.00025, 0.000025),
-            Rarity.EPIC, finishOdds(0.03, 0.009, 0.003, 0.00015, 0.000015),
-            Rarity.LEGENDARY, finishOdds(0.02, 0.006, 0.002, 0.0001, 0.00001)
+            Rarity.COMMON, finishOdds(0.06, 0.02, 0.008, 0.002, 0.001, 0.0005, 0.00005),
+            Rarity.UNCOMMON, finishOdds(0.05, 0.016, 0.006, 0.0015, 0.00075, 0.00035, 0.000035),
+            Rarity.RARE, finishOdds(0.04, 0.012, 0.0045, 0.0011, 0.00055, 0.00025, 0.000025),
+            Rarity.EPIC, finishOdds(0.03, 0.009, 0.003, 0.00075, 0.00037, 0.00015, 0.000015),
+            Rarity.LEGENDARY, finishOdds(0.02, 0.006, 0.002, 0.0005, 0.00025, 0.0001, 0.00001)
     ));
 
-    private static Map<CardFinish, Double> finishOdds(double holo, double sp, double hsp, double gold, double gsp) {
+    private static Map<CardFinish, Double> finishOdds(double holo, double sp, double hsp, double gold, double carat,
+                                                      double gsp, double gspx) {
         Map<CardFinish, Double> odds = new EnumMap<>(CardFinish.class);
         odds.put(CardFinish.HOLO, holo);
         odds.put(CardFinish.SP, sp);
         odds.put(CardFinish.HSP, hsp);
         odds.put(CardFinish.GOLD, gold);
+        odds.put(CardFinish.CARAT, carat);
         odds.put(CardFinish.GSP, gsp);
+        odds.put(CardFinish.GSPX, gspx);
         return odds;
     }
 
@@ -66,7 +69,8 @@ public class PackCatalogService {
         Map<CardFinish, Double> odds = FINISH_DROP_CHANCE.getOrDefault(card.getRarity(), Map.of());
         double roll = finishRandom.nextDouble();
         double threshold = 0;
-        CardFinish[] rarestFirst = { CardFinish.GSP, CardFinish.GOLD, CardFinish.HSP, CardFinish.SP, CardFinish.HOLO };
+        CardFinish[] rarestFirst = { CardFinish.GSPX, CardFinish.GSP, CardFinish.CARAT, CardFinish.GOLD,
+                CardFinish.HSP, CardFinish.SP, CardFinish.HOLO };
         for (CardFinish finish : rarestFirst) {
             threshold += odds.getOrDefault(finish, 0.0);
             if (roll < threshold) {

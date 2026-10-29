@@ -3535,7 +3535,7 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
   33%{filter:saturate(1.5) brightness(1.2) hue-rotate(-26deg) drop-shadow(0 0 4px rgba(130,235,255,.95)) drop-shadow(0 0 9px rgba(130,235,255,.5));}
   66%{filter:saturate(1.45) brightness(1.12) hue-rotate(22deg) drop-shadow(0 0 4px rgba(255,246,150,.95)) drop-shadow(0 0 9px rgba(255,246,150,.5));}
 }
-/* The aura layer behind the figure (HSP rainbow, GOLD and GSP gold). */
+/* The aura layer behind the figure (HSP rainbow, GOLD and CARAT gold). */
 .sprite .sp-art .sp-finish-aura{
   left:6%; right:6%; bottom:0; height:96%; z-index:0;
   --m1:#fff3c4; --m2:#ffd66b; --glow:rgba(255,200,80,.28); --floor:rgba(255,200,80,.5);
@@ -3550,7 +3550,7 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
   animation:sp-aura-motes 2.6s linear infinite;
 }
 .sp-art.fx-hsp .sp-finish-aura{--m1:#ffb3ec; --m2:#9ff3ff; --glow:rgba(150,200,255,.3); --floor:rgba(200,140,255,.45);}
-.sprite:not(.dead) .sp-art.fx-hsp img, .sprite:not(.dead) .sp-art.fx-gold img, .sprite:not(.dead) .sp-art.fx-gsp img{position:relative; z-index:1;}
+.sprite:not(.dead) .sp-art.fx-hsp img, .sprite:not(.dead) .sp-art.fx-gold img, .sprite:not(.dead) .sp-art.fx-carat img{position:relative; z-index:1;}
 @keyframes sp-aura-motes{0%{background-position:0 0,0 0,0 0,0 0,0 0,0 0,0 0; opacity:.95;} 100%{background-position:0 -40px,0 -55px,0 -35px,0 -60px,0 -45px,0 0,0 0; opacity:.65;}}
 /* GOLD: own colours inside a pulsing gold glow, motes rising behind. */
 .sprite:not(.dead) .sp-art.fx-gold img{animation:sp-aura-pulse 2.4s ease-in-out infinite;}
@@ -3559,9 +3559,9 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
   0%,100%{filter:drop-shadow(0 0 3px #ffd66b) drop-shadow(0 0 8px rgba(255,190,60,.6));}
   50%{filter:drop-shadow(0 0 6px #fff1bd) drop-shadow(0 0 18px rgba(255,190,60,.95));}
 }
-/* GSP: the creature cast in gold, catching the light in a slow glint. */
-.sprite:not(.dead) .sp-art.fx-gsp img{animation:sp-gold 3s ease-in-out infinite;}
-.sp-art.fx-gsp .sp-twinkle{--tw:#fff3c4;}
+/* CARAT: the creature cast in gold, catching the light in a slow glint. */
+.sprite:not(.dead) .sp-art.fx-carat img{animation:sp-gold 3s ease-in-out infinite;}
+.sp-art.fx-carat .sp-twinkle{--tw:#fff3c4;}
 @keyframes sp-gold{
   0%,100%{filter:sepia(1) saturate(2.6) hue-rotate(-12deg) brightness(1.04) contrast(1.08) drop-shadow(0 0 2px rgba(255,214,107,.9));}
   45%{filter:sepia(1) saturate(2.8) hue-rotate(-10deg) brightness(1.32) contrast(1.1) drop-shadow(0 0 5px rgba(255,236,170,1));}
@@ -3571,14 +3571,14 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
   .sprite:not(.dead) .sp-art.fx-holo img{animation:none; filter:brightness(1.06) drop-shadow(0 0 4px rgba(190,230,255,.8));}
   .sprite:not(.dead) .sp-art.fx-sp img, .sprite:not(.dead) .sp-art.fx-hsp img{animation:none; filter:saturate(1.4) brightness(1.08) drop-shadow(0 0 4px rgba(160,240,255,.95));}
   .sprite:not(.dead) .sp-art.fx-gold img{animation:none; filter:drop-shadow(0 0 4px #ffd66b) drop-shadow(0 0 12px rgba(255,190,60,.8));}
-  .sprite:not(.dead) .sp-art.fx-gsp img{animation:none; filter:sepia(1) saturate(2.6) hue-rotate(-12deg) brightness(1.08) contrast(1.08);}
+  .sprite:not(.dead) .sp-art.fx-carat img{animation:none; filter:sepia(1) saturate(2.6) hue-rotate(-12deg) brightness(1.08) contrast(1.08);}
 }
 /* The same looks on the sheet's head art (a background image, so filters only). */
 .um-art.fx-holo{filter:brightness(1.08) drop-shadow(0 0 4px rgba(190,230,255,.85));}
 .um-art.fx-sp{filter:saturate(1.3) brightness(1.06) drop-shadow(0 0 4px rgba(160,240,255,.9));}
 .um-art.fx-hsp{filter:saturate(1.4) brightness(1.08) drop-shadow(0 0 4px rgba(255,140,230,.9)) drop-shadow(0 0 9px rgba(130,235,255,.6));}
 .um-art.fx-gold{filter:drop-shadow(0 0 4px #ffd66b) drop-shadow(0 0 10px rgba(255,190,60,.8));}
-.um-art.fx-gsp{filter:sepia(1) saturate(2.6) hue-rotate(-12deg) brightness(1.08) contrast(1.08);}
+.um-art.fx-carat{filter:sepia(1) saturate(2.6) hue-rotate(-12deg) brightness(1.08) contrast(1.08);}
 .um-finishes{display:flex; gap:6px; flex-wrap:wrap;}
 .um-finish.fx-chip-holo.on{background:linear-gradient(115deg, rgba(255,170,230,.25), rgba(150,230,255,.28));}
 .um-finish{
@@ -3587,13 +3587,13 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
 }
 .um-finish.on{border-color:#fff; background:rgba(255,255,255,.16); box-shadow:0 0 10px rgba(255,255,255,.25);}
 .um-finish.fx-chip-sp.on, .um-finish.fx-chip-hsp.on{background:linear-gradient(115deg, rgba(255,64,160,.4), rgba(64,196,255,.42) 50%, rgba(176,96,255,.45));}
-.um-finish.fx-chip-gold.on, .um-finish.fx-chip-gsp.on{border-color:#ffd66b; background:linear-gradient(115deg, rgba(150,96,10,.65), rgba(255,206,84,.5) 50%, rgba(150,96,10,.65)); box-shadow:0 0 10px rgba(255,200,60,.4);}
+.um-finish.fx-chip-gold.on, .um-finish.fx-chip-carat.on{border-color:#ffd66b; background:linear-gradient(115deg, rgba(150,96,10,.65), rgba(255,206,84,.5) 50%, rgba(150,96,10,.65)); box-shadow:0 0 10px rgba(255,200,60,.4);}
 .um-finish.is-locked{opacity:.5; cursor:default;}
 .um-finish-note{margin-top:6px; font-size:11px; opacity:.65;}
 
 /* Skin name colours: the plate name and the sheet's name and move names take
    the skin's finish colour, as finished cards do in the Collection. */
-:is(.finish-text-holo, .finish-text-hsp, .finish-text-gold, .finish-text-gsp) :is(.sp-name, .um-name, .um-card-name) {
+:is(.finish-text-holo, .finish-text-hsp, .finish-text-gold, .finish-text-carat) :is(.sp-name, .um-name, .um-card-name) {
   -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
   text-shadow:none; filter:drop-shadow(0 0 1px rgba(8,5,2,.95)); background-size:220% 100%;
   animation:finish-name-shift 5s linear infinite;
@@ -3601,6 +3601,6 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
 .finish-text-holo :is(.sp-name, .um-name, .um-card-name) { background-image:linear-gradient(100deg,#ffb0ea,#a6e4ff 35%,#b5ffcc 65%,#ffb0ea); }
 .finish-text-hsp :is(.sp-name, .um-name, .um-card-name) { background-image:linear-gradient(100deg,#ff7ad9,#7ae8ff 25%,#fff38a 50%,#8affc1 75%,#ff7ad9); }
 .finish-text-gold :is(.sp-name, .um-name, .um-card-name) { background-image:linear-gradient(100deg,#b98222,#ffe9a3 30%,#f2c75a 50%,#fff4c8 65%,#b98222); }
-.finish-text-gsp :is(.sp-name, .um-name, .um-card-name) { background-image:linear-gradient(100deg,#ffd66b,#fffbe6 30%,#ffe08a 50%,#fffbe6 70%,#ffd66b); }
+.finish-text-carat :is(.sp-name, .um-name, .um-card-name) { background-image:linear-gradient(100deg,#ffd66b,#fffbe6 30%,#ffe08a 50%,#fffbe6 70%,#ffd66b); }
 @keyframes finish-name-shift { from { background-position:0 0; } to { background-position:-220% 0; } }
 @media (prefers-reduced-motion:reduce) { :is(.sp-name, .um-name, .um-card-name) { animation:none; } }

@@ -1464,13 +1464,20 @@ class GameJavaScriptRegressionTest {
         String style = Files.readString(STYLE_CSS);
 
         String holoArtTier = extractFunction(gameScript, "function cardShowsPlayerHoloArt(card)");
+        String finishTier = extractFunction(gameScript, "function cardFinishTier(card)");
         assertTrue(
                 artResolver.contains("cardShowsPlayerHoloArt(card)")
-                        && holoArtTier.contains("cardShowsPlayerHolographic(card)")
-                        && holoArtTier.contains("playerHoloArtCardIds()")
+                        && holoArtTier.contains("cardFinishTier(card)")
+                        && finishTier.contains("playerHolographicCardIds()")
+                        && finishTier.contains("playerHoloArtCardIds()")
                         && artResolver.contains("card.holographicCardArtUrl")
                         && artResolver.contains("mode: 'HOLOGRAPHIC_FULL_CARD'"),
                 "Battle art selection must use dedicated holo art only when that card instance displays one of the player's holo tiers (Holo Art or Holo Flair)."
+        );
+        assertTrue(
+                holoArtTier.contains("tier === 'GSP'") && holoArtTier.contains("tier === 'GSPX'")
+                        && !holoArtTier.contains("'GOLD'") && !holoArtTier.contains("'CARAT'"),
+                "GSP and GSPx show the SP art; GOLD and CARAT keep the standard art."
         );
         assertTrue(
                 artRenderer.contains("game-holographic-full-card-art")

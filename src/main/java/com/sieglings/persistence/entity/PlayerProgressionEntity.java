@@ -47,13 +47,20 @@ public class PlayerProgressionEntity {
     /** Card ids at the HOLO finish: a plain holographic sheen over the standard art. */
     private List<String> plainHoloCardIds = new ArrayList<>();
     /**
-     * Card ids upgraded to GOLD, the tier above HOLO SP: holo art with a gold
-     * frame and gold shine. A gold card is still in {@link #holographicCardIds}.
+     * Card ids at GOLD, the tier above HSP: the standard art on a gold card.
+     * Every gold tier (GOLD, CARAT, GSP, GSPx) is still in {@link #holographicCardIds}.
+     */
+    private List<String> plainGoldCardIds = new ArrayList<>();
+    /** Card ids at CARAT: the standard art with the whole card cast in gold. */
+    private List<String> caratCardIds = new ArrayList<>();
+    /**
+     * Card ids at GSP: the SP art on a gold card. The Firestore field keeps its
+     * old name because this list was the GOLD tier before GOLD and CARAT existed.
      */
     private List<String> goldCardIds = new ArrayList<>();
     /**
-     * Card ids upgraded to HOLO GOLD, the final tier: the whole card cast in gold
-     * with its notches left in colour. A HOLO GOLD card is still in {@link #goldCardIds}.
+     * Card ids at GSPx, the final tier: the SP art with the whole card cast in
+     * gold, notches left in colour (the old GSP). A GSPx card is still in {@link #goldCardIds}.
      */
     private List<String> holoGoldCardIds = new ArrayList<>();
     /** SiegeKnight ids unlocked for expedition warband selection (gold purchase). */
@@ -163,6 +170,14 @@ public class PlayerProgressionEntity {
     public List<String> getPlainHoloCardIds() { return plainHoloCardIds; }
     public void setPlainHoloCardIds(List<String> plainHoloCardIds) {
         this.plainHoloCardIds = plainHoloCardIds == null ? new ArrayList<>() : new ArrayList<>(plainHoloCardIds);
+    }
+    public List<String> getPlainGoldCardIds() { return plainGoldCardIds; }
+    public void setPlainGoldCardIds(List<String> plainGoldCardIds) {
+        this.plainGoldCardIds = plainGoldCardIds == null ? new ArrayList<>() : new ArrayList<>(plainGoldCardIds);
+    }
+    public List<String> getCaratCardIds() { return caratCardIds; }
+    public void setCaratCardIds(List<String> caratCardIds) {
+        this.caratCardIds = caratCardIds == null ? new ArrayList<>() : new ArrayList<>(caratCardIds);
     }
     public List<String> getGoldCardIds() { return goldCardIds; }
     public void setGoldCardIds(List<String> goldCardIds) {

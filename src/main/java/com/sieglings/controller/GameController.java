@@ -1339,7 +1339,7 @@ public class GameController {
 
     /**
      * The finish a card shows in play: its owner's tier for it (a CardFinish name:
-     * HOLO / SP / HSP / GOLD / GSP), at least HSP for a card that ships foil, else "" (standard). Stamped on
+     * HOLO / SP / HSP / GOLD / CARAT / GSP / GSPX), at least HSP for a card that ships foil, else "" (standard). Stamped on
      * every card the battle table receives so the client never guesses the owner
      * from its own account - an opponent's cards show the opponent's finishes.
      */

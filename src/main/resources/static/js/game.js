@@ -4061,7 +4061,7 @@ function playerHolographicCardIds() {
 }
 
 // Cards from the battle table arrive stamped with their OWNER's finish
-// (GameController#finishFor: "", HOLO, SP, HSP, GOLD or GSP). A stamp is the whole truth,
+// (GameController#finishFor: "", HOLO, SP, HSP, GOLD, CARAT, GSP or GSPX). A stamp is the whole truth,
 // so an opponent's card shows the opponent's finish and never this account's.
 // Cards without one (binder, deck lists) fall back to this account's lists.
 function stampedFinish(card) {
@@ -4092,17 +4092,20 @@ function playerHoloPlainCardIds() {
     return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
 }
 
-// HOLO, the first finish: a plain sheen over the standard art.
-function cardShowsPlayerHoloPlain(card) {
-    const stamp = stampedFinish(card);
-    if (stamp !== null) {
-        return stamp === 'HOLO';
+function playerPlainGoldCardIds() {
+    const raw = authState.profile?.progression?.plainGoldCards;
+    if (!Array.isArray(raw)) {
+        return new Set();
     }
-    if (card?.holoPlainFinish === true) {
-        return true;
+    return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
+}
+
+function playerCaratCardIds() {
+    const raw = authState.profile?.progression?.caratCards;
+    if (!Array.isArray(raw)) {
+        return new Set();
     }
-    const cardId = String(card?.id || card?.cardId || card?.definitionId || '').trim().toLowerCase();
-    return Boolean(cardId && playerHoloPlainCardIds().has(cardId));
+    return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
 }
 
 function playerHoloGoldCardIds() {
@@ -4113,64 +4116,62 @@ function playerHoloGoldCardIds() {
     return new Set(raw.map((id) => String(id || '').trim().toLowerCase()).filter(Boolean));
 }
 
-// HOLO GOLD, the final finish: the whole card cast in gold, notches in colour.
+// The finish a card shows: '', HOLO, SP, HSP, GOLD, CARAT, GSP or GSPX. The
+// owner's stamp wins; else the flags the binder sets on preview copies; else
+// this account's lists, highest tier first (a gold card is also on the HSP list).
+function cardFinishTier(card) {
+    if (!card) return '';
+    const stamp = stampedFinish(card);
+    if (stamp !== null) return stamp;
+    if (card.holoGoldFinish === true) return 'GSPX';
+    if (card.goldFinish === true) return 'GSP';
+    if (card.caratFinish === true) return 'CARAT';
+    if (card.plainGoldFinish === true) return 'GOLD';
+    const cardId = String(card.id || card.cardId || card.definitionId || '').trim().toLowerCase();
+    if (cardId) {
+        if (playerHoloGoldCardIds().has(cardId)) return 'GSPX';
+        if (playerGoldCardIds().has(cardId)) return 'GSP';
+        if (playerCaratCardIds().has(cardId)) return 'CARAT';
+        if (playerPlainGoldCardIds().has(cardId)) return 'GOLD';
+    }
+    if (card.holographic === true || (cardId && playerHolographicCardIds().has(cardId))) return 'HSP';
+    if (cardId && playerHoloArtCardIds().has(cardId)) return 'SP';
+    if (card.holoPlainFinish === true || (cardId && playerHoloPlainCardIds().has(cardId))) return 'HOLO';
+    return '';
+}
+
+// HOLO, the first finish: a plain sheen over the standard art.
+function cardShowsPlayerHoloPlain(card) {
+    return cardFinishTier(card) === 'HOLO';
+}
+
+// CARAT and GSPx: the whole card cast in gold, notches in colour.
 function cardShowsPlayerHoloGold(card) {
-    const stamp = stampedFinish(card);
-    if (stamp !== null) {
-        return stamp === 'GSP';
-    }
-    if (card?.holoGoldFinish === true) {
-        return true;
-    }
-    const cardId = String(card?.id || card?.cardId || card?.definitionId || '').trim().toLowerCase();
-    return Boolean(cardId && playerHoloGoldCardIds().has(cardId));
+    const tier = cardFinishTier(card);
+    return tier === 'GSPX' || tier === 'CARAT';
 }
 
-// GOLD: a gold frame and shine instead of the rainbow foil.
+// GOLD and GSP: a gold frame and shine instead of the rainbow foil.
 function cardShowsPlayerGold(card) {
-    const stamp = stampedFinish(card);
-    if (stamp !== null) {
-        return stamp === 'GOLD';
-    }
-    // The binder hands a copy flagged goldFinish to the shared showcase renderer.
-    if (card?.goldFinish === true) {
-        return true;
-    }
-    const cardId = String(card?.id || card?.cardId || card?.definitionId || '').trim().toLowerCase();
-    return Boolean(cardId && playerGoldCardIds().has(cardId));
+    const tier = cardFinishTier(card);
+    return tier === 'GSP' || tier === 'GOLD';
 }
 
-// True for both holo tiers (Holo Art and Holo Flair): decides the artwork.
-// The foil class and overlay stay on cardShowsPlayerHolographic (Flair only).
+// The tiers that show the SP art: SP, HSP, GSP and GSPx (GOLD and CARAT keep
+// the standard art). A card without SP art shows its standard art regardless.
+// The foil class and overlay stay on cardShowsPlayerHolographic.
 function cardShowsPlayerHoloArt(card) {
-    const stamp = stampedFinish(card);
-    if (stamp !== null) {
-        return stamp === 'SP' || stamp === 'HSP' || stamp === 'GOLD' || stamp === 'GSP';
-    }
-    if (cardShowsPlayerHolographic(card)) {
-        return true;
-    }
-    const cardId = String(card?.id || card?.cardId || card?.definitionId || '').trim().toLowerCase();
-    return Boolean(cardId && playerHoloArtCardIds().has(cardId));
+    const tier = cardFinishTier(card);
+    return tier === 'SP' || tier === 'HSP' || tier === 'GSP' || tier === 'GSPX';
 }
 
 function cardShowsPlayerHolographic(card) {
-    if (!card) {
-        return false;
-    }
-    const stamp = stampedFinish(card);
-    if (stamp !== null) {
-        return stamp === 'HSP' || stamp === 'GOLD' || stamp === 'GSP';
-    }
-    if (card.holographic === true) {
-        return true;
-    }
-    const cardId = String(card.id || card.cardId || card.definitionId || '').trim().toLowerCase();
-    return cardId && playerHolographicCardIds().has(cardId);
+    const tier = cardFinishTier(card);
+    return tier === 'HSP' || tier === 'GOLD' || tier === 'CARAT' || tier === 'GSP' || tier === 'GSPX';
 }
 
 // Text treatment for a card's name and move names in detail views, keyed to
-// its finish (owner's stamp in play): Holo, HSP, GOLD and GSP each recolour
+// its finish (owner's stamp in play): Holo, HSP and the gold tiers each recolour
 // them; Standard and SP keep the printed colours.
 function finishTextClass(card) {
     if (!card) return '';
@@ -4212,6 +4213,8 @@ function holographicFullArtOptions() {
         playerHoloArtIds: playerHoloArtCardIds(),
         playerGoldIds: playerGoldCardIds(),
         playerHoloGoldIds: playerHoloGoldCardIds(),
+        playerPlainGoldIds: playerPlainGoldCardIds(),
+        playerCaratIds: playerCaratCardIds(),
         playerHoloPlainIds: playerHoloPlainCardIds()
     };
 }
@@ -4236,10 +4239,12 @@ function renderHolographicFullArtFace(card, extraOptions = {}) {
         card = card.id ? card : { ...card, id: card.cardId };
         extraOptions = {
             useHolographicFullCardArt: true,
-            playerHolographicIds: new Set(stamp === 'HSP' || stamp === 'GOLD' || stamp === 'GSP' ? [id] : []),
+            playerHolographicIds: new Set(['HSP', 'GOLD', 'CARAT', 'GSP', 'GSPX'].includes(stamp) ? [id] : []),
             playerHoloArtIds: new Set(stamp === 'SP' ? [id] : []),
-            playerGoldIds: new Set(stamp === 'GOLD' ? [id] : []),
-            playerHoloGoldIds: new Set(stamp === 'GSP' ? [id] : []),
+            playerPlainGoldIds: new Set(stamp === 'GOLD' ? [id] : []),
+            playerCaratIds: new Set(stamp === 'CARAT' ? [id] : []),
+            playerGoldIds: new Set(stamp === 'GSP' ? [id] : []),
+            playerHoloGoldIds: new Set(stamp === 'GSPX' ? [id] : []),
             playerHoloPlainIds: new Set(stamp === 'HOLO' ? [id] : []),
             ...extraOptions
         };

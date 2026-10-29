@@ -22,14 +22,14 @@
          rules stay authoritative. Loading it last leaked home's
          `body { background-attachment: fixed }` (an iOS Safari scroll killer) and
          full-viewport panel heights onto the dashboard, breaking touch scrolling. -->
-    <link rel="stylesheet" href="/css/home.css?v=155">
+    <link rel="stylesheet" href="/css/home.css?v=156">
     <!-- style.css supplies the .hand-card / .element-frame showcase styles the
          card preview needs (the painted element frames). Loaded after home.css
          and before card-dashboard.css so the dashboard's own chrome rules stay
          authoritative. -->
-    <link rel="stylesheet" href="/css/style.css?v=296">
+    <link rel="stylesheet" href="/css/style.css?v=297">
     <link rel="stylesheet" href="/css/card-dashboard.css?v=59">
-    <link rel="stylesheet" href="/css/holographic.css?v=9">
+    <link rel="stylesheet" href="/css/holographic.css?v=10">
 </head>
 <body>
 <div class="dashboard-shell">
@@ -1335,8 +1335,8 @@
      renderer). The dashboard preview falls back to the old icon shell without it.
      Loaded at body-end (document.body exists) so its layout init can't throw, and
      before card-binder-visual.js so the showcase is registered first. -->
-<script src="/js/game.js?v=340"></script>
-<script src="/js/card-binder-visual.js?v=36"></script>
+<script src="/js/game.js?v=341"></script>
+<script src="/js/card-binder-visual.js?v=37"></script>
 <script src="/js/dashboard-info.js?v=16"></script>
 <script src="/js/card-dashboard.js?v=77"></script>
 <script src="/js/loading-art-admin.js?v=8"></script>
@@ -1349,6 +1349,6 @@
 <script src="/js/shop-admin.js?v=1"></script>
 <script src="/js/pack-admin.js?v=1"></script>
 <script src="/js/keep-admin.js?v=1"></script>
-<script src="/js/player-admin.js?v=2"></script>
+<script src="/js/player-admin.js?v=3"></script>
 </body>
 </html>
