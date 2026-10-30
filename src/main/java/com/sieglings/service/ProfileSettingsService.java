@@ -228,7 +228,7 @@ public class ProfileSettingsService {
 
     /** Keep only owned favorites (max 3), preserving player order. */
     private List<String> resolveFavoriteCardIds(List<String> requested, PlayerProgressionEntity progression) {
-        if (requested == null || requested.isEmpty()) {
+        if (requested == null || requested.isEmpty() || progression == null) {
             return List.of();
         }
         List<String> resolved = new java.util.ArrayList<>();
@@ -236,19 +236,41 @@ public class ProfileSettingsService {
             if (raw == null || raw.isBlank() || resolved.size() >= 3) {
                 continue;
             }
-            String match = progression.getOwnedCards().entrySet().stream()
-                    .filter(entry -> entry.getKey() != null
-                            && entry.getKey().equalsIgnoreCase(raw.trim())
-                            && entry.getValue() != null
-                            && entry.getValue() > 0)
-                    .map(Map.Entry::getKey)
-                    .findFirst()
-                    .orElse("");
+            String match = ownedShowcaseId(raw, progression);
             if (!match.isBlank() && !resolved.contains(match)) {
                 resolved.add(match);
             }
         }
         return resolved;
+    }
+
+    /**
+     * A showcase id the player actually holds. Copies live in {@code ownedCards};
+     * a SiegeKnight does not — it is owned through trainer level, the same rule
+     * {@link #ownsFavorite} already uses for the Signature. The profile editor
+     * now stores the Signature as one of the three showcase cards, so a knight
+     * Signature has to resolve here or the whole settings save is rejected.
+     */
+    private String ownedShowcaseId(String raw, PlayerProgressionEntity progression) {
+        String trimmed = raw.trim();
+        Map<String, Integer> ownedCards = progression.getOwnedCards();
+        if (ownedCards != null) {
+            String fromCards = ownedCards.entrySet().stream()
+                    .filter(entry -> entry.getKey() != null
+                            && entry.getKey().equalsIgnoreCase(trimmed)
+                            && entry.getValue() != null
+                            && entry.getValue() > 0)
+                    .map(Map.Entry::getKey)
+                    .findFirst()
+                    .orElse("");
+            if (!fromCards.isBlank()) {
+                return fromCards;
+            }
+        }
+        return findFavoriteById(trimmed)
+                .filter(card -> ownsFavorite(progression, card))
+                .map(Card::getId)
+                .orElse("");
     }
 
     private Map<String, Object> serializeFavoriteCard(Card card, PlayerProgressionEntity progression, String variant) {
