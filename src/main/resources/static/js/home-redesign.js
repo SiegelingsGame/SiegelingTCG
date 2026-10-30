@@ -7352,11 +7352,25 @@
   // Cards the account actually owns. `ownedCards` is an id -> copies map; when it
   // is absent (guest, or the offline preview board) every catalog card is
   // offered, because there is nothing to filter against and an empty picker is
-  // worse than a permissive one.
+  // worse than a permissive one. SiegeKnights are not copies in that map — they
+  // are trainer levels on `live.knights`. The Signature can be a knight, and a
+  // save sends it inside favoriteCardIds, so a knight left out of this pool is
+  // an invisible showcase slot the server then rejects.
   function ownedPool(opts) {
     var owned = opts && opts.live && opts.live.ownedCards;
     if (!owned) return ALL_CARDS.slice();
-    return ALL_CARDS.filter(function (c) { return c && Number(owned[c.id]) > 0; });
+    var knights = {};
+    ((opts.live && opts.live.knights) || []).forEach(function (k) {
+      var id = k && (k.id || k);
+      if (id) knights[String(id).toLowerCase()] = true;
+    });
+    return ALL_CARDS.filter(function (c) {
+      if (!c) return false;
+      if (String(c.type || '').toUpperCase() === 'SIEGEKNIGHT') {
+        return Boolean(knights[String(c.id).toLowerCase()]);
+      }
+      return Number(owned[c.id]) > 0;
+    });
   }
 
   function profileArtPiece(id) {
