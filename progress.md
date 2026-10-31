@@ -1,3 +1,18 @@
+Original prompt: The music player should have a 98% transparency but tinted glass the elemental color.
+
+- October 31, 2026 **Home: music line becomes clear element-tinted glass.**
+  - **Change.** `.sg-music-line` drops the animated liquid-gold fill for a 2% fill of the playing element (`color-mix(var(--mel) 2%, transparent)`), with no backdrop blur, matching the profile strip. The element tint is carried by:
+    - the rim (70% element),
+    - an inner and outer element glow,
+    - the ink (title and waveform bars at 45% element over white, bars with a soft element glow),
+    - a dark text shadow for legibility.
+
+    Colours ease over 0.4s when the song changes. The `sgLiquidGold` animation is removed. Cache pin `home-redesign.css?v=182`.
+  - **Verification.** Headless Chromium at 390x844:
+    - For NEUTRAL/FIRE/WATER/POISON/PSYCHIC, the computed background is the element at alpha 0.02 and backdrop-filter is `none`.
+    - Screenshots after the transition show each rim, waveform and title in its element colour over visible art.
+    - No page errors.
+
 Original prompt: Show the top-right profile button's data (with level tag) in the Home profile area; tapping the picture asks in a small speech bubble whether to view the profile. Add a notification bubble and Siegecoin count next to the message bubble; tapping coins opens a bank (coins, remnants, XP, future currencies). Remove the Expedition button; the badge goes on the FAB-extension Siege button, which always says Siege; a saved run adds a green "Resume <mode>" segment cut into the arrow tip that opens an animated preview of the team and run. Use the freed header space to stretch the music button into a line with a waveform and song name on liquid gold tinted by the song's element.
 
 - October 31, 2026 **Home: account strip, bank, Siege resume segment, music line.**

@@ -7677,9 +7677,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 /* ==========================================================================
    HOME HEADER: art controls and the music line
    The account chips moved into the stage's profile strip, so the music button
-   stretches into the space they left: a waveform and the song's name on
-   liquid gold, tinted by the playing song's element (data-el, stamped by
-   hub-music.js).
+   stretches into the space they left: a waveform and the song's name on clear
+   glass (2% fill, no blur, like the profile strip) tinted by the playing
+   song's element (data-el, stamped by hub-music.js). The tint lives in the
+   rim, an inner glow and the ink, so the art still shows through.
    ========================================================================== */
 .sg-top.is-stage-top { gap:8px; }
 .sg-top.is-stage-top .sg-stage-player-slot { flex:1 1 0; }
@@ -7687,23 +7688,13 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   --mel:var(--neutral);
   flex:1.15 1 0; min-width:92px; max-width:440px; height:34px; box-sizing:border-box;
   display:flex; align-items:center; gap:8px; padding:0 13px 0 11px; cursor:pointer;
-  border-radius:999px; border:1px solid color-mix(in srgb, #fff1bd 70%, var(--mel));
-  font:inherit; color:#2a1606; text-align:left; -webkit-tap-highlight-color:transparent;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.05) 48%, rgba(0,0,0,.06) 100%),
-    linear-gradient(100deg,
-      color-mix(in srgb, #a87526 66%, var(--mel)) 0%,
-      color-mix(in srgb, #ffe08a 74%, var(--mel)) 28%,
-      color-mix(in srgb, #c9963a 64%, var(--mel)) 52%,
-      color-mix(in srgb, #fff1bd 74%, var(--mel)) 74%,
-      color-mix(in srgb, #8a5a1c 66%, var(--mel)) 100%);
-  background-size:100% 100%, 260% 100%;
-  box-shadow:inset 0 -2px 5px rgba(60,30,0,.28), inset 0 1px 0 rgba(255,255,255,.6),
-             0 4px 14px color-mix(in srgb, var(--mel) 38%, rgba(0,0,0,.3));
-  animation:sgLiquidGold 7s ease-in-out infinite alternate;
-  transition:border-color .4s ease, box-shadow .4s ease;
+  border-radius:999px; border:1px solid color-mix(in srgb, var(--mel) 70%, rgba(255,255,255,.5));
+  font:inherit; color:color-mix(in srgb, var(--mel) 45%, #fff); text-align:left; -webkit-tap-highlight-color:transparent;
+  background:color-mix(in srgb, var(--mel) 2%, transparent);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22), inset 0 0 14px color-mix(in srgb, var(--mel) 28%, transparent),
+             0 0 12px color-mix(in srgb, var(--mel) 22%, transparent);
+  transition:border-color .4s ease, box-shadow .4s ease, color .4s ease;
 }
-@keyframes sgLiquidGold { from { background-position:0 0, 0% 0; } to { background-position:0 0, 100% 0; } }
 .sg-music-line:active { transform:translateY(1px); }
 .sg-music-line:focus-visible { outline:2px solid #fff1bd; outline-offset:2px; }
 .sg-music-line[data-el="FIRE"] { --mel:var(--fire); }
@@ -7720,7 +7711,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-music-line[data-el="UNDEAD"] { --mel:var(--undead); }
 .sg-music-wave { display:inline-flex; align-items:center; gap:2px; height:20px; flex:0 0 auto; }
 .sg-music-wave i {
-  width:2.5px; border-radius:2px; background:#3a1f06; opacity:.8;
+  width:2.5px; border-radius:2px; background:currentColor; opacity:.95;
+  box-shadow:0 0 4px color-mix(in srgb, var(--mel) 60%, transparent);
   height:calc(5px + 13px * var(--h, .5)); transform-origin:center;
 }
 /* A fixed silhouette, so a paused song still reads as a waveform. */
@@ -7733,7 +7725,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-music-line.is-muted .sg-music-wave i { transform:scaleY(.25); opacity:.45; }
 .sg-music-line-title {
   min-width:0; flex:1 1 auto; font-size:12.5px; font-weight:800; letter-spacing:.02em;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 0 rgba(255,255,255,.45);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 3px #000, 0 0 8px rgba(0,0,0,.6);
 }
 .sg-music-line.is-muted .sg-music-line-title { opacity:.6; }
 @media (max-width:420px) {
@@ -7741,7 +7733,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-music-line { gap:6px; padding:0 10px 0 9px; }
 }
 @media (prefers-reduced-motion:reduce) {
-  .sg-music-line, .sg-music-line.is-playing .sg-music-wave i { animation:none; }
+  .sg-music-line.is-playing .sg-music-wave i { animation:none; }
 }
 /* On Home the notification panel drops from the profile strip (placed by JS). */
 .sg-app[data-screen="home"] .sg-notif-panel { width:min(320px, calc(100% - 24px)); }
