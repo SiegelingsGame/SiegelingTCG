@@ -127,7 +127,8 @@ public class LeaderboardService {
         for (String period : PERIOD_ORDER) {
             List<MatchHistoryEntity> scoped = filterMatchesForPeriod(matches, zone, period, now);
             Map<String, List<Map<String, Object>>> boards = buildBoards(scoped);
-            boards.put(BOARD_SIEGE_SCORE, buildSiegeScoreBoard(filterRunsForPeriod(siegeRuns, zone, period, now), this::siegeDisplayName));
+            boards.put(BOARD_SIEGE_SCORE, buildSiegeScoreBoard(
+                    filterRunsForPeriod(expeditionRuns(siegeRuns), zone, period, now), this::siegeDisplayName));
             periods.put(period, boards);
         }
 
@@ -264,6 +265,18 @@ public class LeaderboardService {
         } catch (RuntimeException ex) {
             return null;
         }
+    }
+
+    /** Weekly Challenge scores have their own board. They must not replace an expedition best. */
+    static List<Map<String, Object>> expeditionRuns(List<Map<String, Object>> runs) {
+        if (runs == null || runs.isEmpty()) return List.of();
+        return runs.stream().filter(LeaderboardService::countsOnExpeditionBoard).toList();
+    }
+
+    static boolean countsOnExpeditionBoard(Map<String, Object> run) {
+        if (run == null) return false;
+        Object week = run.get("challengeWeek");
+        return week == null || String.valueOf(week).isBlank();
     }
 
     static List<Map<String, Object>> filterRunsForPeriod(List<Map<String, Object>> runs,

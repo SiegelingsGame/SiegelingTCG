@@ -246,6 +246,18 @@ class LeaderboardServiceTest {
     }
 
     @Test
+    void weeklyChallengeScoresStayOffTheExpeditionBoard() {
+        List<Map<String, Object>> runs = List.of(
+                Map.of("userId", "a", "userDisplayName", "Ava", "score", 100L, "finishedAt", "2026-10-02T10:00:00Z"),
+                Map.of("userId", "a", "userDisplayName", "Ava", "score", 9000L, "finishedAt", "2026-10-02T11:00:00Z",
+                        "challengeWeek", "2026-W44"));
+        List<Map<String, Object>> board = LeaderboardService.buildSiegeScoreBoard(
+                LeaderboardService.expeditionRuns(runs), id -> null);
+        assertEquals(1, board.size());
+        assertEquals(100L, board.get(0).get("value"), "a weekly score must not replace the expedition best");
+    }
+
+    @Test
     void siegeRunsAreScopedToThePeriod() {
         Instant now = Instant.parse("2026-10-03T12:00:00Z");
         List<Map<String, Object>> runs = List.of(
