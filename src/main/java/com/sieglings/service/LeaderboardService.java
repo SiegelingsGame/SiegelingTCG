@@ -288,7 +288,7 @@ public class LeaderboardService {
      * not a sum, so the board rewards how well an expedition went rather than
      * how many were played.
      */
-    static List<Map<String, Object>> buildSiegeScoreBoard(List<Map<String, Object>> runs,
+    public static List<Map<String, Object>> buildSiegeScoreBoard(List<Map<String, Object>> runs,
                                                           java.util.function.Function<String, String> nameForUser) {
         Map<String, Map<String, Object>> best = new HashMap<>();
         for (Map<String, Object> run : runs) {

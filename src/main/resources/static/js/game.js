@@ -10056,6 +10056,8 @@ async function newGame() {
     // would only invite an ownership check the tutorial does not need.
     const body = tutorialMatchActive ? {} : getSelectedLoadoutBody();
     body.playerName = getCurrentPlayerName() || (authState.profile?.user?.displayName || 'Player');
+    // Opened from Events: the server sets the day's opponent; the client only asks.
+    if (!tutorialMatchActive && DAILY_BATTLE_MODE) body.dailyBattle = true;
     if (tutorialMatchActive) {
         body.tutorial = true;
         try { body.advancedTutorial = sessionStorage.getItem(ADVANCED_TUTORIAL_KEY) === '1'; } catch (e) { /* storage unavailable */ }
@@ -12791,6 +12793,25 @@ function renderDomLegacy() {
     }
 
     renderGameOverOverlay();
+}
+
+// Daily Battle (/play?daily=1, from the hub's Events page): the player brings
+// their own loadout and the server fields the day's opponent. The loadout
+// carries a banner naming who they are about to face.
+const DAILY_BATTLE_MODE = new URLSearchParams(window.location.search).get('daily') === '1';
+function mountDailyBattleBanner() {
+    if (!DAILY_BATTLE_MODE) return;
+    const box = document.querySelector('#loadoutOverlay .loadout-box');
+    if (!box || box.querySelector('.daily-battle-banner')) return;
+    const banner = document.createElement('div');
+    banner.className = 'daily-battle-banner';
+    banner.innerHTML = '<span class="daily-battle-kicker">Daily Battle</span><strong>Today\u2019s rival</strong>';
+    box.prepend(banner);
+    fetchJson(apiUrls('/api/events/daily-battle'), {}, LOADOUT_ACTION_TIMEOUT_MS).then((d) => {
+        if (!d || d.error) return;
+        const strong = banner.querySelector('strong');
+        strong.textContent = `vs ${d.opponentName}${d.featured ? ` \u00b7 ${d.featured.name}` : ''}`;
+    }).catch(() => {});
 }
 
 // Arena music: a match plays your SiegeKnight's battle theme, then your
@@ -18157,6 +18178,7 @@ window.SieglingsCardShowcase = {
 
 if (document.getElementById('loadoutOverlay')) {
     mountLoadoutShieldNavigation(document.getElementById('loadoutOverlay'));
+    mountDailyBattleBanner();
     renderDesktopMenuMeta();
     renderDesktopActionHistory();
     bindAuthStorageSync();

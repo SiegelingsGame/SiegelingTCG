@@ -1,3 +1,59 @@
+Original prompt: Remove the Continue Playing section and make Play a one-pager. Add a fourth option, Events, as a large box. Events opens to a play-style page with: Daily Battle (a daily rotating Arena battle featuring the opponent and their strongest card; a group of 7 to start, updatable in the dashboard); seeded Siege runs and a Weekly Challenge (highest score in a seeded Endless run with a pre-built team that everybody can play, with a leaderboard); then Lobbies and Tournaments, which were one page and should each get their own thematic page.
+
+- October 31, 2026 **Play one-pager, Events (Daily Battle, Weekly Challenge), seeded Siege, separate Lobbies and Tournaments pages.**
+  - **Play** (`playScreen`, `css/hub-events.css`).
+    - Continue Playing, the Lobbies & Tournaments strip and the guest band are gone. Saved runs resume from Home's Siege flank.
+    - Four plates: Arena, Siege, Dominion and a new **Events** plate.
+    - Portrait phones: Arena and Siege share the top row; Dominion and Events run full width beneath. The rows split the height between the header and the shield FAB, so nothing scrolls. Below 700px tall the descriptions drop.
+    - Landscape and desktop: one row of four (the old grid's extra row for Continue Playing is gone).
+  - **Events** (`/events`, `eventsScreen` / `mountEvents`).
+    - **Daily Battle card.** The day's rival, their deck, their strongest card standing over the land (the element emblem when the card has no art yet), the time left, tomorrow's rival, and Fight → `/play?daily=1`.
+    - **Weekly Challenge card.** Week number and time left, the set team (knight plus 3 Siegelings), the seed, Play → `/siege?weekly=1`, the top-5 leaderboard, and your place.
+    - **Tiles** into Lobbies (live open count) and Tournaments (today's tournament name and rule).
+    - Desktop lays the two events side by side.
+  - **Lobbies** (`/lobbies`). Now only the tables: a tavern hero with Host a table and Join by room code, then the open tables grid, with a cross-link to Tournaments. The old landscape two-column switch is gone.
+  - **Tournaments** (new `/tournaments`; `tournamentsScreen` / `mountTournaments`; route added in `firebase.json` rewrites and `WebConfig`).
+    - Banner (rule, prizes, host/sign-in, your place), prize claims, a podium of the top three (2-1-3 pedestals), standings, and the week ahead.
+    - Desktop splits the page: banner and schedule on the left, podium and standings on the right.
+  - **Daily Battle backend** (`DailyBattleService`, `EventsController`).
+    - A rotation of entries (opponent name, SiegeKnight, preset deck, optional featured card, title, blurb) stored in Firestore `eventConfig/dailyBattles`, in memory without Firestore.
+    - The defaults are 7 preset decks, each with its recommended knight.
+    - The rotation walks the list by UTC day (`indexFor` = epoch day mod size). The featured card falls back to the deck's strongest Siegeling (rarity, then health).
+    - **Endpoints.**
+      - `GET /api/events/daily-battle`: today plus tomorrow's name.
+      - `GET /api/events/daily-battles`: the rotation plus deck/knight choices for the editor.
+      - `POST /api/events/daily-battles`: dashboard gate plus editor sign-in when persistent; validates deck, knight and featured-in-deck, 1–31 rows.
+    - **Starting the match.** `/api/game/new` with `dailyBattle:true` starts `GameService.newDailyBattleGame`. `createGame` now uses a named AI loadout whenever one is passed.
+    - **Arena page.** The loadout shows a "Daily Battle · vs X · card" banner on `/play?daily=1` (`play-next.css` v20).
+  - **Dashboard Events page** (`events-admin.js`, a new Events tab and workspace). One fieldset per day (Today highlighted): opponent name, title, knight, deck, featured card ("Strongest in deck" by default), blurb, reorder/remove/add, Save.
+  - **Seeded Siege** (`SiegeService`).
+    - Per-run `seed` and a checkpointed draw counter (`rngStep`). `rng(run)` gives a seeded run a fresh generator per draw keyed by seed and step, and every one of the ~60 former shared-`rng` call sites goes through it.
+    - Land rolls key on the seed instead of the token. Seed and step are checkpointed and restored.
+  - **Weekly Challenge** (`SiegeService`).
+    - ISO week in UTC; closes Monday 00:00 UTC.
+    - The team is drawn from the selectable roster in id order with the week's seed (knight at level 1 for everyone, plus 3 Siegelings).
+    - `POST /api/siege/weekly/new` starts a seeded ENDLESS run with `challengeWeek`, in a new `RunSlot.CHALLENGE` save.
+    - `GET /api/siege/weekly` returns the team, close time, seed, the leaderboard (best score per player from Siege run history filtered by `challengeWeek`, cached 60s) and your place.
+    - Run history stores `challengeWeek`; the score projection selects it.
+  - **Siege page.** `/siege?weekly=1` resumes this week's run or starts it. The resume screen shows a Weekly plate only while one is saved; badge "🏆 Weekly Challenge · 2026-W44".
+  - **Cache pins.**
+    - `home-redesign.js?v=174`, new `hub-events.css?v=1`, `adventure.js?v=155`.
+    - `siege-next.css?v=25`, `play-next.css?v=20`.
+    - `card-dashboard.js?v=78`, `card-dashboard.css?v=60`, new `events-admin.js?v=1` (`game.js` stays at the unreleased v342).
+  - **Verification.**
+    - **Full suite** (`mvn test`): 956 tests; the only 2 errors are the pre-existing `PlayerProgressionControllerStarterPackTest` null `battlefieldSkinCatalog` ones, which fail the same way on main.
+    - **New tests.** `SiegeWeeklyChallengeTest` (5) passes: ISO weeks and close time; a fixed team; two runs share seed, map, first Land and party; own slot; feed shape. `DailyBattleServiceTest` (6) passes: 7 defaults; daily rotation; strongest card; save validation; the daily match fields that knight and name; feed.
+    - **Siege suite.** All 288 Siege tests still pass with seeding.
+    - **Gates.** `node --check` passes on every JS file touched.
+    - **Against `spring-boot:run`** (page files served from disk), headless Chromium at 390x844, 375x667, 844x390 and 1920x1080:
+      - **Play.** Four plates with no scroll at every size, above the FAB.
+      - **Events.** Daily (Volt Shepherd · Cryovolt Array · Bleetsrike, Epic) and Weekly (Frost Sage + Skully, Ceeponee, Cozycub; seed shown) render; the links are `/play?daily=1` and `/siege?weekly=1`.
+      - **Tournaments and Lobbies.** Tournaments shows banner, standings and Coming up without tables. Lobbies shows hero and tables without the tournament.
+      - **Weekly run.** `/siege?weekly=1` posted `/api/siege/weekly/new`, landed on the map with the week's party and badge, and the Land music scene started. `/siege` then showed the Weekly plate.
+      - **Daily match.** `/play?daily=1` showed "vs Volt Shepherd · Bleetsrike", posted `dailyBattle:true`, and the match fielded Volt Shepherd (Electric).
+      - **Dashboard.** The Events page lists 7 days with Day 3 marked Today. Edits, reorder and add posted an 8-row rotation (save response stubbed, since the dashboard passphrase is not available here).
+      - No page errors.
+
 Original prompt: Music should persist through mode selection. When you enter an arena battle play battle music starting with the music of your knight element then the opponent's. Remove the back arrow button to leave a match and replace it with a music button. Keep the quit button. In Siege same deal based on the land: play the biome music and then battle music in fights. Battlegrounds needs access to the music players.
 
 - October 31, 2026 **Music: one player across Home, Arena, Siege, Gauntlet and Dominion; battle and Land scenes.**

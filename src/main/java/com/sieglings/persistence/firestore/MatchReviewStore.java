@@ -105,7 +105,7 @@ public class MatchReviewStore {
             try {
                 for (QueryDocumentSnapshot doc : client.requireFirestore()
                         .collection(siegeRunsCollection)
-                        .select("userId", "userDisplayName", "score", "finishedAt", "knightName", "floorReached", "result", "mode")
+                        .select("userId", "userDisplayName", "score", "finishedAt", "knightName", "floorReached", "result", "mode", "challengeWeek")
                         .get()
                         .get(OP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                         .getDocuments()) {

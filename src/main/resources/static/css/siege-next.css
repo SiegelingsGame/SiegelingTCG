@@ -971,3 +971,19 @@ body[data-screen="resumeScreen"] .siege-topbar { display: none; }
 .siege-music-btn:active { transform:scale(.94); }
 /* On the map the mode badge already takes the auto margin. */
 body[data-screen="mapScreen"] .siege-music-btn { margin-left:0; }
+
+/* ---- Weekly Challenge ----
+   The seeded run from Events. Its accent is the gold of a trophy, kept apart
+   from Endless' cyan where both plates stand on the resume screen. */
+.run-slot-badge.weekly {
+    color: #ffd36b;
+    background: rgba(255, 211, 107, .12);
+    border: 1px solid rgba(255, 211, 107, .5);
+}
+.resume-save-head .run-slot-badge.weekly { background: rgba(13, 10, 38, .62); }
+.resume-save.weekly {
+    --save-accent: #ffd36b;
+    border-left-color: var(--border);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .45);
+    background-image: url('/img/gallery/bearzooka-rampage.webp');
+}

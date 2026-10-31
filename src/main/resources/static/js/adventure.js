@@ -775,7 +775,16 @@
       // Home's Resume opens /siege?resume=TOKEN: that save goes straight back
       // into play instead of through the prompt. The query is dropped so a
       // reload does not resume again.
-      var wanted = new URLSearchParams(location.search).get('resume');
+      var query = new URLSearchParams(location.search);
+      var wanted = query.get('resume');
+      // Events' Weekly Challenge opens /siege?weekly=1: carry on this week's
+      // run if there is one, otherwise start it with the week's set team.
+      if (query.get('weekly') === '1') {
+        if (history.replaceState) history.replaceState(null, '', location.pathname);
+        var weekly = saves.filter(function (r) { return runSlotKind(r) === 'weekly'; })[0];
+        if (weekly) wanted = weekly.token;
+        else { startWeeklyRun(); return; }
+      }
       if (wanted && history.replaceState) history.replaceState(null, '', location.pathname);
       var direct = wanted && saves.filter(function (r) { return r.token === wanted; })[0];
       if (direct) {
@@ -813,12 +822,14 @@
     var tier = ['I', 'II', 'III', 'IV', 'V'][(run.bgTier || 1) - 1] || run.bgTier;
     if (kind === 'bg') return '⚔️ Battlegrounds · Tier ' + tier;
     if (kind === 'endless') return '♾️ Endless';
+    if (kind === 'weekly') return '🏆 Weekly Challenge · ' + (run.challengeWeek || '');
     return '🏳️ Adventure';
   }
 
   /** 'siege' | 'endless' | 'bg' — the class each mode's badge and resume plate wear. */
   function runSlotKind(run) {
     if (run.slot === 'BATTLEGROUNDS' || run.battlegrounds) return 'bg';
+    if (run.slot === 'CHALLENGE' || run.challengeWeek) return 'weekly';
     return run.mode === 'ENDLESS' ? 'endless' : 'siege';
   }
 
@@ -836,7 +847,10 @@
     { kind: 'bg', badge: '⚔️ Battlegrounds', mode: 'BATTLEGROUNDS',
       blurb: 'Take veterans banked from Siege into a higher-stakes run.' },
     { kind: 'endless', badge: '♾️ Endless', mode: 'ENDLESS',
-      blurb: 'A road that never ends. Play until the warband falls and bank your score.' }
+      blurb: 'A road that never ends. Play until the warband falls and bank your score.' },
+    // Started from Events, so its plate only appears while a run is saved.
+    { kind: 'weekly', badge: '🏆 Weekly Challenge', mode: 'WEEKLY', savedOnly: true,
+      blurb: 'This week’s seeded Endless run with a set team.' }
   ];
 
   /** The boot check found saves: one card per slot, saved or not. */
@@ -864,7 +878,7 @@
     RUN_SLOTS.forEach(function (slot) {
       var run = saves.filter(function (r) { return runSlotKind(r) === slot.kind; })[0];
       if (!run) {
-        host.appendChild(emptySlotCard(slot));
+        if (!slot.savedOnly) host.appendChild(emptySlotCard(slot));
         return;
       }
       var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
@@ -919,7 +933,22 @@
   }
 
   /** New run from a resume card: load the roster, then open that mode's setup. */
+  /** This week's challenge: the server picks the team, seed and map. */
+  function startWeeklyRun() {
+    showScreen('loadingScreen');
+    if ($('bootLoadStatus')) $('bootLoadStatus').textContent = 'Opening this week’s challenge...';
+    api('/api/siege/weekly/new', { method: 'POST', body: {} }).then(function (run) {
+      if (!run || run.error) throw new Error((run && run.error) || 'The Weekly Challenge could not start.');
+      setToken(run.token);
+      applyRun(run);
+    }).catch(function (err) {
+      if ($('bootLoadStatus')) $('bootLoadStatus').textContent = (err && err.message) || 'The Weekly Challenge could not start.';
+      setTimeout(loadRoster, 1800);
+    });
+  }
+
   function startFreshRun(mode) {
+    if (mode === 'WEEKLY') { startWeeklyRun(); return; }
     state.run = null; state.party = []; state.knightId = null; state.landView = null;
     setToken(null);
     state.pendingRunMode = mode;

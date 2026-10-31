@@ -3625,3 +3625,19 @@ body.move-picker-open {
 .siege-sig-box.is-set select {
     border-color: rgba(240, 139, 67, 0.55);
 }
+
+/* Events page: the Daily Battle rotation, one fieldset per day. */
+.daily-battle-rows { display:grid; gap:12px; margin:12px 0; }
+.daily-battle-row {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px 12px;
+  border:1px solid rgba(255,255,255,.14); border-radius:12px; padding:10px 14px 12px; margin:0;
+}
+.daily-battle-row.is-today { border-color:#ffd36b; box-shadow:0 0 0 1px rgba(255,211,107,.35); }
+.daily-battle-row legend { padding:0 6px; font-weight:700; }
+.daily-battle-row.is-today legend { color:#ffd36b; }
+.daily-battle-row label { display:flex; flex-direction:column; gap:4px; font-size:12px; }
+.daily-battle-row label.is-wide { grid-column:1 / -1; }
+.daily-battle-row input, .daily-battle-row select { min-height:34px; }
+.daily-battle-row-actions { display:flex; gap:6px; align-items:flex-end; grid-column:1 / -1; }
+/* The rotation is the page's only panel, so it takes the whole row. */
+.daily-battle-panel { grid-column:1 / -1; }

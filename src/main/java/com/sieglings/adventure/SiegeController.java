@@ -109,6 +109,20 @@ public class SiegeController {
         return siege.newRun(authorizationHeader, knightId, sieglingIds, str(body.get("mode")), body.get("veterans"));
     }
 
+    /** This week's seeded challenge: the pre-built team, its close, leaderboard and the caller's place. */
+    @GetMapping("/api/siege/weekly")
+    public Map<String, Object> weekly(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        return siege.weeklyChallenge(authorizationHeader);
+    }
+
+    /** Start (or restart) this week's challenge run with its pre-built team. */
+    @PostMapping("/api/siege/weekly/new")
+    public Map<String, Object> newWeekly(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        return siege.newWeeklyRun(authorizationHeader);
+    }
+
     /**
      * Start a Battlegrounds run from banked veterans:
      * body {@code { members:[{teamId, sourceCardId}, …3], knightTeamId }}. The 3

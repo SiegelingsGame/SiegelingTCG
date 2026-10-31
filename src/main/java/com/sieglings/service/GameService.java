@@ -359,6 +359,19 @@ public class GameService {
         return new SoloHandle(token, state);
     }
 
+    /** A solo match against the day's Daily Battle opponent: their preset deck, knight and name. */
+    public SoloHandle newDailyBattleGame(StartOptions options, String playerName,
+                                         String enemyDeckId, String enemyTrainerId, String enemyName) {
+        StartOptions enemy = new StartOptions(enemyDeckId, enemyTrainerId, null, "Daily Battle");
+        GameState state = createGame(options, enemy, safePlayerName(playerName, "Player"),
+                enemyName == null || enemyName.isBlank() ? "Daily Rival" : enemyName, false);
+        state.log("Daily Battle: " + state.getEnemy().getName() + " takes the field.");
+        purgeStaleSoloGames();
+        String token = generateSoloToken();
+        soloGames.put(token, new SoloSession(state));
+        return new SoloHandle(token, state);
+    }
+
     /** Returns the solo game for the given token, or {@code null} if it does not exist / has expired. */
     public GameState getSoloGame(String token) {
         if (token == null || token.isBlank()) {
@@ -810,7 +823,9 @@ public class GameService {
         enemy.setHealth(50);
 
         ResolvedLoadout playerLoadout = resolveLoadout(playerOptions, "deck_fire_earth", "trainer05");
-        ResolvedLoadout enemyLoadout = enemyHumanControlled || tutorial
+        // A named AI loadout (tutorial, Daily Battle) is used as given; otherwise
+        // the AI picks a deck to answer the player's.
+        ResolvedLoadout enemyLoadout = enemyHumanControlled || tutorial || enemyOptions != null
                 ? resolveLoadout(enemyOptions, "deck_water_wind", "trainer06")
                 : resolveSoloEnemyLoadout(playerLoadout.deckId());
 

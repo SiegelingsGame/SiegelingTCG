@@ -241,6 +241,8 @@
             "showLoadingArtBtn",
             "showShopBtn",
             "showKeepBtn",
+            "showEventsBtn",
+            "eventsWorkspace",
             "showCardsSectionBtn",
             "showPlayersSectionBtn",
             "cardsPageTabs",
@@ -540,6 +542,7 @@
         refs.showLoadingArtBtn.addEventListener("click", () => setEditorPage("LOADING_ART"));
         refs.showShopBtn.addEventListener("click", () => setEditorPage("SHOP"));
         refs.showKeepBtn.addEventListener("click", () => setEditorPage("KEEP"));
+        refs.showEventsBtn.addEventListener("click", () => setEditorPage("EVENTS"));
         if (refs.showCardsSectionBtn) {
             refs.showCardsSectionBtn.addEventListener("click", () => setDashboardSection("CARDS"));
         }
@@ -3042,6 +3045,9 @@
             state.editorPage = "SHOP";
         } else if (page === "KEEP") {
             state.editorPage = "KEEP";
+        } else if (page === "EVENTS") {
+            state.editorPage = "EVENTS";
+            if (window.SiegelingsEventsAdmin) window.SiegelingsEventsAdmin.refresh();
         } else if (page === "SIEGE") {
             state.editorPage = "SIEGE";
         } else if (page === "MOVES_POOL") {
@@ -3272,7 +3278,8 @@
             || state.editorPage === "MOVES_POOL"
             || state.editorPage === "LOADING_ART"
             || state.editorPage === "SHOP"
-            || state.editorPage === "KEEP";
+            || state.editorPage === "KEEP"
+            || state.editorPage === "EVENTS";
         if (refs.cardsPageTabs) {
             refs.cardsPageTabs.classList.toggle("hidden", onPlayers);
         }
@@ -3291,6 +3298,7 @@
         refs.loadingArtWorkspace.classList.toggle("hidden", onPlayers || state.editorPage !== "LOADING_ART");
         refs.shopWorkspace.classList.toggle("hidden", onPlayers || state.editorPage !== "SHOP");
         refs.keepWorkspace.classList.toggle("hidden", onPlayers || state.editorPage !== "KEEP");
+        refs.eventsWorkspace.classList.toggle("hidden", onPlayers || state.editorPage !== "EVENTS");
         if (refs.playersWorkspace) {
             refs.playersWorkspace.classList.toggle("hidden", !onPlayers);
         }
@@ -3427,6 +3435,7 @@
         refs.showLoadingArtBtn.classList.toggle("active", state.editorPage === "LOADING_ART");
         refs.showShopBtn.classList.toggle("active", state.editorPage === "SHOP");
         refs.showKeepBtn.classList.toggle("active", state.editorPage === "KEEP");
+        refs.showEventsBtn.classList.toggle("active", state.editorPage === "EVENTS");
         if (state.editorPage === "LIVE_ELEMENTS") {
             refs.browserTitle.textContent = "Live Elements";
         }
