@@ -85,7 +85,23 @@ public class SiegeService {
 
     private final Map<String, Session> runs = new ConcurrentHashMap<>();
     private final SecureRandom tokenRandom = new SecureRandom();
-    private final Random rng = new Random();
+    private final Random sharedRng = new Random();
+
+    /**
+     * The random source for one roll in this run. Ordinary runs share one
+     * generator; a seeded run gets a fresh generator per draw, keyed by its seed
+     * and a checkpointed draw counter, so the stream survives a server restart
+     * and two players on the same seed see the same rolls for the same choices.
+     */
+    /** What the Land rolls are keyed on: the seed for a seeded run, else its token. */
+    private static String runKey(SiegeRun run) {
+        return run.getSeed() != null ? "seed:" + run.getSeed() : run.getToken();
+    }
+
+    private Random rng(SiegeRun run) {
+        if (run == null || run.getSeed() == null) return sharedRng;
+        return new Random(run.getSeed() * 0x9E3779B97F4A7C15L + run.nextRngStep());
+    }
 
     private static final class Session {
         final SiegeRun run;
@@ -616,18 +632,7 @@ public class SiegeService {
         SiegeRun run = new SiegeRun(token);
         run.setOwnerId(user == null ? "" : user.getId());
 
-        run.setKnightId(knight.getId());
-        run.setKnightName(knight.getName());
-        run.setKnightElement(knight.getElement());
-        run.setKnightActive(content.knightActiveSpec(knight));
-        int accountLevel = knightAccountLevel(progression, knight.getId());
-        run.setKnightAccountLevel(accountLevel);
-        run.setKnightRarity(knight.getRarity());
-        run.setKnightPassiveDesc(content.knightPassiveDescription(knight, accountLevel));
-        KnightPassive passive = content.knightPassiveKind(knight);
-        run.setKnightPassive(passive);
-        run.setKnightPassiveValue(content.knightPassiveValue(passive, accountLevel, knight.getRarity()));
-        run.setKnightUnit(content.toKnightCombatant(knight));
+        applyKnight(run, knight, knightAccountLevel(progression, knight.getId()));
 
         run.setMode(mode);
         int slot = 0;
@@ -658,11 +663,186 @@ public class SiegeService {
 
         seedStartingKnightBag(run);
 
-        run.getMap().addAll(content.generateMap(rng));
+        run.getMap().addAll(content.generateMap(rng(run)));
         enterNextLand(run);
         // Drop the previous expedition in this account slot so a leftover phone
         // session cannot keep checkpointing the abandoned token over the new save.
-        evictSupersededAccountRun(run.getOwnerId(), RunSlot.of(run.getMode()));
+        evictSupersededAccountRun(run.getOwnerId(), RunSlot.of(run));
+        runs.put(token, new Session(run));
+        run.setCheckpointSaved(saveCheckpoint(run, true));
+        return serialize(run);
+    }
+
+    private void applyKnight(SiegeRun run, TrainerCard knight, int accountLevel) {
+        run.setKnightId(knight.getId());
+        run.setKnightName(knight.getName());
+        run.setKnightElement(knight.getElement());
+        run.setKnightActive(content.knightActiveSpec(knight));
+        run.setKnightAccountLevel(accountLevel);
+        run.setKnightRarity(knight.getRarity());
+        run.setKnightPassiveDesc(content.knightPassiveDescription(knight, accountLevel));
+        KnightPassive passive = content.knightPassiveKind(knight);
+        run.setKnightPassive(passive);
+        run.setKnightPassiveValue(content.knightPassiveValue(passive, accountLevel, knight.getRarity()));
+        run.setKnightUnit(content.toKnightCombatant(knight));
+    }
+
+    // ---- Weekly Challenge -------------------------------------------------
+    // One seeded Endless run a week that everybody plays with the same pre-built
+    // team: same SiegeKnight (at level 1, so account progress buys no edge), the
+    // same three Siegelings, the same seed and so the same map and Lands. The
+    // best score each player banks that week ranks them on its leaderboard.
+
+    static final int WEEKLY_TEAM_SIZE = 3;
+    private static final long WEEKLY_BOARD_TTL_MS = 60_000L;
+    private volatile Map<String, Object> weeklyBoardCache;
+    private volatile long weeklyBoardAt;
+
+    /** ISO week in UTC, e.g. "2026-W44"; the challenge rolls over Monday 00:00 UTC. */
+    static String weekId(java.time.Instant now) {
+        java.time.LocalDate day = now.atZone(java.time.ZoneOffset.UTC).toLocalDate();
+        int week = day.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR);
+        int year = day.get(java.time.temporal.IsoFields.WEEK_BASED_YEAR);
+        return year + "-W" + (week < 10 ? "0" : "") + week;
+    }
+
+    static java.time.Instant weekEndsAt(java.time.Instant now) {
+        java.time.LocalDate day = now.atZone(java.time.ZoneOffset.UTC).toLocalDate();
+        return day.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY))
+                .atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
+    }
+
+    static long weeklySeed(String week) {
+        long h = 1125899906842597L;
+        for (char c : ("weekly-v1:" + week).toCharArray()) h = 31 * h + c;
+        return h;
+    }
+
+    record WeeklyTeam(String week, TrainerCard knight, List<SieglingCard> sieglings) {}
+
+    /** The week's team, drawn from the selectable roster in a fixed order so every server agrees. */
+    WeeklyTeam weeklyTeam(String week) {
+        Random pick = new Random(weeklySeed(week));
+        List<TrainerCard> knights = new ArrayList<>(content.selectableKnights());
+        knights.sort(java.util.Comparator.comparing(TrainerCard::getId));
+        List<SieglingCard> pool = new ArrayList<>(content.selectableSieglings());
+        pool.sort(java.util.Comparator.comparing(SieglingCard::getId));
+        if (knights.isEmpty() || pool.isEmpty()) {
+            throw new IllegalStateException("The Weekly Challenge roster is not available.");
+        }
+        TrainerCard knight = knights.get(pick.nextInt(knights.size()));
+        Collections.shuffle(pool, pick);
+        return new WeeklyTeam(week, knight, List.copyOf(pool.subList(0, Math.min(WEEKLY_TEAM_SIZE, pool.size()))));
+    }
+
+    /** This week's challenge: its team, when it closes, the leaderboard and the caller's place. */
+    Map<String, Object> weeklyChallenge(String authorizationHeader) {
+        java.time.Instant now = java.time.Instant.now();
+        String week = weekId(now);
+        WeeklyTeam team = weeklyTeam(week);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("week", week);
+        out.put("endsAt", weekEndsAt(now).toString());
+        out.put("seed", Long.toHexString(weeklySeed(week)).toUpperCase());
+        Map<String, Object> knight = new LinkedHashMap<>();
+        knight.put("id", team.knight().getId());
+        knight.put("name", team.knight().getName());
+        knight.put("element", team.knight().getElement() == null ? null : team.knight().getElement().name());
+        knight.put("artUrl", knightArtUrl(team.knight().getId()));
+        out.put("knight", knight);
+        List<Map<String, Object>> members = new ArrayList<>();
+        for (SieglingCard s : team.sieglings()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", s.getId());
+            m.put("name", s.getName());
+            m.put("element", s.getElement() == null ? null : s.getElement().name());
+            m.put("artUrl", s.getCardArtUrl());
+            members.add(m);
+        }
+        out.put("team", members);
+        AccountUser user = resolveUser(authorizationHeader);
+        Map<String, Object> board = weeklyBoard(week);
+        out.put("leaderboard", board.get("rows"));
+        out.put("entrants", board.get("entrants"));
+        out.put("leaderboardAvailable", board.get("available"));
+        if (user != null && user.getId() != null) {
+            @SuppressWarnings("unchecked")
+            Map<String, Long> bests = (Map<String, Long>) board.get("bests");
+            Long mine = bests == null ? null : bests.get(user.getId());
+            if (mine != null) {
+                long ahead = bests.values().stream().filter(v -> v > mine).count();
+                out.put("me", Map.of("best", mine, "place", ahead + 1));
+            }
+        }
+        out.put("signedIn", user != null);
+        return out;
+    }
+
+    /** Ranked best scores for one week, cached briefly: the history scan is a full collection read. */
+    private Map<String, Object> weeklyBoard(String week) {
+        Map<String, Object> cached = weeklyBoardCache;
+        if (cached != null && week.equals(cached.get("week")) && System.currentTimeMillis() - weeklyBoardAt < WEEKLY_BOARD_TTL_MS) {
+            return cached;
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("week", week);
+        List<Map<String, Object>> runsThisWeek = new ArrayList<>();
+        boolean available = true;
+        if (matchReviewStore != null) {
+            try {
+                for (Map<String, Object> r : matchReviewStore.listSiegeRunScores()) {
+                    if (week.equals(r.get("challengeWeek"))) runsThisWeek.add(r);
+                }
+            } catch (RuntimeException ex) {
+                log.warn("Weekly Challenge leaderboard unavailable for this refresh.", ex);
+                available = false;
+            }
+        }
+        Map<String, Long> bests = new java.util.HashMap<>();
+        for (Map<String, Object> r : runsThisWeek) {
+            if (r.get("userId") == null || !(r.get("score") instanceof Number n)) continue;
+            bests.merge(String.valueOf(r.get("userId")), n.longValue(), Math::max);
+        }
+        out.put("rows", com.sieglings.service.LeaderboardService.buildSiegeScoreBoard(runsThisWeek, this::ownerDisplayName));
+        out.put("bests", bests);
+        out.put("entrants", bests.size());
+        out.put("available", available);
+        if (available) {
+            weeklyBoardCache = out;
+            weeklyBoardAt = System.currentTimeMillis();
+        }
+        return out;
+    }
+
+    /** Starts (replacing any earlier attempt this week) the caller's Weekly Challenge run. */
+    Map<String, Object> newWeeklyRun(String authorizationHeader) {
+        String week = weekId(java.time.Instant.now());
+        WeeklyTeam team = weeklyTeam(week);
+        AccountUser user = resolveUser(authorizationHeader);
+        purgeStale();
+        String token = generateToken();
+        SiegeRun run = new SiegeRun(token);
+        run.setOwnerId(user == null ? "" : user.getId());
+        run.setSeed(weeklySeed(week));
+        run.setChallengeWeek(week);
+        // Level 1 for everyone: the board measures the run, not the account.
+        applyKnight(run, team.knight(), 1);
+        run.setMode(RunMode.ENDLESS);
+        int slot = 0;
+        for (SieglingCard s : team.sieglings()) {
+            Combatant member = content.toPartyCombatant(s, slot++);
+            applyJoinBonus(run, member);
+            run.getParty().add(member);
+            run.getDeckTemplates().addAll(content.deckCardsFor(s, member.getId()));
+            noteDiscovery(run, s.getId());
+        }
+        if (run.getKnightActive() != null) {
+            run.getDeckTemplates().add(new SiegeCard("knightcard", "knight-" + team.knight().getId(), run.getKnightActive()));
+        }
+        seedStartingKnightBag(run);
+        run.getMap().addAll(content.generateMap(rng(run)));
+        enterNextLand(run);
+        evictSupersededAccountRun(run.getOwnerId(), RunSlot.CHALLENGE);
         runs.put(token, new Session(run));
         run.setCheckpointSaved(saveCheckpoint(run, true));
         return serialize(run);
@@ -716,7 +896,7 @@ public class SiegeService {
     /** Called only at creation or once after a won boss, after awarding that land's spoils. */
     private void enterNextLand(SiegeRun run) {
         // Replaying an older battle checkpoint must not let a player reroll the next land.
-        Random landRng = new Random(java.util.Objects.hash(run.getToken(), run.getBossKills(), "lands-v1"));
+        Random landRng = new Random(java.util.Objects.hash(runKey(run), run.getBossKills(), "lands-v1"));
         SiegeLand land = SiegeLand.roll(run.getLand(), run.getBossKills(), content.defaultPalette(), landRng);
         applyLandChange(run, land, landRng);
     }
@@ -831,7 +1011,7 @@ public class SiegeService {
         }
         List<Map<String, Object>> out = new ArrayList<>();
         List<AbilitySpec> pool = new ArrayList<>(moves.values());
-        Collections.shuffle(pool, rng);
+        Collections.shuffle(pool, rng(run));
         // First pass gives three different cards; a unit with fewer moves fills
         // the rest with a different amplification of a card already offered, so
         // the player always gets a real choice rather than a single button.
@@ -1049,7 +1229,7 @@ public class SiegeService {
             return;
         }
         List<String> names = run.getParty().stream().map(Combatant::getName).toList();
-        content.randomStagedRecruit(names, rng, run.getLand()).ifPresent(s -> {
+        content.randomStagedRecruit(names, rng(run), run.getLand()).ifPresent(s -> {
             Combatant member = content.toPartyCombatant(s, run.getParty().size());
             member.setPosition(run.getParty().size());
             applyJoinBonus(run, member);
@@ -1149,7 +1329,7 @@ public class SiegeService {
             if (restored.isEmpty() || !user.getId().equals(restored.get().getOwnerId())) return;
             // Name the slot by the run's mode, not the pointer it was found under: an
             // Endless run saved before it had its own slot sits in the expedition one.
-            RunSlot slot = RunSlot.of(restored.get().getMode());
+            RunSlot slot = RunSlot.of(restored.get());
             Map<String, Object> serialized = new LinkedHashMap<>(serialize(restored.get()));
             serialized.put("slot", slot.name());
             serialized.put("slotLabel", slot.label());
@@ -1226,7 +1406,7 @@ public class SiegeService {
      * token-guarded, so a newer run holding either pointer is left alone.
      */
     private void deleteAccountPointers(SiegeRun run) {
-        checkpoints.deleteForUser(run.getOwnerId(), RunSlot.of(run.getMode()), run.getToken());
+        checkpoints.deleteForUser(run.getOwnerId(), RunSlot.of(run), run.getToken());
         RunSlot legacy = RunSlot.legacyOf(run.getMode());
         if (legacy != null) checkpoints.deleteForUser(run.getOwnerId(), legacy, run.getToken());
     }
@@ -1248,7 +1428,7 @@ public class SiegeService {
             }
             // A legacy Endless pointer in the expedition slot names a run that now
             // lives in its own slot: free the pointer, keep the run.
-            if (slot != RunSlot.of(RunMode.ENDLESS) && "ENDLESS".equals(str(previous.get("mode")))) {
+            if (slot == RunSlot.EXPEDITION && "ENDLESS".equals(str(previous.get("mode")))) {
                 checkpoints.deleteForUser(ownerId, slot, oldToken);
                 return;
             }
@@ -1274,7 +1454,7 @@ public class SiegeService {
         if (run.getOwnerId() == null || run.getOwnerId().isBlank()) {
             return tokenSaved;
         }
-        RunSlot slot = RunSlot.of(run.getMode());
+        RunSlot slot = RunSlot.of(run);
         if (!replaceAccountSlot) {
             Optional<Map<String, Object>> existing = checkpoints.loadForUser(run.getOwnerId(), slot);
             if (existing.isPresent()) {
@@ -1301,6 +1481,11 @@ public class SiegeService {
         s.put("knightAccountLevel", run.getKnightAccountLevel());
         s.put("gold", run.getGold());
         s.put("mode", run.getMode().name());
+        if (run.getSeed() != null) {
+            s.put("seed", run.getSeed());
+            s.put("rngStep", run.getRngStep());
+        }
+        if (run.getChallengeWeek() != null) s.put("challengeWeek", run.getChallengeWeek());
         s.put("landId", run.getLand() == null ? null : run.getLand().id());
         s.put("landHistory", new ArrayList<>(run.getLandHistory()));
         s.put("journal", new ArrayList<>(run.getJournal().stops()));
@@ -1645,6 +1830,11 @@ public class SiegeService {
             RunMode mode = "ENDLESS".equals(modeName) ? RunMode.ENDLESS
                     : "BATTLEGROUNDS".equals(modeName) ? RunMode.BATTLEGROUNDS : RunMode.STANDARD;
             run.setMode(mode);
+            if (s.get("seed") instanceof Number seed) {
+                run.setSeed(seed.longValue());
+                run.setRngStep(s.get("rngStep") instanceof Number step ? step.longValue() : 0L);
+            }
+            if (s.get("challengeWeek") != null) run.setChallengeWeek(String.valueOf(s.get("challengeWeek")));
             if (mode == RunMode.BATTLEGROUNDS) {
                 run.setBgTier(intVal(s.get("bgTier"), 1));
                 run.setAverageVeteranLevel(intVal(s.get("averageVeteranLevel"), 0));
@@ -1871,9 +2061,9 @@ public class SiegeService {
                 && battleType == NodeType.BATTLE
                 && !run.isBattlegrounds();
         List<Combatant> enemies = openingFight
-                ? content.generateOpeningEnemies(rng, palette)
+                ? content.generateOpeningEnemies(rng(run), palette)
                 : content.generateEnemies(battleType, effFloor,
-                        Math.max(1, partySize), segment + run.getLoop(), rng, palette, bgHp, bgDmg);
+                        Math.max(1, partySize), segment + run.getLoop(), rng(run), palette, bgHp, bgDmg);
         if (ambush) {
             // Ambush: enemies get the drop on you — extra shield, bite, and haste.
             for (Combatant foe : enemies) {
@@ -1882,7 +2072,7 @@ public class SiegeService {
                 foe.setSpeed(foe.getSpeed() + 6);
             }
         }
-        engine.startBattle(run, battleType, enemies, rng);
+        engine.startBattle(run, battleType, enemies, rng(run));
         if (ambush && run.getBattle() != null) run.getBattle().log("Ambush! The enemy struck first.");
     }
 
@@ -1906,11 +2096,11 @@ public class SiegeService {
         boolean full = run.getParty().size() >= content.partyMax();
         List<String> names = run.getParty().stream().map(Combatant::getName).toList();
         int recruits = full ? 2 : 3;
-        for (SieglingCard s : content.randomRecruits(recruits, names, rng, run.getLand())) {
+        for (SieglingCard s : content.randomRecruits(recruits, names, rng(run), run.getLand())) {
             run.getBrokerOptions().add(CampOption.broker("b" + (oid++), s.getName(), s.getElement(),
                     s.getCardArtUrl(), s.getId(), full ? BROKER_SWAP_COST : BROKER_HIRE_COST));
         }
-        for (SieglingCard s : content.mercOffers(full ? 2 : 1, rng, run.getLand())) {
+        for (SieglingCard s : content.mercOffers(full ? 2 : 1, rng(run), run.getLand())) {
             run.getBrokerOptions().add(CampOption.merc("b" + (oid++), s.getName(), s.getElement(),
                     s.getCardArtUrl(), s.getId(), MERC_RENT_COST));
         }
@@ -2076,22 +2266,22 @@ public class SiegeService {
             }
         }
 
-        boolean trader = rng.nextInt(100) < 65;
-        boolean broker = rng.nextInt(100) < 45;
+        boolean trader = rng(run).nextInt(100) < 65;
+        boolean broker = rng(run).nextInt(100) < 45;
         boolean partyFull = run.getParty().size() >= content.partyMax();
 
         if (trader) {
             List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
             if (!living.isEmpty()) {
                 for (int i = 0; i < 2; i++) {
-                    Combatant owner = living.get(rng.nextInt(living.size()));
-                    AbilitySpec spec = content.randomCardRewardFor(owner.getElement(), rng);
+                    Combatant owner = living.get(rng(run).nextInt(living.size()));
+                    AbilitySpec spec = content.randomCardRewardFor(owner.getElement(), rng(run));
                     run.getCampOptions().add(CampOption.shopCard("c" + (oid++), spec, owner.getId(), owner.getName(), 25));
                 }
             }
             run.getCampOptions().add(CampOption.shopHeal("c" + (oid++), 15));
             if (!run.getDeckTemplates().isEmpty()) {
-                int idx = rng.nextInt(run.getDeckTemplates().size());
+                int idx = rng(run).nextInt(run.getDeckTemplates().size());
                 AbilitySpec spec = run.getDeckTemplates().get(idx).getSpec();
                 run.getCampOptions().add(CampOption.shopUpgrade("c" + (oid++), spec.name(), spec.element(), idx, 20));
             }
@@ -2101,13 +2291,13 @@ public class SiegeService {
             String brokerId = "c" + (oid++);
             // A full warband still gets a deal: swap a member out, or rent a
             // temporary ally for the next battle.
-            content.randomRecruit(names, rng, run.getLand()).ifPresent(s ->
+            content.randomRecruit(names, rng(run), run.getLand()).ifPresent(s ->
                     run.getCampOptions().add(partyFull
                             ? CampOption.brokerSwap(brokerId, s.getName(), s.getElement(), s.getCardArtUrl(), s.getId(), BROKER_SWAP_COST)
                             : CampOption.broker(brokerId, s.getName(), s.getElement(), s.getCardArtUrl(), s.getId(), BROKER_HIRE_COST)));
             if (partyFull && run.getMercenary() == null) {
                 String mercId = "c" + (oid++);
-                content.mercOffers(1, rng, run.getLand()).forEach(s ->
+                content.mercOffers(1, rng(run), run.getLand()).forEach(s ->
                         run.getCampOptions().add(CampOption.merc(mercId, s.getName(), s.getElement(),
                                 s.getCardArtUrl(), s.getId(), MERC_RENT_COST)));
             }
@@ -2246,11 +2436,11 @@ public class SiegeService {
     private void openCache(SiegeRun run) {
         run.setInCache(true);
         run.setCacheDigs(0);
-        run.setCacheGold(6 + rng.nextInt(6));
+        run.setCacheGold(6 + rng(run).nextInt(6));
         run.setLastReward("");
         run.getCacheOptions().clear();
         // Six cache flavours: three press-your-luck games and three puzzles.
-        int roll = rng.nextInt(100);
+        int roll = rng(run).nextInt(100);
         if (roll < 24) {
             run.setCacheGame("DIG");
         } else if (roll < 45) {
@@ -2268,7 +2458,7 @@ public class SiegeService {
         } else {
             // The remaining third rolls one of the three puzzle mini-games instead.
             run.setInCache(false);
-            openPuzzleMinigame(run, rollPuzzleType(), "Buried Cache", "💎",
+            openPuzzleMinigame(run, rollPuzzleType(run), "Buried Cache", "💎",
                     "The cache is sealed by an old warden's puzzle — solve it for the loot.");
         }
     }
@@ -2285,14 +2475,14 @@ public class SiegeService {
 
         switch (pick.kind) {
             case "CHEST" -> {
-                int roll = rng.nextInt(100);
+                int roll = rng(run).nextInt(100);
                 if (roll < 40) {
-                    int gold = earnGold(run, 20 + rng.nextInt(21));
+                    int gold = earnGold(run, 20 + rng(run).nextInt(21));
                     run.setLastReward("The chest spills " + gold + " gold!");
                 } else if (roll < 65) {
                     List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
                     if (!living.isEmpty()) {
-                        Combatant lucky = living.get(rng.nextInt(living.size()));
+                        Combatant lucky = living.get(rng(run).nextInt(living.size()));
                         lucky.addBaseMaxHp(5);
                         run.setLastReward("A growth elixir! " + lucky.getName() + " gains +5 max HP.");
                     }
@@ -2315,7 +2505,7 @@ public class SiegeService {
             }
             case "WHEEL_SPIN" -> {
                 run.addGold(-pick.cost);
-                int roll = rng.nextInt(100);
+                int roll = rng(run).nextInt(100);
                 int mult = roll < 25 ? 0 : roll < 50 ? 1 : roll < 85 ? 2 : 3;
                 if (mult > 0) {
                     int winnings = earnGold(run, pick.cost * mult);
@@ -2348,7 +2538,7 @@ public class SiegeService {
         SiegeRun run = require(token);
         if (!run.isInCache()) throw new IllegalArgumentException("No cache to dig.");
         int bust = cacheBustChance(run);
-        if (rng.nextInt(100) < bust) {
+        if (rng(run).nextInt(100) < bust) {
             run.setInCache(false);
             run.setCacheGold(0);
             SiegeNode node = run.currentNode();
@@ -2358,23 +2548,23 @@ public class SiegeService {
             return serialize(run);
         }
         run.setCacheDigs(run.getCacheDigs() + 1);
-        int roll = rng.nextInt(100);
+        int roll = rng(run).nextInt(100);
         if (roll < 60) {
-            int found = 8 + rng.nextInt(8);
+            int found = 8 + rng(run).nextInt(8);
             run.setCacheGold(run.getCacheGold() + found);
             run.setLastReward("Dug up " + found + " gold — bank it or dig deeper?");
         } else if (roll < 85) {
             List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
             if (!living.isEmpty()) {
-                Combatant lucky = living.get(rng.nextInt(living.size()));
+                Combatant lucky = living.get(rng(run).nextInt(living.size()));
                 lucky.addBaseMaxHp(3);
                 run.setLastReward("An ancient tonic! " + lucky.getName() + " gains +3 max HP (kept even on a bust).");
             }
         } else {
             List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
             if (!living.isEmpty()) {
-                Combatant owner = living.get(rng.nextInt(living.size()));
-                AbilitySpec find = content.randomCardRewardFor(owner.getElement(), rng);
+                Combatant owner = living.get(rng(run).nextInt(living.size()));
+                AbilitySpec find = content.randomCardRewardFor(owner.getElement(), rng(run));
                 run.getDeckTemplates().add(new SiegeCard(
                         "cache-" + run.getDeckTemplates().size(), owner.getId(), find));
                 run.setLastReward("A buried technique! " + owner.getName() + " learns " + find.name() + " (kept even on a bust).");
@@ -2407,8 +2597,8 @@ public class SiegeService {
     // both frame the puzzle with their own title/prompt/icon. Rewards run through
     // earnGold so the knight's LOOT passive applies, exactly like other caches.
 
-    private String rollPuzzleType() {
-        int r = rng.nextInt(3);
+    private String rollPuzzleType(SiegeRun run) {
+        int r = rng(run).nextInt(3);
         return r == 0 ? "LINE" : r == 1 ? "RPS" : "MATCH";
     }
 
@@ -2422,9 +2612,9 @@ public class SiegeService {
         run.setMinigamePrompt(prompt);
         run.setLastReward("");
         switch (type) {
-            case "LINE" -> run.setMinigameState(SiegePuzzles.generateLine(rng));
-            case "RPS" -> run.setMinigameState(SiegePuzzles.generateRps(rng));
-            default -> run.setMinigameState(SiegePuzzles.generateMatch(rng));
+            case "LINE" -> run.setMinigameState(SiegePuzzles.generateLine(rng(run)));
+            case "RPS" -> run.setMinigameState(SiegePuzzles.generateRps(rng(run)));
+            default -> run.setMinigameState(SiegePuzzles.generateMatch(rng(run)));
         }
     }
 
@@ -2451,7 +2641,7 @@ public class SiegeService {
             throw new IllegalArgumentException(
                     "The circuit isn't solved — every colour must link its runes without crossing or reusing a tile.");
         }
-        int gold = earnGold(run, 40 + rng.nextInt(21)); // 40–60: a large cache-tier reward
+        int gold = earnGold(run, 40 + rng(run).nextInt(21)); // 40–60: a large cache-tier reward
         awardPartyXp(run, SiegeTuning.XP_PUZZLE_PERFECT); // solving the circuit is a perfect clear
         run.setLastReward("Every rune connects — the seal shatters! +" + gold + " gold.");
         endMinigame(run);
@@ -2493,7 +2683,7 @@ public class SiegeService {
             match.over = true;
             match.playerWon = match.playerWins > match.npcWins;
             if (match.playerWon) {
-                int gold = earnGold(run, 30 + rng.nextInt(16)); // 30–45
+                int gold = earnGold(run, 30 + rng(run).nextInt(16)); // 30–45
                 awardPartyXp(run, SiegeTuning.XP_PUZZLE_PERFECT); // winning the match is a clear
                 run.setLastReward("You take the match " + match.playerWins + "–" + match.npcWins
                         + "! The gambler pays up: +" + gold + " gold.");
@@ -2700,7 +2890,7 @@ public class SiegeService {
 
             // Spoils: gold scales with how deep the fight was; elites pay more.
             int floor = node == null ? 1 : node.getRow() % SiegeContentService.SEGMENT_ROWS + 1;
-            int base = 10 + floor * 2 + (wasElite ? 10 : 0) + rng.nextInt(5);
+            int base = 10 + floor * 2 + (wasElite ? 10 : 0) + rng(run).nextInt(5);
             boolean defiantSpoils = (wasElite || wasBoss) && run.hasLandBoon(SiegeLandBoon.DEFIANT_SPOILS);
             if (defiantSpoils && run.getLand() != null && run.getLand().badlands()) grantRandomItem(run);
 
@@ -2762,13 +2952,13 @@ public class SiegeService {
                 joinStagedRecruit(run, " emerges from the battlefield and joins the warband!", true);
             } else if (run.getStatus() == RunStatus.ACTIVE && !wasBoss && !recruitsSuppressed(run)
                     && run.getPendingRewards().stream().noneMatch(r -> "RECRUIT".equals(r.kind()))
-                    && rng.nextInt(100) < SiegeTuning.FULL_WARBAND_WANDERER_PCT) {
+                    && rng(run).nextInt(100) < SiegeTuning.FULL_WARBAND_WANDERER_PCT) {
                 // A full warband still meets the occasional straggler, offered as a
                 // free swap/ally after the spoils pick. Skipped on boss wins (the land
                 // changes under the stall) and when an elite recruit spoil already
                 // covers the same choice.
                 List<String> names = run.getParty().stream().map(Combatant::getName).toList();
-                content.randomStagedRecruit(names, rng, run.getLand()).ifPresent(s -> {
+                content.randomStagedRecruit(names, rng(run), run.getLand()).ifPresent(s -> {
                     openWandererEncounter(run, s);
                     run.setLastReward(run.getLastReward() + " " + s.getName()
                             + " emerges from the battlefield — the warband is full, but you may swap it in.");
@@ -2814,7 +3004,7 @@ public class SiegeService {
     private void appendEndlessSegment(SiegeRun run, SiegeNode bossNode) {
         int startRow = run.getMap().get(run.getMap().size() - 1).getRow() + 1;
         int startId = run.getMap().stream().mapToInt(SiegeNode::getId).max().orElse(0) + 1;
-        List<SiegeNode> extra = content.generateEndlessSegment(startRow, startId, run.getLoop(), rng);
+        List<SiegeNode> extra = content.generateEndlessSegment(startRow, startId, run.getLoop(), rng(run));
         run.getMap().addAll(extra);
         for (SiegeNode n : extra) {
             if (n.getRow() == startRow) bossNode.getNext().add(n.getId());
@@ -2864,7 +3054,7 @@ public class SiegeService {
             coins = (int) Math.round((15 + run.getNodesCleared() * 3 + run.getBossKills() * 20
                     + (won ? 60 : 0) + (int) Math.min(200, run.getScore() / 40)) * mult);
             remnants = (int) Math.round((10 + run.getNodesCleared() * 2 + run.getBossKills() * 10 + (won ? 40 : 0)) * mult);
-            cardPrize = (won || run.getLoop() >= 1) ? content.randomCollectionCard(rng, run.getLand()).orElse(null) : null;
+            cardPrize = (won || run.getLoop() >= 1) ? content.randomCollectionCard(rng(run), run.getLand()).orElse(null) : null;
             out = new LinkedHashMap<>();
             out.put("gold", coins);
             out.put("remnants", remnants);
@@ -3066,7 +3256,7 @@ public class SiegeService {
      */
     private void grantBossReveal(SiegeRun run) {
         List<String> inPlay = run.getParty().stream().map(Combatant::getName).toList();
-        content.randomRevealAtLeastStage(2, inPlay, rng, run.getLand()).ifPresent(s -> {
+        content.randomRevealAtLeastStage(2, inPlay, rng(run), run.getLand()).ifPresent(s -> {
             Map<String, Object> reveal = new LinkedHashMap<>();
             reveal.put("name", s.getName());
             reveal.put("element", s.getElement() == null ? null : s.getElement().name());
@@ -3130,7 +3320,7 @@ public class SiegeService {
         // vanished from the resume prompt (and from every other device).
         run.setOwnerId(user.getId());
         seedStartingKnightBag(run);
-        run.getMap().addAll(content.generateMap(rng, true));
+        run.getMap().addAll(content.generateMap(rng(run), true));
         enterNextLand(run);
         runs.put(token, new Session(run));
         checkpoint(run);
@@ -3166,7 +3356,7 @@ public class SiegeService {
 
     /** Sets a fresh boon offer for the run (excluding already-taken boons) and gates travel until picked. */
     private void offerBoon(SiegeRun run) {
-        List<SiegeBoon> offer = SiegeBoon.offer(run.getBoons(), rng);
+        List<SiegeBoon> offer = SiegeBoon.offer(run.getBoons(), rng(run));
         run.getBoonOffer().clear();
         for (SiegeBoon b : offer) run.getBoonOffer().add(b.id());
         run.setAwaitingBoonPick(!run.getBoonOffer().isEmpty());
@@ -3436,7 +3626,7 @@ public class SiegeService {
         // Offer up to three cards to chisel (upgrade), and allow scrapping any card.
         List<Integer> idxs = new ArrayList<>();
         for (int i = 0; i < deck.size(); i++) idxs.add(i);
-        Collections.shuffle(idxs, rng);
+        Collections.shuffle(idxs, rng(run));
         for (int k = 0; k < Math.min(3, idxs.size()); k++) {
             int idx = idxs.get(k);
             AbilitySpec spec = deck.get(idx).getSpec();
@@ -3529,15 +3719,15 @@ public class SiegeService {
         run.setInCaravan(true);
         run.getCaravanOptions().clear();
         int oid = 0;
-        for (SiegeItem item : content.randomItems(3, rng)) {
+        for (SiegeItem item : content.randomItems(3, rng(run))) {
             int cost = switch (item.kind()) { case "VITALITY" -> 45; case "SHIELD" -> 40; default -> 50; };
             run.getCaravanOptions().add(CampOption.shopItem("v" + (oid++), item, cost));
         }
         // A card and a heal round out the wares.
         List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
         if (!living.isEmpty()) {
-            Combatant owner = living.get(rng.nextInt(living.size()));
-            AbilitySpec spec = content.randomCardRewardFor(owner.getElement(), rng);
+            Combatant owner = living.get(rng(run).nextInt(living.size()));
+            AbilitySpec spec = content.randomCardRewardFor(owner.getElement(), rng(run));
             run.getCaravanOptions().add(CampOption.shopCard("v" + (oid++), spec, owner.getId(), owner.getName(), 30));
         }
         run.getCaravanOptions().add(CampOption.shopHeal("v" + (oid++), 20));
@@ -3590,8 +3780,8 @@ public class SiegeService {
     private void openEvent(SiegeRun run) {
         // Roughly a third of events are actually a warden's puzzle in disguise,
         // framed with a matching event title/prompt instead of a choice list.
-        if (rng.nextInt(100) < (run.getLand() == null ? 35 : 15)) {
-            String type = rollPuzzleType();
+        if (rng(run).nextInt(100) < (run.getLand() == null ? 35 : 15)) {
+            String type = rollPuzzleType(run);
             String title;
             String prompt;
             String icon;
@@ -3615,8 +3805,8 @@ public class SiegeService {
             openPuzzleMinigame(run, type, title, icon, prompt);
             return;
         }
-        SiegeContentService.EventDef def = run.getLand() != null && rng.nextInt(100) < 75
-                ? run.getLand().event() : content.randomEvent(rng);
+        SiegeContentService.EventDef def = run.getLand() != null && rng(run).nextInt(100) < 75
+                ? run.getLand().event() : content.randomEvent(rng(run));
         run.setInEvent(true);
         run.setEventTitle(def.title());
         run.getJournal().retitle(def.title());
@@ -3656,7 +3846,7 @@ public class SiegeService {
                 }
             }
             case "SNEAK" -> {
-                if (rng.nextBoolean()) run.setLastReward("You slip past unseen.");
+                if (rng(run).nextBoolean()) run.setLastReward("You slip past unseen.");
                 else { hurtParty(run, value); run.setLastReward("Caught! The party takes " + value + " damage escaping."); }
             }
             case "HEAL" -> run.setLastReward((pick.desc == null ? "" : pick.desc + " ") + "The party recovers " + healPartyFlat(run, value) + " HP.");
@@ -3678,7 +3868,7 @@ public class SiegeService {
                 } else {
                     // A full warband meets the stranger at a free stall: swap, temporary ally, or gift.
                     List<String> names = run.getParty().stream().map(Combatant::getName).toList();
-                    Optional<SieglingCard> wanderer = content.randomStagedRecruit(names, rng, run.getLand());
+                    Optional<SieglingCard> wanderer = content.randomStagedRecruit(names, rng(run), run.getLand());
                     if (wanderer.isPresent()) {
                         openWandererEncounter(run, wanderer.get());
                         run.setLastReward(wanderer.get().getName() + " wants to travel with you, but the warband is full.");
@@ -3689,7 +3879,7 @@ public class SiegeService {
                 }
             }
             case "SEARCH" -> {
-                int roll = rng.nextInt(100);
+                int roll = rng(run).nextInt(100);
                 if (roll < 45) { SiegeItem it = grantRandomItem(run); run.setLastReward("You find " + (it == null ? "a useful item" : it.name()) + " in the wreckage."); }
                 else if (roll < 70) run.setLastReward("You scavenge " + earnGold(run, 20) + " gold.");
                 else { startedBattle = true; startNodeBattle(run, node, NodeType.BATTLE, true); run.setLastReward("A scavenger's trap — ambush!"); }
@@ -3739,7 +3929,7 @@ public class SiegeService {
         if (node != null) node.setCleared(true);
         // Seed on history size so each Rift in a run is stable across retries but
         // cannot collide with the boss-transition land roll (lands-v1 / bossKills).
-        Random landRng = new Random(java.util.Objects.hash(run.getToken(), run.getLandHistory().size(), "rift-v1"));
+        Random landRng = new Random(java.util.Objects.hash(runKey(run), run.getLandHistory().size(), "rift-v1"));
         SiegeLand next = SiegeLand.roll(run.getLand(), run.getBossKills(), content.defaultPalette(), landRng);
         applyLandChange(run, next, landRng);
         run.setLastReward("The Rift closes. You stand in " + next.name() + ".");
@@ -3939,6 +4129,7 @@ public class SiegeService {
         doc.put("finishedAt", Instant.now());
         doc.put("result", run.getStatus() == RunStatus.WON ? "WIN" : "LOSS");
         doc.put("mode", run.getMode().name());
+        if (run.getChallengeWeek() != null) doc.put("challengeWeek", run.getChallengeWeek());
         doc.put("knightName", run.getKnightName());
         doc.put("knightElement", run.getKnightElement() == null ? null : run.getKnightElement().name());
         doc.put("knightArt", knightArtUrl(run.getKnightId()));
@@ -4142,7 +4333,7 @@ public class SiegeService {
     }
 
     private SiegeItem grantRandomItem(SiegeRun run) {
-        List<SiegeItem> items = content.randomItems(1, rng);
+        List<SiegeItem> items = content.randomItems(1, rng(run));
         if (items.isEmpty()) return null;
         run.getInventory().add(items.get(0).id());
         return items.get(0);
@@ -4165,8 +4356,8 @@ public class SiegeService {
         List<Combatant> living = run.getParty().stream().filter(Combatant::isAlive).toList();
         if (living.isEmpty()) return;
         for (int i = 0; i < 2; i++) {
-            Combatant owner = living.get(rng.nextInt(living.size()));
-            AbilitySpec spec = content.randomCardRewardFor(owner.getElement(), rng);
+            Combatant owner = living.get(rng(run).nextInt(living.size()));
+            AbilitySpec spec = content.randomCardRewardFor(owner.getElement(), rng(run));
             run.getPendingRewards().add(RewardOption.card(
                     "r" + (optId++),
                     spec.name(),
@@ -4182,7 +4373,7 @@ public class SiegeService {
         boolean offerRecruit = elite && !(partyFull && recruitsSuppressed(run));
         if (offerRecruit) {
             List<String> names = run.getParty().stream().map(Combatant::getName).toList();
-            var recruit = content.randomRecruit(names, rng, run.getLand());
+            var recruit = content.randomRecruit(names, rng(run), run.getLand());
             if (recruit.isPresent()) {
                 var s = recruit.get();
                 run.getPendingRewards().add(RewardOption.recruit(
@@ -4196,7 +4387,7 @@ public class SiegeService {
             }
         }
         if (!recruited && !run.getDeckTemplates().isEmpty()) {
-            int idx = rng.nextInt(run.getDeckTemplates().size());
+            int idx = rng(run).nextInt(run.getDeckTemplates().size());
             SiegeCard target = run.getDeckTemplates().get(idx);
             AbilitySpec upgraded = content.upgradeSpec(target.getSpec());
             run.getPendingRewards().add(RewardOption.upgrade(
@@ -4207,7 +4398,7 @@ public class SiegeService {
                     target.getSpec().element(), idx));
         }
         if (run.getLand() != null && "GOLD".equals(run.getLand().perk())) {
-            List<SiegeItem> items = content.randomItems(1, rng);
+            List<SiegeItem> items = content.randomItems(1, rng(run));
             if (!items.isEmpty()) {
                 SiegeItem item = items.get(0);
                 run.getPendingRewards().add(RewardOption.item("r" + (optId++), item.icon() + " " + item.name(), item.effectText(), item.id()));
@@ -4223,11 +4414,11 @@ public class SiegeService {
      * is never a dead pick.
      */
     private void addEvolutionSigilOffer(SiegeRun run, List<Combatant> living, boolean elite, int optId) {
-        if (rng.nextInt(100) >= (elite ? SIGIL_REWARD_CHANCE_ELITE : SIGIL_REWARD_CHANCE)) return;
+        if (rng(run).nextInt(100) >= (elite ? SIGIL_REWARD_CHANCE_ELITE : SIGIL_REWARD_CHANCE)) return;
         boolean stage3 = living.stream().anyMatch(m -> m.getSourceCardId() != null
                 && content.hasStage3EvolutionChain(m.getSourceCardId()));
         // The stage-3 sigil is the rarer prize, and only when someone can use it.
-        String itemId = stage3 && rng.nextInt(100) < SIGIL_REWARD_STAGE3_SHARE
+        String itemId = stage3 && rng(run).nextInt(100) < SIGIL_REWARD_STAGE3_SHARE
                 ? "evolution-2-sigil" : "evolution-sigil";
         boolean usable = living.stream().anyMatch(m -> {
             String cardId = m.getSourceCardId();
@@ -4316,7 +4507,7 @@ public class SiegeService {
 
     Map<String, Object> playCard(String token, String cardInstanceId, String targetId) {
         SiegeRun run = require(token);
-        SiegeCombatEngine.PlayResult result = engine.playCard(run, cardInstanceId, targetId, rng);
+        SiegeCombatEngine.PlayResult result = engine.playCard(run, cardInstanceId, targetId, rng(run));
         checkpoint(run);
         Map<String, Object> out = serialize(run);
         if (!result.ok && result.message != null) out.put("error", result.message);
@@ -4325,7 +4516,7 @@ public class SiegeService {
 
     Map<String, Object> endTurn(String token) {
         SiegeRun run = require(token);
-        engine.endPlayerTurn(run, rng);
+        engine.endPlayerTurn(run, rng(run));
         checkpoint(run);
         return serialize(run);
     }
@@ -4333,7 +4524,7 @@ public class SiegeService {
     /** Fires the Knight Ultimate (not a card; 0 AP; needs 20 Charge). */
     Map<String, Object> knightUltimate(String token) {
         SiegeRun run = require(token);
-        SiegeCombatEngine.PlayResult result = engine.useKnightUltimate(run, rng);
+        SiegeCombatEngine.PlayResult result = engine.useKnightUltimate(run, rng(run));
         checkpoint(run);
         Map<String, Object> out = serialize(run);
         if (!result.ok && result.message != null) out.put("error", result.message);
@@ -4503,10 +4694,12 @@ public class SiegeService {
         m.put("deckSize", run.getDeckTemplates().size());
         m.put("gold", run.getGold());
         m.put("mode", run.getMode().name());
+        if (run.getChallengeWeek() != null) m.put("challengeWeek", run.getChallengeWeek());
+        if (run.getSeed() != null) m.put("seed", Long.toHexString(run.getSeed()).toUpperCase());
         // Which account save this run occupies — the client labels the HUD and the
         // resume prompt from it, so the two modes never read as the same save.
-        m.put("slot", RunSlot.of(run.getMode()).name());
-        m.put("slotLabel", RunSlot.of(run.getMode()).label());
+        m.put("slot", RunSlot.of(run).name());
+        m.put("slotLabel", RunSlot.of(run).label());
         // The live tally is synced on every response so falls and revives from any
         // source (combat, traps, events, camp) are caught where they happened.
         run.getScoreTally().syncWarband(run);

@@ -90,7 +90,9 @@ enum RunMode { STANDARD, ENDLESS, BATTLEGROUNDS }
 enum RunSlot {
     EXPEDITION("siege", "Siege Expedition"),
     BATTLEGROUNDS("bg", "Battlegrounds"),
-    ENDLESS("endless", "Endless Siege");
+    ENDLESS("endless", "Endless Siege"),
+    /** The weekly seeded Endless run: its own save, so it never displaces a player's own Endless run. */
+    CHALLENGE("weekly", "Weekly Challenge");
 
     private final String suffix;
     private final String label;
@@ -106,6 +108,11 @@ enum RunSlot {
     static RunSlot of(RunMode mode) {
         if (mode == RunMode.BATTLEGROUNDS) return BATTLEGROUNDS;
         return mode == RunMode.ENDLESS ? ENDLESS : EXPEDITION;
+    }
+
+    /** A weekly challenge run is Endless by mode but keeps its own save. */
+    static RunSlot of(SiegeRun run) {
+        return run.getChallengeWeek() != null ? CHALLENGE : of(run.getMode());
     }
 
     /** The slot an older build saved this mode's runs in, when that differs from {@link #of}. */

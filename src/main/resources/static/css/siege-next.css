@@ -955,3 +955,35 @@ body[data-screen="resumeScreen"] .siege-topbar { display: none; }
     #setupScreen .setup-footer.sn-dock::before { inset: -30px 0 0; }
     #setupScreen .setup-footer.sn-dock .setup-summary { font-size: 12px; }
 }
+
+/* Music: the hub's player in the top bar, beside the run menu, in every Siege
+   mode. The panel itself is hub-music.css. */
+.siege-music-btn {
+  width:32px; height:32px; flex:0 0 auto; margin-left:auto; padding:0; border-radius:50%;
+  display:grid; place-items:center; cursor:pointer;
+  border:1px solid rgba(230,205,140,.45); background:rgba(10,16,28,.72); color:#e6cd8c;
+  -webkit-tap-highlight-color:transparent;
+}
+.siege-music-btn + .siege-abandon { margin-left:8px; }
+.siege-music-btn.is-playing { box-shadow:0 0 10px rgba(230,205,140,.45); }
+.siege-music-btn.is-muted { opacity:.55; }
+.siege-music-btn[aria-expanded="true"] { background:#e6cd8c; color:#1a1208; }
+.siege-music-btn:active { transform:scale(.94); }
+/* On the map the mode badge already takes the auto margin. */
+body[data-screen="mapScreen"] .siege-music-btn { margin-left:0; }
+
+/* ---- Weekly Challenge ----
+   The seeded run from Events. Its accent is the gold of a trophy, kept apart
+   from Endless' cyan where both plates stand on the resume screen. */
+.run-slot-badge.weekly {
+    color: #ffd36b;
+    background: rgba(255, 211, 107, .12);
+    border: 1px solid rgba(255, 211, 107, .5);
+}
+.resume-save-head .run-slot-badge.weekly { background: rgba(13, 10, 38, .62); }
+.resume-save.weekly {
+    --save-accent: #ffd36b;
+    border-left-color: var(--border);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .45);
+    background-image: url('/img/gallery/bearzooka-rampage.webp');
+}

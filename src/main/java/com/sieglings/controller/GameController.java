@@ -81,6 +81,9 @@ public class GameController {
     private TournamentService tournamentService;
 
     @Autowired
+    private com.sieglings.service.DailyBattleService dailyBattleService;
+
+    @Autowired
     private PlayerProgressionService playerProgressionService;
 
     @Autowired
@@ -415,7 +418,15 @@ public class GameController {
                 // Battle is a flat-power mode: SiegeKnight levels do not apply here. The
                 // leveling glue (withPlayerTrainerLevel) is kept for the upcoming Siege
                 // roguelike mode, where levels will carry into every fight.
-                handle = gameService.newSoloGame(options, resolvedName);
+                if (Boolean.TRUE.equals(req == null ? null : req.get("dailyBattle"))) {
+                    // The opponent is the day's, chosen on the server: the client only asks.
+                    com.sieglings.service.DailyBattleService.Entry daily = dailyBattleService.today(java.time.Instant.now());
+                    Object rival = dailyBattleService.describe(daily).get("opponentName");
+                    handle = gameService.newDailyBattleGame(options, resolvedName, daily.deckId(), daily.trainerId(),
+                            rival == null ? null : String.valueOf(rival));
+                } else {
+                    handle = gameService.newSoloGame(options, resolvedName);
+                }
             }
             attachAuthenticatedSoloUser(handle.state(), authorizationHeader);
             Map<String, Object> resp = new LinkedHashMap<>(buildStateResponse(handle.state(), true, null));

@@ -1,0 +1,258 @@
+/* Play one-pager, Events, and the separate Lobbies and Tournaments pages.
+   Loaded after home-redesign.css and hub-workspaces.css on purpose: the Play
+   rules here replace their mode-plate layouts. */
+
+.sg-app[data-screen="events"] { --hub-glow:#7b4fd6; --hub-glow-two:#1f8a9e; }
+.sg-app[data-screen="tournaments"] { --hub-glow:#c48a2a; --hub-glow-two:#7a2f5c; }
+.sg-app[data-screen="lobbies"] { --hub-glow:#b86b3c; --hub-glow-two:#2e7a4f; }
+
+/* ==========================================================================
+   PLAY: four ways to play on one screen
+   Portrait phones: Arena and Siege share the top row, Dominion and Events
+   run full width beneath; the rows split whatever height the screen has, so
+   nothing scrolls. Landscape and desktop: one row of four.
+   ========================================================================== */
+.sg-app[data-screen="play"] .sg-mode-events .sg-mode-tag { white-space:normal; }
+@media (orientation:portrait) and (max-width:1023px) {
+  .sg-app[data-screen="play"] > .sg-scroll.sg-play-onepage {
+    position:absolute; left:0; right:0; overflow:hidden; padding:0; display:flex;
+    top:calc(56px + var(--sg-sat, 0px));
+    /* Stops above the shield FAB, which sits centred on the bottom edge. */
+    bottom:calc(var(--sn-fab-bottom, 13px) + var(--sn-fab-size, 62px) + 10px);
+  }
+  .sg-play-onepage .sg-modes {
+    flex:1 1 auto; min-height:0; margin:0; padding:4px 14px 0;
+    display:grid; grid-template-columns:repeat(2, minmax(0, 1fr));
+    grid-template-rows:minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1.05fr); gap:10px;
+  }
+  .sg-play-onepage :is(.sg-mode, .sg-mode.is-primary) { height:auto; min-height:0; }
+  .sg-play-onepage :is(.sg-mode-dominion, .sg-mode-events) { grid-column:1 / -1; }
+  /* Full-width plates read like banners: copy on the left over the art. */
+  .sg-play-onepage :is(.sg-mode-dominion, .sg-mode-events) .sg-mode-body { max-width:78%; padding-bottom:52px; }
+  .sg-play-onepage .sg-mode-body p { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .sg-play-onepage .sg-mode-tag { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+}
+/* Short phones: the line under each title goes before the plates crowd. */
+@media (orientation:portrait) and (max-width:1023px) and (max-height:700px) {
+  .sg-play-onepage .sg-mode-body p { display:none; }
+  .sg-play-onepage .sg-modes { gap:8px; }
+}
+@media (min-width:1024px), (orientation:landscape) {
+  .sg-app[data-screen="play"] > .sg-scroll.sg-play-onepage { grid-template-columns:1fr; grid-template-rows:minmax(0, 1fr); }
+  .sg-app[data-screen="play"] .sg-play-onepage .sg-modes { grid-template-columns:repeat(4, minmax(0, 1fr)); grid-template-rows:minmax(0, 1fr); }
+  .sg-app[data-screen="play"] .sg-play-onepage .sg-mode { grid-column:auto; }
+}
+
+/* ==========================================================================
+   EVENTS
+   ========================================================================== */
+.sg-app[data-screen="events"] .sg-scroll,
+.sg-app[data-screen="tournaments"] .sg-scroll { padding-top:calc(58px + var(--sg-sat, 0px)); }
+.sg-events { padding-bottom:110px; }
+.sg-events-head { padding:6px 18px 12px; }
+.sg-events-head span { font-size:10px; font-weight:800; letter-spacing:.24em; text-transform:uppercase; color:var(--gold-bright); }
+.sg-events-head h2 { margin:2px 0 0; font-family:var(--serif); font-size:28px; font-weight:600; color:#fff; }
+
+.sg-ev {
+  --el:var(--gold);
+  position:relative; isolation:isolate; overflow:hidden; margin:0 18px 16px; border-radius:24px; min-height:260px;
+  background:#121a36; border:1px solid color-mix(in srgb, var(--el) 55%, transparent);
+  box-shadow:0 20px 44px rgba(0,0,0,.45), 0 0 40px color-mix(in srgb, var(--el) 20%, transparent);
+}
+.sg-ev-loading { padding:40px 22px; font-size:13px; color:var(--muted); }
+.sg-ev-bg {
+  position:absolute; inset:0; z-index:-2; background-size:cover; background-position:center;
+  filter:saturate(1.25) brightness(.8); animation:sgTourDrift 24s ease-in-out infinite alternate;
+}
+.sg-ev-veil {
+  position:absolute; inset:0; z-index:-1;
+  background:
+    radial-gradient(ellipse 60% 80% at 100% 10%, color-mix(in srgb, var(--el) 36%, transparent), transparent 70%),
+    linear-gradient(100deg, rgba(8,14,32,.95) 0%, rgba(8,14,32,.78) 50%, rgba(8,14,32,.2) 100%);
+}
+.sg-ev-body { position:relative; padding:20px; display:flex; flex-direction:column; gap:6px; max-width:62%; }
+.sg-ev-kicker { font-size:10px; font-weight:800; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-bright); }
+.sg-ev-kicker b { color:#fff; letter-spacing:.1em; }
+.sg-ev h3 { margin:2px 0 0; font-family:var(--serif); font-size:30px; font-weight:600; line-height:1.05; color:#fff; text-shadow:0 4px 18px rgba(0,0,0,.6); }
+.sg-ev-sub { margin:0; font-size:12.5px; color:#d8d2f0; }
+.sg-ev-star {
+  display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 8px; margin:6px 0 0; padding:7px 12px; align-self:flex-start;
+  border-radius:12px; background:rgba(8,14,32,.6); border:1px solid color-mix(in srgb, var(--el) 60%, transparent);
+}
+.sg-ev-star span { font-size:9px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+.sg-ev-star strong { font-family:var(--serif); font-size:16px; color:#fff; }
+.sg-ev-star em { font-style:normal; font-size:10.5px; font-weight:700; color:color-mix(in srgb, var(--el) 50%, #fff); }
+.sg-ev-blurb { margin:2px 0 0; font-size:12px; color:#c8c2e4; }
+.sg-ev-cta { display:flex; align-items:center; flex-wrap:wrap; gap:8px 14px; margin-top:12px; }
+.sg-app a.sg-ev-go {
+  display:inline-flex; align-items:center; height:44px; padding:0 24px; border-radius:999px; text-decoration:none;
+  font-weight:800; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#2b0d02;
+  background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
+  box-shadow:0 10px 26px rgba(255,120,45,.42), 0 0 0 1px rgba(255,236,190,.7) inset;
+}
+.sg-app a.sg-ev-go:active { transform:translateY(1px); }
+.sg-ev-next, .sg-ev-seed { font-size:11.5px; font-weight:700; color:#fff; text-shadow:0 1px 3px #000; }
+.sg-ev-seed { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:10.5px; color:var(--muted); }
+
+/* Daily Battle: the rival's strongest card stands at the right, over the land. */
+.sg-ev-feature {
+  position:absolute; right:-2%; bottom:0; width:46%; height:100%; z-index:-1;
+  display:flex; align-items:flex-end; justify-content:center; pointer-events:none;
+}
+.sg-ev-feature img {
+  width:100%; height:92%; object-fit:contain; object-position:center bottom;
+  filter:drop-shadow(0 14px 22px rgba(0,0,0,.7)) drop-shadow(0 0 24px color-mix(in srgb, var(--el) 45%, transparent));
+  animation:sgEvFloat 6s ease-in-out infinite alternate;
+}
+@keyframes sgEvFloat { from { transform:translateY(0); } to { transform:translateY(-8px); } }
+
+/* Weekly Challenge: the set team as chips, the board beside or below. */
+.sg-ev-weekly { display:flex; flex-direction:column; }
+.sg-ev-weekly .sg-ev-body { max-width:none; }
+.sg-ev-team { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.sg-ev-unit {
+  display:flex; flex-direction:column; align-items:center; gap:3px; width:62px;
+}
+.sg-ev-unit img, .sg-ev-unit i {
+  width:56px; height:56px; border-radius:14px; object-fit:cover; display:block;
+  background:color-mix(in srgb, var(--el) 30%, #0d1a24); border:1.5px solid color-mix(in srgb, var(--el) 70%, #fff);
+  box-shadow:0 4px 12px rgba(0,0,0,.45);
+}
+.sg-ev-unit.is-knight img, .sg-ev-unit.is-knight i { border-color:var(--gold-bright); box-shadow:0 0 0 2px rgba(230,205,140,.35), 0 4px 12px rgba(0,0,0,.45); }
+.sg-ev-unit em { max-width:100%; font-style:normal; font-size:10px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-ev-board { position:relative; margin:0 14px 14px; padding:12px 14px; border-radius:16px; background:rgba(8,14,32,.72); border:1px solid rgba(255,255,255,.12); }
+.sg-ev-board-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; }
+.sg-ev-board-head strong { font-family:var(--serif); font-size:16px; color:#fff; }
+.sg-ev-board-head em { font-style:normal; font-size:11px; color:var(--muted); }
+.sg-ev-rows { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; }
+.sg-ev-rows li { display:flex; align-items:center; gap:10px; padding:6px 10px; border-radius:10px; background:rgba(255,255,255,.05); }
+.sg-ev-rows li span { width:24px; text-align:center; font-weight:800; color:var(--muted); }
+.sg-ev-rows li strong { flex:1 1 auto; min-width:0; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-ev-rows li b { font-family:var(--serif); font-size:16px; color:var(--gold-bright); }
+.sg-ev-rows li.p1 { background:rgba(255,216,61,.14); }
+.sg-ev-me { margin-top:8px; font-size:12px; font-weight:700; color:#9fe4ff; }
+.sg-ev-me.is-guest { color:var(--muted); font-weight:600; }
+
+.sg-ev-pair { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; margin:0 18px; }
+.sg-app a.sg-ev-tile {
+  position:relative; isolation:isolate; overflow:hidden; display:flex; align-items:flex-end; min-height:150px; border-radius:20px;
+  text-decoration:none; color:#fff; border:1px solid rgba(255,255,255,.18); box-shadow:0 12px 28px rgba(0,0,0,.4);
+}
+.sg-ev-tile img { position:absolute; inset:0; z-index:-2; width:100%; height:100%; object-fit:cover; }
+.sg-ev-tile-veil { position:absolute; inset:0; z-index:-1; background:linear-gradient(180deg, rgba(8,14,32,.1) 20%, rgba(8,14,32,.92) 100%); }
+.sg-ev-tile.is-tour .sg-ev-tile-veil { background:linear-gradient(180deg, rgba(60,30,10,.05) 20%, rgba(40,16,30,.94) 100%); }
+.sg-ev-tile-body { display:flex; flex-direction:column; gap:2px; padding:12px 14px; min-width:0; }
+.sg-ev-tile-body em { font-style:normal; font-size:9.5px; font-weight:800; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-bright); }
+.sg-ev-tile-body strong { font-family:var(--serif); font-size:18px; line-height:1.1; }
+.sg-ev-tile-body b { font-size:11px; font-weight:700; color:#d8d2f0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-app a.sg-ev-tile:active { transform:translateY(1px); }
+
+@media (max-width:420px) {
+  .sg-ev-body { max-width:68%; padding:18px 16px; }
+  .sg-ev h3 { font-size:26px; }
+  .sg-ev-weekly .sg-ev-body { max-width:none; }
+}
+/* Wide screens: the two events side by side, the doors to Lobbies and
+   Tournaments in one row beneath. */
+@media (min-width:1024px), (orientation:landscape) and (min-width:700px) {
+  .sg-events { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:18px; padding:calc(58px + var(--sg-sat, 0px)) 24px 120px; align-content:start; }
+  .sg-events-head, .sg-ev-pair { grid-column:1 / -1; }
+  .sg-events-head { padding:0; }
+  .sg-ev, .sg-ev-pair { margin:0; }
+  .sg-ev { min-height:340px; }
+  .sg-ev-pair { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .sg-app a.sg-ev-tile { min-height:170px; }
+}
+@media (prefers-reduced-motion:reduce) { .sg-ev-bg, .sg-ev-feature img { animation:none; } }
+
+/* ==========================================================================
+   LOBBIES: a hall of tables
+   ========================================================================== */
+.sg-hall { padding-bottom:110px; }
+.sg-hall-hero {
+  position:relative; isolation:isolate; overflow:hidden; margin:4px 18px 18px; border-radius:24px; min-height:220px;
+  border:1px solid rgba(255,190,120,.4); box-shadow:0 20px 44px rgba(0,0,0,.45), 0 0 36px rgba(184,107,60,.25);
+}
+.sg-hall-hero-art { position:absolute; inset:0; z-index:-2; width:100%; height:100%; object-fit:cover; object-position:30% 40%; }
+.sg-hall-hero-veil { position:absolute; inset:0; z-index:-1; background:linear-gradient(100deg, rgba(30,14,6,.94) 0%, rgba(30,14,6,.7) 55%, rgba(30,14,6,.15) 100%); }
+.sg-hall-hero-body { padding:20px; display:flex; flex-direction:column; gap:6px; max-width:560px; }
+.sg-hall-kicker { font-size:10px; font-weight:800; letter-spacing:.2em; text-transform:uppercase; color:#ffcf8a; }
+.sg-hall-kicker b { color:#fff; }
+.sg-hall-hero h2 { margin:0; font-family:var(--serif); font-size:30px; font-weight:600; color:#fff; }
+.sg-hall-hero p { margin:0; font-size:13px; color:#f1dcc6; }
+.sg-hall-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.sg-hall-tables .sg-section-head { display:flex; align-items:baseline; justify-content:space-between; padding:0 18px 10px; }
+.sg-hall-tables .sg-section-head h3 { margin:0; }
+.sg-app a.sg-hall-cross, .sg-app a.sg-arena-cross {
+  font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--gold-bright); text-decoration:none;
+}
+@media (orientation:landscape) and (max-height:600px) {
+  /* The old combined page laid this screen out as a pinned two-column grid. */
+  .sg-app[data-screen="lobbies"] > .sg-scroll.sg-hall { display:block; overflow-y:auto; padding:calc(52px + var(--sg-sat, 0px)) max(14px, env(safe-area-inset-right, 0px)) 90px max(14px, env(safe-area-inset-left, 0px)); }
+  .sg-hall-hero { display:block; margin:0 0 14px; min-height:0; }
+  .sg-hall-hero-body { padding:14px 18px; }
+  .sg-hall-hero h2 { font-size:24px; }
+  .sg-hall-tables .sg-section-head { padding:0 0 8px; }
+  .sg-app[data-screen="lobbies"] .sg-hall .sg-lobbies-grid { padding:0; }
+}
+@media (min-width:1024px) {
+  .sg-hall { max-width:1240px; margin-inline:auto; }
+  .sg-hall-hero { min-height:280px; }
+  .sg-hall-hero-body { padding:34px; }
+  .sg-hall-hero h2 { font-size:40px; }
+}
+
+/* ==========================================================================
+   TOURNAMENTS: an arena of its own
+   ========================================================================== */
+.sg-arena-hall { --el:var(--gold); padding-bottom:110px; }
+.sg-arena-banner { min-height:300px; }
+.sg-arena-banner::after {
+  content:''; position:absolute; left:0; right:0; bottom:0; height:6px;
+  background:repeating-linear-gradient(90deg, var(--gold-bright) 0 18px, transparent 18px 28px); opacity:.55;
+}
+.sg-arena-podium[hidden] { display:none; }
+.sg-arena-podium {
+  display:flex; align-items:flex-end; justify-content:center; gap:10px; margin:6px 18px 18px; padding-top:8px;
+}
+.sg-pod { flex:0 1 112px; display:flex; flex-direction:column; align-items:center; gap:2px; min-width:0; text-align:center; }
+.sg-pod-medal { font-size:26px; }
+.sg-pod strong { max-width:100%; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-pod em { font-style:normal; font-size:11px; color:var(--gold-bright); }
+.sg-pod-step {
+  display:grid; place-items:center; width:100%; margin-top:6px; border-radius:12px 12px 4px 4px;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--pod) 55%, #2a1d10), rgba(20,12,8,.9));
+  border:1px solid color-mix(in srgb, var(--pod) 70%, transparent);
+}
+.sg-pod-step b { font-family:var(--serif); font-size:22px; color:#fff; }
+.sg-pod.p1 { --pod:#ffd83d; } .sg-pod.p1 .sg-pod-step { height:86px; }
+.sg-pod.p2 { --pod:#d6dbe8; } .sg-pod.p2 .sg-pod-step { height:62px; }
+.sg-pod.p3 { --pod:#e08a4a; } .sg-pod.p3 .sg-pod-step { height:46px; }
+.sg-app a.sg-arena-cross { display:block; margin:18px; text-align:center; }
+/* Portrait reads banner, standings, then the week ahead. */
+.sg-arena-main, .sg-arena-side { display:contents; }
+.sg-arena-main > .sg-tour-next { order:3; }
+.sg-arena-hall { display:flex; flex-direction:column; }
+.sg-arena-hall > .sg-arena-cross { order:4; }
+@media (min-width:1024px) {
+  .sg-arena-hall {
+    display:grid; grid-template-columns:minmax(0, 1.2fr) minmax(0, 1fr); gap:0 28px; align-content:start;
+    width:100%; max-width:none; box-sizing:border-box;
+    padding-inline:max(28px, calc((100% - 1360px) / 2));
+  }
+  .sg-arena-main, .sg-arena-side { display:block; min-width:0; }
+  .sg-arena-side { padding-top:52px; }
+  .sg-arena-hall > .sg-arena-cross { grid-column:1 / -1; }
+  .sg-arena-banner { margin:4px 0 18px; min-height:400px; }
+  .sg-arena-hall .sg-tour-body { padding:34px; max-width:640px; }
+  .sg-arena-hall .sg-tour-body h2 { font-size:46px; }
+  .sg-arena-side .sg-arena-podium { margin:4px 0 14px; }
+  .sg-arena-hall .sg-lobbies-claims, .sg-arena-hall .sg-tour-rows,
+  .sg-arena-hall .sg-tour-next-list { margin-inline:0; padding-inline:0; }
+  .sg-arena-hall .sg-section-head { padding-inline:0; }
+}
+}
+/* A card without art yet: its element emblem, smaller, glowing in its colour. */
+.sg-ev-feature.is-emblem { align-items:center; }
+.sg-ev-feature.is-emblem img { width:62%; height:auto; aspect-ratio:1; opacity:.92; }
+.sg-ev-unit img.is-emblem { object-fit:contain; padding:8px; box-sizing:border-box; }

@@ -547,12 +547,14 @@
     // Sign-in used to leave the new design entirely: /login forwarded to the old
     // hub, so tapping Sign In dropped the player onto the page this redesign
     // replaced. It is a screen here now.
-    '/login': 'auth', '/lobbies': 'lobbies', '/gallery': 'art'
+    '/login': 'auth', '/lobbies': 'lobbies', '/gallery': 'art',
+    '/events': 'events', '/tournaments': 'tournaments'
   };
   var SCREEN_PATH = {
     home: '/home', collection: '/cards', decks: '/decks', builder: '/deck-builder',
     shop: '/shop', profile: '/profile', social: '/social', settings: '/settings',
-    help: '/help', play: '/home', auth: '/login', art: '/gallery', lobbies: '/lobbies'
+    help: '/help', play: '/home', auth: '/login', art: '/gallery', lobbies: '/lobbies',
+    events: '/events', tournaments: '/tournaments'
   };
   function screenForPath(pathname) {
     var clean = String(pathname || '/home').replace(/\/+$/, '') || '/home';
@@ -578,7 +580,7 @@
     'Decks': 'decks', 'Shop': 'shop', 'Profile': 'profile', 'Play': 'play',
     'Deck Builder': 'builder', 'Social': 'social', 'Settings': 'settings', 'Help': 'help',
     'Sign In': 'auth', 'Create Account': 'auth', 'Log In': 'auth', 'Register': 'auth',
-    'Gallery': 'art'
+    'Gallery': 'art', 'Events': 'events', 'Lobbies': 'lobbies', 'Tournaments': 'tournaments'
   };
   var EXTERNAL = {
     'Arena': '/battle', 'Battle': '/battle', 'Siege': '/siege', 'Gauntlet': '/gauntlet', 'Keep': '/keep', 'Chronicles': '/chronicles', 'Dominion': '/dominion',
@@ -1601,18 +1603,33 @@
         return '<div class="sg-stage-chat-empty">Sign in to message your friends.' +
           '<a href="/login" data-screen="auth">Sign In</a></div>';
       }
-      var threads = ((opts.live && opts.live.threads) || []).slice(0, 6);
-      if (!threads.length) {
-        return '<div class="sg-stage-chat-empty">No messages yet.' +
+      // Conversations first, then friends with no conversation yet (online
+      // ones on top) so a chat can be started from Home too. Rows open the
+      // conversation in place; nothing leaves Home.
+      var threads = (opts.live && opts.live.threads) || [];
+      var talked = {};
+      threads.forEach(function (t) { talked[t.peerId] = true; });
+      var fresh = ((opts.live && opts.live.friends) || []).filter(function (f) {
+        return !talked[f.id || f.userId];
+      }).sort(function (a, b) {
+        return Number(Boolean(b.presence && b.presence.online)) - Number(Boolean(a.presence && a.presence.online));
+      });
+      if (!threads.length && !fresh.length) {
+        return '<div class="sg-stage-chat-empty">No friends to chat with yet.' +
           '<a href="/social" data-screen="social" data-social-goto="friends">Find friends</a></div>';
       }
+      function row(id, name, line, unread, online) {
+        return '<button type="button" class="sg-stage-chat-row' + (unread ? ' is-unread' : '') + '" ' +
+          'data-chat-open="' + esc(id) + '" data-chat-name="' + esc(name) + '">' +
+          '<span class="sg-friend-crest' + (online ? ' is-on' : '') + '">' + esc(String(name).charAt(0).toUpperCase()) + '</span>' +
+          '<span class="sg-stage-chat-line"><b>' + esc(name) + '</b><em>' + esc(line) + '</em></span>' +
+          (unread ? '<i class="sg-thread-dot" aria-label="Unread"></i>' : '') + '</button>';
+      }
       return threads.map(function (t) {
-        var name = threadPeerName(opts, t.peerId);
-        return '<a class="sg-stage-chat-row' + (t.unread ? ' is-unread' : '') + '" href="/social" data-screen="social" ' +
-          'data-social-goto="messages" data-thread-goto="' + esc(t.peerId) + '" data-thread-name="' + esc(name) + '">' +
-          '<span class="sg-friend-crest">' + esc(String(name).charAt(0).toUpperCase()) + '</span>' +
-          '<span class="sg-stage-chat-line"><b>' + esc(name) + '</b><em>' + esc(t.lastMessage || '') + '</em></span>' +
-          (t.unread ? '<i class="sg-thread-dot" aria-label="Unread"></i>' : '') + '</a>';
+        return row(t.peerId, threadPeerName(opts, t.peerId), t.lastMessage || '', t.unread, false);
+      }).join('') + fresh.map(function (f) {
+        var online = f.presence && f.presence.online;
+        return row(f.id || f.userId, friendName(f), online ? 'Online · say hello' : 'Start a chat', false, online);
       }).join('');
     }
     if (tab === 'guild') {
@@ -1620,6 +1637,38 @@
         '<a href="/dominion">Open Dominion</a></div>';
     }
     return '<div class="sg-stage-chat-empty">Global chat isn’t open yet. Every Siegelord online will talk here.</div>';
+  }
+
+  // A conversation opened inside Home's chat panel. Each channel kind names
+  // how it loads and sends, so the global channel slots in as one more entry
+  // once the server has one; until then only direct messages are wired.
+  var STAGE_CHAT_CHANNELS = {
+    dm: {
+      load: function (api, id) { return api.get('/api/social/messages/with/' + encodeURIComponent(id)); },
+      send: function (api, id, text) { return api.post('/api/social/messages/send', { recipientId: id, text: text }); }
+    }
+  };
+
+  function stageConvoMarkup(convo) {
+    return '<div class="sg-stage-convo" data-chat-convo>' +
+      '<header><button type="button" class="sg-stage-convo-back" data-chat-back aria-label="Back to conversations">‹</button>' +
+        '<strong>' + esc(convo.name) + '</strong>' +
+        (convo.kind === 'dm' ? '<a href="/social" data-screen="social" data-social-goto="messages" ' +
+          'data-thread-goto="' + esc(convo.id) + '" data-thread-name="' + esc(convo.name) + '">Messages ›</a>' : '') +
+      '</header>' +
+      '<div class="sg-stage-convo-log" data-chat-log aria-live="polite"><div class="sg-stage-chat-empty">Loading…</div></div>' +
+      '<form class="sg-stage-convo-send" data-chat-send>' +
+        '<input type="text" maxlength="500" autocomplete="off" enterkeyhint="send" placeholder="Message ' + esc(convo.name) + '" aria-label="Message">' +
+        '<button type="submit" aria-label="Send"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5z"/></svg></button>' +
+      '</form>' +
+    '</div>';
+  }
+
+  function stageMessagesHtml(messages) {
+    if (!messages.length) return '<div class="sg-stage-chat-empty">No messages yet. Say hello.</div>';
+    return messages.map(function (m) {
+      return '<div class="sg-msg' + (m.mine ? ' is-mine' : '') + '"><span>' + esc(m.text || '') + '</span></div>';
+    }).join('');
   }
 
   function stageChatMarkup(opts) {
@@ -1647,6 +1696,7 @@
     var chatToggles = [].slice.call(wrap.querySelectorAll('[data-chat-toggle]'));
     var bankToggle = wrap.querySelector('[data-bank-toggle]');
     var bell = wrap.querySelector('[data-notif-toggle]');
+    var body = null, convo = null, poll = null, lastHtml = '';
 
     // Chat, bank and the profile bubble share the space under the strip, so
     // opening one closes the others. Everything starts closed: Home is the art.
@@ -1658,6 +1708,8 @@
       if (bankToggle) bankToggle.setAttribute('aria-expanded', String(which === 'bank'));
       if (face) face.setAttribute('aria-expanded', String(which === 'pop'));
       wrap.setAttribute('data-open', which || '');
+      // Folding the chat away leaves its conversation; it reopens on the list.
+      if (which !== 'chat' && convo) { showList(); refreshInbox(); }
     }
     function current() { return wrap.getAttribute('data-open') || ''; }
     function toggle(which) { show(current() === which ? '' : which); }
@@ -1685,18 +1737,121 @@
       if (!wrap.contains(e.target) && (current() === 'pop' || current() === 'bank')) show('');
     });
 
-    if (chat) chat.addEventListener('click', function (e) {
-      var btn = e.target.closest && e.target.closest('[data-chat-tab]');
-      if (!btn) return;
-      var tab = btn.getAttribute('data-chat-tab');
-      try { localStorage.setItem(STAGE_CHAT_KEY, tab); } catch (err) { /* private mode */ }
-      [].forEach.call(chat.querySelectorAll('[data-chat-tab]'), function (b) {
-        var on = b === btn;
-        b.classList.toggle('on', on);
-        b.setAttribute('aria-selected', String(on));
+    if (!chat) return;
+    body = chat.querySelector('[data-chat-body]');
+
+    function stopPoll() { if (poll) { clearInterval(poll); poll = null; } }
+    function activeTab() {
+      var on = chat.querySelector('[data-chat-tab].on');
+      return on ? on.getAttribute('data-chat-tab') : 'friends';
+    }
+    function showList() {
+      stopPoll();
+      convo = null;
+      chat.classList.remove('is-convo');
+      body.innerHTML = stageChatBody(opts, activeTab());
+    }
+    function loadConvo(scrollToEnd) {
+      var api = liveApi();
+      var c = convo;
+      if (!api || !c) return;
+      STAGE_CHAT_CHANNELS[c.kind].load(api, c.id).then(function (res) {
+        var log = body.querySelector('[data-chat-log]');
+        if (!log || convo !== c) return;
+        var html = res && res.error
+          ? '<div class="sg-stage-chat-empty">' + esc(res.error) + '</div>'
+          : stageMessagesHtml((res && res.messages) || []);
+        // Repainting an unchanged log under the poll would fight the
+        // player's own scrolling.
+        if (html !== lastHtml) { log.innerHTML = html; lastHtml = html; log.scrollTop = log.scrollHeight; }
+        else if (scrollToEnd) log.scrollTop = log.scrollHeight;
       });
-      chat.querySelector('[data-chat-body]').innerHTML = stageChatBody(opts, tab);
+    }
+    function openConvo(kind, id, name) {
+      convo = { kind: kind, id: id, name: name };
+      lastHtml = '';
+      chat.classList.add('is-convo');
+      body.innerHTML = stageConvoMarkup(convo);
+      loadConvo(true);
+      stopPoll();
+      // Polled like the Messages screen; it stops itself once the panel is
+      // closed, the conversation left, or Home re-rendered.
+      poll = setInterval(function () {
+        if (!stage.isConnected || chat.hidden || !convo) return stopPoll();
+        loadConvo(false);
+      }, 5000);
+      var field = body.querySelector('input');
+      // Focusing straight away would raise the phone keyboard over the art
+      // before the player has read anything; desktop gets the cursor.
+      if (field && window.matchMedia && window.matchMedia('(hover:hover)').matches) field.focus();
+    }
+    // Leaving a conversation re-reads the inbox so the row just read stops
+    // claiming to be unread, and the tab and bubble badges follow.
+    function refreshInbox() {
+      var api = liveApi();
+      if (!api || opts.guest) return;
+      api.get('/api/social/messages/threads').then(function (res) {
+        if (!res || res.error || !opts.live) return;
+        opts.live.threads = res.threads || [];
+        var n = unreadThreadCount(opts);
+        [].forEach.call(wrap.querySelectorAll('[aria-controls="sgStageChat"] .sg-stage-badge, [data-chat-tab="friends"] .sg-stage-badge'), function (b) {
+          if (n) b.textContent = n > 9 ? '9+' : String(n); else b.remove();
+        });
+        if (!convo && activeTab() === 'friends') body.innerHTML = stageChatBody(opts, 'friends');
+      });
+    }
+
+    chat.addEventListener('click', function (e) {
+      var btn = e.target.closest && e.target.closest('[data-chat-tab]');
+      if (btn) {
+        var tab = btn.getAttribute('data-chat-tab');
+        try { localStorage.setItem(STAGE_CHAT_KEY, tab); } catch (err) { /* private mode */ }
+        [].forEach.call(chat.querySelectorAll('[data-chat-tab]'), function (b) {
+          var on = b === btn;
+          b.classList.toggle('on', on);
+          b.setAttribute('aria-selected', String(on));
+        });
+        showList();
+        return;
+      }
+      var open = e.target.closest && e.target.closest('[data-chat-open]');
+      if (open) {
+        openConvo('dm', open.getAttribute('data-chat-open'), open.getAttribute('data-chat-name') || 'Player');
+        return;
+      }
+      if (e.target.closest && e.target.closest('[data-chat-back]')) { showList(); refreshInbox(); }
     });
+
+    chat.addEventListener('submit', function (e) {
+      if (!e.target.matches('[data-chat-send]')) return;
+      e.preventDefault();
+      var api = liveApi();
+      var field = e.target.querySelector('input');
+      var text = (field.value || '').trim();
+      var c = convo;
+      if (!api || !c || !text) return;
+      // Cleared before the request so an impatient second tap cannot send it
+      // twice; shown at once, then the server's copy replaces it.
+      field.value = '';
+      var log = body.querySelector('[data-chat-log]');
+      if (log) {
+        var empty = log.querySelector('.sg-stage-chat-empty');
+        if (empty) empty.remove();
+        log.insertAdjacentHTML('beforeend', '<div class="sg-msg is-mine is-pending"><span>' + esc(text) + '</span></div>');
+        log.scrollTop = log.scrollHeight;
+      }
+      STAGE_CHAT_CHANNELS[c.kind].send(api, c.id, text).then(function (res) {
+        if (convo !== c) return;
+        if (res && res.error) {
+          var pending = log && log.querySelector('.is-pending');
+          if (pending) { pending.classList.remove('is-pending'); pending.classList.add('is-failed'); pending.title = res.error; }
+          if (field && !field.value) field.value = text;
+          return;
+        }
+        loadConvo(true);
+      });
+    });
+
   }
 
 
@@ -3339,7 +3494,10 @@
       art: '/img/gallery/bearzooka-rampage.webp', el: 'FIRE', cta: 'Enter' },
     { id: 'dominion', label: 'Dominion', tag: 'Kingdom & Idle RPG',
       line: 'Build your keep, train your SiegeKnight, and explore.',
-      art: '/img/gallery/cactyjackedty-ruins.webp', el: 'EARTH', cta: 'Enter' }
+      art: '/img/gallery/cactyjackedty-ruins.webp', el: 'EARTH', cta: 'Enter' },
+    { id: 'events', label: 'Events', tag: 'Daily Battle · Weekly Challenge · Lobbies · Tournaments',
+      line: 'A new rival every day, a seeded run every week, and tables to join.',
+      art: '/img/gallery/hurricrane-skyruins.webp', el: 'WIND', cta: 'Open' }
   ];
 
   // The Siege panel's tag said "New" with a badge. Whether a run is waiting is
@@ -3362,31 +3520,13 @@
     '</a>';
   }
 
-  function compactPlayResume(opts) {
-    var runs = opts.siegeRuns || [];
-    if (runs.length <= 1) return expeditionsSection(opts);
-    return '<section class="sg-section" data-home-section="Continue Playing"><div class="sg-exps"><a class="sg-exp is-empty" href="' + HREF.siege + '"><span class="sg-exp-empty-body"><strong>Continue your expeditions</strong><em>' + runs.length + ' saved runs</em></span><span class="sg-exp-go">Choose ›</span></a></div></section>';
-  }
-
+  // One page: the four ways to play and nothing to scroll past. Saved Siege
+  // runs resume from Home's Siege flank; Lobbies and Tournaments live in Events.
   function playScreen(opts) {
     opts = opts || {};
-    var lead = byId('solgator') || CARDS[0];
-    var guest = Boolean(opts.guest);
     return topMarkup(opts) +
-      '<div class="sg-scroll">' +
+      '<div class="sg-scroll sg-play-onepage">' +
         '<div class="sg-modes">' + MODES.map(function (m) { return modePanel(m, opts); }).join('') + '</div>' +
-        compactPlayResume(opts) +
-        (function () {
-          // The count is whatever /api/match/rooms reported. Unknown says so
-          // rather than showing the "11 open" the concept shipped with.
-          var open = opts.lobbies != null ? opts.lobbies : (opts.live && opts.live.lobbies);
-          var label = open == null ? 'Browse' : (open + ' open');
-          return '<a class="sg-lobbies"' + lobbiesAttrs() + '>' +
-            '<span class="sg-lobbies-dot"></span>Lobbies &amp; Tournaments<em>' +
-            esc(label) + '</em><span class="go">›</span></a>';
-        })() +
-        (guest ? guestBand() : '') +
-        '<div style="height:96px"></div>' +
       '</div>' +
       bottomMarkup('play', opts);
   }
@@ -9200,55 +9340,77 @@
     '</article>';
   }
 
-  /* On a landscape phone the screen is two columns: the tournament pinned on
-     the left, and on the right one section at a time, chosen with these
-     buttons. It used to be one long side-scrolling rail, which hid the open
-     tables and the standings off the edge of the screen. Portrait and desktop
-     have the height to stack every section, so the buttons are CSS-hidden there. */
-  var LOBBY_VIEWS = [['tables', 'Tables'], ['board', 'Standings'], ['next', 'Coming up']];
-  var lobbyView = 'tables';
-
-  function lobbySwitch(rooms) {
-    return '<nav class="sg-lobby-switch" data-lobby-switch aria-label="Lobby sections">' +
-      LOBBY_VIEWS.map(function (v) {
-        var on = v[0] === lobbyView;
-        return '<button type="button" data-lobby-view="' + v[0] + '" class="' + (on ? 'on' : '') + '" aria-pressed="' + on + '"' +
-          (v[0] === 'tables' ? '' : ' hidden') + '>' + esc(v[1]) +
-          (v[0] === 'tables' ? ' <b data-table-count-pill>' + esc(rooms.length) + '</b>' : '') + '</button>';
-      }).join('') +
-    '</nav>';
-  }
-
+  /* Lobbies: the open tables, as a hall of tables to sit down at. Hosting and
+     joining by code lead the page; every table is a seat card below. It used
+     to share one page with the tournament, which buried the tables under it. */
   function lobbiesScreen(opts) {
     opts = opts || {};
     var rooms = (opts.live && opts.live.rooms) || [];
-    // Standings and Coming up only exist once the tournament feed arrives.
-    lobbyView = 'tables';
     return topMarkup(opts) +
-      '<div class="sg-scroll" data-lobbies data-lobby-view="' + lobbyView + '">' +
-        '<section class="sg-lobbies-tour" data-tour>' +
-          '<div class="sg-tour-loading">Loading today’s tournament…</div>' +
-        '</section>' +
-        lobbySwitch(rooms) +
-        '<div class="sg-lobbies-claims" data-tour-claims hidden></div>' +
-        '<section class="sg-section sg-tour-board" data-tour-board hidden></section>' +
-        '<section class="sg-section sg-lobbies-tables" data-tables>' +
-          '<div class="sg-section-head"><h3>Open tables</h3><span class="sg-count" data-table-count>' + esc(rooms.length) + '</span></div>' +
-          '<div class="sg-lobbies-actions">' +
-            '<a class="sg-lobby-host" href="/room">+ Host open table</a>' +
-            '<form class="sg-lobby-code" data-join-code>' +
-              '<input name="code" maxlength="6" placeholder="Room code" autocomplete="off" autocapitalize="characters" spellcheck="false">' +
-              '<button type="submit">Join</button>' +
-            '</form>' +
+      '<div class="sg-scroll sg-hall" data-lobbies>' +
+        '<section class="sg-hall-hero">' +
+          '<img class="sg-hall-hero-art" src="/img/gallery/bearnade-payload.webp" alt="" loading="lazy">' +
+          '<div class="sg-hall-hero-veil"></div>' +
+          '<div class="sg-hall-hero-body">' +
+            '<span class="sg-hall-kicker">Lobbies · <b data-table-count>' + esc(rooms.length) + '</b> open</span>' +
+            '<h2>Pull up a chair</h2>' +
+            '<p>Host a table for anyone to join, or sit down with a friend’s room code.</p>' +
+            '<div class="sg-hall-actions">' +
+              '<a class="sg-lobby-host" href="/room">+ Host a table</a>' +
+              '<form class="sg-lobby-code" data-join-code>' +
+                '<input name="code" maxlength="6" placeholder="Room code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code">' +
+                '<button type="submit">Join</button>' +
+              '</form>' +
+            '</div>' +
           '</div>' +
+        '</section>' +
+        '<section class="sg-hall-tables">' +
+          '<div class="sg-section-head"><h3>Open tables</h3>' +
+            '<a class="sg-hall-cross" href="/tournaments" data-screen="tournaments">Tournaments ›</a></div>' +
           '<div class="sg-lobbies-grid" data-table-list>' +
             (rooms.length ? rooms.map(function (r, i) { return lobbyTable(r, i, opts); }).join('') : emptyLobbies()) +
           '</div>' +
         '</section>' +
-        '<section class="sg-section sg-tour-next" data-tour-next hidden></section>' +
-        '<div style="height:96px"></div>' +
       '</div>' +
       bottomMarkup('play', opts);
+  }
+
+  /* Tournaments: the day's tournament as an arena of its own - a banner over
+     the rule and prizes, the podium and standings, and the week ahead. On a
+     wide screen the banner and the schedule sit beside the standings. */
+  function tournamentsScreen(opts) {
+    opts = opts || {};
+    return topMarkup(opts) +
+      '<div class="sg-scroll sg-arena-hall" data-tournaments>' +
+        '<div class="sg-arena-main">' +
+          '<section class="sg-lobbies-tour sg-arena-banner" data-tour>' +
+            '<div class="sg-tour-loading">Loading today’s tournament…</div>' +
+          '</section>' +
+          '<div class="sg-lobbies-claims" data-tour-claims hidden></div>' +
+          '<section class="sg-section sg-tour-next" data-tour-next hidden></section>' +
+        '</div>' +
+        '<div class="sg-arena-side">' +
+          '<section class="sg-arena-podium" data-tour-podium hidden></section>' +
+          '<section class="sg-section sg-tour-board" data-tour-board hidden></section>' +
+        '</div>' +
+        '<a class="sg-arena-cross" href="/lobbies" data-screen="lobbies">Open tables · Lobbies ›</a>' +
+      '</div>' +
+      bottomMarkup('play', opts);
+  }
+
+  // The top three on pedestals, second-first-third, above the full standings.
+  function tourPodium(t) {
+    var rows = (t.standings || []).slice(0, 3);
+    if (!rows.length) return '';
+    var order = rows.length >= 2 ? [rows[1], rows[0]].concat(rows.slice(2)) : rows;
+    return order.map(function (r) {
+      return '<div class="sg-pod p' + r.place + '">' +
+        '<span class="sg-pod-medal">' + MEDAL[r.place - 1] + '</span>' +
+        '<strong>' + esc(r.displayName) + '</strong>' +
+        '<em>' + esc(r.points) + ' pts</em>' +
+        '<i class="sg-pod-step"><b>' + esc(r.place) + '</b></i>' +
+      '</div>';
+    }).join('');
   }
 
   function tourHero(t, data, opts) {
@@ -9332,47 +9494,6 @@
     var root = app.querySelector('[data-lobbies]');
     if (!root) return;
     var api = liveApi();
-    var tour = null;
-
-    function setLobbyView(view) {
-      lobbyView = view;
-      root.setAttribute('data-lobby-view', view);
-      root.querySelectorAll('[data-lobby-view]').forEach(function (b) {
-        if (b === root) return;
-        var on = b.getAttribute('data-lobby-view') === view;
-        b.classList.toggle('on', on);
-        b.setAttribute('aria-pressed', String(on));
-      });
-    }
-
-    function setSwitchAvailable(view, available) {
-      var btn = root.querySelector('button[data-lobby-view="' + view + '"]');
-      if (btn) btn.hidden = !available;
-      if (!available && lobbyView === view) setLobbyView('tables');
-    }
-
-    function paintTour(data) {
-      var t = data && data.current;
-      var hero = root.querySelector('[data-tour]');
-      if (!t) {
-        hero.innerHTML = '<div class="sg-tour-loading">Tournaments are unavailable right now.</div>';
-        return;
-      }
-      tour = t;
-      hero.style.setProperty('--el', color(t.element));
-      hero.innerHTML = tourHero(t, data, opts);
-      var board = root.querySelector('[data-tour-board]');
-      board.innerHTML = tourBoard(t);
-      board.hidden = false;
-      var next = root.querySelector('[data-tour-next]');
-      next.innerHTML = tourNext(data.upcoming);
-      next.hidden = !(data.upcoming && data.upcoming.length);
-      var claims = root.querySelector('[data-tour-claims]');
-      claims.innerHTML = tourClaims(data.claimable);
-      claims.hidden = !(data.claimable && data.claimable.length);
-      setSwitchAvailable('board', true);
-      setSwitchAvailable('next', !next.hidden);
-    }
 
     function paintTables(rooms) {
       var list = root.querySelector('[data-table-list]');
@@ -9380,13 +9501,6 @@
       list.innerHTML = rooms.length ? rooms.map(function (r, i) { return lobbyTable(r, i, opts); }).join('') : emptyLobbies();
       var count = root.querySelector('[data-table-count]');
       if (count) count.textContent = String(rooms.length);
-      var pill = root.querySelector('[data-table-count-pill]');
-      if (pill) pill.textContent = String(rooms.length);
-    }
-
-    function loadTour() {
-      if (!api) return;
-      api.get('/api/tournaments').then(paintTour).catch(function () { paintTour(null); });
     }
 
     function loadTables() {
@@ -9407,9 +9521,51 @@
       window.location.href = '/room/' + encodeURIComponent(code);
     });
 
+    stopLobbyTimers();
+    loadTables();
+    lobbyPoll = setInterval(function () {
+      if (!root.isConnected) { stopLobbyTimers(); return; }
+      loadTables();
+    }, LOBBY_POLL_MS);
+  }
+
+  function mountTournaments(app, opts) {
+    var root = app.querySelector('[data-tournaments]');
+    if (!root) return;
+    var api = liveApi();
+    var tour = null;
+
+    function paintTour(data) {
+      var t = data && data.current;
+      var hero = root.querySelector('[data-tour]');
+      if (!t) {
+        hero.innerHTML = '<div class="sg-tour-loading">Tournaments are unavailable right now.</div>';
+        return;
+      }
+      tour = t;
+      hero.style.setProperty('--el', color(t.element));
+      root.style.setProperty('--el', color(t.element));
+      hero.innerHTML = tourHero(t, data, opts);
+      var podium = root.querySelector('[data-tour-podium]');
+      podium.innerHTML = tourPodium(t);
+      podium.hidden = !podium.innerHTML;
+      var board = root.querySelector('[data-tour-board]');
+      board.innerHTML = tourBoard(t);
+      board.hidden = false;
+      var next = root.querySelector('[data-tour-next]');
+      next.innerHTML = tourNext(data.upcoming);
+      next.hidden = !(data.upcoming && data.upcoming.length);
+      var claims = root.querySelector('[data-tour-claims]');
+      claims.innerHTML = tourClaims(data.claimable);
+      claims.hidden = !(data.claimable && data.claimable.length);
+    }
+
+    function loadTour() {
+      if (!api) { paintTour(null); return; }
+      api.get('/api/tournaments').then(paintTour).catch(function () { paintTour(null); });
+    }
+
     root.addEventListener('click', function (e) {
-      var viewBtn = e.target.closest && e.target.closest('button[data-lobby-view]');
-      if (viewBtn) { setLobbyView(viewBtn.getAttribute('data-lobby-view')); return; }
       var btn = e.target.closest && e.target.closest('[data-tour-claim]');
       if (!btn || !api) return;
       btn.disabled = true;
@@ -9421,26 +9577,170 @@
         }
         btn.textContent = res.alreadyClaimed ? 'Claimed' : '+' + res.awarded + ' claimed';
         btn.classList.add('is-done');
-        if (opts.live && res.awarded) {
-          opts.live.gold = (Number(opts.live.gold) || 0) + res.awarded;
-          var chip = app.querySelector('.sg-chip.coin');
-          if (chip) chip.lastChild.textContent = formatCoins(opts);
-        }
+        if (opts.live && res.awarded) opts.live.gold = (Number(opts.live.gold) || 0) + res.awarded;
       });
     });
 
     stopLobbyTimers();
     loadTour();
-    lobbyPoll = setInterval(function () {
-      if (!root.isConnected) { stopLobbyTimers(); return; }
-      loadTables();
-    }, LOBBY_POLL_MS);
     lobbyTick = setInterval(function () {
       if (!root.isConnected) { stopLobbyTimers(); return; }
       var clock = root.querySelector('[data-tour-clock]');
       if (clock && tour) clock.textContent = countdown(tour.endsAt);
       // The day rolled over: fetch the new tournament.
       if (tour && Date.parse(tour.endsAt) <= Date.now()) { tour = null; loadTour(); }
+    }, 30000);
+  }
+
+  /* ---------- Events ----------
+     Timed play, gathered on one page: the Daily Battle (a rotating Arena rival
+     and the card they are known for), the Weekly Challenge (a seeded Endless
+     run everyone plays with the same team, ranked), and the ways into Lobbies
+     and Tournaments. Each block fills in from its own feed. */
+  function eventsScreen(opts) {
+    opts = opts || {};
+    var rooms = (opts.live && opts.live.rooms) || [];
+    return topMarkup(opts) +
+      '<div class="sg-scroll sg-events" data-events>' +
+        '<header class="sg-events-head"><span>Events</span><h2>Today and this week</h2></header>' +
+        '<section class="sg-ev sg-ev-daily" data-daily>' +
+          '<div class="sg-ev-loading">Finding today’s rival…</div>' +
+        '</section>' +
+        '<section class="sg-ev sg-ev-weekly" data-weekly>' +
+          '<div class="sg-ev-loading">Drawing this week’s challenge…</div>' +
+        '</section>' +
+        '<div class="sg-ev-pair">' +
+          '<a class="sg-ev-tile is-lobbies" href="/lobbies" data-screen="lobbies">' +
+            '<img src="/img/gallery/bearnade-payload-thumb.webp" alt="" loading="lazy"><span class="sg-ev-tile-veil"></span>' +
+            '<span class="sg-ev-tile-body"><em>Lobbies</em><strong>Open tables</strong>' +
+              '<b data-ev-rooms>' + esc(rooms.length) + ' open</b></span></a>' +
+          '<a class="sg-ev-tile is-tour" href="/tournaments" data-screen="tournaments">' +
+            '<img src="/img/gallery/draco-brood-thumb.webp" alt="" loading="lazy"><span class="sg-ev-tile-veil"></span>' +
+            '<span class="sg-ev-tile-body"><em>Tournaments</em><strong data-ev-tour>Today’s tournament</strong>' +
+              '<b data-ev-tour-clock>Daily · top 3 win coins</b></span></a>' +
+        '</div>' +
+      '</div>' +
+      bottomMarkup('play', opts);
+  }
+
+  function dailyMarkup(d) {
+    var f = d.featured || {};
+    var k = d.knight || {};
+    var el = f.element || k.element;
+    return '<div class="sg-ev-bg" style="background-image:url(\'' + land(el) + '\')"></div>' +
+      '<div class="sg-ev-veil"></div>' +
+      // A card with no art yet still stands there, as its element's emblem.
+      (f.artUrl ? '<div class="sg-ev-feature"><img ' + artAttrs(f.artUrl) + ' alt="' + esc(f.name) + '"></div>'
+        : f.element ? '<div class="sg-ev-feature is-emblem"><img src="' + esc(icon(f.element)) + '" alt=""></div>' : '') +
+      '<div class="sg-ev-body">' +
+        '<span class="sg-ev-kicker">Daily Battle · <b data-ev-daily-clock>' + esc(countdown(d.endsAt)) + '</b></span>' +
+        '<h3>' + esc(d.opponentName) + '</h3>' +
+        '<p class="sg-ev-sub">' + esc(d.title || d.deckName || '') +
+          (k.name && k.name !== d.opponentName ? ' · ' + esc(k.name) : '') + '</p>' +
+        (f.name ? '<p class="sg-ev-star"><span>Strongest card</span><strong>' + esc(f.name) + '</strong>' +
+          (f.rarity ? '<em>' + esc(title(f.rarity)) + '</em>' : '') + '</p>' : '') +
+        (d.blurb ? '<p class="sg-ev-blurb">' + esc(d.blurb) + '</p>' : '') +
+        '<div class="sg-ev-cta"><a class="sg-ev-go" href="/play?daily=1">Fight ›</a>' +
+          (d.tomorrow ? '<span class="sg-ev-next">Tomorrow: ' + esc(d.tomorrow.opponentName) + '</span>' : '') + '</div>' +
+      '</div>';
+  }
+
+  function weeklyMarkup(w) {
+    var k = w.knight || {};
+    var team = w.team || [];
+    var rows = w.leaderboard || [];
+    var me = w.me;
+    var weekNo = String(w.week || '').split('-W')[1] || '';
+    function chip(u, isKnight) {
+      return '<span class="sg-ev-unit' + (isKnight ? ' is-knight' : '') + '" style="--el:' + color(u.element) + '">' +
+        (u.artUrl ? '<img ' + artAttrs(u.artUrl) + ' alt="" loading="lazy">'
+          : '<img class="is-emblem" src="' + esc(icon(u.element)) + '" alt="" loading="lazy">') +
+        '<em>' + esc(u.name) + '</em></span>';
+    }
+    return '<div class="sg-ev-bg" style="background-image:url(\'/img/gallery/skydon-skyreach.webp\')"></div>' +
+      '<div class="sg-ev-veil"></div>' +
+      '<div class="sg-ev-body">' +
+        '<span class="sg-ev-kicker">Weekly Challenge · Week ' + esc(weekNo) + ' · <b data-ev-weekly-clock>' + esc(countdownLong(w.endsAt)) + '</b></span>' +
+        '<h3>Seeded Endless</h3>' +
+        '<p class="sg-ev-sub">Same seed, same team for everyone. Bank the highest score.</p>' +
+        '<div class="sg-ev-team">' + chip(k, true) + team.map(function (u) { return chip(u, false); }).join('') + '</div>' +
+        '<div class="sg-ev-cta"><a class="sg-ev-go" href="/siege?weekly=1">Play this week’s run ›</a>' +
+          '<span class="sg-ev-seed">Seed ' + esc(w.seed || '') + '</span></div>' +
+      '</div>' +
+      '<div class="sg-ev-board">' +
+        '<div class="sg-ev-board-head"><strong>Leaderboard</strong><em>' + esc(w.entrants || 0) + ' playing</em></div>' +
+        (w.leaderboardAvailable === false
+          ? '<div class="sg-empty-row">The leaderboard is warming up.</div>'
+          : rows.length
+            ? '<ol class="sg-ev-rows">' + rows.slice(0, 5).map(function (r) {
+                return '<li' + (r.rank <= 3 ? ' class="p' + r.rank + '"' : '') + '><span>' +
+                  (r.rank <= 3 ? MEDAL[r.rank - 1] : esc(r.rank)) + '</span><strong>' + esc(r.displayName) +
+                  '</strong><b>' + esc(Number(r.value).toLocaleString()) + '</b></li>';
+              }).join('') + '</ol>'
+            : '<div class="sg-empty-row">No scores yet this week. The first run takes the top spot.</div>') +
+        (me ? '<div class="sg-ev-me">You’re #' + esc(me.place) + ' · best ' + esc(Number(me.best).toLocaleString()) + '</div>'
+            : (w.signedIn ? '' : '<div class="sg-ev-me is-guest">Sign in to rank on the board</div>')) +
+      '</div>';
+  }
+
+  // Days as well as hours: the weekly clock runs for up to a week.
+  function countdownLong(endsAt) {
+    var ms = Date.parse(endsAt) - Date.now();
+    if (!(ms > 0)) return 'Ending now';
+    var d = Math.floor(ms / 86400000), h = Math.floor((ms % 86400000) / 3600000);
+    return d > 0 ? d + 'd ' + h + 'h left' : countdown(endsAt);
+  }
+
+  var eventsTick = null;
+  function mountEvents(app, opts) {
+    var root = app.querySelector('[data-events]');
+    if (!root) return;
+    var api = liveApi();
+    var daily = null, weekly = null, tour = null;
+    function unavailable(sel, text) {
+      var box = root.querySelector(sel);
+      if (box) box.innerHTML = '<div class="sg-ev-loading">' + esc(text) + '</div>';
+    }
+    if (!api) {
+      unavailable('[data-daily]', 'Daily Battle is unavailable right now.');
+      unavailable('[data-weekly]', 'The Weekly Challenge is unavailable right now.');
+      return;
+    }
+    api.get('/api/events/daily-battle').then(function (d) {
+      if (!d || d.error || !d.opponentName) throw new Error();
+      daily = d;
+      var box = root.querySelector('[data-daily]');
+      var f = d.featured || {};
+      box.style.setProperty('--el', color(f.element || (d.knight && d.knight.element)));
+      box.innerHTML = dailyMarkup(d);
+    }).catch(function () { unavailable('[data-daily]', 'Daily Battle is unavailable right now.'); });
+    api.get('/api/siege/weekly').then(function (w) {
+      if (!w || w.error || !w.week) throw new Error();
+      weekly = w;
+      var box = root.querySelector('[data-weekly]');
+      box.style.setProperty('--el', color(w.knight && w.knight.element));
+      box.innerHTML = weeklyMarkup(w);
+    }).catch(function () { unavailable('[data-weekly]', 'The Weekly Challenge is unavailable right now.'); });
+    api.get('/api/tournaments').then(function (t) {
+      tour = t && t.current;
+      if (!tour) return;
+      var name = root.querySelector('[data-ev-tour]');
+      if (name) name.textContent = tour.name;
+      var clock = root.querySelector('[data-ev-tour-clock]');
+      if (clock) clock.textContent = tour.rule || countdown(tour.endsAt);
+    }).catch(function () { /* the tile keeps its generic label */ });
+    api.get('/api/match/rooms').then(function (res) {
+      var n = ((res && res.rooms) || []).length;
+      var b = root.querySelector('[data-ev-rooms]');
+      if (b) b.textContent = n + ' open';
+    }).catch(function () {});
+    clearInterval(eventsTick);
+    eventsTick = setInterval(function () {
+      if (!root.isConnected) { clearInterval(eventsTick); return; }
+      var dc = root.querySelector('[data-ev-daily-clock]');
+      if (dc && daily) dc.textContent = countdown(daily.endsAt);
+      var wc = root.querySelector('[data-ev-weekly-clock]');
+      if (wc && weekly) wc.textContent = countdownLong(weekly.endsAt);
     }, 30000);
   }
 
@@ -11628,7 +11928,8 @@
     var builders = { collection: galleryScreen, decks: decksScreen, shop: shopScreen,
                      profile: profileScreen, play: playScreen, builder: builderScreen,
                      social: socialScreen, settings: settingsScreen, help: helpScreen,
-                     auth: authScreen, art: artScreen, lobbies: lobbiesScreen, room: roomScreen };
+                     auth: authScreen, art: artScreen, lobbies: lobbiesScreen, room: roomScreen,
+                     events: eventsScreen, tournaments: tournamentsScreen };
     // Screen-scoped layout hooks: the landscape-phone layout in
     // home-redesign.css lays each screen out differently, and the Social
     // screen's three tabs share one shell. Not data-social-tab: that attribute
@@ -11644,7 +11945,10 @@
     if (screen === 'decks') mountDecks(app, opts);
     if (screen === 'builder') mountBuilder(app, opts);
     if (screen === 'art') mountArt(app, opts);
-    if (screen === 'lobbies') mountLobbies(app, opts); else stopLobbyTimers();
+    if (screen === 'lobbies') mountLobbies(app, opts);
+    else if (screen === 'tournaments') mountTournaments(app, opts);
+    else stopLobbyTimers();
+    if (screen === 'events') mountEvents(app, opts);
     if (screen === 'room') mountRoom(app, opts); else stopRoomTimers();
     if (screen === 'profile' || screen === 'social') mountProfileNavigation(app, opts);
     if (screen === 'profile') { mountSheet(app, opts); mountProfile(app, opts); mountProfileHead(app); }

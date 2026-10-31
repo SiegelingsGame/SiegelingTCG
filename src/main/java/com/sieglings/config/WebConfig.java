@@ -84,6 +84,9 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addViewController("/login").setViewName("forward:/home-next.html");
         // Same reason: the new Social screen is the lobby list.
         registry.addViewController("/lobbies").setViewName("forward:/home-next.html");
+        // Events (Daily Battle, Weekly Challenge) and the Tournaments hall are hub screens too.
+        registry.addViewController("/events").setViewName("forward:/home-next.html");
+        registry.addViewController("/tournaments").setViewName("forward:/home-next.html");
         // A table's waiting room: /room hosts a new table, /room/CODE is one table.
         registry.addViewController("/room").setViewName("forward:/home-next.html");
         registry.addViewController("/room/{code}").setViewName("forward:/home-next.html");

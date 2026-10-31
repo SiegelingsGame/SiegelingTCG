@@ -88,6 +88,16 @@ class SiegeRun {
     // Run mode, scoring and lifetime stats (endless loops + end-of-run rewards).
     private RunMode mode = RunMode.STANDARD;
     /**
+     * A seeded run draws every random roll from this seed instead of the shared
+     * generator, so two players on the same seed walk the same map and meet the
+     * same first encounters. Null for an ordinary run.
+     */
+    private Long seed;
+    /** How many seeded draws have been made; checkpointed so a restored run carries on the same stream. */
+    private long rngStep;
+    /** ISO week of the Weekly Challenge this run is entered in ("2026-W44"), or null. */
+    private String challengeWeek;
+    /**
      * Battlegrounds-only difficulty/reward tier scalar. Defaults to the base tier
      * (1.0) for Phase 3; Phase 4 sets it per tier (I–V). Ignored outside BATTLEGROUNDS.
      */
@@ -398,4 +408,13 @@ class SiegeRun {
         }
         return false;
     }
+
+    Long getSeed() { return seed; }
+    void setSeed(Long seed) { this.seed = seed; }
+    long getRngStep() { return rngStep; }
+    void setRngStep(long rngStep) { this.rngStep = rngStep; }
+    /** The next seeded draw's index; each call consumes one. */
+    long nextRngStep() { return rngStep++; }
+    String getChallengeWeek() { return challengeWeek; }
+    void setChallengeWeek(String challengeWeek) { this.challengeWeek = challengeWeek; }
 }

@@ -8397,6 +8397,7 @@ function syncEntryOverlays() {
     const showingGameplay = Boolean(gameState);
 
     document.body?.classList.toggle('gameplay-active', showingGameplay);
+    syncArenaMusic();
     loadoutOverlay?.classList.toggle('visible', !showingGameplay);
     if (showingGameplay || ((gameOptions || loadoutErrorMessage) && loadoutOverlay?.classList.contains('visible'))) {
         document.documentElement.classList.remove('play-startup');
@@ -10055,6 +10056,8 @@ async function newGame() {
     // would only invite an ownership check the tutorial does not need.
     const body = tutorialMatchActive ? {} : getSelectedLoadoutBody();
     body.playerName = getCurrentPlayerName() || (authState.profile?.user?.displayName || 'Player');
+    // Opened from Events: the server sets the day's opponent; the client only asks.
+    if (!tutorialMatchActive && DAILY_BATTLE_MODE) body.dailyBattle = true;
     if (tutorialMatchActive) {
         body.tutorial = true;
         try { body.advancedTutorial = sessionStorage.getItem(ADVANCED_TUTORIAL_KEY) === '1'; } catch (e) { /* storage unavailable */ }
@@ -12792,9 +12795,51 @@ function renderDomLegacy() {
     renderGameOverOverlay();
 }
 
+// Daily Battle (/play?daily=1, from the hub's Events page): the player brings
+// their own loadout and the server fields the day's opponent. The loadout
+// carries a banner naming who they are about to face.
+const DAILY_BATTLE_MODE = new URLSearchParams(window.location.search).get('daily') === '1';
+function mountDailyBattleBanner() {
+    if (!DAILY_BATTLE_MODE) return;
+    const box = document.querySelector('#loadoutOverlay .loadout-box');
+    if (!box || box.querySelector('.daily-battle-banner')) return;
+    const banner = document.createElement('div');
+    banner.className = 'daily-battle-banner';
+    banner.innerHTML = '<span class="daily-battle-kicker">Daily Battle</span><strong>Today\u2019s rival</strong>';
+    box.prepend(banner);
+    fetchJson(apiUrls('/api/events/daily-battle'), {}, LOADOUT_ACTION_TIMEOUT_MS).then((d) => {
+        if (!d || d.error) return;
+        const strong = banner.querySelector('strong');
+        strong.textContent = `vs ${d.opponentName}${d.featured ? ` \u00b7 ${d.featured.name}` : ''}`;
+    }).catch(() => {});
+}
+
+// Arena music: a match plays your SiegeKnight's battle theme, then your
+// opponent's, on a loop; outside a match the hub's shuffle carries on from
+// where it was (hub-music.js holds both). The scene is keyed by the pair of
+// elements so an opponent whose knight arrives late still gets their theme.
+let arenaMusicMatch = 0;
+let arenaMusicLive = false;
+function syncArenaMusic() {
+    const music = window.SiegelingsHubMusic;
+    if (!music) return;
+    const mine = gameState?.player?.trainer;
+    if (!gameState || !mine) {
+        if (arenaMusicLive) { arenaMusicLive = false; music.clearContext(); }
+        return;
+    }
+    if (!arenaMusicLive) { arenaMusicLive = true; arenaMusicMatch += 1; }
+    const theirs = gameState.enemy?.trainer;
+    const tracks = [music.battleTrackFor(mine.element), music.battleTrackFor(theirs?.element)];
+    // Mirror matches would loop one song; the main battle theme alternates in.
+    if (tracks[0] === tracks[1]) tracks.push(tracks[0] === 'battle' ? 'battle-2' : 'battle');
+    music.setContext(`arena:${arenaMusicMatch}:${mine.element}:${theirs?.element || ''}`, tracks, 'Arena battle');
+}
+
 function render() {
     if (tutorialMatchActive) {
     }
+    syncArenaMusic();
     if (gameState) {
         pruneInvalidArenaSelection();
         syncActingPreviewFocus();
@@ -18133,6 +18178,7 @@ window.SieglingsCardShowcase = {
 
 if (document.getElementById('loadoutOverlay')) {
     mountLoadoutShieldNavigation(document.getElementById('loadoutOverlay'));
+    mountDailyBattleBanner();
     renderDesktopMenuMeta();
     renderDesktopActionHistory();
     bindAuthStorageSync();
