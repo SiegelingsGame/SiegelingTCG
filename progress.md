@@ -1,3 +1,74 @@
+Original prompt: Music should persist through mode selection. When you enter an arena battle play battle music starting with the music of your knight element then the opponent's. Remove the back arrow button to leave a match and replace it with a music button. Keep the quit button. In Siege same deal based on the land: play the biome music and then battle music in fights. Battlegrounds needs access to the music players.
+
+- October 31, 2026 **Music: one player across Home, Arena, Siege, Gauntlet and Dominion; battle and Land scenes.**
+  - **Scenes in the hub player** (`hub-music.js`).
+    - `setContext(id, tracks, label)` takes the player over with a looping queue (tracks named by id or file). The shuffle waits at its song and second (`hubSeek`, also what `saveResume` stores meanwhile).
+    - `clearContext()` resumes the shuffle from there.
+    - Re-sending the same id is a no-op, so re-renders never restart a song.
+    - A song picked by hand ends the scene until a different id arrives.
+    - `battleTrackFor(el)` maps an element to its gym theme: Psychic → desert gym; Undead/Neutral → main Battle Theme.
+    - The panel subtitle names the scene.
+    - `data-autoinit` starts the player on non-hub pages.
+  - **Panel styles.** The panel CSS moved from `home-redesign.css` to `css/hub-music.css`, with token fallbacks; on non-hub pages it is `position:fixed; z-index:10050`.
+  - **Persistence through mode selection.** The player now loads on `play.html` (Arena loadout and matches, Gauntlet fights), `adventure.html`, `gauntlet.html` and `dominion.html`, so the hub's song carries on (same song, same second) through every mode's start screens.
+  - **Arena** (`game.js` `syncArenaMusic`, from `render()` and `syncEntryOverlays()`).
+    - A match plays your SiegeKnight's battle theme, then the opponent's, on a loop. A mirror match alternates in the main battle theme.
+    - The scene is keyed per match and element pair.
+    - Leaving the match hands back to the shuffle.
+    - The action bar's Back to Home arrow is now a music button (`data-music-open`). Quit is unchanged.
+  - **Siege** (`adventure.js`). Its own `<audio>` pair is replaced by hub scenes with the same choices:
+    - the Land's biome song on map/camp/shop/event screens,
+    - a battle track chosen once per fight (gym theme for elites and bosses).
+
+    Setup, resume, loading and summary keep the hub's song instead of going silent. Run menu Music On/Off drives the hub's on/off. A gold music button (`.siege-music-btn`) in the top bar opens the player in every Siege mode, Battlegrounds included.
+  - **Cache pins.**
+    - `hub-music.js?v=9` (5 pages) and new `hub-music.css?v=1`.
+    - `game.js?v=342` (all 6 pages), `adventure.js?v=154`.
+    - `siege-next.css?v=24`, `home-redesign.css?v=185`.
+  - **Verification.**
+    - **Gates.** `node --check` passes on the three JS files.
+    - **Static-served checks** (headless Chromium, 390x844):
+      - Home's panel still renders after the CSS move.
+      - The same hub song carries from Home to `/play.html`.
+      - Scripted match states: FIRE vs WATER plays fire-gym, water-gym, then loops. Re-syncs keep the song. ICE mirror plays ice-gym then battle. Leaving returns to the hub song.
+      - A hand pick overrides the scene and survives a re-sync.
+      - `adventure.html` setup keeps the hub song; its music button opens the panel.
+    - **Real match** against `mvn spring-boot:run` at 390x844 and 1920x1080:
+      - The loadout keeps the hub song.
+      - The match sets scene `arena:1:NEUTRAL:WATER` (Battle Theme first, for Neutral Squire Bob).
+      - No Back to Home arrow; the music button is at the left of the action bar and Quit at the right.
+      - The panel opens over the board as "Arena battle".
+      - No page errors.
+    - **Not exercised in a browser.** Siege map and battle scenes (they need a full run payload).
+    - **Pre-existing error.** One loadout error with an empty mocked `/api/game/options` reproduces on main.
+
+Original prompt: The ability to chat from the home screen as well without going to messages, and for global chat eventually.
+
+- October 31, 2026 **Home: chat in place from the Home chat panel.**
+  - **Friends tab.** It now lists conversations, then friends with no conversation yet (online first, ringed green, "Online · say hello" or "Start a chat"). A row opens the conversation inside the panel; nothing navigates away.
+  - **Conversation view** (`stageConvoMarkup`). It holds:
+    - a back button,
+    - the peer's name,
+    - a "Messages ›" link to the full thread in Social,
+    - a scrolling log (the panel grows to `clamp(210px, 38vh, 320px)`; only the log scrolls),
+    - a composer.
+  - **Sending.**
+    - The field clears at once, and the message shows dimmed until the server's copy replaces it.
+    - A failed send turns red ("not sent") and puts the text back in the field.
+    - The input is 16px so iOS Safari does not zoom the fixed layout.
+    - Focus is automatic only on hover devices.
+  - **Polling.** The log polls every 5s and stops when the panel closes, the player backs out or Home re-renders.
+  - **Unread badges.** Backing out re-reads `/api/social/messages/threads` and repaints the unread badges.
+  - **Global channel.** Loading and sending go through `STAGE_CHAT_CHANNELS` (only `dm` today), so global chat becomes one more entry once the server has a channel.
+  - **Cache pins.** `home-redesign.js?v=173`, `home-redesign.css?v=184`.
+  - **Verification.** `node --check` passes. Headless Chromium with stateful mocked thread, conversation and send endpoints, at 390x844 and 1920x1080:
+    - A thread opens in place.
+    - Enter sends `{recipientId:u1, text:"Yes! 8pm?"}`, the field clears, and the log scrolls to the end.
+    - Back clears the unread badges.
+    - A friend with no history opens on "Say hello".
+    - Closing and reopening the chat returns to the list.
+    - No page scroll, no page errors.
+
 Original prompt: Turn the color down, it should be subtle.
 
 - October 31, 2026 **Home: music line tint toned down.**

@@ -8397,6 +8397,7 @@ function syncEntryOverlays() {
     const showingGameplay = Boolean(gameState);
 
     document.body?.classList.toggle('gameplay-active', showingGameplay);
+    syncArenaMusic();
     loadoutOverlay?.classList.toggle('visible', !showingGameplay);
     if (showingGameplay || ((gameOptions || loadoutErrorMessage) && loadoutOverlay?.classList.contains('visible'))) {
         document.documentElement.classList.remove('play-startup');
@@ -12792,9 +12793,32 @@ function renderDomLegacy() {
     renderGameOverOverlay();
 }
 
+// Arena music: a match plays your SiegeKnight's battle theme, then your
+// opponent's, on a loop; outside a match the hub's shuffle carries on from
+// where it was (hub-music.js holds both). The scene is keyed by the pair of
+// elements so an opponent whose knight arrives late still gets their theme.
+let arenaMusicMatch = 0;
+let arenaMusicLive = false;
+function syncArenaMusic() {
+    const music = window.SiegelingsHubMusic;
+    if (!music) return;
+    const mine = gameState?.player?.trainer;
+    if (!gameState || !mine) {
+        if (arenaMusicLive) { arenaMusicLive = false; music.clearContext(); }
+        return;
+    }
+    if (!arenaMusicLive) { arenaMusicLive = true; arenaMusicMatch += 1; }
+    const theirs = gameState.enemy?.trainer;
+    const tracks = [music.battleTrackFor(mine.element), music.battleTrackFor(theirs?.element)];
+    // Mirror matches would loop one song; the main battle theme alternates in.
+    if (tracks[0] === tracks[1]) tracks.push(tracks[0] === 'battle' ? 'battle-2' : 'battle');
+    music.setContext(`arena:${arenaMusicMatch}:${mine.element}:${theirs?.element || ''}`, tracks, 'Arena battle');
+}
+
 function render() {
     if (tutorialMatchActive) {
     }
+    syncArenaMusic();
     if (gameState) {
         pruneInvalidArenaSelection();
         syncActingPreviewFocus();

@@ -431,9 +431,7 @@
           return { id: s.id, name: s.name, owned: s.owned, ready: s.expeditionStarter !== false };
         }) } : null,
       busy: !!state.busy,
-      music: { on: siegeMusic.on, mode: siegeMusic.mode,
-        track: currentSiegeAudio() ? currentSiegeAudio().getAttribute('src') : null,
-        playing: !!(currentSiegeAudio() && !currentSiegeAudio().paused) },
+      music: hubMusic() ? hubMusic().state() : null,
       campMenu: state.campMenu,
       gold: Number(run.gold || 0),
       land: run.land || null,
@@ -1167,23 +1165,22 @@
     $('runMenuSave').addEventListener('click', saveRunFromMenu);
     $('runMenuRestart').addEventListener('click', restartRun);
     $('runMenuQuit').addEventListener('click', quitRun);
-    $('runMenuMusic').addEventListener('click', function () { setSiegeMusicOn(!siegeMusic.on); });
+    $('runMenuMusic').addEventListener('click', function () { setSiegeMusicOn(!siegeMusicOn()); });
     paintSiegeMusicToggle();
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('runMenu').classList.contains('hidden')) closeRunMenu();
     });
   }
 
-  /* Siege music. The map and the run's other stops play the current Land's
-     biome theme (Emberfall gets the fire song, Frostveil the ice song, and so
-     on); fights cut to a battle track, and elites and bosses to the gym theme
-     of the Land's element (Shadow's is the cave gym; Psychic and the
-     elementless Lands take the desert gym), or any gym where none exists
-     yet. Setup, loading and the run summary stay silent. The Land and
-     battle songs are separate detached
-     <audio> elements, so leaving a fight picks the Land song up where it
-     paused instead of restarting it. On/off is the hub player's own
-     preference, so muting in one place mutes both. */
+  /* Siege music, played through the hub's player (hub-music.js) so the
+     soundtrack carries on through setup and the resume screen, the music
+     button opens the same panel as on Home, and one on/off covers both.
+     The map and the run's other stops play the current Land's biome theme
+     (Emberfall gets the fire song, Frostveil the ice song, and so on); fights
+     cut to a battle track, and elites and bosses to the gym theme of the
+     Land's element (Shadow's is the cave gym; Psychic and the elementless
+     Lands take the desert gym), or any gym where none exists yet. Leaving a
+     scene hands the player back to the hub's shuffle where it paused. */
   var BIOME_TRACK = {
     FIRE: 'fire', ICE: 'ice', WIND: 'wind', EARTH: 'earth', WATER: 'water', ELECTRIC: 'electric',
     METAL: 'metal', SHADOW: 'cave', UNDEAD: 'undead', POISON: 'poison', LIGHT: 'light'
@@ -1207,13 +1204,11 @@
     eventScreen: 1, riftScreen: 1, minigameScreen: 1, interactionResultScreen: 1, recruitScreen: 1,
     ampScreen: 1, rewardScreen: 1
   };
-  var SIEGE_MUSIC_KEY = 'sgHubMusicOn';
-  var SIEGE_MUSIC_VOLUME = 0.32;
-  var siegeMusic = { on: readSiegeMusicPref(), mode: null, land: null, battle: null, armed: false };
+  var siegeFight = 0;          // counts fights, so each one picks its track once
+  var siegeInFight = false;
+  var siegeBattleTrack = null;
 
-  function readSiegeMusicPref() {
-    try { return (localStorage.getItem(SIEGE_MUSIC_KEY) || '1') === '1'; } catch (e) { return true; }
-  }
+  function hubMusic() { return window.SiegelingsHubMusic || null; }
 
   function landMusicTrack() {
     var land = state.run && state.run.land;
@@ -1244,76 +1239,44 @@
     return BATTLE_TRACKS.normal[Math.floor(Math.random() * BATTLE_TRACKS.normal.length)];
   }
 
-  function siegeAudio(kind) {
-    if (siegeMusic[kind]) return siegeMusic[kind];
-    var a = document.createElement('audio');
-    a.preload = 'none';
-    a.loop = true;
-    a.volume = SIEGE_MUSIC_VOLUME;
-    siegeMusic[kind] = a;
-    return a;
-  }
-
-  function currentSiegeAudio() {
-    return siegeMusic.mode ? siegeMusic[siegeMusic.mode] : null;
-  }
-
-  function playSiegeMusic() {
-    ['land', 'battle'].forEach(function (kind) {
-      if (kind !== siegeMusic.mode && siegeMusic[kind]) siegeMusic[kind].pause();
-    });
-    var a = currentSiegeAudio();
-    if (!a) return;
-    if (!siegeMusic.on || document.hidden) { a.pause(); return; }
-    var p = a.play();
-    // Refused without a gesture (a reload straight into the run): the next tap starts it.
-    if (p && p.catch) p.catch(armSiegeMusicGesture);
-  }
-
-  function armSiegeMusicGesture() {
-    if (siegeMusic.armed) return;
-    siegeMusic.armed = true;
-    var events = ['pointerdown', 'touchend', 'keydown'];
-    function starter() {
-      events.forEach(function (n) { document.removeEventListener(n, starter, true); });
-      siegeMusic.armed = false;
-      playSiegeMusic();
-    }
-    events.forEach(function (n) { document.addEventListener(n, starter, true); });
-  }
-
   // showScreen calls this on every screen change, and a fight re-renders
   // through showScreen many times, so the battle track is only chosen when a
   // fight begins. The Land song is re-checked each time, which is what swaps
   // it when a boss or Rift moves the run to a new Land.
   function syncSiegeMusic(screen) {
-    var mode = screen === 'battleScreen' ? 'battle' : LAND_MUSIC_SCREENS[screen] ? 'land' : null;
-    if (mode === 'battle' && siegeMusic.mode !== 'battle') {
-      siegeAudio('battle').src = pickBattleTrack();
+    var music = hubMusic();
+    if (!music) return;
+    if (screen === 'battleScreen') {
+      if (!siegeInFight) { siegeInFight = true; siegeFight += 1; siegeBattleTrack = pickBattleTrack(); }
+      music.setContext('siege-battle:' + siegeFight, [siegeBattleTrack], 'Siege battle');
+      return;
     }
-    if (mode === 'land') {
-      var want = landMusicTrack();
-      if (!want) mode = null;
-      else if (siegeAudio('land').getAttribute('src') !== want) siegeMusic.land.src = want;
+    siegeInFight = false;
+    var land = LAND_MUSIC_SCREENS[screen] ? landMusicTrack() : null;
+    if (land) {
+      music.setContext('siege-land:' + land, [land], (state.run.land && state.run.land.name) || 'Siege');
+      return;
     }
-    if (mode === siegeMusic.mode && (!mode || !currentSiegeAudio().paused)) return;
-    siegeMusic.mode = mode;
-    playSiegeMusic();
+    // Loading, setup, the resume screen and the summary keep the hub's song.
+    music.clearContext();
+  }
+
+  function siegeMusicOn() {
+    var music = hubMusic();
+    return music ? music.state().on : false;
   }
 
   function setSiegeMusicOn(on) {
-    siegeMusic.on = on;
-    try { localStorage.setItem(SIEGE_MUSIC_KEY, on ? '1' : '0'); } catch (e) { /* private mode */ }
-    playSiegeMusic();
+    var music = hubMusic();
+    if (music) music.setOn(on);
     paintSiegeMusicToggle();
   }
 
   function paintSiegeMusicToggle() {
-    $('runMenuMusic').setAttribute('aria-pressed', String(siegeMusic.on));
-    $('runMenuMusicLabel').textContent = 'Music: ' + (siegeMusic.on ? 'On' : 'Off');
+    var on = siegeMusicOn();
+    $('runMenuMusic').setAttribute('aria-pressed', String(on));
+    $('runMenuMusicLabel').textContent = 'Music: ' + (on ? 'On' : 'Off');
   }
-
-  document.addEventListener('visibilitychange', playSiegeMusic);
 
   function updateRunMenu(show) {
     $('runMenuBtn').classList.toggle('hidden', !show);
@@ -1329,6 +1292,8 @@
     if (!state.run || state.run.status !== 'ACTIVE') return;
     state.runMenuReturnFocus = document.activeElement;
     $('runMenuStatus').textContent = 'Save now, restart this run, or return to Play.';
+    // The music panel can mute too, so the label is read fresh each time.
+    paintSiegeMusicToggle();
     $('runMenu').classList.remove('hidden');
     $('runMenuBtn').setAttribute('aria-expanded', 'true');
     $('runMenuSave').focus();

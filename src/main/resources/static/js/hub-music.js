@@ -52,6 +52,14 @@
   var audio = null;
   var order = [];
   var pos = 0;
+  /* A scene can take the player over: an Arena match plays the two knights'
+     battle themes, a Siege Land its biome song. While one holds, the queue
+     is the scene's own (looping) and the shuffle waits where it was, picking
+     up from the same second when the scene ends. A song the player picks by
+     hand ends the scene until a different one starts. */
+  var ctx = null;          // { id, list: [track index], at, label }
+  var dismissed = null;    // id of a scene the player overrode
+  var hubSeek = 0;         // the shuffle's place while a scene holds
   var on = true;
   var started = false;   // true once a gesture has let play() through
   var pendingSeek = 0;   // where a restored song picks up, applied once it loads
@@ -73,7 +81,7 @@
     try {
       localStorage.setItem(RESUME_KEY, JSON.stringify({
         order: order, pos: pos,
-        t: audio && audio.currentTime ? Math.floor(audio.currentTime) : pendingSeek,
+        t: ctx ? hubSeek : (audio && audio.currentTime ? Math.floor(audio.currentTime) : pendingSeek),
         at: Date.now()
       }));
     } catch (e) { /* private mode */ }
@@ -129,7 +137,49 @@
     order = lead.concat(shuffled(calm), shuffled(battle));
   }
 
-  function current() { return TRACKS[order[pos]]; }
+  function current() { return ctx ? TRACKS[ctx.list[ctx.at]] : TRACKS[order[pos]]; }
+
+  // Scenes name songs by id or by file, whichever the page already has.
+  function trackIndex(ref) {
+    for (var i = 0; i < TRACKS.length; i++) if (TRACKS[i].id === ref || TRACKS[i].src === ref) return i;
+    return -1;
+  }
+
+  // The battle theme for an element: its gym song. Psychic fights to the
+  // desert gym as Siege's Dreamfold does; an element with no gym song yet
+  // (Undead, Neutral) gets the main battle theme.
+  var GYM = { FIRE: 'fire-gym', WATER: 'water-gym', EARTH: 'earth-gym', WIND: 'wind-gym', ICE: 'ice-gym',
+    ELECTRIC: 'electric-gym', SHADOW: 'cave-gym', METAL: 'metal-gym', POISON: 'poison-gym',
+    LIGHT: 'light-gym', PSYCHIC: 'desert-gym' };
+  function battleTrackFor(el) { return GYM[String(el || '').toUpperCase()] || 'battle'; }
+
+  function setContext(id, refs, label) {
+    if (!id) { clearContext(); return; }
+    if ((ctx && ctx.id === id) || dismissed === id) return;
+    var list = [];
+    (refs || []).forEach(function (r) {
+      var i = trackIndex(r);
+      if (i >= 0 && list.indexOf(i) < 0) list.push(i);
+    });
+    if (!list.length) { clearContext(); return; }
+    ensureAudio();
+    if (!ctx) hubSeek = audio.currentTime ? Math.floor(audio.currentTime) : pendingSeek;
+    dismissed = null;
+    ctx = { id: id, list: list, at: 0, label: label || '' };
+    pendingSeek = 0;
+    load();
+    if (on) play(); else paint();
+  }
+
+  function clearContext() {
+    dismissed = null;
+    if (!ctx) return;
+    ctx = null;
+    ensureAudio();
+    pendingSeek = hubSeek;
+    load();
+    if (on) play(); else paint();
+  }
 
   function ensureAudio() {
     if (audio) return audio;
@@ -176,7 +226,8 @@
 
   function step(delta) {
     ensureAudio();
-    pos = (pos + delta + order.length) % order.length;
+    if (ctx) ctx.at = (ctx.at + delta + ctx.list.length) % ctx.list.length;
+    else pos = (pos + delta + order.length) % order.length;
     pendingSeek = 0;
     load();
     saveResume();
@@ -298,8 +349,10 @@
   function pick(trackIndex) {
     var at = order.indexOf(trackIndex);
     if (at < 0) return;
+    var wasScene = Boolean(ctx);
+    if (ctx) { dismissed = ctx.id; ctx = null; }
     if (!on) { on = true; writePref(); }
-    if (at === pos && playing()) return;
+    if (at === pos && playing() && !wasScene) return;
     ensureAudio();
     pos = at;
     pendingSeek = 0;
@@ -320,7 +373,7 @@
     }
     var picks = document.querySelectorAll('[data-music-pick]');
     for (var q = 0; q < picks.length; q++) {
-      var cur = Number(picks[q].getAttribute('data-music-pick')) === order[pos];
+      var cur = Number(picks[q].getAttribute('data-music-pick')) === (ctx ? ctx.list[ctx.at] : order[pos]);
       picks[q].classList.toggle('on', cur);
       picks[q].classList.toggle('is-playing', cur && playing());
       picks[q].setAttribute('aria-current', cur ? 'true' : 'false');
@@ -361,7 +414,7 @@
       var notch = p.querySelector('[data-music-notch]');
       if (notch && notch.getAttribute('src') !== notchArt(t.el)) notch.setAttribute('src', notchArt(t.el));
       var sub = p.querySelector('[data-music-sub]');
-      if (sub) sub.textContent = KIND_ONE[kind(t)];
+      if (sub) sub.textContent = ctx && ctx.label ? ctx.label : KIND_ONE[kind(t)];
     }
     paintProgress();
   }
@@ -468,10 +521,22 @@
   window.SiegelingsHubMusic = {
     init: init,
     sync: paint,
+    setContext: setContext,
+    clearContext: clearContext,
+    battleTrackFor: battleTrackFor,
+    setOn: setOn,
     tracks: function () { return TRACKS.slice(); },
     element: function () { return audio; },
     state: function () {
-      return { on: on, playing: playing(), track: current().id, title: current().title, started: started };
+      return { on: on, playing: playing(), track: current().id, title: current().title, started: started,
+        scene: ctx ? ctx.id : null };
     }
   };
+
+  // Pages other than the hub ask for the player with data-autoinit on the tag.
+  var self = document.currentScript;
+  if (self && self.hasAttribute('data-autoinit')) {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+  }
 })();
