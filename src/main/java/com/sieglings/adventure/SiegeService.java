@@ -3026,6 +3026,22 @@ public class SiegeService {
      */
     private void grantEndRewards(SiegeRun run, String authorizationHeader, double rewardMultiplier) {
         if (run.isEndRewardsGranted()) return;
+        if (run.getChallengeWeek() != null) {
+            // The weekly board measures the seeded run. The team is assigned, not
+            // earned, so ending or losing must not pay Siegecoins, unlock starters,
+            // move Endless records, or count as a personal expedition.
+            Map<String, Object> weekly = new LinkedHashMap<>();
+            weekly.put("gold", 0);
+            weekly.put("remnants", 0);
+            weekly.put("card", null);
+            weekly.put("score", run.getFinalScore());
+            weekly.put("scoreBreakdown", run.getScoreTally().breakdown(run));
+            weekly.put("claimed", true);
+            weekly.put("weekly", true);
+            run.setEndRewards(weekly);
+            run.setEndRewardsGranted(true);
+            return;
+        }
         // Endless has no victory to pay out: ending one is a choice, so the win
         // bonus, card prize and win count would be free for ending on floor 1.
         // Its payout grows with floors, bosses and loops instead.
@@ -3177,13 +3193,21 @@ public class SiegeService {
                 throw new IllegalArgumentException("Finish the battle before ending the run.");
             }
             double multiplier = Math.max(1, run.getLoop() + 1);
-            boolean bankTeam = run.getBossKills() >= 1;
+            // A Weekly Challenge uses Endless rules for the climb, but the team was
+            // assigned. Ending it posts the score and does not bank veterans.
+            boolean challenge = run.getChallengeWeek() != null;
+            boolean bankTeam = !challenge && run.getBossKills() >= 1;
             run.setStatus(RunStatus.WON);
             run.setMercenary(null);
             run.getMercCards().clear();
-            run.setLastReward("Endless run ended on floor " + run.floorReached() + ". Final score: " + run.getFinalScore()
-                    + "." + (bankTeam ? " Your team is banked as veterans." : "")
-                    + (multiplier > 1 ? " End rewards ×" + (long) multiplier + "." : ""));
+            if (challenge) {
+                run.setLastReward("Weekly Challenge ended on floor " + run.floorReached()
+                        + ". Final score: " + run.getFinalScore() + ".");
+            } else {
+                run.setLastReward("Endless run ended on floor " + run.floorReached() + ". Final score: " + run.getFinalScore()
+                        + "." + (bankTeam ? " Your team is banked as veterans." : "")
+                        + (multiplier > 1 ? " End rewards ×" + (long) multiplier + "." : ""));
+            }
             grantEndRewards(run, authorizationHeader, multiplier);
             if (bankTeam) extractTeam(run, authorizationHeader);
             recordRunHistory(run);

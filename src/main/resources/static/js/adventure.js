@@ -6936,14 +6936,23 @@
     return Math.max(1, (run && run.floorReached) || 0);
   }
 
+  function isWeeklyRun(run) {
+    return !!(run && (run.challengeWeek || run.slot === 'CHALLENGE'));
+  }
+
   function extractTeam() {
     if (state.busy) return;
     var run = state.run || {};
-    var banks = run.stats && (run.stats.bossKills || 0) > 0;
-    if (!confirm('End this Endless run on floor ' + endlessFloor(run) + '?\n\nYour score of ★ ' + fmtNum(run.score || 0) +
-      ' and end rewards are banked' + (banks
-        ? ', and your leveled team is banked as veterans.'
-        : '. Beat a boss first to bank your team as veterans too.'))) return;
+    var weekly = isWeeklyRun(run);
+    var banks = !weekly && run.stats && (run.stats.bossKills || 0) > 0;
+    var prompt = weekly
+      ? ('End this Weekly Challenge on floor ' + endlessFloor(run) + '?\n\nYour score of ★ ' +
+        fmtNum(run.score || 0) + ' is submitted to this week’s board. The set team is not banked, and the run pays no account spoils.')
+      : ('End this Endless run on floor ' + endlessFloor(run) + '?\n\nYour score of ★ ' + fmtNum(run.score || 0) +
+        ' and end rewards are banked' + (banks
+          ? ', and your leveled team is banked as veterans.'
+          : '. Beat a boss first to bank your team as veterans too.'));
+    if (!confirm(prompt)) return;
     state.busy = true;
     api('/api/siege/extract', { method: 'POST', body: { token: token() } })
       .then(function (run) { applyRun(run); })
@@ -7016,9 +7025,12 @@
     showScreen('resultScreen');
     var run = state.run;
     var won = run.status === 'WON';
+    var weekly = isWeeklyRun(run);
     var endless = run.mode === 'ENDLESS';
     var title = $('resultTitle');
-    title.textContent = endless ? ('Endless — ★ ' + fmtNum(run.score || 0)) : (won ? 'Expedition Won' : 'Expedition Lost');
+    title.textContent = weekly
+      ? ('Weekly Challenge — ★ ' + fmtNum(run.score || 0))
+      : (endless ? ('Endless — ★ ' + fmtNum(run.score || 0)) : (won ? 'Expedition Won' : 'Expedition Lost'));
     title.className = endless ? 'win' : (won ? 'win' : 'lose');
     $('resultText').textContent = run.lastReward || (won ? 'The Siegelord has fallen.' : 'Your warband was overwhelmed.');
 
@@ -7042,7 +7054,9 @@
     if (scoreCard) extras.appendChild(scoreCard);
 
     var er = run.endRewards;
-    if (er) {
+    // A Weekly Challenge posts a score only. Spoils, starter unlocks and a banked
+    // team belong to a run the player built.
+    if (er && !er.weekly && !weekly) {
       var cardLine = er.card ? '<div>🃏 Card: <strong>' + esc(er.card.name) + '</strong> (' + esc(er.card.rarity) + ')</div>' : '';
       var note = er.claimed
         ? 'Added to your account.'
@@ -7071,7 +7085,8 @@
     }
 
     // Team extraction: the leveled team was banked for Battlegrounds.
-    var extraction = run.extraction;
+    // A Weekly Challenge team is assigned, so it is never shown as banked.
+    var extraction = weekly ? null : run.extraction;
     if (extraction) {
       var members = extraction.members || [];
       var kn = extraction.knight || {};

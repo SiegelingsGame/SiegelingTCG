@@ -119,6 +119,27 @@ class SiegeEndRewardsTest {
     }
 
     @Test
+    void weeklyChallengeDoesNotPayTheAccount() throws Exception {
+        SiegeRun run = finishedRun("weekly-no-payout");
+        run.setMode(RunMode.ENDLESS);
+        run.setChallengeWeek("2026-W44");
+        run.setBossKills(2);
+        run.getDiscoveredSieglingIds().add("locked-siegling");
+        run.getScoreTally().restore(null, 5000L);
+
+        invokeGrant(run, "Bearer ok");
+
+        assertTrue(run.isEndRewardsGranted());
+        assertEquals(Boolean.TRUE, run.getEndRewards().get("weekly"));
+        assertEquals(0, ((Number) run.getEndRewards().get("gold")).intValue());
+        assertEquals(0, ((Number) run.getEndRewards().get("remnants")).intValue());
+        assertEquals(100, persisted.get().getGold(), "weekly spoils must not credit Siegecoins");
+        assertEquals(20, persisted.get().getRemnants());
+        assertEquals(0, persisted.get().getSiegeRuns());
+        assertEquals(0, saveCalls.get(), "the progression document must not be written");
+    }
+
+    @Test
     void guestsStillSealPreviewWithoutAnAccount() throws Exception {
         SiegeRun run = finishedRun("end-rewards-guest");
         invokeGrant(run, null);

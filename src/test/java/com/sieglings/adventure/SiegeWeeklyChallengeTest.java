@@ -9,8 +9,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -67,6 +69,25 @@ class SiegeWeeklyChallengeTest {
         assertEquals(RunSlot.ENDLESS, RunSlot.of(run));
         run.setChallengeWeek("2026-W44");
         assertEquals(RunSlot.CHALLENGE, RunSlot.of(run));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void endingAfterABossPostsTheScoreAndDoesNotBankTheTeam() {
+        Map<String, Object> started = siegeService.newWeeklyRun(null);
+        String token = (String) started.get("token");
+        SiegeRun run = siegeService.lookup(token).orElseThrow();
+        run.setBossKills(1);
+
+        Map<String, Object> ended = siegeService.extract(token, null);
+
+        assertEquals("WON", ended.get("status"));
+        assertNull(ended.get("extraction"), "the assigned team is not a veteran squad");
+        assertFalse(run.isVeteranExtracted());
+        Map<String, Object> rewards = (Map<String, Object>) ended.get("endRewards");
+        assertEquals(Boolean.TRUE, rewards.get("weekly"));
+        assertEquals(0, ((Number) rewards.get("gold")).intValue());
+        assertTrue(String.valueOf(ended.get("lastReward")).startsWith("Weekly Challenge ended"));
     }
 
     @Test
