@@ -1,3 +1,22 @@
+Original prompt: Music should continue through page to page and loading screens.
+
+- October 31, 2026 **Music carries straight on across page changes and loading screens.**
+  - **Starts while the page loads.** `hub-music.js` with `data-autoinit` now starts the player as soon as its script runs (it no longer waits for DOMContentLoaded). The tag moved into the `<head>` of `play.html`, `adventure.html`, `gauntlet.html`, `dominion.html` and `home-next.html` (Home used to start it only after the catalog had loaded, so its boot screen was silent). Music plays during each page's loading screen.
+  - **No rewind.**
+    - The save records the position to 0.1s and whether the song was sounding.
+    - On the next page the time the change took is added back (capped at 20s; a longer gap means the player left), so the song continues where it would be.
+    - A carried-over song starts at volume 0 and swells to full over 0.9s once it is sounding.
+  - **Landing page** (`index.html`). Loads the player with `data-autoinit="continue"`: it carries on only a song that was playing on the site in the last 10 minutes, and a first visit stays quiet.
+    - While continuing, `html.hm-continuing` shows a small music button (bottom left, `.hm-landing-btn` in `hub-music.css`) that opens the full player.
+  - **Browser limit.** Where the browser requires a tap before a new page can play sound (iOS Safari), the song waits silently at its carried position and the first tap anywhere continues it.
+  - **Cache pins.** `hub-music.js?v=10` (6 pages), `hub-music.css?v=2`.
+  - **Verification.** `node --check` passes. Headless Chromium on a range-capable static server (Python's http.server ignores Range, so seeking always restarted at 0:00 there; the live host answers 206):
+    - **Autoplay allowed, `game.js` held back 4s.** Home at 10.14s → `/play.html` sounding at 10.25s within 150ms, while the loading screen was still up. Volume ramps 0 → .08 → .15 → .23 → .32 over ~0.9s.
+    - **Tap required.** Silent until the first tap, then 7.02s after Home's 5.87s.
+    - **Landing, continuing.** Song carried at 0:44 from a 0:40 save; the button sits at (14,784) and opens the panel.
+    - **Landing, first visit.** Not started, no button.
+    - The only page error is the known loadout error with empty mocked options.
+
 Original prompt: Remove the green continue and just keep the one Siege mode extension, similar to Dominion, since the Siege mode already offers a chance to continue from its own page.
 
 - October 31, 2026 **Home: Siege flank back to one plain button.**

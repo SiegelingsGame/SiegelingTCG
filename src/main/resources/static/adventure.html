@@ -18,11 +18,13 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/coach.css?v=7">
 <link rel="stylesheet" href="/css/shield-navigation.css?v=7">
-<link rel="stylesheet" href="/css/hub-music.css?v=1">
+<link rel="stylesheet" href="/css/hub-music.css?v=2">
 <link rel="stylesheet" href="/css/adventure.css?v=114">
   <!-- Art-first re-skin. After adventure.css on purpose: it restates the same
        tokens and expects to win. -->
   <link rel="stylesheet" href="/css/siege-next.css?v=25">
+<!-- Music first: it starts while the page is still loading, so the song carries straight on from the last page. -->
+<script src="/js/hub-music.js?v=10" data-autoinit></script>
 </head>
 <body>
 <!-- Enemy Siegelings are corrupted card art, so they need the same die-cut shade
@@ -793,7 +795,6 @@
 <script src="/js/siege-tutorial.js?v=28"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
 <script src="/js/shield-navigation.js?v=5"></script>
-<script src="/js/hub-music.js?v=9" data-autoinit></script>
 <script src="/js/adventure.js?v=155"></script>
 </body>
 </html>

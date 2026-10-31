@@ -182,3 +182,17 @@
 /* Outside the hub shell the panel hangs off <body>, so it pins to the
    viewport above each page's own overlays. */
 body > .hm-panel { position:fixed; z-index:10050; }
+
+/* The landing page's music button: only there while a song carried over from
+   the game (html.hm-continuing, set by hub-music.js), so a first visit has no
+   control for music it is not playing. */
+.hm-landing-btn { display:none; }
+.hm-continuing .hm-landing-btn {
+  position:fixed; z-index:10040; left:max(14px, env(safe-area-inset-left, 0px));
+  bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+  width:44px; height:44px; border-radius:50%; display:grid; place-items:center; padding:0; cursor:pointer;
+  border:1px solid rgba(230,205,140,.5); background:rgba(10,16,28,.72); color:#e6cd8c;
+  box-shadow:0 6px 18px rgba(0,0,0,.45); -webkit-tap-highlight-color:transparent;
+}
+.hm-continuing .hm-landing-btn.is-muted { opacity:.6; }
+.hm-continuing .hm-landing-btn[aria-expanded="true"] { background:#e6cd8c; color:#1a1208; }

@@ -70,8 +70,10 @@
      The shuffle order, the song and its position are saved as the page goes
      and restored on the next load, so the same song carries on from the same
      second. Stale state (a visit hours later) starts a fresh shuffle instead.
-     The browser still decides when sound may start: a new page needs its own
-     tap before it plays, and the song then continues from where it was. */
+     The time the page change itself took is added back, so the song picks up
+     where it would have been rather than a beat behind, and it fades in rather
+     than snapping on. The browser still decides when sound may start: where a
+     new page needs its own tap (iOS Safari), the first tap continues the song. */
   var RESUME_KEY = 'sgHubMusicResume2';
   var RESUME_TTL_MS = 30 * 60 * 1000;
   var lastSave = 0;
@@ -81,7 +83,9 @@
     try {
       localStorage.setItem(RESUME_KEY, JSON.stringify({
         order: order, pos: pos,
-        t: ctx ? hubSeek : (audio && audio.currentTime ? Math.floor(audio.currentTime) : pendingSeek),
+        t: ctx ? hubSeek : (audio && audio.currentTime ? Math.round(audio.currentTime * 10) / 10 : pendingSeek),
+        // Only a song that was sounding keeps running through the page change.
+        playing: Boolean(!ctx && audio && !audio.paused),
         at: Date.now()
       }));
     } catch (e) { /* private mode */ }
@@ -102,7 +106,30 @@
     order = saved.order.slice();
     pos = Math.max(0, Math.min(order.length - 1, Number(saved.pos) || 0));
     pendingSeek = Math.max(0, Number(saved.t) || 0);
+    // A page change takes a second or two; a longer gap means the player
+    // left, and the song waits where it stopped.
+    var gap = (Date.now() - (saved.at || 0)) / 1000;
+    if (saved.playing && gap > 0 && gap < CARRY_MAX_S) pendingSeek += gap;
+    savedRecently = Date.now() - (saved.at || 0) < CONTINUE_WINDOW_MS;
+    fadeIn = pendingSeek > 0;
     return true;
+  }
+  var CARRY_MAX_S = 20;
+  var CONTINUE_WINDOW_MS = 10 * 60 * 1000;
+  var savedRecently = false;   // a song was playing on this site in the last few minutes
+  var fadeIn = false;          // the next start continues a song, so it swells in
+
+  // Continuing mid-song after a page change: ramp up instead of cutting in.
+  function swellIn() {
+    if (!fadeIn || !audio) return;
+    fadeIn = false;
+    var start = Date.now(), DURATION = 900;
+    audio.volume = 0;
+    (function tick() {
+      var k = Math.min(1, (Date.now() - start) / DURATION);
+      audio.volume = VOLUME * k;
+      if (k < 1) requestAnimationFrame(tick);
+    })();
   }
 
   function readPref() {
@@ -202,6 +229,7 @@
       if (now - lastSave > 3000) { lastSave = now; saveResume(); }
     });
     audio.addEventListener('play', paint);
+    audio.addEventListener('playing', swellIn);
     audio.addEventListener('durationchange', paintProgress);
     audio.addEventListener('pause', paint);
     // A missing or undecodable file skips on rather than leaving silence.
@@ -216,6 +244,8 @@
 
   function play() {
     if (!on || document.hidden) return;
+    // A carried-over song starts silent and swells in once it is sounding.
+    if (fadeIn) ensureAudio().volume = 0;
     var p = ensureAudio().play();
     if (p && p.then) {
       p.then(function () { started = true; paint(); }, function () { /* waits for a gesture */ });
@@ -534,9 +564,16 @@
   };
 
   // Pages other than the hub ask for the player with data-autoinit on the tag.
+  // It starts at once, from <head>, so the song is already going while a
+  // page's loading screen is up rather than after everything has loaded.
+  // data-autoinit="continue" (the landing page) only carries on a song the
+  // player was already listening to; a first visit there stays quiet.
   var self = document.currentScript;
   if (self && self.hasAttribute('data-autoinit')) {
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-    else init();
+    var continueOnly = self.getAttribute('data-autoinit') === 'continue';
+    if (!continueOnly || (on && savedRecently)) {
+      init();
+      if (continueOnly) document.documentElement.classList.add('hm-continuing');
+    }
   }
 })();

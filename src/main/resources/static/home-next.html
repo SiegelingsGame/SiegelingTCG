@@ -27,7 +27,7 @@
 <link rel="stylesheet" href="/css/style.css?v=298">
 <link rel="stylesheet" href="/css/shield-navigation.css?v=7">
 <link rel="stylesheet" href="/css/home-redesign.css?v=186">
-<link rel="stylesheet" href="/css/hub-music.css?v=1">
+<link rel="stylesheet" href="/css/hub-music.css?v=2">
 <link rel="stylesheet" href="/css/hub-workspaces.css?v=7">
 <link rel="stylesheet" href="/css/hub-events.css?v=1">
 <link rel="stylesheet" href="/css/match-review.css?v=6">
@@ -92,6 +92,8 @@
 </style>
     <!-- Sets --sg-vh before first paint; every fixed shell measures off it. -->
     <script src="/js/viewport-unit.js?v=3"></script>
+<!-- Music first: it starts while the page is still loading, so the song carries straight on from the last page. -->
+<script src="/js/hub-music.js?v=10" data-autoinit></script>
 </head>
 <body>
 <!-- The Keep's die-cut paper standee filter (copied from keep.html), used by the
@@ -162,7 +164,6 @@
 <script src="/js/home-redesign.js?v=175"></script>
 <script src="/js/home-redesign-live.js?v=26"></script>
 <script src="/js/install-guide.js?v=3"></script>
-<script src="/js/hub-music.js?v=9"></script>
 <script>
 (function () {
   // Path first (this page now answers /home, /cards, /decks, …), ?screen= as a
