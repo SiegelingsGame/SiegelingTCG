@@ -1690,3 +1690,31 @@
 }
 .daily-battle-kicker { font-size:10px; font-weight:800; letter-spacing:.18em; text-transform:uppercase; color:#ffe39a; }
 .daily-battle-banner strong { font-size:15px; font-weight:700; }
+
+/* Arena loading screen (play.html #playBoot): the hub's boot screen, shown
+   only when the loadout takes more than a moment to arrive. It sits above
+   the startup cover (style.css, z-index 20000) and fades in. */
+.play-boot { position:fixed; inset:0; z-index:20001; overflow:hidden; background:#061020;
+  opacity:0; visibility:hidden; transition:opacity .35s ease, visibility 0s linear .35s; pointer-events:none; }
+.play-boot.is-on { opacity:1; visibility:visible; transition:opacity .35s ease; pointer-events:auto; }
+.play-boot.is-gone { opacity:0; }
+.play-boot-plate { position:absolute; inset:0; background-size:cover; background-position:center;
+  filter:saturate(1.15) brightness(.82); transform:scale(1.04); animation:playBootDrift 18s ease-in-out infinite alternate; }
+.play-boot-veil { position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(6,16,32,.42) 0%, rgba(6,16,32,.2) 38%, rgba(6,16,32,.78) 78%, #061020 100%); }
+.play-boot-foot { position:absolute; left:0; right:0; bottom:0; padding:0 22px calc(38px + env(safe-area-inset-bottom, 0px));
+  display:flex; flex-direction:column; align-items:center; gap:13px; text-align:center; }
+.play-boot-brand { display:flex; flex-direction:column; align-items:center; gap:7px; }
+.play-boot-mark { width:52px; height:52px; border-radius:14px; }
+.play-boot-wordmark { font-size:19px; font-weight:800; letter-spacing:.2em; text-transform:uppercase; color:#f4e6bd;
+  text-shadow:0 2px 14px rgba(0,0,0,.65); }
+.play-boot-wordmark span { display:block; margin-top:2px; font-size:9px; font-weight:600; letter-spacing:.42em; color:#b3a8d8; }
+.play-boot-title { font-size:12px; letter-spacing:.3em; text-transform:uppercase; color:#e6cd8c; min-height:15px; }
+.play-boot-title::after { content:attr(data-place); display:block; margin-top:3px; letter-spacing:.14em; text-transform:none; color:#b3a8d8; font-size:11px; }
+.play-boot-hint { max-width:34em; min-height:3.2em; margin:0; font-size:13px; line-height:1.55; color:#d8d2f0; transition:opacity .3s ease; }
+.play-boot-hint.is-fading { opacity:0; }
+.play-boot-spin { width:28px; height:28px; border-radius:50%; border:2px solid rgba(180,140,255,.28); border-top-color:#ffd83d;
+  animation:playBootSpin .9s linear infinite; }
+@keyframes playBootSpin { to { transform:rotate(360deg); } }
+@keyframes playBootDrift { from { transform:scale(1.04) translateY(0); } to { transform:scale(1.1) translateY(-10px); } }
+@media (prefers-reduced-motion:reduce) { .play-boot-plate { animation:none; } .play-boot, .play-boot.is-on { transition:none; } }

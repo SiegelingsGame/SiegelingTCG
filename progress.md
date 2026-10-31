@@ -1,3 +1,18 @@
+Original prompt: On occasion when you select Arena from the home page it goes to a blank blue page instead of a loading screen before showing the Arena mode selections. It should show the elemental transition animation, then if it needs to load, a loading screen that transitions into the Arena selection screen. If no loading, just the elemental transition.
+
+- October 31, 2026 **Arena: a real loading screen instead of the blank blue page.**
+  - **Cause.** `play.html` hides everything behind `html.play-startup`, a plain #061020 cover (style.css), until `/api/game/options` answers and `syncEntryOverlays` lifts the class. On a cold server that is several seconds, so the elemental page transition landed on a blank blue page.
+  - **Change.**
+    - `play.html` now carries `#playBoot`, the hub's boot screen: gallery art from `loading-art.js` with its title and place, the Arena wordmark, rotating hints, and a spinner. `loading-art.js` moved up to load right after it.
+    - An inline script paints it and shows it (`.is-on`, 0.35s fade) only if the page is still in `play-startup` 350ms after arriving. A quick load never shows it; the elemental transition goes straight to the loadout.
+    - A MutationObserver on `<html>` sees `play-startup` lifted and sends the loading screen off with `SgTransition.splashOut` (the same exit as Home's boot), falling back to a fade.
+    - `style.css` exempts `#playBoot` from the startup hide rule; styles are in `play-next.css`.
+  - **Cache pins.** `play-next.css?v=21`, `style.css?v=299` (non-fixture pages).
+  - **Verification.** Headless Chromium at 390x844, tapping Arena on Home (`/battle` through the real page transition), with `/api/game/options` served from a saved live snapshot:
+    - **Delayed 4s.** The loading screen was on from ~0.6s with art and a hint, then removed at ~4.5s once the loadout was visible.
+    - **Instant.** The loading screen never showed and the loadout was up by 0.7s.
+    - No page errors. Screenshots checked.
+
 Original prompt: Music should continue through page to page and loading screens.
 
 - October 31, 2026 **Music carries straight on across page changes and loading screens.**
