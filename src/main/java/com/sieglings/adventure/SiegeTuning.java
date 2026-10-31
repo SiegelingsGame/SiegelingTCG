@@ -77,8 +77,6 @@ final class SiegeTuning {
     static final int AMP_SWAP_HEAL = 6;
     /** Shield a swap move's SHIELD rider grants to both units it moved. */
     static final int AMP_SWAP_SHIELD = 5;
-    /** Attack a swap move's ATTACK rider adds to both units it moved. */
-    static final int AMP_SWAP_ATTACK = 2;
 
     // ---- Buff durations ---------------------------------------------------
 
@@ -94,7 +92,7 @@ final class SiegeTuning {
     static final int BUFF_SPD_ROUNDS = 2;
     /** Rounds the buff half of a once-per-battle Knight ultimate lasts — longer, since it costs the ultimate. */
     static final int ULTIMATE_BUFF_ROUNDS = 3;
-    /** Rounds a swap move's ATTACK amp rider lasts; it rides a positioning move, so it matches a card buff. */
+    /** Retired with the swap ATTACK amp (swaps never deal damage); kept so saved tuning docs still parse. */
     static final int RIDER_BUFF_ROUNDS = 2;
     /** Rounds a mercenary's signature Boon buff lasts — one round longer than a stock card buff. */
     static final int BOON_BUFF_ROUNDS = 3;
@@ -295,6 +293,11 @@ final class SiegeTuning {
 
     /** Base gold granted in place of a disabled free recruit drop (before the BG ×2.5). */
     static final int BG_RECRUIT_GOLD = 40;
+    /**
+     * Chance (percent) that a non-boss win with a full warband still turns up a
+     * wandering Siegeling, offered as a free swap or one-battle ally.
+     */
+    static final int FULL_WARBAND_WANDERER_PCT = 35;
 
     // ---- Phase 4: tiers I–V, Warmarks, fatigue ----------------------------
     // Tier N (1-based) raises both the difficulty scalar (fed into

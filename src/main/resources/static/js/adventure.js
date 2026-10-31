@@ -6817,7 +6817,7 @@
   }
 
   // ---- level-up amplification -------------------------------------------
-  var AMP_KIND_ICON = { VALUE: '\u2694', COST: '\u26A1', SWAP_HEAL: '\u2764', SWAP_SHIELD: '\u25C7', SWAP_ATTACK: '\u2B06' };
+  var AMP_KIND_ICON = { VALUE: '\u2694', COST: '\u26A1', SWAP_HEAL: '\u2764', SWAP_SHIELD: '\u25C7' };
 
   /** One levelled Siegeling picks one of three of its own cards to amplify. */
   function renderAmpChoice() {

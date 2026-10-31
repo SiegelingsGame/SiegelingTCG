@@ -214,7 +214,7 @@ public class SiegeEffectTuningService {
                 "How long the buff half of a Knight Ultimate holds.",
                 SiegeTuning.ULTIMATE_BUFF_ROUNDS, MAX_DURATION_ROUNDS));
         GLOBAL_DEFS.put("riderBuffRounds", new GlobalDef("Amp rider buff rounds",
-                "How long the ATTACK rider on an amplified swap move holds.",
+                "Retired: swap amps now only heal or shield, so nothing reads this.",
                 SiegeTuning.RIDER_BUFF_ROUNDS, MAX_DURATION_ROUNDS));
         GLOBAL_DEFS.put("boonBuffRounds", new GlobalDef("Mercenary Boon rounds",
                 "How long a hired mercenary's signature Boon buff holds.",

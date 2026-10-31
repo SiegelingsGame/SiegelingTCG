@@ -1180,15 +1180,6 @@ public class SiegeCombatEngine {
                     battle.event("shield", "sourceId", a.getId(), "targetId", unit.getId(), "amount", amount);
                     battle.log(unit.getName() + " lands braced — " + amount + " shield.");
                 }
-                case ATTACK -> {
-                    int rounds = tunedGlobal("riderBuffRounds", SiegeTuning.RIDER_BUFF_ROUNDS);
-                    grantBuff(battle, unit, Combatant.BuffStat.ATTACK, amount, rounds,
-                            spec.id() + "-rider");
-                    battle.event("buff", "kind", "atk", "amount", amount, "rounds", rounds,
-                            "targetId", unit.getId());
-                    battle.log(unit.getName() + " lands swinging — +" + amount + " attack"
-                            + forRounds(rounds) + ".");
-                }
                 case NONE -> { }
             }
         }

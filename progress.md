@@ -124,6 +124,25 @@ Original prompt: The ability to chat from the home screen as well without going 
     - A friend with no history opens on "Say hello".
     - Closing and reopening the chat returns to the list.
     - No page scroll, no page errors.
+Original prompt: Also in siege and ritual etc, swap Space moves cannot do damage if they are upgraded they either grant shield Or Healing to the user or both targets.
+
+- October 31, 2026 **Siege + Gauntlet: upgraded swap moves only heal or shield.**
+  - **Change.**
+    - **Siege.** A level-up amp on a notch swap is now only "Heals on arrival" or "Shields on arrival", for both Siegelings that traded. The `SWAP_ATTACK` amp, the `AmpRider.ATTACK` rider and its combat branch are gone, and so is the −AP option for swaps. A saved run whose swap carried an ATTACK rider restores it as the standard shield amp. The `riderBuffRounds` tuning knob is now unused; it stays (marked retired) so saved tuning docs still parse.
+    - **Gauntlet.** The forge only offers a swap (`move_link`) the self-heal (Lifesteal) or self-shield (Guard) rider. Any damage rider an older run stored on a swap is dropped when the card is rebuilt.
+
+    `adventure.js?v=154`.
+  - **Verification.** `SiegeLevelUpAmpTest` now requires swap amps to be heal or shield. The new `GauntletRidersTest.swapMovesOnlyEverForgeHealOrShieldRiders` checks forge offers across 200 seeds and checks that a stored Splash rider is dropped on rebuild while Guard stays. `Siege*Test` + `Gauntlet*Test`: 301 tests, 0 failures. `node --check` on adventure.js.
+
+Original prompt: In siege if your war and is full and you find a siegeking in an event or any interaction give the option to swap if you have a full team
+
+- October 31, 2026 **Siege: a full warband can swap in Siegelings found after battles and in elite spoils.**
+  - **Change.** Event wanderers (`RECRUIT_CHANCE`), brokers and camp brokers already offered a swap to a full warband. Two places still lost the Siegeling without asking:
+    - **Post-battle drop.** When the warband had room, a wild Siegeling joined after every win. A full warband got nothing. Now a non-boss win has a `SiegeTuning.FULL_WARBAND_WANDERER_PCT` (35%) chance to open the free wanderer stall after the spoils pick: swap it in, take it as a one-battle ally, or move on with its parting gift. It is skipped on boss wins (the land changes) and in Battlegrounds.
+    - **Elite recruit spoil.** A full warband used to get a card upgrade in its place. Now it sees "Swap in X", and picking it opens the same wanderer stall.
+
+    Server only (`SiegeService`, `SiegeTuning`). The client already shows the wanderer stall after the rewards screen.
+  - **Verification.** `./mvnw -q -DskipTests compile`. New `SiegeFullWarbandRecruitTest.eliteRecruitSpoilBecomesASwapWhenTheWarbandIsFull`: the elite spoil is titled "Swap in…", picking it opens the stall without overfilling the warband, and the swap replaces the chosen member. Full `Siege*Test` suite: 284 tests, 0 failures.
 
 Original prompt: Turn the color down, it should be subtle.
 
