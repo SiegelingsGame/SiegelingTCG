@@ -4976,6 +4976,71 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-stage-cards .sg-gtab-gem { width:7px; height:10px; margin-top:-5px; right:4px; }
   .sg-stage-cards .sg-gtab:active { transform:translateY(1px); border-color:#ffe39a; }
   @media (hover:hover) { .sg-stage-cards .sg-gtab:hover { border-color:#ffe39a; } }
+
+  /* Profile card and chat share the plates' frosted glass so the corner reads
+     as one stack over the art. */
+  .sg-stage-lead { width:clamp(230px, 24vw, 300px); }
+  .sg-stage-me, .sg-stage-chat {
+    width:100%; box-sizing:border-box; border:1px solid rgba(255,255,255,.3); color:var(--ink);
+    background:linear-gradient(135deg,rgba(255,255,255,.16),rgba(255,255,255,.04) 60%,rgba(140,210,255,.08)), rgba(9,36,52,.38);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 6px 18px rgba(0,0,0,.25);
+    backdrop-filter:blur(14px) saturate(1.5); -webkit-backdrop-filter:blur(14px) saturate(1.5);
+  }
+  .sg-stage-me {
+    display:flex; align-items:center; gap:10px; padding:7px 10px 7px 7px; border-radius:16px 10px 10px 16px;
+    text-decoration:none; border-color:color-mix(in srgb, var(--el, #d9b45f) 55%, rgba(255,255,255,.3));
+  }
+  .sg-stage-me .sg-crest-ring { width:44px; height:44px; flex:0 0 auto; box-shadow:0 4px 12px rgba(0,0,0,.45); }
+  .sg-stage-me .sg-crest-ring i { font-size:19px; }
+  .sg-stage-me-text { display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0; flex:1 1 auto; }
+  .sg-stage-me-text strong {
+    max-width:100%; font-family:var(--serif); font-size:16px; font-weight:600; line-height:1.15;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 3px rgba(0,0,0,.6);
+  }
+  .sg-stage-me .sg-crest-title { margin:0; padding:1px 7px; font-size:8px; letter-spacing:.14em; max-width:100%; box-sizing:border-box; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sg-stage-me-text em {
+    max-width:100%; font-style:normal; font-size:10px; letter-spacing:.06em; color:rgba(255,255,255,.82);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .sg-stage-me-go { font-style:normal; font-size:20px; color:#ffe39a; flex:0 0 auto; }
+  .sg-stage-me:active { transform:translateY(1px); }
+
+  .sg-stage-chat { display:flex; flex-direction:column; border-radius:12px; overflow:hidden; }
+  .sg-stage-chat-tabs { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); border-bottom:1px solid rgba(255,255,255,.16); }
+  .sg-stage-chat-tabs button {
+    position:relative; height:30px; padding:0 4px; border:none; background:none; cursor:pointer;
+    font:inherit; font-size:10.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
+    color:rgba(255,255,255,.66); box-shadow:inset 0 -2px 0 transparent;
+  }
+  .sg-stage-chat-tabs button.on { color:#ffe39a; background:rgba(255,227,154,.08); box-shadow:inset 0 -2px 0 #ffe39a; }
+  .sg-stage-chat-tabs button:focus-visible { outline:2px solid #ffe39a; outline-offset:-2px; }
+  /* Inline, not the tile badge's corner pin, which sat over the label. */
+  .sg-stage-chat-tabs button { display:inline-flex; align-items:center; justify-content:center; gap:4px; }
+  .sg-stage-chat-tabs .sg-stage-badge { position:static; min-width:14px; height:14px; line-height:14px; font-size:9px; letter-spacing:0; box-shadow:none; }
+  /* Only the message list scrolls; the page itself never does. */
+  .sg-stage-chat-body {
+    height:clamp(96px, 22vh, 190px); overflow-y:auto; overscroll-behavior:contain;
+    padding:5px; display:flex; flex-direction:column; gap:3px;
+  }
+  .sg-stage-chat-row {
+    display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:8px;
+    text-decoration:none; color:var(--ink); flex:0 0 auto;
+  }
+  .sg-stage-chat-row:active { background:rgba(255,255,255,.1); }
+  @media (hover:hover) { .sg-stage-chat-row:hover { background:rgba(255,255,255,.08); } }
+  .sg-stage-chat-row .sg-friend-crest { width:28px; height:28px; font-size:12px; }
+  .sg-stage-chat-line { display:flex; flex-direction:column; min-width:0; flex:1 1 auto; }
+  .sg-stage-chat-line b { font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sg-stage-chat-line em { font-style:normal; font-size:11px; color:rgba(255,255,255,.72); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sg-stage-chat-row.is-unread .sg-stage-chat-line em { color:#fff; font-weight:600; }
+  .sg-stage-chat-empty {
+    margin:auto 0; padding:8px; text-align:center; font-size:11.5px; line-height:1.45; color:rgba(255,255,255,.8);
+  }
+  .sg-stage-chat-empty a {
+    display:block; width:max-content; margin:8px auto 0; padding:5px 12px; border-radius:999px;
+    border:1px solid rgba(255,227,154,.55); color:#ffe39a; text-decoration:none;
+    font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
+  }
   /* Shortcut icons atop the mode column, three to a row, labelled underneath
      like a launcher. */
   .sg-stage-left {
@@ -5436,7 +5501,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
       "siege fab keep";
   }
 
-  .sg-stage-lead { grid-area:lead; }
+  /* The lead area is half the grid, but the tile rail beside it is only 58px
+     wide and pinned right, so the card and chat run on past the area's edge. */
+  .sg-stage-lead { grid-area:lead; justify-self:start; width:min(300px, calc(100vw - 104px - var(--sal, 0px) - var(--sar, 0px))); }
   .sg-stage-cards { grid-template-columns:clamp(118px, 33vw, 150px); gap:6px; }
   .sg-stage-cards .sg-gtab { height:40px; }
   .sg-stage-cards .sg-gtab-label { font-size:11.5px; }

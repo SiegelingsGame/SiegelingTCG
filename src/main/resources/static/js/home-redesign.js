@@ -1503,6 +1503,101 @@
     '</div>';
   }
 
+  // The record is counted from the match history the hub already loads; there
+  // is no account level to show (see xpMarkup).
+  function stageProfileMarkup(opts) {
+    if (opts.guest) {
+      return '<a class="sg-stage-me is-guest" href="/login" data-screen="auth">' +
+        '<span class="sg-crest-ring"><i>?</i></span>' +
+        '<span class="sg-stage-me-text"><strong>Guest</strong><em>Sign in to save your legend</em></span></a>';
+    }
+    var p = prefs();
+    var live = opts.live || {};
+    var name = p.displayName || live.displayName || 'Siegelord';
+    var hist = live.matchHistory || [];
+    var wins = hist.filter(function (m) { return m && (m.won === true || String(m.result).toUpperCase() === 'WIN'); }).length;
+    var bits = [];
+    if (hist.length) bits.push(wins + 'W – ' + (hist.length - wins) + 'L');
+    if (live.knights && live.knights.length) bits.push(live.knights.length + ' Knight' + (live.knights.length === 1 ? '' : 's'));
+    var pct = collectedPercent(live);
+    if (pct != null) bits.push(pct + '% collected');
+    return '<a class="sg-stage-me" href="/profile" data-screen="profile" style="--el:' + color(crestElement()) + '">' +
+      crestAvatar(opts) +
+      '<span class="sg-stage-me-text"><strong>' + esc(name) + '</strong>' +
+        (p.playerTitle ? '<span class="sg-crest-title">' + esc(p.playerTitle) + '</span>' : '') +
+        '<em>' + esc(bits.join(' · ') || 'A new legend takes the field') + '</em></span>' +
+      '<i class="sg-stage-me-go" aria-hidden="true">›</i></a>';
+  }
+
+  // Friends is the direct-message inbox; Global and Guild have no server
+  // channel yet, so they say so rather than showing invented chatter.
+  var STAGE_CHAT_TABS = [['global', 'Global'], ['friends', 'Friends'], ['guild', 'Guild']];
+  var STAGE_CHAT_KEY = 'sgStageChatTab';
+  function stageChatTab() {
+    var saved = null;
+    try { saved = localStorage.getItem(STAGE_CHAT_KEY); } catch (e) { /* private mode */ }
+    return STAGE_CHAT_TABS.some(function (t) { return t[0] === saved; }) ? saved : 'friends';
+  }
+
+  function stageChatBody(opts, tab) {
+    if (tab === 'friends') {
+      if (opts.guest) {
+        return '<div class="sg-stage-chat-empty">Sign in to message your friends.' +
+          '<a href="/login" data-screen="auth">Sign In</a></div>';
+      }
+      var threads = ((opts.live && opts.live.threads) || []).slice(0, 6);
+      if (!threads.length) {
+        return '<div class="sg-stage-chat-empty">No messages yet.' +
+          '<a href="/social" data-screen="social" data-social-goto="friends">Find friends</a></div>';
+      }
+      return threads.map(function (t) {
+        var name = threadPeerName(opts, t.peerId);
+        return '<a class="sg-stage-chat-row' + (t.unread ? ' is-unread' : '') + '" href="/social" data-screen="social" ' +
+          'data-social-goto="messages" data-thread-goto="' + esc(t.peerId) + '" data-thread-name="' + esc(name) + '">' +
+          '<span class="sg-friend-crest">' + esc(String(name).charAt(0).toUpperCase()) + '</span>' +
+          '<span class="sg-stage-chat-line"><b>' + esc(name) + '</b><em>' + esc(t.lastMessage || '') + '</em></span>' +
+          (t.unread ? '<i class="sg-thread-dot" aria-label="Unread"></i>' : '') + '</a>';
+      }).join('');
+    }
+    if (tab === 'guild') {
+      return '<div class="sg-stage-chat-empty">Guild chat isn’t open yet. Your Dominion guild will talk here.' +
+        '<a href="/dominion">Open Dominion</a></div>';
+    }
+    return '<div class="sg-stage-chat-empty">Global chat isn’t open yet. Every Siegelord online will talk here.</div>';
+  }
+
+  function stageChatMarkup(opts) {
+    var tab = stageChatTab();
+    var unread = opts.guest ? 0 : unreadThreadCount(opts);
+    return '<section class="sg-stage-chat" data-stage-chat aria-label="Chat">' +
+      '<div class="sg-stage-chat-tabs" role="tablist">' + STAGE_CHAT_TABS.map(function (t) {
+        var on = t[0] === tab;
+        return '<button type="button" role="tab" data-chat-tab="' + t[0] + '" aria-selected="' + on + '"' +
+          (on ? ' class="on"' : '') + '>' + t[1] +
+          (t[0] === 'friends' && unread ? '<i class="sg-stage-badge">' + (unread > 9 ? '9+' : unread) + '</i>' : '') +
+          '</button>';
+      }).join('') + '</div>' +
+      '<div class="sg-stage-chat-body" role="tabpanel" data-chat-body>' + stageChatBody(opts, tab) + '</div>' +
+    '</section>';
+  }
+
+  function mountStageChat(stage, opts) {
+    var chat = stage.querySelector('[data-stage-chat]');
+    if (!chat) return;
+    chat.addEventListener('click', function (e) {
+      var btn = e.target.closest && e.target.closest('[data-chat-tab]');
+      if (!btn) return;
+      var tab = btn.getAttribute('data-chat-tab');
+      try { localStorage.setItem(STAGE_CHAT_KEY, tab); } catch (err) { /* private mode */ }
+      [].forEach.call(chat.querySelectorAll('[data-chat-tab]'), function (b) {
+        var on = b === btn;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-selected', String(on));
+      });
+      chat.querySelector('[data-chat-body]').innerHTML = stageChatBody(opts, tab);
+    });
+  }
+
   function stageMarkup(opts) {
     var runs = (opts && opts.siegeRuns) || [];
     var quests = liveQuests(opts);
@@ -1529,15 +1624,9 @@
       '<button type="button" class="sg-stage-reveal" data-stage-reveal aria-label="Show menus"></button>' +
       '<div class="sg-stage-ui">' +
         '<div class="sg-stage-lead">' +
-        // The main destinations wear the shop's portrait plates down the left;
-        // the panel shortcuts sit as launcher icons atop the mode column.
-        '<nav class="sg-stage-cards" aria-label="Main destinations">' +
-          [['play', 'Play'], ['collection', 'Collection'], ['shop', 'Shop'], ['social', 'Social'], ['settings', 'Settings']].map(function (item) {
-            return '<a class="sg-gtab" href="' + pathForScreen(item[0]) + '" data-screen="' + item[0] + '">' +
-              '<span class="sg-gtab-art">' + hubPanelImage('stage-' + item[0]) + '</span>' +
-              '<span class="sg-gtab-label">' + item[1] + '</span><i class="sg-gtab-gem" aria-hidden="true"></i></a>';
-          }).join('') +
-        '</nav>' +
+        // The main destinations live in the shield FAB, so the corner holds the
+        // player's own card and the chat channels instead.
+        stageProfileMarkup(opts) + stageChatMarkup(opts) +
         '</div>' +
         '<div class="sg-stage-right">' +
           '<nav class="sg-stage-left" aria-label="Home shortcuts">' +
@@ -1598,6 +1687,7 @@
   function mountStage(app, opts) {
     var stage = app.querySelector('[data-stage]');
     if (!stage) return;
+    mountStageChat(stage, opts);
     // Home is the stage at every size now; only the orientation of the wall
     // changes, and with it which art can hang there.
     var mq = window.matchMedia ? window.matchMedia(STAGE_TALL_QUERY) : null;
@@ -11355,7 +11445,12 @@
     if (screen === 'room') mountRoom(app, opts); else stopRoomTimers();
     if (screen === 'profile' || screen === 'social') mountProfileNavigation(app, opts);
     if (screen === 'profile') { mountSheet(app, opts); mountProfile(app, opts); mountProfileHead(app); }
-    if (screen === 'social') { mountSheet(app, opts); mountProfile(app, opts); mountSocial(app, opts); }
+    if (screen === 'social') {
+      mountSheet(app, opts); mountProfile(app, opts); mountSocial(app, opts);
+      // Arriving with a conversation already chosen (Home's chat rows) needs
+      // the same load and poll a tap inside Social starts.
+      if (socialTab === 'messages' && openThread) startThread(app, opts);
+    }
     if (screen !== 'social') { openThread = null; stopThreadPoll(); }
     if (screen === 'collection') {
       mountGallery(app, opts);
@@ -11638,6 +11733,9 @@
       // Social tray rows name the tab they want before the screen renders.
       var socialTabAttr = link.getAttribute('data-social-goto');
       if (socialTabAttr) setSocialTab(socialTabAttr);
+      // Home's chat rows open their conversation, not just the inbox.
+      var threadId = link.getAttribute('data-thread-goto');
+      if (threadId) openThread = { id: threadId, name: link.getAttribute('data-thread-name') || '' };
       var homeSection = link.getAttribute('data-home-goto');
       // show() re-renders Home and resets the scroller, so the section can only
       // be found - and only stays put - after that has happened.

@@ -1,3 +1,19 @@
+Original prompt: Let's test a version of the homepage with the buttons in the top left removed since they are accessible through the new global FAB; instead replace it with a mini player profile card, and under it put a Global, Friend, and Guild chat.
+
+- October 31, 2026 **Home: profile card and chat replace the top-left destination plates.**
+  - **Change.** The stage's Play/Collection/Shop/Social/Settings plates (`.sg-stage-cards`) are gone from Home; the shield FAB already carries every one of them.
+    - **Profile card** (`stageProfileMarkup`). Crest avatar, name, earned title if set, and a real one-liner (W–L from match history, SiegeKnight count, collected %). Links to `/profile`; a guest gets a Sign In card.
+    - **Chat panel** (`stageChatMarkup` / `mountStageChat`). Tabs Global · Friends · Guild, last tab remembered in `localStorage.sgStageChatTab` (default Friends).
+      - **Friends** is live: the DM threads the hub already loads (`/api/social/messages/threads`), unread dot per row and an unread count on the tab. A row opens that conversation in Social (`data-thread-goto` sets `openThread`; Social now starts the thread load/poll when it mounts with a thread already chosen).
+      - **Global** and **Guild** have no server channel yet, so they say so instead of showing invented messages (Guild links to Dominion). They need a backend before they can be real.
+    - **Layout.** Same frosted glass as the old plates. Portrait phones let the stack run past the lead grid area up to the tile rail (`min(300px, 100vw - 104px)`); only the message list scrolls.
+    - **Cache pins.** `home-redesign.js?v=170`, `home-redesign.css?v=179` (home-next.html and the preview page).
+  - **Verification.** `node --check` passes. Headless Chromium on `home-next.html` with `/api/**` mocked (guest, and signed in with three threads):
+    - No `.sg-stage-cards` on Home; profile card and chat render at 390x844, 375x667, 844x390 and 1920x1080 with `scrollHeight == innerHeight` and no overlap with the tile rail, caption or Arena.
+    - Tabs switch bodies; the Friends badge shows 2 unread and no longer clips the label.
+    - Tapping a thread row lands on `/social`, Messages tab, with the thread log open.
+    - No page errors. Screenshots checked.
+
 Original prompt: Combine signature and showcase, when building your showcase you can select which of the three is the signature. (Follow-up: no separate Signature selection; a small star badge on the picked cards in the collection grid.) Make title a drop down list and move icon and favorite elements to the details page. Once showcase is only 3 Siegelings make better use of the full screen space
 
 - October 29, 2026 **Profile: one Showcase of three with a Signature; title dropdown; Signature-led showcase layout.**
