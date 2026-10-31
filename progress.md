@@ -1,3 +1,15 @@
+Original prompt: Remove the green continue and just keep the one Siege mode extension, similar to Dominion, since the Siege mode already offers a chance to continue from its own page.
+
+- October 31, 2026 **Home: Siege flank back to one plain button.**
+  - **Change.** The green Resume segment on the Siege flank and its run-preview overlay are removed (`stageRunPreviewMarkup`, `mountRunPreview`, `lastSiegeRun` and the `.sg-stage-resume` / `.sg-run-*` CSS).
+    - `stageSiegeMarkup` is now one link to `/siege`, shaped like Dominion's. With a saved run the kicker reads "Run saved" and a red dot sits beside "Siege"; otherwise the kicker is "Roguelike". Continuing is left to the Siege page's own resume screen.
+    - `adventure.js` keeps its `?resume=TOKEN` handling, which is harmless.
+    - Cache pins: `home-redesign.js?v=175`, `home-redesign.css?v=186`.
+  - **Verification.** `node --check` passes. Headless Chromium on `home-next.html` with a mocked saved run, at 390x844 and 844x390:
+    - The flank is a single `<a href="/siege">` reading "RUN SAVED | Siege" with the dot.
+    - No `.sg-stage-resume` or run sheet is in the DOM.
+    - No page errors. Screenshot checked.
+
 Original prompt: Remove the Continue Playing section and make Play a one-pager. Add a fourth option, Events, as a large box. Events opens to a play-style page with: Daily Battle (a daily rotating Arena battle featuring the opponent and their strongest card; a group of 7 to start, updatable in the dashboard); seeded Siege runs and a Weekly Challenge (highest score in a seeded Endless run with a pre-built team that everybody can play, with a leaderboard); then Lobbies and Tournaments, which were one page and should each get their own thematic page.
 
 - October 31, 2026 **Play one-pager, Events (Daily Battle, Weekly Challenge), seeded Siege, separate Lobbies and Tournaments pages.**

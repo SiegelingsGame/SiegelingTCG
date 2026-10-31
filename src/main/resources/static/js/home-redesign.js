@@ -1856,106 +1856,15 @@
 
 
   /* ---------- Siege flank ----------
-     The flank always reads Siege. A saved run adds a green segment cut into
-     its arrow tip, naming the mode last played and resuming it through a
-     preview of the team and the run. */
-  var RUN_MODE_LABEL = { bg: 'Battlegrounds', endless: 'Endless', siege: 'Adventure' };
-  function runKind(run) {
-    if (run.slot === 'BATTLEGROUNDS' || run.battlegrounds) return 'bg';
-    return run.mode === 'ENDLESS' ? 'endless' : 'siege';
-  }
-  // The token in siegeToken is the save this device touched last, which is the
-  // mode the player last played; without it the server's first save stands.
-  function lastSiegeRun(opts) {
-    var runs = (opts && opts.siegeRuns) || [];
-    var here = null;
-    try { here = localStorage.getItem('siegeToken'); } catch (e) { /* private mode */ }
-    return runs.filter(function (r) { return r.token && r.token === here; })[0] || runs[0] || null;
-  }
-
+     One plain button, like Dominion's: Siege's own page offers to continue a
+     saved run, so the flank only shows a dot when one is waiting. */
   function stageSiegeMarkup(opts) {
-    var run = lastSiegeRun(opts);
-    if (!run) {
-      return '<a class="sg-stage-mode" href="' + HREF.siege + '">' +
-        '<span class="sg-stage-mode-kicker">Roguelike</span><strong>Siege</strong></a>';
-    }
-    var mode = RUN_MODE_LABEL[runKind(run)];
-    return '<div class="sg-stage-mode has-resume">' +
-      '<a class="sg-stage-mode-hit" href="' + HREF.siege + '" aria-label="Siege"></a>' +
-      '<button type="button" class="sg-stage-resume" data-run-preview aria-haspopup="dialog" aria-controls="sgRunPreview">' +
-        '<span>Resume</span><b>' + esc(mode) + '</b></button>' +
-      '<span class="sg-stage-mode-kicker">Roguelike</span>' +
-      '<strong>Siege<i class="sg-stage-badge" aria-label="Run saved">!</i></strong>' +
-    '</div>';
+    var saved = Boolean(opts && opts.siegeRuns && opts.siegeRuns.length);
+    return '<a class="sg-stage-mode" href="' + HREF.siege + '">' +
+      '<span class="sg-stage-mode-kicker">' + (saved ? 'Run saved' : 'Roguelike') + '</span>' +
+      '<strong>Siege' + (saved ? '<i class="sg-stage-badge" aria-label="Run saved"></i>' : '') + '</strong></a>';
   }
 
-  // Everything is read off the saved run; a field the payload omits is not drawn.
-  function stageRunPreviewMarkup(opts) {
-    var run = lastSiegeRun(opts);
-    if (!run) return '';
-    var kind = runKind(run);
-    var mode = RUN_MODE_LABEL[kind];
-    var knight = run.knight || {};
-    var el = knight.element || (run.land && run.land.element) || 'NEUTRAL';
-    var place = (run.land && run.land.name) || run.slotLabel || 'Expedition';
-    var party = run.party || [];
-    var chips = [];
-    if (run.landSegment != null) chips.push(['Floor', Number(run.landSegment) + 1]);
-    if (run.gold != null) chips.push(['Gold', run.gold]);
-    if (run.deckSize != null) chips.push(['Deck', run.deckSize]);
-    if (kind === 'endless' && run.score != null) chips.push(['Score', Number(run.score).toLocaleString()]);
-    if (kind === 'bg' && run.bgTier) chips.push(['Tier', run.bgTier]);
-    return '<div class="sg-run-preview" id="sgRunPreview" data-run-sheet hidden role="dialog" aria-modal="true" aria-labelledby="sgRunTitle">' +
-      '<button type="button" class="sg-run-scrim" data-run-close tabindex="-1" aria-label="Close"></button>' +
-      '<article class="sg-run-card is-' + kind + '" style="--el:' + color(el) + '">' +
-        '<div class="sg-run-bg" style="background-image:url(\'' + land(el) + '\')"></div>' +
-        '<header><span class="sg-run-mode">' + esc(mode) + '</span>' +
-          '<h3 id="sgRunTitle">' + esc(place) + '</h3>' +
-          '<button type="button" class="sg-run-close" data-run-close aria-label="Close">×</button></header>' +
-        (knight.name ? '<div class="sg-run-knight">' +
-          (knight.artUrl ? '<img src="' + esc(knight.artUrl) + '" alt="">' : '<i aria-hidden="true"></i>') +
-          '<span><em>SiegeKnight</em><b>' + esc(knight.name) + '</b>' +
-            (knight.maxHp ? '<small>' + esc(knight.hp) + ' / ' + esc(knight.maxHp) + ' HP</small>' : '') + '</span></div>' : '') +
-        (party.length ? '<div class="sg-run-team">' + party.map(function (m, i) {
-          var hp = Number(m.maxHp) > 0 ? Math.max(0, Math.min(100, Math.round(Number(m.hp) / Number(m.maxHp) * 100))) : 100;
-          return '<div class="sg-run-unit' + (m.alive === false ? ' is-down' : '') + '" style="--el:' + color(m.element) + ';--i:' + i + '">' +
-            '<span class="sg-run-unit-art">' + (m.artUrl ? '<img src="' + esc(m.artUrl) + '" alt="" loading="lazy">' : '') +
-              (m.level != null ? '<b>' + esc(m.level) + '</b>' : '') + '</span>' +
-            '<em>' + esc(m.name || '') + '</em><i class="sg-run-hp"><u style="width:' + hp + '%"></u></i></div>';
-        }).join('') + '</div>' : '') +
-        (chips.length ? '<ul class="sg-run-stats">' + chips.map(function (c) {
-          return '<li><span>' + c[0] + '</span><b>' + esc(c[1]) + '</b></li>';
-        }).join('') + '</ul>' : '') +
-        (run.battle ? '<p class="sg-run-flag">Battle in progress</p>' : '') +
-        '<div class="sg-run-actions">' +
-          '<a class="sg-run-go" href="' + HREF.siege + '?resume=' + encodeURIComponent(run.token || '') + '">Resume ' + esc(mode) + '</a>' +
-          ((opts.siegeRuns || []).length > 1 ? '<a class="sg-run-all" href="' + HREF.siege + '">All saves</a>' : '') +
-        '</div>' +
-      '</article>' +
-    '</div>';
-  }
-
-  function mountRunPreview(stage) {
-    var sheet = stage.querySelector('[data-run-sheet]');
-    var open = stage.querySelector('[data-run-preview]');
-    if (!sheet || !open) return;
-    function close() {
-      if (sheet.hidden || sheet.classList.contains('is-closing')) return;
-      sheet.classList.add('is-closing');
-      setTimeout(function () { sheet.hidden = true; sheet.classList.remove('is-closing'); open.focus(); }, 220);
-    }
-    open.addEventListener('click', function () {
-      // The card grows out of the green segment that opened it.
-      var r = open.getBoundingClientRect(), s = stage.getBoundingClientRect();
-      sheet.style.setProperty('--run-ox', Math.round(r.left + r.width / 2 - s.left) + 'px');
-      sheet.style.setProperty('--run-oy', Math.round(r.top + r.height / 2 - s.top) + 'px');
-      sheet.hidden = false;
-      var go = sheet.querySelector('.sg-run-go');
-      if (go) go.focus();
-    });
-    [].forEach.call(sheet.querySelectorAll('[data-run-close]'), function (b) { b.addEventListener('click', close); });
-    sheet.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
-  }
 
   function stageMarkup(opts) {
     var runs = (opts && opts.siegeRuns) || [];
@@ -2005,7 +1914,6 @@
           '<div class="sg-stage-caption" data-stage-caption></div>' +
         '</div>' +
       '</div>' +
-      stageRunPreviewMarkup(opts) +
       '<div class="sg-stage-panel" data-stage-sheet hidden role="dialog" aria-modal="false" aria-labelledby="sgStageSheetTitle">' +
         // Tapping the dimmed art around the glass closes it.
         '<button type="button" class="sg-stage-scrim" data-stage-close tabindex="-1" aria-label="Close"></button>' +
@@ -2045,7 +1953,6 @@
     var stage = app.querySelector('[data-stage]');
     if (!stage) return;
     mountStageChat(stage, opts);
-    mountRunPreview(stage);
     // Home is the stage at every size now; only the orientation of the wall
     // changes, and with it which art can hang there.
     var mq = window.matchMedia ? window.matchMedia(STAGE_TALL_QUERY) : null;
