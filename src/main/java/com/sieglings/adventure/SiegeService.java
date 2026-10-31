@@ -852,15 +852,11 @@ public class SiegeService {
 
     /**
      * Which amplifications suit a move, best first. A notch swap has no
-     * magnitude to raise — it either happens or it does not — so it is offered a
-     * cheaper cost or one of two riders instead.
+     * magnitude to raise, and an amped swap must never turn into a damage move,
+     * so its only amps are a heal or a shield for both Siegelings that traded.
      */
     private List<String> ampKindsFor(AbilitySpec spec) {
-        if (spec.effect() == Effect.SWAP) {
-            List<String> kinds = new ArrayList<>(List.of("SWAP_HEAL", "SWAP_SHIELD", "SWAP_ATTACK"));
-            if (spec.actionCost() > 0) kinds.add(0, "COST");
-            return kinds;
-        }
+        if (spec.effect() == Effect.SWAP) return List.of("SWAP_HEAL", "SWAP_SHIELD");
         List<String> kinds = new ArrayList<>();
         kinds.add("VALUE");
         if (spec.actionCost() > 0) kinds.add("COST");
@@ -892,7 +888,6 @@ public class SiegeService {
             case "COST" -> "−" + ampCostReduction() + " AP";
             case "SWAP_HEAL" -> "Heals on arrival";
             case "SWAP_SHIELD" -> "Shields on arrival";
-            case "SWAP_ATTACK" -> "Attack on arrival";
             default -> "+" + ampValueBonus() + " power";
         };
     }
@@ -904,8 +899,6 @@ public class SiegeService {
             case "SWAP_HEAL" -> "Both Siegelings heal " + after.riderValue() + " after they trade notches.";
             case "SWAP_SHIELD" -> "Both Siegelings gain " + after.riderValue()
                     + " shield after they trade notches.";
-            case "SWAP_ATTACK" -> "Both Siegelings gain +" + after.riderValue()
-                    + " attack after they trade notches.";
             default -> before.name() + " hits for " + after.value() + " instead of " + before.value() + ".";
         };
     }
@@ -920,7 +913,6 @@ public class SiegeService {
                     spec.durationRounds());
             case "SWAP_HEAL" -> riderSpec(spec, name, AmpRider.HEAL, SiegeTuning.AMP_SWAP_HEAL);
             case "SWAP_SHIELD" -> riderSpec(spec, name, AmpRider.SHIELD, SiegeTuning.AMP_SWAP_SHIELD);
-            case "SWAP_ATTACK" -> riderSpec(spec, name, AmpRider.ATTACK, SiegeTuning.AMP_SWAP_ATTACK);
             default -> new AbilitySpec(spec.id(), name, spec.element(), spec.effect(),
                     spec.value() + ampValueBonus(), spec.target(), spec.actionCost(),
                     // An amp pays magnitude, not duration — see SiegeTuning.BUFF_ATK_ROUNDS.
@@ -938,6 +930,14 @@ public class SiegeService {
         return new AbilitySpec(spec.id(), name, spec.element(), spec.effect(), spec.value(),
                 spec.target(), spec.actionCost(), spec.description(),
                 spec.status(), spec.statusChance(), rider, value, spec.durationRounds());
+    }
+
+    /** Snapshots written before amplifications carry no rider; a retired ATTACK rider becomes SHIELD. */
+    private static AmpRider riderFromSnapshot(Object raw) {
+        if (raw == null) return AmpRider.NONE;
+        String name = String.valueOf(raw);
+        if ("ATTACK".equals(name)) return AmpRider.SHIELD;
+        return AmpRider.valueOf(name);
     }
 
     /**
@@ -1783,8 +1783,11 @@ public class SiegeService {
                 statusName == null ? null : StatusKind.valueOf(String.valueOf(statusName)),
                 intVal(s.get("statusChance"), 0),
                 // Snapshots written before level-up amplifications carry no rider.
-                s.get("rider") == null ? AmpRider.NONE : AmpRider.valueOf(String.valueOf(s.get("rider"))),
-                intVal(s.get("riderValue"), 0),
+                riderFromSnapshot(s.get("rider")),
+                // A retired ATTACK rider restores as the standard shield amp, so a
+                // saved swap never comes back carrying an attack buff.
+                "ATTACK".equals(String.valueOf(s.get("rider")))
+                        ? SiegeTuning.AMP_SWAP_SHIELD : intVal(s.get("riderValue"), 0),
                 // Snapshots written before buff durations existed carry none: fall back to
                 // the effect default rather than restoring the old battle-long buff.
                 intVal(s.get("durationRounds"),

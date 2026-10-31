@@ -69,6 +69,34 @@ class GauntletRidersTest {
     }
 
     @Test
+    void swapMovesOnlyEverForgeHealOrShieldRiders() {
+        SieglingCard card = new SieglingCard("swap-test", "Swap Test", Element.WIND, Rarity.COMMON, 10, 4,
+                List.of(new Notch(NotchDirection.TOP, Element.WIND)), Row.FRONT);
+        Ability swap = new Ability("Shift", "Swap places with an ally", TargetType.SINGLE_ALLY, null, 0,
+                com.sieglings.model.AbilityEffectKeys.MOVE_LINK, 0, false);
+        card.setCustomMoves(List.of(swap));
+
+        for (int seed = 0; seed < 200; seed++) {
+            for (GauntletRun.Upgrade offer : upgrades.offer(card, new java.util.Random(seed))) {
+                if (!GauntletUpgrades.MOVE_RIDER.equals(offer.type())) continue;
+                assertTrue(List.of("LIFESTEAL", "GUARD").contains(offer.rider()),
+                        "A swap may only heal or shield when forged: " + offer);
+            }
+        }
+
+        // An older run that stored a damage rider on the swap replays without it.
+        SieglingCard replay = new SieglingCard("swap-test", "Swap Test", Element.WIND, Rarity.COMMON, 10, 4,
+                List.of(new Notch(NotchDirection.TOP, Element.WIND)), Row.FRONT);
+        replay.setCustomMoves(List.of(swap.copy()));
+        upgrades.materialize(replay, List.of(
+                new GauntletRun.Upgrade(GauntletUpgrades.MOVE_RIDER, 0, 0, null, "SPLASH", "legacy"),
+                new GauntletRun.Upgrade(GauntletUpgrades.MOVE_RIDER, 0, 0, null, "GUARD", "guard")));
+        List<Ability> riders = replay.getCustomMoves().get(0).getRiders();
+        assertEquals(1, riders.size());
+        assertEquals(com.sieglings.model.AbilityEffectKeys.SHIELD, riders.get(0).getEffectType());
+    }
+
+    @Test
     void forgedMovesStayOnTheirCopyAndRewriteTheirText() {
         SieglingCard card = new SieglingCard("forge-test", "Forge Test", Element.FIRE, Rarity.COMMON, 10, 4,
                 List.of(new Notch(NotchDirection.TOP, Element.FIRE), new Notch(NotchDirection.LEFT, Element.WATER)), Row.FRONT);

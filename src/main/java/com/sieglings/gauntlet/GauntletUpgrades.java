@@ -151,7 +151,8 @@ public class GauntletUpgrades {
             case MOVE_RIDER -> {
                 Ability move = editableMove(card, upgrade.moveIndex());
                 Rider rider = Rider.parse(upgrade.rider());
-                if (move != null && rider != null) addRider(move, rider);
+                // Older runs may hold a damage rider on a swap; it is dropped on replay.
+                if (move != null && rider != null && riderSuits(move, rider)) addRider(move, rider);
             }
             case ELEMENT -> infuse(card, parseElement(upgrade.element()));
             default -> { }
@@ -332,12 +333,19 @@ public class GauntletUpgrades {
         List<Rider> options = new ArrayList<>();
         for (Rider rider : Rider.values()) {
             if (sourcelessOnly && !rider.sourceless) continue;
+            if (!riderSuits(move, rider)) continue;
             if (already.contains(rider.effect + ":" + rider.target)) continue;
             // A heal move does not need to heal itself on top; an AoE needs no splash.
             if (rider.effect.equals(move.getEffectType()) && rider.target == move.getTargetType()) continue;
             options.add(rider);
         }
         return options.isEmpty() ? null : options.get(rng.nextInt(options.size()));
+    }
+
+    /** Swap moves never deal damage: upgraded, they may only heal or shield. */
+    static boolean riderSuits(Ability move, Rider rider) {
+        if (!AbilityEffectKeys.MOVE_LINK.equals(move.getEffectType())) return true;
+        return rider == Rider.LIFESTEAL || rider == Rider.GUARD;
     }
 
     private static boolean isMultiTarget(Ability ability) {

@@ -91,12 +91,12 @@ class SiegeLevelUpAmpTest {
         assertEquals(3, opts.size(), "the player picks one of three cards: " + opts);
         assertEquals(3, opts.stream().map(o -> o.get("id")).distinct().count(), "options must be distinct");
 
-        // Swap cards cannot grow a magnitude, so they are offered a rider or a cheaper cost.
+        // Swap cards never deal damage, so their only amps are a heal or a shield rider.
         List<Map<String, Object>> swapOpts = opts.stream()
                 .filter(o -> SWAP_MOVE_ID.equals(o.get("moveId"))).toList();
         for (Map<String, Object> o : swapOpts) {
-            assertTrue(List.of("COST", "SWAP_HEAL", "SWAP_SHIELD", "SWAP_ATTACK").contains(o.get("kind")),
-                    "a swap amp must be a cost cut or a rider, never a bigger number: " + o);
+            assertTrue(List.of("SWAP_HEAL", "SWAP_SHIELD").contains(o.get("kind")),
+                    "a swap amp must heal or shield, never attack: " + o);
         }
         for (Map<String, Object> o : opts) {
             if (SWAP_MOVE_ID.equals(o.get("moveId"))) continue;
