@@ -1601,18 +1601,33 @@
         return '<div class="sg-stage-chat-empty">Sign in to message your friends.' +
           '<a href="/login" data-screen="auth">Sign In</a></div>';
       }
-      var threads = ((opts.live && opts.live.threads) || []).slice(0, 6);
-      if (!threads.length) {
-        return '<div class="sg-stage-chat-empty">No messages yet.' +
+      // Conversations first, then friends with no conversation yet (online
+      // ones on top) so a chat can be started from Home too. Rows open the
+      // conversation in place; nothing leaves Home.
+      var threads = (opts.live && opts.live.threads) || [];
+      var talked = {};
+      threads.forEach(function (t) { talked[t.peerId] = true; });
+      var fresh = ((opts.live && opts.live.friends) || []).filter(function (f) {
+        return !talked[f.id || f.userId];
+      }).sort(function (a, b) {
+        return Number(Boolean(b.presence && b.presence.online)) - Number(Boolean(a.presence && a.presence.online));
+      });
+      if (!threads.length && !fresh.length) {
+        return '<div class="sg-stage-chat-empty">No friends to chat with yet.' +
           '<a href="/social" data-screen="social" data-social-goto="friends">Find friends</a></div>';
       }
+      function row(id, name, line, unread, online) {
+        return '<button type="button" class="sg-stage-chat-row' + (unread ? ' is-unread' : '') + '" ' +
+          'data-chat-open="' + esc(id) + '" data-chat-name="' + esc(name) + '">' +
+          '<span class="sg-friend-crest' + (online ? ' is-on' : '') + '">' + esc(String(name).charAt(0).toUpperCase()) + '</span>' +
+          '<span class="sg-stage-chat-line"><b>' + esc(name) + '</b><em>' + esc(line) + '</em></span>' +
+          (unread ? '<i class="sg-thread-dot" aria-label="Unread"></i>' : '') + '</button>';
+      }
       return threads.map(function (t) {
-        var name = threadPeerName(opts, t.peerId);
-        return '<a class="sg-stage-chat-row' + (t.unread ? ' is-unread' : '') + '" href="/social" data-screen="social" ' +
-          'data-social-goto="messages" data-thread-goto="' + esc(t.peerId) + '" data-thread-name="' + esc(name) + '">' +
-          '<span class="sg-friend-crest">' + esc(String(name).charAt(0).toUpperCase()) + '</span>' +
-          '<span class="sg-stage-chat-line"><b>' + esc(name) + '</b><em>' + esc(t.lastMessage || '') + '</em></span>' +
-          (t.unread ? '<i class="sg-thread-dot" aria-label="Unread"></i>' : '') + '</a>';
+        return row(t.peerId, threadPeerName(opts, t.peerId), t.lastMessage || '', t.unread, false);
+      }).join('') + fresh.map(function (f) {
+        var online = f.presence && f.presence.online;
+        return row(f.id || f.userId, friendName(f), online ? 'Online · say hello' : 'Start a chat', false, online);
       }).join('');
     }
     if (tab === 'guild') {
@@ -1620,6 +1635,38 @@
         '<a href="/dominion">Open Dominion</a></div>';
     }
     return '<div class="sg-stage-chat-empty">Global chat isn’t open yet. Every Siegelord online will talk here.</div>';
+  }
+
+  // A conversation opened inside Home's chat panel. Each channel kind names
+  // how it loads and sends, so the global channel slots in as one more entry
+  // once the server has one; until then only direct messages are wired.
+  var STAGE_CHAT_CHANNELS = {
+    dm: {
+      load: function (api, id) { return api.get('/api/social/messages/with/' + encodeURIComponent(id)); },
+      send: function (api, id, text) { return api.post('/api/social/messages/send', { recipientId: id, text: text }); }
+    }
+  };
+
+  function stageConvoMarkup(convo) {
+    return '<div class="sg-stage-convo" data-chat-convo>' +
+      '<header><button type="button" class="sg-stage-convo-back" data-chat-back aria-label="Back to conversations">‹</button>' +
+        '<strong>' + esc(convo.name) + '</strong>' +
+        (convo.kind === 'dm' ? '<a href="/social" data-screen="social" data-social-goto="messages" ' +
+          'data-thread-goto="' + esc(convo.id) + '" data-thread-name="' + esc(convo.name) + '">Messages ›</a>' : '') +
+      '</header>' +
+      '<div class="sg-stage-convo-log" data-chat-log aria-live="polite"><div class="sg-stage-chat-empty">Loading…</div></div>' +
+      '<form class="sg-stage-convo-send" data-chat-send>' +
+        '<input type="text" maxlength="500" autocomplete="off" enterkeyhint="send" placeholder="Message ' + esc(convo.name) + '" aria-label="Message">' +
+        '<button type="submit" aria-label="Send"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5z"/></svg></button>' +
+      '</form>' +
+    '</div>';
+  }
+
+  function stageMessagesHtml(messages) {
+    if (!messages.length) return '<div class="sg-stage-chat-empty">No messages yet. Say hello.</div>';
+    return messages.map(function (m) {
+      return '<div class="sg-msg' + (m.mine ? ' is-mine' : '') + '"><span>' + esc(m.text || '') + '</span></div>';
+    }).join('');
   }
 
   function stageChatMarkup(opts) {
@@ -1647,6 +1694,7 @@
     var chatToggles = [].slice.call(wrap.querySelectorAll('[data-chat-toggle]'));
     var bankToggle = wrap.querySelector('[data-bank-toggle]');
     var bell = wrap.querySelector('[data-notif-toggle]');
+    var body = null, convo = null, poll = null, lastHtml = '';
 
     // Chat, bank and the profile bubble share the space under the strip, so
     // opening one closes the others. Everything starts closed: Home is the art.
@@ -1658,6 +1706,8 @@
       if (bankToggle) bankToggle.setAttribute('aria-expanded', String(which === 'bank'));
       if (face) face.setAttribute('aria-expanded', String(which === 'pop'));
       wrap.setAttribute('data-open', which || '');
+      // Folding the chat away leaves its conversation; it reopens on the list.
+      if (which !== 'chat' && convo) { showList(); refreshInbox(); }
     }
     function current() { return wrap.getAttribute('data-open') || ''; }
     function toggle(which) { show(current() === which ? '' : which); }
@@ -1685,18 +1735,121 @@
       if (!wrap.contains(e.target) && (current() === 'pop' || current() === 'bank')) show('');
     });
 
-    if (chat) chat.addEventListener('click', function (e) {
-      var btn = e.target.closest && e.target.closest('[data-chat-tab]');
-      if (!btn) return;
-      var tab = btn.getAttribute('data-chat-tab');
-      try { localStorage.setItem(STAGE_CHAT_KEY, tab); } catch (err) { /* private mode */ }
-      [].forEach.call(chat.querySelectorAll('[data-chat-tab]'), function (b) {
-        var on = b === btn;
-        b.classList.toggle('on', on);
-        b.setAttribute('aria-selected', String(on));
+    if (!chat) return;
+    body = chat.querySelector('[data-chat-body]');
+
+    function stopPoll() { if (poll) { clearInterval(poll); poll = null; } }
+    function activeTab() {
+      var on = chat.querySelector('[data-chat-tab].on');
+      return on ? on.getAttribute('data-chat-tab') : 'friends';
+    }
+    function showList() {
+      stopPoll();
+      convo = null;
+      chat.classList.remove('is-convo');
+      body.innerHTML = stageChatBody(opts, activeTab());
+    }
+    function loadConvo(scrollToEnd) {
+      var api = liveApi();
+      var c = convo;
+      if (!api || !c) return;
+      STAGE_CHAT_CHANNELS[c.kind].load(api, c.id).then(function (res) {
+        var log = body.querySelector('[data-chat-log]');
+        if (!log || convo !== c) return;
+        var html = res && res.error
+          ? '<div class="sg-stage-chat-empty">' + esc(res.error) + '</div>'
+          : stageMessagesHtml((res && res.messages) || []);
+        // Repainting an unchanged log under the poll would fight the
+        // player's own scrolling.
+        if (html !== lastHtml) { log.innerHTML = html; lastHtml = html; log.scrollTop = log.scrollHeight; }
+        else if (scrollToEnd) log.scrollTop = log.scrollHeight;
       });
-      chat.querySelector('[data-chat-body]').innerHTML = stageChatBody(opts, tab);
+    }
+    function openConvo(kind, id, name) {
+      convo = { kind: kind, id: id, name: name };
+      lastHtml = '';
+      chat.classList.add('is-convo');
+      body.innerHTML = stageConvoMarkup(convo);
+      loadConvo(true);
+      stopPoll();
+      // Polled like the Messages screen; it stops itself once the panel is
+      // closed, the conversation left, or Home re-rendered.
+      poll = setInterval(function () {
+        if (!stage.isConnected || chat.hidden || !convo) return stopPoll();
+        loadConvo(false);
+      }, 5000);
+      var field = body.querySelector('input');
+      // Focusing straight away would raise the phone keyboard over the art
+      // before the player has read anything; desktop gets the cursor.
+      if (field && window.matchMedia && window.matchMedia('(hover:hover)').matches) field.focus();
+    }
+    // Leaving a conversation re-reads the inbox so the row just read stops
+    // claiming to be unread, and the tab and bubble badges follow.
+    function refreshInbox() {
+      var api = liveApi();
+      if (!api || opts.guest) return;
+      api.get('/api/social/messages/threads').then(function (res) {
+        if (!res || res.error || !opts.live) return;
+        opts.live.threads = res.threads || [];
+        var n = unreadThreadCount(opts);
+        [].forEach.call(wrap.querySelectorAll('[aria-controls="sgStageChat"] .sg-stage-badge, [data-chat-tab="friends"] .sg-stage-badge'), function (b) {
+          if (n) b.textContent = n > 9 ? '9+' : String(n); else b.remove();
+        });
+        if (!convo && activeTab() === 'friends') body.innerHTML = stageChatBody(opts, 'friends');
+      });
+    }
+
+    chat.addEventListener('click', function (e) {
+      var btn = e.target.closest && e.target.closest('[data-chat-tab]');
+      if (btn) {
+        var tab = btn.getAttribute('data-chat-tab');
+        try { localStorage.setItem(STAGE_CHAT_KEY, tab); } catch (err) { /* private mode */ }
+        [].forEach.call(chat.querySelectorAll('[data-chat-tab]'), function (b) {
+          var on = b === btn;
+          b.classList.toggle('on', on);
+          b.setAttribute('aria-selected', String(on));
+        });
+        showList();
+        return;
+      }
+      var open = e.target.closest && e.target.closest('[data-chat-open]');
+      if (open) {
+        openConvo('dm', open.getAttribute('data-chat-open'), open.getAttribute('data-chat-name') || 'Player');
+        return;
+      }
+      if (e.target.closest && e.target.closest('[data-chat-back]')) { showList(); refreshInbox(); }
     });
+
+    chat.addEventListener('submit', function (e) {
+      if (!e.target.matches('[data-chat-send]')) return;
+      e.preventDefault();
+      var api = liveApi();
+      var field = e.target.querySelector('input');
+      var text = (field.value || '').trim();
+      var c = convo;
+      if (!api || !c || !text) return;
+      // Cleared before the request so an impatient second tap cannot send it
+      // twice; shown at once, then the server's copy replaces it.
+      field.value = '';
+      var log = body.querySelector('[data-chat-log]');
+      if (log) {
+        var empty = log.querySelector('.sg-stage-chat-empty');
+        if (empty) empty.remove();
+        log.insertAdjacentHTML('beforeend', '<div class="sg-msg is-mine is-pending"><span>' + esc(text) + '</span></div>');
+        log.scrollTop = log.scrollHeight;
+      }
+      STAGE_CHAT_CHANNELS[c.kind].send(api, c.id, text).then(function (res) {
+        if (convo !== c) return;
+        if (res && res.error) {
+          var pending = log && log.querySelector('.is-pending');
+          if (pending) { pending.classList.remove('is-pending'); pending.classList.add('is-failed'); pending.title = res.error; }
+          if (field && !field.value) field.value = text;
+          return;
+        }
+        loadConvo(true);
+      });
+    });
+
   }
 
 

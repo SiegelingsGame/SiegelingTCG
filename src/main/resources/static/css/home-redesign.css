@@ -5100,6 +5100,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:8px;
     text-decoration:none; color:var(--ink); flex:0 0 auto;
   }
+  button.sg-stage-chat-row { width:100%; border:0; background:none; font:inherit; text-align:left; cursor:pointer; }
+  .sg-stage-chat-row .sg-friend-crest.is-on { box-shadow:0 0 0 2px #4fd88a; }
   .sg-stage-chat-row:active { background:rgba(255,255,255,.1); }
   @media (hover:hover) { .sg-stage-chat-row:hover { background:rgba(255,255,255,.08); } }
   .sg-stage-chat-row .sg-friend-crest { width:28px; height:28px; font-size:12px; }
@@ -7892,3 +7894,50 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 @media (prefers-reduced-motion:reduce) {
   .sg-run-scrim, .sg-run-card, .sg-run-unit, .sg-run-preview.is-closing .sg-run-card, .sg-run-preview.is-closing .sg-run-scrim { animation:none; }
 }
+
+/* ==========================================================================
+   HOME CHAT: a conversation opened in place
+   The panel grows to hold a log and a composer; only the log scrolls. The
+   same view will carry the global channel once the server has one.
+   ========================================================================== */
+.sg-stage-chat.is-convo .sg-stage-chat-body { height:clamp(210px, 38vh, 320px); padding:0; display:block; }
+.sg-stage-convo { display:flex; flex-direction:column; height:100%; }
+.sg-stage-convo header {
+  flex:0 0 auto; display:flex; align-items:center; gap:6px; padding:5px 8px 5px 4px;
+  border-bottom:1px solid rgba(255,255,255,.12);
+}
+.sg-stage-convo header strong { flex:1 1 auto; min-width:0; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-stage-convo header a {
+  flex:0 0 auto; font-size:9.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#ffe39a; text-decoration:none;
+}
+.sg-stage-convo-back {
+  width:28px; height:28px; flex:0 0 auto; border:0; border-radius:50%; background:none; color:var(--ink);
+  font-size:22px; line-height:1; cursor:pointer;
+}
+.sg-stage-convo-back:active { background:rgba(255,255,255,.12); }
+.sg-stage-convo-log {
+  flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain;
+  padding:8px; display:flex; flex-direction:column; gap:5px;
+}
+.sg-stage-convo-log .sg-msg span { max-width:82%; padding:6px 10px; border-radius:12px; font-size:12.5px; line-height:1.35; }
+.sg-stage-convo-log .sg-msg:not(.is-mine) span { background:rgba(255,255,255,.14); }
+.sg-stage-convo-log .sg-msg.is-pending span { opacity:.6; }
+.sg-stage-convo-log .sg-msg.is-failed span { opacity:1; background:rgba(255,90,60,.35); color:#fff; }
+.sg-stage-convo-log .sg-msg.is-failed span::after { content:' \00b7 not sent'; font-size:10px; opacity:.8; }
+.sg-stage-convo-send {
+  flex:0 0 auto; display:flex; gap:6px; padding:6px; border-top:1px solid rgba(255,255,255,.12);
+}
+/* 16px keeps iOS Safari from zooming the page when the field takes focus,
+   which would clip Home's fixed layout. */
+.sg-stage-convo-send input {
+  flex:1 1 auto; min-width:0; height:34px; padding:0 12px; border-radius:999px; box-sizing:border-box;
+  border:1px solid rgba(255,255,255,.28); background:rgba(0,0,0,.28); color:var(--ink); font:inherit; font-size:16px;
+}
+.sg-stage-convo-send input::placeholder { color:rgba(255,255,255,.55); }
+.sg-stage-convo-send input:focus { outline:none; border-color:#ffe39a; }
+.sg-stage-convo-send button {
+  width:34px; height:34px; flex:0 0 auto; border:0; border-radius:50%; cursor:pointer; display:grid; place-items:center;
+  background:linear-gradient(135deg, #ffe066, #f2a03d); color:#2b0d02;
+}
+.sg-stage-convo-send button svg { width:16px; height:16px; fill:currentColor; }
+.sg-stage-convo-send button:active { transform:translateY(1px); }
