@@ -1,3 +1,89 @@
+Original prompt: Turn the color down, it should be subtle.
+
+- October 31, 2026 **Home: music line tint toned down.**
+  - **Change.** The element now only hints at the glass:
+    - rim 30% element over a fainter white,
+    - ink (title and bars) 18% element over white,
+    - the outer glow and the bar glow removed,
+    - the inner glow cut to 10%.
+
+    The fill stays at 2%. Cache pin `home-redesign.css?v=183`.
+  - **Verification.** Headless Chromium at 390x844 across NEUTRAL/FIRE/WATER/POISON/PSYCHIC. Screenshots taken after the colour transition show near-white text with a faint element cast and a soft tinted rim. No page errors.
+
+Original prompt: The music player should have a 98% transparency but tinted glass the elemental color.
+
+- October 31, 2026 **Home: music line becomes clear element-tinted glass.**
+  - **Change.** `.sg-music-line` drops the animated liquid-gold fill for a 2% fill of the playing element (`color-mix(var(--mel) 2%, transparent)`), with no backdrop blur, matching the profile strip. The element tint is carried by:
+    - the rim (70% element),
+    - an inner and outer element glow,
+    - the ink (title and waveform bars at 45% element over white, bars with a soft element glow),
+    - a dark text shadow for legibility.
+
+    Colours ease over 0.4s when the song changes. The `sgLiquidGold` animation is removed. Cache pin `home-redesign.css?v=182`.
+  - **Verification.** Headless Chromium at 390x844:
+    - For NEUTRAL/FIRE/WATER/POISON/PSYCHIC, the computed background is the element at alpha 0.02 and backdrop-filter is `none`.
+    - Screenshots after the transition show each rim, waveform and title in its element colour over visible art.
+    - No page errors.
+
+Original prompt: Show the top-right profile button's data (with level tag) in the Home profile area; tapping the picture asks in a small speech bubble whether to view the profile. Add a notification bubble and Siegecoin count next to the message bubble; tapping coins opens a bank (coins, remnants, XP, future currencies). Remove the Expedition button; the badge goes on the FAB-extension Siege button, which always says Siege; a saved run adds a green "Resume <mode>" segment cut into the arrow tip that opens an animated preview of the team and run. Use the freed header space to stretch the music button into a line with a waveform and song name on liquid gold tinted by the song's element.
+
+- October 31, 2026 **Home: account strip, bank, Siege resume segment, music line.**
+  - **Account strip** (`stageProfileMarkup`). The header's crest (initial plus knight-count tag), bell and coin chip moved into the Home profile pill, beside name, title and the chat bubble. Home's header (`topMarkup` with `extra.home`) now carries only the logo, the art controls and the music line.
+    - Crest tap opens a speech bubble ("View your profile?" with View Profile / Not now; guests get Sign In).
+    - Name or chat bubble folds the chat out. The bell drives the existing notification panel, which `mountStageChat` re-anchors under the pill at the pill's width.
+    - Coins open the **bank** (`stageBankMarkup`): Siegecoins, Remnants, Warmarks, and Knight XP (sum of each knight's `points` toward its next level, with knight count and best level). A dashed row notes that more currencies come with new modes. Chat, bank and bubble are mutually exclusive, and an outside tap closes the bubble or the bank.
+    - **Backend.** `/api/player/progression` now includes `warmarks`, which `home-redesign-live.js` maps to `live.warmarks`.
+  - **Siege flank** (`stageSiegeMarkup`). The Expedition tile is gone, and the flank always reads Siege.
+    - With a saved run, the flank becomes a container: a stretched `/siege` link, plus a green **Resume <mode>** button over the arrow-tip end, separated by a slanted gold cut and following the flank's inner rim on the shield layout. The run badge shrinks to a dot beside "Siege" on phones.
+    - The mode is the save matching `localStorage.siegeToken` (the last one played on this device), else the first. Labels are Adventure / Endless / Battlegrounds, as in `adventure.js`.
+    - `a.sg-stage-mode` selectors became `.sg-stage-mode` (home-redesign.css, hub-workspaces.css) so the flank can be a div.
+  - **Run preview** (`stageRunPreviewMarkup` / `mountRunPreview`). The scrim opens as a circle from the green segment, the card rises, and the warband units pop in staggered. It shows the mode, land, SiegeKnight with HP, party (art, level, HP bar, downed greyed), and Floor/Gold/Deck (plus Score for Endless, Tier for Battlegrounds), with a battle-in-progress flag.
+    - **Resume <mode>** goes to `/siege?resume=TOKEN`. `adventure.js` `resumeOrRoster` now resumes that save directly, skipping the prompt, and strips the query.
+  - **Music line** (`musicLineMarkup`). A `[data-music-open]` button with a 14-bar waveform (animated while playing, flattened when muted) and the song title, on an animated liquid-gold gradient `color-mix`ed with the playing element. `hub-music.js` `paint()` now stamps `data-el` on every open button.
+  - **Cache pins.** `home-redesign.js?v=172`, `home-redesign.css?v=181`, `home-redesign-live.js?v=26`, `hub-music.js?v=8`, `hub-workspaces.css?v=7`, `adventure.js?v=153`.
+  - **Verification.**
+    - **Gates.** `node --check` passes on all four JS files. `mvn -DskipTests compile` passes.
+    - **Java tests.** `PlayerProgressionServiceTest` passes (47). `PlayerProgressionControllerStarterPackTest` has 2 errors (null `battlefieldSkinCatalog`) that fail identically with this change stashed.
+    - **Browser.** Headless Chromium on `home-next.html` with mocked `/api/**` (signed in with 3 knights, a saved Adventure run, 2 threads and an unread notification; and a guest) at 390x844, 375x667, 844x390 and 1920x1080:
+      - Header has no coin/bell/avatar and shows the music line.
+      - No Expedition tile.
+      - Flank reads "RESUME | Adventure | Siege!".
+      - Crest bubble opens; the bank lists 1,269 / 340 / 55 / 460 XP; an outside tap closes it.
+      - Notifications open under the pill.
+      - The preview's Resume links `/siege?resume=tok-1` and closes on ×.
+      - A tap on the flank body hits the `/siege` link.
+      - Music-line tint changes with data-el (FIRE/WATER/POISON).
+      - No page scroll, no page errors. Screenshots checked.
+    - **Not tested.** The `/siege?resume=` path in adventure.js was not exercised in a browser (it needs a full run payload).
+
+Original prompt: Make the chat expand out of the profile. Make the profile 98% see-through glass. Show their name and title. The goal is to show more of the background.
+
+- October 31, 2026 **Home: chat folds into a near-clear profile pill.**
+  - **Change.** The profile card is now a pill button (`[data-stage-me]`) showing only crest, name and title (guest: "Guest" / "Sign in to save your legend"), plus a chat bubble carrying the Friends unread count. The W–L / knights / collected line is gone.
+    - **Glass.** The pill is `rgba(255,255,255,.02)` with no backdrop blur, so 98% of the art shows through; text shadows carry legibility.
+    - **Chat.** It starts closed on every visit (`hidden`) and opens out of the pill on tap with a short drop-in (`aria-expanded`/`aria-controls`; skipped under reduced motion). Only the open chat frosts. Tabs and Friends rows are unchanged.
+    - **Cache pins.** `home-redesign.js?v=171`, `home-redesign.css?v=180`.
+  - **Verification.** `node --check` passes. Headless Chromium on `home-next.html` with mocked `/api/**` at 390x844 (guest and signed in), 375x667, 844x390 and 1920x1080:
+    - Pill background computes to `rgba(255, 255, 255, 0.02)` and backdrop-filter is `none`; the text reads "Ajay | SIEGE BREAKER" with an unread badge of 2.
+    - Chat is absent from layout when closed, opens below the pill on tap (`aria-expanded=true`), and hides again on a second tap.
+    - No page scroll, no overlap with the tile rail, no page errors. Screenshots checked.
+
+Original prompt: Let's test a version of the homepage with the buttons in the top left removed since they are accessible through the new global FAB; instead replace it with a mini player profile card, and under it put a Global, Friend, and Guild chat.
+
+- October 31, 2026 **Home: profile card and chat replace the top-left destination plates.**
+  - **Change.** The stage's Play/Collection/Shop/Social/Settings plates (`.sg-stage-cards`) are gone from Home; the shield FAB already carries every one of them.
+    - **Profile card** (`stageProfileMarkup`). Crest avatar, name, earned title if set, and a real one-liner (W–L from match history, SiegeKnight count, collected %). Links to `/profile`; a guest gets a Sign In card.
+    - **Chat panel** (`stageChatMarkup` / `mountStageChat`). Tabs Global · Friends · Guild, last tab remembered in `localStorage.sgStageChatTab` (default Friends).
+      - **Friends** is live: the DM threads the hub already loads (`/api/social/messages/threads`), unread dot per row and an unread count on the tab. A row opens that conversation in Social (`data-thread-goto` sets `openThread`; Social now starts the thread load/poll when it mounts with a thread already chosen).
+      - **Global** and **Guild** have no server channel yet, so they say so instead of showing invented messages (Guild links to Dominion). They need a backend before they can be real.
+    - **Layout.** Same frosted glass as the old plates. Portrait phones let the stack run past the lead grid area up to the tile rail (`min(300px, 100vw - 104px)`); only the message list scrolls.
+    - **Cache pins.** `home-redesign.js?v=170`, `home-redesign.css?v=179` (home-next.html and the preview page).
+  - **Verification.** `node --check` passes. Headless Chromium on `home-next.html` with `/api/**` mocked (guest, and signed in with three threads):
+    - No `.sg-stage-cards` on Home; profile card and chat render at 390x844, 375x667, 844x390 and 1920x1080 with `scrollHeight == innerHeight` and no overlap with the tile rail, caption or Arena.
+    - Tabs switch bodies; the Friends badge shows 2 unread and no longer clips the label.
+    - Tapping a thread row lands on `/social`, Messages tab, with the thread log open.
+    - No page errors. Screenshots checked.
+
 Original prompt: Combine signature and showcase, when building your showcase you can select which of the three is the signature. (Follow-up: no separate Signature selection; a small star badge on the picked cards in the collection grid.) Make title a drop down list and move icon and favorite elements to the details page. Once showcase is only 3 Siegelings make better use of the full screen space
 
 - October 29, 2026 **Profile: one Showcase of three with a Signature; title dropdown; Signature-led showcase layout.**

@@ -774,6 +774,19 @@
       // march at once, so take the whole list and let the player choose.
       var saves = (active && active.runs ? active.runs : (active && active.run ? [active.run] : []))
         .filter(function (r) { return r && r.status === 'ACTIVE'; });
+      // Home's Resume opens /siege?resume=TOKEN: that save goes straight back
+      // into play instead of through the prompt. The query is dropped so a
+      // reload does not resume again.
+      var wanted = new URLSearchParams(location.search).get('resume');
+      if (wanted && history.replaceState) history.replaceState(null, '', location.pathname);
+      var direct = wanted && saves.filter(function (r) { return r.token === wanted; })[0];
+      if (direct) {
+        state.run = direct;
+        setToken(direct.token);
+        renderRun();
+        afterRunApplied(direct);
+        return;
+      }
       if (saves.length) {
         renderResumePrompt(saves);
         return;
