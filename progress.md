@@ -1,3 +1,15 @@
+Original prompt: Turn the color down, it should be subtle.
+
+- October 31, 2026 **Home: music line tint toned down.**
+  - **Change.** The element now only hints at the glass:
+    - rim 30% element over a fainter white,
+    - ink (title and bars) 18% element over white,
+    - the outer glow and the bar glow removed,
+    - the inner glow cut to 10%.
+
+    The fill stays at 2%. Cache pin `home-redesign.css?v=183`.
+  - **Verification.** Headless Chromium at 390x844 across NEUTRAL/FIRE/WATER/POISON/PSYCHIC. Screenshots taken after the colour transition show near-white text with a faint element cast and a soft tinted rim. No page errors.
+
 Original prompt: The music player should have a 98% transparency but tinted glass the elemental color.
 
 - October 31, 2026 **Home: music line becomes clear element-tinted glass.**
