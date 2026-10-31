@@ -11610,6 +11610,9 @@ function renderDeckBuilder() {
         : `<div class="builder-empty">Add cards from the catalog to build your deck.</div>`;
 
     previewEl.innerHTML = renderBuilderPreviewCard(previewCard);
+    // The framed face sizes its description and name to fit once it is laid out.
+    window.SieglingsCardBinderVisual?.scheduleDescriptionFit?.();
+    window.SieglingsCardBinderVisual?.fitHolographicCardNames?.(previewEl);
 }
 
 function getLoadoutStartButtonLabel() {
@@ -12116,6 +12119,24 @@ function resolveBuilderPreviewCard(filteredCards, chosenCards) {
 function renderBuilderPreviewCard(card) {
     if (!card) {
         return `<div class="builder-empty">Choose a card from the catalog or your deck list to inspect its full design.</div>`;
+    }
+
+    // The same composed face the hub's collection shows (frame, notches, rarity
+    // treatment, art and the player's finishes), so a card looks identical in
+    // the binder and while building a deck. The hand-card layout below is the
+    // fallback for a page without the binder renderer.
+    const binderVisual = window.SieglingsCardBinderVisual;
+    if (binderVisual?.renderBinderCardPreview) {
+        const metaLine = [card.type, formatElementLabel(card.element), card.rarity, getBuilderCardCostText(card)];
+        return `<div class="builder-preview-wrap builder-preview-binder">`
+            + `<div class="builder-binder-card">${binderVisual.renderBinderCardPreview(card, {
+                ...holographicFullArtOptions(),
+                previewClass: 'detail-card-preview builder-binder-showcase',
+                descriptionText: resolveCardDescriptionText(card, card.description)
+            })}</div>`
+            + `<div class="builder-preview-meta">${metaLine.join(' | ')}</div>`
+            + `<div class="builder-preview-copy">${getBuilderCardSummaryText(card)}</div>`
+            + `</div>`;
     }
 
     const elemClass = card.element.toLowerCase();

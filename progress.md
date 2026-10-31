@@ -1,3 +1,19 @@
+Original prompt: Card preview in the deck builder should show the actual cards, same as the collection.
+
+- October 31, 2026 **Arena deck builder: the Card Preview is the collection's card face.**
+  - **Change.** `renderBuilderPreviewCard` (game.js) now draws the selected card with `SieglingsCardBinderVisual.renderBinderCardPreview`, the renderer the hub's collection uses.
+    - It brings the real frame, notches, rarity treatment, composited or full-card art, the player's finishes (`holographicFullArtOptions`) and the card description (`resolveCardDescriptionText`).
+    - It replaces the hand-built monospace hand-card layout, which stays only as the fallback for a page without the renderer.
+    - The type, element, rarity and cost line and the summary line stay beneath it.
+    - After rendering, the builder runs the renderer's description and name fit.
+  - **Sizing** (`play-next.css`). The face takes `min(300px, 82%)` with the renderer's own min/max widths lifted, the way the hub's signature plate sizes it, so the container-query type scales with it.
+  - **Cache pins.** `game.js?v=343` (all pages), `play-next.css?v=22`.
+  - **Verification.** `node --check` passes. Headless Chromium on `/battle` with the live options snapshot and a signed-in builder session, at 390x844 and 1440x900:
+    - A Siegeling (Applehead) renders as the framed collection card at 254x355 on the phone and 299x419 on desktop, with its full description.
+    - A spell (Thistles) and a trap (Molten Quake) render their framed faces with effect text.
+    - The meta line is unchanged.
+    - No page errors.
+
 Original prompt: On occasion when you select Arena from the home page it goes to a blank blue page instead of a loading screen before showing the Arena mode selections. It should show the elemental transition animation, then if it needs to load, a loading screen that transitions into the Arena selection screen. If no loading, just the elemental transition.
 
 - October 31, 2026 **Arena: a real loading screen instead of the blank blue page.**

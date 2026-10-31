@@ -1718,3 +1718,13 @@
 @keyframes playBootSpin { to { transform:rotate(360deg); } }
 @keyframes playBootDrift { from { transform:scale(1.04) translateY(0); } to { transform:scale(1.1) translateY(-10px); } }
 @media (prefers-reduced-motion:reduce) { .play-boot-plate { animation:none; } .play-boot, .play-boot.is-on { transition:none; } }
+
+/* Deck builder preview: the collection's composed card face, sized up the way
+   the hub's signature plate sizes it - a concrete width, with style.css's
+   container-query type scaling the internals. .hand-card's 146px floor and
+   preview max-width would otherwise pin it at thumbnail size. */
+.builder-preview-binder .builder-binder-card { width:min(300px, 82%); margin:4px auto 10px; }
+.builder-preview-binder .builder-binder-card :is(.detail-card-preview, .mulligan-showcase, .binder-card, .binder-framed-slot, .hand-card) {
+  width:100% !important; height:auto !important; min-width:0 !important; max-width:none !important;
+  margin:0 !important; aspect-ratio:var(--card-aspect-ratio, 2.5 / 3.5);
+}
