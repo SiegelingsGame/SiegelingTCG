@@ -852,15 +852,11 @@ public class SiegeService {
 
     /**
      * Which amplifications suit a move, best first. A notch swap has no
-     * magnitude to raise — it either happens or it does not — so it is offered a
-     * cheaper cost or one of two riders instead.
+     * magnitude to raise, and an amped swap must never turn into a damage move,
+     * so its only amps are a heal or a shield for both Siegelings that traded.
      */
     private List<String> ampKindsFor(AbilitySpec spec) {
-        if (spec.effect() == Effect.SWAP) {
-            List<String> kinds = new ArrayList<>(List.of("SWAP_HEAL", "SWAP_SHIELD", "SWAP_ATTACK"));
-            if (spec.actionCost() > 0) kinds.add(0, "COST");
-            return kinds;
-        }
+        if (spec.effect() == Effect.SWAP) return List.of("SWAP_HEAL", "SWAP_SHIELD");
         List<String> kinds = new ArrayList<>();
         kinds.add("VALUE");
         if (spec.actionCost() > 0) kinds.add("COST");
@@ -892,7 +888,6 @@ public class SiegeService {
             case "COST" -> "−" + ampCostReduction() + " AP";
             case "SWAP_HEAL" -> "Heals on arrival";
             case "SWAP_SHIELD" -> "Shields on arrival";
-            case "SWAP_ATTACK" -> "Attack on arrival";
             default -> "+" + ampValueBonus() + " power";
         };
     }
@@ -904,8 +899,6 @@ public class SiegeService {
             case "SWAP_HEAL" -> "Both Siegelings heal " + after.riderValue() + " after they trade notches.";
             case "SWAP_SHIELD" -> "Both Siegelings gain " + after.riderValue()
                     + " shield after they trade notches.";
-            case "SWAP_ATTACK" -> "Both Siegelings gain +" + after.riderValue()
-                    + " attack after they trade notches.";
             default -> before.name() + " hits for " + after.value() + " instead of " + before.value() + ".";
         };
     }
@@ -920,7 +913,6 @@ public class SiegeService {
                     spec.durationRounds());
             case "SWAP_HEAL" -> riderSpec(spec, name, AmpRider.HEAL, SiegeTuning.AMP_SWAP_HEAL);
             case "SWAP_SHIELD" -> riderSpec(spec, name, AmpRider.SHIELD, SiegeTuning.AMP_SWAP_SHIELD);
-            case "SWAP_ATTACK" -> riderSpec(spec, name, AmpRider.ATTACK, SiegeTuning.AMP_SWAP_ATTACK);
             default -> new AbilitySpec(spec.id(), name, spec.element(), spec.effect(),
                     spec.value() + ampValueBonus(), spec.target(), spec.actionCost(),
                     // An amp pays magnitude, not duration — see SiegeTuning.BUFF_ATK_ROUNDS.
@@ -938,6 +930,14 @@ public class SiegeService {
         return new AbilitySpec(spec.id(), name, spec.element(), spec.effect(), spec.value(),
                 spec.target(), spec.actionCost(), spec.description(),
                 spec.status(), spec.statusChance(), rider, value, spec.durationRounds());
+    }
+
+    /** Snapshots written before amplifications carry no rider; a retired ATTACK rider becomes SHIELD. */
+    private static AmpRider riderFromSnapshot(Object raw) {
+        if (raw == null) return AmpRider.NONE;
+        String name = String.valueOf(raw);
+        if ("ATTACK".equals(name)) return AmpRider.SHIELD;
+        return AmpRider.valueOf(name);
     }
 
     /**
@@ -1783,8 +1783,11 @@ public class SiegeService {
                 statusName == null ? null : StatusKind.valueOf(String.valueOf(statusName)),
                 intVal(s.get("statusChance"), 0),
                 // Snapshots written before level-up amplifications carry no rider.
-                s.get("rider") == null ? AmpRider.NONE : AmpRider.valueOf(String.valueOf(s.get("rider"))),
-                intVal(s.get("riderValue"), 0),
+                riderFromSnapshot(s.get("rider")),
+                // A retired ATTACK rider restores as the standard shield amp, so a
+                // saved swap never comes back carrying an attack buff.
+                "ATTACK".equals(String.valueOf(s.get("rider")))
+                        ? SiegeTuning.AMP_SWAP_SHIELD : intVal(s.get("riderValue"), 0),
                 // Snapshots written before buff durations existed carry none: fall back to
                 // the effect default rather than restoring the old battle-long buff.
                 intVal(s.get("durationRounds"),
@@ -2757,6 +2760,19 @@ public class SiegeService {
             // that knight picks its extra Siegeling at warband assembly instead.
             if (run.getStatus() == RunStatus.ACTIVE && run.getParty().size() < content.partyMax()) {
                 joinStagedRecruit(run, " emerges from the battlefield and joins the warband!", true);
+            } else if (run.getStatus() == RunStatus.ACTIVE && !wasBoss && !recruitsSuppressed(run)
+                    && run.getPendingRewards().stream().noneMatch(r -> "RECRUIT".equals(r.kind()))
+                    && rng.nextInt(100) < SiegeTuning.FULL_WARBAND_WANDERER_PCT) {
+                // A full warband still meets the occasional straggler, offered as a
+                // free swap/ally after the spoils pick. Skipped on boss wins (the land
+                // changes under the stall) and when an elite recruit spoil already
+                // covers the same choice.
+                List<String> names = run.getParty().stream().map(Combatant::getName).toList();
+                content.randomStagedRecruit(names, rng, run.getLand()).ifPresent(s -> {
+                    openWandererEncounter(run, s);
+                    run.setLastReward(run.getLastReward() + " " + s.getName()
+                            + " emerges from the battlefield — the warband is full, but you may swap it in.");
+                });
             }
             if (wasBoss && run.getStatus() == RunStatus.ACTIVE) {
                 enterNextLand(run);
@@ -4158,10 +4174,12 @@ public class SiegeService {
                     spec.element(), spec, owner.getId()));
         }
 
-        // Elite wins can recruit a new Siegeling (until the warband is full);
-        // otherwise offer an upgrade to a random existing card.
+        // Elite wins can recruit a new Siegeling; with a full warband the spoil
+        // becomes a swap (picking it opens the free wanderer stall). Otherwise
+        // offer an upgrade to a random existing card.
         boolean recruited = false;
-        boolean offerRecruit = elite && run.getParty().size() < content.partyMax();
+        boolean partyFull = run.getParty().size() >= content.partyMax();
+        boolean offerRecruit = elite && !(partyFull && recruitsSuppressed(run));
         if (offerRecruit) {
             List<String> names = run.getParty().stream().map(Combatant::getName).toList();
             var recruit = content.randomRecruit(names, rng, run.getLand());
@@ -4169,8 +4187,10 @@ public class SiegeService {
                 var s = recruit.get();
                 run.getPendingRewards().add(RewardOption.recruit(
                         "r" + (optId++),
-                        s.getName() + " joins!",
-                        s.getName() + " (" + s.getElement().name() + ") joins the warband with its moves.",
+                        partyFull ? "Swap in " + s.getName() : s.getName() + " joins!",
+                        partyFull
+                                ? s.getName() + " (" + s.getElement().name() + ") wants in — the warband is full, so choose a member to send away (or take it as a one-battle ally)."
+                                : s.getName() + " (" + s.getElement().name() + ") joins the warband with its moves.",
                         s.getElement(), s.getCardArtUrl(), s.getId()));
                 recruited = true;
             }
@@ -4276,6 +4296,11 @@ public class SiegeService {
                 }
             }
             case "RECRUIT" -> content.findSiegling(pick.sieglingId()).ifPresent(s -> {
+                if (run.getParty().size() >= content.partyMax()) {
+                    openWandererEncounter(run, s);
+                    run.setLastReward(s.getName() + " wants to join, but the warband is full — choose who to swap out.");
+                    return;
+                }
                 Combatant member = content.toPartyCombatant(s, run.getParty().size());
                 member.setPosition(run.getParty().size());
                 applyJoinBonus(run, member);
