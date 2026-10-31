@@ -122,6 +122,27 @@ class SiegeFullWarbandRecruitTest {
         assertEquals(content.partyMax(), run.getParty().size());
     }
 
+    @Test
+    void eliteRecruitSpoilBecomesASwapWhenTheWarbandIsFull() throws Exception {
+        Method gen = SiegeService.class.getDeclaredMethod("generateRewards", SiegeRun.class, boolean.class);
+        gen.setAccessible(true);
+        gen.invoke(siegeService, run, true);
+        RewardOption recruit = run.getPendingRewards().stream()
+                .filter(r -> "RECRUIT".equals(r.kind())).findFirst()
+                .orElseThrow(() -> new AssertionError("a full warband still sees the elite recruit spoil"));
+        assertTrue(recruit.title().startsWith("Swap in"));
+
+        siegeService.chooseReward(token, recruit.id());
+        assertEquals(content.partyMax(), run.getParty().size(), "picking the spoil never overfills the warband");
+        assertTrue(run.isInBroker());
+        assertTrue(run.isBrokerEncounter());
+
+        Combatant leaving = run.getParty().get(0);
+        siegeService.brokerHire(token, optionId("BROKER"), leaving.getId());
+        assertFalse(run.getParty().contains(leaving));
+        assertTrue(run.getParty().stream().anyMatch(m -> recruit.sieglingId().equals(m.getSourceCardId())));
+    }
+
     private void openWanderer() throws Exception {
         Method m = SiegeService.class.getDeclaredMethod("openWandererEncounter", SiegeRun.class, SieglingCard.class);
         m.setAccessible(true);

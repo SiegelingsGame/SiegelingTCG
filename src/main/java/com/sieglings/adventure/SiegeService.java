@@ -2757,6 +2757,19 @@ public class SiegeService {
             // that knight picks its extra Siegeling at warband assembly instead.
             if (run.getStatus() == RunStatus.ACTIVE && run.getParty().size() < content.partyMax()) {
                 joinStagedRecruit(run, " emerges from the battlefield and joins the warband!", true);
+            } else if (run.getStatus() == RunStatus.ACTIVE && !wasBoss && !recruitsSuppressed(run)
+                    && run.getPendingRewards().stream().noneMatch(r -> "RECRUIT".equals(r.kind()))
+                    && rng.nextInt(100) < SiegeTuning.FULL_WARBAND_WANDERER_PCT) {
+                // A full warband still meets the occasional straggler, offered as a
+                // free swap/ally after the spoils pick. Skipped on boss wins (the land
+                // changes under the stall) and when an elite recruit spoil already
+                // covers the same choice.
+                List<String> names = run.getParty().stream().map(Combatant::getName).toList();
+                content.randomStagedRecruit(names, rng, run.getLand()).ifPresent(s -> {
+                    openWandererEncounter(run, s);
+                    run.setLastReward(run.getLastReward() + " " + s.getName()
+                            + " emerges from the battlefield — the warband is full, but you may swap it in.");
+                });
             }
             if (wasBoss && run.getStatus() == RunStatus.ACTIVE) {
                 enterNextLand(run);
@@ -4158,10 +4171,12 @@ public class SiegeService {
                     spec.element(), spec, owner.getId()));
         }
 
-        // Elite wins can recruit a new Siegeling (until the warband is full);
-        // otherwise offer an upgrade to a random existing card.
+        // Elite wins can recruit a new Siegeling; with a full warband the spoil
+        // becomes a swap (picking it opens the free wanderer stall). Otherwise
+        // offer an upgrade to a random existing card.
         boolean recruited = false;
-        boolean offerRecruit = elite && run.getParty().size() < content.partyMax();
+        boolean partyFull = run.getParty().size() >= content.partyMax();
+        boolean offerRecruit = elite && !(partyFull && recruitsSuppressed(run));
         if (offerRecruit) {
             List<String> names = run.getParty().stream().map(Combatant::getName).toList();
             var recruit = content.randomRecruit(names, rng, run.getLand());
@@ -4169,8 +4184,10 @@ public class SiegeService {
                 var s = recruit.get();
                 run.getPendingRewards().add(RewardOption.recruit(
                         "r" + (optId++),
-                        s.getName() + " joins!",
-                        s.getName() + " (" + s.getElement().name() + ") joins the warband with its moves.",
+                        partyFull ? "Swap in " + s.getName() : s.getName() + " joins!",
+                        partyFull
+                                ? s.getName() + " (" + s.getElement().name() + ") wants in — the warband is full, so choose a member to send away (or take it as a one-battle ally)."
+                                : s.getName() + " (" + s.getElement().name() + ") joins the warband with its moves.",
                         s.getElement(), s.getCardArtUrl(), s.getId()));
                 recruited = true;
             }
@@ -4276,6 +4293,11 @@ public class SiegeService {
                 }
             }
             case "RECRUIT" -> content.findSiegling(pick.sieglingId()).ifPresent(s -> {
+                if (run.getParty().size() >= content.partyMax()) {
+                    openWandererEncounter(run, s);
+                    run.setLastReward(s.getName() + " wants to join, but the warband is full — choose who to swap out.");
+                    return;
+                }
                 Combatant member = content.toPartyCombatant(s, run.getParty().size());
                 member.setPosition(run.getParty().size());
                 applyJoinBonus(run, member);

@@ -1,5 +1,5 @@
 {
-  "token" : "xqKPTtMH-vWFBZ8QysejcX6I2IY9bFNz",
+  "token" : "uFyLQSSDN-2wOIFANVfJllUHQAXeWl7U",
   "status" : "ACTIVE",
   "currentNodeId" : -1,
   "lastReward" : "",
@@ -32,23 +32,23 @@
     "eventTitle" : "The Cinder Smith"
   },
   "landHistory" : [ {
-    "id" : "undead",
-    "name" : "Hollow March",
+    "id" : "wind",
+    "name" : "Zephyr Reach",
     "kind" : "ELEMENTAL",
-    "elements" : [ "UNDEAD" ],
-    "background" : "/img/lands/undead.webp",
+    "elements" : [ "WIND" ],
+    "background" : "/img/lands/wind.webp",
     "locations" : {
-      "journey" : "/img/lands/locations/undead-journey.webp",
-      "shelter" : "/img/lands/locations/undead-shelter.webp",
-      "elite" : "/img/lands/locations/undead-elite.webp",
-      "boss" : "/img/lands/locations/undead-boss.webp"
+      "journey" : "/img/lands/locations/wind-journey.webp",
+      "shelter" : "/img/lands/locations/wind-shelter.webp",
+      "elite" : "/img/lands/locations/wind-elite.webp",
+      "boss" : "/img/lands/locations/wind-boss.webp"
     },
-    "feature" : "Grave Lantern",
-    "featureType" : "EVENT",
-    "terrain" : "Grave shelter",
-    "effect" : "UNDEAD Siegelings start battles with +5 Shield.",
+    "feature" : "Sky Caravan",
+    "featureType" : "CARAVAN",
+    "terrain" : "Tailwinds",
+    "effect" : "WIND Siegelings gain +2 Speed for each battle.",
     "encounters" : "Favored Siegelings have 4× draw weight in recruits, broker stock and card prizes.",
-    "eventTitle" : "The Lantern Bearer"
+    "eventTitle" : "The Sky Courier"
   } ],
   "landSegment" : 0,
   "landSegmentRows" : 8,

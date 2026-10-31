@@ -1,3 +1,13 @@
+Original prompt: In siege if your war and is full and you find a siegeking in an event or any interaction give the option to swap if you have a full team
+
+- October 31, 2026 **Siege: a full warband can swap in Siegelings found after battles and in elite spoils.**
+  - **Change.** Event wanderers (`RECRUIT_CHANCE`), brokers and camp brokers already offered a swap to a full warband. Two places still lost the Siegeling without asking:
+    - **Post-battle drop.** When the warband had room, a wild Siegeling joined after every win. A full warband got nothing. Now a non-boss win has a `SiegeTuning.FULL_WARBAND_WANDERER_PCT` (35%) chance to open the free wanderer stall after the spoils pick: swap it in, take it as a one-battle ally, or move on with its parting gift. It is skipped on boss wins (the land changes) and in Battlegrounds.
+    - **Elite recruit spoil.** A full warband used to get a card upgrade in its place. Now it sees "Swap in X", and picking it opens the same wanderer stall.
+
+    Server only (`SiegeService`, `SiegeTuning`). The client already shows the wanderer stall after the rewards screen.
+  - **Verification.** `./mvnw -q -DskipTests compile`. New `SiegeFullWarbandRecruitTest.eliteRecruitSpoilBecomesASwapWhenTheWarbandIsFull`: the elite spoil is titled "Swap in…", picking it opens the stall without overfilling the warband, and the swap replaces the chosen member. Full `Siege*Test` suite: 284 tests, 0 failures.
+
 Original prompt: Turn the color down, it should be subtle.
 
 - October 31, 2026 **Home: music line tint toned down.**

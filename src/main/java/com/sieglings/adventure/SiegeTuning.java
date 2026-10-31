@@ -295,6 +295,11 @@ final class SiegeTuning {
 
     /** Base gold granted in place of a disabled free recruit drop (before the BG ×2.5). */
     static final int BG_RECRUIT_GOLD = 40;
+    /**
+     * Chance (percent) that a non-boss win with a full warband still turns up a
+     * wandering Siegeling, offered as a free swap or one-battle ally.
+     */
+    static final int FULL_WARBAND_WANDERER_PCT = 35;
 
     // ---- Phase 4: tiers I–V, Warmarks, fatigue ----------------------------
     // Tier N (1-based) raises both the difficulty scalar (fed into
