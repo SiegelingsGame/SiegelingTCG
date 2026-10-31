@@ -1503,31 +1503,25 @@
     '</div>';
   }
 
-  // The record is counted from the match history the hub already loads; there
-  // is no account level to show (see xpMarkup).
+  // Just the name and title: the card is nearly clear glass so the art shows
+  // through, and tapping it opens the chat out from under it.
   function stageProfileMarkup(opts) {
-    if (opts.guest) {
-      return '<a class="sg-stage-me is-guest" href="/login" data-screen="auth">' +
-        '<span class="sg-crest-ring"><i>?</i></span>' +
-        '<span class="sg-stage-me-text"><strong>Guest</strong><em>Sign in to save your legend</em></span></a>';
-    }
     var p = prefs();
     var live = opts.live || {};
-    var name = p.displayName || live.displayName || 'Siegelord';
-    var hist = live.matchHistory || [];
-    var wins = hist.filter(function (m) { return m && (m.won === true || String(m.result).toUpperCase() === 'WIN'); }).length;
-    var bits = [];
-    if (hist.length) bits.push(wins + 'W – ' + (hist.length - wins) + 'L');
-    if (live.knights && live.knights.length) bits.push(live.knights.length + ' Knight' + (live.knights.length === 1 ? '' : 's'));
-    var pct = collectedPercent(live);
-    if (pct != null) bits.push(pct + '% collected');
-    return '<a class="sg-stage-me" href="/profile" data-screen="profile" style="--el:' + color(crestElement()) + '">' +
-      crestAvatar(opts) +
+    var name = opts.guest ? 'Guest' : (p.displayName || live.displayName || 'Siegelord');
+    var title = opts.guest ? 'Sign in to save your legend' : p.playerTitle;
+    var unread = opts.guest ? 0 : unreadThreadCount(opts);
+    return '<button type="button" class="sg-stage-me" data-stage-me aria-expanded="false" aria-controls="sgStageChat" ' +
+      'aria-label="' + esc(name) + ', open chat" style="--el:' + color(crestElement()) + '">' +
+      (opts.guest ? '<span class="sg-crest-ring"><i>?</i></span>' : crestAvatar(opts)) +
       '<span class="sg-stage-me-text"><strong>' + esc(name) + '</strong>' +
-        (p.playerTitle ? '<span class="sg-crest-title">' + esc(p.playerTitle) + '</span>' : '') +
-        '<em>' + esc(bits.join(' · ') || 'A new legend takes the field') + '</em></span>' +
-      '<i class="sg-stage-me-go" aria-hidden="true">›</i></a>';
+        (title ? '<em>' + esc(title) + '</em>' : '') + '</span>' +
+      '<span class="sg-stage-me-chat" aria-hidden="true">' + CHAT_ICON +
+        (unread ? '<i class="sg-stage-badge">' + (unread > 9 ? '9+' : unread) + '</i>' : '') + '</span>' +
+    '</button>';
   }
+
+  var CHAT_ICON = '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12z"/></svg>';
 
   // Friends is the direct-message inbox; Global and Guild have no server
   // channel yet, so they say so rather than showing invented chatter.
@@ -1569,7 +1563,7 @@
   function stageChatMarkup(opts) {
     var tab = stageChatTab();
     var unread = opts.guest ? 0 : unreadThreadCount(opts);
-    return '<section class="sg-stage-chat" data-stage-chat aria-label="Chat">' +
+    return '<section class="sg-stage-chat" id="sgStageChat" data-stage-chat aria-label="Chat" hidden>' +
       '<div class="sg-stage-chat-tabs" role="tablist">' + STAGE_CHAT_TABS.map(function (t) {
         var on = t[0] === tab;
         return '<button type="button" role="tab" data-chat-tab="' + t[0] + '" aria-selected="' + on + '"' +
@@ -1583,7 +1577,15 @@
 
   function mountStageChat(stage, opts) {
     var chat = stage.querySelector('[data-stage-chat]');
-    if (!chat) return;
+    var me = stage.querySelector('[data-stage-me]');
+    if (!chat || !me) return;
+    // Closed by default every visit: Home is for the art first.
+    me.addEventListener('click', function () {
+      var open = chat.hidden;
+      chat.hidden = !open;
+      me.setAttribute('aria-expanded', String(open));
+      me.parentNode.classList.toggle('is-chat-open', open);
+    });
     chat.addEventListener('click', function (e) {
       var btn = e.target.closest && e.target.closest('[data-chat-tab]');
       if (!btn) return;

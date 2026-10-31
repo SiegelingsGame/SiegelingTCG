@@ -1,3 +1,15 @@
+Original prompt: Make the chat expand out of the profile. Make the profile 98% see-through glass. Show their name and title. The goal is to show more of the background.
+
+- October 31, 2026 **Home: chat folds into a near-clear profile pill.**
+  - **Change.** The profile card is now a pill button (`[data-stage-me]`) showing only crest, name and title (guest: "Guest" / "Sign in to save your legend"), plus a chat bubble carrying the Friends unread count. The W–L / knights / collected line is gone.
+    - **Glass.** The pill is `rgba(255,255,255,.02)` with no backdrop blur, so 98% of the art shows through; text shadows carry legibility.
+    - **Chat.** It starts closed on every visit (`hidden`) and opens out of the pill on tap with a short drop-in (`aria-expanded`/`aria-controls`; skipped under reduced motion). Only the open chat frosts. Tabs and Friends rows are unchanged.
+    - **Cache pins.** `home-redesign.js?v=171`, `home-redesign.css?v=180`.
+  - **Verification.** `node --check` passes. Headless Chromium on `home-next.html` with mocked `/api/**` at 390x844 (guest and signed in), 375x667, 844x390 and 1920x1080:
+    - Pill background computes to `rgba(255, 255, 255, 0.02)` and backdrop-filter is `none`; the text reads "Ajay | SIEGE BREAKER" with an unread badge of 2.
+    - Chat is absent from layout when closed, opens below the pill on tap (`aria-expanded=true`), and hides again on a second tap.
+    - No page scroll, no overlap with the tile rail, no page errors. Screenshots checked.
+
 Original prompt: Let's test a version of the homepage with the buttons in the top left removed since they are accessible through the new global FAB; instead replace it with a mini player profile card, and under it put a Global, Friend, and Guild chat.
 
 - October 31, 2026 **Home: profile card and chat replace the top-left destination plates.**

@@ -4977,35 +4977,49 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-stage-cards .sg-gtab:active { transform:translateY(1px); border-color:#ffe39a; }
   @media (hover:hover) { .sg-stage-cards .sg-gtab:hover { border-color:#ffe39a; } }
 
-  /* Profile card and chat share the plates' frosted glass so the corner reads
-     as one stack over the art. */
-  .sg-stage-lead { width:clamp(230px, 24vw, 300px); }
-  .sg-stage-me, .sg-stage-chat {
-    width:100%; box-sizing:border-box; border:1px solid rgba(255,255,255,.3); color:var(--ink);
-    background:linear-gradient(135deg,rgba(255,255,255,.16),rgba(255,255,255,.04) 60%,rgba(140,210,255,.08)), rgba(9,36,52,.38);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 6px 18px rgba(0,0,0,.25);
-    backdrop-filter:blur(14px) saturate(1.5); -webkit-backdrop-filter:blur(14px) saturate(1.5);
-  }
+  /* The profile is a nearly clear pane (2% tint, no blur) so Home stays the
+     art; text shadows carry legibility instead of a fill. The chat it opens
+     is the only part that frosts, and only while open. */
+  .sg-stage-lead { width:auto; max-width:clamp(230px, 24vw, 300px); }
   .sg-stage-me {
-    display:flex; align-items:center; gap:10px; padding:7px 10px 7px 7px; border-radius:16px 10px 10px 16px;
-    text-decoration:none; border-color:color-mix(in srgb, var(--el, #d9b45f) 55%, rgba(255,255,255,.3));
+    display:flex; align-items:center; gap:9px; max-width:100%; box-sizing:border-box;
+    padding:5px 6px 5px 5px; border-radius:999px; cursor:pointer; font:inherit; color:var(--ink); text-align:left;
+    background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.22);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
   }
-  .sg-stage-me .sg-crest-ring { width:44px; height:44px; flex:0 0 auto; box-shadow:0 4px 12px rgba(0,0,0,.45); }
-  .sg-stage-me .sg-crest-ring i { font-size:19px; }
-  .sg-stage-me-text { display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0; flex:1 1 auto; }
+  .sg-stage-me .sg-crest-ring { width:40px; height:40px; flex:0 0 auto; box-shadow:0 3px 10px rgba(0,0,0,.4); }
+  .sg-stage-me .sg-crest-ring i { font-size:18px; }
+  .sg-stage-me-text { display:flex; flex-direction:column; gap:1px; min-width:0; flex:1 1 auto; }
   .sg-stage-me-text strong {
-    max-width:100%; font-family:var(--serif); font-size:16px; font-weight:600; line-height:1.15;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 3px rgba(0,0,0,.6);
+    font-family:var(--serif); font-size:16px; font-weight:600; line-height:1.15;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 3px #000, 0 0 10px rgba(0,0,0,.6);
   }
-  .sg-stage-me .sg-crest-title { margin:0; padding:1px 7px; font-size:8px; letter-spacing:.14em; max-width:100%; box-sizing:border-box; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sg-stage-me-text em {
-    max-width:100%; font-style:normal; font-size:10px; letter-spacing:.06em; color:rgba(255,255,255,.82);
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    font-style:normal; font-size:9.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#ffe39a;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 3px #000, 0 0 8px rgba(0,0,0,.7);
   }
-  .sg-stage-me-go { font-style:normal; font-size:20px; color:#ffe39a; flex:0 0 auto; }
+  .sg-stage-me-chat {
+    position:relative; width:32px; height:32px; flex:0 0 auto; border-radius:50%; display:grid; place-items:center;
+    border:1px solid rgba(255,255,255,.28); background:rgba(255,255,255,.04); transition:background .2s ease;
+  }
+  .sg-stage-me-chat svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linejoin:round; filter:drop-shadow(0 1px 2px rgba(0,0,0,.7)); }
+  .sg-stage-me-chat .sg-stage-badge { top:-4px; right:-4px; }
+  .is-chat-open > .sg-stage-me { border-color:rgba(255,227,154,.6); }
+  .is-chat-open > .sg-stage-me .sg-stage-me-chat { background:#ffe39a; color:#1a1c52; border-color:#ffe39a; }
   .sg-stage-me:active { transform:translateY(1px); }
+  .sg-stage-me:focus-visible { outline:2px solid #ffe39a; outline-offset:2px; }
 
-  .sg-stage-chat { display:flex; flex-direction:column; border-radius:12px; overflow:hidden; }
+  .sg-stage-chat {
+    width:clamp(230px, 24vw, 300px); max-width:100%; box-sizing:border-box; margin-top:6px; color:var(--ink);
+    border:1px solid rgba(255,255,255,.26); background:rgba(9,36,52,.34);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.25), 0 6px 18px rgba(0,0,0,.25);
+    backdrop-filter:blur(12px) saturate(1.4); -webkit-backdrop-filter:blur(12px) saturate(1.4);
+    transform-origin:24px 0; animation:sgStageChatIn .22s ease-out;
+  }
+  .sg-stage-chat[hidden] { display:none; }
+  @keyframes sgStageChatIn { from { opacity:0; transform:translateY(-6px) scale(.96); } }
+  @media (prefers-reduced-motion:reduce) { .sg-stage-chat { animation:none; } }
+  .sg-stage-chat:not([hidden]) { display:flex; flex-direction:column; border-radius:12px; overflow:hidden; }
   .sg-stage-chat-tabs { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); border-bottom:1px solid rgba(255,255,255,.16); }
   .sg-stage-chat-tabs button {
     position:relative; height:30px; padding:0 4px; border:none; background:none; cursor:pointer;
@@ -5503,7 +5517,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 
   /* The lead area is half the grid, but the tile rail beside it is only 58px
      wide and pinned right, so the card and chat run on past the area's edge. */
-  .sg-stage-lead { grid-area:lead; justify-self:start; width:min(300px, calc(100vw - 104px - var(--sal, 0px) - var(--sar, 0px))); }
+  .sg-stage-lead { grid-area:lead; justify-self:start; width:auto; max-width:min(300px, calc(100vw - 104px - var(--sal, 0px) - var(--sar, 0px))); }
+  .sg-stage-chat { width:min(300px, calc(100vw - 104px - var(--sal, 0px) - var(--sar, 0px))); }
   .sg-stage-cards { grid-template-columns:clamp(118px, 33vw, 150px); gap:6px; }
   .sg-stage-cards .sg-gtab { height:40px; }
   .sg-stage-cards .sg-gtab-label { font-size:11.5px; }
