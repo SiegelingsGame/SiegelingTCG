@@ -1,3 +1,34 @@
+Original prompt: Show the top-right profile button's data (with level tag) in the Home profile area; tapping the picture asks in a small speech bubble whether to view the profile. Add a notification bubble and Siegecoin count next to the message bubble; tapping coins opens a bank (coins, remnants, XP, future currencies). Remove the Expedition button; the badge goes on the FAB-extension Siege button, which always says Siege; a saved run adds a green "Resume <mode>" segment cut into the arrow tip that opens an animated preview of the team and run. Use the freed header space to stretch the music button into a line with a waveform and song name on liquid gold tinted by the song's element.
+
+- October 31, 2026 **Home: account strip, bank, Siege resume segment, music line.**
+  - **Account strip** (`stageProfileMarkup`). The header's crest (initial plus knight-count tag), bell and coin chip moved into the Home profile pill, beside name, title and the chat bubble. Home's header (`topMarkup` with `extra.home`) now carries only the logo, the art controls and the music line.
+    - Crest tap opens a speech bubble ("View your profile?" with View Profile / Not now; guests get Sign In).
+    - Name or chat bubble folds the chat out. The bell drives the existing notification panel, which `mountStageChat` re-anchors under the pill at the pill's width.
+    - Coins open the **bank** (`stageBankMarkup`): Siegecoins, Remnants, Warmarks, and Knight XP (sum of each knight's `points` toward its next level, with knight count and best level). A dashed row notes that more currencies come with new modes. Chat, bank and bubble are mutually exclusive, and an outside tap closes the bubble or the bank.
+    - **Backend.** `/api/player/progression` now includes `warmarks`, which `home-redesign-live.js` maps to `live.warmarks`.
+  - **Siege flank** (`stageSiegeMarkup`). The Expedition tile is gone, and the flank always reads Siege.
+    - With a saved run, the flank becomes a container: a stretched `/siege` link, plus a green **Resume <mode>** button over the arrow-tip end, separated by a slanted gold cut and following the flank's inner rim on the shield layout. The run badge shrinks to a dot beside "Siege" on phones.
+    - The mode is the save matching `localStorage.siegeToken` (the last one played on this device), else the first. Labels are Adventure / Endless / Battlegrounds, as in `adventure.js`.
+    - `a.sg-stage-mode` selectors became `.sg-stage-mode` (home-redesign.css, hub-workspaces.css) so the flank can be a div.
+  - **Run preview** (`stageRunPreviewMarkup` / `mountRunPreview`). The scrim opens as a circle from the green segment, the card rises, and the warband units pop in staggered. It shows the mode, land, SiegeKnight with HP, party (art, level, HP bar, downed greyed), and Floor/Gold/Deck (plus Score for Endless, Tier for Battlegrounds), with a battle-in-progress flag.
+    - **Resume <mode>** goes to `/siege?resume=TOKEN`. `adventure.js` `resumeOrRoster` now resumes that save directly, skipping the prompt, and strips the query.
+  - **Music line** (`musicLineMarkup`). A `[data-music-open]` button with a 14-bar waveform (animated while playing, flattened when muted) and the song title, on an animated liquid-gold gradient `color-mix`ed with the playing element. `hub-music.js` `paint()` now stamps `data-el` on every open button.
+  - **Cache pins.** `home-redesign.js?v=172`, `home-redesign.css?v=181`, `home-redesign-live.js?v=26`, `hub-music.js?v=8`, `hub-workspaces.css?v=7`, `adventure.js?v=153`.
+  - **Verification.**
+    - **Gates.** `node --check` passes on all four JS files. `mvn -DskipTests compile` passes.
+    - **Java tests.** `PlayerProgressionServiceTest` passes (47). `PlayerProgressionControllerStarterPackTest` has 2 errors (null `battlefieldSkinCatalog`) that fail identically with this change stashed.
+    - **Browser.** Headless Chromium on `home-next.html` with mocked `/api/**` (signed in with 3 knights, a saved Adventure run, 2 threads and an unread notification; and a guest) at 390x844, 375x667, 844x390 and 1920x1080:
+      - Header has no coin/bell/avatar and shows the music line.
+      - No Expedition tile.
+      - Flank reads "RESUME | Adventure | Siege!".
+      - Crest bubble opens; the bank lists 1,269 / 340 / 55 / 460 XP; an outside tap closes it.
+      - Notifications open under the pill.
+      - The preview's Resume links `/siege?resume=tok-1` and closes on ×.
+      - A tap on the flank body hits the `/siege` link.
+      - Music-line tint changes with data-el (FIRE/WATER/POISON).
+      - No page scroll, no page errors. Screenshots checked.
+    - **Not tested.** The `/siege?resume=` path in adventure.js was not exercised in a browser (it needs a full run payload).
+
 Original prompt: Make the chat expand out of the profile. Make the profile 98% see-through glass. Show their name and title. The goal is to show more of the background.
 
 - October 31, 2026 **Home: chat folds into a near-clear profile pill.**

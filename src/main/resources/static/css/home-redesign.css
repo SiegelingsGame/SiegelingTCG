@@ -4977,48 +4977,108 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-stage-cards .sg-gtab:active { transform:translateY(1px); border-color:#ffe39a; }
   @media (hover:hover) { .sg-stage-cards .sg-gtab:hover { border-color:#ffe39a; } }
 
-  /* The profile is a nearly clear pane (2% tint, no blur) so Home stays the
-     art; text shadows carry legibility instead of a fill. The chat it opens
-     is the only part that frosts, and only while open. */
-  .sg-stage-lead { width:auto; max-width:clamp(230px, 24vw, 300px); }
+  /* The account strip is a nearly clear pane (2% tint, no blur) so Home stays
+     the art; text shadows carry legibility instead of a fill. What it opens
+     (chat, bank, the profile bubble) frosts, and only while open. */
+  .sg-stage-lead { width:auto; max-width:clamp(300px, 26vw, 340px); }
+  .sg-stage-me-wrap { position:relative; display:flex; flex-direction:column; align-items:flex-start; max-width:100%; }
   .sg-stage-me {
-    display:flex; align-items:center; gap:9px; max-width:100%; box-sizing:border-box;
-    padding:5px 6px 5px 5px; border-radius:999px; cursor:pointer; font:inherit; color:var(--ink); text-align:left;
+    display:flex; align-items:center; gap:5px; max-width:100%; box-sizing:border-box;
+    padding:5px; border-radius:999px; color:var(--ink);
     background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.22);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
   }
-  .sg-stage-me .sg-crest-ring { width:40px; height:40px; flex:0 0 auto; box-shadow:0 3px 10px rgba(0,0,0,.4); }
-  .sg-stage-me .sg-crest-ring i { font-size:18px; }
-  .sg-stage-me-text { display:flex; flex-direction:column; gap:1px; min-width:0; flex:1 1 auto; }
+  .sg-stage-me button { font:inherit; color:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .sg-stage-me button:focus-visible { outline:2px solid #ffe39a; outline-offset:2px; }
+  .sg-stage-me button:active { transform:translateY(1px); }
+  /* Same crest and knight tag as the header's profile button, larger. */
+  .sg-stage-me-face.sg-avatar { width:42px; height:42px; border:0; padding:2px; box-shadow:0 3px 10px rgba(0,0,0,.45); }
+  .sg-stage-me-face.sg-avatar i { font-size:19px; }
+  .sg-stage-me-face.sg-avatar b { bottom:-5px; font-style:normal; }
+  .sg-stage-me-text {
+    display:flex; flex-direction:column; align-items:flex-start; gap:1px; min-width:0; flex:1 1 auto;
+    border:0; background:none; padding:0 2px; text-align:left;
+  }
   .sg-stage-me-text strong {
-    font-family:var(--serif); font-size:16px; font-weight:600; line-height:1.15;
+    max-width:100%; font-family:var(--serif); font-size:15px; font-weight:600; line-height:1.15;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 3px #000, 0 0 10px rgba(0,0,0,.6);
   }
   .sg-stage-me-text em {
-    font-style:normal; font-size:9.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#ffe39a;
+    max-width:100%; font-style:normal; font-size:8.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#ffe39a;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 3px #000, 0 0 8px rgba(0,0,0,.7);
   }
-  .sg-stage-me-chat {
-    position:relative; width:32px; height:32px; flex:0 0 auto; border-radius:50%; display:grid; place-items:center;
-    border:1px solid rgba(255,255,255,.28); background:rgba(255,255,255,.04); transition:background .2s ease;
+  .sg-stage-me-btn {
+    position:relative; width:29px; height:29px; flex:0 0 auto; padding:0; border-radius:50%; display:grid; place-items:center;
+    border:1px solid rgba(255,255,255,.28); background:rgba(255,255,255,.04); transition:background .2s ease, color .2s ease;
   }
-  .sg-stage-me-chat svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linejoin:round; filter:drop-shadow(0 1px 2px rgba(0,0,0,.7)); }
-  .sg-stage-me-chat .sg-stage-badge { top:-4px; right:-4px; }
-  .is-chat-open > .sg-stage-me { border-color:rgba(255,227,154,.6); }
-  .is-chat-open > .sg-stage-me .sg-stage-me-chat { background:#ffe39a; color:#1a1c52; border-color:#ffe39a; }
-  .sg-stage-me:active { transform:translateY(1px); }
-  .sg-stage-me:focus-visible { outline:2px solid #ffe39a; outline-offset:2px; }
+  .sg-stage-me-btn svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2; stroke-linejoin:round; stroke-linecap:round; filter:drop-shadow(0 1px 2px rgba(0,0,0,.7)); }
+  .sg-stage-me-btn .sg-stage-badge { top:-5px; right:-5px; }
+  .sg-stage-me-btn .sg-notif-badge { top:-5px; right:-5px; }
+  .sg-stage-me-btn[aria-expanded="true"] { background:#ffe39a; color:#1a1c52; border-color:#ffe39a; }
+  .sg-stage-me-btn[aria-expanded="true"] svg { filter:none; }
+  .sg-stage-me-coin {
+    display:inline-flex; align-items:center; gap:3px; height:29px; flex:0 0 auto; padding:0 8px 0 3px; border-radius:999px;
+    border:1px solid rgba(255,214,110,.5); background:rgba(255,214,110,.08);
+    font-weight:800 !important; font-size:12px !important; color:#ffe39a !important; text-shadow:0 1px 3px #000;
+  }
+  .sg-stage-me-coin img { width:21px; height:21px; }
+  .sg-stage-me-coin[aria-expanded="true"] { background:rgba(255,214,110,.28); border-color:#ffe39a; }
 
-  .sg-stage-chat {
-    width:clamp(230px, 24vw, 300px); max-width:100%; box-sizing:border-box; margin-top:6px; color:var(--ink);
-    border:1px solid rgba(255,255,255,.26); background:rgba(9,36,52,.34);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.25), 0 6px 18px rgba(0,0,0,.25);
+  /* What the strip opens, all dropping in from under it. */
+  .sg-stage-chat, .sg-stage-bank, .sg-stage-me-pop {
+    box-sizing:border-box; color:var(--ink);
+    border:1px solid rgba(255,255,255,.26); background:rgba(9,36,52,.4);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.25), 0 8px 22px rgba(0,0,0,.3);
     backdrop-filter:blur(12px) saturate(1.4); -webkit-backdrop-filter:blur(12px) saturate(1.4);
     transform-origin:24px 0; animation:sgStageChatIn .22s ease-out;
   }
-  .sg-stage-chat[hidden] { display:none; }
+  .sg-stage-chat, .sg-stage-bank { width:clamp(250px, 26vw, 320px); max-width:100%; margin-top:6px; }
+  .sg-stage-chat[hidden], .sg-stage-bank[hidden], .sg-stage-me-pop[hidden] { display:none; }
   @keyframes sgStageChatIn { from { opacity:0; transform:translateY(-6px) scale(.96); } }
-  @media (prefers-reduced-motion:reduce) { .sg-stage-chat { animation:none; } }
+  @media (prefers-reduced-motion:reduce) { .sg-stage-chat, .sg-stage-bank, .sg-stage-me-pop { animation:none; } }
+
+  /* A speech bubble whose tail points up at the crest. */
+  .sg-stage-me-pop {
+    position:relative; margin-top:12px; padding:10px 12px; border-radius:14px; max-width:240px;
+    background:rgba(9,36,52,.72);
+  }
+  .sg-stage-me-pop::before {
+    content:''; position:absolute; top:-7px; left:20px; width:12px; height:12px; transform:rotate(45deg);
+    background:inherit; border-left:1px solid rgba(255,255,255,.26); border-top:1px solid rgba(255,255,255,.26);
+    backdrop-filter:none; -webkit-backdrop-filter:none;
+  }
+  .sg-stage-me-pop p { margin:0 0 8px; font-size:13px; font-weight:600; }
+  .sg-stage-me-pop div { display:flex; gap:8px; align-items:center; }
+  .sg-stage-me-pop a, .sg-stage-me-pop button {
+    height:28px; padding:0 12px; border-radius:999px; font:inherit; font-size:10.5px; font-weight:800;
+    letter-spacing:.1em; text-transform:uppercase; cursor:pointer; display:inline-flex; align-items:center; text-decoration:none;
+  }
+  .sg-stage-me-pop a { background:linear-gradient(135deg, #ffe066, #f2a03d); color:#2b0d02; border:0; }
+  .sg-stage-me-pop button { background:none; color:rgba(255,255,255,.8); border:1px solid rgba(255,255,255,.3); }
+
+  .sg-stage-bank { border-radius:12px; padding:8px 10px 10px; }
+  .sg-stage-bank header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .sg-stage-bank header strong { font-family:var(--serif); font-size:15px; }
+  .sg-stage-bank header a { font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#ffe39a; text-decoration:none; }
+  .sg-stage-bank ul { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; }
+  .sg-stage-bank li { display:flex; align-items:center; gap:9px; padding:6px 7px; border-radius:9px; background:rgba(255,255,255,.05); }
+  .sg-stage-bank-ico { width:28px; height:28px; flex:0 0 auto; display:grid; place-items:center; }
+  .sg-stage-bank-ico img { width:28px; height:28px; object-fit:contain; }
+  .sg-stage-bank-ico i {
+    width:26px; height:26px; border-radius:50%; display:grid; place-items:center; font-style:normal;
+    font-size:12px; font-weight:900; color:#1a1c52;
+  }
+  .sg-stage-bank-ico i.is-warmark { background:linear-gradient(135deg, #ffb27a, #c2412b); color:#fff; }
+  .sg-stage-bank-ico i.is-xp { background:linear-gradient(135deg, #b8f0ff, #5aa8ff); font-size:9.5px; }
+  .sg-stage-bank-name { display:flex; flex-direction:column; min-width:0; flex:1 1 auto; }
+  .sg-stage-bank-name b { font-size:12.5px; }
+  .sg-stage-bank-name em { font-style:normal; font-size:10px; color:rgba(255,255,255,.7); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sg-stage-bank li strong { font-size:14px; font-weight:800; color:#ffe39a; font-variant-numeric:tabular-nums; }
+  .sg-stage-bank-soon {
+    margin:6px 0 0; padding:6px; border-radius:9px; border:1px dashed rgba(255,255,255,.25);
+    text-align:center; font-size:10.5px; color:rgba(255,255,255,.65);
+  }
+
   .sg-stage-chat:not([hidden]) { display:flex; flex-direction:column; border-radius:12px; overflow:hidden; }
   .sg-stage-chat-tabs { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); border-bottom:1px solid rgba(255,255,255,.16); }
   .sg-stage-chat-tabs button {
@@ -5093,14 +5153,14 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     grid-area:right; align-self:end; display:flex; flex-direction:column; align-items:stretch; gap:8px;
     width:min(200px, 26vw);
   }
-  .sg-app a.sg-stage-mode {
+  .sg-app .sg-stage-mode {
     display:flex; flex-direction:column; justify-content:center; padding:7px 14px; min-height:44px;
     border-radius:14px; text-decoration:none; color:var(--ink);
     background:linear-gradient(100deg, rgba(9,36,52,.82), rgba(40,22,96,.62));
     border:1px solid rgba(180,140,255,.36); box-shadow:0 6px 18px rgba(0,0,0,.35);
     backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
   }
-  .sg-app a.sg-stage-mode.is-keep { border-color:rgba(84,168,240,.36); }
+  .sg-app .sg-stage-mode.is-keep { border-color:rgba(84,168,240,.36); }
   .sg-stage-mode-kicker { font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); }
   .sg-stage-mode strong { font-family:var(--serif); font-size:16px; font-weight:600; line-height:1.15; }
   .sg-app a.sg-stage-play {
@@ -5517,8 +5577,8 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 
   /* The lead area is half the grid, but the tile rail beside it is only 58px
      wide and pinned right, so the card and chat run on past the area's edge. */
-  .sg-stage-lead { grid-area:lead; justify-self:start; width:auto; max-width:min(300px, calc(100vw - 104px - var(--sal, 0px) - var(--sar, 0px))); }
-  .sg-stage-chat { width:min(300px, calc(100vw - 104px - var(--sal, 0px) - var(--sar, 0px))); }
+  .sg-stage-lead { grid-area:lead; justify-self:start; width:auto; max-width:min(310px, calc(100vw - 92px - var(--sal, 0px) - var(--sar, 0px))); }
+  .sg-stage-chat, .sg-stage-bank { width:min(300px, calc(100vw - 104px - var(--sal, 0px) - var(--sar, 0px))); }
   .sg-stage-cards { grid-template-columns:clamp(118px, 33vw, 150px); gap:6px; }
   .sg-stage-cards .sg-gtab { height:40px; }
   .sg-stage-cards .sg-gtab-label { font-size:11.5px; }
@@ -5531,10 +5591,10 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   }
   .sg-stage-tile-ico { width:38px; height:38px; }
   .sg-stage-badge { right:4px; }
-  .sg-app a.sg-stage-mode {
+  .sg-app .sg-stage-mode {
     grid-area:siege; align-self:center; justify-self:end; width:min(100%, 260px); min-height:46px; padding:6px 12px;
   }
-  .sg-app a.sg-stage-mode.is-keep { grid-area:keep; justify-self:start; }
+  .sg-app .sg-stage-mode.is-keep { grid-area:keep; justify-self:start; }
   .sg-stage-mode-kicker { font-size:8px; letter-spacing:.14em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sg-stage-mode strong { font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sg-app a.sg-stage-play {
@@ -5555,9 +5615,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     padding-bottom:var(--sn-fab-bottom);
     column-gap:0;
   }
-  .has-shield-navigation .sg-app a.sg-stage-mode,
+  .has-shield-navigation .sg-app .sg-stage-mode,
   .has-shield-navigation .sg-app a.sg-stage-play { isolation:isolate; position:relative; }
-  .has-shield-navigation .sg-app a.sg-stage-mode {
+  .has-shield-navigation .sg-app .sg-stage-mode {
     --mode-rim:#d9b45f;
     --mode-fill:linear-gradient(180deg, #2c3374 0%, #1a1c52 52%, #10113a 100%);
     --cut-x:calc(100% + var(--sn-flank-tuck));
@@ -5570,25 +5630,25 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) - .5px), #000 var(--sn-flank-r));
     filter:drop-shadow(0 6px 12px rgba(0,0,0,.45));
   }
-  .has-shield-navigation .sg-app a.sg-stage-mode::before {
+  .has-shield-navigation .sg-app .sg-stage-mode::before {
     content:''; position:absolute; inset:0; z-index:-1; background:var(--mode-fill);
     clip-path:polygon(17.2px 2px, 100% 2px, 100% calc(100% - 2px), 17.2px calc(100% - 2px), 2.3px 50%);
     -webkit-mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) + 1.5px), #000 calc(var(--sn-flank-r) + 2px));
     mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) + 1.5px), #000 calc(var(--sn-flank-r) + 2px));
   }
-  .has-shield-navigation .sg-app a.sg-stage-mode.is-keep {
+  .has-shield-navigation .sg-app .sg-stage-mode.is-keep {
     --mode-fill:linear-gradient(180deg, #23527f 0%, #173a66 52%, #0e2547 100%);
     --cut-x:calc(var(--sn-flank-tuck) * -1);
     justify-self:start; align-items:flex-start; text-align:left;
     padding:0 22px 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 8px);
     clip-path:polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%);
   }
-  .has-shield-navigation .sg-app a.sg-stage-mode.is-keep::before {
+  .has-shield-navigation .sg-app .sg-stage-mode.is-keep::before {
     clip-path:polygon(0 2px, calc(100% - 17.2px) 2px, calc(100% - 2.3px) 50%, calc(100% - 17.2px) calc(100% - 2px), 0 calc(100% - 2px));
   }
   .has-shield-navigation .sg-stage-mode-kicker { color:rgba(244,236,214,.72); }
   .has-shield-navigation .sg-stage-mode strong { color:#f4ecd6; }
-  .has-shield-navigation .sg-app a.sg-stage-mode:active { transform:scale(.97); }
+  .has-shield-navigation .sg-app .sg-stage-mode:active { transform:scale(.97); }
 
   /* Arena spans both flanks, sitting 2px above the FAB's top; the notch is a
      circle on the FAB's centre a few px wider than the flank cuts. */
@@ -7591,7 +7651,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     linear-gradient(135deg, rgba(44,86,142,.7), rgba(58,104,166,.6) 52%, rgba(86,136,200,.56));
 }
 .sg-stage-cards .sg-gtab, .sg-profile-nav .sg-gtab,
-.sg-stage-tile-ico, .sg-app a.sg-stage-mode, .sg-stage-music, .sg-stage-player {
+.sg-stage-tile-ico, .sg-app .sg-stage-mode, .sg-stage-music, .sg-stage-player {
   backdrop-filter:none; -webkit-backdrop-filter:none;
 }
 .sg-stage-cards .sg-gtab { text-shadow:0 1px 3px rgba(9,30,52,.55); }
@@ -7604,7 +7664,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-stage-tile-ico { background:rgba(9,36,52,.7); }
 .sg-stage-player { background:rgba(9,36,52,.68); }
 .sg-stage-music { background:linear-gradient(90deg, rgba(60,130,200,.62), rgba(130,70,200,.56)); }
-.sg-app a.sg-stage-mode { background:linear-gradient(100deg, rgba(9,36,52,.9), rgba(40,22,96,.78)); }
+.sg-app .sg-stage-mode { background:linear-gradient(100deg, rgba(9,36,52,.9), rgba(40,22,96,.78)); }
 /* A closed sheet sits at opacity 0 over the whole screen, and its backdrop
    blur still ran there, re-blurring the moving stage every frame on every hub
    screen. The blur exists only while the sheet is open; on close it waits out
@@ -7612,4 +7672,233 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
 .sg-sheet:not(.open) {
   backdrop-filter:none; -webkit-backdrop-filter:none;
   transition:opacity .3s ease, backdrop-filter 0s linear .3s, -webkit-backdrop-filter 0s linear .3s;
+}
+
+/* ==========================================================================
+   HOME HEADER: art controls and the music line
+   The account chips moved into the stage's profile strip, so the music button
+   stretches into the space they left: a waveform and the song's name on
+   liquid gold, tinted by the playing song's element (data-el, stamped by
+   hub-music.js).
+   ========================================================================== */
+.sg-top.is-stage-top { gap:8px; }
+.sg-top.is-stage-top .sg-stage-player-slot { flex:1 1 0; }
+.sg-music-line {
+  --mel:var(--neutral);
+  flex:1.15 1 0; min-width:92px; max-width:440px; height:34px; box-sizing:border-box;
+  display:flex; align-items:center; gap:8px; padding:0 13px 0 11px; cursor:pointer;
+  border-radius:999px; border:1px solid color-mix(in srgb, #fff1bd 70%, var(--mel));
+  font:inherit; color:#2a1606; text-align:left; -webkit-tap-highlight-color:transparent;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.05) 48%, rgba(0,0,0,.06) 100%),
+    linear-gradient(100deg,
+      color-mix(in srgb, #a87526 66%, var(--mel)) 0%,
+      color-mix(in srgb, #ffe08a 74%, var(--mel)) 28%,
+      color-mix(in srgb, #c9963a 64%, var(--mel)) 52%,
+      color-mix(in srgb, #fff1bd 74%, var(--mel)) 74%,
+      color-mix(in srgb, #8a5a1c 66%, var(--mel)) 100%);
+  background-size:100% 100%, 260% 100%;
+  box-shadow:inset 0 -2px 5px rgba(60,30,0,.28), inset 0 1px 0 rgba(255,255,255,.6),
+             0 4px 14px color-mix(in srgb, var(--mel) 38%, rgba(0,0,0,.3));
+  animation:sgLiquidGold 7s ease-in-out infinite alternate;
+  transition:border-color .4s ease, box-shadow .4s ease;
+}
+@keyframes sgLiquidGold { from { background-position:0 0, 0% 0; } to { background-position:0 0, 100% 0; } }
+.sg-music-line:active { transform:translateY(1px); }
+.sg-music-line:focus-visible { outline:2px solid #fff1bd; outline-offset:2px; }
+.sg-music-line[data-el="FIRE"] { --mel:var(--fire); }
+.sg-music-line[data-el="WATER"] { --mel:var(--water); }
+.sg-music-line[data-el="EARTH"] { --mel:var(--earth); }
+.sg-music-line[data-el="WIND"] { --mel:var(--wind); }
+.sg-music-line[data-el="ICE"] { --mel:var(--ice); }
+.sg-music-line[data-el="ELECTRIC"] { --mel:var(--electric); }
+.sg-music-line[data-el="METAL"] { --mel:var(--metal); }
+.sg-music-line[data-el="POISON"] { --mel:var(--poison); }
+.sg-music-line[data-el="PSYCHIC"] { --mel:var(--psychic); }
+.sg-music-line[data-el="SHADOW"] { --mel:var(--shadow); }
+.sg-music-line[data-el="LIGHT"] { --mel:var(--light); }
+.sg-music-line[data-el="UNDEAD"] { --mel:var(--undead); }
+.sg-music-wave { display:inline-flex; align-items:center; gap:2px; height:20px; flex:0 0 auto; }
+.sg-music-wave i {
+  width:2.5px; border-radius:2px; background:#3a1f06; opacity:.8;
+  height:calc(5px + 13px * var(--h, .5)); transform-origin:center;
+}
+/* A fixed silhouette, so a paused song still reads as a waveform. */
+.sg-music-wave i:nth-child(7n+1) { --h:.35; } .sg-music-wave i:nth-child(7n+2) { --h:.75; }
+.sg-music-wave i:nth-child(7n+3) { --h:1; }   .sg-music-wave i:nth-child(7n+4) { --h:.55; }
+.sg-music-wave i:nth-child(7n+5) { --h:.85; } .sg-music-wave i:nth-child(7n+6) { --h:.4; }
+.sg-music-wave i:nth-child(7n)   { --h:.65; }
+.sg-music-line.is-playing .sg-music-wave i { animation:sgWave .9s ease-in-out infinite alternate; animation-delay:calc(var(--b) * -.17s); }
+@keyframes sgWave { from { transform:scaleY(.35); } to { transform:scaleY(1); } }
+.sg-music-line.is-muted .sg-music-wave i { transform:scaleY(.25); opacity:.45; }
+.sg-music-line-title {
+  min-width:0; flex:1 1 auto; font-size:12.5px; font-weight:800; letter-spacing:.02em;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 0 rgba(255,255,255,.45);
+}
+.sg-music-line.is-muted .sg-music-line-title { opacity:.6; }
+@media (max-width:420px) {
+  .sg-music-wave i:nth-child(n+9) { display:none; }
+  .sg-music-line { gap:6px; padding:0 10px 0 9px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .sg-music-line, .sg-music-line.is-playing .sg-music-wave i { animation:none; }
+}
+/* On Home the notification panel drops from the profile strip (placed by JS). */
+.sg-app[data-screen="home"] .sg-notif-panel { width:min(320px, calc(100% - 24px)); }
+
+/* ==========================================================================
+   SIEGE FLANK: always "Siege"; a saved run cuts a green Resume segment into
+   the arrow tip. The flank becomes a container: a stretched link for Siege,
+   the green button over its tip end.
+   ========================================================================== */
+.sg-app .sg-stage-mode.has-resume { position:relative; isolation:isolate; overflow:hidden; align-items:flex-end; text-align:right; }
+.sg-stage-mode-hit { position:absolute; inset:0; z-index:1; border-radius:inherit; }
+.sg-stage-mode.has-resume > .sg-stage-mode-kicker,
+.sg-stage-mode.has-resume > strong { position:relative; pointer-events:none; }
+.sg-stage-mode strong .sg-stage-badge {
+  position:static; display:inline-block; vertical-align:top; margin-left:4px; font-family:inherit;
+}
+.sg-stage-resume {
+  position:absolute; z-index:2; left:0; top:0; bottom:0; width:54%; isolation:isolate;
+  border:0; padding:0 18px 0 12px; cursor:pointer; display:flex; flex-direction:column; justify-content:center; align-items:flex-start;
+  background:#e8c76f; font:inherit; color:#f1fff4; text-align:left; -webkit-tap-highlight-color:transparent;
+  /* The gold behind shows only along the cut: the green is inset from it. */
+  clip-path:polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+}
+.sg-stage-resume::before {
+  content:''; position:absolute; inset:0; z-index:-1;
+  background:linear-gradient(160deg, #6af0a0 0%, #22a95c 48%, #0d6a39 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.45);
+  clip-path:polygon(0 0, calc(100% - 2.6px) 0, calc(100% - 14.6px) 100%, 0 100%);
+}
+.sg-stage-resume::after {
+  content:''; position:absolute; inset:0; z-index:-1; pointer-events:none;
+  background:linear-gradient(105deg, transparent 35%, rgba(255,255,255,.45) 50%, transparent 65%);
+  transform:translateX(-120%); animation:sgShimmer 4.2s ease-in-out infinite;
+  clip-path:polygon(0 0, calc(100% - 2.6px) 0, calc(100% - 14.6px) 100%, 0 100%);
+}
+.sg-stage-resume span { font-size:8px; font-weight:800; letter-spacing:.18em; text-transform:uppercase; opacity:.9; }
+.sg-stage-resume b {
+  max-width:100%; font-family:var(--serif); font-size:14px; font-weight:700; line-height:1.1;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 2px rgba(0,40,15,.7);
+}
+.sg-stage-resume:active { filter:brightness(1.1); }
+.sg-stage-resume:focus-visible { outline:2px solid #fff; outline-offset:-4px; }
+@media (prefers-reduced-motion:reduce) { .sg-stage-resume::after { animation:none; } }
+@media (orientation:portrait) and (max-width:1023px) {
+  /* The flank's own mask and arrow clip already bound it, and its rim is the
+     gold 2px inside them, so the green follows that inner outline. */
+  .has-shield-navigation .sg-app .sg-stage-mode.has-resume { overflow:visible; }
+  .has-shield-navigation .sg-stage-mode.has-resume .sg-stage-mode-kicker { display:none; }
+  .has-shield-navigation .sg-stage-resume {
+    width:54%; padding:0 13px 0 13px;
+    clip-path:polygon(17.2px 2px, 100% 2px, calc(100% - 12px) calc(100% - 2px), 17.2px calc(100% - 2px), 2.3px 50%);
+  }
+  .has-shield-navigation .sg-stage-resume::before,
+  .has-shield-navigation .sg-stage-resume::after {
+    clip-path:polygon(17.2px 2px, calc(100% - 2.6px) 2px, calc(100% - 14.6px) calc(100% - 2px), 17.2px calc(100% - 2px), 2.3px 50%);
+  }
+  .has-shield-navigation .sg-stage-resume b { font-size:12px; letter-spacing:0; }
+  .has-shield-navigation .sg-stage-resume span { font-size:7.5px; letter-spacing:.14em; }
+  /* The flank's own label keeps to the strip between the cut and the FAB;
+     the run badge shrinks to a dot so "Siege" fits whole. */
+  .has-shield-navigation .sg-stage-mode.has-resume strong { font-size:14px; overflow:visible; }
+  .has-shield-navigation .sg-stage-mode.has-resume strong .sg-stage-badge {
+    min-width:0; width:7px; height:7px; padding:0; margin-left:2px; font-size:0; vertical-align:super;
+  }
+}
+
+/* Run preview: the scrim opens as a circle from the green segment, the card
+   rises, and the warband steps in one by one. */
+.sg-run-preview {
+  position:absolute; inset:0; z-index:7; display:flex; align-items:center; justify-content:center;
+  padding:calc(var(--stage-top) + 10px) max(14px, var(--sar)) calc(var(--stage-bottom) + 10px) max(14px, var(--sal));
+}
+.sg-run-preview[hidden] { display:none; }
+.sg-run-scrim {
+  position:absolute; inset:0; border:0; padding:0; cursor:pointer;
+  background:radial-gradient(120% 90% at 50% 45%, rgba(4,20,12,.4), rgba(4,10,20,.75));
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  animation:sgRunScrim .42s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes sgRunScrim {
+  from { clip-path:circle(0 at var(--run-ox, 50%) var(--run-oy, 90%)); }
+  to { clip-path:circle(150% at var(--run-ox, 50%) var(--run-oy, 90%)); }
+}
+.sg-run-card {
+  position:relative; z-index:1; width:min(420px, 100%); max-height:100%; overflow:auto; box-sizing:border-box;
+  padding:16px 16px 14px; border-radius:20px; color:var(--ink);
+  border:1.5px solid #4fd88a; background:rgba(8,22,28,.88);
+  box-shadow:0 0 0 1px rgba(232,199,111,.35), 0 24px 60px rgba(0,0,0,.6), 0 0 40px rgba(79,216,138,.18);
+  animation:sgRunIn .46s cubic-bezier(.2,.9,.25,1.15) .08s both;
+}
+@keyframes sgRunIn { from { opacity:0; transform:translateY(46px) scale(.88); } }
+.sg-run-bg {
+  position:absolute; inset:0; z-index:-1; border-radius:inherit; background-size:cover; background-position:center;
+  opacity:.32; mask:linear-gradient(180deg, #000 0%, transparent 70%); -webkit-mask:linear-gradient(180deg, #000 0%, transparent 70%);
+}
+.sg-run-card { isolation:isolate; }
+.sg-run-card header { position:relative; padding-right:34px; margin-bottom:12px; }
+.sg-run-mode {
+  display:inline-block; padding:3px 10px; border-radius:999px; font-size:9.5px; font-weight:800; letter-spacing:.16em; text-transform:uppercase;
+  color:#062b15; background:linear-gradient(135deg, #8cf5b5, #2fbf6c);
+}
+.sg-run-card h3 { margin:6px 0 0; font-family:var(--serif); font-size:22px; font-weight:600; text-shadow:0 2px 8px rgba(0,0,0,.6); }
+.sg-run-close {
+  position:absolute; top:0; right:0; width:30px; height:30px; border-radius:50%; border:1px solid rgba(255,255,255,.3);
+  background:rgba(0,0,0,.3); color:var(--ink); font-size:18px; line-height:1; cursor:pointer;
+}
+.sg-run-knight {
+  display:flex; align-items:center; gap:10px; padding:8px; margin-bottom:10px; border-radius:14px;
+  background:rgba(255,255,255,.06); border:1px solid color-mix(in srgb, var(--el) 50%, transparent);
+}
+.sg-run-knight img, .sg-run-knight > i { width:52px; height:52px; border-radius:12px; object-fit:cover; background:color-mix(in srgb, var(--el) 35%, #0d1a24); flex:0 0 auto; }
+.sg-run-knight span { display:flex; flex-direction:column; min-width:0; }
+.sg-run-knight em { font-style:normal; font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.65); }
+.sg-run-knight b { font-family:var(--serif); font-size:17px; font-weight:600; }
+.sg-run-knight small { font-size:11px; color:#9ff0c0; }
+.sg-run-team { display:grid; grid-template-columns:repeat(auto-fill, minmax(64px, 1fr)); gap:8px; margin-bottom:12px; }
+.sg-run-unit { display:flex; flex-direction:column; align-items:center; gap:3px; min-width:0; animation:sgRunUnit .4s cubic-bezier(.2,.9,.3,1.3) both; animation-delay:calc(.22s + var(--i) * .07s); }
+@keyframes sgRunUnit { from { opacity:0; transform:translateY(14px) scale(.7); } }
+.sg-run-unit-art {
+  position:relative; width:58px; height:58px; border-radius:14px; overflow:visible;
+  background:color-mix(in srgb, var(--el) 30%, #0d1a24); border:1.5px solid color-mix(in srgb, var(--el) 70%, #fff);
+  box-shadow:0 4px 12px rgba(0,0,0,.4);
+}
+.sg-run-unit-art img { width:100%; height:100%; object-fit:cover; border-radius:12px; display:block; }
+.sg-run-unit-art b {
+  position:absolute; bottom:-5px; right:-5px; min-width:18px; height:18px; padding:0 4px; border-radius:999px; box-sizing:border-box;
+  display:grid; place-items:center; font-size:10px; font-weight:800; color:#1a1c52; background:#ffe39a; box-shadow:0 0 0 1.5px #08161c;
+}
+.sg-run-unit em { max-width:100%; font-style:normal; font-size:10.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-run-hp { width:52px; height:4px; border-radius:2px; background:rgba(255,255,255,.18); overflow:hidden; }
+.sg-run-hp u { display:block; height:100%; background:linear-gradient(90deg, #4fd88a, #b8f56a); text-decoration:none; }
+.sg-run-unit.is-down { filter:grayscale(1) brightness(.6); }
+.sg-run-stats { list-style:none; margin:0 0 12px; padding:0; display:flex; flex-wrap:wrap; gap:6px; }
+.sg-run-stats li {
+  flex:1 1 0; min-width:64px; padding:6px 8px; border-radius:10px; text-align:center;
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+}
+.sg-run-stats span { display:block; font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.6); }
+.sg-run-stats b { font-size:16px; font-weight:800; color:#ffe39a; font-variant-numeric:tabular-nums; }
+.sg-run-flag { margin:0 0 10px; font-size:12px; font-weight:700; color:#ffb27a; text-align:center; }
+.sg-run-actions { display:flex; gap:8px; }
+.sg-run-go {
+  flex:1 1 auto; height:46px; border-radius:999px; display:flex; align-items:center; justify-content:center;
+  font-family:var(--serif); font-size:17px; font-weight:700; letter-spacing:.08em; text-decoration:none; color:#f1fff4;
+  background:linear-gradient(160deg, #6af0a0 0%, #22a95c 48%, #0d6a39 100%);
+  box-shadow:0 0 0 1.5px #e8c76f inset, 0 10px 24px rgba(34,169,92,.4); text-shadow:0 1px 2px rgba(0,40,15,.7);
+}
+.sg-run-go:active { transform:translateY(1px); }
+.sg-run-all {
+  flex:0 0 auto; height:46px; padding:0 16px; border-radius:999px; display:flex; align-items:center;
+  font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; text-decoration:none;
+  color:var(--ink); border:1px solid rgba(255,255,255,.3);
+}
+.sg-run-preview.is-closing .sg-run-card { animation:sgRunOut .22s ease-in both; }
+.sg-run-preview.is-closing .sg-run-scrim { animation:sgRunFade .22s ease-in both; }
+@keyframes sgRunOut { to { opacity:0; transform:translateY(30px) scale(.94); } }
+@keyframes sgRunFade { to { opacity:0; } }
+@media (prefers-reduced-motion:reduce) {
+  .sg-run-scrim, .sg-run-card, .sg-run-unit, .sg-run-preview.is-closing .sg-run-card, .sg-run-preview.is-closing .sg-run-scrim { animation:none; }
 }

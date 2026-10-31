@@ -1228,6 +1228,14 @@
     var guest = Boolean(opts && opts.guest);
     var logo = '<img class="sg-logo" src="/img/siegelings-icon-256.webp" alt="Siegelings">';
     var unread = unreadNotifCount(opts);
+    // Home carries the account strip in the stage, so its header is the art
+    // controls and the music line alone.
+    if (extra.home) {
+      return '<header class="sg-top is-stage-top' + (guest ? ' is-guest' : '') + '">' +
+        '<a class="sg-logo-link" href="' + esc(extra.logoHref) + '" aria-label="Siegelings home page">' + logo + '</a>' +
+        (extra.afterLogo || '') + musicLineMarkup() +
+      '</header>' + (guest ? '' : notifPanelMarkup(opts));
+    }
     return '<header class="sg-top' + (guest ? ' is-guest' : '') + '">' +
       // Home's logo is a real page change to the landing, so it carries no
       // data-screen. Everywhere else the logo is the way back to Home, routed
@@ -1479,15 +1487,15 @@
     eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>'
   };
 
-  // The soundtrack's own pill, like the lobby jukebox it is modelled on.
-  function stageMusicMarkup() {
-    return '<div class="sg-stage-music">' +
-      '<button type="button" class="sg-stage-music-toggle" data-music-toggle aria-label="Mute music">' +
-        '<span class="sg-stage-eq" aria-hidden="true"><i></i><i></i><i></i></span></button>' +
-      '<span class="sg-stage-music-title" data-music-title></span>' +
-      '<button type="button" data-music-prev aria-label="Previous song">' + STAGE_ICON.prev + '</button>' +
-      '<button type="button" data-music-next aria-label="Next song">' + STAGE_ICON.next + '</button>' +
-    '</div>';
+  // The music button stretched into a line: a waveform and the song's name on
+  // liquid gold tinted by the playing song's element (hub-music.js stamps
+  // data-el on every [data-music-open]). Tapping it opens the full player.
+  function musicLineMarkup() {
+    var bars = '';
+    for (var i = 0; i < 14; i++) bars += '<i style="--b:' + i + '"></i>';
+    return '<button type="button" class="sg-music-line" data-music-open aria-label="Music" aria-haspopup="dialog" aria-expanded="false">' +
+      '<span class="sg-music-wave" aria-hidden="true">' + bars + '</span>' +
+      '<span class="sg-music-line-title" data-music-title></span></button>';
   }
 
   // The wallpaper picker and the art's own transport share one header pill.
@@ -1503,25 +1511,79 @@
     '</div>';
   }
 
-  // Just the name and title: the card is nearly clear glass so the art shows
-  // through, and tapping it opens the chat out from under it.
+  // The account strip that used to sit top-right (crest with its knight
+  // badge, bell, coins) now leads Home on nearly clear glass, so the header is
+  // left to the art and music controls. Each part opens its own thing: the
+  // crest asks before leaving for the profile, the name and bubble fold the
+  // chat out, the coins open the bank.
   function stageProfileMarkup(opts) {
     var p = prefs();
     var live = opts.live || {};
-    var name = opts.guest ? 'Guest' : (p.displayName || live.displayName || 'Siegelord');
-    var title = opts.guest ? 'Sign in to save your legend' : p.playerTitle;
-    var unread = opts.guest ? 0 : unreadThreadCount(opts);
-    return '<button type="button" class="sg-stage-me" data-stage-me aria-expanded="false" aria-controls="sgStageChat" ' +
-      'aria-label="' + esc(name) + ', open chat" style="--el:' + color(crestElement()) + '">' +
-      (opts.guest ? '<span class="sg-crest-ring"><i>?</i></span>' : crestAvatar(opts)) +
-      '<span class="sg-stage-me-text"><strong>' + esc(name) + '</strong>' +
-        (title ? '<em>' + esc(title) + '</em>' : '') + '</span>' +
-      '<span class="sg-stage-me-chat" aria-hidden="true">' + CHAT_ICON +
-        (unread ? '<i class="sg-stage-badge">' + (unread > 9 ? '9+' : unread) + '</i>' : '') + '</span>' +
-    '</button>';
+    var guest = Boolean(opts.guest);
+    var name = guest ? 'Guest' : (p.displayName || live.displayName || 'Siegelord');
+    var title = guest ? 'Not signed in' : p.playerTitle;
+    var unread = guest ? 0 : unreadThreadCount(opts);
+    var notifs = guest ? 0 : unreadNotifCount(opts);
+    return '<div class="sg-stage-me-wrap" data-stage-me>' +
+      '<div class="sg-stage-me" style="--el:' + color(crestElement()) + '">' +
+        '<button type="button" class="sg-avatar sg-stage-me-face" data-me-face aria-haspopup="dialog" aria-expanded="false" ' +
+          'aria-controls="sgStageMePop" aria-label="' + (guest ? 'Sign in' : 'Your profile') + '">' +
+          '<i>' + esc(guest ? '?' : accountInitial(opts)) + '</i>' + (guest ? '' : knightBadge(opts)) + '</button>' +
+        '<button type="button" class="sg-stage-me-text" data-chat-toggle aria-expanded="false" aria-controls="sgStageChat">' +
+          '<strong>' + esc(name) + '</strong>' + (title ? '<em>' + esc(title) + '</em>' : '') + '</button>' +
+        '<button type="button" class="sg-stage-me-btn" data-chat-toggle aria-expanded="false" aria-controls="sgStageChat" aria-label="Chat">' +
+          CHAT_ICON + (unread ? '<i class="sg-stage-badge">' + (unread > 9 ? '9+' : unread) + '</i>' : '') + '</button>' +
+        (guest ? '' :
+          '<button type="button" class="sg-stage-me-btn" data-notif-toggle aria-label="Notifications" ' +
+            'aria-haspopup="dialog" aria-controls="sgNotifPanel" aria-expanded="false">' + BELL_ICON +
+            '<span class="sg-notif-badge' + (notifs ? '' : ' hidden') + '" data-notif-badge>' +
+              (notifs > 9 ? '9+' : String(notifs)) + '</span></button>' +
+          '<button type="button" class="sg-stage-me-coin" data-bank-toggle aria-expanded="false" aria-controls="sgStageBank" ' +
+            'aria-label="Bank: ' + esc(formatCoins(opts)) + ' Siegecoins">' +
+            '<img src="/img/ui/home-stats/siegecoin.webp" alt="">' + esc(formatCoins(opts)) + '</button>') +
+      '</div>' +
+      // A speech bubble off the crest: leaving Home is a page change, so it asks.
+      '<div class="sg-stage-me-pop" id="sgStageMePop" data-me-pop role="dialog" aria-label="Profile" hidden>' +
+        '<p>' + (guest ? 'Sign in to save your legend?' : 'View your profile?') + '</p>' +
+        '<div><a href="' + (guest ? '/login" data-screen="auth">Sign In' : '/profile" data-screen="profile">View Profile') + '</a>' +
+        '<button type="button" data-me-pop-close>Not now</button></div>' +
+      '</div>' +
+      stageChatMarkup(opts) + (guest ? '' : stageBankMarkup(opts)) +
+    '</div>';
   }
 
-  var CHAT_ICON = '<svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12z"/></svg>';
+  var CHAT_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12z"/></svg>';
+
+  // Every balance the account holds, read off the progression record. Knight
+  // XP is the per-knight progress toward each knight's next level, summed:
+  // there is no account-wide XP to show.
+  function stageBankMarkup(opts) {
+    var live = opts.live || {};
+    var knights = live.knights || [];
+    var xp = 0, best = 0;
+    knights.forEach(function (k) {
+      xp += Number(k && k.points) || 0;
+      best = Math.max(best, Number(k && k.level) || 0);
+    });
+    function num(v) { return v == null ? '—' : Number(v).toLocaleString(); }
+    function row(icon, name, note, value) {
+      return '<li><span class="sg-stage-bank-ico">' + icon + '</span>' +
+        '<span class="sg-stage-bank-name"><b>' + name + '</b><em>' + note + '</em></span>' +
+        '<strong>' + value + '</strong></li>';
+    }
+    return '<section class="sg-stage-bank" id="sgStageBank" data-stage-bank aria-label="Bank" hidden>' +
+      '<header><strong>Bank</strong><a href="/shop" data-screen="shop">Shop ›</a></header>' +
+      '<ul>' +
+        row('<img src="/img/ui/home-stats/siegecoin.webp" alt="">', 'Siegecoins', 'Packs, decks and offers', num(live.gold)) +
+        row('<img src="/img/ui/home-stats/remnants.webp" alt="">', 'Remnants', 'Crafting and finishes', num(live.remnants)) +
+        row('<i class="is-warmark" aria-hidden="true">⚔</i>', 'Warmarks', 'Battlegrounds shop', num(live.warmarks)) +
+        row('<i class="is-xp" aria-hidden="true">XP</i>', 'Knight XP',
+          knights.length ? knights.length + ' SiegeKnight' + (knights.length === 1 ? '' : 's') + ' · best Lv ' + best : 'No SiegeKnights yet',
+          knights.length ? num(xp) : '—') +
+      '</ul>' +
+      '<p class="sg-stage-bank-soon">More currencies open with new modes.</p>' +
+    '</section>';
+  }
 
   // Friends is the direct-message inbox; Global and Guild have no server
   // channel yet, so they say so rather than showing invented chatter.
@@ -1576,17 +1638,54 @@
   }
 
   function mountStageChat(stage, opts) {
-    var chat = stage.querySelector('[data-stage-chat]');
-    var me = stage.querySelector('[data-stage-me]');
-    if (!chat || !me) return;
-    // Closed by default every visit: Home is for the art first.
-    me.addEventListener('click', function () {
-      var open = chat.hidden;
-      chat.hidden = !open;
-      me.setAttribute('aria-expanded', String(open));
-      me.parentNode.classList.toggle('is-chat-open', open);
+    var wrap = stage.querySelector('[data-stage-me]');
+    if (!wrap) return;
+    var chat = wrap.querySelector('[data-stage-chat]');
+    var bank = wrap.querySelector('[data-stage-bank]');
+    var pop = wrap.querySelector('[data-me-pop]');
+    var face = wrap.querySelector('[data-me-face]');
+    var chatToggles = [].slice.call(wrap.querySelectorAll('[data-chat-toggle]'));
+    var bankToggle = wrap.querySelector('[data-bank-toggle]');
+    var bell = wrap.querySelector('[data-notif-toggle]');
+
+    // Chat, bank and the profile bubble share the space under the strip, so
+    // opening one closes the others. Everything starts closed: Home is the art.
+    function show(which) {
+      if (chat) chat.hidden = which !== 'chat';
+      if (bank) bank.hidden = which !== 'bank';
+      if (pop) pop.hidden = which !== 'pop';
+      chatToggles.forEach(function (b) { b.setAttribute('aria-expanded', String(which === 'chat')); });
+      if (bankToggle) bankToggle.setAttribute('aria-expanded', String(which === 'bank'));
+      if (face) face.setAttribute('aria-expanded', String(which === 'pop'));
+      wrap.setAttribute('data-open', which || '');
+    }
+    function current() { return wrap.getAttribute('data-open') || ''; }
+    function toggle(which) { show(current() === which ? '' : which); }
+
+    chatToggles.forEach(function (b) { b.addEventListener('click', function () { toggle('chat'); }); });
+    if (bankToggle) bankToggle.addEventListener('click', function () { toggle('bank'); });
+    if (face) face.addEventListener('click', function () { toggle('pop'); });
+    var popClose = wrap.querySelector('[data-me-pop-close]');
+    if (popClose) popClose.addEventListener('click', function () { show(''); });
+    // The notification panel is anchored for the header; on Home it drops from
+    // the strip instead, so it is placed under the bell when it opens.
+    if (bell) bell.addEventListener('click', function () {
+      show('');
+      var panel = stage.ownerDocument.querySelector('[data-notif-panel]');
+      if (!panel) return;
+      var r = wrap.querySelector('.sg-stage-me').getBoundingClientRect();
+      panel.style.top = Math.round(r.bottom + 8) + 'px';
+      panel.style.left = Math.round(r.left) + 'px';
+      panel.style.width = Math.round(r.width) + 'px';
+      panel.style.right = 'auto';
     });
-    chat.addEventListener('click', function (e) {
+    // A tap anywhere else on Home folds the bubble and the bank away; the chat
+    // stays until it is closed on purpose.
+    stage.addEventListener('click', function (e) {
+      if (!wrap.contains(e.target) && (current() === 'pop' || current() === 'bank')) show('');
+    });
+
+    if (chat) chat.addEventListener('click', function (e) {
       var btn = e.target.closest && e.target.closest('[data-chat-tab]');
       if (!btn) return;
       var tab = btn.getAttribute('data-chat-tab');
@@ -1598,6 +1697,109 @@
       });
       chat.querySelector('[data-chat-body]').innerHTML = stageChatBody(opts, tab);
     });
+  }
+
+
+  /* ---------- Siege flank ----------
+     The flank always reads Siege. A saved run adds a green segment cut into
+     its arrow tip, naming the mode last played and resuming it through a
+     preview of the team and the run. */
+  var RUN_MODE_LABEL = { bg: 'Battlegrounds', endless: 'Endless', siege: 'Adventure' };
+  function runKind(run) {
+    if (run.slot === 'BATTLEGROUNDS' || run.battlegrounds) return 'bg';
+    return run.mode === 'ENDLESS' ? 'endless' : 'siege';
+  }
+  // The token in siegeToken is the save this device touched last, which is the
+  // mode the player last played; without it the server's first save stands.
+  function lastSiegeRun(opts) {
+    var runs = (opts && opts.siegeRuns) || [];
+    var here = null;
+    try { here = localStorage.getItem('siegeToken'); } catch (e) { /* private mode */ }
+    return runs.filter(function (r) { return r.token && r.token === here; })[0] || runs[0] || null;
+  }
+
+  function stageSiegeMarkup(opts) {
+    var run = lastSiegeRun(opts);
+    if (!run) {
+      return '<a class="sg-stage-mode" href="' + HREF.siege + '">' +
+        '<span class="sg-stage-mode-kicker">Roguelike</span><strong>Siege</strong></a>';
+    }
+    var mode = RUN_MODE_LABEL[runKind(run)];
+    return '<div class="sg-stage-mode has-resume">' +
+      '<a class="sg-stage-mode-hit" href="' + HREF.siege + '" aria-label="Siege"></a>' +
+      '<button type="button" class="sg-stage-resume" data-run-preview aria-haspopup="dialog" aria-controls="sgRunPreview">' +
+        '<span>Resume</span><b>' + esc(mode) + '</b></button>' +
+      '<span class="sg-stage-mode-kicker">Roguelike</span>' +
+      '<strong>Siege<i class="sg-stage-badge" aria-label="Run saved">!</i></strong>' +
+    '</div>';
+  }
+
+  // Everything is read off the saved run; a field the payload omits is not drawn.
+  function stageRunPreviewMarkup(opts) {
+    var run = lastSiegeRun(opts);
+    if (!run) return '';
+    var kind = runKind(run);
+    var mode = RUN_MODE_LABEL[kind];
+    var knight = run.knight || {};
+    var el = knight.element || (run.land && run.land.element) || 'NEUTRAL';
+    var place = (run.land && run.land.name) || run.slotLabel || 'Expedition';
+    var party = run.party || [];
+    var chips = [];
+    if (run.landSegment != null) chips.push(['Floor', Number(run.landSegment) + 1]);
+    if (run.gold != null) chips.push(['Gold', run.gold]);
+    if (run.deckSize != null) chips.push(['Deck', run.deckSize]);
+    if (kind === 'endless' && run.score != null) chips.push(['Score', Number(run.score).toLocaleString()]);
+    if (kind === 'bg' && run.bgTier) chips.push(['Tier', run.bgTier]);
+    return '<div class="sg-run-preview" id="sgRunPreview" data-run-sheet hidden role="dialog" aria-modal="true" aria-labelledby="sgRunTitle">' +
+      '<button type="button" class="sg-run-scrim" data-run-close tabindex="-1" aria-label="Close"></button>' +
+      '<article class="sg-run-card is-' + kind + '" style="--el:' + color(el) + '">' +
+        '<div class="sg-run-bg" style="background-image:url(\'' + land(el) + '\')"></div>' +
+        '<header><span class="sg-run-mode">' + esc(mode) + '</span>' +
+          '<h3 id="sgRunTitle">' + esc(place) + '</h3>' +
+          '<button type="button" class="sg-run-close" data-run-close aria-label="Close">×</button></header>' +
+        (knight.name ? '<div class="sg-run-knight">' +
+          (knight.artUrl ? '<img src="' + esc(knight.artUrl) + '" alt="">' : '<i aria-hidden="true"></i>') +
+          '<span><em>SiegeKnight</em><b>' + esc(knight.name) + '</b>' +
+            (knight.maxHp ? '<small>' + esc(knight.hp) + ' / ' + esc(knight.maxHp) + ' HP</small>' : '') + '</span></div>' : '') +
+        (party.length ? '<div class="sg-run-team">' + party.map(function (m, i) {
+          var hp = Number(m.maxHp) > 0 ? Math.max(0, Math.min(100, Math.round(Number(m.hp) / Number(m.maxHp) * 100))) : 100;
+          return '<div class="sg-run-unit' + (m.alive === false ? ' is-down' : '') + '" style="--el:' + color(m.element) + ';--i:' + i + '">' +
+            '<span class="sg-run-unit-art">' + (m.artUrl ? '<img src="' + esc(m.artUrl) + '" alt="" loading="lazy">' : '') +
+              (m.level != null ? '<b>' + esc(m.level) + '</b>' : '') + '</span>' +
+            '<em>' + esc(m.name || '') + '</em><i class="sg-run-hp"><u style="width:' + hp + '%"></u></i></div>';
+        }).join('') + '</div>' : '') +
+        (chips.length ? '<ul class="sg-run-stats">' + chips.map(function (c) {
+          return '<li><span>' + c[0] + '</span><b>' + esc(c[1]) + '</b></li>';
+        }).join('') + '</ul>' : '') +
+        (run.battle ? '<p class="sg-run-flag">Battle in progress</p>' : '') +
+        '<div class="sg-run-actions">' +
+          '<a class="sg-run-go" href="' + HREF.siege + '?resume=' + encodeURIComponent(run.token || '') + '">Resume ' + esc(mode) + '</a>' +
+          ((opts.siegeRuns || []).length > 1 ? '<a class="sg-run-all" href="' + HREF.siege + '">All saves</a>' : '') +
+        '</div>' +
+      '</article>' +
+    '</div>';
+  }
+
+  function mountRunPreview(stage) {
+    var sheet = stage.querySelector('[data-run-sheet]');
+    var open = stage.querySelector('[data-run-preview]');
+    if (!sheet || !open) return;
+    function close() {
+      if (sheet.hidden || sheet.classList.contains('is-closing')) return;
+      sheet.classList.add('is-closing');
+      setTimeout(function () { sheet.hidden = true; sheet.classList.remove('is-closing'); open.focus(); }, 220);
+    }
+    open.addEventListener('click', function () {
+      // The card grows out of the green segment that opened it.
+      var r = open.getBoundingClientRect(), s = stage.getBoundingClientRect();
+      sheet.style.setProperty('--run-ox', Math.round(r.left + r.width / 2 - s.left) + 'px');
+      sheet.style.setProperty('--run-oy', Math.round(r.top + r.height / 2 - s.top) + 'px');
+      sheet.hidden = false;
+      var go = sheet.querySelector('.sg-run-go');
+      if (go) go.focus();
+    });
+    [].forEach.call(sheet.querySelectorAll('[data-run-close]'), function (b) { b.addEventListener('click', close); });
+    sheet.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
   }
 
   function stageMarkup(opts) {
@@ -1628,20 +1830,17 @@
         '<div class="sg-stage-lead">' +
         // The main destinations live in the shield FAB, so the corner holds the
         // player's own card and the chat channels instead.
-        stageProfileMarkup(opts) + stageChatMarkup(opts) +
+        stageProfileMarkup(opts) +
         '</div>' +
         '<div class="sg-stage-right">' +
           '<nav class="sg-stage-left" aria-label="Home shortcuts">' +
           tile('quests', 'Objectives', 'data-stage-panel="Daily Objectives"', openQuests ? String(openQuests) : '') +
           tile('hall', 'Hall', 'data-stage-panel="Hall of Siege"') +
-          tile('expedition', 'Expedition', 'data-stage-panel="Continue Playing"', runs.length ? '!' : '') +
           tile('featured', 'Featured', 'data-stage-panel="Featured Siegelings"') +
           link('gallery', 'Gallery', pathForScreen('art'), ' data-screen="art"') +
           link('lobbies', 'Lobbies', HREF.lobbies, lobbiesAttrs().replace(' href="' + HREF.lobbies + '"', '')) +
         '</nav>' +
-          '<a class="sg-stage-mode" href="' + HREF.siege + '">' +
-            '<span class="sg-stage-mode-kicker">' + (run ? 'Expedition saved' : 'Roguelike') + '</span>' +
-            '<strong>' + (run ? 'Resume Siege' : 'Siege') + '</strong></a>' +
+          stageSiegeMarkup(opts) +
           '<a class="sg-stage-mode is-keep" href="/dominion">' +
             '<span class="sg-stage-mode-kicker">Knight &amp; Keep</span><strong>Dominion</strong></a>' +
           '<a class="sg-stage-play" href="' + HREF.battle + '">Arena</a>' +
@@ -1651,6 +1850,7 @@
           '<div class="sg-stage-caption" data-stage-caption></div>' +
         '</div>' +
       '</div>' +
+      stageRunPreviewMarkup(opts) +
       '<div class="sg-stage-panel" data-stage-sheet hidden role="dialog" aria-modal="false" aria-labelledby="sgStageSheetTitle">' +
         // Tapping the dimmed art around the glass closes it.
         '<button type="button" class="sg-stage-scrim" data-stage-close tabindex="-1" aria-label="Close"></button>' +
@@ -1690,6 +1890,7 @@
     var stage = app.querySelector('[data-stage]');
     if (!stage) return;
     mountStageChat(stage, opts);
+    mountRunPreview(stage);
     // Home is the stage at every size now; only the orientation of the wall
     // changes, and with it which art can hang there.
     var mq = window.matchMedia ? window.matchMedia(STAGE_TALL_QUERY) : null;
@@ -2027,8 +2228,8 @@
     return topMarkup(opts, {
         logoHref: '/landing',
         // The slot spans logo to coin chip; the bar sizes itself to it.
-        afterLogo: '<div class="sg-stage-player-slot">' + stageArtBarMarkup() + '</div>',
-        beforeMusic: stageMusicMarkup() }) + stageMarkup(opts) +
+        home: true,
+        afterLogo: '<div class="sg-stage-player-slot">' + stageArtBarMarkup() + '</div>' }) + stageMarkup(opts) +
       '<div class="sg-scroll">' + heroMarkup() + featuredMarkup() + leaderboardSection(opts) + gallerySection() + questsMarkup(opts) + expeditionsSection(opts) +
       '<div style="height:96px"></div></div>' +
       sheetHost() +

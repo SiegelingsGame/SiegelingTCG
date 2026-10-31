@@ -187,6 +187,7 @@
           siegeBestScore: progression && progression.siegeBestScore,
           titles: (progression && progression.playerTitles) || null,
           remnants: progression && progression.remnants,
+          warmarks: progression && progression.warmarks,
           holographicCards: (progression && progression.holographicCards) || null,
           holoArtCards: (progression && progression.holoArtCards) || null,
           plainGoldCards: (progression && progression.plainGoldCards) || null,

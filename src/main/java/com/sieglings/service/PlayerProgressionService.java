@@ -869,6 +869,8 @@ public class PlayerProgressionService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("gold", progression.getGold());
         out.put("remnants", progression.getRemnants());
+        // Battlegrounds currency; the hub's bank lists it with the others.
+        out.put("warmarks", progression.getWarmarks());
         out.put("ownedCards", progression.getOwnedCards());
         out.put("ownedTotal", ownedTotal(progression));
         // Collection completion, decided here rather than in the client.

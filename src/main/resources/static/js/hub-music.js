@@ -316,6 +316,7 @@
     for (var o = 0; o < opens.length; o++) {
       opens[o].classList.toggle('is-muted', !isOn);
       opens[o].classList.toggle('is-playing', playing());
+      opens[o].setAttribute('data-el', t.el);
     }
     var picks = document.querySelectorAll('[data-music-pick]');
     for (var q = 0; q < picks.length; q++) {

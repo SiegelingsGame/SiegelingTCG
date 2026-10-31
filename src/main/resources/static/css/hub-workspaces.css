@@ -100,7 +100,7 @@
   .sg-stage-tile-ico { width:44px; height:44px; }
   .sg-stage-tile-label { font-size:12px; }
   .sg-stage-right { width:clamp(240px,21vw,340px); gap:14px; }
-  .sg-app a.sg-stage-mode { min-height:76px; padding:14px 22px; }
+  .sg-app .sg-stage-mode { min-height:76px; padding:14px 22px; }
   .sg-stage-mode strong { font-size:25px; }
   .sg-app a.sg-stage-play { height:72px; font-size:28px; }
   .sg-stage-caption strong { font-size:30px; }
