@@ -1,3 +1,65 @@
+Original prompt: Card preview in the deck builder should show the actual cards, same as the collection.
+
+- October 31, 2026 **Arena deck builder: the Card Preview is the collection's card face.**
+  - **Change.** `renderBuilderPreviewCard` (game.js) now draws the selected card with `SieglingsCardBinderVisual.renderBinderCardPreview`, the renderer the hub's collection uses.
+    - It brings the real frame, notches, rarity treatment, composited or full-card art, the player's finishes (`holographicFullArtOptions`) and the card description (`resolveCardDescriptionText`).
+    - It replaces the hand-built monospace hand-card layout, which stays only as the fallback for a page without the renderer.
+    - The type, element, rarity and cost line and the summary line stay beneath it.
+    - After rendering, the builder runs the renderer's description and name fit.
+  - **Sizing** (`play-next.css`). The face takes `min(300px, 82%)` with the renderer's own min/max widths lifted, the way the hub's signature plate sizes it, so the container-query type scales with it.
+  - **Cache pins.** `game.js?v=343` (all pages), `play-next.css?v=22`.
+  - **Verification.** `node --check` passes. Headless Chromium on `/battle` with the live options snapshot and a signed-in builder session, at 390x844 and 1440x900:
+    - A Siegeling (Applehead) renders as the framed collection card at 254x355 on the phone and 299x419 on desktop, with its full description.
+    - A spell (Thistles) and a trap (Molten Quake) render their framed faces with effect text.
+    - The meta line is unchanged.
+    - No page errors.
+
+Original prompt: On occasion when you select Arena from the home page it goes to a blank blue page instead of a loading screen before showing the Arena mode selections. It should show the elemental transition animation, then if it needs to load, a loading screen that transitions into the Arena selection screen. If no loading, just the elemental transition.
+
+- October 31, 2026 **Arena: a real loading screen instead of the blank blue page.**
+  - **Cause.** `play.html` hides everything behind `html.play-startup`, a plain #061020 cover (style.css), until `/api/game/options` answers and `syncEntryOverlays` lifts the class. On a cold server that is several seconds, so the elemental page transition landed on a blank blue page.
+  - **Change.**
+    - `play.html` now carries `#playBoot`, the hub's boot screen: gallery art from `loading-art.js` with its title and place, the Arena wordmark, rotating hints, and a spinner. `loading-art.js` moved up to load right after it.
+    - An inline script paints it and shows it (`.is-on`, 0.35s fade) only if the page is still in `play-startup` 350ms after arriving. A quick load never shows it; the elemental transition goes straight to the loadout.
+    - A MutationObserver on `<html>` sees `play-startup` lifted and sends the loading screen off with `SgTransition.splashOut` (the same exit as Home's boot), falling back to a fade.
+    - `style.css` exempts `#playBoot` from the startup hide rule; styles are in `play-next.css`.
+  - **Cache pins.** `play-next.css?v=21`, `style.css?v=299` (non-fixture pages).
+  - **Verification.** Headless Chromium at 390x844, tapping Arena on Home (`/battle` through the real page transition), with `/api/game/options` served from a saved live snapshot:
+    - **Delayed 4s.** The loading screen was on from ~0.6s with art and a hint, then removed at ~4.5s once the loadout was visible.
+    - **Instant.** The loading screen never showed and the loadout was up by 0.7s.
+    - No page errors. Screenshots checked.
+
+Original prompt: Music should continue through page to page and loading screens.
+
+- October 31, 2026 **Music carries straight on across page changes and loading screens.**
+  - **Starts while the page loads.** `hub-music.js` with `data-autoinit` now starts the player as soon as its script runs (it no longer waits for DOMContentLoaded). The tag moved into the `<head>` of `play.html`, `adventure.html`, `gauntlet.html`, `dominion.html` and `home-next.html` (Home used to start it only after the catalog had loaded, so its boot screen was silent). Music plays during each page's loading screen.
+  - **No rewind.**
+    - The save records the position to 0.1s and whether the song was sounding.
+    - On the next page the time the change took is added back (capped at 20s; a longer gap means the player left), so the song continues where it would be.
+    - A carried-over song starts at volume 0 and swells to full over 0.9s once it is sounding.
+  - **Landing page** (`index.html`). Loads the player with `data-autoinit="continue"`: it carries on only a song that was playing on the site in the last 10 minutes, and a first visit stays quiet.
+    - While continuing, `html.hm-continuing` shows a small music button (bottom left, `.hm-landing-btn` in `hub-music.css`) that opens the full player.
+  - **Browser limit.** Where the browser requires a tap before a new page can play sound (iOS Safari), the song waits silently at its carried position and the first tap anywhere continues it.
+  - **Cache pins.** `hub-music.js?v=10` (6 pages), `hub-music.css?v=2`.
+  - **Verification.** `node --check` passes. Headless Chromium on a range-capable static server (Python's http.server ignores Range, so seeking always restarted at 0:00 there; the live host answers 206):
+    - **Autoplay allowed, `game.js` held back 4s.** Home at 10.14s → `/play.html` sounding at 10.25s within 150ms, while the loading screen was still up. Volume ramps 0 → .08 → .15 → .23 → .32 over ~0.9s.
+    - **Tap required.** Silent until the first tap, then 7.02s after Home's 5.87s.
+    - **Landing, continuing.** Song carried at 0:44 from a 0:40 save; the button sits at (14,784) and opens the panel.
+    - **Landing, first visit.** Not started, no button.
+    - The only page error is the known loadout error with empty mocked options.
+
+Original prompt: Remove the green continue and just keep the one Siege mode extension, similar to Dominion, since the Siege mode already offers a chance to continue from its own page.
+
+- October 31, 2026 **Home: Siege flank back to one plain button.**
+  - **Change.** The green Resume segment on the Siege flank and its run-preview overlay are removed (`stageRunPreviewMarkup`, `mountRunPreview`, `lastSiegeRun` and the `.sg-stage-resume` / `.sg-run-*` CSS).
+    - `stageSiegeMarkup` is now one link to `/siege`, shaped like Dominion's. With a saved run the kicker reads "Run saved" and a red dot sits beside "Siege"; otherwise the kicker is "Roguelike". Continuing is left to the Siege page's own resume screen.
+    - `adventure.js` keeps its `?resume=TOKEN` handling, which is harmless.
+    - Cache pins: `home-redesign.js?v=175`, `home-redesign.css?v=186`.
+  - **Verification.** `node --check` passes. Headless Chromium on `home-next.html` with a mocked saved run, at 390x844 and 844x390:
+    - The flank is a single `<a href="/siege">` reading "RUN SAVED | Siege" with the dot.
+    - No `.sg-stage-resume` or run sheet is in the DOM.
+    - No page errors. Screenshot checked.
+
 Original prompt: Remove the Continue Playing section and make Play a one-pager. Add a fourth option, Events, as a large box. Events opens to a play-style page with: Daily Battle (a daily rotating Arena battle featuring the opponent and their strongest card; a group of 7 to start, updatable in the dashboard); seeded Siege runs and a Weekly Challenge (highest score in a seeded Endless run with a pre-built team that everybody can play, with a leaderboard); then Lobbies and Tournaments, which were one page and should each get their own thematic page.
 
 - October 31, 2026 **Play one-pager, Events (Daily Battle, Weekly Challenge), seeded Siege, separate Lobbies and Tournaments pages.**

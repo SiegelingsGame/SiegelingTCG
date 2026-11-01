@@ -17,7 +17,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script>document.documentElement.classList.add('play-startup');</script>
-    <link rel="stylesheet" href="/css/style.css?v=298">
+    <link rel="stylesheet" href="/css/style.css?v=299">
     <style>
         html.gauntlet-navigation-pending::after {
             content: "";
@@ -31,8 +31,8 @@
     <!-- Art-first re-skin of the loadout overlay. After style.css on purpose:
          equal-specificity rules in it are meant to win. -->
     <link rel="stylesheet" href="/css/shield-navigation.css?v=7">
-    <link rel="stylesheet" href="/css/hub-music.css?v=1">
-    <link rel="stylesheet" href="/css/play-next.css?v=20">
+    <link rel="stylesheet" href="/css/hub-music.css?v=2">
+    <link rel="stylesheet" href="/css/play-next.css?v=22">
     <link rel="stylesheet" href="/css/coach.css?v=7">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
@@ -40,8 +40,59 @@
     <link rel="stylesheet" href="/css/landing.css?v=63">
     <!-- Sets --sg-vh before first paint; every fixed shell measures off it. -->
     <script src="/js/viewport-unit.js?v=3"></script>
+<!-- Music first: it starts while the page is still loading, so the song carries straight on from the last page. -->
+<script src="/js/hub-music.js?v=10" data-autoinit></script>
 </head>
 <body>
+<!-- Arriving from Home, the elemental page transition plays first. If the
+     Arena is still loading a moment later (a cold server can take seconds to
+     answer /api/game/options), this loading screen fades in instead of the
+     bare startup cover, and leaves the way Home's does once the loadout is
+     ready. A quick load never shows it. -->
+<div class="play-boot" id="playBoot" aria-hidden="true">
+    <div class="play-boot-plate" data-art-plate></div>
+    <div class="play-boot-veil"></div>
+    <div class="play-boot-foot">
+        <div class="play-boot-brand">
+            <img class="play-boot-mark" src="/img/siegelings-icon-256.webp" alt="">
+            <div class="play-boot-wordmark">Arena<span>Preparing your table</span></div>
+        </div>
+        <div class="play-boot-title" data-art-title></div>
+        <p class="play-boot-hint" data-boot-hint></p>
+        <span class="play-boot-spin"></span>
+    </div>
+</div>
+<script src="/js/loading-art.js?v=6"></script>
+<script>
+(function () {
+    var boot = document.getElementById('playBoot');
+    var root = document.documentElement;
+    if (!boot) return;
+    if (!root.classList.contains('play-startup')) { boot.remove(); return; }
+    var art = window.SiegelingsLoadingArt;
+    var stopHints = null;
+    if (art) {
+        art.paint(boot);
+        stopHints = art.mountHints(boot.querySelector('[data-boot-hint]'));
+    }
+    var SHOW_AFTER_MS = 350;
+    var showTimer = setTimeout(function () { boot.classList.add('is-on'); }, SHOW_AFTER_MS);
+    function drop() { if (boot.parentNode) boot.parentNode.removeChild(boot); }
+    // game.js lifts play-startup once the loadout (or a resumed match) is ready.
+    var watch = new MutationObserver(function () {
+        if (root.classList.contains('play-startup')) return;
+        watch.disconnect();
+        clearTimeout(showTimer);
+        if (stopHints) stopHints();
+        if (!boot.classList.contains('is-on')) { drop(); return; }
+        if (!(window.SgTransition && window.SgTransition.splashOut(boot, drop))) {
+            boot.classList.add('is-gone');
+            setTimeout(drop, 450);
+        }
+    });
+    watch.observe(root, { attributes: true, attributeFilter: ['class'] });
+})();
+</script>
 <div class="safe-hp-strip" id="safeHpStrip" hidden aria-hidden="true">
     <div class="safe-hp-half safe-hp-enemy" data-side="enemy">
         <div class="safe-hp-fill" id="safeHpFillEnemy" style="width:100%"></div>
@@ -945,10 +996,7 @@
     <script src="/js/arena-tutorial.js?v=52"></script>
     <script src="/js/knight-tutorial.js?v=2"></script>
 <script src="/js/shield-navigation.js?v=5"></script>
-<!-- The hub's soundtrack carries on through the loadout; a match swaps in
-     the knights' battle themes (syncArenaMusic in game.js). -->
-<script src="/js/hub-music.js?v=9" data-autoinit></script>
-<script src="/js/game.js?v=342"></script>
+<script src="/js/game.js?v=343"></script>
     <script src="/js/play-mode-picker.js?v=6"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,
@@ -958,7 +1006,6 @@
     <script src="/js/sounds.js?v=4"></script>
     <script src="/js/fx.js?v=6"></script>
     <script src="/js/action-queue.js?v=49"></script>
-    <script src="/js/loading-art.js?v=6"></script>
     <script src="/js/loading-gate.js?v=9"></script>
     <script src="/js/sw-register.js?v=1"></script>
 </body>

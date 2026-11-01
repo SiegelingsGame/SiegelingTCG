@@ -99,7 +99,7 @@ html.play-startup body::before {
     z-index: 20000;
     background: #061020;
 }
-html.play-startup body > :not(#loadoutOverlay) {
+html.play-startup body > :not(#loadoutOverlay):not(#playBoot) {
     visibility: hidden !important;
 }
 
