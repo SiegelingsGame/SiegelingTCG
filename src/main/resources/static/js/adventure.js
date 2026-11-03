@@ -853,7 +853,28 @@
       blurb: 'This week’s seeded Endless run with a set team.' }
   ];
 
-  /** The boot check found saves: one card per slot, saved or not. */
+  // Each mode's plate art and its one-line pitch on the Expedition Board.
+  var SLOT_ART = {
+    siege: '/img/gallery/skydon-skyreach.webp',
+    bg: '/img/gallery/frostag-training.webp',
+    endless: '/img/gallery/earth-warband.webp',
+    weekly: '/img/gallery/bearzooka-rampage.webp'
+  };
+  // The entries crop the scene to a narrow strip, so they take the small cut.
+  var SLOT_THUMB = {
+    siege: '/img/gallery/skydon-skyreach-thumb.webp',
+    bg: '/img/gallery/frostag-training-thumb.webp',
+    endless: '/img/gallery/earth-warband.webp',
+    weekly: '/img/gallery/bearzooka-rampage-thumb.webp'
+  };
+  var SLOT_NAME = { siege: 'Adventure', bg: 'Battlegrounds', endless: 'Endless', weekly: 'Weekly Challenge' };
+
+  /**
+   * The Expedition Board (the boot check found saves). The save the player last
+   * touched is the featured expedition with the one Continue; every other slot,
+   * saved or not, is a compact mode entry below it. The FAB floats alone over
+   * the page: there is no dock, so Continue never sits beside the navigation.
+   */
   function renderResumePrompt(saves) {
     showScreen('resumeScreen');
     updateRunMenu(false);
@@ -864,72 +885,213 @@
       return (b.token === here ? 1 : 0) - (a.token === here ? 1 : 0);
     });
 
-    var host = $('resumeSaves');
-    host.innerHTML = '';
-    // The dock's Continue (beside the FAB) takes the top save; with one save it
-    // is the only Continue, so that plate keeps just Start Over.
     function resume(run) {
       state.run = run;
       setToken(run.token);
       renderRun();
       afterRunApplied(run);
     }
-    $('resumeContinueBtn').onclick = function () { resume(saves[0]); };
-    RUN_SLOTS.forEach(function (slot) {
-      var run = saves.filter(function (r) { return runSlotKind(r) === slot.kind; })[0];
-      if (!run) {
-        if (!slot.savedOnly) host.appendChild(emptySlotCard(slot));
-        return;
-      }
-      var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
-      var floor = node ? (node.row + 1) : 1;
-      var card = el('div', 'resume-summary resume-save ' + runSlotKind(run));
-      var strip = el('div', 'party-strip');
-      var meta = el('div', 'resume-meta');
-      meta.innerHTML = '<span class="gold-chip"><img class="gold-coin" src="/img/ui/home-stats/siegecoin.png" alt="" aria-hidden="true">' + (run.gold || 0) + '</span>' +
-        '<span>📍 Floor ' + floor + '</span>' +
-        (run.mode === 'ENDLESS' ? '<span class="resume-score-chip">★ ' + fmtNum(run.score || 0) + '</span>' : '') +
-        (run.battle
-          ? '<span class="resume-battle-chip">⚔ Battle in progress · Round ' +
-            (run.battle.roundNumber || 1) + '</span>'
-          : '');
-      var head = el('div', 'resume-save-head', runSlotBadge(run));
-      var actions = el('div', 'resume-save-actions');
-      if (saves.length > 1) {
-        var go = el('button', 'siege-btn primary', 'Continue ▸');
-        go.type = 'button';
-        go.addEventListener('click', function () { resume(run); });
-        actions.appendChild(go);
-      } else {
-        actions.classList.add('is-solo');
-      }
-      var drop = el('button', 'siege-btn', 'Start Over');
-      drop.type = 'button';
-      drop.addEventListener('click', function () { restartRun(run.token); });
-      actions.appendChild(drop);
+    var featured = saves[0];
+    var host = $('resumeSaves');
+    host.innerHTML = '';
+    host.appendChild(expeditionFeature(featured, resume));
 
-      card.appendChild(head);
-      card.appendChild(strip);
-      card.appendChild(meta);
-      card.appendChild(actions);
-      host.appendChild(card);
-      renderPartyStrip(strip, displayParty(run), run.knight);
+    var others = el('section', 'xb-others');
+    others.setAttribute('aria-label', 'Other expeditions');
+    others.appendChild(el('h2', 'xb-rule', '<span>Other expeditions</span>'));
+    var list = el('div', 'xb-entries');
+    RUN_SLOTS.forEach(function (slot) {
+      if (slot.kind === runSlotKind(featured)) return;
+      var run = saves.filter(function (r) { return runSlotKind(r) === slot.kind; })[0];
+      if (run) list.appendChild(expeditionEntry(slot, run, resume));
+      else if (!slot.savedOnly) list.appendChild(expeditionEntry(slot, null, resume));
+    });
+    others.appendChild(list);
+    host.appendChild(others);
+    refreshExpeditionPurse();
+  }
+
+  function runFloor(run) {
+    var node = (run.map || []).find(function (n) { return n.id === run.currentNodeId; });
+    return node ? (node.row + 1) : 1;
+  }
+
+  function coinChip(amount, cls) {
+    return '<span class="xb-coin ' + (cls || '') + '"><img src="/img/ui/home-stats/siegecoin.webp" alt="" aria-hidden="true">' +
+      '<b>' + fmtNum(amount) + '</b></span>';
+  }
+
+  /** The active expedition: scene, identity, warband roster and Continue. */
+  function expeditionFeature(run, resume) {
+    var kind = runSlotKind(run);
+    var card = el('article', 'xb-feature ' + kind);
+    card.setAttribute('aria-label', 'Active expedition: ' + (SLOT_NAME[kind] || 'Adventure'));
+    var art = el('div', 'xb-feature-art');
+    art.style.backgroundImage = "url('" + (SLOT_ART[kind] || SLOT_ART.siege) + "')";
+    art.setAttribute('aria-hidden', 'true');
+    card.appendChild(art);
+
+    var tier = ['I', 'II', 'III', 'IV', 'V'][(run.bgTier || 1) - 1] || run.bgTier;
+    var name = SLOT_NAME[kind] || 'Adventure';
+    var sub = kind === 'bg' ? 'Tier ' + tier : kind === 'weekly' ? (run.challengeWeek || 'This week') : 'In progress';
+    var stats = '<span class="xb-stat">Floor <b>' + runFloor(run) + '</b></span>' +
+      coinChip(run.gold || 0, 'xb-stat') +
+      (run.mode === 'ENDLESS' ? '<span class="xb-stat is-score"><i aria-hidden="true">★</i><b>' + fmtNum(run.score || 0) + '</b></span>' : '');
+    var id = el('div', 'xb-feature-id',
+      '<p class="xb-kicker">' + esc(sub) + '</p>' +
+      '<h2 class="xb-feature-name">' + esc(name) + '</h2>' +
+      '<div class="xb-stats">' + stats + '</div>' +
+      (run.battle ? '<p class="xb-battle">Battle in progress · Round ' + (run.battle.roundNumber || 1) + '</p>' : ''));
+    card.appendChild(id);
+
+    var roster = el('div', 'xb-roster');
+    roster.setAttribute('role', 'list');
+    roster.setAttribute('aria-label', 'Warband');
+    renderExpeditionRoster(roster, displayParty(run), run.knight);
+    card.appendChild(roster);
+
+    var actions = el('div', 'xb-feature-actions');
+    var go = el('button', 'xb-continue', '<span>Continue Expedition</span><i aria-hidden="true">▸</i>');
+    go.type = 'button';
+    go.id = 'resumeContinueBtn';
+    go.addEventListener('click', function () { resume(run); });
+    var drop = el('button', 'xb-quiet', 'Start Over');
+    drop.type = 'button';
+    drop.addEventListener('click', function () { restartRun(run.token); });
+    actions.appendChild(go);
+    actions.appendChild(drop);
+    card.appendChild(actions);
+    bindExpeditionParallax(card, art);
+    return card;
+  }
+
+  /**
+   * One sideways line of the warband: knight first, then the party. A member
+   * opens the same unit sheet the map's party chips open.
+   */
+  function renderExpeditionRoster(host, party, knight) {
+    host.innerHTML = '';
+    var members = [];
+    if (knight && knight.hp != null) {
+      members.push({
+        unit: knight, knight: true, name: knight.name,
+        open: function () {
+          showUnitModal({
+            name: knight.name, element: knight.element, artUrl: knight.artUrl,
+            subtitle: 'SiegeKnight · HP ' + knight.hp + '/' + knight.maxHp + ' · ' + (knight.passive || ''),
+            cards: knight.activeSpec ? [knight.activeSpec] : []
+          });
+        }
+      });
+    }
+    (party || []).forEach(function (p) {
+      members.push({
+        unit: p, name: partyDisplayName(p),
+        open: function () {
+          showUnitModal({
+            name: partyDisplayName(p), element: p.element, artUrl: p.artUrl,
+            subtitle: (p.merc ? 'Mercenary — leaves after the next battle · ' : '') +
+              'HP ' + p.hp + '/' + p.maxHp + ' · ⚡ ' + p.speed,
+            cards: p.cards || []
+          });
+        }
+      });
+    });
+    members.forEach(function (m) {
+      var u = m.unit;
+      var pct = Math.max(0, Math.min(100, Math.round(100 * u.hp / Math.max(1, u.maxHp))));
+      var down = !m.knight && !u.alive;
+      var b = el('button', 'xb-member ' + elClass(u.element) + (m.knight ? ' is-knight' : '') +
+        (down ? ' is-down' : '') + (u.merc ? ' is-merc' : '') + (pct <= 35 ? ' is-low' : ''));
+      b.type = 'button';
+      b.setAttribute('role', 'listitem');
+      b.setAttribute('aria-label', m.name + (u.level ? ', level ' + u.level : '') + ', ' + u.hp + ' of ' + u.maxHp + ' health' +
+        (!m.knight && u.speed != null ? ', speed ' + u.speed : '') + (down ? ', fallen' : '') + '. Show details');
+      var portrait = u.artUrl
+        ? '<span class="xb-portrait" ' + bgArtAttrs(u.artUrl, 160) + '></span>'
+        : '<span class="xb-portrait is-glyph">' + (m.knight ? '🛡️' : icon(u.element)) + '</span>';
+      var tag = u.merc ? '<em class="xb-tag">Merc</em>' : (u.level ? '<em class="xb-tag">Lv ' + u.level + '</em>' : '');
+      b.innerHTML = '<span class="xb-portrait-wrap">' + portrait + tag + '</span>' +
+        '<span class="xb-member-name">' + esc(m.name) + '</span>' +
+        '<span class="xb-hp" aria-hidden="true"><span style="width:' + pct + '%"></span></span>' +
+        '<span class="xb-member-num" aria-hidden="true">' + u.hp + '<small>/' + u.maxHp + '</small>' +
+        (!m.knight && u.speed != null ? '<span class="xb-energy">⚡' + u.speed + '</span>' : '') + '</span>';
+      b.addEventListener('click', m.open);
+      host.appendChild(b);
     });
   }
 
-  /** A slot with no save: its mode, one line on it, and New run. */
-  function emptySlotCard(slot) {
-    var card = el('div', 'resume-summary resume-save resume-empty ' + slot.kind);
-    card.appendChild(el('div', 'resume-save-head',
-      '<span class="run-slot-badge ' + slot.kind + '">' + slot.badge + '</span>'));
-    card.appendChild(el('p', 'resume-empty-blurb', slot.blurb));
-    var actions = el('div', 'resume-save-actions is-solo');
-    var start = el('button', 'siege-btn primary', 'New run');
-    start.type = 'button';
-    start.addEventListener('click', function () { startFreshRun(slot.mode); });
-    actions.appendChild(start);
-    card.appendChild(actions);
-    return card;
+  /** A compact mode entry: cropped scene, name, one line, and its action. */
+  function expeditionEntry(slot, run, resume) {
+    var kind = slot.kind;
+    var row = el('div', 'xb-entry ' + kind + (run ? ' is-saved' : ''));
+    var art = el('span', 'xb-entry-art');
+    art.style.backgroundImage = "url('" + (SLOT_THUMB[kind] || SLOT_THUMB.siege) + "')";
+    art.setAttribute('aria-hidden', 'true');
+    var body = el('div', 'xb-entry-body');
+    var line = run
+      ? 'Floor ' + runFloor(run) + ' · ' + fmtNum(run.gold || 0) + ' gold' +
+        (run.mode === 'ENDLESS' ? ' · ★ ' + fmtNum(run.score || 0) : '') +
+        (run.battle ? ' · battle in progress' : '')
+      : slot.blurb;
+    body.innerHTML = '<h3 class="xb-entry-name">' + esc(SLOT_NAME[kind] || slot.badge) + '</h3>' +
+      '<p class="xb-entry-line">' + esc(line) + '</p>';
+    var main = el('button', 'xb-entry-go', run ? 'Resume' : 'New run');
+    main.type = 'button';
+    main.setAttribute('aria-label', (run ? 'Resume ' : 'Start a new ') + (SLOT_NAME[kind] || '') + (run ? '' : ' run'));
+    main.addEventListener('click', function () {
+      if (run) resume(run); else startFreshRun(slot.mode);
+    });
+    row.appendChild(art);
+    row.appendChild(body);
+    var actions = el('div', 'xb-entry-actions');
+    actions.appendChild(main);
+    if (run) {
+      var drop = el('button', 'xb-quiet is-small', 'Start Over');
+      drop.type = 'button';
+      drop.setAttribute('aria-label', 'Start over ' + (SLOT_NAME[kind] || ''));
+      drop.addEventListener('click', function () { restartRun(run.token); });
+      actions.appendChild(drop);
+    }
+    row.appendChild(actions);
+    return row;
+  }
+
+  /* A few pixels of drift on the featured scene as the device tilts or a finger
+     or pointer moves over it. Pointer-driven only (no idle loop), and off for
+     reduced motion. */
+  function bindExpeditionParallax(card, art) {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var frame = 0;
+    function shift(x, y) {
+      if (frame) return;
+      frame = requestAnimationFrame(function () {
+        frame = 0;
+        art.style.transform = 'translate3d(' + (x * -8).toFixed(1) + 'px,' + (y * -6).toFixed(1) + 'px,0) scale(1.06)';
+      });
+    }
+    card.addEventListener('pointermove', function (e) {
+      var r = card.getBoundingClientRect();
+      shift((e.clientX - r.left) / r.width - 0.5, (e.clientY - r.top) / r.height - 0.5);
+    });
+    card.addEventListener('pointerleave', function () { shift(0, 0); });
+  }
+
+  /* The header purse shows the account's Siegecoins. It is a nicety: a guest or
+     a failed fetch simply leaves it hidden. */
+  function refreshExpeditionPurse() {
+    var purse = $('xbPurse');
+    if (!purse) return;
+    if (state.roster && state.roster.gold != null) { paintPurse(state.roster.gold); return; }
+    api('/api/player/progression').then(function (data) {
+      var gold = data && data.progression && data.progression.gold;
+      if (gold != null) paintPurse(gold);
+    }).catch(function () {});
+    function paintPurse(gold) {
+      purse.innerHTML = coinChip(gold);
+      purse.setAttribute('aria-label', fmtNum(gold) + ' Siegecoins');
+      purse.hidden = false;
+    }
   }
 
   /** New run from a resume card: load the roster, then open that mode's setup. */

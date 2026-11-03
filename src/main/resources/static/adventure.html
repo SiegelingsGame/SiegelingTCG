@@ -22,7 +22,7 @@
 <link rel="stylesheet" href="/css/adventure.css?v=114">
   <!-- Art-first re-skin. After adventure.css on purpose: it restates the same
        tokens and expects to win. -->
-  <link rel="stylesheet" href="/css/siege-next.css?v=25">
+  <link rel="stylesheet" href="/css/siege-next.css?v=26">
 <!-- Music first: it starts while the page is still loading, so the song carries straight on from the last page. -->
 <script src="/js/hub-music.js?v=10" data-autoinit></script>
 </head>
@@ -104,17 +104,20 @@
     </div>
   </div>
 
-  <!-- Resume prompt: shown at boot when a saved expedition is detected. -->
+  <!-- Expedition Board: shown at boot when a saved expedition is detected.
+       renderResumePrompt fills #resumeSaves with the featured save (the one
+       Continue) and a compact entry per other slot. No dock: the shield FAB
+       floats alone, and the way back to Play is the header's link. -->
   <section class="siege-screen hidden" id="resumeScreen">
-    <!-- One card per save slot (Adventure, Battlegrounds, Endless), saved or
-         not, built by renderResumePrompt: an empty slot's card starts that mode. -->
+    <header class="xb-head">
+      <a class="xb-back" href="/home?screen=play" aria-label="Back to the Play menu"><span aria-hidden="true">&lsaquo;</span>Play</a>
+      <div class="xb-title">
+        <img class="xb-mark" src="/img/siegelings-icon-256.webp" alt="" width="28" height="28">
+        <h1>Expeditions</h1>
+      </div>
+      <span class="xb-purse" id="xbPurse" role="status" hidden></span>
+    </header>
     <div id="resumeSaves"></div>
-    <!-- Play (back to the hub) and Continue flank the shield FAB (shield-navigation.css);
-         this screen has no top pill. -->
-    <div class="sn-dock resume-dock">
-      <a class="sn-flank is-left" href="/home?screen=play"><span aria-hidden="true">&lsaquo;</span> Play Menu</a>
-      <button class="sn-flank is-right is-gold" id="resumeContinueBtn" type="button">Continue &#9656;</button>
-    </div>
   </section>
 
   <!-- Team select: page 1 (mode) -> page 2 (knight) -> page 3 (warband) -->
@@ -795,6 +798,6 @@
 <script src="/js/siege-tutorial.js?v=28"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
 <script src="/js/shield-navigation.js?v=5"></script>
-<script src="/js/adventure.js?v=155"></script>
+<script src="/js/adventure.js?v=156"></script>
 </body>
 </html>
