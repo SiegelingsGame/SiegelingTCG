@@ -295,6 +295,189 @@ body {
     border-color: var(--mode, var(--accent));
 }
 
+/* ---- resume saves ----
+   The one screen that decides whether a player picks a run back up. It fills
+   the viewport like the battle and map screens: the save plates absorb the
+   leftover height so their scene shows above the copy, and the warband, meta
+   and actions sit at the foot of each plate under a bottom-up scrim (the same
+   treatment the widescreen mode plates use). Unlike battle/map it is
+   min-height, not height: two saves on a short landscape phone may scroll. */
+body[data-screen="resumeScreen"] .siege-app {
+    min-height: var(--siege-vh, 100dvh);
+    display: flex;
+    flex-direction: column;
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+}
+
+/* The topbar's solid-to-clear band read as a stray dark strip over the page
+   gradient here; nothing scrolls under it on this screen. */
+body[data-screen="resumeScreen"] .siege-topbar {
+    flex: 0 0 auto;
+    background: none;
+    padding: 10px 2px 4px;
+}
+
+body[data-screen="resumeScreen"] .siege-title { font-size: 14px; opacity: .85; }
+
+#resumeScreen:not(.hidden) {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 4px 0 0;
+}
+#resumeScreen h1 { flex: 0 0 auto; font-size: clamp(28px, 8vw, 40px); margin: 4px 0 4px; }
+#resumeScreen .siege-sub { flex: 0 0 auto; margin-bottom: 14px; }
+
+#resumeSaves {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.resume-save {
+    position: relative;
+    overflow: hidden;
+    flex: 1 1 auto;
+    margin-top: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 16px;
+    border-radius: 20px;
+    border-left-width: 1px;
+    border-top: 4px solid var(--save-accent, var(--accent));
+    background-size: cover;
+    background-position: center 35%;
+}
+
+.resume-save::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background:
+        linear-gradient(180deg, rgba(13, 10, 38, .05) 0%, rgba(13, 10, 38, .12) 28%, rgba(13, 10, 38, .78) 56%, rgba(13, 10, 38, .96) 78%),
+        linear-gradient(180deg, color-mix(in srgb, var(--save-accent, var(--accent)) 20%, transparent), transparent 40%);
+}
+
+.resume-save > * { position: relative; z-index: 1; flex: 0 0 auto; }
+
+/* The mode badge names the plate from the top; its padding is the least scene a
+   plate shows when two saves have to share a phone screen. */
+.resume-save-head { margin-bottom: auto; padding-bottom: 64px; }
+.resume-save-head .run-slot-badge {
+    font-size: 12px;
+    padding: 5px 12px;
+    background: rgba(13, 10, 38, .62);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.resume-save.siege {
+    --save-accent: var(--accent);
+    background-image: url('/img/gallery/skydon-skyreach.webp');
+}
+
+/* adventure.css paints a left accent bar and inset glow per mode at this
+   specificity; the plate takes its accent on the top edge instead. */
+.resume-save.siege, .resume-save.bg, .resume-save.endless {
+    border-left-color: var(--border);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .45);
+}
+
+.resume-save.bg {
+    --save-accent: var(--accent-2);
+    background-image: url('/img/gallery/frostag-training.webp');
+}
+
+.resume-save.endless {
+    --save-accent: var(--shield);
+    background-image: url('/img/gallery/earth-warband.webp');
+}
+
+/* Warband: a two-up grid of glass chips with the art large enough to read. */
+.resume-save .party-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.resume-save .party-chip {
+    min-width: 0;
+    padding: 8px 10px;
+    background: rgba(25, 17, 74, .72);
+    border-color: rgba(255, 255, 255, .10);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+.resume-save .party-chip .pthumb { width: 52px; height: 52px; flex-basis: 52px; }
+.resume-save .party-chip .pname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.resume-meta { margin-top: 2px; font-weight: 700; }
+.resume-meta .gold-chip { font-size: 14px; padding: 3px 11px; }
+.resume-score-chip {
+    font-size: 13px; font-weight: 800; color: var(--shield);
+    border: 1px solid color-mix(in srgb, var(--shield) 45%, transparent);
+    border-radius: 12px; padding: 2px 10px; background: color-mix(in srgb, var(--shield) 10%, transparent);
+}
+.resume-battle-chip { white-space: normal; }
+
+/* Resuming is the point of the screen: a full-width, thumb-height gold button,
+   with Start Over a lighter glass action beside it. */
+.resume-save-actions {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+}
+.resume-save-actions .siege-btn {
+    min-height: 54px;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 800;
+}
+.resume-save-actions .siege-btn.primary {
+    min-height: 60px;
+    font-size: 19px;
+    letter-spacing: .6px;
+    box-shadow: 0 8px 24px rgba(242, 160, 61, .38), inset 0 1px 0 rgba(255, 255, 255, .35);
+}
+.resume-save-actions .siege-btn:not(.primary) {
+    background: rgba(25, 17, 74, .78);
+    border-color: rgba(179, 168, 216, .38);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+/* With one save the dock's Continue is the resume; the plate keeps Start Over
+   as a quiet action at its foot. */
+.resume-save-actions.is-solo { display: flex; justify-content: flex-end; }
+.resume-save-actions.is-solo .siege-btn { flex: 0 0 auto; min-height: 44px; padding: 0 20px; font-size: 14px; }
+/* A short landscape plate has no room below its warband: Start Over moves up
+   beside the mode badge, so nothing sits under the dock. */
+@media (orientation: landscape) and (max-height: 600px) {
+    .resume-save-actions.is-solo { position: absolute; top: 12px; right: 14px; margin: 0; }
+    #resumeSaves { flex-direction: row; }
+    .resume-save .party-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .resume-save-actions.is-solo .siege-btn { min-height: 34px; padding: 0 14px; font-size: 13px; }
+}
+
+/* Two saves on a wide window sit side by side as tall plates. */
+@media (min-width: 900px) {
+    #resumeSaves { flex-direction: row; }
+    .resume-save { flex-basis: 0; min-height: 420px; }
+}
+
+/* Landscape phones: the plate cannot be tall, so it lays the warband and
+   actions over the art without reserving a scene band. */
+@media (orientation: landscape) and (max-height: 600px) {
+    .resume-save-head { padding-bottom: 8px; }
+    .resume-save .party-strip { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+}
+
 @media (max-width: 719px) {
     .mode-card { min-height: 150px; }
 }
@@ -478,6 +661,8 @@ body {
     background: color-mix(in srgb, var(--shield) 12%, transparent);
     border: 1px solid color-mix(in srgb, var(--shield) 48%, transparent);
 }
+/* Over a resume plate's sky the tinted wash vanished; keep the plate's dark chip. */
+.resume-save-head .run-slot-badge.endless { background: rgba(13, 10, 38, .62); }
 
 .result-best {
     margin: 10px auto 0; width: fit-content; padding: 6px 14px; border-radius: 999px;
@@ -647,6 +832,74 @@ body:is([data-screen="battleScreen"], [data-screen="mapScreen"]) .sn-back.siege-
 body:is(:not([data-screen]), [data-screen="loadingScreen"], [data-screen="resumeScreen"], [data-screen="setupScreen"]) .siege-title,
 #resumeScreen > h1, #resumeScreen > .siege-sub { display: none; }
 
+/* Resume: New run and Continue flank the shield FAB. */
+body[data-screen="resumeScreen"] .siege-app { padding-bottom: calc(var(--sn-dock-h) + 6px); }
+.resume-dock { --sn-dock-fill: rgba(13, 10, 38, .55); }
+/* The resume screen has no top bar: Play is the dock's left flank, so the
+   cards start just under the status bar and the standalone blur band. */
+body[data-screen="resumeScreen"] .siege-topbar { display: none; }
+#resumeScreen:not(.hidden) { padding-top: calc(var(--sn-sat) - env(safe-area-inset-top, 0px) + 10px); }
+.resume-dock .sn-flank.is-left { flex-direction: row; gap: 4px; }
+.resume-dock .sn-flank span { color: #e2bf72; font-size: 18px; margin-top: -2px; }
+
+/* Three cards, one per slot. A saved run's plate takes the free height; an
+   empty slot is a short plate with its mode, one line and New run. */
+.resume-save.resume-empty { flex: 0 0 auto; min-height: 0; justify-content: flex-start; padding: 12px 14px; }
+.resume-empty .resume-save-head { margin-bottom: 0; padding-bottom: 6px; }
+.resume-empty-blurb { margin: 0 0 10px; max-width: 46ch; color: #e2dbfa; font-size: 13px; line-height: 1.35; text-shadow: 0 2px 8px rgba(0, 0, 0, .8); }
+.resume-empty::before {
+    background:
+        linear-gradient(90deg, rgba(13, 10, 38, .92) 0%, rgba(13, 10, 38, .7) 55%, rgba(13, 10, 38, .35) 100%),
+        linear-gradient(180deg, color-mix(in srgb, var(--save-accent, var(--accent)) 18%, transparent), transparent 60%);
+}
+.resume-empty .resume-save-actions.is-solo { justify-content: flex-start; margin-top: 0; }
+.resume-empty .resume-save-actions.is-solo .siege-btn { min-height: 40px; padding: 0 22px; }
+/* A wide window spends its width on the three plates: the app and the screen
+   drop their reading columns (1120px and 1280px) on this screen, as the mode
+   picker does. */
+@media (min-width: 1024px) {
+    body[data-screen="resumeScreen"] .siege-app { max-width: none; }
+    /* Its auto margins would shrink it to its content in the app's flex column. */
+    body[data-screen="resumeScreen"] #resumeScreen { max-width: none; width: 100%; margin: 0; }
+    #resumeSaves { gap: clamp(12px, 1.4vw, 28px); }
+    #resumeSaves > .resume-save { padding: clamp(16px, 1.6vw, 32px); }
+    .resume-save-head .run-slot-badge { font-size: clamp(12px, .85vw, 16px); padding: 6px 14px; }
+    .resume-empty-blurb { font-size: clamp(13px, .9vw, 17px); }
+    .resume-meta { font-size: clamp(14px, .95vw, 18px); }
+    .resume-save .party-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .resume-save-actions .siege-btn,
+    .resume-empty .resume-save-actions.is-solo .siege-btn { min-height: clamp(44px, 3.4vw, 60px); font-size: clamp(14px, 1vw, 18px); padding: 0 clamp(16px, 1.4vw, 28px); }
+}
+
+/* Side by side (wide windows, landscape phones) the three plates share the row
+   equally and stand full height, the empty ones with their copy at the foot. */
+@media (min-width: 900px), (orientation: landscape) and (max-height: 600px) {
+    #resumeSaves > .resume-save, #resumeSaves > .resume-save.resume-empty { flex: 1 1 0; min-width: 0; }
+    .resume-save.resume-empty { justify-content: flex-end; padding: 16px; }
+    .resume-empty::before {
+        background:
+            linear-gradient(180deg, rgba(13, 10, 38, .1) 0%, rgba(13, 10, 38, .2) 35%, rgba(13, 10, 38, .85) 70%, rgba(13, 10, 38, .96) 100%),
+            linear-gradient(180deg, color-mix(in srgb, var(--save-accent, var(--accent)) 20%, transparent), transparent 40%);
+    }
+    .resume-empty .resume-save-head { margin-bottom: auto; }
+    .resume-empty .resume-save-actions.is-solo { position: static; }
+}
+/* A landscape phone gets one screen: the row of plates takes the height between
+   the top inset and the dock, and each warband is one sideways-scrolling line. */
+@media (orientation: landscape) and (max-height: 600px) {
+    body[data-screen="resumeScreen"] .siege-app { height: var(--siege-vh, 100dvh); min-height: 0; overflow: hidden; }
+    #resumeSaves > .resume-save { padding: 10px 12px; }
+    .resume-save-head { padding-bottom: 6px; }
+    #resumeSaves .resume-save .party-strip { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 6px; margin-bottom: 6px; touch-action: pan-x; }
+    .resume-save .party-strip::-webkit-scrollbar { display: none; }
+    .resume-save .party-strip > * { flex: 0 0 150px; }
+    .resume-meta { flex-wrap: wrap; font-size: 13px; }
+    .resume-save-actions { margin-top: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+    .resume-save-actions .siege-btn { padding: 0 6px; white-space: nowrap; }
+    .resume-save-actions .siege-btn, .resume-save-actions .siege-btn.primary { min-height: 38px; font-size: clamp(12px, 1.7vw, 14px); letter-spacing: 0; }
+    .resume-empty-blurb { font-size: 12px; margin-bottom: 8px; }
+}
+
 /* Knight and warband steps: back and forward flank the FAB, with the running
    summary centred just above them. The dock is fixed, so the step slide-in
    moves the step's content rather than the step (a transformed ancestor would
@@ -727,492 +980,121 @@ body[data-screen="mapScreen"] .siege-music-btn { margin-left:0; }
     background: rgba(255, 211, 107, .12);
     border: 1px solid rgba(255, 211, 107, .5);
 }
-
-
-/* ---- Expedition Board (resume screen) ----
-   The launch screen when a save exists: a compact header, the featured
-   expedition (scene, identity, warband, the one Continue) and a short list of
-   the other modes. Its look is the shield overlay's, not a dashboard's: Georgia
-   display type, antique gold hairlines, chamfered (not pill) panels and a
-   shield-cut portrait per Siegeling. Geometry is spent on the feature and the
-   entries only; everything inside them stays plain so the art leads.
-   Nothing here is fixed or docked: the FAB floats alone, so the page reserves
-   its height at the foot instead of a dock. */
-#resumeScreen {
-    --xb-ink: #0b0a24;
-    --xb-violet: #1a1349;
-    --xb-gold: #c9a35c;
-    --xb-gold-hi: #f1d99a;
-    --xb-ivory: #f4ead2;
-    --xb-muted: #b9aed6;
-    --xb-cut: 14px;
-    --xb-display: Georgia, 'Times New Roman', serif;
-}
-body[data-screen="resumeScreen"] .siege-topbar { display: none; }
-body[data-screen="resumeScreen"] .siege-app {
-    min-height: var(--siege-vh, 100dvh);
-    padding-bottom: calc(var(--sn-fab-bottom) + var(--sn-fab-size) + 18px);
-}
-#resumeScreen:not(.hidden) {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: calc(var(--sn-sat) - env(safe-area-inset-top, 0px) + 6px) 0 0;
+.resume-save-head .run-slot-badge.weekly { background: rgba(13, 10, 38, .62); }
+.resume-save.weekly {
+    --save-accent: #ffd36b;
+    border-left-color: var(--border);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .45);
+    background-image: url('/img/gallery/bearzooka-rampage.webp');
 }
 
-/* Header: back link, wordmark, purse. One 48px row. */
-.xb-head {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    min-height: 48px;
-    gap: 8px;
-}
-.xb-back {
-    justify-self: start;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 44px;
-    min-width: 44px;
-    padding: 0 6px 0 2px;
-    color: var(--xb-muted);
-    font: 600 14px/1 system-ui, -apple-system, 'Segoe UI', sans-serif;
-    text-decoration: none;
-    -webkit-tap-highlight-color: transparent;
-}
-.xb-back span { color: var(--xb-gold); font-size: 24px; margin-top: -3px; }
-.xb-back:active { color: var(--xb-ivory); }
-.xb-title { display: flex; align-items: center; gap: 8px; }
-.xb-mark { width: 28px; height: 28px; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .6)); }
-#resumeScreen .xb-title h1 {
-    margin: 0;
-    font: normal 26px/1 var(--xb-display);
-    letter-spacing: .01em;
-    color: var(--xb-ivory);
-    text-shadow: 0 2px 10px rgba(0, 0, 0, .6);
-}
-.xb-purse { justify-self: end; }
-.xb-purse[hidden] { display: none; }
+/* ---- resume screen: colour from the art ----
+   The plates faded into the page's navy-violet, so every mode read as the same
+   purple card. Each mode now carries its own scene tint (Adventure's sky blue,
+   Battlegrounds' frost indigo, Endless' forest green, the Weekly's ember) and
+   the plates' scrims, the warband chips and the page backdrop are drawn from
+   it, so more of the art shows and what is not art is still in its colours.
+   The layout above is unchanged. */
+.resume-save.siege   { --save-tint: #0f3f7a; }
+.resume-save.bg      { --save-tint: #23306e; }
+.resume-save.endless { --save-tint: #0f4a33; }
+.resume-save.weekly  { --save-tint: #5a2f0c; }
 
-/* A coin count: the game's coin, a tabular number, no pill. */
-.xb-coin {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    color: var(--xb-gold-hi);
-    font: 700 14px/1 system-ui, -apple-system, 'Segoe UI', sans-serif;
-    font-variant-numeric: tabular-nums;
-}
-.xb-coin img { width: 18px; height: 18px; display: block; }
-.xb-purse .xb-coin {
-    padding: 6px 10px 6px 7px;
-    background: linear-gradient(90deg, rgba(201, 163, 92, .16), rgba(201, 163, 92, .04));
-    border-bottom: 1px solid rgba(201, 163, 92, .55);
-    clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px);
-}
-
-/* ---- the featured expedition ---- */
-#resumeSaves { display: flex; flex-direction: column; gap: 14px; }
-.xb-feature {
-    --xb-accent: var(--xb-gold);
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 118px 14px 14px;
-    background: var(--xb-ink);
-    clip-path: polygon(var(--xb-cut) 0, 100% 0, 100% calc(100% - var(--xb-cut)), calc(100% - var(--xb-cut)) 100%, 0 100%, 0 var(--xb-cut));
-}
-.xb-feature.bg { --xb-accent: #b59bf0; }
-.xb-feature.endless { --xb-accent: #63d3c4; }
-.xb-feature.weekly { --xb-accent: #ffd36b; }
-.xb-feature-art {
-    position: absolute;
-    inset: -8px -8px auto;
-    height: 236px;
-    z-index: -2;
-    background-size: cover;
-    background-position: center 30%;
-    transform: scale(1.06);
-    transition: transform .6s cubic-bezier(.2, .7, .2, 1);
-}
-/* Scene into ink, plus a hairline frame and engraved corner ticks. */
-.xb-feature::before {
+/* Backdrop: the leading save's scene, blurred and dimmed, behind the page. */
+#resumeScreen { --lead-art: url('/img/gallery/skydon-skyreach.webp'); --lead-tint: #0f3f7a; }
+#resumeScreen[data-lead="bg"]      { --lead-art: url('/img/gallery/frostag-training.webp'); --lead-tint: #23306e; }
+#resumeScreen[data-lead="endless"] { --lead-art: url('/img/gallery/earth-warband.webp'); --lead-tint: #0f4a33; }
+#resumeScreen[data-lead="weekly"]  { --lead-art: url('/img/gallery/bearzooka-rampage.webp'); --lead-tint: #5a2f0c; }
+body[data-screen="resumeScreen"] { background: #060a16; }
+#resumeScreen:not(.hidden)::before {
     content: '';
-    position: absolute;
-    inset: 0;
+    position: fixed;
+    inset: -40px;
     z-index: -1;
-    background:
-        linear-gradient(180deg, rgba(11, 10, 36, 0) 0%, rgba(11, 10, 36, .15) 60px, rgba(11, 10, 36, .82) 150px, var(--xb-ink) 226px, var(--xb-ink) 60%, rgba(26, 19, 73, .9) 100%);
-}
-.xb-feature::after {
-    content: '';
-    position: absolute;
-    inset: 0;
     pointer-events: none;
     background:
-        /* top accent rule */
-        linear-gradient(90deg, transparent var(--xb-cut), var(--xb-accent) var(--xb-cut), var(--xb-accent) 34%, rgba(201, 163, 92, .35) 34%, rgba(201, 163, 92, .35) 100%) top / 100% 2px no-repeat,
-        /* bottom-left and top-right corner ticks */
-        linear-gradient(var(--xb-gold), var(--xb-gold)) left 8px bottom 8px / 14px 1px no-repeat,
-        linear-gradient(var(--xb-gold), var(--xb-gold)) left 8px bottom 8px / 1px 14px no-repeat,
-        linear-gradient(var(--xb-gold), var(--xb-gold)) right 8px top 8px / 14px 1px no-repeat,
-        linear-gradient(var(--xb-gold), var(--xb-gold)) right 8px top 8px / 1px 14px no-repeat;
-    box-shadow: inset 0 0 0 1px rgba(201, 163, 92, .22);
+        linear-gradient(180deg, color-mix(in srgb, var(--lead-tint) 35%, transparent), rgba(6, 10, 22, .55) 55%, rgba(6, 10, 22, .85)),
+        var(--lead-art) center 30% / cover no-repeat;
+    filter: blur(22px) saturate(1.35) brightness(.7);
 }
 
-.xb-feature-id { display: grid; gap: 4px; }
-.xb-kicker {
-    margin: 0;
-    color: var(--xb-accent);
-    font: 600 12px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif;
-    letter-spacing: .06em;
-    text-shadow: 0 1px 6px rgba(0, 0, 0, .9);
+/* Saved plate: the scene keeps the top half, then fades into its own tint. */
+.resume-save::before {
+    background:
+        linear-gradient(180deg,
+            transparent 0%,
+            transparent 30%,
+            color-mix(in srgb, var(--save-tint, #0f3f7a) 55%, transparent) 50%,
+            color-mix(in srgb, var(--save-tint, #0f3f7a) 88%, #000) 72%,
+            color-mix(in srgb, var(--save-tint, #0f3f7a) 70%, #000) 100%);
 }
-.xb-feature-name {
-    margin: 0;
-    font: normal 32px/1.02 var(--xb-display);
-    color: var(--xb-ivory);
-    text-shadow: 0 2px 14px rgba(0, 0, 0, .85);
+.resume-save {
+    border-color: color-mix(in srgb, var(--save-accent, var(--accent)) 45%, transparent);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .5), 0 0 0 1px rgba(0, 0, 0, .35);
 }
-.xb-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 2px; }
-.xb-stat {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    color: var(--xb-muted);
-    font: 500 13px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif;
-}
-.xb-stat b { color: var(--xb-ivory); font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
-.xb-stat i { font-style: normal; font-size: 13px; }
-.xb-stat.xb-coin b { color: var(--xb-gold-hi); }
-.xb-stat.is-score i, .xb-stat.is-score b { color: #8fe3d8; }
-.xb-battle {
-    margin: 2px 0 0;
-    color: #ff9c80;
-    font: 600 12.5px/1.3 system-ui, -apple-system, 'Segoe UI', sans-serif;
-}
-.xb-battle::before { content: '⚔ '; }
-
-/* ---- warband roster: one line of shield-cut portraits ---- */
-.xb-roster {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(62px, 1fr);
-    gap: 6px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    touch-action: pan-x pan-y;
-    margin: 0 -2px;
-    padding: 2px 2px 4px;
-}
-.xb-roster::-webkit-scrollbar { display: none; }
-.xb-member {
-    --el: var(--neutral, #95a5a6);
-    min-width: 0;
-    min-height: 44px;
-    display: grid;
-    justify-items: center;
-    gap: 3px;
-    padding: 4px 2px 6px;
-    border: 0;
-    border-radius: 6px;
-    background: none;
-    color: var(--xb-ivory);
-    font: inherit;
-    cursor: pointer;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-    transition: background-color .15s ease;
-}
-.xb-member:active { background: rgba(255, 255, 255, .06); }
-.xb-member:focus-visible { outline: 2px solid var(--xb-gold-hi); outline-offset: 1px; }
-.xb-portrait-wrap {
-    position: relative;
-    width: 54px;
-    height: 60px;
-    padding: 2px;
-    background: linear-gradient(160deg, var(--el), color-mix(in srgb, var(--el) 30%, #0b0a24));
-    clip-path: polygon(50% 0, 100% 13%, 100% 64%, 50% 100%, 0 64%, 0 13%);
-    transition: filter .15s ease, transform .15s ease;
-}
-.xb-member:active .xb-portrait-wrap { filter: brightness(1.25) drop-shadow(0 0 6px var(--el)); transform: scale(.96); }
-.xb-portrait {
-    display: grid;
-    place-items: center;
-    width: 100%;
-    height: 100%;
-    background-color: #13103a;
-    background-image: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--el) 30%, #13103a), #0d0b2a 75%);
-    background-size: 88% auto;
-    background-position: center 35%;
-    background-repeat: no-repeat;
-    clip-path: polygon(50% 0, 100% 13%, 100% 64%, 50% 100%, 0 64%, 0 13%);
-    font-size: 22px;
-}
-/* A knight's art is a full card: crop to the face rather than shrink it. */
-.xb-member.is-knight .xb-portrait { background-size: cover; background-position: center 22%; }
-.xb-member.is-knight .xb-portrait-wrap { background: linear-gradient(160deg, var(--xb-gold-hi), #8a6428); }
-.xb-tag {
-    position: absolute;
-    left: 50%;
-    bottom: 1px;
-    transform: translateX(-50%);
-    padding: 1px 4px 2px;
-    background: var(--xb-ink);
-    color: var(--xb-gold-hi);
-    font: 700 9.5px/1 system-ui, -apple-system, 'Segoe UI', sans-serif;
-    font-style: normal;
-    white-space: nowrap;
-}
-.xb-member.is-merc .xb-tag { color: #ffd066; }
-.xb-member-name {
-    max-width: 100%;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    font: 600 12px/1.15 system-ui, -apple-system, 'Segoe UI', sans-serif;
-}
-.xb-hp {
-    display: block;
-    width: 100%;
-    max-width: 58px;
-    height: 4px;
-    background: rgba(0, 0, 0, .55);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, .06);
-    overflow: hidden;
-}
-.xb-hp > span {
-    display: block;
-    height: 100%;
-    background: linear-gradient(90deg, #4fbf67, #8ae79a);
-    transform-origin: left center;
-    transition: width .5s cubic-bezier(.2, .7, .2, 1);
-    animation: xb-fill .7s cubic-bezier(.2, .7, .2, 1) .1s both;
-}
-.xb-member.is-low .xb-hp > span { background: linear-gradient(90deg, #d9534f, #ff8a6a); }
-@keyframes xb-fill { from { transform: scaleX(0); } }
-.xb-member-num {
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
-    color: var(--xb-ivory);
-    font: 700 11.5px/1 system-ui, -apple-system, 'Segoe UI', sans-serif;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-}
-.xb-member-num small { color: var(--xb-muted); font-weight: 500; font-size: 10.5px; }
-.xb-energy { color: #8cc4ff; font-weight: 700; }
-.xb-member.is-down { opacity: .5; }
-.xb-member.is-down .xb-portrait-wrap { filter: grayscale(.85); }
-
-/* ---- actions: one gold Continue, a quiet Start Over ---- */
-.xb-feature-actions { display: flex; align-items: stretch; gap: 8px; }
-.xb-continue {
-    position: relative;
-    overflow: hidden;
-    flex: 1 1 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    min-height: 54px;
-    padding: 0 18px;
-    border: 0;
-    color: #23160a;
-    background: linear-gradient(180deg, #f6dc9c 0%, #e2b25e 48%, #b8822f 100%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), inset 0 -2px 0 rgba(90, 55, 15, .45), 0 8px 20px rgba(0, 0, 0, .4);
-    clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 10px 100%, 0 50%);
-    font: bold 18px/1 var(--xb-display);
-    letter-spacing: .01em;
-    cursor: pointer;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-    transition: filter .12s ease, transform .12s ease;
-}
-.xb-continue i { font-style: normal; font-size: 14px; }
-/* One sweep of light across the metal when it is touched or hovered. */
-.xb-continue::after {
-    content: '';
-    position: absolute;
-    inset: 0 auto 0 -40%;
-    width: 30%;
-    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .75), transparent);
-    transform: skewX(-18deg) translateX(0);
-    opacity: 0;
-}
-.xb-continue:hover::after, .xb-continue:focus-visible::after, .xb-continue:active::after { animation: xb-sheen .6s ease-out; }
-@keyframes xb-sheen { 0% { opacity: 0; left: -40%; } 20% { opacity: 1; } 100% { opacity: 0; left: 110%; } }
-.xb-continue:active { filter: brightness(1.08); transform: scale(.985); }
-.xb-continue:focus-visible { outline: 2px solid var(--xb-ivory); outline-offset: 2px; }
-.xb-quiet {
-    flex: 0 0 auto;
-    min-height: 44px;
-    min-width: 44px;
-    padding: 0 12px;
-    border: 0;
-    background: none;
-    color: var(--xb-muted);
-    font: 600 13.5px/1 system-ui, -apple-system, 'Segoe UI', sans-serif;
-    text-decoration: underline;
-    text-decoration-color: rgba(185, 174, 214, .35);
-    text-underline-offset: 4px;
-    cursor: pointer;
-    touch-action: manipulation;
-}
-.xb-quiet:active, .xb-quiet:hover { color: var(--xb-ivory); }
-.xb-quiet.is-small { font-size: 12px; min-height: 36px; padding: 0 4px; }
-
-/* ---- other expeditions ---- */
-.xb-others { display: grid; gap: 8px; }
-.xb-rule {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 2px 0 0;
-    color: var(--xb-gold);
-    font: normal 15px/1 var(--xb-display);
-    font-variant: small-caps;
-    letter-spacing: .06em;
-}
-.xb-rule::before, .xb-rule::after {
-    content: '';
-    flex: 1 1 auto;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(201, 163, 92, .6));
-}
-.xb-rule::after { transform: scaleX(-1); }
-.xb-rule span::before, .xb-rule span::after { content: '◆'; font-size: 7px; vertical-align: middle; margin: 0 8px; opacity: .8; }
-.xb-entries { display: grid; gap: 8px; }
-.xb-entry {
-    --xb-accent: var(--xb-gold);
-    position: relative;
-    display: grid;
-    grid-template-columns: 92px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 12px;
-    min-height: 84px;
-    padding-right: 12px;
-    background: linear-gradient(90deg, var(--xb-violet), #120e36 70%);
-    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
-    box-shadow: inset 0 0 0 1px rgba(201, 163, 92, .16);
-}
-.xb-entry::after {
-    content: '';
-    position: absolute;
-    left: 92px;
-    top: 14px;
-    bottom: 14px;
-    width: 2px;
-    background: var(--xb-accent);
-    opacity: .85;
-}
-.xb-entry.siege { --xb-accent: var(--xb-gold); }
-/* Battlegrounds: steel and violet. Endless: wilderness emerald. */
-.xb-entry.bg { --xb-accent: #a993e6; background: linear-gradient(90deg, #1d1950, #121031 70%); }
-.xb-entry.endless { --xb-accent: #4fc9a8; background: linear-gradient(90deg, #102a33, #0e1430 70%); }
-.xb-entry.weekly { --xb-accent: #ffd36b; }
-.xb-entry-art {
-    align-self: stretch;
-    background-size: cover;
-    background-position: center 30%;
-    clip-path: polygon(0 0, 100% 0, 84% 100%, 0 100%);
-    transition: background-position .4s ease, filter .2s ease;
-}
-.xb-entry.bg .xb-entry-art { filter: saturate(.85) contrast(1.05); }
-.xb-entry:active .xb-entry-art { background-position: center 45%; filter: brightness(1.15); }
-.xb-entry-body { min-width: 0; padding: 10px 0; }
-.xb-entry-name {
-    margin: 0 0 3px;
-    font: normal 19px/1.1 var(--xb-display);
-    color: var(--xb-ivory);
-}
-.xb-entry-line {
-    margin: 0;
-    color: var(--xb-muted);
-    font: 400 12.5px/1.35 system-ui, -apple-system, 'Segoe UI', sans-serif;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-.xb-entry.is-saved .xb-entry-line { color: var(--xb-ivory); font-variant-numeric: tabular-nums; }
-.xb-entry-actions { display: grid; justify-items: center; gap: 0; }
-.xb-entry-go {
-    min-height: 44px;
-    min-width: 84px;
-    padding: 0 14px;
-    border: 1px solid color-mix(in srgb, var(--xb-accent) 70%, transparent);
-    background: color-mix(in srgb, var(--xb-accent) 14%, #0b0a24);
-    color: var(--xb-ivory);
-    clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
-    font: bold 14px/1 var(--xb-display);
-    cursor: pointer;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-    transition: background-color .15s ease;
-}
-.xb-entry-go::after { content: ' ▸'; font-size: 11px; color: var(--xb-accent); }
-.xb-entry-go:active { background: color-mix(in srgb, var(--xb-accent) 30%, #0b0a24); }
-.xb-entry-go:focus-visible { outline: 2px solid var(--xb-ivory); outline-offset: 2px; }
-
-/* Knight plus four Siegelings fits one line on a 375px phone. */
-@media (max-width: 389px) {
-    .xb-roster { grid-auto-columns: minmax(56px, 1fr); gap: 3px; }
-    .xb-portrait-wrap { width: 50px; height: 56px; }
-    .xb-member-num { font-size: 11px; gap: 3px; }
-}
-@media (max-width: 359px) {
-    #resumeScreen .xb-title h1 { font-size: 22px; }
-    .xb-back { font-size: 0; }
-    .xb-back span { font-size: 26px; }
-    .xb-entry { grid-template-columns: 70px minmax(0, 1fr) auto; gap: 10px; }
-    .xb-entry::after { left: 70px; }
-    .xb-entry-go { min-width: 72px; padding: 0 10px; }
-    .xb-feature-name { font-size: 28px; }
+.resume-save.siege, .resume-save.bg, .resume-save.endless, .resume-save.weekly {
+    border-left-color: color-mix(in srgb, var(--save-accent, var(--accent)) 45%, transparent);
 }
 
-/* Wide windows and landscape phones: the feature and the other modes stand
-   side by side so the page holds one screen. */
+/* Empty plate: the veil only covers the copy side, so the scene shows bright
+   on the right, and the plate is tall enough for the art to read. */
+.resume-save.resume-empty { min-height: 128px; background-position: center 30%; }
+.resume-empty::before {
+    background:
+        linear-gradient(90deg,
+            color-mix(in srgb, var(--save-tint, #0f3f7a) 92%, #000) 0%,
+            color-mix(in srgb, var(--save-tint, #0f3f7a) 70%, transparent) 45%,
+            transparent 78%);
+}
+
+/* Mode badge: a solid chip in the mode's colour rather than a dark smudge. */
+.resume-save-head .run-slot-badge,
+.resume-save-head .run-slot-badge.endless,
+.resume-save-head .run-slot-badge.weekly {
+    background: color-mix(in srgb, var(--save-accent, var(--accent)) 28%, rgba(4, 8, 20, .72));
+    border-color: color-mix(in srgb, var(--save-accent, var(--accent)) 75%, transparent);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+}
+
+/* Warband chips take their Siegeling's element: a tinted glass with the
+   element bar on the left (adventure.css), and the portrait on an element glow. */
+.resume-save .party-chip {
+    background: linear-gradient(120deg,
+        color-mix(in srgb, var(--el, #95a5a6) 34%, rgba(6, 10, 24, .82)) 0%,
+        rgba(6, 10, 24, .76) 70%);
+    border-color: color-mix(in srgb, var(--el, #95a5a6) 40%, rgba(255, 255, 255, .08));
+    border-left: 4px solid var(--el, #95a5a6);
+}
+.resume-save .party-chip .pthumb {
+    background-color: transparent;
+    background-image: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--el, #95a5a6) 45%, transparent), transparent 70%);
+}
+/* bgArtAttrs sets the art inline as background-image; keep the glow under it. */
+.resume-save .party-chip .pthumb[style*="background-image"] {
+    background-color: color-mix(in srgb, var(--el, #95a5a6) 22%, rgba(0, 0, 0, .3));
+}
+.resume-save .party-chip.knight-chip { --el: #e2bf72; }
+
+/* Start Over and the dock follow the plate's tint instead of violet glass. */
+.resume-save-actions .siege-btn:not(.primary) {
+    background: color-mix(in srgb, var(--save-tint, #0f3f7a) 70%, rgba(0, 0, 0, .5));
+    border-color: color-mix(in srgb, var(--save-accent, var(--accent)) 45%, transparent);
+}
+.resume-dock { --sn-dock-fill: color-mix(in srgb, var(--lead-tint, #0f3f7a) 45%, rgba(4, 8, 20, .7)); }
+/* At 390px a 52px portrait left ~75px for "Lv2 Breezee ⓘ"; slimmer portrait and padding fit the name. */
+@media (max-width: 420px) {
+    .resume-save .party-chip { padding: 7px 7px 7px 6px; gap: 7px; }
+    .resume-save .party-chip .pthumb { width: 42px; height: 42px; flex-basis: 42px; }
+    .resume-save .party-chip .pname { font-size: 12.5px; }
+}
+/* Standing plates (wide windows, landscape phones) keep their copy at the foot:
+   the tint rises from the bottom and the scene above stays clear. */
 @media (min-width: 900px), (orientation: landscape) and (max-height: 600px) {
-    body[data-screen="resumeScreen"] .siege-app { max-width: 1180px; }
-    #resumeSaves { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); align-items: start; gap: 20px; }
-    .xb-others { align-content: start; }
-}
-@media (min-width: 900px) {
-    .xb-feature { padding: 210px 22px 20px; gap: 16px; }
-    .xb-feature-art { height: 340px; }
-    .xb-feature::before {
-        background:
-            linear-gradient(180deg, rgba(11, 10, 36, 0) 0%, rgba(11, 10, 36, .1) 100px, rgba(11, 10, 36, .82) 240px, var(--xb-ink) 330px, var(--xb-ink) 70%, rgba(26, 19, 73, .9) 100%);
+    .resume-empty::before {
+        background: linear-gradient(180deg,
+            transparent 0%,
+            transparent 55%,
+            color-mix(in srgb, var(--save-tint, #0f3f7a) 70%, transparent) 75%,
+            color-mix(in srgb, var(--save-tint, #0f3f7a) 92%, #000) 100%);
     }
-    .xb-feature-name { font-size: 40px; }
-    .xb-roster { grid-auto-columns: minmax(80px, 1fr); }
-    .xb-portrait-wrap { width: 66px; height: 74px; }
-    .xb-hp { max-width: 72px; }
-    .xb-entry { min-height: 112px; grid-template-columns: 128px minmax(0, 1fr) auto; }
-    .xb-entry::after { left: 128px; }
-    .xb-entry-name { font-size: 22px; }
-    #resumeScreen .xb-title h1 { font-size: 30px; }
-}
-@media (orientation: landscape) and (max-height: 600px) {
-    /* The FAB is centred over the page: the gutter between the columns is
-       wide enough to hold it, so it never lands on either column's actions. */
-    #resumeSaves { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: calc(var(--sn-fab-size) + 24px); }
-    .xb-feature::before {
-        background: linear-gradient(180deg, rgba(11, 10, 36, .1) 0%, rgba(11, 10, 36, .55) 40px, rgba(11, 10, 36, .9) 110px, var(--xb-ink) 160px, var(--xb-ink) 60%, rgba(26, 19, 73, .9) 100%);
-    }
-    .xb-feature { padding-top: 64px; gap: 8px; }
-    .xb-feature-art { height: 170px; }
-    .xb-feature-name { font-size: 26px; }
-    .xb-continue { min-height: 46px; font-size: 16px; }
-    .xb-entry { min-height: 70px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .xb-feature-art, .xb-hp > span, .xb-portrait-wrap, .xb-entry-art, .xb-continue { transition: none; animation: none; }
-    .xb-continue::after { display: none; }
 }
