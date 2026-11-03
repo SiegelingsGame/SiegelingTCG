@@ -1,3 +1,23 @@
+Original prompt: Redesign the Siege launch screen (Adventure / Battlegrounds / Endless) to look less AI-made. Follow-up: the Expedition Board deviated too much and its purple was bland; more colour and more art.
+
+- November 3, 2026 **Siege resume screen: original layout, colour from the art.**
+  - **Change.** I reverted the "Expedition Board" rebuild (the `.xb-*` header, feature, roster and entries, and the removed dock). The resume screen is back to its three full-art plates, the 2x2 warband chips and the Play Menu / Continue dock around the FAB. On top of that layout, a new block at the end of `siege-next.css` gives each mode its own scene tint in place of the shared navy-violet: Adventure sky blue `#0f3f7a`, Battlegrounds frost indigo `#23306e`, Endless forest `#0f4a33`, Weekly ember `#5a2f0c`.
+    - The saved plate's scrim stays clear for the top 30% of the plate, then fades into that tint.
+    - The empty plates' veil covers only the copy side on phones, so the scene shows bright on the right (min-height 128px). On wide and landscape screens the tint rises from the bottom instead.
+    - Mode badges are solid chips in the mode colour.
+    - Warband chips take their Siegeling's element: a tinted glass, the element bar on the left and a glow behind the portrait. The knight is gold.
+    - Start Over and the dock fill follow the tint.
+    - The page backdrop is the leading save's scene, blurred and dimmed. `renderResumePrompt` (adventure.js) sets `data-lead` on `#resumeScreen` for this; it is the only JS change.
+    - Below 420px the chip portrait is 42px, so "Lv2 Breezee ⓘ" fits.
+    - Bumped `siege-next.css` to v27 and `adventure.js` to v157.
+  - **Verification.** `node --check` passes. Headless Chromium on `adventure.html` with `/api/**` mocked, one and two saves, at 390x844, 320x568, 844x390 and 1920x1080: no page errors and no horizontal scroll; `data-lead` reads the leading save. Actions:
+    - Each Start Over shows the confirm and POSTs `/api/siege/run/abandon` with its own token.
+    - Battlegrounds New run opens setup.
+    - The plate's Continue goes to `mapScreen` with the token kept.
+    - A chip tap opens the unit sheet.
+    - The FAB opens the shield overlay.
+    - I checked the screenshots at phone and desktop by eye.
+
 Original prompt: Selecting an event should place you in knight and deck selection. Not the arena page with nothing.
 
 - November 3, 2026 **Daily Battle opens on Deck, not the Arena mode picker.**

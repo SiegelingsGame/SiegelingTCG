@@ -864,6 +864,8 @@
       return (b.token === here ? 1 : 0) - (a.token === here ? 1 : 0);
     });
 
+    // The page backdrop is the leading save's scene (siege-next.css).
+    $('resumeScreen').setAttribute('data-lead', runSlotKind(saves[0]));
     var host = $('resumeSaves');
     host.innerHTML = '';
     // The dock's Continue (beside the FAB) takes the top save; with one save it
