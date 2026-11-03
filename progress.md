@@ -1,3 +1,9 @@
+Original prompt: Selecting an event should place you in knight and deck selection. Not the arena page with nothing.
+
+- November 3, 2026 **Daily Battle opens on Deck, not the Arena mode picker.**
+  - Fight › on Events (`/play?daily=1`) landed on the loadout's Setup step: the PvP/PvE/Gauntlet/Tutorial cards, with nothing saying it was the Daily Battle (the banner was prepended above the hero, off the visible box on a phone). `mountDailyBattleBanner` now pins solo mode, starts on the Deck step, hides the Setup chip (`#loadoutOverlay[data-daily-battle]`, `play-next.css`), renumbers Deck/SiegeKnight/Loadout 1-3, puts the "Daily Battle · vs X · card" banner directly above the step chips, and turns the back pill into "Events". `setLoadoutStep('setup')` is a no-op in daily mode, Back from Deck returns to `/events` (`returnToHome('events')`), and the post-match reset reopens on Deck. Cache pins: `game.js?v=344` (all six pages), `play-next.css?v=23`.
+  - **Verification.** `node --check` passes. Headless Chromium on `play.html` with mocked options at 390x844 and 1920x1080: `?daily=1` opens on step `deck`, Setup chip hidden, chips read 1-2-3, banner reads "vs Grumbark · Thornmaw" and is in view, back pill reads Events; plain `/play` still opens on Setup with all four chips and Play Menu. No page errors. Phone screenshot checked.
+
 Original prompt: Card preview in the deck builder should show the actual cards, same as the collection.
 
 - October 31, 2026 **Arena deck builder: the Card Preview is the collection's card face.**

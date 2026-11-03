@@ -10156,7 +10156,7 @@ function openLoadoutSelector() {
     hydrateSavedPlayerName();
     // The room is already known for invite links and online loadout-phase, so
     // skip the match-setup step and drop the player straight onto the deck step.
-    loadoutStep = (isInviteJoinFlow() || currentRoomStatus?.loadoutPhase) ? 'deck' : 'setup';
+    loadoutStep = (DAILY_BATTLE_MODE || isInviteJoinFlow() || currentRoomStatus?.loadoutPhase) ? 'deck' : 'setup';
     renderLoadoutOptions();
     updateLoadoutSummary();
     syncEntryOverlays();
@@ -10166,7 +10166,8 @@ function openLoadoutSelector() {
 function returnToHome(screen) {
     if (loadoutStartPending) return;
     clearMultiplayerSession();
-    window.location.href = screen === 'play' ? '/home?screen=play' : '/home';
+    window.location.href = screen === 'events' ? '/events'
+        : screen === 'play' ? '/home?screen=play' : '/home';
 }
 
 // The shield FAB belongs to the loadout, a launch screen; the battle table
@@ -10781,6 +10782,7 @@ function maxReachableLoadoutStep() {
 }
 
 function setLoadoutStep(step) {
+    if (DAILY_BATTLE_MODE && step === 'setup') return;
     const target = loadoutStepIndex(step);
     // Backward jumps are always allowed; forward jumps stop at the first
     // incomplete step.
@@ -10794,6 +10796,11 @@ function setLoadoutStep(step) {
 
 function loadoutStepBack() {
     const idx = loadoutStepIndex(loadoutStep);
+    // A Daily Battle has no Setup step to fall back to; Deck is its first.
+    if (DAILY_BATTLE_MODE && idx <= loadoutStepIndex('deck')) {
+        returnToHome('events');
+        return;
+    }
     if (idx <= 0) {
         returnToHome();
         return;
@@ -12817,17 +12824,38 @@ function renderDomLegacy() {
 }
 
 // Daily Battle (/play?daily=1, from the hub's Events page): the player brings
-// their own loadout and the server fields the day's opponent. The loadout
-// carries a banner naming who they are about to face.
+// their own loadout and the server fields the day's opponent. The event already
+// decided the mode (solo vs the day's rival), so the Setup step's mode cards
+// would only offer choices that contradict it; the loadout opens on Deck with
+// Setup hidden, and a banner names who they are about to face.
 const DAILY_BATTLE_MODE = new URLSearchParams(window.location.search).get('daily') === '1';
 function mountDailyBattleBanner() {
     if (!DAILY_BATTLE_MODE) return;
-    const box = document.querySelector('#loadoutOverlay .loadout-box');
+    const overlay = document.getElementById('loadoutOverlay');
+    const box = overlay?.querySelector('.loadout-box');
     if (!box || box.querySelector('.daily-battle-banner')) return;
+    matchMode = 'solo';
+    loadoutStep = 'deck';
+    overlay.dataset.dailyBattle = '1';
     const banner = document.createElement('div');
     banner.className = 'daily-battle-banner';
     banner.innerHTML = '<span class="daily-battle-kicker">Daily Battle</span><strong>Today\u2019s rival</strong>';
-    box.prepend(banner);
+    // Directly above the step chips, where it stays in view on a phone; at the
+    // top of the box it sat behind the hero art.
+    const steps = document.getElementById('loadoutSteps');
+    if (steps && steps.parentNode === box) box.insertBefore(banner, steps);
+    else box.prepend(banner);
+    // With Setup hidden, Deck is step 1 rather than 2.
+    ['deck', 'knight', 'review'].forEach((step, i) => {
+        const num = document.querySelector(`#loadoutStepChip-${step} .loadout-step-num`);
+        if (num) num.textContent = String(i + 1);
+    });
+    // The way back goes to the page the player came from.
+    const back = overlay.querySelector('.loadout-back-link');
+    if (back) {
+        back.innerHTML = '<span aria-hidden="true">&lsaquo;</span>Events';
+        back.setAttribute('onclick', "returnToHome('events')");
+    }
     fetchJson(apiUrls('/api/events/daily-battle'), {}, LOADOUT_ACTION_TIMEOUT_MS).then((d) => {
         if (!d || d.error) return;
         const strong = banner.querySelector('strong');

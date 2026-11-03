@@ -1690,6 +1690,8 @@
 }
 .daily-battle-kicker { font-size:10px; font-weight:800; letter-spacing:.18em; text-transform:uppercase; color:#ffe39a; }
 .daily-battle-banner strong { font-size:15px; font-weight:700; }
+/* The event already picked the mode, so the Setup step (mode cards, name) is skipped. */
+#loadoutOverlay[data-daily-battle] #loadoutStepChip-setup { display:none; }
 
 /* Arena loading screen (play.html #playBoot): the hub's boot screen, shown
    only when the loadout takes more than a moment to arrive. It sits above
