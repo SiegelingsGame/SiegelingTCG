@@ -9192,25 +9192,53 @@
       }
     }
 
+    // The observer reports a transition into view, not "still in view". On a
+    // tall desktop the 1px sentinel stays inside this lookahead after one
+    // chunk, so a single callback stops at 48 faces and scrolling never asks
+    // again. Keep appending while the sentinel is still inside the lookahead.
+    var GRID_LOOKAHEAD = 400;
     var gridObserver = null;
-    function watchGrid() {
-      if (gridObserver) { gridObserver.disconnect(); gridObserver = null; }
-      var more = body && body.querySelector('[data-build-more]');
-      var grid = body && body.querySelector('[data-build-grid]');
-      if (!more || !grid || !window.IntersectionObserver) return;
-      gridObserver = new IntersectionObserver(function (entries) {
-        if (!entries.some(function (en) { return en.isIntersecting; })) return;
+    function pumpGrid() {
+      if (!body || !scroller) return;
+      var guard = 0;
+      while (guard++ < 40) {
+        var more = body.querySelector('[data-build-more]');
+        var grid = body.querySelector('[data-build-grid]');
+        if (!more || !grid) break;
         var pool = buildFilteredCards(opts, b.view === 'review');
         var shown = Number(grid.getAttribute('data-shown')) || 0;
+        if (shown >= pool.length) {
+          more.remove();
+          if (gridObserver) { gridObserver.disconnect(); gridObserver = null; }
+          break;
+        }
+        var rootRect = scroller.getBoundingClientRect();
+        var moreRect = more.getBoundingClientRect();
+        if (moreRect.top > rootRect.bottom + GRID_LOOKAHEAD) break;
         var next = pool.slice(shown, shown + BUILD_GRID_CHUNK);
+        if (!next.length) break;
         grid.insertAdjacentHTML('beforeend', next.map(function (c) { return buildTile(c, opts, b.view === 'review'); }).join(''));
         shown += next.length;
         grid.setAttribute('data-shown', String(shown));
-        if (shown >= pool.length) { more.remove(); gridObserver.disconnect(); gridObserver = null; }
-        if (window.SieglingsCardBinderVisual && window.SieglingsCardBinderVisual.scheduleDescriptionFit) {
-          window.SieglingsCardBinderVisual.scheduleDescriptionFit();
+        if (shown >= pool.length) {
+          more.remove();
+          if (gridObserver) { gridObserver.disconnect(); gridObserver = null; }
         }
-      }, { root: scroller, rootMargin: '400px 0px' });
+      }
+      if (body.querySelector('[data-build-grid]') &&
+          window.SieglingsCardBinderVisual && window.SieglingsCardBinderVisual.scheduleDescriptionFit) {
+        window.SieglingsCardBinderVisual.scheduleDescriptionFit();
+      }
+    }
+    function watchGrid() {
+      if (gridObserver) { gridObserver.disconnect(); gridObserver = null; }
+      pumpGrid();
+      var more = body && body.querySelector('[data-build-more]');
+      if (!more || !scroller || !window.IntersectionObserver) return;
+      gridObserver = new IntersectionObserver(function (entries) {
+        if (!entries.some(function (en) { return en.isIntersecting; })) return;
+        pumpGrid();
+      }, { root: scroller, rootMargin: GRID_LOOKAHEAD + 'px 0px' });
       gridObserver.observe(more);
     }
     watchGrid();
