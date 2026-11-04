@@ -1,3 +1,5 @@
+- November 4, 2026 **Deck builder Cards grid kept loading on a tall screen.** The face grid appends 24 cards when a 1px sentinel enters the scroller, plus 400px of lookahead. IntersectionObserver only notifies on a change, so when the next chunk still left that sentinel inside the lookahead — a 2560×1440 window, 48 of 200 faces, 32px of overflow — scrolling did not ask for the rest and those cards could not be added from Cards view. `pumpGrid` now keeps appending while the sentinel is inside the lookahead, and the observer only wakes that pump. Phone viewports still start at 24 and fill as you scroll. Cache pin `home-redesign.js?v=177`. Checked with `node --check` and a headless Chromium run of the builder at 390×844, 1440×900, 1920×1080 and 2560×1440: the tall window shows the whole pool, the phone still reaches all 200 by scrolling, and no page errors.
+
 Original prompt: Update the deck builder to be more efficient for selecting and reviewing card abilities. Building decks should be a quick, seamless process.
 
 - November 4, 2026 **Deck builder: one scrolling list with every ability in view, instant +/−.**
