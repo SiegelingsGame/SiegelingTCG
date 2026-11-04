@@ -8910,7 +8910,8 @@
       trainerId: autoTrainerId(opts),
       counts: {},            // cardId -> copies
       order: [],             // insertion order, so the tray does not reshuffle
-      notice: '', error: false, saving: false, query: '', view: 'add', element: 'ALL', type: 'ALL', rarity: 'ALL', sort: 'name', page: 0
+      notice: '', error: false, saving: false, query: '', view: 'add', element: 'ALL', type: 'ALL', rarity: 'ALL', sort: 'name',
+      layout: readBuildLayout()
     };
   }
 
@@ -8972,37 +8973,170 @@
     return pool;
   }
 
-  function buildFilterSelect(key, label, entries) {
-    return '<label><span>' + label + '</span><select data-build-filter="' + key + '">' + entries.map(function (entry) {
-      var id = Array.isArray(entry) ? entry[0] : entry, name = Array.isArray(entry) ? entry[1] : title(entry);
-      return '<option value="' + id + '"' + (BUILD[key] === id ? ' selected' : '') + '>' + name + '</option>';
-    }).join('') + '</select></label>';
+  /* The builder lists cards as rows by default: art, cost, stats and every
+     ability with its energy and text, with the count controls beside them, so
+     a deck is read and built without opening each card. Cards swaps to a grid
+     of faces. The choice is remembered per device. */
+  var BUILD_LAYOUT_KEY = 'sgBuildLayout';
+  function readBuildLayout() {
+    try { return localStorage.getItem(BUILD_LAYOUT_KEY) === 'cards' ? 'cards' : 'list'; } catch (e) { return 'list'; }
+  }
+  var BUILD_TYPES = [['ALL', 'All'], ['SIEGLING', 'Siegelings'], ['SPELL', 'Strategies'], ['TRAP', 'Deceptions']];
+  var BUILD_TYPE_ORDER = { SIEGLING: 0, SPELL: 1, TRAP: 2 };
+  // Faces are heavy to compose, so the grid adds them as the player scrolls.
+  var BUILD_GRID_CHUNK = 24;
+
+  function buildCap(opts, id) {
+    return Math.min(builderRules(opts).maxCopies, ownedCount(opts, id));
+  }
+
+  function buildCostText(c) {
+    if (String(c.type).toUpperCase() === 'TRAP' && c.trapBucketElement) {
+      return 'Triggers at ' + (c.trapBucketAmount || 0) + ' ' + title(c.trapBucketElement);
+    }
+    if (c.costElement && c.costAmount) return c.costAmount + ' ' + title(c.costElement);
+    return 'Free';
+  }
+
+  function buildAbilities(c) {
+    var list = (c.abilities && c.abilities.length) ? c.abilities : (c.ability ? [c.ability] : []);
+    return list.filter(function (a) { return a && (a.name || a.description); });
+  }
+
+  function buildAbilityLine(a) {
+    var cost = a.passive ? 'Passive'
+      : Number(a.requiredEnergy) > 0 ? a.requiredEnergy + (a.requiredElement ? ' ' + title(a.requiredElement) : '') + ' ⚡'
+      : '';
+    return '<li><b>' + esc(a.name || '') + '</b>' + (cost ? '<i>' + esc(cost) + '</i>' : '') +
+      '<span>' + esc(a.description || '') + '</span></li>';
+  }
+
+  function buildQty(c, opts, review) {
+    var have = BUILD.counts[c.id] || 0, cap = buildCap(opts, c.id);
+    return '<div class="sg-bld-qty">' +
+      '<button type="button" data-build-remove="' + esc(c.id) + '"' + (have ? '' : ' disabled') + ' aria-label="Remove one ' + esc(c.name) + '">−</button>' +
+      '<span data-build-count="' + esc(c.id) + '">' + have + '<small>/' + cap + '</small></span>' +
+      '<button type="button" data-build-add="' + esc(c.id) + '"' + (have >= cap ? ' disabled' : '') + ' aria-label="Add one ' + esc(c.name) + '">+</button>' +
+    '</div>';
+  }
+
+  function buildRow(c, opts, review) {
+    var type = String(c.type || 'SIEGLING').toUpperCase();
+    var have = BUILD.counts[c.id] || 0;
+    var thumb = c.cardArtUrl
+      ? '<img ' + artAttrs(c.cardArtUrl, 160) + ' alt="" loading="lazy">'
+      : '<img class="is-emblem" src="' + esc(icon(c.element)) + '" alt="" loading="lazy">';
+    var stats = type === 'SIEGLING'
+      ? '<span class="sg-bld-stats">HP ' + esc(c.health) + ' · SPD ' + esc(c.speed) + (c.preferredRow ? ' · ' + esc(title(c.preferredRow)) : '') +
+        (c.evolvesFromName ? ' · Evolves from ' + esc(c.evolvesFromName) : '') + '</span>'
+      : '';
+    return '<article class="sg-bld-row' + (have ? ' is-in' : '') + '" data-build-row="' + esc(c.id) + '" style="--el:' + color(c.element) + '">' +
+      '<button type="button" class="sg-bld-thumb" data-card="' + esc(c.id) + '" aria-label="View ' + esc(c.name) + '">' + thumb +
+        '<i class="sg-rar ' + esc(String(c.rarity || '').toLowerCase()) + '"></i></button>' +
+      '<div class="sg-bld-info">' +
+        '<div class="sg-bld-head"><strong>' + esc(c.name) + '</strong>' +
+          '<span class="sg-bld-meta"><img src="' + esc(icon(c.element)) + '" alt="">' + esc(title(c.rarity || '')) +
+            ' · <em>' + esc(buildCostText(c)) + '</em></span></div>' +
+        stats +
+        '<ul class="sg-bld-abils">' + buildAbilities(c).map(buildAbilityLine).join('') + '</ul>' +
+      '</div>' +
+      buildQty(c, opts, review) +
+    '</article>';
+  }
+
+  function buildTile(c, opts, review) {
+    return '<div class="sg-bld-tile' + ((BUILD.counts[c.id] || 0) ? ' is-in' : '') + '" data-build-row="' + esc(c.id) + '">' +
+      galleryCard(c) + buildQty(c, opts, review) + '</div>';
+  }
+
+  function buildTypeCounts(b) {
+    var out = { SIEGLING: 0, SPELL: 0, TRAP: 0 };
+    b.order.forEach(function (id) {
+      var c = byIdIn(ALL_CARDS, id) || byId(id);
+      var t = String((c && c.type) || 'SIEGLING').toUpperCase();
+      if (out[t] != null) out[t] += b.counts[id] || 0;
+    });
+    return out;
+  }
+
+  // The deck at a glance, pinned above the list: progress to the minimum, the
+  // type split, and the one tap between adding and reviewing.
+  function buildDeckBar(opts) {
+    var b = BUILD, rules = builderRules(opts), total = buildTotal(b), t = buildTypeCounts(b);
+    var pct = Math.min(100, Math.round(total / Math.max(1, rules.minDeckSize) * 100));
+    var review = b.view === 'review';
+    return '<div class="sg-bld-bar' + (total >= rules.minDeckSize ? ' is-ready' : '') + '" data-build-bar>' +
+      '<div class="sg-bld-bar-count"><strong data-build-total>' + total + '</strong><span>/ ' + rules.minDeckSize + '</span></div>' +
+      '<div class="sg-bld-bar-mid"><i class="sg-bld-bar-fill"><u data-build-fill style="width:' + pct + '%"></u></i>' +
+        '<span data-build-split>' + t.SIEGLING + ' Siegelings · ' + t.SPELL + ' Strategies · ' + t.TRAP + ' Deceptions</span></div>' +
+      '<button type="button" class="sg-bld-bar-go" data-builder-view="' + (review ? 'add' : 'review') + '">' + (review ? '+ Add cards' : 'Review ›') + '</button>' +
+    '</div>';
+  }
+
+  function buildTools(opts) {
+    var b = BUILD;
+    var typeChips = BUILD_TYPES.map(function (t) {
+      return '<button type="button" class="sg-bld-chip' + (b.type === t[0] ? ' on' : '') + '" data-build-chip="type" data-value="' + t[0] + '" aria-pressed="' + (b.type === t[0]) + '">' + t[1] + '</button>';
+    }).join('');
+    var elChips = ['ALL'].concat(PROFILE_ELEMENTS).map(function (el) {
+      var on = b.element === el;
+      return '<button type="button" class="sg-bld-chip is-el' + (on ? ' on' : '') + '" data-build-chip="element" data-value="' + el + '" aria-pressed="' + on + '"' +
+        ' aria-label="' + (el === 'ALL' ? 'All elements' : title(el)) + '" title="' + (el === 'ALL' ? 'All elements' : title(el)) + '">' +
+        (el === 'ALL' ? 'All' : '<img src="' + esc(icon(el)) + '" alt="">') + '</button>';
+    }).join('');
+    return '<div class="sg-bld-tools">' +
+      '<div class="sg-bld-tools-row">' +
+        '<input class="sg-build-search" data-build-search value="' + esc(b.query) + '" placeholder="Search cards" aria-label="Search cards" type="search">' +
+        '<select data-build-filter="rarity" aria-label="Rarity">' + ['ALL', 'COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY'].map(function (r) {
+          return '<option value="' + r + '"' + (b.rarity === r ? ' selected' : '') + '>' + (r === 'ALL' ? 'Any rarity' : title(r)) + '</option>';
+        }).join('') + '</select>' +
+        '<select data-build-filter="sort" aria-label="Sort">' + [['name', 'A–Z'], ['element', 'Element'], ['rarity', 'Rarity'], ['copies', 'In deck']].map(function (o) {
+          return '<option value="' + o[0] + '"' + (b.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+        }).join('') + '</select>' +
+        '<div class="sg-bld-layout" role="group" aria-label="Layout">' +
+          '<button type="button" data-build-layout="list" aria-pressed="' + (b.layout !== 'cards') + '" title="List with abilities">☰</button>' +
+          '<button type="button" data-build-layout="cards" aria-pressed="' + (b.layout === 'cards') + '" title="Card faces">▦</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="sg-bld-chips" aria-label="Card type">' + typeChips + '</div>' +
+      '<div class="sg-bld-chips is-els" aria-label="Element">' + elChips + '</div>' +
+    '</div>';
+  }
+
+  function buildListBody(opts, review) {
+    var b = BUILD, pool = buildFilteredCards(opts, review);
+    if (!pool.length) {
+      return '<p class="sg-empty-row">' + (review ? 'No cards in this deck match. Add cards or clear the filters.' : 'No cards match your filters. Try another search.') + '</p>';
+    }
+    if (b.layout === 'cards') {
+      return '<div class="sg-bld-grid" data-build-grid data-shown="' + Math.min(pool.length, BUILD_GRID_CHUNK) + '">' +
+        pool.slice(0, BUILD_GRID_CHUNK).map(function (c) { return buildTile(c, opts, review); }).join('') + '</div>' +
+        (pool.length > BUILD_GRID_CHUNK ? '<div class="sg-bld-more" data-build-more></div>' : '');
+    }
+    if (review) {
+      // The deck reads by type, Siegelings first, each with its copy count.
+      var groups = {};
+      pool.forEach(function (c) { var t = String(c.type || 'SIEGLING').toUpperCase(); (groups[t] = groups[t] || []).push(c); });
+      return Object.keys(groups).sort(function (x, y) { return (x in BUILD_TYPE_ORDER ? BUILD_TYPE_ORDER[x] : 9) - (y in BUILD_TYPE_ORDER ? BUILD_TYPE_ORDER[y] : 9); }).map(function (t) {
+        var n = groups[t].reduce(function (sum, c) { return sum + (b.counts[c.id] || 0); }, 0);
+        var label = (BUILD_TYPES.filter(function (x) { return x[0] === t; })[0] || [t, title(t)])[1];
+        return '<h4 class="sg-bld-group">' + esc(label) + ' <span>' + n + '</span></h4>' +
+          '<div class="sg-bld-list">' + groups[t].map(function (c) { return buildRow(c, opts, review); }).join('') + '</div>';
+      }).join('');
+    }
+    return '<div class="sg-bld-list">' + pool.map(function (c) { return buildRow(c, opts, review); }).join('') + '</div>';
   }
 
   function builderScreen(opts) {
     opts = opts || {};
     if (!BUILD) BUILD = newBuild(opts);
     var b = BUILD, rules = builderRules(opts), total = buildTotal(b), view = b.view || 'add';
-    var review = view === 'review', pool = buildFilteredCards(opts,review);
-    var size = window.innerWidth >= 1024 ? 6 : 4;
-    var pages = Math.max(1,Math.ceil(pool.length / size));
-    b.page = Math.max(0,Math.min(b.page || 0,pages - 1));
+    var review = view === 'review';
     var knights = buildKnightOptions(opts);
     var titleText = {add:'Add from your binder',review:'Deck Review',auto:'Auto Build',save:'Save your deck'}[view];
-    var filters = '<div class="sg-build-filters"><input class="sg-build-search" data-build-search value="' + esc(b.query) + '" placeholder="Search cards" aria-label="Search cards">' +
-      buildFilterSelect('element','Element',['ALL'].concat(PROFILE_ELEMENTS)) +
-      buildFilterSelect('type','Type',[['ALL','All types'],['SIEGLING','Siegelings'],['SPELL','Strategies'],['TRAP','Deceptions']]) +
-      buildFilterSelect('rarity','Rarity',['ALL','COMMON','UNCOMMON','RARE','EPIC','LEGENDARY']) +
-      buildFilterSelect('sort','Sort',[['name','Name'],['element','Element'],['rarity','Rarity'],['copies','Copies']]) + '</div>';
-    var binder = filters + '<div class="sg-build-book" aria-label="' + (review ? 'Deck binder' : 'Collection binder') + '">' +
-      (pool.length ? pool.slice(b.page * size,(b.page + 1) * size).map(function (c) {
-        var have = b.counts[c.id] || 0, cap = Math.min(rules.maxCopies,ownedCount(opts,c.id));
-        return '<div class="sg-build-pocket">' + galleryCard(c) + '<div class="sg-build-pocket-actions"><span>' + esc(review ? have + ' in deck' : have + ' / ' + cap + ' added') + '</span>' +
-          (review ? '<button type="button" data-build-remove="' + esc(c.id) + '" aria-label="Remove one ' + esc(c.name) + '">−</button>' : '') +
-          '<button type="button" data-build-add="' + esc(c.id) + '"' + (have >= cap ? ' disabled' : '') + ' aria-label="Add one ' + esc(c.name) + '">+</button></div></div>';
-      }).join('') : '<p class="sg-empty-row">' + (review ? 'No cards match. Add cards from your binder or clear the filters.' : 'No cards match your filters. Try another search.') + '</p>') +
-      '</div><footer class="sg-build-pager"><button type="button" data-build-page="-1"' + (!b.page ? ' disabled' : '') + '>‹ Previous</button><span>Page ' + (b.page + 1) + ' of ' + pages + ' · ' + pool.length + ' cards</span><button type="button" data-build-page="1"' + (b.page >= pages - 1 ? ' disabled' : '') + '>Next ›</button>' +
-      (review && total ? '<button type="button" data-build-clear>Clear deck</button>' : '') + '</footer>';
+    var binder = buildTools(opts) + buildDeckBar(opts) +
+      '<div class="sg-bld-body" data-build-body>' + buildListBody(opts, review) + '</div>' +
+      (review && total ? '<button type="button" class="sg-bld-clear" data-build-clear>Clear deck</button>' : '');
     var save = '<div class="sg-build-save-panel"><label class="sg-auth-field"><span>Deck name</span><input class="sg-build-name" data-build-name value="' + esc(b.name) + '" maxlength="40"></label>' +
       '<label class="sg-auth-field"><span>Choose a SiegeKnight</span><select class="sg-build-knight" data-build-knight><option value="">Select a SiegeKnight</option>' + knights.map(function (t) {
         return '<option value="' + esc(t.id) + '"' + (t.id === b.trainerId ? ' selected' : '') + '>' + esc(t.name || t.id) + '</option>';
@@ -9011,7 +9145,7 @@
     return topMarkup(opts) + '<div class="sg-deck-backdrop" aria-hidden="true">' + hubPanelImage(view, 'stage') + '</div>' +
       '<nav class="sg-work-nav" aria-label="Deck builder">' + panelButton('add','Add Cards',view,'data-builder-view') + panelButton('review','Deck Review',view,'data-builder-view') +
       panelButton('auto','Auto Build',view,'data-builder-view') + panelButton('save','Save Deck',view,'data-builder-view') + '<a class="sg-work-back" href="/decks" data-screen="decks">‹ My Decks</a></nav>' +
-      '<div class="sg-scroll sg-builder-workspace" data-builder><header class="sg-work-head"><h2>' + titleText + '</h2><p>' + total + ' cards · ' + rules.minDeckSize + ' minimum · max ' + rules.maxCopies + ' copies</p></header>' +
+      '<div class="sg-scroll sg-builder-workspace" data-builder data-build-view="' + view + '"><header class="sg-work-head"><h2>' + titleText + '</h2><p><span data-build-head-total>' + total + '</span> cards · ' + rules.minDeckSize + ' minimum · max ' + rules.maxCopies + ' copies</p></header>' +
       (b.notice ? '<p class="sg-deck-notice' + (b.error ? ' is-error' : '') + '" data-build-notice tabindex="-1" role="' + (b.error ? 'alert' : 'status') + '">' + esc(b.notice) + '</p>' : '') +
       (view === 'save' ? save : view === 'auto' ? '<div class="sg-build-auto-panel">' + hubPanelImage('auto', 'card') + '<div><h3>A starting point for your next victory</h3><p>Use cards you own to build a playable deck. Review every card before saving. Auto Build replaces the cards currently in this draft.</p><button class="sg-guest-primary" type="button" data-build-auto>Build my deck</button></div></div>' : binder) +
       '</div>' + sheetHost() + bottomMarkup('collection',opts);
@@ -9042,13 +9176,96 @@
       refreshBuilder(opts, Boolean(message));
     }
 
+    var body = app.querySelector('[data-build-body]');
+    var scroller = app.querySelector('[data-builder]');
+
+    // Redraws only the card list, so the filters keep focus and the screen
+    // does not jump; the grid then adds faces as the player scrolls.
+    function refreshBody(keepScroll) {
+      if (!body) return;
+      var top = scroller ? scroller.scrollTop : 0;
+      body.innerHTML = buildListBody(opts, b.view === 'review');
+      if (scroller) scroller.scrollTop = keepScroll ? top : Math.min(top, body.offsetTop);
+      watchGrid();
+      if (window.SieglingsCardBinderVisual && window.SieglingsCardBinderVisual.scheduleDescriptionFit) {
+        window.SieglingsCardBinderVisual.scheduleDescriptionFit();
+      }
+    }
+
+    var gridObserver = null;
+    function watchGrid() {
+      if (gridObserver) { gridObserver.disconnect(); gridObserver = null; }
+      var more = body && body.querySelector('[data-build-more]');
+      var grid = body && body.querySelector('[data-build-grid]');
+      if (!more || !grid || !window.IntersectionObserver) return;
+      gridObserver = new IntersectionObserver(function (entries) {
+        if (!entries.some(function (en) { return en.isIntersecting; })) return;
+        var pool = buildFilteredCards(opts, b.view === 'review');
+        var shown = Number(grid.getAttribute('data-shown')) || 0;
+        var next = pool.slice(shown, shown + BUILD_GRID_CHUNK);
+        grid.insertAdjacentHTML('beforeend', next.map(function (c) { return buildTile(c, opts, b.view === 'review'); }).join(''));
+        shown += next.length;
+        grid.setAttribute('data-shown', String(shown));
+        if (shown >= pool.length) { more.remove(); gridObserver.disconnect(); gridObserver = null; }
+        if (window.SieglingsCardBinderVisual && window.SieglingsCardBinderVisual.scheduleDescriptionFit) {
+          window.SieglingsCardBinderVisual.scheduleDescriptionFit();
+        }
+      }, { root: scroller, rootMargin: '400px 0px' });
+      gridObserver.observe(more);
+    }
+    watchGrid();
+
+    // A tap on + or − changes one card: its count and buttons, the deck bar
+    // and the header are patched in place rather than redrawing the screen.
+    function paintCount(id) {
+      var have = b.counts[id] || 0, cap = buildCap(opts, id);
+      app.querySelectorAll('[data-build-row="' + id + '"]').forEach(function (row) {
+        row.classList.toggle('is-in', have > 0);
+        var count = row.querySelector('[data-build-count]');
+        if (count) count.innerHTML = have + '<small>/' + cap + '</small>';
+        var minus = row.querySelector('[data-build-remove]');
+        if (minus) minus.disabled = !have;
+        var plus = row.querySelector('[data-build-add]');
+        if (plus) plus.disabled = have >= cap;
+      });
+      var total = buildTotal(b), t = buildTypeCounts(b);
+      var bar = app.querySelector('[data-build-bar]');
+      if (bar) {
+        bar.classList.toggle('is-ready', total >= rules.minDeckSize);
+        bar.querySelector('[data-build-total]').textContent = String(total);
+        bar.querySelector('[data-build-fill]').style.width = Math.min(100, Math.round(total / Math.max(1, rules.minDeckSize) * 100)) + '%';
+        bar.querySelector('[data-build-split]').textContent = t.SIEGLING + ' Siegelings · ' + t.SPELL + ' Strategies · ' + t.TRAP + ' Deceptions';
+      }
+      var head = app.querySelector('[data-build-head-total]');
+      if (head) head.textContent = String(total);
+      // Review lists only what is in the deck, so a card taken to zero leaves it.
+      if (b.view === 'review' && !have) refreshBody(true);
+    }
+
     app.addEventListener('click', function (e) {
       if (!e.target.closest) return;
 
       var viewButton = e.target.closest('[data-builder-view]');
-      if (viewButton) { b.view = viewButton.getAttribute('data-builder-view'); b.page = 0; b.notice = ''; refreshBuilder(opts); return; }
-      var pageButton = e.target.closest('[data-build-page]');
-      if (pageButton) { b.page += Number(pageButton.getAttribute('data-build-page')); refreshBuilder(opts); return; }
+      if (viewButton) { b.view = viewButton.getAttribute('data-builder-view'); b.notice = ''; refreshBuilder(opts); if (scroller) scroller.scrollTop = 0; return; }
+      var chip = e.target.closest('[data-build-chip]');
+      if (chip) {
+        b[chip.getAttribute('data-build-chip')] = chip.getAttribute('data-value');
+        app.querySelectorAll('[data-build-chip="' + chip.getAttribute('data-build-chip') + '"]').forEach(function (c) {
+          var on = c === chip;
+          c.classList.toggle('on', on);
+          c.setAttribute('aria-pressed', String(on));
+        });
+        refreshBody(false);
+        return;
+      }
+      var layout = e.target.closest('[data-build-layout]');
+      if (layout) {
+        b.layout = layout.getAttribute('data-build-layout');
+        try { localStorage.setItem(BUILD_LAYOUT_KEY, b.layout); } catch (err) { /* private mode */ }
+        app.querySelectorAll('[data-build-layout]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === layout)); });
+        refreshBody(false);
+        return;
+      }
       var add = e.target.closest('[data-build-add]');
       if (add) {
         var id = add.getAttribute('data-build-add');
@@ -9061,8 +9278,8 @@
         }
         if (!have) b.order.push(id);
         b.counts[id] = have + 1;
-        b.notice = '';
-        refreshBuilder(opts);
+        if (b.notice) { b.notice = ''; var n = app.querySelector('[data-build-notice]'); if (n) n.remove(); }
+        paintCount(id);
         return;
       }
 
@@ -9075,8 +9292,8 @@
           delete b.counts[rid];
           b.order = b.order.filter(function (x) { return x !== rid; });
         }
-        b.notice = '';
-        refreshBuilder(opts);
+        if (b.notice) { b.notice = ''; var rn = app.querySelector('[data-build-notice]'); if (rn) rn.remove(); }
+        paintCount(rid);
         return;
       }
 
@@ -9101,7 +9318,7 @@
           if (!b.counts[id]) { b.counts[id] = 0; b.order.push(id); }
           b.counts[id]++;
         });
-        b.view = 'review'; b.page = 0; b.query = ''; b.type = b.element = b.rarity = 'ALL';
+        b.view = 'review'; b.query = ''; b.type = b.element = b.rarity = 'ALL';
         say('Auto Build filled ' + built.cards.length + ' cards. Save when you are happy with it.');
         return;
       }
@@ -9144,13 +9361,7 @@
     });
 
     app.querySelectorAll('[data-build-filter]').forEach(function (field) {
-      field.addEventListener('change', function () { b[this.getAttribute('data-build-filter')] = this.value; b.page = 0; refreshBuilder(opts); });
-    });
-    app.addEventListener('keydown', function (event) {
-      if (/INPUT|SELECT|TEXTAREA/.test(event.target.tagName) || event.target.closest('[data-sheet]')) return;
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-      var pageButton = app.querySelector('[data-build-page="' + (event.key === 'ArrowRight' ? '1' : '-1') + '"]');
-      if (pageButton && !pageButton.disabled) { event.preventDefault(); pageButton.click(); }
+      field.addEventListener('change', function () { b[this.getAttribute('data-build-filter')] = this.value; refreshBody(false); });
     });
     var name = app.querySelector('[data-build-name]');
     if (name) {
@@ -9165,14 +9376,11 @@
     var search = app.querySelector('[data-build-search]');
     if (search) {
       var timer = null;
+      // Only the list redraws, so the field keeps its caret as the player types.
       search.addEventListener('input', function () {
-        b.query = this.value; b.page = 0;
+        b.query = this.value;
         if (timer) window.clearTimeout(timer);
-        timer = window.setTimeout(function () {
-          refreshBuilder(opts);
-          var field = document.querySelector('.sg-app [data-build-search]');
-          if (field) { field.focus(); field.setSelectionRange(field.value.length, field.value.length); }
-        }, 260);
+        timer = window.setTimeout(function () { refreshBody(false); }, 160);
       });
     }
   }
