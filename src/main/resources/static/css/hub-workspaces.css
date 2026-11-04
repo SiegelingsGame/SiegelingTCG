@@ -352,3 +352,123 @@
   .sg-settings-card { padding:5px 8px; }
   .sg-settings-card .sg-toggle-row { font-size:11px; }
 }
+
+/* ==========================================================================
+   DECK BUILDER: a scrolling list with every ability in view
+   Rows carry art, cost, stats and abilities with − count + beside them; the
+   deck bar stays pinned above the list; Cards swaps to a grid of faces.
+   ========================================================================== */
+.sg-app[data-screen="builder"] > .sg-scroll.sg-builder-workspace { overflow-y:auto; overscroll-behavior:contain; gap:8px; }
+.sg-bld-tools { display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
+.sg-bld-tools-row { display:flex; gap:6px; align-items:center; min-width:0; }
+.sg-bld-tools-row .sg-build-search, .sg-bld-tools-row select {
+  height:40px; margin:0; border-radius:10px; border:1px solid #8bc6d680; background:#092b3eee; color:#f1faff; font:13px var(--sans);
+}
+.sg-bld-tools-row .sg-build-search { flex:1 1 auto; min-width:0; padding:0 12px; font-size:16px; }
+.sg-bld-tools-row select { flex:0 0 auto; width:auto; max-width:30%; padding:0 6px; }
+.sg-bld-layout { display:flex; flex:0 0 auto; border:1px solid #8bc6d680; border-radius:10px; overflow:hidden; }
+.sg-bld-layout button { width:38px; height:38px; border:0; background:#092b3eee; color:#cfe8f2; font-size:16px; cursor:pointer; }
+.sg-bld-layout button[aria-pressed="true"] { background:#e6cd8c; color:#1a1208; }
+.sg-bld-chips { display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; touch-action:pan-x; padding-bottom:2px; }
+.sg-bld-chips::-webkit-scrollbar { display:none; }
+.sg-bld-chip {
+  flex:0 0 auto; height:32px; padding:0 13px; border-radius:999px; cursor:pointer; white-space:nowrap;
+  border:1px solid #8bc6d670; background:#092b3ecc; color:#e4f4fb; font:600 12px var(--sans);
+}
+.sg-bld-chip.is-el { width:32px; padding:0; display:grid; place-items:center; }
+.sg-bld-chip.is-el img { width:22px; height:22px; }
+.sg-bld-chip.is-el:first-of-type { width:auto; padding:0 11px; }
+.sg-bld-chip.on { background:#e6cd8c; color:#1a1208; border-color:#e6cd8c; }
+.sg-bld-chip.is-el.on { background:#e6cd8c55; box-shadow:0 0 0 2px #e6cd8c inset; }
+.sg-bld-chip-gap { flex:0 0 8px; }
+
+.sg-bld-bar {
+  position:sticky; top:0; z-index:3; flex-shrink:0; display:flex; align-items:center; gap:10px;
+  padding:8px 8px 8px 12px; border-radius:14px; background:rgba(5,22,34,.94); border:1px solid #8bc6d666;
+  box-shadow:0 8px 18px rgba(0,0,0,.35);
+}
+.sg-bld-bar-count { display:flex; align-items:baseline; gap:3px; flex:0 0 auto; }
+.sg-bld-bar-count strong { font:700 22px var(--serif); color:#fff; }
+.sg-bld-bar-count span { font-size:12px; color:#a9c9d6; }
+.sg-bld-bar.is-ready .sg-bld-bar-count strong { color:#8ff0b4; }
+.sg-bld-bar-mid { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:5px; }
+.sg-bld-bar-fill { display:block; height:6px; border-radius:3px; background:rgba(255,255,255,.14); overflow:hidden; }
+.sg-bld-bar-fill u { display:block; height:100%; background:linear-gradient(90deg, #e6cd8c, #f2a03d); text-decoration:none; transition:width .25s ease; }
+.sg-bld-bar.is-ready .sg-bld-bar-fill u { background:linear-gradient(90deg, #4fd88a, #b8f56a); }
+.sg-bld-bar-mid span { font-size:10.5px; color:#cfe3ec; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-bld-bar-go {
+  flex:0 0 auto; height:34px; padding:0 14px; border-radius:999px; cursor:pointer; border:0;
+  background:linear-gradient(135deg, #ffe066, #f2a03d); color:#2b0d02; font:800 11.5px var(--sans); letter-spacing:.06em;
+}
+
+.sg-bld-body { display:flex; flex-direction:column; gap:8px; padding-bottom:96px; }
+.sg-bld-list { display:flex; flex-direction:column; gap:6px; }
+.sg-bld-group { margin:6px 2px 0; font:700 14px var(--serif); color:#f4e6bd; }
+.sg-bld-group span { font:600 12px var(--sans); color:#a9c9d6; }
+.sg-bld-row {
+  --el:#95a5a6;
+  display:grid; grid-template-columns:54px minmax(0, 1fr) 40px; gap:10px; align-items:start;
+  padding:8px; border-radius:14px; background:rgba(6,26,40,.82); border:1px solid rgba(255,255,255,.1);
+  content-visibility:auto; contain-intrinsic-size:auto 96px;
+}
+.sg-bld-row.is-in { border-color:color-mix(in srgb, #e6cd8c 60%, transparent); background:linear-gradient(90deg, rgba(230,205,140,.14), rgba(6,26,40,.86) 40%); }
+.sg-bld-thumb {
+  position:relative; width:54px; height:76px; padding:0; border-radius:8px; overflow:hidden; cursor:pointer;
+  border:1.5px solid color-mix(in srgb, var(--el) 70%, #fff); background:color-mix(in srgb, var(--el) 25%, #0b1a26);
+}
+.sg-bld-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.sg-bld-thumb img.is-emblem { object-fit:contain; padding:10px; box-sizing:border-box; }
+.sg-bld-thumb .sg-rar { position:absolute; left:4px; bottom:4px; }
+.sg-bld-info { min-width:0; display:flex; flex-direction:column; gap:3px; }
+.sg-bld-head { display:flex; flex-direction:column; gap:1px; min-width:0; }
+.sg-bld-head strong { font-size:14.5px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-bld-meta { display:flex; align-items:center; gap:4px; font-size:10.5px; color:#b9d3de; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sg-bld-meta img { width:14px; height:14px; }
+.sg-bld-meta em { font-style:normal; color:#ffe39a; }
+.sg-bld-stats { font-size:10.5px; color:#9fd7ff; }
+.sg-bld-abils { list-style:none; margin:2px 0 0; padding:0; display:flex; flex-direction:column; gap:3px; }
+.sg-bld-abils li { font-size:11.5px; line-height:1.35; color:#dfeaf0; }
+.sg-bld-abils b { color:#ffe39a; font-weight:700; margin-right:4px; }
+.sg-bld-abils i {
+  font-style:normal; font-size:9.5px; font-weight:800; margin-right:5px; padding:1px 5px; border-radius:6px;
+  color:#0d1a24; background:color-mix(in srgb, var(--el) 70%, #fff);
+}
+.sg-bld-qty { display:flex; flex-direction:column; align-items:center; gap:4px; align-self:center; }
+.sg-bld-qty button {
+  width:38px; height:34px; border-radius:9px; cursor:pointer; font-size:20px; line-height:1; padding:0;
+  border:1px solid #c0e0eb99; background:#123e54; color:#fff2c1; touch-action:manipulation;
+}
+.sg-bld-qty button[data-build-add] { background:linear-gradient(135deg, #ffe066, #f2a03d); color:#2b0d02; border-color:transparent; }
+.sg-bld-qty button:disabled { opacity:.3; cursor:default; }
+.sg-bld-qty span { font:700 15px var(--sans); color:#fff; }
+.sg-bld-qty small { font-size:10px; color:#a9c9d6; font-weight:600; }
+.sg-bld-qty { flex-direction:column-reverse; }
+
+.sg-bld-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; }
+.sg-bld-tile { display:flex; flex-direction:column; gap:5px; min-width:0; padding:5px; border-radius:12px; border:1px solid rgba(255,255,255,.1); background:rgba(6,26,40,.7); }
+.sg-bld-tile.is-in { border-color:color-mix(in srgb, #e6cd8c 60%, transparent); }
+.sg-bld-tile > :is(.sg-card-tile, .sg-gal-card) { width:100%; aspect-ratio:2.5 / 3.5; margin:0; container-type:inline-size; }
+.sg-bld-tile .sg-card-tile > * { width:100%; height:100%; }
+.sg-bld-tile .sg-bld-qty { flex-direction:row; justify-content:space-between; }
+.sg-bld-tile .sg-bld-qty button { width:32px; height:30px; font-size:18px; }
+.sg-bld-tile .sg-bld-qty span { font-size:13px; }
+.sg-bld-more { height:1px; }
+.sg-bld-clear { align-self:center; min-height:36px; padding:0 16px; border-radius:999px; border:1px solid #ff9a8a88; background:rgba(60,10,10,.5); color:#ffd6cf; cursor:pointer; }
+@media (min-width:1024px) {
+  .sg-bld-grid { grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); }
+  .sg-bld-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); gap:8px; }
+  .sg-bld-body { padding-bottom:24px; }
+}
+@media (orientation:landscape) and (max-height:600px) {
+  .sg-bld-list { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; }
+  .sg-bld-grid { grid-template-columns:repeat(5, minmax(0, 1fr)); }
+}
+.sg-bld-tools-row select { max-width:92px; font-size:12px; }
+.sg-bld-chips.is-els { gap:5px; }
+.sg-bld-chips.is-els .sg-bld-chip { height:30px; }
+.sg-bld-chips.is-els .sg-bld-chip.is-el { width:30px; }
+/* Phones: the deck bar already carries the count, so the big heading steps
+   aside in Add and Review and the list starts higher. */
+@media (max-width:1023px) and (orientation:portrait) {
+  .sg-builder-workspace:is([data-build-view="add"], [data-build-view="review"]) > .sg-work-head { display:none; }
+}

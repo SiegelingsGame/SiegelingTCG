@@ -1,3 +1,33 @@
+Original prompt: Update the deck builder to be more efficient for selecting and reviewing card abilities. Building decks should be a quick, seamless process.
+
+- November 4, 2026 **Deck builder: one scrolling list with every ability in view, instant +/−.**
+  - **Before.** Add Cards paged through 4 card faces at a time (6 on desktop) with Previous/Next. Abilities were only readable by opening each card, and every + or − re-rendered the whole screen.
+  - **List (default).** One row per card:
+    - an art thumbnail (tap opens the card sheet), name, element, rarity and cost ("1 Earth", "Triggers at 5 Water", "Free");
+    - HP, SPD, row and evolution for Siegelings;
+    - every ability with its energy chip (or Passive) and text;
+    - a − count/cap + column.
+
+    Rows use `content-visibility:auto`. Desktop shows two columns, a landscape phone two.
+  - **Cards.** A 3-across grid of the collection's faces (auto-fill on desktop, 5 across in landscape) with − count + under each. It adds 24 faces at a time as the list scrolls (IntersectionObserver on the scroller). The layout choice is kept in `localStorage.sgBuildLayout`.
+  - **Filters.** Search, rarity and sort on one row with the List/Cards toggle. A row of type chips (All, Siegelings, Strategies, Deceptions) and a row of element icon chips replace the old dropdowns.
+    - Filters, search and the layout toggle redraw only the list, so search keeps its caret.
+    - Pagination and its arrow keys are gone.
+  - **Deck bar.** Sticky above the list: count against the minimum, a progress bar (green once legal), the Siegeling/Strategy/Deception split, and Review › / + Add cards to switch views.
+  - **Review.** The same rows, grouped Siegelings, Strategies, Deceptions with copy counts. A card taken to zero leaves the list.
+  - **Instant +/−.** `paintCount` patches that card's count and buttons, the deck bar and the header total in place.
+  - **Phone heading.** On portrait phones the Add/Review heading steps aside, since the bar carries the count.
+  - Save and Auto Build views are unchanged.
+  - **Cache pins.** `home-redesign.js?v=176`, `hub-workspaces.css?v=8`.
+  - **Verification.** `node --check` passes. Headless Chromium on `home-next.html?screen=builder` with the live options snapshot and a mocked account owning 3 of every card, at 390x844 and 1440x900:
+    - All 219 cards list with no pager.
+    - Taps patch in place: the same row element before and after; the count reaches 3/3 and + disables; the bar reads "7 / 30 · 5 Siegelings · 0 Strategies · 2 Deceptions"; the header total follows.
+    - Strategies + Fire chips leave 6 rows. Search "apple" leaves Applehead with focus kept.
+    - Cards view shows 24 faces, then 48 after scrolling, and the layout is saved.
+    - Review groups Siegelings 5, Deceptions 2. A card removed to zero drops out and the total falls.
+    - The thumbnail opens the card sheet. The page itself does not scroll.
+    - No page errors. Screenshots checked.
+
 Original prompt: Redesign the Siege launch screen (Adventure / Battlegrounds / Endless) to look less AI-made. Follow-up: the Expedition Board deviated too much and its purple was bland; more colour and more art.
 
 - November 3, 2026 **Siege resume screen: original layout, colour from the art.**
