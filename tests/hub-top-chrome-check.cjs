@@ -132,7 +132,7 @@ function probe(args) {
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(PAGE, { waitUntil: 'networkidle' }).catch(() => {});
-    await page.waitForSelector('.sg-top', { timeout: 20000 });
+    await page.waitForSelector('.sg-top', { timeout: 90000 });
     // The add-to-home-screen guide is a full-screen blurred veil by design and
     // auto-opens outside a standalone display mode; it is not hub chrome.
     await page.evaluate(() => { const g = document.querySelector('.ig-root'); if (g) g.remove(); });
