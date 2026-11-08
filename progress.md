@@ -1,3 +1,10 @@
+Original prompt: Critical bug hunt — board REPLACE art from the width-based crop paints over the Siegling above it.
+
+- November 8, 2026 **Arena: clip the width-based board crop to the art window.**
+  - **Bug.** #1236 sizes a REPLACE illustration off the board window's width (`106.2cqw × zoom`) so the crop matches the dashboard. That image is taller and wider than the card. `.arena-board-card` is `overflow: visible` (notch dots sit on the frame edge), and the art window did not clip, so the picture painted outside its cell. On a square phone cell the image covered the card above's HP, Speed, and bottom notch, and `elementFromPoint` on those controls hit the lower card's image. The card's own side notches were under its picture too. A tap meant for the upper Siegling selected or targeted the one below.
+  - **Fix.** The crop window is `overflow: hidden`, and its image is `pointer-events: none`. The card stays `overflow: visible`, so notches are not clipped. Paint clips to the window. The frame's `filter: drop-shadow` makes Chrome hit-test the image's layout box anyway, so the image cannot be the event target; the tap falls through to the card underneath. `style.css?v=301` on play, gauntlet, home, home-next, home-redesign-preview, and card-dashboard.
+  - **Verification.** Headless Chromium, 3×3 board of framed REPLACE cards, square cells and 5:7 cells. Before: `elementFromPoint` on the card above's HP, Speed, and bottom notch was the lower card's image. After: those points hit the upper card, and the centre card's HP is its own pill. The image layout box is unchanged (still the wide crop); only the paint is clipped.
+
 Original prompt: In arena SP and HSP images are scaled incorrectly at times. And in card view the card overview is shown incorrectly as well.
 
 - November 8, 2026 **Arena: SP/HSP art keeps its dashboard framing on the board and in the Card Preview drawer.**
