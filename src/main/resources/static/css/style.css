@@ -9795,6 +9795,22 @@ body.placement-active .board-cell.legal {
     filter: none;
 }
 
+/* The board card is near-square, not 5:7, so its art window (the showcase's
+   percentages of a squashed frame) is about 4:3 where the showcase window is
+   about 15:16. Sizing off the window HEIGHT then showed a much wider field than
+   the art was tuned at, and the crop changed with every cell size. Size off the
+   window WIDTH instead, as if the window had the showcase's proportions
+   (62.8/82.8 x 7/5 = 1.062): the horizontal framing matches the dashboard and
+   the board shows the centre band of it. Browsers without container units keep
+   the height-based rule above. */
+.board-card.arena-board-card.element-frame .card-art-hand.card-art-crop-illustration {
+    container-type: inline-size;
+}
+
+.board-card.arena-board-card.element-frame .card-art-hand.card-art-crop-illustration img {
+    height: calc(106.2cqw * var(--card-art-zoom, 1));
+}
+
 .card-preview-card.element-frame .hand-card-body,
 .selected-preview-card.element-frame .hand-card-body,
 .mulligan-showcase.element-frame .hand-card-body {
@@ -15809,8 +15825,11 @@ body.mulligan-active .hand-lift-layer {
     }
     /* Art fills all remaining vertical space — body is shown in the right
        panel instead, so we hide it inside the compact card. */
-    #drawerSelected .selected-preview-card .card-art-selected,
-    #drawerSelected .card-preview-card .card-art-preview {
+    /* Framed (.element-frame) cards keep their absolutely placed art window:
+       height:auto there sized the window to the image, and the zoomed crop of
+       uploaded art (height = window x zoom) blew up to ~25x the card. */
+    #drawerSelected .selected-preview-card:not(.element-frame) .card-art-selected,
+    #drawerSelected .card-preview-card:not(.element-frame) .card-art-preview {
         flex: 1 1 auto;
         min-height: 0;
         height: auto;
