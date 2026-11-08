@@ -78,6 +78,36 @@ class GameControllerTest {
                 "Each player's finishes are read once per match, not on every state poll.");
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void battleTimelineMarksDoneActingAndQueuedFromTheViewersSide() throws Exception {
+        GameController controller = createController(new MultiplayerService(), accountServiceReturning(null));
+        com.sieglings.model.GameState gs = new com.sieglings.model.GameState();
+        com.sieglings.model.CardInstance fast = new com.sieglings.model.CardInstance(siegling("fast"), 0, 0, false);
+        com.sieglings.model.CardInstance mine = new com.sieglings.model.CardInstance(siegling("mine"), 0, 1, true);
+        com.sieglings.model.CardInstance slow = new com.sieglings.model.CardInstance(siegling("slow"), 0, 2, true);
+        gs.getEnemyBoard()[0][0] = fast;
+        gs.getPlayerBoard()[0][1] = mine;
+        gs.getPlayerBoard()[0][2] = slow;
+        gs.setBattleQueue(new java.util.ArrayList<>(List.of(
+                fast.getInstanceId(), "gone", mine.getInstanceId(), slow.getInstanceId())));
+        gs.setBattleCursor(3);
+        gs.setPendingBattleInstanceId(mine.getInstanceId());
+        Class<?>[] sig = { com.sieglings.model.GameState.class, boolean.class, String.class };
+
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) invoke(controller, "serializeBattleTimeline", sig,
+                new Object[] { gs, true, "AI" });
+        assertEquals(List.of("DONE", "ACTING", "QUEUED"), rows.stream().map(r -> r.get("status")).toList(),
+                "Actors behind the cursor are done, the pending one is acting, a removed one is skipped.");
+        assertEquals(List.of(false, true, true), rows.stream().map(r -> r.get("mine")).toList());
+        assertEquals("AI", rows.get(0).get("ownerLabel"));
+
+        List<Map<String, Object>> guestView = (List<Map<String, Object>>) invoke(controller, "serializeBattleTimeline", sig,
+                new Object[] { gs, false, "Host" });
+        assertEquals(List.of(true, false, false), guestView.stream().map(r -> r.get("mine")).toList(),
+                "Ownership is relative to the viewer, so a guest sees the enemy board as theirs.");
+    }
+
     private com.sieglings.model.SieglingCard siegling(String id) {
         return new com.sieglings.model.SieglingCard(id, id, Element.FIRE, Rarity.COMMON, 7, 3, List.of(),
                 com.sieglings.model.enums.Row.FRONT);

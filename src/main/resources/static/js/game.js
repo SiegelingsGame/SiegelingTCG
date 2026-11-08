@@ -16532,12 +16532,7 @@ function renderBattlePanel() {
     // Targeting is exempt: it is player-driven, so playback is never mid-flight.
     const presentationBusy = Boolean(window.SieglingsActionQueue?.isPresentationBusy?.())
         && !isBattleTargetSelectionActive();
-    const resolvingBodyHtml = '<div class="battle-queue-resolving-content">'
-        + '<div class="battle-queue-resolving-copy"><strong>Queue is resolving</strong>'
-        + '<span class="battle-queue-resolving-detail">Next available Siegeling surfaces here in speed order.</span></div>'
-        + '<div class="battle-queue-resolving-track" aria-hidden="true"><i></i><i></i><i></i><i></i></div>'
-        + '<div class="battle-queue-resolving-footer">Battle resumes automatically when the next actor is ready.</div>'
-        + '</div>';
+    const resolvingBodyHtml = renderBattleSpeedTimelineBody();
 
     // Hold the actionable panels in standby while playback runs. Scoped to the
     // drawer and hand docks on purpose: the left inspector is only rewritten
@@ -16744,6 +16739,86 @@ function formatBattleOwnerLabel(ownerSide) {
         return 'You';
     }
     return viewerIsPlayer ? (gameState.enemyName || 'Opponent') : (gameState.playerName || 'Player');
+}
+
+// The phase's actors in speed order with what each has done. The server sends
+// battleTimeline (DONE / ACTING / QUEUED); an older payload only has the
+// remaining battleQueue, which reads as all-queued.
+function getBattleSpeedTimeline() {
+    const timeline = gameState?.battleTimeline;
+    if (Array.isArray(timeline) && timeline.length > 0) {
+        return timeline.filter((entry) => entry?.name);
+    }
+    return (gameState?.battleQueue || []).filter((entry) => entry?.name).map((entry) => ({
+        ...entry,
+        mine: entry.ownerLabel === 'You',
+        status: 'QUEUED'
+    }));
+}
+
+// Speed Order panel body while the queue resolves: who is up, how many
+// actions stand before the player's next Siegeling, and the phase order as a
+// track whose nodes fill as actors resolve.
+function renderBattleSpeedTimelineBody() {
+    const steps = getBattleSpeedTimeline();
+    if (steps.length === 0) {
+        return '<div class="battle-queue-resolving-content">'
+            + '<div class="battle-queue-resolving-copy"><strong>Queue is resolving</strong>'
+            + '<span class="battle-queue-resolving-detail">Siegelings act in speed order.</span></div>'
+            + '</div>';
+    }
+    const currentIndex = steps.findIndex((entry) => entry.status !== 'DONE');
+    const current = currentIndex >= 0 ? steps[currentIndex] : null;
+    const myNextIndex = steps.findIndex((entry) => entry.mine && entry.status !== 'DONE');
+    const doneCount = steps.filter((entry) => entry.status === 'DONE').length;
+    const before = myNextIndex >= 0
+        ? steps.slice(0, myNextIndex).filter((entry) => entry.status !== 'DONE').length
+        : -1;
+    const ownerName = (entry) => (entry.mine ? 'Your' : `${entry.ownerLabel || 'Opponent'}'s`);
+
+    let headline;
+    if (!current) {
+        headline = 'Battle phase complete';
+    } else if (current.status === 'ACTING') {
+        headline = `${ownerName(current)} ${current.name} is acting`;
+    } else {
+        headline = `Up next: ${ownerName(current)} ${current.name}`;
+    }
+    let detail;
+    if (myNextIndex < 0) {
+        detail = steps.some((entry) => entry.mine)
+            ? 'Your Siegelings have all acted this phase.'
+            : 'You have no Siegelings in this battle phase.';
+    } else if (before === 0) {
+        detail = steps[myNextIndex].status === 'ACTING'
+            ? `Choose a move for ${steps[myNextIndex].name}.`
+            : `${steps[myNextIndex].name} acts next.`;
+    } else {
+        detail = `${before} action${before === 1 ? '' : 's'} until ${steps[myNextIndex].name}.`;
+    }
+
+    const counter = myNextIndex < 0
+        ? '<div class="battle-queue-countdown is-clear" aria-hidden="true"><b>✓</b><span>done</span></div>'
+        : `<div class="battle-queue-countdown${before === 0 ? ' is-now' : ''}" aria-hidden="true"><b>${before === 0 ? 'Now' : before}</b><span>${before === 0 ? 'your turn' : 'until you'}</span></div>`;
+
+    const track = steps.map((entry, index) => {
+        const state = entry.status === 'DONE' ? 'done' : (index === currentIndex ? 'current' : 'queued');
+        const speed = Number(entry.speed);
+        const label = `${entry.mine ? 'You' : (entry.ownerLabel || 'Opponent')} · ${entry.name} · Speed ${Number.isFinite(speed) ? speed : '?'}`;
+        return `<li class="speed-step is-${state} ${entry.mine ? 'is-mine' : 'is-theirs'}" title="${escapeHtmlAttribute(label)}">`
+            + '<i class="speed-step-node"></i>'
+            + `<span class="speed-step-name">${escapeHtml(entry.name)}</span>`
+            + `<span class="speed-step-speed">${Number.isFinite(speed) ? speed : '—'}</span>`
+            + '</li>';
+    }).join('');
+
+    return '<div class="battle-queue-resolving-content">'
+        + `<div class="battle-queue-resolving-copy"><strong>${escapeHtml(headline)}</strong>`
+        + `<span class="battle-queue-resolving-detail">${escapeHtml(detail)}</span></div>`
+        + counter
+        + `<ol class="battle-speed-track" style="--speed-steps:${steps.length}" aria-label="Battle phase speed order">${track}</ol>`
+        + `<div class="battle-queue-resolving-footer">${doneCount} of ${steps.length} resolved · fastest first · <span class="speed-legend-mine">you</span> <span class="speed-legend-theirs">opponent</span></div>`
+        + '</div>';
 }
 
 function getNextBattleActorAfterPass() {

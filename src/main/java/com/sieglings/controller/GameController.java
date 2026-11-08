@@ -1013,6 +1013,7 @@ public class GameController {
         if (gs.getCurrentPhase() == Phase.BATTLE) {
             resp.put("battleCursor", gs.getBattleCursor());
             resp.put("battleQueue", serializeBattleQueue(gs, viewerIsPlayer, viewer.getName(), opponent.getName()));
+            resp.put("battleTimeline", serializeBattleTimeline(gs, viewerIsPlayer, opponent.getName()));
         }
 
         List<String> log = gs.getGameLog();
@@ -1836,6 +1837,41 @@ public class GameController {
             row.put("speed", ci.getEffectiveSpeed());
             row.put("ownerSide", ownerIsPlayer ? "PLAYER" : "ENEMY");
             row.put("ownerLabel", ownerIsPlayer == viewerIsPlayer ? "You" : opponentName);
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    // The whole phase in speed order, including actors that already went, so
+    // the client's Speed Order panel can show progress toward the viewer's next
+    // actor. battleQueue only carries what is still to come. Siegelings that
+    // have left the board are skipped (their instance is gone).
+    private List<Map<String, Object>> serializeBattleTimeline(GameState gs,
+                                                              boolean viewerIsPlayer,
+                                                              String opponentName) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        List<String> queue = gs.getBattleQueue();
+        if (queue == null || queue.isEmpty()) {
+            return rows;
+        }
+        int cursor = Math.max(0, Math.min(gs.getBattleCursor(), queue.size()));
+        String pendingId = gs.getPendingBattleInstanceId();
+        for (int i = 0; i < queue.size(); i++) {
+            CardInstance ci = gs.findByInstanceId(queue.get(i));
+            if (ci == null || (i >= cursor && !ci.isAlive())) {
+                continue;
+            }
+            boolean mine = ci.isOwner() == viewerIsPlayer;
+            String status = i >= cursor ? "QUEUED"
+                    : (ci.getInstanceId().equals(pendingId) ? "ACTING" : "DONE");
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("instanceId", ci.getInstanceId());
+            row.put("name", ci.getName());
+            row.put("element", ci.getElement() == null ? null : ci.getElement().name());
+            row.put("speed", ci.getEffectiveSpeed());
+            row.put("mine", mine);
+            row.put("ownerLabel", mine ? "You" : opponentName);
+            row.put("status", status);
             rows.add(row);
         }
         return rows;

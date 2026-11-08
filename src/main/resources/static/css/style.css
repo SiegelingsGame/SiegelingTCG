@@ -4441,6 +4441,162 @@ body.battle-inline-dock .battle-queue-actions {
     line-height: 1.2;
 }
 
+/* Live Speed Order: countdown to the player's next Siegeling, and the phase's
+   actors fastest-first. Nodes fill as each actor resolves; the current one
+   pulses. Ownership is the ring colour (mine / theirs). */
+.battle-queue-resolving {
+    --speed-mine: #5ee6a8;
+    --speed-theirs: #ff7d6b;
+}
+
+.battle-queue-countdown {
+    display: grid;
+    justify-items: center;
+    min-width: 54px;
+    padding: 4px 8px 5px;
+    border: 1px solid rgba(255, 213, 111, 0.4);
+    border-radius: 10px;
+    background: rgba(255, 190, 55, 0.08);
+    color: #ffe49b;
+    line-height: 1;
+}
+
+.battle-queue-countdown b {
+    font-size: 1.15em;
+    font-weight: 900;
+}
+
+.battle-queue-countdown span {
+    margin-top: 3px;
+    color: rgba(255, 228, 155, 0.72);
+    font-size: 0.5em;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.battle-queue-countdown.is-now {
+    border-color: color-mix(in srgb, var(--speed-mine) 70%, transparent);
+    background: color-mix(in srgb, var(--speed-mine) 16%, transparent);
+    color: var(--speed-mine);
+    animation: battle-queue-glow 1.35s ease-in-out infinite;
+}
+
+.battle-queue-countdown.is-now span {
+    color: color-mix(in srgb, var(--speed-mine) 80%, white);
+}
+
+.battle-queue-countdown.is-clear {
+    border-color: rgba(222, 231, 250, 0.2);
+    background: rgba(222, 231, 250, 0.05);
+    color: rgba(222, 231, 250, 0.7);
+}
+
+.battle-speed-track {
+    grid-column: 1 / -1;
+    display: flex;
+    margin: 4px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.speed-step {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+}
+
+/* Connector to the previous node, lit once that actor has resolved. */
+.speed-step + .speed-step::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    right: calc(50% + 8px);
+    left: calc(-50% + 8px);
+    height: 2px;
+    border-radius: 2px;
+    background: rgba(222, 231, 250, 0.16);
+}
+
+.speed-step.is-done + .speed-step::before {
+    background: linear-gradient(90deg, rgba(255, 201, 67, 0.9), rgba(255, 201, 67, 0.55));
+}
+
+.speed-step-node {
+    position: relative;
+    z-index: 1;
+    width: 12px;
+    height: 12px;
+    box-sizing: border-box;
+    border: 2px solid var(--speed-ring);
+    border-radius: 50%;
+    background: #141a2c;
+}
+
+.speed-step.is-mine { --speed-ring: var(--speed-mine); }
+.speed-step.is-theirs { --speed-ring: var(--speed-theirs); }
+
+.speed-step.is-done .speed-step-node {
+    background: var(--speed-ring);
+}
+
+.speed-step.is-current .speed-step-node {
+    background: #ffc943;
+    box-shadow: 0 0 0 2px rgba(10, 16, 30, 0.86), 0 0 10px rgba(255, 201, 67, 0.9);
+    animation: battle-queue-pulse 1.35s ease-in-out infinite;
+}
+
+.speed-step-name {
+    max-width: 100%;
+    overflow: hidden;
+    color: rgba(228, 235, 250, 0.8);
+    font-size: 0.52em;
+    font-weight: 700;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.speed-step.is-mine .speed-step-name { color: color-mix(in srgb, var(--speed-mine) 75%, white); }
+.speed-step.is-done .speed-step-name { opacity: 0.55; }
+.speed-step.is-current .speed-step-name { color: #fff3c4; opacity: 1; }
+
+.speed-step-speed {
+    color: rgba(222, 231, 250, 0.5);
+    font-size: 0.48em;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.speed-legend-mine,
+.speed-legend-theirs {
+    margin-left: 6px;
+}
+
+.speed-legend-mine::before,
+.speed-legend-theirs::before {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 3px;
+    border: 2px solid var(--speed-mine);
+    border-radius: 50%;
+    vertical-align: -1px;
+}
+
+.speed-legend-theirs::before {
+    border-color: var(--speed-theirs);
+}
+
+@keyframes battle-queue-glow {
+    0%, 100% { box-shadow: 0 0 0 rgba(94, 230, 168, 0); }
+    50% { box-shadow: 0 0 12px rgba(94, 230, 168, 0.45); }
+}
+
 @keyframes battle-queue-pulse {
     0%, 100% { transform: scale(0.9); }
     50% { transform: scale(1.2); }
@@ -4491,7 +4647,9 @@ body.battle-inline-dock .battle-queue-actions {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .battle-queue-resolving-track i:first-child {
+    .battle-queue-resolving-track i:first-child,
+    .speed-step.is-current .speed-step-node,
+    .battle-queue-countdown.is-now {
         animation: none;
     }
 }

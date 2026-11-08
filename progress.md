@@ -1,3 +1,26 @@
+Original prompt: Queue is resolving circles don't give any feedback on what is being done. This queue screen should give information; the circles should fill as we get closer to the player's turn. Maybe show turn order.
+
+- November 8, 2026 **Speed Order panel: live turn order with a countdown to your next Siegeling.**
+  - **Before.** The "Queue is resolving" panel showed fixed copy and four decorative dots that never changed.
+  - **Server.** During BATTLE, `GameController` now also returns `battleTimeline`. This is the whole phase queue in speed order: name, element, speed, `mine` (relative to the viewer, so a guest sees their own side) and `ownerLabel`, plus a `status`. Entries behind the cursor are `DONE`, the pending human actor is `ACTING`, and the rest are `QUEUED`. Siegelings no longer on the board are skipped. `battleQueue` is unchanged.
+  - **Panel.** `renderBattleSpeedTimelineBody` (game.js) replaces the static body.
+    - A headline: "Up next: AI Opponent's Shellshock" or "Your Pyleer is acting".
+    - A line counting the actions before your next Siegeling ("1 action until Emberfox", "Emberfox acts next", "Choose a move for Pyleer", "Your Siegelings have all acted this phase").
+    - A countdown chip: N "until you", a glowing "Now / your turn", or a check when all yours are done.
+    - A track with one node per actor, fastest first, with name and speed. The ring colour shows the side (yours green, the opponent's red). A node fills once its actor resolves, the current one pulses, and the connectors light up behind it.
+    - A footer reading "N of M resolved", with a legend.
+    - With an older payload that has no timeline, the panel falls back to `battleQueue` read as all queued.
+  - **Cache pins.** `style.css?v=301`, `game.js?v=345`.
+  - **Verification.**
+    - `node --check js/game.js`.
+    - New `GameControllerTest#battleTimelineMarksDoneActingAndQueuedFromTheViewersSide` checks DONE/ACTING/QUEUED, that a removed actor is skipped, and the viewer-relative `mine` for host and guest.
+    - Full `./mvnw test`: 959 tests. The only errors are the 2 known `PlayerProgressionControllerStarterPackTest` NPEs (null `battlefieldSkinCatalog`), which fail on the base as well.
+    - Headless Chromium on `play.html` with `render()` driven from a mocked BATTLE state:
+      - Phone 390x844 with 5 actors in four states (opponent ahead, yours next, yours acting, all yours done): headline, count, chip and node fills are correct.
+      - Phone with 10 actors: one row, long names ellipsised, no horizontal overflow.
+      - Desktop 1920x1080 (hand dock and Battle Action panel): correct.
+      - Screenshots checked.
+
 Original prompt: Since we show badge tags do not show the badge on the card it just removes data.
 
 - November 8, 2026 **Card Preview: no status badges on the preview card when the pane lists them as pills.**
