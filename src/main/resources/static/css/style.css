@@ -4692,9 +4692,41 @@ body.battle-inline-dock .battle-queue-actions {
         padding: 5px 8px;
     }
 
+    /* While the queue resolves, the Order of Battle IS the dock: edge to edge
+       and top to bottom, no tray chrome or inner card around it. The section's
+       8px top gutter is folded into the tray's height so the arena above stays
+       exactly where the move menu leaves it. */
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .desktop-menu-hand:has(.battle-queue-resolving) {
+        padding: 0;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode:has(.battle-queue-resolving) {
+        flex-basis: calc(var(--battle-dock-h) + 8px);
+        height: calc(var(--battle-dock-h) + 8px);
+        max-height: calc(var(--battle-dock-h) + 8px);
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode:has(.battle-queue-resolving) .desktop-hand-battle-panel {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+    }
+
     body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-resolving {
-        padding-top: 8px;
-        padding-bottom: 8px;
+        width: 100%;
+        margin: 0;
+        padding: 12px 18px 10px;
+        border: 0;
+        border-top: 1px solid rgba(226, 183, 20, 0.28);
+        border-radius: 0;
+        box-shadow: none;
     }
 
     body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-resolving .battle-queue-header {

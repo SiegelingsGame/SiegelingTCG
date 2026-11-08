@@ -1,3 +1,16 @@
+Original prompt: It looks like a box within a menu, but it should fill the screen full width and height, so that area turns into the screen.
+
+- November 8, 2026 **Order of Battle fills the dock edge to edge.**
+  - **Change (`style.css`, portrait fixed dock).** While the queue resolves (`:has(.battle-queue-resolving)`), the panel becomes the dock itself:
+    - The hand section loses its padding. The tray drops its padding, border, background and side gutters.
+    - The shell spans the full width and height, with no rounded card or gold top/bottom rules; only a faint top hairline and the left accent bar remain.
+    - The section's 8px top gutter is folded into the tray height (`--battle-dock-h + 8px`), so the arena does not move between the move menu and the resolving view.
+  - **Verification.** Headless Chromium on `play.html`:
+    - At 390x844 the shell spans [0,578] 390x176, the whole dock section.
+    - The board stays 252px for the Speed Order and for 2, 3 and 5 moves. At 375x667 it stays 173px.
+    - No headline overflow at 320x640.
+    - Screenshot checked.
+
 Original prompt: Better flavortext so it fits in the game, size and style wise.
 
 - November 8, 2026 **Speed Order panel: battle-voice copy that fits one line.**
