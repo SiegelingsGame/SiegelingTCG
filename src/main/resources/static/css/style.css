@@ -4646,6 +4646,88 @@ body.battle-inline-dock .battle-queue-actions {
     }
 }
 
+/* Portrait battle dock: one fixed height for every battle panel (an acting
+   Siegeling's moves, the Speed Order while the queue resolves, Await
+   Opponent). Content-sized, the dock swapped between ~120px (two moves),
+   ~160px (Speed Order) and ~250px (five moves), and the arena above resized
+   on every swap. Two or three moves stretch to fill the box, four or more go
+   two-up and scroll inside it if they must; the Speed Order is laid out to
+   the same box. Landscape keeps its full-height side rail. */
+@media (max-width: 979px) and (orientation: portrait) {
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode {
+        --battle-dock-h: clamp(148px, 20dvh, 176px);
+        flex: 0 0 var(--battle-dock-h);
+        height: var(--battle-dock-h);
+        max-height: var(--battle-dock-h);
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .desktop-hand-battle-panel {
+        flex: 1 1 auto;
+        height: auto;
+        min-height: 0;
+        max-height: none;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-shell {
+        flex: 1 0 auto;
+        min-height: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-actions {
+        flex: 1 1 auto;
+        min-height: 0;
+        padding-bottom: 6px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-actions .battle-ability-btn {
+        flex: 1 1 0;
+        min-height: 38px;
+        max-height: 72px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-actions:has(> .battle-ability-btn:nth-of-type(4)) {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-rows: minmax(38px, 1fr);
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-actions:has(> .battle-ability-btn:nth-of-type(4)) .battle-ability-btn {
+        max-height: none;
+        padding: 5px 8px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-resolving {
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-resolving .battle-queue-header {
+        margin-bottom: 4px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-resolving-content {
+        flex: 1 1 auto;
+        align-content: space-between;
+        row-gap: 3px;
+    }
+}
+
+@media (max-width: 979px) and (orientation: portrait) and (max-height: 760px) {
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-resolving-footer {
+        display: none;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .battle-queue-resolving-track i:first-child,
     .speed-step.is-current .speed-step-node,

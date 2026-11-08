@@ -1,3 +1,19 @@
+Original prompt: Adjust the queue box size so it fits in the same area as the battle menu, to prevent the screen shrinking and growing when it appears.
+
+- November 8, 2026 **Portrait battle dock: one fixed height for moves and Speed Order.**
+  - **Before.** The battle dock under the arena was content-sized. It ran about 120px with two moves, 160px for the Speed Order and 250px with five moves, so the arena jumped on every swap between the acting Siegeling's menu and the resolving queue.
+  - **Change (`style.css`).**
+    - On portrait screens up to 979px, while `battle-inline-dock` is active and not in the targeting camera, `.hand-tray.battle-queue-mode` is a fixed `clamp(148px, 20dvh, 176px)` box. The panel inside fills it and scrolls if it must.
+    - Two or three move buttons stretch to fill the box (`flex: 1 1 0`, 38–72px). Four or more go two-up in a grid.
+    - The Speed Order lays out to the same box, and drops its footer below 760px of height.
+    - Landscape keeps its full-height side rail, and the desktop dock is untouched.
+  - **Cache pin.** `style.css?v=302`.
+  - **Verification.** Headless Chromium on `play.html`, using `render()` with a mocked BATTLE state and a SiegeKnight equipped. The Speed Order and pending battles with 2, 3 and 5 moves were measured after layout settled.
+    - At 390x844, before: the dock was 126/170/258px and the board 253/251/207px. After: the dock is 169px in every state, its top stays at 593 and the board at 252px.
+    - At 375x667, after: the dock is 148px and the board 173px in every state.
+    - Screenshots of all four states checked.
+    - Without a Knight, the Knight/Pass row itself still collapses while resolving. That only happens with no SiegeKnight equipped.
+
 Original prompt: Make a more thematic victory screen. It should be vibrant and appealing. And also fit on one page, not require scroll.
 
 - November 8, 2026 **Arena end screen: a themed result card that fits one screen.**
