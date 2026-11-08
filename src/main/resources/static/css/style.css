@@ -9802,13 +9802,22 @@ body.placement-active .board-cell.legal {
    window WIDTH instead, as if the window had the showcase's proportions
    (62.8/82.8 x 7/5 = 1.062): the horizontal framing matches the dashboard and
    the board shows the centre band of it. Browsers without container units keep
-   the height-based rule above. */
+   the height-based rule above.
+   The image is deliberately taller than this window. The arena card itself is
+   overflow:visible (notch dots sit on the frame edge) and the frame uses
+   filter:drop-shadow, which makes Chrome hit-test a descendant by its layout
+   box and ignore an intermediate clip. An unclipped image therefore both
+   paints over the Siegling above and takes the tap. The window clips the
+   paint, and the image itself does not receive hits, so a tap falls through
+   to the card that is actually underneath. */
 .board-card.arena-board-card.element-frame .card-art-hand.card-art-crop-illustration {
     container-type: inline-size;
+    overflow: hidden;
 }
 
 .board-card.arena-board-card.element-frame .card-art-hand.card-art-crop-illustration img {
     height: calc(106.2cqw * var(--card-art-zoom, 1));
+    pointer-events: none;
 }
 
 .card-preview-card.element-frame .hand-card-body,
