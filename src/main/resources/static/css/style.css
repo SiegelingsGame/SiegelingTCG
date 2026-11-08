@@ -4571,27 +4571,6 @@ body.battle-inline-dock .battle-queue-actions {
     line-height: 1;
 }
 
-.speed-legend-mine,
-.speed-legend-theirs {
-    margin-left: 6px;
-}
-
-.speed-legend-mine::before,
-.speed-legend-theirs::before {
-    content: "";
-    display: inline-block;
-    width: 7px;
-    height: 7px;
-    margin-right: 3px;
-    border: 2px solid var(--speed-mine);
-    border-radius: 50%;
-    vertical-align: -1px;
-}
-
-.speed-legend-theirs::before {
-    border-color: var(--speed-theirs);
-}
-
 @keyframes battle-queue-glow {
     0%, 100% { box-shadow: 0 0 0 rgba(94, 230, 168, 0); }
     50% { box-shadow: 0 0 12px rgba(94, 230, 168, 0.45); }
@@ -4717,14 +4696,21 @@ body.battle-inline-dock .battle-queue-actions {
 
     body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-resolving-content {
         flex: 1 1 auto;
-        align-content: space-between;
-        row-gap: 3px;
+        align-content: center;
+        row-gap: 10px;
     }
-}
 
-@media (max-width: 979px) and (orientation: portrait) and (max-height: 760px) {
-    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-resolving-footer {
-        display: none;
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .speed-step-node {
+        width: 14px;
+        height: 14px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .speed-step + .speed-step::before {
+        top: 6px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .speed-step-name {
+        font-size: 0.6em;
     }
 }
 

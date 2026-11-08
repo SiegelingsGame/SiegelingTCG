@@ -1,3 +1,17 @@
+Original prompt: Make this view more efficient. Only show what's necessary; "fastest first" and the resolved count are extra detail.
+
+- November 8, 2026 **Speed Order panel: trimmed to the essentials.**
+  - **Change.** `renderBattleSpeedTimelineBody` (game.js) drops the footer ("N of M resolved · fastest first" and the you/opponent legend) and the detail line under the headline. Both repeated what the countdown chip and the track already show.
+  - The panel is now the headline ("Up next: AI Opponent's Shellshock"), the countdown chip (N until you / Now / ✓ done) and the turn-order track.
+  - The chip carries the longer reading ("1 action until Emberfox.") as its `aria-label` and `title`.
+  - In the fixed portrait dock the content is centred, with slightly larger track nodes and names. The unused legend CSS and the dock's footer rule are removed.
+  - **Cache pins.** `game.js?v=346`, `style.css?v=302`.
+  - **Verification.** `node --check js/game.js`. Headless Chromium on `play.html` with a mocked 5-actor timeline (opponent ahead, your turn next, all yours done) at 390x844 and 375x667:
+    - The text reads only headline, chip and track.
+    - The chip labels read "1 action until Emberfox.", "Emberfox acts next." and "Your Siegelings have all acted this phase."
+    - The dock stays 168px at 390x844.
+    - Screenshots checked.
+
 Original prompt: Adjust the queue box size so it fits in the same area as the battle menu, to prevent the screen shrinking and growing when it appears.
 
 - November 8, 2026 **Portrait battle dock: one fixed height for moves and Speed Order.**
