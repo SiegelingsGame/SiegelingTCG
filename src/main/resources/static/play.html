@@ -741,10 +741,16 @@
 
 <!-- Game Over Overlay -->
 <div class="game-over-overlay" id="gameOverOverlay">
-    <div class="game-over-box">
-        <h2 id="gameOverTitle">GAME OVER</h2>
-        <p id="gameOverMsg"></p>
-        <p class="game-over-subtext" id="gameOverSubtext"></p>
+    <div class="game-over-rays" aria-hidden="true"></div>
+    <div class="game-over-sparks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="game-over-box" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
+        <div class="game-over-hero">
+            <div class="game-over-crest" aria-hidden="true"><img src="/img/siegelings-icon-256.webp" alt="" width="256" height="256" decoding="async"></div>
+            <h2 id="gameOverTitle">GAME OVER</h2>
+            <p id="gameOverMsg"></p>
+            <p class="game-over-subtext" id="gameOverSubtext"></p>
+        </div>
+        <div class="game-over-duel" id="gameOverDuel"></div>
         <div class="game-over-stats" id="gameOverStats"></div>
         <div class="game-over-rewards" id="gameOverRewards"></div>
         <div class="game-over-record" id="gameOverRecord"></div>

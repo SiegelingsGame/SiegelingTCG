@@ -1,3 +1,27 @@
+Original prompt: Make a more thematic victory screen. It should be vibrant and appealing. And also fit on one page, not require scroll.
+
+- November 8, 2026 **Arena end screen: a themed result card that fits one screen.**
+  - **Before.** A plain box with three label/value tables (Match Totals, Rewards, Your Record) in the page's monospace font. It needed a scroll on a phone to reach Play Again.
+  - **Markup.** `play.html` adds sunburst rays, rising sparks, a crest (`siegelings-icon-256.webp`), a `.game-over-hero`, and `#gameOverDuel`. All existing ids are kept.
+  - **Renderer.** `renderGameOverOverlay` (game.js) sets `data-result` (win/loss/draw) on the overlay and draws:
+    - a health face-off: You vs the opponent, with mirrored bars against each side's max HP;
+    - six stat tiles: Turns, Defeated, Strategies, Deceptions, Internal, External;
+    - rewards as loot chips with the Siegecoin and Remnant icons and a streak flame;
+    - the record as "10W 2L" with a win-rate bar and "Last N battles".
+  - **Lead button.** Exactly one visible button gets `is-lead` and the result's colours: Rematch, Advanced Tutorial, Play Again or Return to the Gauntlet, in that order. Gauntlet and guest-preview reward copy is unchanged.
+  - **Style (`style.css`).**
+    - The palette is driven by `data-result`: gold for victory, crimson for defeat, steel for a draw. Sparks show only on a win. The title is a gradient Georgia face with a glow, and the card enters with a spring.
+    - The card is a flex column with `max-height:100%` and clamp()ed gaps. A `max-height:700px` tier and a portrait `max-height:600px` tier compress it for short phones.
+    - The landscape phone layout is rebuilt as a two-column grid: hero and health on the left, panels on the right, buttons across the foot. This replaces the old box-grid overrides.
+    - The shield-menu FAB (z 2050) is hidden while the end screen shows, since the card has its own Main Menu.
+    - Reduced motion stops the rays, sparks and entrance animation.
+  - **Cache pins.** `style.css?v=301` and `game.js?v=345`, both already bumped on this branch.
+  - **Verification.** `node --check js/game.js`. Headless Chromium on `play.html` with a mocked `endScreen`:
+    - At 390x844, 375x667, 320x568, 844x390, 667x375 and 1920x1080, the card's scrollHeight equals its clientHeight (no scroll) and there is no horizontal overflow.
+    - The 320x568 case needed the 600px tier: 641 to 518px.
+    - Victory and defeat both render. Play Again leads in solo, and the FAB no longer shows over the backdrop.
+    - Screenshots checked at each size.
+
 Original prompt: Queue is resolving circles don't give any feedback on what is being done. This queue screen should give information; the circles should fill as we get closer to the player's turn. Maybe show turn order.
 
 - November 8, 2026 **Speed Order panel: live turn order with a countdown to your next Siegeling.**

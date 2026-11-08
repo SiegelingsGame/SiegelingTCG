@@ -7893,6 +7893,7 @@ function renderGameOverOverlay() {
         void claimTutorialReward();
     }
 
+    overlay.dataset.result = result.toLowerCase();
     document.getElementById('gameOverTitle').textContent = title;
     const msgEl = document.getElementById('gameOverMsg');
     if (endScreen.endReason === 'FORFEIT' && endScreen.forfeitedBy) {
@@ -7914,19 +7915,44 @@ function renderGameOverOverlay() {
     }
 
     const stats = endScreen.stats || {};
+    const num = (value) => escapeHtml(String(Number(value) || 0));
+
+    // Both health totals as a face-off of bars, so the margin of the win reads
+    // at a glance instead of as two more table rows.
+    const duelEl = document.getElementById('gameOverDuel');
+    if (duelEl) {
+        const yourHp = Math.max(0, Number(stats.yourHealth) || 0);
+        const theirHp = Math.max(0, Number(stats.opponentHealth) || 0);
+        const yourMax = Math.max(sideMaxHealth(gameState.player), yourHp, 1);
+        const theirMax = Math.max(sideMaxHealth(gameState.enemy), theirHp, 1);
+        const opponentName = endScreen.opponentName || gameState.enemyName || 'Opponent';
+        duelEl.innerHTML = `
+            <div class="game-over-duel-side is-you">
+                <span class="game-over-duel-name">You</span>
+                <span class="game-over-duel-bar"><i style="width:${Math.round((yourHp / yourMax) * 100)}%"></i></span>
+                <b>${num(yourHp)}</b>
+            </div>
+            <span class="game-over-duel-vs" aria-hidden="true">VS</span>
+            <div class="game-over-duel-side is-them">
+                <b>${num(theirHp)}</b>
+                <span class="game-over-duel-bar"><i style="width:${Math.round((theirHp / theirMax) * 100)}%"></i></span>
+                <span class="game-over-duel-name">${escapeHtml(opponentName)}</span>
+            </div>`;
+        duelEl.setAttribute('aria-label', `Health: you ${yourHp}, ${opponentName} ${theirHp}`);
+    }
+
     const statsEl = document.getElementById('gameOverStats');
     if (statsEl) {
+        const tile = (icon, value, label) => `<div class="game-over-tile"><span class="game-over-tile-icon" aria-hidden="true">${icon}</span><b>${num(value)}</b><span>${label}</span></div>`;
         statsEl.innerHTML = `
             <h3>Match Totals</h3>
-            <div class="game-over-stat-grid">
-                <span>Turns</span><span>${endScreen.turns ?? gameState.turnNumber ?? 0}</span>
-                <span>Strategies used</span><span>${stats.spellsCast ?? 0}</span>
-                <span>Deceptions sprung</span><span>${stats.trapsSprung ?? 0}</span>
-                <span>Siegelings defeated</span><span>${stats.siegelingsDefeated ?? 0}</span>
-                <span>Your health</span><span>${stats.yourHealth ?? 0}</span>
-                <span>Opponent health</span><span>${stats.opponentHealth ?? 0}</span>
-                <span>Your internal energy</span><span>${stats.yourInternalEnergy ?? 0}</span>
-                <span>Your external energy</span><span>${stats.yourExternalEnergy ?? 0}</span>
+            <div class="game-over-tiles">
+                ${tile('⌛', endScreen.turns ?? gameState.turnNumber ?? 0, 'Turns')}
+                ${tile('⚔', stats.siegelingsDefeated, 'Defeated')}
+                ${tile('✦', stats.spellsCast, 'Strategies')}
+                ${tile('◈', stats.trapsSprung, 'Deceptions')}
+                ${tile('⚡', stats.yourInternalEnergy, 'Internal')}
+                ${tile('✺', stats.yourExternalEnergy, 'External')}
             </div>`;
     }
 
@@ -7945,16 +7971,16 @@ function renderGameOverOverlay() {
         // earned, framed as a preview that nudges them to sign in to claim it.
         const guestPreview = Boolean(endScreen.guestPreview);
         const heading = guestPreview ? 'Potential Rewards' : 'Rewards';
-        const earnLabel = guestPreview ? 'could earn' : 'earned';
         const note = guestPreview
             ? `<p class="game-over-rewards-note">Sign in to claim these rewards!</p>`
             : '';
+        const loot = (iconHtml, value, label, extraClass = '') => `<div class="game-over-loot${extraClass}">${iconHtml}<b>+${num(value)}</b><span>${label}</span></div>`;
         rewardsEl.innerHTML = `
             <h3>${heading}</h3>
-            <div class="game-over-stat-grid">
-                <span>Siegecoins ${earnLabel}</span><span>${gold}</span>
-                <span>Remnants ${earnLabel}</span><span>${remnants}</span>
-                <span>Streak bonus</span><span>${streakBonus}</span>
+            <div class="game-over-loot-row">
+                ${loot('<img src="/img/ui/home-stats/siegecoin.webp" alt="" width="64" height="64">', gold, 'Siegecoins')}
+                ${loot('<img src="/img/ui/home-stats/remnants.webp" alt="" width="64" height="64">', remnants, 'Remnants')}
+                ${loot('<span class="game-over-loot-flame" aria-hidden="true">🔥</span>', streakBonus, 'Streak bonus', ' is-streak')}
             </div>${note}`;
         rewardsEl.classList.toggle('is-guest-preview', guestPreview);
     }
@@ -7963,14 +7989,15 @@ function renderGameOverOverlay() {
     const record = endScreen.record;
     if (recordEl) {
         if (record && record.total > 0) {
+            const rate = Math.max(0, Math.min(100, Number(record.winRate) || 0));
             recordEl.innerHTML = `
                 <h3>Your Record</h3>
-                <div class="game-over-stat-grid">
-                    <span>Wins</span><span>${record.wins}</span>
-                    <span>Losses</span><span>${record.losses}</span>
-                    <span>Win rate</span><span>${record.winRate}%</span>
-                    <span>Recent battles</span><span>${record.total}</span>
-                </div>`;
+                <div class="game-over-record-line">
+                    <span class="game-over-record-wl"><b class="is-win">${num(record.wins)}W</b> <b class="is-loss">${num(record.losses)}L</b></span>
+                    <span class="game-over-record-bar" aria-hidden="true"><i style="width:${rate}%"></i></span>
+                    <span class="game-over-record-rate"><b>${num(rate)}%</b> win rate</span>
+                </div>
+                <div class="game-over-record-foot">Last ${num(record.total)} battles</div>`;
             recordEl.hidden = false;
         } else {
             recordEl.innerHTML = '';
@@ -8012,6 +8039,13 @@ function renderGameOverOverlay() {
     if (btnGauntlet) {
         btnGauntlet.hidden = !gauntlet;
     }
+    // Exactly one visible button wears the result's colours: the way to keep
+    // playing (Rematch, Advanced Tutorial, Play Again, Return to the Gauntlet).
+    const leadButton = [btnRematch, btnAdvanced, btnPlayAgain, btnGauntlet]
+        .find((btn) => btn && !btn.hidden && !btn.disabled) || null;
+    document.querySelectorAll('.game-over-actions .btn').forEach((btn) => {
+        btn.classList.toggle('is-lead', btn === leadButton);
+    });
     if (rematchStatus) {
         if (!isOnline) {
             rematchStatus.textContent = '';
