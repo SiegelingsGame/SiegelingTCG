@@ -4314,7 +4314,9 @@ function renderShowcaseCard(card, options = {}) {
     // down and squeezed the description to a clipped single line. As a shell
     // child it floats in the dead space at the foot of the art instead — the
     // same separation the on-board card already uses for .arena-board-badges.
-    if (bodyMode !== 'hidden'
+    // Preview panes that list the live effects as pills beside the card pass
+    // omitStatusBadges: the same badges on the thumbnail only covered its art.
+    if (bodyMode !== 'hidden' && !options.omitStatusBadges
             && ((Array.isArray(card.statuses) && card.statuses.length > 0) || Number.isFinite(Number(card.maxHp)))) {
         html += renderStatusBadgesForCell(card);
     }
@@ -6966,7 +6968,8 @@ function renderDesktopCardPreviewPanel() {
     html += renderShowcaseCard(focusedCard, {
         cardClass: 'selected-preview-card desktop-preview-card',
         artVariant: 'selected',
-        bodyMode: 'summary'
+        bodyMode: 'summary',
+        omitStatusBadges: isBoardPreviewCard(focusedCard)
     });
     html += '</div>';
     html += '<div class="desktop-preview-copy-panel">';
@@ -17348,7 +17351,8 @@ function updateSelectedInfo(card, msg) {
         let summary = `<div class="selected-card-panel">`;
         summary += renderShowcaseCard(card, {
             cardClass: 'selected-preview-card',
-            artVariant: 'selected'
+            artVariant: 'selected',
+            omitStatusBadges: isBoardPreviewCard(card)
         });
         summary += `<div class="selected-preview-copy">`;
         if (lockReason) {

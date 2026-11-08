@@ -1,3 +1,12 @@
+Original prompt: Since we show badge tags do not show the badge on the card it just removes data.
+
+- November 8, 2026 **Card Preview: no status badges on the preview card when the pane lists them as pills.**
+  - **Change.** `renderShowcaseCard` (game.js) takes `omitStatusBadges`. The phone Card Preview drawer (`updateSelectedInfo`) and the desktop preview (`desktop-preview-card`) pass it for board cards. Both panes already list the live effects beside the card: the drawer as `renderBoardCardBuffsList` pills ("Damage +1", "Shield +2", "Disorient 1", All Effects), the desktop as `renderDesktopPreviewEffects`. So the same badges on the thumbnail only covered its art. Hand cards and other showcase surfaces still show the badges, and so do board cells. Cache pin: `game.js?v=345` in play, home, home-next, home-redesign-preview, gauntlet and card-dashboard.
+  - **Verification.** `node --check js/game.js`. Headless Chromium on `play.html` (static server, `/api` stubbed), with a board Chilldoe carrying DAMAGE_BOOST and DISORIENTED, at 390x844 (drawer opened) and 1920x1080 (desktop preview):
+    - Before (stashed base): one badge on the preview card at both sizes.
+    - After: none on the preview card, while the board cell still has its badge, and the pills (2 on phone) and the desktop effect list remain.
+    - Phone screenshot checked: the art is clear and the Damage +1 pill sits beside the card.
+
 Original prompt: In arena SP and HSP images are scaled incorrectly at times. And in card view the card overview is shown incorrectly as well.
 
 - November 8, 2026 **Arena: SP/HSP art keeps its dashboard framing on the board and in the Card Preview drawer.**
