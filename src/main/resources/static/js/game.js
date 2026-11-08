@@ -16574,7 +16574,7 @@ function renderBattlePanel() {
     // would strand "Queue is resolving" on that rail after playback ends.
     if (pending && presentationBusy) {
         const holdHtml = buildQueueShell(
-            'Resolving',
+            'Clash',
             'waiting',
             resolvingBodyHtml,
             { modifier: 'battle-queue-resolving' }
@@ -16593,7 +16593,7 @@ function renderBattlePanel() {
             );
         } else if (gameState.currentPhase === 'BATTLE') {
             standbyHtml = buildQueueShell(
-                'Resolving',
+                'Clash',
                 'waiting',
                 resolvingBodyHtml,
                 { modifier: 'battle-queue-resolving' }
@@ -16807,15 +16807,21 @@ function renderBattleSpeedTimelineBody() {
     const before = myNextIndex >= 0
         ? steps.slice(0, myNextIndex).filter((entry) => entry.status !== 'DONE').length
         : -1;
-    const ownerName = (entry) => (entry.mine ? 'Your' : `${entry.ownerLabel || 'Opponent'}'s`);
-
-    let headline;
+    // Battle-voice copy, short enough for one line in the dock. Whose
+    // Siegeling it is reads from the name's colour (yours green, theirs red),
+    // as on the track, so the owner's name never has to be spelled out.
+    const nameHtml = (entry) => `<span class="speed-name ${entry.mine ? 'is-mine' : 'is-theirs'}">${escapeHtml(entry.name)}</span>`;
+    let headlineHtml;
     if (!current) {
-        headline = 'Battle phase complete';
+        headlineHtml = 'The clash is over';
     } else if (current.status === 'ACTING') {
-        headline = `${ownerName(current)} ${current.name} is acting`;
+        headlineHtml = current.mine
+            ? `${nameHtml(current)} awaits orders`
+            : `${nameHtml(current)} is striking`;
     } else {
-        headline = `Up next: ${ownerName(current)} ${current.name}`;
+        headlineHtml = current.mine
+            ? `${nameHtml(current)} readies to strike`
+            : `${nameHtml(current)} strikes next`;
     }
     let detail;
     if (myNextIndex < 0) {
@@ -16832,8 +16838,8 @@ function renderBattleSpeedTimelineBody() {
 
     const chipLabel = `role="img" aria-label="${escapeHtmlAttribute(detail)}" title="${escapeHtmlAttribute(detail)}"`;
     const counter = myNextIndex < 0
-        ? `<div class="battle-queue-countdown is-clear" ${chipLabel}><b>✓</b><span>done</span></div>`
-        : `<div class="battle-queue-countdown${before === 0 ? ' is-now' : ''}" ${chipLabel}><b>${before === 0 ? 'Now' : before}</b><span>${before === 0 ? 'your turn' : 'until you'}</span></div>`;
+        ? `<div class="battle-queue-countdown is-clear" ${chipLabel}><b>✓</b><span>all struck</span></div>`
+        : `<div class="battle-queue-countdown${before === 0 ? ' is-now' : ''}" ${chipLabel}><b>${before === 0 ? 'Now' : before}</b><span>${before === 0 ? 'your move' : (before === 1 ? 'turn away' : 'turns away')}</span></div>`;
 
     const track = steps.map((entry, index) => {
         const state = entry.status === 'DONE' ? 'done' : (index === currentIndex ? 'current' : 'queued');
@@ -16847,7 +16853,7 @@ function renderBattleSpeedTimelineBody() {
     }).join('');
 
     return '<div class="battle-queue-resolving-content">'
-        + `<div class="battle-queue-resolving-copy"><strong>${escapeHtml(headline)}</strong></div>`
+        + `<div class="battle-queue-resolving-copy"><strong>${headlineHtml}</strong></div>`
         + counter
         + `<ol class="battle-speed-track" style="--speed-steps:${steps.length}" aria-label="Battle phase speed order">${track}</ol>`
         + '</div>';

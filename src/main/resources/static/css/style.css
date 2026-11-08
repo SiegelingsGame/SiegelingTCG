@@ -4351,7 +4351,7 @@ body.battle-inline-dock .battle-queue-actions {
 }
 
 .battle-queue-resolving .battle-queue-header::before {
-    content: "✦  SPEED ORDER";
+    content: "✦  ORDER OF BATTLE";
     color: #f1cd62;
     font-size: 0.62em;
     font-weight: 900;
@@ -4448,6 +4448,13 @@ body.battle-inline-dock .battle-queue-actions {
     --speed-mine: #5ee6a8;
     --speed-theirs: #ff7d6b;
 }
+
+.battle-queue-resolving-copy strong {
+    white-space: nowrap;
+}
+
+.speed-name.is-mine { color: var(--speed-mine); }
+.speed-name.is-theirs { color: var(--speed-theirs); }
 
 .battle-queue-countdown {
     display: grid;

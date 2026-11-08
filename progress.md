@@ -1,3 +1,16 @@
+Original prompt: Better flavortext so it fits in the game, size and style wise.
+
+- November 8, 2026 **Speed Order panel: battle-voice copy that fits one line.**
+  - **Change (game.js `renderBattleSpeedTimelineBody`, style.css).**
+    - Kicker "✦ SPEED ORDER" → "✦ ORDER OF BATTLE"; state pill "Resolving" → "Clash".
+    - Headlines no longer spell out the owner ("AI Opponent's Shellshock"). The Siegeling's name is coloured by side, green for yours and red for theirs, as on the track: "Shellshock strikes next", "Emberfox readies to strike", "Glaciemperor awaits orders" (yours, acting), "Shellshock is striking" (theirs, acting), "The clash is over".
+    - Chip captions: "turn away" / "turns away", "your move" and "all struck".
+    - The headline is held to one line (`nowrap` + ellipsis). The chip's accessible label keeps the plain reading.
+  - **Cache pin.** `game.js?v=347`.
+  - **Verification.** `node --check js/game.js`. Headless Chromium on `play.html` with a mocked 5-actor timeline that includes a 12-letter name (Glaciemperor), in four states: opponent next, yours next, all yours struck, yours acting.
+    - No headline overflows at 390x844 or at 320x640. At 320 "awaits your command" overflowed and was shortened to "awaits orders".
+    - Screenshots checked.
+
 Original prompt: Make this view more efficient. Only show what's necessary; "fastest first" and the resolved count are extra detail.
 
 - November 8, 2026 **Speed Order panel: trimmed to the essentials.**
