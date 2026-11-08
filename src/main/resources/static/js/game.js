@@ -4314,7 +4314,9 @@ function renderShowcaseCard(card, options = {}) {
     // down and squeezed the description to a clipped single line. As a shell
     // child it floats in the dead space at the foot of the art instead — the
     // same separation the on-board card already uses for .arena-board-badges.
-    if (bodyMode !== 'hidden'
+    // Preview panes that list the live effects as pills beside the card pass
+    // omitStatusBadges: the same badges on the thumbnail only covered its art.
+    if (bodyMode !== 'hidden' && !options.omitStatusBadges
             && ((Array.isArray(card.statuses) && card.statuses.length > 0) || Number.isFinite(Number(card.maxHp)))) {
         html += renderStatusBadgesForCell(card);
     }
@@ -6966,7 +6968,8 @@ function renderDesktopCardPreviewPanel() {
     html += renderShowcaseCard(focusedCard, {
         cardClass: 'selected-preview-card desktop-preview-card',
         artVariant: 'selected',
-        bodyMode: 'summary'
+        bodyMode: 'summary',
+        omitStatusBadges: isBoardPreviewCard(focusedCard)
     });
     html += '</div>';
     html += '<div class="desktop-preview-copy-panel">';
@@ -7890,6 +7893,7 @@ function renderGameOverOverlay() {
         void claimTutorialReward();
     }
 
+    overlay.dataset.result = result.toLowerCase();
     document.getElementById('gameOverTitle').textContent = title;
     const msgEl = document.getElementById('gameOverMsg');
     if (endScreen.endReason === 'FORFEIT' && endScreen.forfeitedBy) {
@@ -7911,19 +7915,44 @@ function renderGameOverOverlay() {
     }
 
     const stats = endScreen.stats || {};
+    const num = (value) => escapeHtml(String(Number(value) || 0));
+
+    // Both health totals as a face-off of bars, so the margin of the win reads
+    // at a glance instead of as two more table rows.
+    const duelEl = document.getElementById('gameOverDuel');
+    if (duelEl) {
+        const yourHp = Math.max(0, Number(stats.yourHealth) || 0);
+        const theirHp = Math.max(0, Number(stats.opponentHealth) || 0);
+        const yourMax = Math.max(sideMaxHealth(gameState.player), yourHp, 1);
+        const theirMax = Math.max(sideMaxHealth(gameState.enemy), theirHp, 1);
+        const opponentName = endScreen.opponentName || gameState.enemyName || 'Opponent';
+        duelEl.innerHTML = `
+            <div class="game-over-duel-side is-you">
+                <span class="game-over-duel-name">You</span>
+                <span class="game-over-duel-bar"><i style="width:${Math.round((yourHp / yourMax) * 100)}%"></i></span>
+                <b>${num(yourHp)}</b>
+            </div>
+            <span class="game-over-duel-vs" aria-hidden="true">VS</span>
+            <div class="game-over-duel-side is-them">
+                <b>${num(theirHp)}</b>
+                <span class="game-over-duel-bar"><i style="width:${Math.round((theirHp / theirMax) * 100)}%"></i></span>
+                <span class="game-over-duel-name">${escapeHtml(opponentName)}</span>
+            </div>`;
+        duelEl.setAttribute('aria-label', `Health: you ${yourHp}, ${opponentName} ${theirHp}`);
+    }
+
     const statsEl = document.getElementById('gameOverStats');
     if (statsEl) {
+        const tile = (icon, value, label) => `<div class="game-over-tile"><span class="game-over-tile-icon" aria-hidden="true">${icon}</span><b>${num(value)}</b><span>${label}</span></div>`;
         statsEl.innerHTML = `
             <h3>Match Totals</h3>
-            <div class="game-over-stat-grid">
-                <span>Turns</span><span>${endScreen.turns ?? gameState.turnNumber ?? 0}</span>
-                <span>Strategies used</span><span>${stats.spellsCast ?? 0}</span>
-                <span>Deceptions sprung</span><span>${stats.trapsSprung ?? 0}</span>
-                <span>Siegelings defeated</span><span>${stats.siegelingsDefeated ?? 0}</span>
-                <span>Your health</span><span>${stats.yourHealth ?? 0}</span>
-                <span>Opponent health</span><span>${stats.opponentHealth ?? 0}</span>
-                <span>Your internal energy</span><span>${stats.yourInternalEnergy ?? 0}</span>
-                <span>Your external energy</span><span>${stats.yourExternalEnergy ?? 0}</span>
+            <div class="game-over-tiles">
+                ${tile('⌛', endScreen.turns ?? gameState.turnNumber ?? 0, 'Turns')}
+                ${tile('⚔', stats.siegelingsDefeated, 'Defeated')}
+                ${tile('✦', stats.spellsCast, 'Strategies')}
+                ${tile('◈', stats.trapsSprung, 'Deceptions')}
+                ${tile('⚡', stats.yourInternalEnergy, 'Internal')}
+                ${tile('✺', stats.yourExternalEnergy, 'External')}
             </div>`;
     }
 
@@ -7942,16 +7971,16 @@ function renderGameOverOverlay() {
         // earned, framed as a preview that nudges them to sign in to claim it.
         const guestPreview = Boolean(endScreen.guestPreview);
         const heading = guestPreview ? 'Potential Rewards' : 'Rewards';
-        const earnLabel = guestPreview ? 'could earn' : 'earned';
         const note = guestPreview
             ? `<p class="game-over-rewards-note">Sign in to claim these rewards!</p>`
             : '';
+        const loot = (iconHtml, value, label, extraClass = '') => `<div class="game-over-loot${extraClass}">${iconHtml}<b>+${num(value)}</b><span>${label}</span></div>`;
         rewardsEl.innerHTML = `
             <h3>${heading}</h3>
-            <div class="game-over-stat-grid">
-                <span>Siegecoins ${earnLabel}</span><span>${gold}</span>
-                <span>Remnants ${earnLabel}</span><span>${remnants}</span>
-                <span>Streak bonus</span><span>${streakBonus}</span>
+            <div class="game-over-loot-row">
+                ${loot('<img src="/img/ui/home-stats/siegecoin.webp" alt="" width="64" height="64">', gold, 'Siegecoins')}
+                ${loot('<img src="/img/ui/home-stats/remnants.webp" alt="" width="64" height="64">', remnants, 'Remnants')}
+                ${loot('<span class="game-over-loot-flame" aria-hidden="true">🔥</span>', streakBonus, 'Streak bonus', ' is-streak')}
             </div>${note}`;
         rewardsEl.classList.toggle('is-guest-preview', guestPreview);
     }
@@ -7960,14 +7989,15 @@ function renderGameOverOverlay() {
     const record = endScreen.record;
     if (recordEl) {
         if (record && record.total > 0) {
+            const rate = Math.max(0, Math.min(100, Number(record.winRate) || 0));
             recordEl.innerHTML = `
                 <h3>Your Record</h3>
-                <div class="game-over-stat-grid">
-                    <span>Wins</span><span>${record.wins}</span>
-                    <span>Losses</span><span>${record.losses}</span>
-                    <span>Win rate</span><span>${record.winRate}%</span>
-                    <span>Recent battles</span><span>${record.total}</span>
-                </div>`;
+                <div class="game-over-record-line">
+                    <span class="game-over-record-wl"><b class="is-win">${num(record.wins)}W</b> <b class="is-loss">${num(record.losses)}L</b></span>
+                    <span class="game-over-record-bar" aria-hidden="true"><i style="width:${rate}%"></i></span>
+                    <span class="game-over-record-rate"><b>${num(rate)}%</b> win rate</span>
+                </div>
+                <div class="game-over-record-foot">Last ${num(record.total)} battles</div>`;
             recordEl.hidden = false;
         } else {
             recordEl.innerHTML = '';
@@ -8009,6 +8039,13 @@ function renderGameOverOverlay() {
     if (btnGauntlet) {
         btnGauntlet.hidden = !gauntlet;
     }
+    // Exactly one visible button wears the result's colours: the way to keep
+    // playing (Rematch, Advanced Tutorial, Play Again, Return to the Gauntlet).
+    const leadButton = [btnRematch, btnAdvanced, btnPlayAgain, btnGauntlet]
+        .find((btn) => btn && !btn.hidden && !btn.disabled) || null;
+    document.querySelectorAll('.game-over-actions .btn').forEach((btn) => {
+        btn.classList.toggle('is-lead', btn === leadButton);
+    });
     if (rematchStatus) {
         if (!isOnline) {
             rematchStatus.textContent = '';
@@ -16529,12 +16566,7 @@ function renderBattlePanel() {
     // Targeting is exempt: it is player-driven, so playback is never mid-flight.
     const presentationBusy = Boolean(window.SieglingsActionQueue?.isPresentationBusy?.())
         && !isBattleTargetSelectionActive();
-    const resolvingBodyHtml = '<div class="battle-queue-resolving-content">'
-        + '<div class="battle-queue-resolving-copy"><strong>Queue is resolving</strong>'
-        + '<span class="battle-queue-resolving-detail">Next available Siegeling surfaces here in speed order.</span></div>'
-        + '<div class="battle-queue-resolving-track" aria-hidden="true"><i></i><i></i><i></i><i></i></div>'
-        + '<div class="battle-queue-resolving-footer">Battle resumes automatically when the next actor is ready.</div>'
-        + '</div>';
+    const resolvingBodyHtml = renderBattleSpeedTimelineBody();
 
     // Hold the actionable panels in standby while playback runs. Scoped to the
     // drawer and hand docks on purpose: the left inspector is only rewritten
@@ -16741,6 +16773,86 @@ function formatBattleOwnerLabel(ownerSide) {
         return 'You';
     }
     return viewerIsPlayer ? (gameState.enemyName || 'Opponent') : (gameState.playerName || 'Player');
+}
+
+// The phase's actors in speed order with what each has done. The server sends
+// battleTimeline (DONE / ACTING / QUEUED); an older payload only has the
+// remaining battleQueue, which reads as all-queued.
+function getBattleSpeedTimeline() {
+    const timeline = gameState?.battleTimeline;
+    if (Array.isArray(timeline) && timeline.length > 0) {
+        return timeline.filter((entry) => entry?.name);
+    }
+    return (gameState?.battleQueue || []).filter((entry) => entry?.name).map((entry) => ({
+        ...entry,
+        mine: entry.ownerLabel === 'You',
+        status: 'QUEUED'
+    }));
+}
+
+// Speed Order panel body while the queue resolves: who is up, how many
+// actions stand before the player's next Siegeling, and the phase order as a
+// track whose nodes fill as actors resolve.
+function renderBattleSpeedTimelineBody() {
+    const steps = getBattleSpeedTimeline();
+    if (steps.length === 0) {
+        return '<div class="battle-queue-resolving-content">'
+            + '<div class="battle-queue-resolving-copy"><strong>Queue is resolving</strong>'
+            + '<span class="battle-queue-resolving-detail">Siegelings act in speed order.</span></div>'
+            + '</div>';
+    }
+    const currentIndex = steps.findIndex((entry) => entry.status !== 'DONE');
+    const current = currentIndex >= 0 ? steps[currentIndex] : null;
+    const myNextIndex = steps.findIndex((entry) => entry.mine && entry.status !== 'DONE');
+    const doneCount = steps.filter((entry) => entry.status === 'DONE').length;
+    const before = myNextIndex >= 0
+        ? steps.slice(0, myNextIndex).filter((entry) => entry.status !== 'DONE').length
+        : -1;
+    const ownerName = (entry) => (entry.mine ? 'Your' : `${entry.ownerLabel || 'Opponent'}'s`);
+
+    let headline;
+    if (!current) {
+        headline = 'Battle phase complete';
+    } else if (current.status === 'ACTING') {
+        headline = `${ownerName(current)} ${current.name} is acting`;
+    } else {
+        headline = `Up next: ${ownerName(current)} ${current.name}`;
+    }
+    let detail;
+    if (myNextIndex < 0) {
+        detail = steps.some((entry) => entry.mine)
+            ? 'Your Siegelings have all acted this phase.'
+            : 'You have no Siegelings in this battle phase.';
+    } else if (before === 0) {
+        detail = steps[myNextIndex].status === 'ACTING'
+            ? `Choose a move for ${steps[myNextIndex].name}.`
+            : `${steps[myNextIndex].name} acts next.`;
+    } else {
+        detail = `${before} action${before === 1 ? '' : 's'} until ${steps[myNextIndex].name}.`;
+    }
+
+    const counter = myNextIndex < 0
+        ? '<div class="battle-queue-countdown is-clear" aria-hidden="true"><b>✓</b><span>done</span></div>'
+        : `<div class="battle-queue-countdown${before === 0 ? ' is-now' : ''}" aria-hidden="true"><b>${before === 0 ? 'Now' : before}</b><span>${before === 0 ? 'your turn' : 'until you'}</span></div>`;
+
+    const track = steps.map((entry, index) => {
+        const state = entry.status === 'DONE' ? 'done' : (index === currentIndex ? 'current' : 'queued');
+        const speed = Number(entry.speed);
+        const label = `${entry.mine ? 'You' : (entry.ownerLabel || 'Opponent')} · ${entry.name} · Speed ${Number.isFinite(speed) ? speed : '?'}`;
+        return `<li class="speed-step is-${state} ${entry.mine ? 'is-mine' : 'is-theirs'}" title="${escapeHtmlAttribute(label)}">`
+            + '<i class="speed-step-node"></i>'
+            + `<span class="speed-step-name">${escapeHtml(entry.name)}</span>`
+            + `<span class="speed-step-speed">${Number.isFinite(speed) ? speed : '—'}</span>`
+            + '</li>';
+    }).join('');
+
+    return '<div class="battle-queue-resolving-content">'
+        + `<div class="battle-queue-resolving-copy"><strong>${escapeHtml(headline)}</strong>`
+        + `<span class="battle-queue-resolving-detail">${escapeHtml(detail)}</span></div>`
+        + counter
+        + `<ol class="battle-speed-track" style="--speed-steps:${steps.length}" aria-label="Battle phase speed order">${track}</ol>`
+        + `<div class="battle-queue-resolving-footer">${doneCount} of ${steps.length} resolved · fastest first · <span class="speed-legend-mine">you</span> <span class="speed-legend-theirs">opponent</span></div>`
+        + '</div>';
 }
 
 function getNextBattleActorAfterPass() {
@@ -17348,7 +17460,8 @@ function updateSelectedInfo(card, msg) {
         let summary = `<div class="selected-card-panel">`;
         summary += renderShowcaseCard(card, {
             cardClass: 'selected-preview-card',
-            artVariant: 'selected'
+            artVariant: 'selected',
+            omitStatusBadges: isBoardPreviewCard(card)
         });
         summary += `<div class="selected-preview-copy">`;
         if (lockReason) {
