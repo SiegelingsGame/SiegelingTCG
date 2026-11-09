@@ -1,3 +1,26 @@
+Original prompt: Look at how many size changes the board goes through from draw to battle to targeting. The size of the menu at the bottom changes. Make the size consistent across all these steps.
+
+- November 9, 2026 **Portrait match: one bottom dock, one arena size from Draw through targeting.**
+  - **Before (390x844).**
+    - Setup/Draw: arena 62–650, hand dock 109px.
+    - Battle (moves and Order of Battle): arena 62–578, dock 177px.
+    - Targeting: the "camera" hid the HP bar, pinned the arena full-screen (0–649) and stacked a variable-height instruction box over a slimmer button row. Choose Row and Confirm Row also differed from each other.
+    - So the board resized at every step.
+  - **Change.**
+    - **One dock height.** `style.css` (portrait ≤979px) gives `#desktopHandSection` a fixed `--sg-dock-h: clamp(112px, 15.5dvh, 140px)`. `#desktopMenuBottomDock` is the same 4px-gap flex column in every phase (it was `block` in Setup).
+    - **Hand.** Hand cards are sized from the dock height (`(dock − 12px) × 5/7` wide).
+    - **Battle panels.** They lay out to the dock: moves stretch, three or more go two-up. On screens under 720px tall the Order of Battle drops its kicker row and the move buttons tighten.
+    - **Targeting (`mobile-battle-targeting-camera`) no longer re-lays the page.** The HP bar, arena, dock and action bar stay. Pass hides and Cancel Move takes its slot in the normal action bar. The dock keeps its box with its content hidden.
+    - **Instruction box.** `#mobileTargetingHud` is laid over the dock's exact box by the new `placeMobileTargetingHudOverDock` (game.js, also on resize), replacing the `--mobile-targeting-hud-stack` sizing. The step and move name share one line. Confirm Row shows its Confirm/Change buttons instead of the arrow hint. On short screens the effect and hint clamp to two lines.
+    - Cell emphasis while targeting is unchanged.
+  - **Cache pins.** `style.css?v=303`, `game.js?v=348`.
+  - **Verification.** `node --check js/game.js`. Headless Chromium on `play.html`, stepping one mocked match through Setup (hand of 5), Order of Battle, move menu, Pick Target, Choose Row and Confirm Row, at 320x568, 375x667, 390x844 and 430x932:
+    - In every step the HP bar, the arena (e.g. 62–624 at 390x844, 62–466 at 375x667, 62–367 at 320x568), the dock and the action bar are identical.
+    - The targeting box sits exactly on the dock, and neither the dock panels nor the targeting box overflow (scrollHeight equals clientHeight) at any size.
+    - Tapping Confirm posted `/api/game/battle/action {abilityIndex:0,targetRow:0}`. Cancel Move ended targeting and brought the move menu back.
+    - Phone landscape (844x390) measurements match the base exactly.
+    - Screenshots of all six steps checked.
+
 Original prompt: Make sure it fits within the same space as the card drawer and battle view and does not cross.
 
 - November 9, 2026 **Order of Battle: same box as the move menu, never crossing the arena.**
