@@ -4351,7 +4351,7 @@ body.battle-inline-dock .battle-queue-actions {
 }
 
 .battle-queue-resolving .battle-queue-header::before {
-    content: "✦  SPEED ORDER";
+    content: "✦  ORDER OF BATTLE";
     color: #f1cd62;
     font-size: 0.62em;
     font-weight: 900;
@@ -4448,6 +4448,13 @@ body.battle-inline-dock .battle-queue-actions {
     --speed-mine: #5ee6a8;
     --speed-theirs: #ff7d6b;
 }
+
+.battle-queue-resolving-copy strong {
+    white-space: nowrap;
+}
+
+.speed-name.is-mine { color: var(--speed-mine); }
+.speed-name.is-theirs { color: var(--speed-theirs); }
 
 .battle-queue-countdown {
     display: grid;
@@ -4571,27 +4578,6 @@ body.battle-inline-dock .battle-queue-actions {
     line-height: 1;
 }
 
-.speed-legend-mine,
-.speed-legend-theirs {
-    margin-left: 6px;
-}
-
-.speed-legend-mine::before,
-.speed-legend-theirs::before {
-    content: "";
-    display: inline-block;
-    width: 7px;
-    height: 7px;
-    margin-right: 3px;
-    border: 2px solid var(--speed-mine);
-    border-radius: 50%;
-    vertical-align: -1px;
-}
-
-.speed-legend-theirs::before {
-    border-color: var(--speed-theirs);
-}
-
 @keyframes battle-queue-glow {
     0%, 100% { box-shadow: 0 0 0 rgba(94, 230, 168, 0); }
     50% { box-shadow: 0 0 12px rgba(94, 230, 168, 0.45); }
@@ -4643,6 +4629,128 @@ body.battle-inline-dock .battle-queue-actions {
     body.battle-inline-dock .desktop-hand-battle-panel .battle-queue-resolving {
         width: 100%;
         margin-left: 0;
+    }
+}
+
+/* Portrait battle dock: one fixed height for every battle panel (an acting
+   Siegeling's moves, the Speed Order while the queue resolves, Await
+   Opponent). Content-sized, the dock swapped between ~120px (two moves),
+   ~160px (Speed Order) and ~250px (five moves), and the arena above resized
+   on every swap. Two or three moves stretch to fill the box, four or more go
+   two-up and scroll inside it if they must; the Speed Order is laid out to
+   the same box. Landscape keeps its full-height side rail. */
+@media (max-width: 979px) and (orientation: portrait) {
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode {
+        --battle-dock-h: clamp(148px, 20dvh, 176px);
+        flex: 0 0 var(--battle-dock-h);
+        height: var(--battle-dock-h);
+        max-height: var(--battle-dock-h);
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .desktop-hand-battle-panel {
+        flex: 1 1 auto;
+        height: auto;
+        min-height: 0;
+        max-height: none;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-shell {
+        flex: 1 0 auto;
+        min-height: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-actions {
+        flex: 1 1 auto;
+        min-height: 0;
+        padding-bottom: 6px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-actions .battle-ability-btn {
+        flex: 1 1 0;
+        min-height: 38px;
+        max-height: 72px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-actions:has(> .battle-ability-btn:nth-of-type(4)) {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-rows: minmax(38px, 1fr);
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-actions:has(> .battle-ability-btn:nth-of-type(4)) .battle-ability-btn {
+        max-height: none;
+        padding: 5px 8px;
+    }
+
+    /* While the queue resolves, the Order of Battle spans the dock edge to
+       edge but keeps the move menu's exact box vertically: the same top gutter
+       and divider line, the same height. It never runs up into the arena, and
+       the arena never moves when the two views swap. */
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .desktop-menu-hand:has(.battle-queue-resolving) {
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode:has(.battle-queue-resolving) {
+        width: 100%;
+        margin: 0;
+        padding-left: 0;
+        padding-right: 0;
+        border-left: 0;
+        border-right: 0;
+        border-radius: 0;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode:has(.battle-queue-resolving) .desktop-hand-battle-panel {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-resolving {
+        width: 100%;
+        margin: 0;
+        flex: 1 1 auto;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+        padding: 10px clamp(12px, 4.6vw, 18px) 8px;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-resolving .battle-queue-header {
+        margin-bottom: 4px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-resolving-content {
+        flex: 1 1 auto;
+        align-content: center;
+        row-gap: 10px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .speed-step-node {
+        width: 14px;
+        height: 14px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .speed-step + .speed-step::before {
+        top: 6px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .speed-step-name {
+        font-size: 0.6em;
     }
 }
 

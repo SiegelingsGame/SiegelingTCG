@@ -1,3 +1,70 @@
+Original prompt: Make sure it fits within the same space as the card drawer and battle view and does not cross.
+
+- November 9, 2026 **Order of Battle: same box as the move menu, never crossing the arena.**
+  - **Change (`style.css`, portrait fixed dock).** The previous edge-to-edge pass folded the dock's 8px top gutter into the panel. That ran the Order of Battle up against the arena's bottom edge (top 578px vs the move menu's 593px at 390x844).
+    - It now keeps the move menu's exact vertical box: the same top gutter, divider line and height. Only the side gutters and tray side borders are dropped, so it still spans the full width like the Card Preview drawer.
+    - The resolving shell is clamped to the box (`height:100%`, `overflow:hidden`). At 375x667 its content had pushed it 1px past the dock bottom.
+  - **Verification.** Headless Chromium on `play.html`.
+    - At 390x844, 375x667, 320x568, 430x932 and 768x1024, the Order of Battle sits inside the dock section, below the arena's bottom edge, above the Knight row and full width, with no element of its content clipped.
+    - At 390x844 its box is 593–755px, identical to the move menu's. The board stays 252px for the Speed Order and for 2, 3 and 5 moves.
+    - Side-by-side screenshot checked.
+
+Original prompt: It looks like a box within a menu, but it should fill the screen full width and height, so that area turns into the screen.
+
+- November 8, 2026 **Order of Battle fills the dock edge to edge.**
+  - **Change (`style.css`, portrait fixed dock).** While the queue resolves (`:has(.battle-queue-resolving)`), the panel becomes the dock itself:
+    - The hand section loses its padding. The tray drops its padding, border, background and side gutters.
+    - The shell spans the full width and height, with no rounded card or gold top/bottom rules; only a faint top hairline and the left accent bar remain.
+    - The section's 8px top gutter is folded into the tray height (`--battle-dock-h + 8px`), so the arena does not move between the move menu and the resolving view.
+  - **Verification.** Headless Chromium on `play.html`:
+    - At 390x844 the shell spans [0,578] 390x176, the whole dock section.
+    - The board stays 252px for the Speed Order and for 2, 3 and 5 moves. At 375x667 it stays 173px.
+    - No headline overflow at 320x640.
+    - Screenshot checked.
+
+Original prompt: Better flavortext so it fits in the game, size and style wise.
+
+- November 8, 2026 **Speed Order panel: battle-voice copy that fits one line.**
+  - **Change (game.js `renderBattleSpeedTimelineBody`, style.css).**
+    - Kicker "✦ SPEED ORDER" → "✦ ORDER OF BATTLE"; state pill "Resolving" → "Clash".
+    - Headlines no longer spell out the owner ("AI Opponent's Shellshock"). The Siegeling's name is coloured by side, green for yours and red for theirs, as on the track: "Shellshock strikes next", "Emberfox readies to strike", "Glaciemperor awaits orders" (yours, acting), "Shellshock is striking" (theirs, acting), "The clash is over".
+    - Chip captions: "turn away" / "turns away", "your move" and "all struck".
+    - The headline is held to one line (`nowrap` + ellipsis). The chip's accessible label keeps the plain reading.
+  - **Cache pin.** `game.js?v=347`.
+  - **Verification.** `node --check js/game.js`. Headless Chromium on `play.html` with a mocked 5-actor timeline that includes a 12-letter name (Glaciemperor), in four states: opponent next, yours next, all yours struck, yours acting.
+    - No headline overflows at 390x844 or at 320x640. At 320 "awaits your command" overflowed and was shortened to "awaits orders".
+    - Screenshots checked.
+
+Original prompt: Make this view more efficient. Only show what's necessary; "fastest first" and the resolved count are extra detail.
+
+- November 8, 2026 **Speed Order panel: trimmed to the essentials.**
+  - **Change.** `renderBattleSpeedTimelineBody` (game.js) drops the footer ("N of M resolved · fastest first" and the you/opponent legend) and the detail line under the headline. Both repeated what the countdown chip and the track already show.
+  - The panel is now the headline ("Up next: AI Opponent's Shellshock"), the countdown chip (N until you / Now / ✓ done) and the turn-order track.
+  - The chip carries the longer reading ("1 action until Emberfox.") as its `aria-label` and `title`.
+  - In the fixed portrait dock the content is centred, with slightly larger track nodes and names. The unused legend CSS and the dock's footer rule are removed.
+  - **Cache pins.** `game.js?v=346`, `style.css?v=302`.
+  - **Verification.** `node --check js/game.js`. Headless Chromium on `play.html` with a mocked 5-actor timeline (opponent ahead, your turn next, all yours done) at 390x844 and 375x667:
+    - The text reads only headline, chip and track.
+    - The chip labels read "1 action until Emberfox.", "Emberfox acts next." and "Your Siegelings have all acted this phase."
+    - The dock stays 168px at 390x844.
+    - Screenshots checked.
+
+Original prompt: Adjust the queue box size so it fits in the same area as the battle menu, to prevent the screen shrinking and growing when it appears.
+
+- November 8, 2026 **Portrait battle dock: one fixed height for moves and Speed Order.**
+  - **Before.** The battle dock under the arena was content-sized. It ran about 120px with two moves, 160px for the Speed Order and 250px with five moves, so the arena jumped on every swap between the acting Siegeling's menu and the resolving queue.
+  - **Change (`style.css`).**
+    - On portrait screens up to 979px, while `battle-inline-dock` is active and not in the targeting camera, `.hand-tray.battle-queue-mode` is a fixed `clamp(148px, 20dvh, 176px)` box. The panel inside fills it and scrolls if it must.
+    - Two or three move buttons stretch to fill the box (`flex: 1 1 0`, 38–72px). Four or more go two-up in a grid.
+    - The Speed Order lays out to the same box, and drops its footer below 760px of height.
+    - Landscape keeps its full-height side rail, and the desktop dock is untouched.
+  - **Cache pin.** `style.css?v=302`.
+  - **Verification.** Headless Chromium on `play.html`, using `render()` with a mocked BATTLE state and a SiegeKnight equipped. The Speed Order and pending battles with 2, 3 and 5 moves were measured after layout settled.
+    - At 390x844, before: the dock was 126/170/258px and the board 253/251/207px. After: the dock is 169px in every state, its top stays at 593 and the board at 252px.
+    - At 375x667, after: the dock is 148px and the board 173px in every state.
+    - Screenshots of all four states checked.
+    - Without a Knight, the Knight/Pass row itself still collapses while resolving. That only happens with no SiegeKnight equipped.
+
 Original prompt: Make a more thematic victory screen. It should be vibrant and appealing. And also fit on one page, not require scroll.
 
 - November 8, 2026 **Arena end screen: a themed result card that fits one screen.**
