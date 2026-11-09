@@ -5016,26 +5016,47 @@ function renderMobileTargetingHud() {
     }
 
     const instructions = buildBattleTargetingInstruction(targetContext.side, ability, getRowSelectSelectedRow());
+    // Fits the bottom dock's fixed box: the step and the move share one line,
+    // and once a row is picked its Confirm / Change buttons replace the arrow hint.
+    const confirming = isRowSelectBattleTargetContext() && getRowSelectSelectedRow() >= 0;
     let html = '<div class="mobile-targeting-hud-inner">';
-    html += `<div class="mobile-targeting-hud-kicker">${escapeHtml(instructions.trayStateLabel)}</div>`;
-    html += `<div class="mobile-targeting-hud-move">${escapeHtml(instructions.moveName)}</div>`;
+    html += '<div class="mobile-targeting-hud-head">'
+        + `<span class="mobile-targeting-hud-kicker">${escapeHtml(instructions.trayStateLabel)}</span>`
+        + `<span class="mobile-targeting-hud-move">${escapeHtml(instructions.moveName)}</span>`
+        + '</div>';
     html += `<div class="mobile-targeting-hud-effect">${escapeHtml(instructions.effectLine)}</div>`;
-    html += `<div class="mobile-targeting-hud-arrow">${escapeHtml(instructions.arrowHint)}</div>`;
+    if (!confirming) {
+        html += `<div class="mobile-targeting-hud-arrow">${escapeHtml(instructions.arrowHint)}</div>`;
+    }
     if (isRowSelectBattleTargetContext()) {
         html += renderRowSelectBattleConfirm();
     }
     html += '</div>';
     hud.innerHTML = html;
     hud.classList.remove('hidden');
-    window.requestAnimationFrame(() => {
-        if (!isMobileBattleTargetingCameraActive()) {
-            document.documentElement.style.removeProperty('--mobile-targeting-hud-stack');
-            return;
-        }
-        const stack = Math.ceil(hud.getBoundingClientRect().height + 10);
-        document.documentElement.style.setProperty('--mobile-targeting-hud-stack', `${stack}px`);
-        syncMobileTargetingArenaScale();
-    });
+    placeMobileTargetingHudOverDock(hud);
+}
+
+// The targeting instructions take the bottom dock's exact box (the move menu's
+// space), so nothing above or below moves when targeting starts or ends. The
+// dock stays in the layout with its content hidden; the HUD is laid over it.
+function placeMobileTargetingHudOverDock(hud = document.getElementById('mobileTargetingHud')) {
+    const dock = document.getElementById('desktopHandSection');
+    if (!hud || !dock || hud.classList.contains('hidden')) {
+        return;
+    }
+    const rect = dock.getBoundingClientRect();
+    if (!rect.height) {
+        return;
+    }
+    hud.style.top = `${Math.round(rect.top)}px`;
+    hud.style.left = `${Math.round(rect.left)}px`;
+    hud.style.width = `${Math.round(rect.width)}px`;
+    hud.style.height = `${Math.round(rect.height)}px`;
+}
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('resize', () => placeMobileTargetingHudOverDock());
 }
 
 function syncMobileTargetingArenaScale() {

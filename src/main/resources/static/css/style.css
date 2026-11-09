@@ -4641,10 +4641,10 @@ body.battle-inline-dock .battle-queue-actions {
    the same box. Landscape keeps its full-height side rail. */
 @media (max-width: 979px) and (orientation: portrait) {
     body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode {
-        --battle-dock-h: clamp(148px, 20dvh, 176px);
-        flex: 0 0 var(--battle-dock-h);
-        height: var(--battle-dock-h);
-        max-height: var(--battle-dock-h);
+        flex: 1 1 auto;
+        height: auto;
+        max-height: none;
+        min-height: 0;
         box-sizing: border-box;
         display: flex;
         flex-direction: column;
@@ -4681,13 +4681,13 @@ body.battle-inline-dock .battle-queue-actions {
         max-height: 72px;
     }
 
-    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-actions:has(> .battle-ability-btn:nth-of-type(4)) {
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-actions:has(> .battle-ability-btn:nth-of-type(3)) {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         grid-auto-rows: minmax(38px, 1fr);
     }
 
-    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-actions:has(> .battle-ability-btn:nth-of-type(4)) .battle-ability-btn {
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-actions:has(> .battle-ability-btn:nth-of-type(3)) .battle-ability-btn {
         max-height: none;
         padding: 5px 8px;
     }
@@ -11540,12 +11540,13 @@ body.placement-active .board-cell.legal {
         --mobile-targeting-bar-height: 56px;
     }
 
+    /* Laid over the bottom dock's box (top/left/width/height set inline by
+       placeMobileTargetingHudOverDock), so targeting never resizes the arena. */
     .mobile-targeting-hud {
         display: none;
         position: fixed;
-        left: 8px;
-        right: 8px;
-        bottom: calc(var(--mobile-targeting-bar-height) + env(safe-area-inset-bottom, 0px) + 6px);
+        box-sizing: border-box;
+        padding: 6px 8px 4px;
         z-index: 185;
         pointer-events: none;
     }
@@ -11556,6 +11557,11 @@ body.placement-active .board-cell.legal {
 
     .mobile-targeting-hud-inner {
         display: grid;
+        align-content: start;
+        height: 100%;
+        box-sizing: border-box;
+        overflow-y: auto;
+        overscroll-behavior: contain;
         gap: 4px;
         padding: 8px 10px;
         border-radius: 12px;
@@ -11592,18 +11598,36 @@ body.placement-active .board-cell.legal {
         color: rgba(255, 220, 160, 0.95);
     }
 
+    .mobile-targeting-hud-head {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .mobile-targeting-hud-head .mobile-targeting-hud-move {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     .mobile-targeting-hud .battle-row-confirm {
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         gap: 6px;
-        margin-top: 4px;
+        margin: 2px 0 0;
+        padding: 0;
+        border: 0;
+        background: none;
         pointer-events: auto;
     }
 
     .mobile-targeting-hud .battle-row-confirm-btn {
-        flex: 1 1 calc(50% - 6px);
-        min-height: 34px;
-        font-size: 0.68em;
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 32px;
+        padding: 4px 8px;
+        font-size: 0.66em;
     }
 
     body.mobile-battle-targeting-camera {
@@ -11611,7 +11635,12 @@ body.placement-active .board-cell.legal {
         height: 100dvh;
     }
 
-    body.mobile-battle-targeting-camera .mobile-hud,
+    /* Targeting keeps the match layout exactly as it is: the HP bar, the
+       arena, the bottom dock and the action bar stay put, so the board never
+       resizes between the move menu and picking a target. Only the dock's
+       content swaps for the targeting instructions (#mobileTargetingHud, laid
+       over the dock's box by renderMobileTargetingHud) and Cancel Move takes
+       Pass's slot. */
     body.mobile-battle-targeting-camera .hud-rail,
     body.mobile-battle-targeting-camera .phase-transition-banner,
     body.mobile-battle-targeting-camera .interaction-banner,
@@ -11619,130 +11648,24 @@ body.placement-active .board-cell.legal {
     body.mobile-battle-targeting-camera .drawer-backdrop,
     body.mobile-battle-targeting-camera .desktop-menu-header,
     body.mobile-battle-targeting-camera .desktop-menu-inspect,
-    body.mobile-battle-targeting-camera .desktop-menu-hand,
-    body.mobile-battle-targeting-camera .desktop-hand-battle-panel,
     body.mobile-battle-targeting-camera #btnDraw,
     body.mobile-battle-targeting-camera #btnBattle,
-    body.mobile-battle-targeting-camera #btnEndTurn,
-    body.mobile-battle-targeting-camera .action-bar-aux .ab-icon:not(.ab-targeting-keep),
-    body.mobile-battle-targeting-camera .action-bar-aux .ab-action-counter,
-    body.mobile-battle-targeting-camera .action-bar-aux a.ab-icon {
+    body.mobile-battle-targeting-camera #btnBattlePass,
+    body.mobile-battle-targeting-camera #btnEndTurn {
         display: none !important;
     }
 
-    body.mobile-battle-targeting-camera .app-shell {
-        flex: 1;
-        min-height: 0;
-        height: 100%;
-        position: relative;
-        overflow: hidden;
+    body.mobile-battle-targeting-camera .desktop-menu-hand > * {
+        visibility: hidden;
     }
 
-    body.mobile-battle-targeting-camera .battlefield.mobile-targeting-camera-board {
-        position: fixed;
-        top: var(--device-safe-top);
-        left: 0;
-        right: 0;
-        bottom: calc(var(--mobile-targeting-bar-height) + var(--mobile-targeting-hud-stack, 72px) + var(--device-safe-bottom));
-        width: 100%;
-        max-width: none;
-        margin: 0;
-        padding: 4px 2px;
-        border-radius: 0;
-        overflow: hidden;
-        z-index: 50;
-        justify-content: center;
-        gap: 2px;
-        /* Keep the arena at its native responsive size so card centers and
-           targeting arrows remain easy to read while the art reaches edge to edge. */
-        transform: none;
-    }
-
-    body.mobile-battle-targeting-camera .battlefield.mobile-targeting-camera-board .bf-half {
-        flex: 1 1 0;
-        min-height: 0;
-        width: 100%;
-        max-width: none;
-        justify-content: center;
-    }
-
-    body.mobile-battle-targeting-camera .battlefield.mobile-targeting-camera-board .board-grid {
-        width: min(100%, 268px, calc((100dvh - var(--mobile-targeting-bar-height) - var(--mobile-targeting-hud-stack, 72px) - var(--device-safe-top) - var(--device-safe-bottom) - 20px) / 2.15));
-        gap: 2px;
-        padding: 2px 4px;
-    }
-
-    body.mobile-battle-targeting-camera .battlefield.mobile-targeting-camera-board .board-cell {
-        aspect-ratio: 5 / 5.2;
-        padding: 2px;
-    }
-
-    body.mobile-battle-targeting-camera .desktop-menu {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 210;
-        width: 100%;
-        max-width: none;
-        min-width: 0;
-        flex-shrink: 0;
-        margin: 0;
-        padding: 0;
-        padding-bottom: env(safe-area-inset-bottom, 0px);
-        border: none;
-        border-top: 1px solid rgba(255, 188, 92, 0.28);
-        background:
-            linear-gradient(180deg, rgba(14, 22, 42, 0.98), rgba(8, 12, 24, 0.99));
-        box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.42);
-    }
-
-    body.mobile-battle-targeting-camera .action-bar {
-        order: 0;
-        flex-direction: row;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 8px;
-        margin: 0;
-        background: transparent;
-        border: none;
-    }
-
-    body.mobile-battle-targeting-camera .action-bar-btns {
-        display: flex;
-        flex: 1 1 auto;
-        flex-direction: row;
-        gap: 8px;
-        min-width: 0;
-    }
-
-    body.mobile-battle-targeting-camera #btnTrainerAbility,
     body.mobile-battle-targeting-camera #btnCancelBattleMove {
         display: inline-flex !important;
         align-items: center;
         justify-content: center;
-        flex: 1 1 0;
-        min-height: 40px;
-        margin: 0;
-        font-size: 0.68em;
-    }
-
-    body.mobile-battle-targeting-camera #btnCancelBattleMove {
         background: rgba(139, 194, 255, 0.18);
         color: #e8f2ff;
         border: 1px solid rgba(139, 194, 255, 0.45);
-    }
-
-    body.mobile-battle-targeting-camera .action-bar-aux {
-        flex: 0 0 auto;
-        gap: 5px;
-        justify-content: flex-end;
-    }
-
-    body.mobile-battle-targeting-camera .action-bar-aux .ab-icon.ab-targeting-keep {
-        width: 34px;
-        height: 34px;
-        font-size: 0.78em;
     }
 
     body.mobile-battle-targeting-camera.targeting-active .board-cell.targetable,
@@ -21742,3 +21665,96 @@ body.gameplay-active .battlefield::after {
    .knight-card-name / .knight-card-ability) so every card face reads as one set. */
 .element-frame:not(.spell-trap-frame) .card-title { font-family: 'Cinzel', Georgia, serif; }
 .element-frame:not(.spell-trap-frame) .card-summary-description { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+
+
+/* ── One bottom dock for every portrait step ──
+   Draw, Setup (the hand), Battle (moves and the Order of Battle) and
+   targeting all use the same dock box above the action bar, and the HP bar
+   stays up throughout, so the arena keeps one size for the whole match. The
+   hand cards are sized from the dock height; battle panels lay out to it;
+   targeting lays its instructions over it. */
+@media (max-width: 979px) and (orientation: portrait) {
+    :root {
+        --sg-dock-h: clamp(112px, 15.5dvh, 140px);
+    }
+
+    #desktopMenuBottomDock.desktop-menu-bottom-dock {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    #desktopHandSection.desktop-menu-hand {
+        flex: 0 0 var(--sg-dock-h);
+        height: var(--sg-dock-h);
+        min-height: var(--sg-dock-h);
+        max-height: var(--sg-dock-h);
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        padding: 0;
+        overflow: hidden;
+    }
+
+    #desktopHandSection > .hand-tray {
+        flex: 1 1 auto;
+        height: auto;
+        min-height: 0;
+        max-height: none;
+    }
+
+    #desktopHandSection > .hand-tray:not(.battle-queue-mode) {
+        --hand-card-width: calc((var(--sg-dock-h) - 12px) * 5 / 7);
+        padding: 4px 6px 0;
+    }
+
+    #desktopHandSection > .hand-tray:not(.battle-queue-mode) .hand-card {
+        width: var(--hand-card-width);
+        min-width: var(--hand-card-width);
+        max-width: var(--hand-card-width);
+    }
+}
+
+@media (max-width: 979px) and (orientation: portrait) and (max-height: 720px) {
+    body.battle-inline-dock .hand-tray.battle-queue-mode .battle-queue-resolving .battle-queue-header {
+        display: none;
+    }
+
+    body.battle-inline-dock .hand-tray.battle-queue-mode {
+        padding-top: 4px;
+    }
+
+    body.battle-inline-dock .hand-tray.battle-queue-mode .battle-queue-topbar {
+        margin-bottom: 0;
+    }
+
+    body.battle-inline-dock .hand-tray.battle-queue-mode .battle-queue-actions {
+        padding-bottom: 2px;
+        gap: 4px;
+    }
+
+    body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-actions .battle-ability-btn {
+        min-height: 30px;
+        padding: 3px 10px;
+    }
+
+    .mobile-targeting-hud-effect {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .mobile-targeting-hud-inner {
+        gap: 2px;
+        padding-top: 6px;
+        padding-bottom: 6px;
+    }
+
+    .mobile-targeting-hud-arrow {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+}
