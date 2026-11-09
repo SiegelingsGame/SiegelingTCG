@@ -1,3 +1,14 @@
+Original prompt: Make sure it fits within the same space as the card drawer and battle view and does not cross.
+
+- November 9, 2026 **Order of Battle: same box as the move menu, never crossing the arena.**
+  - **Change (`style.css`, portrait fixed dock).** The previous edge-to-edge pass folded the dock's 8px top gutter into the panel. That ran the Order of Battle up against the arena's bottom edge (top 578px vs the move menu's 593px at 390x844).
+    - It now keeps the move menu's exact vertical box: the same top gutter, divider line and height. Only the side gutters and tray side borders are dropped, so it still spans the full width like the Card Preview drawer.
+    - The resolving shell is clamped to the box (`height:100%`, `overflow:hidden`). At 375x667 its content had pushed it 1px past the dock bottom.
+  - **Verification.** Headless Chromium on `play.html`.
+    - At 390x844, 375x667, 320x568, 430x932 and 768x1024, the Order of Battle sits inside the dock section, below the arena's bottom edge, above the Knight row and full width, with no element of its content clipped.
+    - At 390x844 its box is 593–755px, identical to the move menu's. The board stays 252px for the Speed Order and for 2, 3 and 5 moves.
+    - Side-by-side screenshot checked.
+
 Original prompt: It looks like a box within a menu, but it should fill the screen full width and height, so that area turns into the screen.
 
 - November 8, 2026 **Order of Battle fills the dock edge to edge.**

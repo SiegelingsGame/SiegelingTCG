@@ -4692,25 +4692,23 @@ body.battle-inline-dock .battle-queue-actions {
         padding: 5px 8px;
     }
 
-    /* While the queue resolves, the Order of Battle IS the dock: edge to edge
-       and top to bottom, no tray chrome or inner card around it. The section's
-       8px top gutter is folded into the tray's height so the arena above stays
-       exactly where the move menu leaves it. */
+    /* While the queue resolves, the Order of Battle spans the dock edge to
+       edge but keeps the move menu's exact box vertically: the same top gutter
+       and divider line, the same height. It never runs up into the arena, and
+       the arena never moves when the two views swap. */
     body.battle-inline-dock:not(.mobile-battle-targeting-camera) .desktop-menu-hand:has(.battle-queue-resolving) {
-        padding: 0;
+        padding-left: 0;
+        padding-right: 0;
     }
 
     body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode:has(.battle-queue-resolving) {
-        flex-basis: calc(var(--battle-dock-h) + 8px);
-        height: calc(var(--battle-dock-h) + 8px);
-        max-height: calc(var(--battle-dock-h) + 8px);
         width: 100%;
         margin: 0;
-        padding: 0;
-        border: 0;
+        padding-left: 0;
+        padding-right: 0;
+        border-left: 0;
+        border-right: 0;
         border-radius: 0;
-        background: none;
-        box-shadow: none;
     }
 
     body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode:has(.battle-queue-resolving) .desktop-hand-battle-panel {
@@ -4722,9 +4720,12 @@ body.battle-inline-dock .battle-queue-actions {
     body.battle-inline-dock:not(.mobile-battle-targeting-camera) .hand-tray.battle-queue-mode .battle-queue-resolving {
         width: 100%;
         margin: 0;
-        padding: 12px clamp(12px, 4.6vw, 18px) 10px;
+        flex: 1 1 auto;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+        padding: 10px clamp(12px, 4.6vw, 18px) 8px;
         border: 0;
-        border-top: 1px solid rgba(226, 183, 20, 0.28);
         border-radius: 0;
         box-shadow: none;
     }
