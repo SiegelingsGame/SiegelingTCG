@@ -1182,3 +1182,16 @@ button.dm-start-plate:hover > img { transform: scale(1.04); }
 .ck-ico.is-lg .px-icon, .ck-ico.is-cell .px-icon { width: 48px; height: 48px; }
 .ck-ico.is-xl .px-icon { width: 64px; height: 64px; }
 .px-icon.is-inline { width: 16px; height: 16px; vertical-align: -3px; }
+/* Crest insignia sprites. Large crests take a whole multiple of the 16px source; the small
+   inline crest beside a name scales below 16px, where smoothing reads better than dropped pixels. */
+.dm-crest .dm-crest-px { width: 1.1em; height: 1.1em; image-rendering: auto !important; }
+.dm-crest.is-lg .dm-crest-px { width: 32px; height: 32px; image-rendering: pixelated !important; }
+.dm-crest.is-standee .dm-crest-px { width: 48px; height: 48px; image-rendering: pixelated !important; }
+.dm-j-walker .dm-crest.is-standee .dm-crest-px { width: 24px; height: 24px; }
+.dm-cc-emblem .dm-crest-px { width: 24px; height: 24px; vertical-align: middle; }
+/* Nineteen insignias wrap to three or four rows; on a short screen that runs under the sheet's
+   action bar, so they become a single strip that scrolls sideways instead. */
+@media (max-height: 700px) {
+    .dm-cc-insignias { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; touch-action: pan-x; padding: 3px; scrollbar-width: none; }
+    .dm-cc-insignias .dm-cc-emblem { flex: 0 0 auto; }
+}

@@ -960,6 +960,82 @@
   "emoji:🥻": {
    "subject": "hooded robe",
    "row": 1038
+  },
+  "crest:🌲": {
+   "subject": "pine tree",
+   "row": 80271
+  },
+  "crest:🔥": {
+   "subject": "fire icon",
+   "row": 14963
+  },
+  "crest:🌊": {
+   "subject": "ocean wave",
+   "row": 1960
+  },
+  "crest:⛰": {
+   "subject": "stone spire",
+   "row": 22124
+  },
+  "crest:⭐": {
+   "subject": "star icon",
+   "row": 2506
+  },
+  "crest:🌙": {
+   "subject": "crescent moon",
+   "row": 98296
+  },
+  "crest:🦁": {
+   "subject": "lion",
+   "row": 46626
+  },
+  "crest:🛡": {
+   "subject": "shield icon",
+   "row": 14570
+  },
+  "crest:🐉": {
+   "subject": "dragon",
+   "row": 65564
+  },
+  "crest:🌸": {
+   "subject": "rose",
+   "row": 38522
+  },
+  "crest:🐺": {
+   "subject": "wolf",
+   "row": 40492
+  },
+  "crest:🦅": {
+   "subject": "eagle",
+   "row": 75325
+  },
+  "crest:🦌": {
+   "subject": "stag",
+   "row": 46655
+  },
+  "crest:👑": {
+   "subject": "crown icon",
+   "row": 39635
+  },
+  "crest:⚔": {
+   "subject": "sword icon",
+   "row": 35722
+  },
+  "crest:⚓": {
+   "subject": "anchor",
+   "row": 37586
+  },
+  "crest:🦉": {
+   "subject": "owl",
+   "row": 78395
+  },
+  "crest:☀": {
+   "subject": "sun icon",
+   "row": 12056
+  },
+  "crest:🍃": {
+   "subject": "oak leaf",
+   "row": 76849
   }
  }
 }

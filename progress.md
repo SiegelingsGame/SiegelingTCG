@@ -1,3 +1,16 @@
+Original prompt: Use sprites for insignias in dominion.
+
+- November 10, 2026 **Dominion crest insignias are sprites, with nine new choices.**
+  - **Change.** 19 `crest:<emoji>` picks in `tools/pixel-atlas/picks.json` (259 sprites, `pixel-icons.js` ~104 KB raw), chosen for bold heraldic reads rather than reusing the generic emoji stand-ins. `dominion.js`: `emblemMark` renders the sprite in `crest()`, the creation sheet's insignia picker and the live preview; crests and picker buttons carry `data-px-skip` so the app-wide emoji swap leaves the fallback alone. A crest still stores its insignia as the emoji, so existing saves are untouched. `CREST_EMBLEMS` grows from 10 to 19 (wolf, eagle, stag, owl, crown, sword, anchor, sun, leaf).
+  - **CSS (`dominion.css`).** Sprite is 32px in the large crest, 48px on standees, 24px in picker buttons and the journey walker; the small inline crest scales with its font and is smoothed because it can fall below 16px. With 19 options the picker wrapped under the sheet's action bar on short screens, so at `max-height: 700px` it becomes a one-row strip that scrolls sideways.
+  - **Cache pins.** `pixel-icons.js?v=4` (all ten pages), `dominion.js?v=34`, `dominion.css?v=27`.
+  - **Verification.** `node --check js/dominion.js js/pixel-icons.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium on a static server:
+    - Crest page at 390x844 and 1920x1080: 19/19 picker buttons on 24px sprites, picking the eagle updates the preview to a 32px sprite inside the crest, no emoji-swap images inside crests, no horizontal page scroll.
+    - 320x568, 375x667 and 844x390: the insignia row is a sideways-scrolling strip sitting clear of the Next button (before the fix its third row was hidden at 320x568).
+    - `?pixelIcons=off`: 0 sprites, the preview shows the emoji.
+    - Founded a Dominion with the wolf: saved crest is `{emblem:"🐺"}`; after reload the Keep and Knight tab show the wolf sprite inside the crest. No page errors.
+    - Not checked: standee and journey-walker crests in play (sizes set by rule only).
+
 Original prompt: Find sprites to replace the generic emojis across the app.
 
 - November 10, 2026 **Pixel sprites stand in for 157 emoji app-wide.**
