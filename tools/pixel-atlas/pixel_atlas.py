@@ -96,7 +96,7 @@ def cmd_build(args):
         icons[key] = base64.b64encode(buf.getvalue()).decode('ascii')
     with open(os.path.join(HERE, 'pixel-icons.template.js'), encoding='utf-8') as f:
         tpl = f.read()
-    body = tpl.replace('/*__ICONS__*/{}', json.dumps(icons, indent=0, separators=(',', ':')))
+    body = tpl.replace('/*__ICONS__*/{}', json.dumps(icons, indent=0, separators=(',', ':'), ensure_ascii=False))
 
     with open(OUT_JS, 'w', encoding='utf-8') as f:
         f.write(body)

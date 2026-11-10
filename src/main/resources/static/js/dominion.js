@@ -2667,7 +2667,12 @@
     const PORTRAITS = ['fire', 'ice', 'earth', 'wind', 'water', 'electric', 'metal', 'psychic', 'light', 'shadow'];
     const portraitOf = (k) => (PORTRAITS.includes(k && k.portrait) ? k.portrait : PORTRAITS.includes(k && k.crest && k.crest.color) ? k.crest.color : 'fire');
     const portraitSrc = (el, thumb) => '/img/dominion/knights/knight-' + el + (thumb ? '-thumb' : '') + '.webp';
-    const CREST_EMBLEMS = ['🌲', '🔥', '🌊', '⛰️', '⭐', '🌙', '🦁', '🛡️', '🐉', '🌸'];
+    // A crest stores its insignia as the emoji itself, so old saves keep working. Each one has a
+    // heraldic sprite (crest:<emoji> in js/pixel-icons.js); the emoji is the fallback when the
+    // sprite set is off. Everything after 🌸 was added with the sprites.
+    const CREST_EMBLEMS = ['🌲', '🔥', '🌊', '⛰️', '⭐', '🌙', '🦁', '🛡️', '🐉', '🌸', '🐺', '🦅', '🦌', '🦉', '👑', '⚔️', '⚓', '☀️', '🍃',
+        '🦊', '🐴', '🦄', '🐦', '💀', '🔨', '🪓', '🗝️', '🏰', '⚡', '❄️', '💎', '🍀', '❤️', '🔱', '🏆'];
+    const emblemMark = (e) => (e && window.SgPixelIcons && window.SgPixelIcons.img('crest:' + String(e).replace(/\uFE0F/g, ''), 'dm-crest-px')) || esc(e || '');
     const CREST_COLORS = PORTRAITS;
     const CREST_SHAPES = { shield: 'Shield', kite: 'Kite', round: 'Round', diamond: 'Diamond', banner: 'Banner' };
     const STARTER_IDS = ['sundile', 'fawny', 'pursula', 'cacty'];
@@ -2763,7 +2768,7 @@
     const mentorEl = (s) => (knightCardId() ? String(ART_URLS['knight-el:' + knightCardId()] || '').toUpperCase() : '');
     function crest(k, cls) {
         const c = (k && k.crest) || {};
-        return '<span class="dm-crest' + (cls ? ' ' + cls : '') + '" data-shape="' + (CREST_SHAPES[c.shape] ? c.shape : 'shield') + '" style="--el:var(--' + (c.color || 'light') + ')" aria-hidden="true"><i>' + (c.emblem || '🛡️') + '</i></span>';
+        return '<span class="dm-crest' + (cls ? ' ' + cls : '') + '" data-shape="' + (CREST_SHAPES[c.shape] ? c.shape : 'shield') + '" style="--el:var(--' + (c.color || 'light') + ')" aria-hidden="true" data-px-skip><i>' + emblemMark(c.emblem || '🛡️') + '</i></span>';
     }
     let draft = null;
     function startDraft() {
@@ -2787,7 +2792,7 @@
         return '<div class="dm-cc-crest-preview">' + crest({ crest: { emblem: d.emblem, color: d.color, shape: d.shape } }, 'is-lg') + '<div><b>Your crest</b><small>Shape, color and insignia travel with your knight.</small></div></div>' +
             '<h3>Shape</h3><div class="dm-cc-shapes">' + Object.keys(CREST_SHAPES).map((id) => '<button type="button" class="dm-cc-shape' + (d.shape === id ? ' is-on' : '') + '" data-act="cc" data-arg="shape:' + id + '">' + crest({ crest: { emblem: '', color: d.color, shape: id } }) + '<small>' + CREST_SHAPES[id] + '</small></button>').join('') + '</div>' +
             '<h3>Color</h3><div class="dm-cc-row dm-cc-colors">' + CREST_COLORS.map((c) => '<button type="button" class="dm-cc-color' + (d.color === c ? ' is-on' : '') + '" data-act="cc" data-arg="color:' + c + '" style="--el:var(--' + c + ')" aria-label="' + titleCase(c) + '"></button>').join('') + '</div>' +
-            '<h3>Insignia</h3><div class="dm-cc-row dm-cc-insignias">' + CREST_EMBLEMS.map((e) => '<button type="button" class="dm-cc-emblem' + (d.emblem === e ? ' is-on' : '') + '" data-act="cc" data-arg="emblem:' + e + '" aria-label="Insignia ' + e + '">' + e + '</button>').join('') + '</div>';
+            '<h3>Insignia</h3><div class="dm-cc-row dm-cc-insignias">' + CREST_EMBLEMS.map((e) => '<button type="button" class="dm-cc-emblem' + (d.emblem === e ? ' is-on' : '') + '" data-act="cc" data-arg="emblem:' + e + '" aria-label="Insignia ' + e + '" data-px-skip>' + emblemMark(e) + '</button>').join('') + '</div>';
     }
     function biomePage(d) {
         return '<p class="dm-cc-intro">Choose where your Keep stands. Its elemental affinity changes the land and the output of its buildings.</p><div class="dm-cc-biomes">' + Object.keys(BIOMES).map((id) => { const b = BIOMES[id]; return '<button type="button" class="dm-cc-biome is-' + id + (d.biome === id ? ' is-on' : '') + '" data-act="cc" data-arg="biome:' + id + '"><span class="dm-biome-art"><i></i><i></i><i></i></span><b>' + b.icon + ' ' + b.name + '</b><small>' + esc(b.blurb) + '</small><em class="is-good">' + esc(b.boosts) + '</em><em class="is-bad">' + esc(b.penalty) + '</em></button>'; }).join('') + '</div>';
@@ -2825,7 +2830,7 @@
         }
         body.querySelectorAll('.dm-crest').forEach((badge) => {
             badge.style.setProperty('--el', 'var(--' + d.color + ')');
-            if (!badge.closest('.dm-cc-shape')) { badge.dataset.shape = d.shape; if (badge.querySelector('i')) badge.querySelector('i').textContent = d.emblem; }
+            if (!badge.closest('.dm-cc-shape')) { badge.dataset.shape = d.shape; if (badge.querySelector('i')) badge.querySelector('i').innerHTML = emblemMark(d.emblem); }
         });
         body.querySelectorAll('[data-act="cc"]').forEach((button) => {
             const arg = button.dataset.arg, i = arg.indexOf(':');

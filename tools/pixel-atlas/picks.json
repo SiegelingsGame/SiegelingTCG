@@ -332,6 +332,774 @@
   "npc:broker": {
    "subject": "trapper",
    "row": 481134
+  },
+  "emoji:⚡": {
+   "subject": "lightning bolt",
+   "row": 36873
+  },
+  "emoji:⚔": {
+   "subject": "crossed swords",
+   "row": 2990
+  },
+  "emoji:🪙": {
+   "subject": "coin",
+   "row": 4695
+  },
+  "emoji:🛡": {
+   "subject": "shield",
+   "row": 19319
+  },
+  "emoji:⚒": {
+   "subject": "forge hammer",
+   "row": 17385
+  },
+  "emoji:🔥": {
+   "subject": "ember",
+   "row": 13580
+  },
+  "emoji:✨": {
+   "subject": "star sparkle",
+   "row": 45648
+  },
+  "emoji:👑": {
+   "subject": "crown",
+   "row": 9068
+  },
+  "emoji:📦": {
+   "subject": "wooden crate",
+   "row": 3420
+  },
+  "emoji:🔒": {
+   "subject": "padlock",
+   "row": 8229
+  },
+  "emoji:❤": {
+   "subject": "heart icon",
+   "row": 588
+  },
+  "emoji:🐾": {
+   "subject": "paw print icon",
+   "row": 60586
+  },
+  "emoji:🌟": {
+   "subject": "star",
+   "row": 4117
+  },
+  "emoji:🗺": {
+   "subject": "folded map",
+   "row": 30207
+  },
+  "emoji:⚙": {
+   "subject": "gear cog",
+   "row": 6756
+  },
+  "emoji:📜": {
+   "subject": "scroll",
+   "row": 4252
+  },
+  "emoji:💎": {
+   "subject": "gem",
+   "row": 3566
+  },
+  "emoji:⭐": {
+   "subject": "star icon",
+   "row": 2506
+  },
+  "emoji:❄": {
+   "subject": "snowflake",
+   "row": 28113
+  },
+  "emoji:☠": {
+   "subject": "skull and crossbones icon",
+   "row": 11573
+  },
+  "emoji:🪵": {
+   "subject": "wooden log",
+   "row": 46542
+  },
+  "emoji:🔮": {
+   "subject": "crystal ball",
+   "row": 2793
+  },
+  "emoji:🧭": {
+   "subject": "compass",
+   "row": 4279
+  },
+  "emoji:🎒": {
+   "subject": "backpack",
+   "row": 3172
+  },
+  "emoji:⛏": {
+   "subject": "pickaxe",
+   "row": 1481
+  },
+  "emoji:🔨": {
+   "subject": "hammer",
+   "row": 176
+  },
+  "emoji:🧥": {
+   "subject": "coat",
+   "row": 2066
+  },
+  "emoji:🏰": {
+   "subject": "castle",
+   "row": 45513
+  },
+  "emoji:📚": {
+   "subject": "stack of books",
+   "row": 12029
+  },
+  "emoji:🚩": {
+   "subject": "flag on pole",
+   "row": 4573
+  },
+  "emoji:🎖": {
+   "subject": "medal",
+   "row": 44619
+  },
+  "emoji:🛒": {
+   "subject": "shopping cart",
+   "row": 17547
+  },
+  "emoji:❔": {
+   "subject": "question mark",
+   "row": 18106
+  },
+  "emoji:🌿": {
+   "subject": "healing herb",
+   "row": 22661
+  },
+  "emoji:🍲": {
+   "subject": "bowl of beef stew",
+   "row": 64640
+  },
+  "emoji:🪨": {
+   "subject": "rock",
+   "row": 1260
+  },
+  "emoji:🗡": {
+   "subject": "dagger",
+   "row": 14062
+  },
+  "emoji:💀": {
+   "subject": "skull icon",
+   "row": 30646
+  },
+  "emoji:🏳": {
+   "subject": "waving flag",
+   "row": 24408
+  },
+  "emoji:🗝": {
+   "subject": "castle key",
+   "row": 25226
+  },
+  "emoji:🌀": {
+   "subject": "portal swirl marker",
+   "row": 451176
+  },
+  "emoji:🪓": {
+   "subject": "axe",
+   "row": 649
+  },
+  "emoji:🪢": {
+   "subject": "coil of rope",
+   "row": 7623
+  },
+  "emoji:🧪": {
+   "subject": "round potion flask",
+   "row": 17532
+  },
+  "emoji:🧱": {
+   "subject": "brick",
+   "row": 449581
+  },
+  "emoji:🎁": {
+   "subject": "gift box",
+   "row": 9004
+  },
+  "emoji:🛍": {
+   "subject": "shopping bag",
+   "row": 11069
+  },
+  "emoji:🧺": {
+   "subject": "basket",
+   "row": 10798
+  },
+  "emoji:⛺": {
+   "subject": "camping tent",
+   "row": 11877
+  },
+  "emoji:🏆": {
+   "subject": "small trophy cup",
+   "row": 8072
+  },
+  "emoji:⛰": {
+   "subject": "jagged rock",
+   "row": 11039
+  },
+  "emoji:🌸": {
+   "subject": "lotus flower",
+   "row": 22467
+  },
+  "emoji:🌳": {
+   "subject": "oak tree",
+   "row": 25666
+  },
+  "emoji:🔷": {
+   "subject": "sapphire",
+   "row": 39523
+  },
+  "emoji:🚪": {
+   "subject": "door",
+   "row": 5359
+  },
+  "emoji:🏕": {
+   "subject": "campfire",
+   "row": 145260
+  },
+  "emoji:🧵": {
+   "subject": "spool of thread",
+   "row": 26032
+  },
+  "emoji:🦴": {
+   "subject": "bone",
+   "row": 25607
+  },
+  "emoji:⚗": {
+   "subject": "retort flask",
+   "row": 16035
+  },
+  "emoji:💚": {
+   "subject": "heart crystal",
+   "row": 42257
+  },
+  "emoji:🏹": {
+   "subject": "bow and arrow",
+   "row": 2234
+  },
+  "emoji:🪝": {
+   "subject": "fishing hook",
+   "row": 10585
+  },
+  "emoji:🏺": {
+   "subject": "amphora",
+   "row": 4910
+  },
+  "emoji:💠": {
+   "subject": "crystal prism",
+   "row": 11583
+  },
+  "emoji:🎯": {
+   "subject": "archery target",
+   "row": 8499
+  },
+  "emoji:⏱": {
+   "subject": "stopwatch",
+   "row": 27525
+  },
+  "emoji:💧": {
+   "subject": "water drop",
+   "row": 17966
+  },
+  "emoji:🥖": {
+   "subject": "baguette",
+   "row": 22145
+  },
+  "emoji:💫": {
+   "subject": "shooting star",
+   "row": 10420
+  },
+  "emoji:🌈": {
+   "subject": "rainbow",
+   "row": 26365
+  },
+  "emoji:🗑": {
+   "subject": "trash can",
+   "row": 17355
+  },
+  "emoji:🧩": {
+   "subject": "jigsaw puzzle piece",
+   "row": 13683
+  },
+  "emoji:🌲": {
+   "subject": "pine tree",
+   "row": 131234
+  },
+  "emoji:🌙": {
+   "subject": "crescent moon",
+   "row": 10982
+  },
+  "emoji:🦁": {
+   "subject": "lion",
+   "row": 8058
+  },
+  "emoji:🐉": {
+   "subject": "dragon",
+   "row": 65564
+  },
+  "emoji:🔪": {
+   "subject": "kitchen knife",
+   "row": 5660
+  },
+  "emoji:🎉": {
+   "subject": "party popper",
+   "row": 8892
+  },
+  "emoji:🚀": {
+   "subject": "rocket",
+   "row": 15735
+  },
+  "emoji:🌪": {
+   "subject": "tornado",
+   "row": 1531
+  },
+  "emoji:🍱": {
+   "subject": "bento box",
+   "row": 69526
+  },
+  "emoji:✏": {
+   "subject": "pencil",
+   "row": 206
+  },
+  "emoji:🧰": {
+   "subject": "toolbox",
+   "row": 16532
+  },
+  "emoji:👁": {
+   "subject": "eye icon",
+   "row": 10196
+  },
+  "emoji:🤖": {
+   "subject": "robot",
+   "row": 449272
+  },
+  "emoji:🎓": {
+   "subject": "graduation cap",
+   "row": 13205
+  },
+  "emoji:💾": {
+   "subject": "floppy disk",
+   "row": 4327
+  },
+  "emoji:☀": {
+   "subject": "sun",
+   "row": 110169
+  },
+  "emoji:🌊": {
+   "subject": "ocean wave",
+   "row": 1373
+  },
+  "emoji:🎣": {
+   "subject": "fishing rod",
+   "row": 4718
+  },
+  "emoji:🪚": {
+   "subject": "hand saw",
+   "row": 23705
+  },
+  "emoji:🍳": {
+   "subject": "frying pan",
+   "row": 9874
+  },
+  "emoji:👊": {
+   "subject": "boxing glove",
+   "row": 4294
+  },
+  "emoji:🔱": {
+   "subject": "trident",
+   "row": 14322
+  },
+  "emoji:🪄": {
+   "subject": "magic wand",
+   "row": 14899
+  },
+  "emoji:⛑": {
+   "subject": "helmet",
+   "row": 5650
+  },
+  "emoji:👢": {
+   "subject": "boots",
+   "row": 12695
+  },
+  "emoji:💍": {
+   "subject": "band ring",
+   "row": 2007
+  },
+  "emoji:📖": {
+   "subject": "open book",
+   "row": 9428
+  },
+  "emoji:🫐": {
+   "subject": "blueberry",
+   "row": 26769
+  },
+  "emoji:🪶": {
+   "subject": "feather",
+   "row": 75884
+  },
+  "emoji:🐟": {
+   "subject": "fish",
+   "row": 68804
+  },
+  "emoji:🐠": {
+   "subject": "clownfish",
+   "row": 1262
+  },
+  "emoji:🌾": {
+   "subject": "wheat plant",
+   "row": 441439
+  },
+  "emoji:🧶": {
+   "subject": "ball of yarn",
+   "row": 36852
+  },
+  "emoji:🦪": {
+   "subject": "oyster",
+   "row": 19981
+  },
+  "emoji:🪱": {
+   "subject": "earthworm",
+   "row": 63491
+  },
+  "emoji:🕸": {
+   "subject": "spider web",
+   "row": 104790
+  },
+  "emoji:🍢": {
+   "subject": "fish on a stick",
+   "row": 64390
+  },
+  "emoji:🥗": {
+   "subject": "bowl of green salad",
+   "row": 9221
+  },
+  "emoji:🥧": {
+   "subject": "apple pie",
+   "row": 9500
+  },
+  "emoji:🏮": {
+   "subject": "paper lantern",
+   "row": 8530
+  },
+  "emoji:🧿": {
+   "subject": "eye amulet",
+   "row": 17656
+  },
+  "emoji:📿": {
+   "subject": "necklace",
+   "row": 903
+  },
+  "emoji:🔭": {
+   "subject": "telescope",
+   "row": 16798
+  },
+  "emoji:🥾": {
+   "subject": "hiking boot",
+   "row": 1091
+  },
+  "emoji:🔍": {
+   "subject": "magnifying glass",
+   "row": 8751
+  },
+  "emoji:👹": {
+   "subject": "horned demon",
+   "row": 472596
+  },
+  "emoji:💬": {
+   "subject": "speech bubble icon",
+   "row": 13771
+  },
+  "emoji:💡": {
+   "subject": "light bulb",
+   "row": 2734
+  },
+  "emoji:🔧": {
+   "subject": "adjustable wrench",
+   "row": 10517
+  },
+  "emoji:🎨": {
+   "subject": "paint palette",
+   "row": 8285
+  },
+  "emoji:🐫": {
+   "subject": "camel",
+   "row": 202
+  },
+  "emoji:🧙": {
+   "subject": "wizard",
+   "row": 437939
+  },
+  "emoji:🥷": {
+   "subject": "ninja",
+   "row": 426959
+  },
+  "emoji:🐣": {
+   "subject": "phoenix egg",
+   "row": 50178
+  },
+  "emoji:💰": {
+   "subject": "bag of gold coins",
+   "row": 9754
+  },
+  "emoji:🔑": {
+   "subject": "castle key",
+   "row": 7985
+  },
+  "emoji:🥇": {
+   "subject": "medal on ribbon",
+   "row": 11008
+  },
+  "emoji:🧑": {
+   "subject": "villager",
+   "row": 437707
+  },
+  "emoji:📍": {
+   "subject": "map pin icon",
+   "row": 6864
+  },
+  "emoji:🛠": {
+   "subject": "pipe wrench",
+   "row": 2912
+  },
+  "emoji:🚶": {
+   "subject": "explorer",
+   "row": 476954
+  },
+  "emoji:🌱": {
+   "subject": "seedling sprout",
+   "row": 44761
+  },
+  "emoji:🤍": {
+   "subject": "heart crystal",
+   "row": 10249
+  },
+  "emoji:💞": {
+   "subject": "heart pendant",
+   "row": 34242
+  },
+  "emoji:🥕": {
+   "subject": "carrot",
+   "row": 45085
+  },
+  "emoji:🍖": {
+   "subject": "meat on a bone",
+   "row": 53061
+  },
+  "emoji:🍗": {
+   "subject": "chicken drumstick",
+   "row": 12413
+  },
+  "emoji:🍵": {
+   "subject": "cup of tea",
+   "row": 5962
+  },
+  "emoji:🌯": {
+   "subject": "burrito",
+   "row": 15873
+  },
+  "emoji:🥘": {
+   "subject": "paella pan",
+   "row": 43482
+  },
+  "emoji:🔩": {
+   "subject": "bolt",
+   "row": 118
+  },
+  "emoji:📓": {
+   "subject": "notebook",
+   "row": 1403
+  },
+  "emoji:💨": {
+   "subject": "dust puff",
+   "row": 464400
+  },
+  "emoji:🏁": {
+   "subject": "checkered flag",
+   "row": 13533
+  },
+  "emoji:⚖": {
+   "subject": "balance scales",
+   "row": 470474
+  },
+  "emoji:❤‍🔥": {
+   "subject": "dragon heart",
+   "row": 463142
+  },
+  "emoji:💢": {
+   "subject": "anger mark icon",
+   "row": 64961
+  },
+  "emoji:👋": {
+   "subject": "waving hand",
+   "row": 464135
+  },
+  "emoji:🗂": {
+   "subject": "file folder",
+   "row": 452921
+  },
+  "emoji:✂": {
+   "subject": "pair of scissors",
+   "row": 22930
+  },
+  "emoji:🔺": {
+   "subject": "danger triangle marker",
+   "row": 504745
+  },
+  "emoji:⌛": {
+   "subject": "hourglass",
+   "row": 31094
+  },
+  "emoji:⏩": {
+   "subject": "fast forward icon",
+   "row": 30155
+  },
+  "emoji:🟤": {
+   "subject": "copper ore",
+   "row": 12806
+  },
+  "emoji:🥻": {
+   "subject": "hooded robe",
+   "row": 1038
+  },
+  "crest:🌲": {
+   "subject": "pine tree",
+   "row": 80271
+  },
+  "crest:🔥": {
+   "subject": "fire icon",
+   "row": 14963
+  },
+  "crest:🌊": {
+   "subject": "ocean wave",
+   "row": 1960
+  },
+  "crest:⛰": {
+   "subject": "stone spire",
+   "row": 22124
+  },
+  "crest:⭐": {
+   "subject": "star icon",
+   "row": 2506
+  },
+  "crest:🌙": {
+   "subject": "crescent moon",
+   "row": 98296
+  },
+  "crest:🦁": {
+   "subject": "lion",
+   "row": 46626
+  },
+  "crest:🛡": {
+   "subject": "shield icon",
+   "row": 14570
+  },
+  "crest:🐉": {
+   "subject": "dragon",
+   "row": 65564
+  },
+  "crest:🌸": {
+   "subject": "rose",
+   "row": 38522
+  },
+  "crest:🐺": {
+   "subject": "wolf",
+   "row": 40492
+  },
+  "crest:🦅": {
+   "subject": "eagle",
+   "row": 75325
+  },
+  "crest:🦌": {
+   "subject": "stag",
+   "row": 46655
+  },
+  "crest:👑": {
+   "subject": "crown icon",
+   "row": 39635
+  },
+  "crest:⚔": {
+   "subject": "sword icon",
+   "row": 35722
+  },
+  "crest:⚓": {
+   "subject": "anchor",
+   "row": 37586
+  },
+  "crest:🦉": {
+   "subject": "owl",
+   "row": 78395
+  },
+  "crest:☀": {
+   "subject": "sun icon",
+   "row": 12056
+  },
+  "crest:🍃": {
+   "subject": "oak leaf",
+   "row": 76849
+  },
+  "crest:🦊": {
+   "subject": "fox",
+   "row": 41265
+  },
+  "crest:🐴": {
+   "subject": "horse",
+   "row": 8684
+  },
+  "crest:🦄": {
+   "subject": "unicorn",
+   "row": 5820
+  },
+  "crest:🐦": {
+   "subject": "raven",
+   "row": 21654
+  },
+  "crest:💀": {
+   "subject": "skull icon",
+   "row": 30646
+  },
+  "crest:🔨": {
+   "subject": "hammer",
+   "row": 176
+  },
+  "crest:🪓": {
+   "subject": "axe",
+   "row": 649
+  },
+  "crest:🗝": {
+   "subject": "key icon",
+   "row": 27437
+  },
+  "crest:🏰": {
+   "subject": "castle",
+   "row": 45513
+  },
+  "crest:⚡": {
+   "subject": "lightning bolt icon",
+   "row": 5092
+  },
+  "crest:❄": {
+   "subject": "snowflake icon",
+   "row": 20274
+  },
+  "crest:💎": {
+   "subject": "gem icon",
+   "row": 7731
+  },
+  "crest:🍀": {
+   "subject": "four leaf clover",
+   "row": 19454
+  },
+  "crest:❤": {
+   "subject": "heart icon",
+   "row": 588
+  },
+  "crest:🔱": {
+   "subject": "trident",
+   "row": 30576
+  },
+  "crest:🏆": {
+   "subject": "chalice",
+   "row": 9624
   }
  }
 }
