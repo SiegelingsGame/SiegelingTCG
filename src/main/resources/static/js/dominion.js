@@ -491,6 +491,9 @@
     function itemIcon(k) {
         const r = RES[k];
         if (!r) return '';
+        // Pixel icon trial: a sprite for this good wins over the drawn glyph (js/pixel-icons.js).
+        const px = window.SgPixelIcons && window.SgPixelIcons.svgImage('dom:' + k);
+        if (px) return px;
         if (r.icon) return r.icon;
         if (r.kind === 'TOOL') return TOOL_GLYPH[k] || '';
         if (r.kind === 'WEAPON') return '<g style="color:#e8dcc0">' + (WEAPONS[r.weaponType] || WEAPONS.sword).glyph + '</g>';
@@ -2619,15 +2622,20 @@
         for (const h of HUE_WORDS) if (k.indexOf(h[0]) >= 0) return h[1];
         return 'neutral';
     }
+    // Pixel icon trial (js/pixel-icons.js): the sprite for this good when the set has one.
+    // Every caller drops the result into markup, so an <img> is as safe as the emoji.
+    const pixelItem = (k, cls) => (window.SgPixelIcons && window.SgPixelIcons.img('dom:' + k, cls)) || '';
     function itemEmoji(id) {
         const k = String(id || ''), r = RES[k] || {};
+        const px = pixelItem(k, 'is-inline');
+        if (px) return px;
         if (ITEM_EMOJI[k]) return ITEM_EMOJI[k];
         if (r.kind === 'WEAPON') return WEAPON_EMOJI[r.weaponType] || '🗡️';
         return KIND_EMOJI[r.kind] || '📦';
     }
     function itemIcon(id, cls) {
         const k = String(id || ''), m = k.match(/^essence_([a-z]+)/);
-        return '<span class="ck-ico' + (cls ? ' ' + cls : '') + '" style="--ih:var(--' + itemHue(k) + ')" aria-hidden="true">' + (m ? elementIcon(m[1].toUpperCase(), 26) : itemEmoji(k)) + '</span>';
+        return '<span class="ck-ico' + (cls ? ' ' + cls : '') + '" style="--ih:var(--' + itemHue(k) + ')" aria-hidden="true">' + (m ? elementIcon(m[1].toUpperCase(), 26) : (pixelItem(k) || itemEmoji(k))) + '</span>';
     }
     const emojiIcon = (e, hue, cls) => '<span class="ck-ico' + (cls ? ' ' + cls : '') + '" style="--ih:var(--' + (hue || 'neutral') + ')" aria-hidden="true">' + e + '</span>';
     function costRow(cost) {

@@ -1,0 +1,325 @@
+{
+ "_about": "key -> dataset row. Rows index tokens.npy in pixel-art-16x16-1.4m.zip; build verifies the subject still matches.",
+ "icons": {
+  "dom:timber": {
+   "subject": "wooden log",
+   "row": 72897
+  },
+  "dom:stone": {
+   "subject": "stone chunk",
+   "row": 4694
+  },
+  "dom:ore": {
+   "subject": "copper ore",
+   "row": 12806
+  },
+  "dom:fiber": {
+   "subject": "herb bundle",
+   "row": 26259
+  },
+  "dom:produce": {
+   "subject": "harvest basket",
+   "row": 36293
+  },
+  "dom:provisions": {
+   "subject": "rucksack",
+   "row": 3854
+  },
+  "dom:ember": {
+   "subject": "small ingot",
+   "row": 437731
+  },
+  "dom:frost": {
+   "subject": "ice crystal",
+   "row": 10057
+  },
+  "dom:storm": {
+   "subject": "battery",
+   "row": 16266
+  },
+  "dom:glass": {
+   "subject": "square window",
+   "row": 8627
+  },
+  "dom:alloy": {
+   "subject": "small ingot",
+   "row": 484420
+  },
+  "dom:rations": {
+   "subject": "bowl of beef stew",
+   "row": 64640
+  },
+  "dom:relic": {
+   "subject": "rune shard",
+   "row": 482
+  },
+  "dom:insight": {
+   "subject": "star crystal",
+   "row": 5207
+  },
+  "dom:crowns": {
+   "subject": "coin",
+   "row": 4695
+  },
+  "dom:silver": {
+   "subject": "coin",
+   "row": 2908
+  },
+  "dom:fittings": {
+   "subject": "door hinge",
+   "row": 7098
+  },
+  "dom:woodaxe": {
+   "subject": "woodcutting axe",
+   "row": 29141
+  },
+  "dom:pickaxe": {
+   "subject": "pickaxe",
+   "row": 1481
+  },
+  "dom:iron_ore": {
+   "subject": "iron ore",
+   "row": 46534
+  },
+  "dom:ember_shard": {
+   "subject": "ember",
+   "row": 45947
+  },
+  "dom:oak_log": {
+   "subject": "half log",
+   "row": 438038
+  },
+  "dom:heartwood": {
+   "subject": "log slice",
+   "row": 443132
+  },
+  "dom:sunleaf": {
+   "subject": "healing herb",
+   "row": 82835
+  },
+  "dom:frostbloom": {
+   "subject": "frost lily",
+   "row": 82330
+  },
+  "dom:galeberry": {
+   "subject": "star berry",
+   "row": 26345
+  },
+  "dom:gale_feather": {
+   "subject": "feather",
+   "row": 138617
+  },
+  "dom:minnow": {
+   "subject": "fish",
+   "row": 76092
+  },
+  "dom:silverfin": {
+   "subject": "trout",
+   "row": 112279
+  },
+  "dom:copper_bar": {
+   "subject": "ingot pile",
+   "row": 468122
+  },
+  "dom:iron_bar": {
+   "subject": "ingot",
+   "row": 463885
+  },
+  "dom:ancient_relic": {
+   "subject": "idol statuette",
+   "row": 7522
+  },
+  "dom:fossil": {
+   "subject": "ammonite fossil",
+   "row": 37911
+  },
+  "dom:rune_stone": {
+   "subject": "sigil stone",
+   "row": 32857
+  },
+  "dom:linen": {
+   "subject": "folded cloth",
+   "row": 449368
+  },
+  "dom:rope": {
+   "subject": "coil of rope",
+   "row": 7623
+  },
+  "dom:pine_plank": {
+   "subject": "plank",
+   "row": 449904
+  },
+  "dom:oak_plank": {
+   "subject": "plank stack",
+   "row": 444453
+  },
+  "dom:tide_pearl": {
+   "subject": "pearl",
+   "row": 41566
+  },
+  "dom:storm_glass": {
+   "subject": "jar of lightning",
+   "row": 27097
+  },
+  "dom:umbral_crystal": {
+   "subject": "ice crystal",
+   "row": 61879
+  },
+  "dom:mind_prism": {
+   "subject": "crystal prism",
+   "row": 4437
+  },
+  "dom:living_alloy": {
+   "subject": "ingot pile",
+   "row": 484653
+  },
+  "dom:grave_dust": {
+   "subject": "ash pile",
+   "row": 486681
+  },
+  "item:iron-charm": {
+   "subject": "horseshoe charm",
+   "row": 49992
+  },
+  "item:vigor-band": {
+   "subject": "heart ring",
+   "row": 3205
+  },
+  "item:war-fang": {
+   "subject": "wolf fang",
+   "row": 42909
+  },
+  "item:razor-sigil": {
+   "subject": "sigil stone",
+   "row": 81135
+  },
+  "item:swift-boots": {
+   "subject": "boots of speed",
+   "row": 49539
+  },
+  "item:gale-plume": {
+   "subject": "griffin feather",
+   "row": 107927
+  },
+  "item:aegis-crest": {
+   "subject": "knight shield",
+   "row": 19127
+  },
+  "item:bulwark-totem": {
+   "subject": "carved totem",
+   "row": 90832
+  },
+  "item:evolution-sigil": {
+   "subject": "star sparkle",
+   "row": 60032
+  },
+  "item:evolution-2-sigil": {
+   "subject": "star sparkle",
+   "row": 93218
+  },
+  "item:revive-card": {
+   "subject": "phoenix feather",
+   "row": 2431
+  },
+  "item:healing-potion": {
+   "subject": "heart-shaped potion bottle",
+   "row": 18650
+  },
+  "node:BATTLE": {
+   "subject": "crossed swords",
+   "row": 2990
+  },
+  "node:ELITE": {
+   "subject": "horned demon",
+   "row": 472596
+  },
+  "node:REST": {
+   "subject": "campfire",
+   "row": 145260
+  },
+  "node:TREASURE": {
+   "subject": "treasure chest",
+   "row": 5441
+  },
+  "node:BROKER": {
+   "subject": "paw print icon",
+   "row": 60586
+  },
+  "node:SMITH": {
+   "subject": "anvil",
+   "row": 12531
+  },
+  "node:CARAVAN": {
+   "subject": "covered wagon",
+   "row": 437253
+  },
+  "node:EVENT": {
+   "subject": "quest question marker",
+   "row": 82708
+  },
+  "node:RIFT": {
+   "subject": "portal swirl marker",
+   "row": 526271
+  },
+  "node:BOSS": {
+   "subject": "boss crown marker",
+   "row": 511730
+  },
+  "boon:first-round-ap": {
+   "subject": "lightning bolt",
+   "row": 36873
+  },
+  "boon:boss-ap-discount": {
+   "subject": "shield",
+   "row": 37316
+  },
+  "boon:battle-revive": {
+   "subject": "heart crystal",
+   "row": 52211
+  },
+  "event:a-weary-traveler": {
+   "subject": "explorer",
+   "row": 476954
+  },
+  "event:bandit-toll": {
+   "subject": "bandit",
+   "row": 458754
+  },
+  "event:mysterious-stranger": {
+   "subject": "ice mage",
+   "row": 455869
+  },
+  "event:lost-siegeling": {
+   "subject": "phoenix egg",
+   "row": 50178
+  },
+  "event:abandoned-camp": {
+   "subject": "camping tent",
+   "row": 11877
+  },
+  "event:monster-tracks": {
+   "subject": "paw print icon",
+   "row": 48094
+  },
+  "event:treasure-map": {
+   "subject": "dungeon map",
+   "row": 25730
+  },
+  "event:wandering-oracle": {
+   "subject": "crystal ball",
+   "row": 2793
+  },
+  "misc:stew": {
+   "subject": "bowl of beef stew",
+   "row": 64640
+  },
+  "misc:card": {
+   "subject": "deck of cards",
+   "row": 10386
+  },
+  "misc:crate": {
+   "subject": "loot sack",
+   "row": 32813
+  }
+ }
+}

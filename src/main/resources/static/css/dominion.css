@@ -1170,3 +1170,15 @@ button.dm-start-plate:hover > img { transform: scale(1.04); }
 }
 .dm-start-bar.sn-dock > .sn-flank.is-left { padding: 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px) 0 22px; }
 .dm-start-bar.sn-dock > .sn-flank.is-right { padding: 0 22px 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px); }
+
+/* ---- Pixel icon trial (js/pixel-icons.js) --------------------------------
+   A 16px sprite inside the element-hued item tile, in place of the emoji. Sizes
+   are fixed multiples of 16 per tile size (not a percentage) so every sprite
+   pixel lands on whole screen pixels; only the 32px tile settles for 1.5x. */
+.px-icon { image-rendering: pixelated; -webkit-user-drag: none; user-select: none; pointer-events: none; }
+.ck-ico .px-icon { width: 32px; height: 32px; }
+.ck-ico.is-xs .px-icon { width: 16px; height: 16px; }
+.ck-ico.is-sm .px-icon { width: 24px; height: 24px; }
+.ck-ico.is-lg .px-icon, .ck-ico.is-cell .px-icon { width: 48px; height: 48px; }
+.ck-ico.is-xl .px-icon { width: 64px; height: 64px; }
+.px-icon.is-inline { width: 16px; height: 16px; vertical-align: -3px; }

@@ -3604,3 +3604,14 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
 .finish-text-carat :is(.sp-name, .um-name, .um-card-name) { background-image:linear-gradient(100deg,#ffd66b,#fffbe6 30%,#ffe08a 50%,#fffbe6 70%,#ffd66b); }
 @keyframes finish-name-shift { from { background-position:0 0; } to { background-position:-220% 0; } }
 @media (prefers-reduced-motion:reduce) { :is(.sp-name, .um-name, .um-card-name) { animation:none; } }
+
+/* ---- Pixel icon trial (js/pixel-icons.js) --------------------------------
+   16px sprites standing in for emoji. Sizes are fixed multiples of the 16px
+   source (24 = 1.5x lands on whole device pixels on 2x phones) rather than em,
+   so a sprite never renders with uneven pixel columns. */
+.px-icon{width:24px; height:24px; vertical-align:-6px; image-rendering:pixelated; -webkit-user-drag:none; user-select:none; pointer-events:none;}
+.map-glyph-px{image-rendering:pixelated; pointer-events:none;}
+.event-icon .px-icon{width:64px; height:64px; vertical-align:middle;}
+.event-focus .event-icon .px-icon{width:48px; height:48px;}
+.camp-glyph .px-icon, .boon-icon .px-icon{width:32px; height:32px; vertical-align:middle;}
+.knight-bag-btn .px-icon, .inv-slot .px-icon{width:16px; height:16px; vertical-align:-3px;}
