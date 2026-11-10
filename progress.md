@@ -1,3 +1,19 @@
+Original prompt: Find sprites to replace the generic emojis across the app.
+
+- November 10, 2026 **Pixel sprites stand in for 157 emoji app-wide.**
+  - **Survey.** ~1,650 emoji uses of 278 distinct symbols across the static pages, scripts and Siege server strings (adventure.js 358, dominion.js 335, chronicles.js 195, achievements.js 112, …). Too many sites to wire by hand, and many arrive in server text.
+  - **Change.** `tools/pixel-atlas/picks.json` gains 157 `emoji:<char>` picks (each chosen by eye from contact sheets; 240 sprites total, `pixel-icons.js` ~97 KB raw). `pixel-icons.js` now swaps those emoji for sprites at the DOM: one TreeWalker pass on load, then a MutationObserver for re-renders. Each sprite is an `<img class="px-emoji" alt="<emoji>">` sized to a multiple of 8px near 1.2em, with a negative block margin so a row never grows.
+  - **Left alone on purpose.** Typographic marks (→ ✓ ✕ ◆ ★ ✦ ▸ …), UI glyphs with no good sprite (🔊 🎵 🔄 ♾ 🧗 ✋), 🌑/🔗/🌬/🔓/🧘 (no convincing match), and anything inside form fields, `contenteditable`, `<svg>`, `<option>` or `[data-px-skip]`. `?pixelIcons=off` still turns everything off.
+  - **Pages.** Script added before `</body>` on `index`, `home-next`, `play`, `gauntlet`, `keep`, `chronicles`, `home`, `help`; already on `adventure` and `dominion`. Not on the card dashboard or admin pages (they compare `textContent` against "✓ published").
+  - **Cache pins.** `pixel-icons.js?v=3` on all ten pages.
+  - **Verification.** `node --check js/pixel-icons.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium against local Spring Boot, each of nine pages loaded with `?pixelIcons=off` then `=on` at 390x844 and 1920x1080:
+    - No page errors in either mode. Emoji text nodes drop to zero or to unmapped glyphs only (e.g. index 52 → 3, adventure 44 → 14, dominion 23 → 0).
+    - Document scroll height/width identical off vs on on every page; summed height of all visible buttons/headers identical except Dominion (+2px across ~60 controls).
+    - Sprites render at 16/24px in body text and 80–96px in large headings.
+    - Real Siege run and seeded Dominion save rechecked with the swap on: map nodes, legend, inventory, event, caravan and Keep inventory unchanged from the earlier trial numbers.
+    - Full rescan cost under 4x CPU throttle: 1.9 ms on the landing page (1,584 nodes), 0.8 ms on Siege.
+    - Not exercised: a live Battle Table match, signed-in hub screens, chat.
+
 Original prompt: Anything we can use for like the merchant? Or shop owners etc in siege?
 
 - November 10, 2026 **Pixel icon trial: character sprites for Siege's merchant, smith and broker.**
