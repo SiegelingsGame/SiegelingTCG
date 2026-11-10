@@ -1,3 +1,27 @@
+Original prompt: Anything we can use for like the merchant? Or shop owners etc in siege?
+
+- November 10, 2026 **Pixel icon trial: character sprites for Siege's merchant, smith and broker.**
+  - **Change.** Three more picks in `tools/pixel-atlas/picks.json` (`npc:caravan` merchant, `npc:smith` dwarf blacksmith, `npc:broker` trapper; 83 sprites, ~35 KB). `adventure.js` `dressNpc` swaps the framed placeholder glyph in each stop's `.location-npc` slot for the sprite and adds `has-px`, which drops the oval frame so the figure stands in the scene (96px desktop, 64px at ≤760px, 48px in short landscape; name plate and idle bob unchanged). A roadside "Wanderer" encounter is a Siegeling, so it keeps the glyph. `?pixelIcons=off` restores all three frames.
+  - **Cache pins.** `pixel-icons.js?v=2` (adventure.html, dominion.html), `adventure.js?v=159`, `adventure.css?v=116`.
+  - **Verification.** `node --check js/adventure.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium against local Spring Boot on a real run, with the caravan/smith/broker stop patched into `/api/siege/state`, at 390x844 and 1920x1080: each stop shows its sprite (64px / 96px) inside the NPC slot, on screen, not overlapping any party figure, no page errors; the Wanderer encounter shows the ♞ glyph; with `?pixelIcons=off` the framed glyphs return. Caravan and smith screenshots checked.
+
+Original prompt: Let's use it [the Pixel Art Atlas 1.4M sprite dataset] for icons, siege scenes etc. Pick a good group to test with.
+
+- November 10, 2026 **Pixel icon trial: 80 curated 16x16 sprites in Dominion and Siege.**
+  - **Source.** `Angais/pixel-art-atlas-1.4m` on Hugging Face (CC0 from the author, AI-generated with Krea 2; the dataset card says the release does not override Krea's commercial-use terms — owner to confirm before this leaves trial). Nothing is fetched at runtime or build time.
+  - **Tooling.** `tools/pixel-atlas/pixel_atlas.py`: `sheet` renders contact sheets per subject for picking by eye (captions are approximate), `build` packs the rows in `tools/pixel-atlas/picks.json` into the generated `static/js/pixel-icons.js` (palette PNG data URIs, ~34 KB for all 80; `build` fails if a row's subject no longer matches).
+  - **Test group.** Dominion: 19 Keep resources/tools and 25 Chronicles goods (`dom:*`). Siege: the 12 built-in items (`item:*`), all 10 map node types (`node:*`), 3 boons, 8 built-in events (keyed by title, since the run payload carries no event id), and the caravan's stew/card/crate rows.
+  - **Wiring.** Every site keeps its emoji/SVG as fallback for a key with no sprite (dashboard-made items, armour/potion/essence kinds).
+    - `dominion.js`: both `itemIcon` helpers and `itemEmoji` (HUD strip, bank tiles, cost rows, pills).
+    - `adventure.js`: `pxIcon` helper; map node glyphs become SVG `<image>` at 32/40 map units; legend, inventory, knight bag, equipped slot, boon picker, caravan cards, event and outcome icons.
+    - Sprite sizes are fixed multiples of 16px (`dominion.css`, `adventure.css`), `image-rendering: pixelated`.
+    - `?pixelIcons=off` / `=on` flips the whole set and sticks in localStorage for an A/B look on a phone.
+  - **Cache pins.** `pixel-icons.js?v=1` (new, loaded before the page script), `adventure.js?v=158`, `adventure.css?v=115`, `dominion.js?v=33`, `dominion.css?v=26`.
+  - **Verification.** `node --check` on `adventure.js`, `dominion.js`, `pixel-icons.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test` passes. Headless Chromium at 390x844 and 1920x1080, no page errors:
+    - Dominion (static server, seeded founded save holding every test good): HUD strip 5 sprites at 16px; Keep inventory 41 tiles on sprites at 48px, all decoded at 16px natural, no horizontal scroll; the 5 remaining emoji tiles are kinds outside the group. `?pixelIcons=off` → 0 sprites, 46 emoji tiles.
+    - Siege (local Spring Boot, real run from `/api/siege/run/new`; inventory, event and caravan stops patched into `/api/siege/state` because reaching them by play takes several battles): every map node on a sprite (19–27 per generated map, 32px, boss 40px), centred in and smaller than its circle, page does not scroll; legend 10/10; inventory 14/14 at 24px; event icon 48px; caravan 6/6 at 32px. `?pixelIcons=off` → all emoji again.
+    - Screenshots of the Keep inventory, Siege map, inventory and caravan checked.
+
 Original prompt: Look at how many size changes the board goes through from draw to battle to targeting. The size of the menu at the bottom changes. Make the size consistent across all these steps.
 
 - November 9, 2026 **Portrait match: one bottom dock, one arena size from Draw through targeting.**

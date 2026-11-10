@@ -103,6 +103,27 @@
     CURSE: 'SHADOW', INSIGHT: 'PSYCHIC', BLIND: 'LIGHT', WITHER: 'UNDEAD'
   };
   var NODE_ICON = { BATTLE: '⚔️', ELITE: '🔺', REST: '🏕️', TREASURE: '💎', BROKER: '🐾', SMITH: '🔨', CARAVAN: '🐫', EVENT: '❔', RIFT: '🌀', BOSS: '👑' };
+  // Pixel icon trial (js/pixel-icons.js): the sprite for this key when the set
+  // has one, else the emoji it stands in for — so a dashboard-made item or a
+  // node type without a sprite still renders exactly as before.
+  function pxIcon(key, fallback) {
+    var px = window.SgPixelIcons;
+    return (px && key && px.img(key)) || esc(fallback == null ? '' : fallback);
+  }
+  // The run payload names an event by title only (no id), so sprites key off it.
+  function eventIconKey(title) {
+    return 'event:' + String(title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+  // Stands a sprite character in a stop's NPC slot (the framed glyph is the
+  // fallback). The frame goes with has-px so the figure stands in the scene.
+  function dressNpc(npc, key) {
+    var glyph = npc && npc.querySelector('[aria-hidden]');
+    if (!glyph) return;
+    if (!glyph.dataset.glyph) glyph.dataset.glyph = glyph.textContent;
+    var html = window.SgPixelIcons && window.SgPixelIcons.img(key);
+    npc.classList.toggle('has-px', !!html);
+    glyph.innerHTML = html || esc(glyph.dataset.glyph);
+  }
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', RIFT: '#5eead4', BOSS: '#ff9a3c' };
   // One line per emblem, shown in the map key (🗝️ Key on the map HUD). Kept
   // beside NODE_ICON so a new node type is obvious when it has no entry here.
@@ -2039,7 +2060,7 @@
     if (host) {
       host.innerHTML = offer.map(function (b) {
         return '<button type="button" class="boon-choice" data-boon="' + esc(b.id) + '">' +
-          '<span class="boon-icon">' + esc(b.icon || '✨') + '</span>' +
+          '<span class="boon-icon">' + pxIcon('boon:' + b.id, b.icon || '✨') + '</span>' +
           '<span class="boon-name">' + esc(b.name) + '</span>' +
           '<span class="boon-desc">' + esc(b.desc || '') + '</span></button>';
       }).join('');
@@ -2716,6 +2737,7 @@
         message: run.lastReward,
         title: ctx.title || 'Outcome',
         icon: ctx.icon || '✨',
+        iconKey: ctx.iconKey,
         returnToMap: interactionClosed(run, ctx.source)
       };
       renderInteractionResult();
@@ -2729,7 +2751,7 @@
     showScreen('interactionResultScreen');
     var ir = state.interactionResult || {};
     var run = state.run || {};
-    $('interactionResultIcon').textContent = ir.icon || '✨';
+    $('interactionResultIcon').innerHTML = pxIcon(ir.iconKey, ir.icon || '✨');
     $('interactionResultTitle').textContent = ir.title || 'Outcome';
     $('interactionResultText').textContent = ir.message || '';
     $('interactionResultGold').textContent = '🪙 ' + (run.gold || 0);
@@ -3123,12 +3145,26 @@
       circle.setAttribute('style', '--node-tint:' + (NODE_TINT[n.type] || '#8fa3bf'));
       g.appendChild(circle);
 
-      var glyph = document.createElementNS(NS, 'text');
-      glyph.setAttribute('class', 'map-glyph');
-      glyph.setAttribute('text-anchor', 'middle');
-      glyph.setAttribute('dominant-baseline', 'central');
-      glyph.setAttribute('y', '1');
-      glyph.textContent = NODE_ICON[n.type] || '•';
+      var pxSrc = window.SgPixelIcons && window.SgPixelIcons.src('node:' + n.type);
+      var glyph;
+      if (pxSrc) {
+        // 32px = the 16px sprite at exactly 2x in map units, so its pixels stay square.
+        var gs = n.type === 'BOSS' ? 40 : 32;
+        glyph = document.createElementNS(NS, 'image');
+        glyph.setAttribute('class', 'map-glyph map-glyph-px');
+        glyph.setAttribute('href', pxSrc);
+        glyph.setAttribute('x', -gs / 2);
+        glyph.setAttribute('y', -gs / 2);
+        glyph.setAttribute('width', gs);
+        glyph.setAttribute('height', gs);
+      } else {
+        glyph = document.createElementNS(NS, 'text');
+        glyph.setAttribute('class', 'map-glyph');
+        glyph.setAttribute('text-anchor', 'middle');
+        glyph.setAttribute('dominant-baseline', 'central');
+        glyph.setAttribute('y', '1');
+        glyph.textContent = NODE_ICON[n.type] || '•';
+      }
       g.appendChild(glyph);
 
       var label = document.createElementNS(NS, 'text');
@@ -3526,6 +3562,8 @@
     // one take only, and walking on accepts its parting gift.
     var taken = (b.offers || []).some(function (o) { return o.used; });
     $('brokerNpc').textContent = b.encounter ? 'Wanderer' : 'Broker';
+    // A roadside encounter is a wandering Siegeling, not a person: it keeps the glyph.
+    dressNpc($('brokerNpc').parentNode, b.encounter ? '' : 'npc:broker');
     $('brokerKicker').textContent = b.encounter ? 'Roadside encounter' : 'Traveling service';
     $('brokerTitle').textContent = b.encounter ? 'A Wandering Siegeling' : 'Mercenary Broker';
     $('brokerNote').textContent = b.encounter
@@ -3638,6 +3676,7 @@
     smithScrapMode = false;
     var run = state.run, sm = run.smith;
     $('smithGold').textContent = '🪙 ' + (run.gold || 0);
+    dressNpc(document.querySelector('.smith-npc'), 'npc:smith');
     renderLocationParty('smithParty', displayParty(run));
     var grid = $('smithGrid'); grid.innerHTML = '';
     (sm.options || []).forEach(function (o, i) {
@@ -3703,10 +3742,12 @@
     showScreen('caravanScreen');
     var run = state.run, cv = run.caravan;
     $('caravanGold').textContent = '🪙 ' + (run.gold || 0);
+    dressNpc(document.querySelector('.caravan-npc'), 'npc:caravan');
     renderLocationParty('caravanParty', displayParty(run));
     var grid = $('caravanGrid'); grid.innerHTML = '';
     (cv.options || []).forEach(function (o) {
-      var icon = o.kind === 'SHOP_ITEM' ? (o.item ? o.item.icon : '📦') : o.kind === 'SHOP_HEAL' ? '🍲' : '🃏';
+      var icon = o.kind === 'SHOP_ITEM' ? (o.item ? pxIcon('item:' + o.item.id, o.item.icon) : pxIcon('misc:crate', '📦'))
+        : o.kind === 'SHOP_HEAL' ? pxIcon('misc:stew', '🍲') : pxIcon('misc:card', '🃏');
       var card = el('div', 'camp-card' + (o.used ? ' used' : ''));
       card.innerHTML = '<div class="camp-glyph">' + icon + '</div>' +
         '<div class="camp-card-title">' + esc(o.title) + '</div>' +
@@ -3726,7 +3767,7 @@
     showScreen('eventScreen');
     var run = state.run, ev = run.event;
     renderLocationParty('eventParty', displayParty(run));
-    $('eventIcon').textContent = ev.icon || '❔';
+    $('eventIcon').innerHTML = pxIcon(eventIconKey(ev.title), ev.icon || '❔');
     $('eventTitle').textContent = ev.title || 'Event';
     $('eventPrompt').textContent = ev.prompt || '';
     $('eventGold').textContent = '🪙 ' + (run.gold || 0);
@@ -3742,7 +3783,8 @@
         simplePost('/api/siege/event/choose', { optionId: o.id }, {
           source: 'event',
           title: ev.title || 'Event',
-          icon: ev.icon || '❔'
+          icon: ev.icon || '❔',
+          iconKey: eventIconKey(ev.title)
         });
       });
       box.appendChild(b);
@@ -4056,7 +4098,7 @@
     nodes.innerHTML = NODE_LEGEND.map(function (row) {
       return '<div class="legend-row">' +
         '<span class="legend-mark" style="--node-tint:' + (NODE_TINT[row[0]] || '#8fa3bf') + '">' +
-          (NODE_ICON[row[0]] || '•') + '</span>' +
+          pxIcon('node:' + row[0], NODE_ICON[row[0]] || '•') + '</span>' +
         '<span class="legend-copy"><b>' + esc(row[1]) + '</b><i>' + esc(row[2]) + '</i></span>' +
       '</div>';
     }).join('');
@@ -4083,7 +4125,7 @@
     } else {
       bagItems.forEach(function (it) {
         var b = el('button', 'inv-item inv-knight-item' + (state.knightSelectedItem === it.id ? ' sel' : ''),
-          '<span class="inv-item-icon">' + it.icon + '</span><span class="inv-item-name">' + esc(it.name) + '</span><span class="inv-item-eff">' + esc(it.effect) + '</span>');
+          '<span class="inv-item-icon">' + pxIcon('item:' + it.id, it.icon) + '</span><span class="inv-item-name">' + esc(it.name) + '</span><span class="inv-item-eff">' + esc(it.effect) + '</span>');
         b.addEventListener('click', function () {
           state.knightSelectedItem = (state.knightSelectedItem === it.id ? null : it.id);
           renderInventory();
@@ -4108,7 +4150,7 @@
     }
     (run.party || []).forEach(function (pm) {
       var slot = pm.item
-        ? '<div class="inv-slot filled" title="' + esc(pm.item.effect) + '">' + pm.item.icon + ' ' + esc(pm.item.name) + ' <button class="inv-unequip" type="button">✕</button></div>'
+        ? '<div class="inv-slot filled" title="' + esc(pm.item.effect) + '">' + pxIcon('item:' + pm.item.id, pm.item.icon) + ' ' + esc(pm.item.name) + ' <button class="inv-unequip" type="button">✕</button></div>'
         : '<div class="inv-slot empty">— empty slot —</div>';
       var row = el('div', 'inv-member ' + elClass(pm.element) + (pm.alive ? '' : ' dead') +
         knightTargetClass(selItem, pm, false),
@@ -4133,7 +4175,7 @@
     if (!(run.inventory || []).length) bag.innerHTML = '<div class="inv-empty">No spare items. Find them at caravans, events and caches.</div>';
     (run.inventory || []).forEach(function (it) {
       var b = el('button', 'inv-item' + (invSelectedItem === it.id ? ' sel' : ''),
-        '<span class="inv-item-icon">' + it.icon + '</span><span class="inv-item-name">' + esc(it.name) + '</span><span class="inv-item-eff">' + esc(it.effect) + '</span>');
+        '<span class="inv-item-icon">' + pxIcon('item:' + it.id, it.icon) + '</span><span class="inv-item-name">' + esc(it.name) + '</span><span class="inv-item-eff">' + esc(it.effect) + '</span>');
       b.addEventListener('click', function () { invSelectedItem = (invSelectedItem === it.id ? null : it.id); state.knightSelectedItem = null; renderInventory(); });
       bag.appendChild(b);
     });
@@ -4473,7 +4515,7 @@
       bagHtml = '<div class="knight-bag-row">';
       bagItems.forEach(function (it) {
         bagHtml += '<button type="button" class="knight-bag-btn' + (state.knightSelectedItem === it.id ? ' sel' : '') +
-          '" data-item-id="' + esc(it.id) + '" title="' + esc(it.effect) + '">' + it.icon + ' ' + esc(it.name) + '</button>';
+          '" data-item-id="' + esc(it.id) + '" title="' + esc(it.effect) + '">' + pxIcon('item:' + it.id, it.icon) + ' ' + esc(it.name) + '</button>';
       });
       bagHtml += '</div>';
     }
