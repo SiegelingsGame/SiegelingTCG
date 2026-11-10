@@ -1,3 +1,10 @@
+Original prompt: Add more options for insignia, let's do 35 options.
+
+- November 10, 2026 **Dominion insignias: 35 choices.**
+  - **Change.** 16 more `crest:<emoji>` sprites (fox, horse, unicorn, raven, skull, hammer, axe, key, castle, lightning, snowflake, gem, clover, heart, trident, chalice), each picked by eye; `CREST_EMBLEMS` in `dominion.js` is now 35. 275 sprites, `pixel-icons.js` ~110 KB raw. The picker's sideways-strip breakpoint moves from `max-height: 700px` to `800px`: at 360x740 the six-row grid fit but scrolled the crest preview out of view.
+  - **Cache pins.** `pixel-icons.js?v=5` (all ten pages), `dominion.js?v=35`, `dominion.css?v=28`.
+  - **Verification.** `node --check js/dominion.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium on the crest page, picking the 35th insignia each time: 35/35 buttons on sprites and the preview updates, at 390x844, 375x812, 412x915, 430x932 and 1920x1080 (grid, no inner scroll, preview on screen, last row clear of Next) and at 360x740, 390x700, 320x568 and 844x390 (strip scrolls sideways). `?pixelIcons=off` shows 35 emoji. No page errors.
+
 Original prompt: Use sprites for insignias in dominion.
 
 - November 10, 2026 **Dominion crest insignias are sprites, with nine new choices.**

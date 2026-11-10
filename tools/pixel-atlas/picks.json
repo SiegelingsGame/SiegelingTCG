@@ -1036,6 +1036,70 @@
   "crest:🍃": {
    "subject": "oak leaf",
    "row": 76849
+  },
+  "crest:🦊": {
+   "subject": "fox",
+   "row": 41265
+  },
+  "crest:🐴": {
+   "subject": "horse",
+   "row": 8684
+  },
+  "crest:🦄": {
+   "subject": "unicorn",
+   "row": 5820
+  },
+  "crest:🐦": {
+   "subject": "raven",
+   "row": 21654
+  },
+  "crest:💀": {
+   "subject": "skull icon",
+   "row": 30646
+  },
+  "crest:🔨": {
+   "subject": "hammer",
+   "row": 176
+  },
+  "crest:🪓": {
+   "subject": "axe",
+   "row": 649
+  },
+  "crest:🗝": {
+   "subject": "key icon",
+   "row": 27437
+  },
+  "crest:🏰": {
+   "subject": "castle",
+   "row": 45513
+  },
+  "crest:⚡": {
+   "subject": "lightning bolt icon",
+   "row": 5092
+  },
+  "crest:❄": {
+   "subject": "snowflake icon",
+   "row": 20274
+  },
+  "crest:💎": {
+   "subject": "gem icon",
+   "row": 7731
+  },
+  "crest:🍀": {
+   "subject": "four leaf clover",
+   "row": 19454
+  },
+  "crest:❤": {
+   "subject": "heart icon",
+   "row": 588
+  },
+  "crest:🔱": {
+   "subject": "trident",
+   "row": 30576
+  },
+  "crest:🏆": {
+   "subject": "chalice",
+   "row": 9624
   }
  }
 }

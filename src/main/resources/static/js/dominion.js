@@ -2669,8 +2669,9 @@
     const portraitSrc = (el, thumb) => '/img/dominion/knights/knight-' + el + (thumb ? '-thumb' : '') + '.webp';
     // A crest stores its insignia as the emoji itself, so old saves keep working. Each one has a
     // heraldic sprite (crest:<emoji> in js/pixel-icons.js); the emoji is the fallback when the
-    // sprite set is off. The last nine were added with the sprites.
-    const CREST_EMBLEMS = ['🌲', '🔥', '🌊', '⛰️', '⭐', '🌙', '🦁', '🛡️', '🐉', '🌸', '🐺', '🦅', '🦌', '🦉', '👑', '⚔️', '⚓', '☀️', '🍃'];
+    // sprite set is off. Everything after 🌸 was added with the sprites.
+    const CREST_EMBLEMS = ['🌲', '🔥', '🌊', '⛰️', '⭐', '🌙', '🦁', '🛡️', '🐉', '🌸', '🐺', '🦅', '🦌', '🦉', '👑', '⚔️', '⚓', '☀️', '🍃',
+        '🦊', '🐴', '🦄', '🐦', '💀', '🔨', '🪓', '🗝️', '🏰', '⚡', '❄️', '💎', '🍀', '❤️', '🔱', '🏆'];
     const emblemMark = (e) => (e && window.SgPixelIcons && window.SgPixelIcons.img('crest:' + String(e).replace(/\uFE0F/g, ''), 'dm-crest-px')) || esc(e || '');
     const CREST_COLORS = PORTRAITS;
     const CREST_SHAPES = { shield: 'Shield', kite: 'Kite', round: 'Round', diamond: 'Diamond', banner: 'Banner' };

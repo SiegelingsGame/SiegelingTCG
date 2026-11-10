@@ -1189,9 +1189,10 @@ button.dm-start-plate:hover > img { transform: scale(1.04); }
 .dm-crest.is-standee .dm-crest-px { width: 48px; height: 48px; image-rendering: pixelated !important; }
 .dm-j-walker .dm-crest.is-standee .dm-crest-px { width: 24px; height: 24px; }
 .dm-cc-emblem .dm-crest-px { width: 24px; height: 24px; vertical-align: middle; }
-/* Nineteen insignias wrap to three or four rows; on a short screen that runs under the sheet's
-   action bar, so they become a single strip that scrolls sideways instead. */
-@media (max-height: 700px) {
+/* Thirty-five insignias wrap to five or six rows; on a short screen that runs under the sheet's
+   action bar (or push the crest preview out of view), so they become a single strip that
+   scrolls sideways instead. */
+@media (max-height: 800px) {
     .dm-cc-insignias { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; touch-action: pan-x; padding: 3px; scrollbar-width: none; }
     .dm-cc-insignias .dm-cc-emblem { flex: 0 0 auto; }
 }
