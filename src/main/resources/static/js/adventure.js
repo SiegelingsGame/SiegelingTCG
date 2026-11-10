@@ -114,6 +114,16 @@
   function eventIconKey(title) {
     return 'event:' + String(title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   }
+  // Stands a sprite character in a stop's NPC slot (the framed glyph is the
+  // fallback). The frame goes with has-px so the figure stands in the scene.
+  function dressNpc(npc, key) {
+    var glyph = npc && npc.querySelector('[aria-hidden]');
+    if (!glyph) return;
+    if (!glyph.dataset.glyph) glyph.dataset.glyph = glyph.textContent;
+    var html = window.SgPixelIcons && window.SgPixelIcons.img(key);
+    npc.classList.toggle('has-px', !!html);
+    glyph.innerHTML = html || esc(glyph.dataset.glyph);
+  }
   var NODE_TINT = { BATTLE: '#8fa3bf', ELITE: '#ff6e6e', REST: '#7ee787', TREASURE: '#ffd066', BROKER: '#c896ff', RIFT: '#5eead4', BOSS: '#ff9a3c' };
   // One line per emblem, shown in the map key (🗝️ Key on the map HUD). Kept
   // beside NODE_ICON so a new node type is obvious when it has no entry here.
@@ -3552,6 +3562,8 @@
     // one take only, and walking on accepts its parting gift.
     var taken = (b.offers || []).some(function (o) { return o.used; });
     $('brokerNpc').textContent = b.encounter ? 'Wanderer' : 'Broker';
+    // A roadside encounter is a wandering Siegeling, not a person: it keeps the glyph.
+    dressNpc($('brokerNpc').parentNode, b.encounter ? '' : 'npc:broker');
     $('brokerKicker').textContent = b.encounter ? 'Roadside encounter' : 'Traveling service';
     $('brokerTitle').textContent = b.encounter ? 'A Wandering Siegeling' : 'Mercenary Broker';
     $('brokerNote').textContent = b.encounter
@@ -3664,6 +3676,7 @@
     smithScrapMode = false;
     var run = state.run, sm = run.smith;
     $('smithGold').textContent = '🪙 ' + (run.gold || 0);
+    dressNpc(document.querySelector('.smith-npc'), 'npc:smith');
     renderLocationParty('smithParty', displayParty(run));
     var grid = $('smithGrid'); grid.innerHTML = '';
     (sm.options || []).forEach(function (o, i) {
@@ -3729,6 +3742,7 @@
     showScreen('caravanScreen');
     var run = state.run, cv = run.caravan;
     $('caravanGold').textContent = '🪙 ' + (run.gold || 0);
+    dressNpc(document.querySelector('.caravan-npc'), 'npc:caravan');
     renderLocationParty('caravanParty', displayParty(run));
     var grid = $('caravanGrid'); grid.innerHTML = '';
     (cv.options || []).forEach(function (o) {

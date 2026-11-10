@@ -8,7 +8,8 @@
  * each is ~200-400 bytes, so one cached script beats ~80 image requests.
  *
  * Keys are namespaced by where the icon is used: dom:<resource id>,
- * item:<siege item id>, node:<NODE TYPE>, boon:<id>, event:<id>, misc:<name>.
+ * item:<siege item id>, node:<NODE TYPE>, boon:<id>, event:<title slug>,
+ * npc:<stop>, misc:<name>.
  * Every caller keeps its old emoji/SVG as the fallback for a key with no sprite.
  *
  * ?pixelIcons=off (or =on) flips the whole set for an A/B look and sticks in

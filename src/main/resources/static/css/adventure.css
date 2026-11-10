@@ -3615,3 +3615,10 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
 .event-focus .event-icon .px-icon{width:48px; height:48px;}
 .camp-glyph .px-icon, .boon-icon .px-icon{width:32px; height:32px; vertical-align:middle;}
 .knight-bag-btn .px-icon, .inv-slot .px-icon{width:16px; height:16px; vertical-align:-3px;}
+/* NPC figures at stops: the sprite replaces the framed glyph and stands in the
+   scene on its own (96px = 6x, 64px = 4x on phones, 48px in short landscape). The slot keeps its box so
+   the name plate and idle bob stay where they were. */
+.location-npc.has-px{background:none; border-color:transparent;}
+.location-npc.has-px .px-icon{width:96px; height:96px; align-self:flex-end;}
+@media (max-width:760px){ .location-npc.has-px .px-icon{width:64px; height:64px;} }
+@media (max-width:900px) and (max-height:520px){ .location-npc.has-px .px-icon{width:48px; height:48px;} }

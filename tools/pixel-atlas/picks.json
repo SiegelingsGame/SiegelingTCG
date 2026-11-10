@@ -320,6 +320,18 @@
   "misc:crate": {
    "subject": "loot sack",
    "row": 32813
+  },
+  "npc:caravan": {
+   "subject": "merchant",
+   "row": 462473
+  },
+  "npc:smith": {
+   "subject": "dwarf blacksmith",
+   "row": 463661
+  },
+  "npc:broker": {
+   "subject": "trapper",
+   "row": 481134
   }
  }
 }

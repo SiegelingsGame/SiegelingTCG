@@ -1,3 +1,10 @@
+Original prompt: Anything we can use for like the merchant? Or shop owners etc in siege?
+
+- November 10, 2026 **Pixel icon trial: character sprites for Siege's merchant, smith and broker.**
+  - **Change.** Three more picks in `tools/pixel-atlas/picks.json` (`npc:caravan` merchant, `npc:smith` dwarf blacksmith, `npc:broker` trapper; 83 sprites, ~35 KB). `adventure.js` `dressNpc` swaps the framed placeholder glyph in each stop's `.location-npc` slot for the sprite and adds `has-px`, which drops the oval frame so the figure stands in the scene (96px desktop, 64px at ≤760px, 48px in short landscape; name plate and idle bob unchanged). A roadside "Wanderer" encounter is a Siegeling, so it keeps the glyph. `?pixelIcons=off` restores all three frames.
+  - **Cache pins.** `pixel-icons.js?v=2` (adventure.html, dominion.html), `adventure.js?v=159`, `adventure.css?v=116`.
+  - **Verification.** `node --check js/adventure.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium against local Spring Boot on a real run, with the caravan/smith/broker stop patched into `/api/siege/state`, at 390x844 and 1920x1080: each stop shows its sprite (64px / 96px) inside the NPC slot, on screen, not overlapping any party figure, no page errors; the Wanderer encounter shows the ♞ glyph; with `?pixelIcons=off` the framed glyphs return. Caravan and smith screenshots checked.
+
 Original prompt: Let's use it [the Pixel Art Atlas 1.4M sprite dataset] for icons, siege scenes etc. Pick a good group to test with.
 
 - November 10, 2026 **Pixel icon trial: 80 curated 16x16 sprites in Dominion and Siege.**
