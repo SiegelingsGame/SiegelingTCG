@@ -1,3 +1,16 @@
+Original prompt: Make the crest shape and layout better, could we do a Hue slider for color?
+
+- November 11, 2026 **Dominion crest: drawn shapes, a hue slider and a new crest page layout.**
+  - **Shapes.** `crest()` in `dominion.js` now draws each shape (shield, kite, round, diamond, banner) as an inline SVG outline instead of a `clip-path`: dark outline, gold metal rim, vertical field gradient, top sheen, bottom shade and an inner bevel line. Every crest carries its own gradient ids (`crestSeq`) because an id resolves to its first match in the page; the stops read `--cf1`/`--cf2` from the crest span, so recolouring is a style change.
+  - **Colour.** The ten element swatches are replaced by a 0–359 hue slider (`#dmCrestHue`) with a rainbow track and a thumb in the current colour. Crests saved from now on store `crest.hue`; older saves keep their element name in `crest.color` and render in that element's exact colour until the slider moves (the slider starts at that element's hue). `crest.color` is kept because `portraitOf` falls back on it. Sanitise drops a non-numeric hue. New knights start on hue 220, since the old pale-gold default disappeared against the gold rim. Dragging updates every crest on the sheet in place, redrawing an outline only when its shape changed.
+  - **Layout.** The crest stands on a plinth (glow and floor shadow sized by the crest) at 84px, 96px beside the controls on sheets 600px and wider; shape buttons preview the current colour and insignia; insignias are a 7-across grid on phones. On shorter screens the insignias fold into a sideways-scrolling band of 3 rows (≤800px tall), 2 rows (≤640px) or 1 row (≤480px), and the crest shrinks to 64px below 640px.
+  - **Cache pins.** `dominion.js?v=36`, `dominion.css?v=29`.
+  - **Verification.** `node --check js/dominion.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium on a static server:
+    - Crest page at 390x844, 430x932, 375x812, 360x740, 390x700, 320x568, 844x390 and 1920x1080: dragging the slider with the mouse recolours the crest; choosing Banner and the wolf update the hero and shape buttons; gradient ids are unique; no control is cut off by the page (5 to 110px spare); sprite sizes are whole multiples of 16.
+    - A schema-4 save with `{color:"water", shape:"kite"}` and no hue renders water blue in the Keep, opens the slider at 211, saves `hue:120` after a slider change, and shows green after reload. A save with `hue:"purple"` loads in its element colour.
+    - `?pixelIcons=off`: emoji insignias sit inside the SVG crest. Summary page crest renders. No page errors.
+    - Screenshots at 390x844, 360x740, 844x390, 1920x1080 and the Keep checked.
+
 Original prompt: Add more options for insignia, let's do 35 options.
 
 - November 10, 2026 **Dominion insignias: 35 choices.**

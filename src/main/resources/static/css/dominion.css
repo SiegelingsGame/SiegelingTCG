@@ -728,14 +728,13 @@ button.dm-res-strip { border: 0; background: none; padding: 0; color: inherit; f
 .dm-task-text b { font: 800 15px/1.2 var(--fun, var(--sans)); }
 .dm-task-text small { font: 600 12px/1.3 var(--sans); opacity: .85; }
 
-/* Your knight's crest, beside the name. */
-.dm-crest { display: inline-grid; place-items: center; width: 1.25em; height: 1.4em; margin-right: .3em; vertical-align: -.2em; background: linear-gradient(180deg, color-mix(in srgb, var(--el) 85%, white), color-mix(in srgb, var(--el) 70%, black));
-    clip-path: polygon(0 0, 100% 0, 100% 58%, 50% 100%, 0 58%); filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
-.dm-crest[data-shape="kite"] { clip-path: polygon(8% 0, 92% 0, 84% 64%, 50% 100%, 16% 64%); }
-.dm-crest[data-shape="round"] { clip-path: circle(47% at 50% 48%); }
-.dm-crest[data-shape="diamond"] { clip-path: polygon(50% 0, 96% 50%, 50% 100%, 4% 50%); }
-.dm-crest[data-shape="banner"] { clip-path: polygon(7% 0, 93% 0, 93% 100%, 50% 76%, 7% 100%); }
-.dm-crest i { font-style: normal; font-size: .62em; line-height: 1; margin-top: -.15em; }
+/* Your knight's crest: an SVG outline with a metal rim and sheen (dm-crest-svg), the insignia
+   on top. Sized in em, so it follows the text it sits beside. */
+.dm-crest { position: relative; display: inline-grid; place-items: center; width: 1.25em; height: 1.4em; margin-right: .3em; vertical-align: -.2em; filter: drop-shadow(0 2px 3px rgba(0,0,0,.45)); }
+.dm-crest-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.dm-crest i { position: relative; font-style: normal; font-size: .62em; line-height: 1; margin-top: -.14em; }
+.dm-crest[data-shape="round"] i, .dm-crest[data-shape="diamond"] i { margin-top: 0; }
+.dm-crest[data-shape="banner"] i { margin-top: -.34em; }
 .dm-crest.is-lg { font-size: 54px; margin: 0; }
 .dm-mentor-btn { position: relative; padding: 0; cursor: pointer; }
 .dm-mentor-tag { position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); padding: 2px 8px; border-radius: 999px; background: rgba(11,16,32,.88); border: 1px solid rgba(244,204,98,.5); color: #ffe9a8; font: 800 10px/1.4 var(--sans); white-space: nowrap; }
@@ -765,9 +764,8 @@ button.dm-res-strip { border: 0; background: none; padding: 0; color: inherit; f
 .dm-cc-label { display: block; margin: 3px 0 4px; color: var(--muted); font: 800 10px/1.2 var(--sans); letter-spacing: .12em; text-transform: uppercase; }
 .dm-cc-input { width: 100%; min-height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.18); background: rgba(0,0,0,.3); color: var(--ink); font: 700 16px/1 var(--sans); }
 .dm-cc-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
-.dm-cc-emblem { width: 42px; height: 42px; border-radius: 12px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); font-size: 22px; cursor: pointer; }
-.dm-cc-color { width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); background: var(--el); cursor: pointer; }
-.dm-cc-emblem.is-on, .dm-cc-color.is-on, .dm-cc-shape.is-on { border-color: #f4cc62; box-shadow: 0 0 0 2px rgba(244,204,98,.4); }
+.dm-cc-emblem { min-width: 0; height: 40px; padding: 0; border-radius: 11px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); font-size: 22px; cursor: pointer; }
+.dm-cc-emblem.is-on, .dm-cc-shape.is-on { border-color: #f4cc62; background: rgba(70,52,16,.45); box-shadow: 0 0 0 2px rgba(244,204,98,.4); }
 .dm-cc-callings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
 @media (min-width: 640px) { .dm-cc-callings { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .dm-cc-calling { min-width: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 6px; align-items: center; padding: 6px 8px; border-radius: 11px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: inherit; text-align: left; cursor: pointer; }
@@ -777,15 +775,40 @@ button.dm-res-strip { border: 0; background: none; padding: 0; color: inherit; f
 .dm-cc-calling.is-on { border-color: #f4cc62; background: rgba(70,52,16,.45); }
 .dm-cc-sheet h3 { margin: 7px 0 4px; }
 .dm-cc-titles .ck-pill { min-height: 31px; padding: 4px 10px; }
-.dm-cc-crest-preview { display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 74px; border-radius: 16px; background: radial-gradient(circle at 30% 50%, color-mix(in srgb, var(--gold) 15%, transparent), transparent 48%), rgba(255,255,255,.035); }
-.dm-cc-crest-preview > div { display: grid; gap: 3px; }
-.dm-cc-crest-preview b { font: 800 19px/1.1 var(--fun, var(--sans)); }
-.dm-cc-crest-preview small { max-width: 230px; color: var(--muted); font: 600 11px/1.3 var(--sans); }
+.dm-cc-sheet[data-page="crest"] .dm-cc-page { display: flex; flex-direction: column; gap: 6px; }
+.dm-cc-sheet[data-page="crest"] h3 { margin: 4px 0 2px; }
+/* The crest stands alone on a lit plinth: it is the thing being made. */
+.dm-cc-crest-stage { flex: 0 0 auto; display: grid; justify-items: center; align-content: center; gap: 6px; padding: 8px 10px 10px; border-radius: 18px; border: 1px solid rgba(255,255,255,.06); background: rgba(255,255,255,.03); }
+/* Glow and floor shadow sized by the crest itself, so they sit right however tall the stage is. */
+.dm-cc-plinth { display: inline-grid; place-items: center; padding: 8px 30px 14px;
+    background: radial-gradient(closest-side at 50% 44%, color-mix(in srgb, var(--gold, #f4cc62) 30%, transparent), transparent), radial-gradient(34% 7% at 50% 93%, rgba(0,0,0,.5), transparent); }
+.dm-cc-crest-stage small { display: none; max-width: 240px; color: var(--muted); font: 600 11px/1.3 var(--sans); text-align: center; }
+.dm-crest.is-hero { font-size: 84px; margin: 0; filter: drop-shadow(0 10px 12px rgba(0,0,0,.55)); }
+.dm-cc-crest-tools { min-height: 0; display: flex; flex-direction: column; }
+.dm-cc-crest-tools > * { flex: 0 0 auto; }
 .dm-cc-shapes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
-.dm-cc-shape { min-width: 0; display: grid; justify-items: center; gap: 2px; padding: 5px 2px; border-radius: 11px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: inherit; cursor: pointer; }
-.dm-cc-shape .dm-crest { font-size: 32px; margin: 0; }
+.dm-cc-shape { min-width: 0; display: grid; justify-items: center; gap: 3px; padding: 6px 2px 5px; border-radius: 11px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: inherit; cursor: pointer; }
+.dm-cc-shape .dm-crest { font-size: 28px; margin: 0; }
 .dm-cc-shape small { font: 700 9px/1.1 var(--sans); }
-.dm-cc-colors, .dm-cc-insignias { justify-content: center; }
+/* Hue slider. The track shows the colours at the crest's own saturation; the thumb wears the pick. */
+.dm-cc-hue { --hue: 45; -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 34px; margin: 0; padding: 0 2px; background: transparent; touch-action: none; cursor: pointer; }
+.dm-cc-hue::-webkit-slider-runnable-track { height: 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.28);
+    background: linear-gradient(90deg, hsl(0 72% 52%), hsl(45 72% 52%), hsl(90 72% 52%), hsl(135 72% 52%), hsl(180 72% 52%), hsl(225 72% 52%), hsl(270 72% 52%), hsl(315 72% 52%), hsl(359 72% 52%)); }
+.dm-cc-hue::-moz-range-track { height: 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.28);
+    background: linear-gradient(90deg, hsl(0 72% 52%), hsl(45 72% 52%), hsl(90 72% 52%), hsl(135 72% 52%), hsl(180 72% 52%), hsl(225 72% 52%), hsl(270 72% 52%), hsl(315 72% 52%), hsl(359 72% 52%)); }
+.dm-cc-hue::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 28px; height: 28px; margin-top: -8px; border-radius: 50%; border: 3px solid #fff; background: hsl(var(--hue) 72% 52%); box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 3px 8px rgba(0,0,0,.5); }
+.dm-cc-hue::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; border: 3px solid #fff; background: hsl(var(--hue) 72% 52%); box-shadow: 0 0 0 1px rgba(0,0,0,.4), 0 3px 8px rgba(0,0,0,.5); }
+.dm-cc-hue:focus-visible { outline: none; }
+.dm-cc-hue:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(244,204,98,.75), 0 3px 8px rgba(0,0,0,.5); }
+.dm-cc-insignias { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 6px; }
+/* Wider sheets put the crest beside its controls. */
+@media (min-width: 600px) {
+    .dm-cc-sheet[data-page="crest"] .dm-cc-page { display: grid; grid-template-columns: minmax(160px, .8fr) minmax(0, 1.7fr); gap: 12px; }
+    .dm-cc-sheet[data-page="crest"] .dm-cc-crest-stage { align-self: stretch; }
+    .dm-cc-sheet[data-page="crest"] .dm-cc-crest-tools { justify-content: center; }
+    .dm-crest.is-hero { font-size: 96px; }
+    .dm-cc-crest-stage small { display: block; }
+}
 .dm-cc-intro { margin: 1px auto 8px; max-width: 560px; color: var(--muted); text-align: center; font: 600 12px/1.35 var(--sans); }
 .dm-cc-biomes, .dm-cc-starters { height: calc(100% - 44px); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .dm-cc-biome, .dm-cc-starter { position: relative; min-width: 0; min-height: 0; overflow: hidden; display: grid; align-content: end; gap: 2px; padding: 8px; border-radius: 15px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: inherit; text-align: left; cursor: pointer; }
@@ -836,14 +859,11 @@ button.dm-res-strip { border: 0; background: none; padding: 0; color: inherit; f
     .dm-cc-mentor-note { display: none; }
 }
 @media (min-width: 640px) and (max-height: 650px) {
-    .dm-cc-sheet[data-page="crest"] .dm-cc-page { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(0, 1.8fr); grid-template-rows: auto 1fr auto 1fr auto 1fr; gap: 2px 12px; }
-    .dm-cc-sheet[data-page="crest"] .dm-cc-crest-preview { grid-column: 1; grid-row: 1 / 7; height: 100%; flex-direction: column; text-align: center; }
-    .dm-cc-sheet[data-page="crest"] .dm-cc-crest-preview small { max-width: 150px; }
-    .dm-cc-sheet[data-page="crest"] .dm-cc-page > h3,
-    .dm-cc-sheet[data-page="crest"] .dm-cc-page > div:not(.dm-cc-crest-preview) { grid-column: 2; margin: 0; align-self: center; }
-    .dm-cc-sheet[data-page="crest"] .dm-cc-shape { padding: 2px; }
-    .dm-cc-sheet[data-page="crest"] .dm-cc-color { width: 28px; height: 28px; }
-    .dm-cc-sheet[data-page="crest"] .dm-cc-emblem { width: 36px; height: 36px; }
+    .dm-cc-sheet[data-page="crest"] h3 { margin: 2px 0 1px; }
+    .dm-cc-sheet[data-page="crest"] .dm-cc-shape { padding: 3px 2px; }
+    .dm-cc-sheet[data-page="crest"] .dm-cc-shape .dm-crest { font-size: 22px; }
+    .dm-cc-sheet[data-page="crest"] .dm-cc-crest-stage small { display: none; }
+    .dm-crest.is-hero { font-size: 72px; }
 }
 .dm-knight-pick em { font: 700 9px/1.2 var(--sans); font-style: normal; opacity: .75; }
 /* Gear names are never cut short either; only the longer blurb beneath may clamp. */
@@ -1182,17 +1202,28 @@ button.dm-start-plate:hover > img { transform: scale(1.04); }
 .ck-ico.is-lg .px-icon, .ck-ico.is-cell .px-icon { width: 48px; height: 48px; }
 .ck-ico.is-xl .px-icon { width: 64px; height: 64px; }
 .px-icon.is-inline { width: 16px; height: 16px; vertical-align: -3px; }
-/* Crest insignia sprites. Large crests take a whole multiple of the 16px source; the small
-   inline crest beside a name scales below 16px, where smoothing reads better than dropped pixels. */
+/* Crest insignia sprites: a whole multiple of the 16px source wherever the crest is fixed-size;
+   the small inline crest beside a name scales below 16px, where smoothing reads better. */
 .dm-crest .dm-crest-px { width: 1.1em; height: 1.1em; image-rendering: auto !important; }
 .dm-crest.is-lg .dm-crest-px { width: 32px; height: 32px; image-rendering: pixelated !important; }
+.dm-crest.is-hero .dm-crest-px { width: 64px; height: 64px; image-rendering: pixelated !important; }
 .dm-crest.is-standee .dm-crest-px { width: 48px; height: 48px; image-rendering: pixelated !important; }
 .dm-j-walker .dm-crest.is-standee .dm-crest-px { width: 24px; height: 24px; }
+.dm-cc-shape .dm-crest-px { width: 16px; height: 16px; image-rendering: pixelated !important; }
 .dm-cc-emblem .dm-crest-px { width: 24px; height: 24px; vertical-align: middle; }
-/* Thirty-five insignias wrap to five or six rows; on a short screen that runs under the sheet's
-   action bar (or push the crest preview out of view), so they become a single strip that
-   scrolls sideways instead. */
+/* Thirty-five insignias run five rows deep. On shorter screens they fold into a band of three,
+   two or one rows that scrolls sideways, and below 640px the crest on its plinth shrinks too,
+   so the controls always stay in view. */
 @media (max-height: 800px) {
-    .dm-cc-insignias { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; touch-action: pan-x; padding: 3px; scrollbar-width: none; }
-    .dm-cc-insignias .dm-cc-emblem { flex: 0 0 auto; }
+    .dm-cc-insignias { grid-auto-flow: column; grid-auto-columns: 42px; grid-template-columns: none; grid-template-rows: repeat(3, 40px); overflow-x: auto; touch-action: pan-x; padding: 3px; scrollbar-width: none; }
+}
+@media (max-height: 640px) {
+    .dm-cc-insignias { grid-template-rows: repeat(2, 40px); }
+    .dm-crest.is-hero { font-size: 64px; }
+    .dm-crest.is-hero .dm-crest-px { width: 48px; height: 48px; }
+    .dm-cc-crest-stage { padding: 4px 6px; gap: 2px; }
+    .dm-cc-plinth { padding: 8px 20px 12px; }
+}
+@media (max-height: 480px) {
+    .dm-cc-insignias { grid-template-rows: 40px; }
 }
