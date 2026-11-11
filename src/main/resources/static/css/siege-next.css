@@ -487,12 +487,27 @@ body[data-screen="resumeScreen"] .siege-title { font-size: 14px; opacity: .85; }
    The boot screen was a spinner and a status line on a flat colour. It now
    carries a plate from the gallery scenes plus the original site's loading
    library; adventure.js still owns the bar and the status text. */
+/* The loading art fills the whole screen. It used to be a 72vh card inset in the app
+   column, so the page background showed above, beside and below it, and in an
+   installed iPhone app the card ran under the shield FAB. Now the screen is fixed to
+   the viewport behind the back pill and the FAB, and only the copy keeps clear of them. */
 #loadingScreen {
-    position: relative;
-    min-height: 72vh;
-    border-radius: 18px;
+    position: fixed;
+    inset: 0;
+    z-index: 0;
     overflow: hidden;
-    margin-top: 8px;
+    margin: 0;
+    border-radius: 0;
+    width: auto;
+    max-width: none;
+}
+/* The bar's dark fade would draw a band across the top of the art. */
+body:is(:not([data-screen]), [data-screen="loadingScreen"]) .siege-topbar { background: none; }
+/* A short landscape phone: drop the hint and the spinner (the bar still shows
+   progress) so the brand stays clear of the back pill. */
+@media (max-height: 500px) {
+    .siege-load-body .siege-load-hint, .siege-load-body .siege-spinner { display: none; }
+    .siege-load-brand { margin-bottom: 8px; }
 }
 
 .siege-load-plate {
@@ -512,11 +527,11 @@ body[data-screen="resumeScreen"] .siege-title { font-size: 14px; opacity: .85; }
         rgba(13, 10, 38, .80) 76%, var(--bg) 100%);
 }
 
-/* The copy sits at the foot so the artwork keeps the upper two thirds. */
+/* The copy sits at the foot, above the shield FAB, so the artwork keeps the rest. */
 .siege-load-body {
     position: absolute;
     inset: auto 0 0 0;
-    padding: 0 18px 26px;
+    padding: 0 max(18px, env(safe-area-inset-right, 0px)) calc(var(--sn-dock-h, 26px) + 6px) max(18px, env(safe-area-inset-left, 0px));
     text-align: center;
 }
 

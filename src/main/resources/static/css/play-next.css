@@ -1520,14 +1520,16 @@
 .loadout-overlay[data-loadout-step="setup"] .player-identity-card .online-field > span { flex: 0 0 auto; font-size: 11px; }
 .loadout-overlay[data-loadout-step="setup"] .player-identity-card input { min-width: 0; padding: 7px 10px; font-size: 16px; }
 .loadout-overlay[data-loadout-step="setup"] .identity-note { display: none; }
-.loadout-overlay[data-loadout-step="setup"] :is(.loadout-online-panel, .loadout-tutorial-panel) { flex: 0 0 auto; margin: 0; padding: 8px 10px; border-radius: 12px; }
-.loadout-overlay[data-loadout-step="setup"] .loadout-online-panel { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 8px; }
-.loadout-overlay[data-loadout-step="setup"] .loadout-online-panel .loadout-tabs { display: grid; grid-template-columns: 1fr 1fr; margin: 0; gap: 5px; }
-.loadout-overlay[data-loadout-step="setup"] .loadout-online-panel .loadout-tab { padding: 8px 6px; font-size: 10px; }
-.loadout-overlay[data-loadout-step="setup"] .online-match-grid { margin: 0; }
-.loadout-overlay[data-loadout-step="setup"] #roomCodeField { display: flex; flex-direction: row; align-items: center; gap: 6px; font-size: 10px; }
-.loadout-overlay[data-loadout-step="setup"] #roomCodeInput { min-width: 0; padding: 7px; font-size: 16px; }
-.loadout-overlay[data-loadout-step="setup"] #onlineStatus { grid-column: 1 / -1; margin: 0; padding: 0; font-size: 11px; line-height: 1.3; background: none; }
+/* PvP's Host / Join panel heads the Loadout step (it used to sit under the mode cards, where
+   it shrank them in PvP only). A compact bar: the two tabs, the code field when joining. */
+.loadout-overlay[data-loadout-step="review"] .loadout-online-panel { flex: 0 0 auto; margin: 0 0 8px; padding: 8px 10px; border-radius: 12px;
+    display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 8px; }
+.loadout-overlay[data-loadout-step="review"] .loadout-online-panel .loadout-tabs { display: grid; grid-template-columns: 1fr 1fr; margin: 0; gap: 5px; }
+.loadout-overlay[data-loadout-step="review"] .loadout-online-panel .loadout-tab { padding: 8px 6px; font-size: 10px; }
+.loadout-overlay[data-loadout-step="review"] .online-match-grid { margin: 0; }
+.loadout-overlay[data-loadout-step="review"] #roomCodeField { display: flex; flex-direction: row; align-items: center; gap: 6px; font-size: 10px; }
+.loadout-overlay[data-loadout-step="review"] #roomCodeInput { min-width: 0; padding: 7px; font-size: 16px; }
+.loadout-overlay[data-loadout-step="review"] #onlineStatus { grid-column: 1 / -1; margin: 0; padding: 0; font-size: 11px; line-height: 1.3; background: none; }
 .loadout-overlay[data-loadout-step="setup"] #onlineStatus:empty { display: none; }
 .loadout-overlay[data-loadout-step="setup"] .loadout-tutorial-copy { margin: 0; font-size: 12px; line-height: 1.35; }
 .loadout-overlay[data-loadout-step="setup"] .loadout-nav {
