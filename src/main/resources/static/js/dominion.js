@@ -3197,7 +3197,7 @@
             title: crest(k) + esc(k.name),
             art: '<span class="dm-hero-pair"><button type="button" class="ck-portrait is-hero dm-paper-frame dm-knight-portrait" data-act="create" aria-label="Edit your knight" style="--el:var(--' + portraitOf(k) + ')">' + knightPaper() + '</button>' +
                 '<button type="button" class="dm-mentor-btn' + (knightCardId() ? '' : ' is-empty') + '" data-act="mentor-pick" aria-label="Mentors">' + (knightCardId() ? '<span class="dm-mentor-face">' + mentorPaper() + '</span>' : '<span class="dm-mentor-face is-empty">?</span>') +
-                '<span class="dm-mentor-tag">' + (knightCardId() ? 'Mentor · ' + esc(mentorName(knightCardId())) : gateSquire(S) ? 'A squire is at the gate' : 'Find a mentor') + ' ▸</span></button></span>',
+                (() => { const tag = knightCardId() ? 'Mentor · ' + mentorName(knightCardId()) : gateSquire(S) ? 'A squire is at the gate' : 'Find a mentor'; return '<span class="dm-mentor-tag" title="' + esc(tag) + '">' + esc(tag) + ' ▸</span>'; })() + '</button></span>',
             body: barP(rp.pct, 'is-fat') + '<p class="ck-banner-line">' + esc(rp.label) + ' rank XP</p>' +
                 '<div class="ck-pills"><button type="button" class="ck-pill" data-act="create">✏️ Edit knight</button></div>' +
                 '<div class="ck-bubbles"><span class="ck-bubble">🗺️ <b>' + (S.runs || 0) + '</b> trips</span><span class="ck-bubble">🐾 <b>' + tamed + '</b> companions</span>' +

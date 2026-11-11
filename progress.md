@@ -1,3 +1,10 @@
+Original prompt: Under the player SiegeKnight there is a rectangular shape. What is that and why is it not in view?
+
+- November 11, 2026 **Dominion Knight tab: the mentor label under the portrait is back in view.**
+  - **Cause.** The rectangle was the mentor badge's label ("Find a mentor ▸", "A squire is at the gate ▸" or "Mentor · <name> ▸"). It hung 2px below the "?" mentor badge, which sat 6px below the portrait's foot, so the label ran past the hero banner's bottom edge and the banner's rounded clip (`.ck-banner`, overflow hidden) cut it off at every screen size. Only its top few pixels showed.
+  - **Change (`dominion.css`, `dominion.js`).** The badge now sits 22px up from the portrait's foot, so the label ends level with the portrait. The label is capped at `min(140px, 33vw)` with an ellipsis so a long mentor name stays inside the banner on narrow phones, and carries the full text as a `title`. Cache pins `dominion.js?v=37`, `dominion.css?v=30`.
+  - **Verification.** Headless Chromium on a static server with a founded save, measuring the label against the clipping banner for all three label texts at 390x844, 430x932, 360x740, 320x568, 768x1024 and 1920x1080. Before: label outside the banner at every size, not hittable, and the long name ran off-screen at 360 and 320 wide. After: inside the banner and on screen at every size; a tap at its centre lands on the mentor button, except at 320x568 where the first-visit "This is your knight" hint covers it until dismissed. Screenshot at 390x844 checked. `./mvnw -q -Dtest=GameJavaScriptRegressionTest test` passes.
+
 Original prompt: Make the crest shape and layout better, could we do a Hue slider for color?
 
 - November 11, 2026 **Dominion crest: drawn shapes, a hue slider and a new crest page layout.**
