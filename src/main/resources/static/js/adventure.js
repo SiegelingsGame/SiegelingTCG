@@ -1019,22 +1019,12 @@
   }
 
   function wireStaticButtons() {
-    var chooseSiegeMode = $('chooseSiegeMode');
-    if (chooseSiegeMode) {
-      chooseSiegeMode.addEventListener('click', function () { chooseRunMode('STANDARD'); });
-    }
-    var chooseEndlessMode = $('chooseEndlessMode');
-    if (chooseEndlessMode) {
-      chooseEndlessMode.addEventListener('click', function () { chooseRunMode('ENDLESS'); });
-    }
-    var chooseTutorialMode = $('chooseTutorialMode');
-    if (chooseTutorialMode) {
-      chooseTutorialMode.addEventListener('click', function () {
-        if (!window.SiegeTutorial) { toast('Tutorial is unavailable — try reloading.'); return; }
-        state.run = null; state.party = []; state.knightId = null; state.landView = null;
-        window.SiegeTutorial.start();
-      });
-    }
+    Object.keys(MODE_CARDS).forEach(function (mode) {
+      var card = $(MODE_CARDS[mode]);
+      if (card) card.addEventListener('click', function () { pickMode(mode); });
+    });
+    var modeNextBtn = $('modeNextBtn');
+    if (modeNextBtn) modeNextBtn.addEventListener('click', confirmModePick);
     var chooseBattlegroundsMode = $('chooseBattlegroundsMode');
     if (chooseBattlegroundsMode) {
       chooseBattlegroundsMode.addEventListener('click', function () {
@@ -1443,6 +1433,40 @@
   function renderModeStep() {
     refreshBattlegroundsEntry();
     refreshEndlessCard();
+    syncModePick();
+  }
+
+  /* The mode step works like the Arena's Setup: tapping a plate selects it and the
+     gold flank beside the shield FAB carries the pick forward, so every launch step
+     has the same Back / FAB / forward dock. Battlegrounds stays a dialog (its
+     requirements), not a pick. The pick's scene is the setup screen's backdrop. */
+  var MODE_CARDS = { STANDARD: 'chooseSiegeMode', ENDLESS: 'chooseEndlessMode', TUTORIAL: 'chooseTutorialMode' };
+  var MODE_NEXT = { STANDARD: 'Choose Knight ▸', ENDLESS: 'Choose Knight ▸', TUTORIAL: 'Start Tutorial ▸' };
+  var MODE_ART = { STANDARD: 'siege', ENDLESS: 'endless', TUTORIAL: 'tutorial' };
+  function pickMode(mode) {
+    state.modePick = mode;
+    syncModePick();
+  }
+  function syncModePick() {
+    if (!MODE_CARDS[state.modePick]) state.modePick = isEndlessSetup() ? 'ENDLESS' : 'STANDARD';
+    var pick = state.modePick;
+    Object.keys(MODE_CARDS).forEach(function (mode) {
+      var card = $(MODE_CARDS[mode]);
+      if (!card) return;
+      card.classList.toggle('is-selected', mode === pick);
+      card.setAttribute('aria-pressed', mode === pick ? 'true' : 'false');
+    });
+    if ($('modeNextBtn')) $('modeNextBtn').textContent = MODE_NEXT[pick];
+    if ($('setupScreen')) $('setupScreen').dataset.modeArt = MODE_ART[pick];
+  }
+  function confirmModePick() {
+    if (state.modePick === 'TUTORIAL') {
+      if (!window.SiegeTutorial) { toast('Tutorial is unavailable — try reloading.'); return; }
+      state.run = null; state.party = []; state.knightId = null; state.landView = null;
+      window.SiegeTutorial.start();
+      return;
+    }
+    chooseRunMode(state.modePick);
   }
 
   /** Siege and Endless share the knight and warband steps; the mode decides their rules. */

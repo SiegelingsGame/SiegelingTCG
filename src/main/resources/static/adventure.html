@@ -22,7 +22,7 @@
 <link rel="stylesheet" href="/css/adventure.css?v=116">
   <!-- Art-first re-skin. After adventure.css on purpose: it restates the same
        tokens and expects to win. -->
-  <link rel="stylesheet" href="/css/siege-next.css?v=29">
+  <link rel="stylesheet" href="/css/siege-next.css?v=30">
 <!-- Music first: it starts while the page is still loading, so the song carries straight on from the last page. -->
 <script src="/js/hub-music.js?v=10" data-autoinit></script>
 </head>
@@ -112,7 +112,7 @@
     <!-- Play (back to the hub) and Continue flank the shield FAB (shield-navigation.css);
          this screen has no top pill. -->
     <div class="sn-dock resume-dock">
-      <a class="sn-flank is-left" href="/home?screen=play"><span aria-hidden="true">&lsaquo;</span> Play Menu</a>
+      <a class="sn-flank is-left" href="/home">Main Menu</a>
       <button class="sn-flank is-right is-gold" id="resumeContinueBtn" type="button">Continue &#9656;</button>
     </div>
   </section>
@@ -135,12 +135,14 @@
           <span class="mode-card-title">Adventure</span>
           <span class="mode-card-desc">Pick a SiegeKnight, assemble a Warband, and push through the expedition to bank veterans.</span>
           <span class="mode-card-meta">Best starting point</span>
+          <span class="mode-card-pick" aria-hidden="true">Selected</span>
         </button>
         <button class="mode-card mode-card-endless" id="chooseEndlessMode" type="button">
           <span class="mode-card-kicker">Score attack</span>
           <span class="mode-card-title">Endless</span>
           <span class="mode-card-desc">Take fresh or leveled Siegelings down a road that never ends. Every floor hits harder — play until the warband falls or you call it, and bank your final score.</span>
           <span class="mode-card-meta" id="modeEndlessMeta">No record yet</span>
+          <span class="mode-card-pick" aria-hidden="true">Selected</span>
         </button>
         <button class="mode-card mode-card-bg" id="chooseBattlegroundsMode" type="button" aria-haspopup="dialog">
           <span class="mode-card-kicker">Veteran mode</span>
@@ -153,7 +155,14 @@
           <span class="mode-card-title">Tutorial</span>
           <span class="mode-card-desc">A simulated expedition that walks you through every node: navigating, resting, buying, equipping, upgrading, renting, claiming Siegelings, levelling up, and combat — targeting, passives and Ultimates included.</span>
           <span class="mode-card-meta">New here? Start with this · nothing is saved</span>
+          <span class="mode-card-pick" aria-hidden="true">Selected</span>
         </button>
+      </div>
+      <!-- Like the Arena's Setup step: tapping a plate selects it (Battlegrounds opens
+           its requirements dialog), and the gold flank carries the pick forward. -->
+      <div class="setup-footer sn-dock">
+        <a class="sn-flank is-left" href="/home">Main Menu</a>
+        <button class="sn-flank is-right is-gold" id="modeNextBtn" type="button">Choose Knight ▸</button>
       </div>
     </div>
 
@@ -162,7 +171,7 @@
       <p class="siege-sub">Each knight brings a <strong>unique ability</strong> from its dashboard card into the deck — and its Ultimate to the field.</p>
       <div class="knight-grid" id="knightGrid"></div>
       <div class="setup-footer sn-dock">
-        <button class="sn-flank is-left" id="modeBackBtn" type="button">Mode</button>
+        <button class="sn-flank is-left" id="modeBackBtn" type="button">Back</button>
         <div class="setup-summary" id="knightSummary">Select a SiegeKnight.</div>
         <button class="sn-flank is-right is-gold" id="knightNextBtn" type="button" disabled>Approve Knight ▸</button>
       </div>
@@ -202,7 +211,7 @@
         <div class="bg-entry-chevron" aria-hidden="true">›</div>
       </div>
       <div class="setup-footer sn-dock">
-        <button class="sn-flank is-left" id="partyBackBtn" type="button">Knight</button>
+        <button class="sn-flank is-left" id="partyBackBtn" type="button">Back</button>
         <div class="setup-summary" id="setupSummary">Pick your starting Siegeling.</div>
         <button class="sn-flank is-right is-gold" id="startRunBtn" type="button" disabled>Begin Expedition</button>
       </div>
@@ -796,6 +805,6 @@
 <script src="/js/siege-sprites.js?v=2"></script>
 <script src="/js/shield-navigation.js?v=5"></script>
 <script src="/js/pixel-icons.js?v=5"></script>
-<script src="/js/adventure.js?v=160"></script>
+<script src="/js/adventure.js?v=161"></script>
 </body>
 </html>

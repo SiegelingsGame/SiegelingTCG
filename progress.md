@@ -1,3 +1,22 @@
+Original prompt: Update the Siege FAB in Siege mode selection when no save data is found, similar to Arena mode. Also the background should fill the back of the screen. Make the HUD consistent across these style of page.
+
+- November 11, 2026 **Siege setup gets the Arena's launch-screen HUD: full-screen art, Main Menu / forward flanks on every step.**
+  - **Before.** The mode step (shown when there is no save) had the shield FAB alone, with no flanks. Tapping a plate jumped straight to the next step. The page was a flat colour, with the top bar's dark fade showing as a band behind the back pill.
+  - **Change.**
+    - `adventure.html`: the mode step gets the same `.setup-footer.sn-dock` as the knight and warband steps: **Main Menu** (→ `/home`, as Arena, Gauntlet and Dominion) and a gold forward flank. Each plate carries a hidden "Selected" chip. The knight and warband steps' left flanks read **Back** (they named the previous step), and the resume dock's left flank is **Main Menu** too.
+    - `adventure.js`: tapping Adventure, Endless or Tutorial now selects it (`pickMode` / `syncModePick`), as the Arena's mode tiles do. The forward flank reads "Choose Knight ▸" or "Start Tutorial ▸" and confirms the pick (`confirmModePick`, running the old card actions). Battlegrounds still opens its requirements/lobby dialog without changing the pick. The pick defaults to the current run mode.
+    - `siege-next.css`: `#setupScreen::before` is a fixed full-viewport backdrop of the picked mode's scene (Adventure skydon-skyreach, Endless earth-warband, Tutorial bearby-longfuse) with the Arena's fire/violet wash. The knight and warband steps keep the pick's scene. The top bar has no background on setup. The mode step reserves the dock height and its dock fill is translucent (rgba .6, as `.loadout-dock`). The picked plate gets the Arena's selected border and chip.
+    - Cache pins `siege-next.css?v=30`, `adventure.js?v=161`.
+  - **Verification.** `node --check js/adventure.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium on `adventure.html` (static server, `/api` proxied to the live backend, guest so the setup screen opens), at 430x932 and 375x667 with installed-iPhone insets stood in, plus 390x844, 320x568, 844x390 and 1920x1080:
+    - The backdrop is fixed and full-screen, and its art follows the pick.
+    - The top bar has no band; hit tests at the top and bottom edges reach the page, not a stray box.
+    - Both flanks show; the plates end 9px above the dock in portrait and desktop (88px in landscape, whose compact grid is unchanged). No page scroll.
+    - Tapping Tutorial selects it and relabels the flank; tapping Endless selects it.
+    - Tapping Battlegrounds opens `#bgModal` and keeps the pick.
+    - The forward flank goes to the knight step (left flank "Back", backdrop still Endless), and Back returns with the pick kept.
+    - No page errors. Screenshots of the mode and knight steps (430x932) and the landscape mode step checked.
+    - Not exercised: the resume screen (needs a saved run), a full run start.
+
 Original prompt: My issue with the loading wasn't the water effect, it was the placement of the loading image in the card, the limited space and all the background you can see behind it.
 
 - November 11, 2026 **Siege loading art fills the whole screen.**

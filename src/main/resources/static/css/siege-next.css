@@ -1113,3 +1113,44 @@ body[data-screen="resumeScreen"] { background: #060a16; }
             color-mix(in srgb, var(--save-tint, #0f3f7a) 92%, #000) 100%);
     }
 }
+
+/* ---- Launch-screen HUD, matching the Arena, Gauntlet and Dominion ----
+   Setup now looks like the Arena's loadout: the chosen mode's scene fills the
+   whole screen behind everything (washed in the same fire/violet accents), the
+   top bar is the bare back pill with no dark band, and every step, the mode step
+   included, docks Back (Main Menu on the first step) and a gold forward flank
+   either side of the shield FAB. The art runs on under the dock. */
+#setupScreen { --setup-art: url('/img/gallery/skydon-skyreach.webp'); }
+#setupScreen[data-mode-art="endless"] { --setup-art: url('/img/gallery/earth-warband.webp'); }
+#setupScreen[data-mode-art="tutorial"] { --setup-art: url('/img/gallery/bearby-longfuse.webp'); }
+body[data-screen="setupScreen"] { background: #0d0a26; }
+#setupScreen:not(.hidden)::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        radial-gradient(ellipse 60% 70% at 8% 100%, rgba(240, 91, 47, .30), transparent 70%),
+        radial-gradient(ellipse 55% 65% at 100% 0%, rgba(123, 92, 255, .34), transparent 70%),
+        linear-gradient(180deg, rgba(13, 10, 38, .62) 0%, rgba(13, 10, 38, .50) 40%, rgba(13, 10, 38, .84) 100%),
+        var(--setup-art) center 30% / cover no-repeat;
+}
+body[data-screen="setupScreen"] .siege-topbar { background: none; }
+/* The plates stop above the dock. */
+body[data-screen="setupScreen"]:has(#setupStepMode:not(.hidden)) .siege-app { padding-bottom: calc(var(--sn-dock-h) + 4px); }
+/* The mode step's dock has no summary line, so its fill stays at the dock and
+   lets the art show through, as the Arena's does. */
+#setupStepMode .setup-footer.sn-dock { --sn-dock-fill: rgba(13, 10, 38, .6); }
+#setupStepMode .setup-footer.sn-dock::before { inset: 0; }
+/* The picked plate, marked the way the Arena marks its mode tile. */
+.mode-card-pick { display: none; }
+#setupStepMode .mode-card.is-selected {
+    border-color: #ffe9c4;
+    box-shadow: inset 0 0 0 2px var(--mode, var(--accent)), 0 0 18px color-mix(in srgb, var(--mode, var(--accent)) 24%, transparent);
+}
+#setupStepMode .mode-card.is-selected .mode-card-pick {
+    display: block; position: absolute; top: 10px; right: 10px; z-index: 2; margin: 0;
+    padding: 4px 9px; border-radius: 999px; background: #fff0ca; color: #261632;
+    font-size: 10px; font-weight: 800; letter-spacing: 0; text-transform: none; text-shadow: none;
+}
