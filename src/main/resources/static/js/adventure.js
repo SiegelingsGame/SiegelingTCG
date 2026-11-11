@@ -361,11 +361,14 @@
     ghost.removeAttribute('id');
     [].forEach.call(ghost.querySelectorAll('[id]'), function (n) { n.removeAttribute('id'); });
     ghost.setAttribute('aria-hidden', 'true');
-    // #loadingScreen's own rules are keyed by its id, which the copy drops.
+    // #loadingScreen's own rules are keyed by its id, which the copy drops. The copy
+    // also hangs off <html>, outside <body>, so it inherits nothing from the page:
+    // without its own font it dissolved in the browser's default serif.
     ghost.style.cssText = 'position:fixed;margin:0;left:' + box.left + 'px;top:' + box.top + 'px;' +
       'width:' + box.width + 'px;height:' + box.height + 'px;min-height:0;overflow:hidden;' +
       'border-radius:' + cs.borderRadius + ';text-align:' + cs.textAlign + ';color:' + cs.color + ';' +
-      'background-color:' + cs.backgroundColor + ';';
+      'background-color:' + cs.backgroundColor + ';font-family:' + cs.fontFamily + ';font-size:' + cs.fontSize + ';' +
+      'line-height:' + cs.lineHeight + ';-webkit-font-smoothing:antialiased;';
     document.documentElement.appendChild(ghost);
     if (!T.splashOut(ghost, function () { ghost.remove(); })) ghost.remove();
   }
