@@ -32,7 +32,7 @@
          equal-specificity rules in it are meant to win. -->
     <link rel="stylesheet" href="/css/shield-navigation.css?v=7">
     <link rel="stylesheet" href="/css/hub-music.css?v=2">
-    <link rel="stylesheet" href="/css/play-next.css?v=23">
+    <link rel="stylesheet" href="/css/play-next.css?v=24">
     <link rel="stylesheet" href="/css/coach.css?v=7">
     <!-- Pre-load loading-gate styles so the splash covers the loadout
          screen on the very first Start Battle press - the lazy-injected
@@ -822,25 +822,9 @@
                             <span class="battle-mode-kicker">Guided match</span>
                             <span class="battle-mode-title">Tutorial</span>
                             <span class="battle-mode-description">Learn the cards, your board, and the flow of battle.</span>
-                            <span class="battle-mode-meta">New here? Start here</span>
+                            <span class="battle-mode-meta">First win: pack + 250 coins</span>
                         </button>
                     </div>
-                </div>
-                <div id="tutorialMatchPanel" class="hidden loadout-tutorial-panel">
-                    <p class="loadout-tutorial-copy"><strong>Squire Bob</strong> · <strong>Ashen Roots</strong>. First tutorial win: starter pack + <strong>250 Siegecoins</strong>.</p>
-                </div>
-                <div id="onlineMatchPanel" class="hidden loadout-online-panel">
-                    <div class="loadout-tabs" role="group" aria-label="Online room mode">
-                        <button class="loadout-tab active" id="hostRoomTab" type="button" onclick="setOnlineRoomMode('create')" aria-pressed="true">Host Room</button>
-                        <button class="loadout-tab" id="joinRoomTab" type="button" onclick="setOnlineRoomMode('join')" aria-pressed="false">Join Room</button>
-                    </div>
-                    <div class="online-match-grid">
-                        <label class="online-field" id="roomCodeField">
-                            <span>Room Code</span>
-                            <input type="text" id="roomCodeInput" maxlength="6" placeholder="ABC123" oninput="updateLoadoutSummary()">
-                        </label>
-                    </div>
-                    <div id="onlineStatus" class="loadout-summary"></div>
                 </div>
             </section>
             <section class="loadout-step" data-step="deck" id="loadoutStepDeck">
@@ -906,6 +890,22 @@
                 </div>
             </section>
             <section class="loadout-step" data-step="review" id="loadoutStepReview">
+                <!-- PvP's Host / Join choice sits here, on the last step, rather than under the
+                     mode cards: on Setup it took height from the grid only in PvP, so the
+                     cards changed size with the mode. -->
+                <div id="onlineMatchPanel" class="hidden loadout-online-panel">
+                    <div class="loadout-tabs" role="group" aria-label="Online room mode">
+                        <button class="loadout-tab active" id="hostRoomTab" type="button" onclick="setOnlineRoomMode('create')" aria-pressed="true">Host Room</button>
+                        <button class="loadout-tab" id="joinRoomTab" type="button" onclick="setOnlineRoomMode('join')" aria-pressed="false">Join Room</button>
+                    </div>
+                    <div class="online-match-grid">
+                        <label class="online-field" id="roomCodeField">
+                            <span>Room Code</span>
+                            <input type="text" id="roomCodeInput" maxlength="6" placeholder="ABC123" oninput="updateLoadoutSummary()">
+                        </label>
+                    </div>
+                    <div id="onlineStatus" class="loadout-summary"></div>
+                </div>
                 <div class="loadout-swap-bar">
                     <label class="loadout-swap-field">
                         <span>Deck</span>
@@ -1002,7 +1002,7 @@
     <script src="/js/arena-tutorial.js?v=52"></script>
     <script src="/js/knight-tutorial.js?v=2"></script>
 <script src="/js/shield-navigation.js?v=5"></script>
-<script src="/js/game.js?v=348"></script>
+<script src="/js/game.js?v=349"></script>
     <script src="/js/play-mode-picker.js?v=6"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,

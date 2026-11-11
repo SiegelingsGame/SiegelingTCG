@@ -10799,9 +10799,8 @@ function isLoadoutStepValid(step) {
     switch (step) {
         case 'setup': {
             if (matchMode !== 'online') return true;
-            if (!getCurrentPlayerName()) return false;
-            if (onlineRoomMode === 'join' && !isInviteJoinFlow() && !getCurrentRoomCode()) return false;
-            return true;
+            // The room code is asked for on the Loadout step, beside Host / Join.
+            return Boolean(getCurrentPlayerName());
         }
         case 'deck': {
             if (loadoutMode === 'builder') {
@@ -11323,7 +11322,6 @@ function renderLoadoutOptions() {
     onlineMatchTab.classList.toggle('hidden', inviteFlow);
     const tutorialMatchTab = document.getElementById('tutorialMatchTab');
     const gauntletMatchTab = document.getElementById('gauntletMatchTab');
-    const tutorialMatchPanel = document.getElementById('tutorialMatchPanel');
     if (tutorialMatchTab) {
         tutorialMatchTab.classList.toggle('active', isTutorialMatchMode());
         tutorialMatchTab.setAttribute('aria-pressed', isTutorialMatchMode() ? 'true' : 'false');
@@ -11333,7 +11331,6 @@ function renderLoadoutOptions() {
         gauntletMatchTab.classList.toggle('active', matchMode === 'gauntlet');
         gauntletMatchTab.setAttribute('aria-pressed', matchMode === 'gauntlet' ? 'true' : 'false');
     }
-    tutorialMatchPanel?.classList.toggle('hidden', !isTutorialMatchMode());
     onlineMatchPanel.classList.toggle('hidden', matchMode !== 'online' || hideOnlineLoadout);
     hostRoomTab.classList.toggle('active', onlineRoomMode === 'create');
     joinRoomTab.classList.toggle('active', onlineRoomMode === 'join');
@@ -11787,6 +11784,12 @@ function applyLoadoutSummary() {
 
     if (matchMode === 'online' && currentRoomStatus?.roomId && !currentRoomStatus.started) {
         summary.innerHTML = `Room <strong>${currentRoomStatus.roomId}</strong> is ready. Waiting for your opponent to join.`;
+        syncLoadoutStartButton(startBtn, true, startButtonLabel);
+        return;
+    }
+
+    if (matchMode === 'online' && onlineRoomMode === 'join' && !isInviteJoinFlow() && !multiplayerSession?.roomId && !getCurrentRoomCode()) {
+        summary.textContent = 'Enter the room code from your invite to join.';
         syncLoadoutStartButton(startBtn, true, startButtonLabel);
         return;
     }
