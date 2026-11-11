@@ -663,6 +663,7 @@
         const k = s.knight, t = k.task || {};
         if (!k.crest || typeof k.crest !== 'object') k.crest = { emblem: '🛡️', color: 'light', shape: 'shield' };
         if (!['shield', 'kite', 'round', 'diamond', 'banner'].includes(k.crest.shape)) k.crest.shape = 'shield';
+        if ('hue' in k.crest && crestHue(k.crest) === null) delete k.crest.hue;
         // Unfounded knights never work: wipe any task/XP that accumulated while the create sheet was open.
         if (!k.made) {
             k.task = { kind: 'idle' };
@@ -2673,8 +2674,51 @@
     const CREST_EMBLEMS = ['🌲', '🔥', '🌊', '⛰️', '⭐', '🌙', '🦁', '🛡️', '🐉', '🌸', '🐺', '🦅', '🦌', '🦉', '👑', '⚔️', '⚓', '☀️', '🍃',
         '🦊', '🐴', '🦄', '🐦', '💀', '🔨', '🪓', '🗝️', '🏰', '⚡', '❄️', '💎', '🍀', '❤️', '🔱', '🏆'];
     const emblemMark = (e) => (e && window.SgPixelIcons && window.SgPixelIcons.img('crest:' + String(e).replace(/\uFE0F/g, ''), 'dm-crest-px')) || esc(e || '');
-    const CREST_COLORS = PORTRAITS;
     const CREST_SHAPES = { shield: 'Shield', kite: 'Kite', round: 'Round', diamond: 'Diamond', banner: 'Banner' };
+    // Outlines in a 100x112 box, the crest's own 1.25:1.4 aspect. Drawn as SVG (not clip-path)
+    // so each shape can carry a metal rim, an outline and a sheen at any size.
+    const CREST_PATHS = {
+        shield: 'M9 7H91V48C91 77 72 95 50 105C28 95 9 77 9 48Z',
+        kite: 'M50 5C66 6 81 10 91 17C91 52 74 83 50 107C26 83 9 52 9 17C19 10 34 6 50 5Z',
+        round: 'M5 56A45 45 0 1 0 95 56A45 45 0 1 0 5 56Z',
+        diamond: 'M50 6L93 56L50 106L7 56Z',
+        banner: 'M13 6H87V105L50 86L13 105Z'
+    };
+    // Crest field colour. A crest saved since the hue slider stores crest.hue (0-359); older saves
+    // store an element name in crest.color and keep that element's exact colour until the slider
+    // moves. crest.color stays either way because portraitOf falls back on it.
+    const ELEMENT_HEX = { fire: '#ff501e', ice: '#76e6ff', earth: '#b48c50', wind: '#96ffb4', water: '#3296ff', electric: '#ffe63c', metal: '#a0aab4', psychic: '#c896ff', light: '#ffe59a', shadow: '#7832b4' };
+    function hexHue(hex) {
+        const n = parseInt(String(hex).slice(1), 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+        const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+        if (!d) return 0;
+        const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        return Math.round((h * 60 + 360) % 360);
+    }
+    const crestHue = (c) => (c && c.hue != null && c.hue !== '' && Number.isFinite(+c.hue) ? ((Math.round(+c.hue) % 360) + 360) % 360 : null);
+    // A new knight starts on royal blue: the old pale-gold default vanished against the gold rim.
+    const NEW_CREST_HUE = 220;
+    const sliderHue = (c) => { const h = crestHue(c); return h === null ? hexHue(ELEMENT_HEX[c && c.color] || ELEMENT_HEX.light) : h; };
+    function crestPaint(c) {
+        const h = crestHue(c);
+        if (h === null) { const el = ELEMENT_HEX[c && c.color] ? c.color : 'light'; return '--el:var(--' + el + ');--cf1:color-mix(in srgb, var(--' + el + ') 86%, white);--cf2:color-mix(in srgb, var(--' + el + ') 58%, black)'; }
+        return '--el:hsl(' + h + ' 70% 50%);--cf1:hsl(' + h + ' 74% 62%);--cf2:hsl(' + h + ' 70% 30%)';
+    }
+    // Gradients must have ids, and an id resolves to its first match in the page, so every crest
+    // carries its own. Their stops read --cf1/--cf2 from the crest span, so recolouring a crest
+    // is a style change with no redraw.
+    let crestSeq = 0;
+    function crestSvg(shape) {
+        const id = 'dmcr' + (++crestSeq), d = CREST_PATHS[shape] || CREST_PATHS.shield;
+        return '<svg class="dm-crest-svg" viewBox="0 0 100 112" aria-hidden="true" focusable="false"><defs>' +
+            '<linearGradient id="' + id + 'f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--cf1)"/><stop offset="1" style="stop-color:var(--cf2)"/></linearGradient>' +
+            '<linearGradient id="' + id + 'r" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff2bf"/><stop offset=".45" stop-color="#e0b552"/><stop offset="1" stop-color="#8d6420"/></linearGradient>' +
+            '<clipPath id="' + id + 'c"><path d="' + d + '"/></clipPath></defs>' +
+            '<path d="' + d + '" fill="#241806" stroke="#241806" stroke-width="10" stroke-linejoin="round"/>' +
+            '<path d="' + d + '" fill="url(#' + id + 'f)" stroke="url(#' + id + 'r)" stroke-width="5.5" stroke-linejoin="round"/>' +
+            '<g clip-path="url(#' + id + 'c)"><path d="M0 0H100V38C68 28 32 50 0 42Z" fill="#fff" opacity=".2"/><path d="M0 112H100V88C70 100 30 80 0 94Z" fill="#000" opacity=".16"/></g>' +
+            '<path d="' + d + '" fill="none" stroke="rgba(255,255,255,.38)" stroke-width="1.4" stroke-linejoin="round" transform="translate(50 56) scale(.82) translate(-50 -56)"/></svg>';
+    }
     const STARTER_IDS = ['sundile', 'fawny', 'pursula', 'cacty'];
     const CREATE_PAGES = ['identity', 'crest', 'biome', 'starter', 'sprite', 'summary'];
     const knightSpriteSrc = (el, pose) => '/img/dominion/knights/sprites/knight-' + el + '-' + (pose || 'idle') + '.webp';
@@ -2767,21 +2811,23 @@
     const callingSpeed = (s, skill) => { const c = CALLINGS[s.knight.calling]; return c && c[2].includes(skill) ? 0.1 : 0; };
     const mentorEl = (s) => (knightCardId() ? String(ART_URLS['knight-el:' + knightCardId()] || '').toUpperCase() : '');
     function crest(k, cls) {
-        const c = (k && k.crest) || {};
-        return '<span class="dm-crest' + (cls ? ' ' + cls : '') + '" data-shape="' + (CREST_SHAPES[c.shape] ? c.shape : 'shield') + '" style="--el:var(--' + (c.color || 'light') + ')" aria-hidden="true" data-px-skip><i>' + emblemMark(c.emblem || '🛡️') + '</i></span>';
+        const c = (k && k.crest) || {}, shape = CREST_SHAPES[c.shape] ? c.shape : 'shield', emblem = c.emblem || '🛡️';
+        return '<span class="dm-crest' + (cls ? ' ' + cls : '') + '" data-shape="' + shape + '" style="' + crestPaint(c) + '" aria-hidden="true" data-px-skip>' + crestSvg(shape) +
+            '<i data-emblem="' + esc(emblem) + '">' + emblemMark(emblem) + '</i></span>';
     }
+    const draftCrest = (d, shape) => ({ crest: { emblem: d.emblem, color: d.color, hue: d.hue, shape: shape || d.shape } });
     let draft = null;
     function startDraft() {
         const k = S.knight, given = k.made ? (k.given || k.name) : '';
         draft = { page: 'identity', portrait: portraitOf(k), given: given, title: k.made ? (k.title || '') : 'Ser',
-            emblem: (k.crest && k.crest.emblem) || '🛡️', color: (k.crest && k.crest.color) || 'light', shape: (k.crest && k.crest.shape) || 'shield',
+            emblem: (k.crest && k.crest.emblem) || '🛡️', color: (k.crest && k.crest.color) || 'light', hue: k.made ? crestHue(k.crest) : (crestHue(k.crest) ?? NEW_CREST_HUE), shape: (k.crest && k.crest.shape) || 'shield',
             calling: k.calling || 'woodwarden', biome: k.made ? (S.biome || 'woodland') : '', starter: k.made ? (S.starter || joinedIds(S).find((id) => STARTER_IDS.includes(id)) || '') : '', mentor: k.card || DEFAULT_KNIGHT };
     }
     function creationPages() { return S.knight.made ? CREATE_PAGES.filter((p) => p !== 'starter') : CREATE_PAGES; }
     function creationPreview(d, sprite) {
         const name = (d.title ? d.title + ' ' : '') + (d.given.trim() || 'Your name');
         return '<div class="dm-cc-preview' + (sprite ? ' dm-cc-sprite-preview' : '') + '"><span class="dm-cc-figure">' + knightFigure(d.portrait) + '</span><span>' +
-            crest({ crest: { emblem: d.emblem, color: d.color, shape: d.shape } }) + '<b>' + esc(name) + '</b><small>' + esc(CALLINGS[d.calling][1]) + '</small></span></div>';
+            crest(draftCrest(d)) + '<b>' + esc(name) + '</b><small>' + esc(CALLINGS[d.calling][1]) + '</small></span></div>';
     }
     function identityPage(d) {
         return creationPreview(d) + '<label class="dm-cc-label" for="dmKnightGiven">Name</label><input id="dmKnightGiven" class="dm-cc-input" type="text" maxlength="20" autocomplete="off" placeholder="Your knight’s name" value="' + esc(d.given) + '">' +
@@ -2789,10 +2835,12 @@
             '<h3>Calling</h3><div class="dm-cc-callings">' + Object.keys(CALLINGS).map((id) => { const c = CALLINGS[id]; return '<button type="button" class="dm-cc-calling' + (d.calling === id ? ' is-on' : '') + '" data-act="cc" data-arg="calling:' + id + '"><span>' + c[0] + '</span><b>' + c[1] + '</b><small>' + c[2].map((x) => (SKILLS[x] ? SKILLS[x].name : titleCase(x))).join(' & ') + ' +10%</small></button>'; }).join('') + '</div>';
     }
     function crestPage(d) {
-        return '<div class="dm-cc-crest-preview">' + crest({ crest: { emblem: d.emblem, color: d.color, shape: d.shape } }, 'is-lg') + '<div><b>Your crest</b><small>Shape, color and insignia travel with your knight.</small></div></div>' +
-            '<h3>Shape</h3><div class="dm-cc-shapes">' + Object.keys(CREST_SHAPES).map((id) => '<button type="button" class="dm-cc-shape' + (d.shape === id ? ' is-on' : '') + '" data-act="cc" data-arg="shape:' + id + '">' + crest({ crest: { emblem: '', color: d.color, shape: id } }) + '<small>' + CREST_SHAPES[id] + '</small></button>').join('') + '</div>' +
-            '<h3>Color</h3><div class="dm-cc-row dm-cc-colors">' + CREST_COLORS.map((c) => '<button type="button" class="dm-cc-color' + (d.color === c ? ' is-on' : '') + '" data-act="cc" data-arg="color:' + c + '" style="--el:var(--' + c + ')" aria-label="' + titleCase(c) + '"></button>').join('') + '</div>' +
-            '<h3>Insignia</h3><div class="dm-cc-row dm-cc-insignias">' + CREST_EMBLEMS.map((e) => '<button type="button" class="dm-cc-emblem' + (d.emblem === e ? ' is-on' : '') + '" data-act="cc" data-arg="emblem:' + e + '" aria-label="Insignia ' + e + '" data-px-skip>' + emblemMark(e) + '</button>').join('') + '</div>';
+        const hue = sliderHue(d);
+        return '<div class="dm-cc-crest-stage"><span class="dm-cc-plinth">' + crest(draftCrest(d), 'is-hero') + '</span><small>Shape, color and insignia travel with your knight.</small></div>' +
+            '<div class="dm-cc-crest-tools">' +
+            '<h3>Shape</h3><div class="dm-cc-shapes">' + Object.keys(CREST_SHAPES).map((id) => '<button type="button" class="dm-cc-shape' + (d.shape === id ? ' is-on' : '') + '" data-act="cc" data-arg="shape:' + id + '">' + crest(draftCrest(d, id)) + '<small>' + CREST_SHAPES[id] + '</small></button>').join('') + '</div>' +
+            '<h3><label for="dmCrestHue">Color</label></h3><input id="dmCrestHue" class="dm-cc-hue" type="range" min="0" max="359" step="1" value="' + hue + '" style="--hue:' + hue + '" aria-valuetext="Hue ' + hue + ' degrees">' +
+            '<h3>Insignia</h3><div class="dm-cc-insignias">' + CREST_EMBLEMS.map((e) => '<button type="button" class="dm-cc-emblem' + (d.emblem === e ? ' is-on' : '') + '" data-act="cc" data-arg="emblem:' + e + '" aria-label="Insignia ' + e + '" data-px-skip>' + emblemMark(e) + '</button>').join('') + '</div></div>';
     }
     function biomePage(d) {
         return '<p class="dm-cc-intro">Choose where your Keep stands. Its elemental affinity changes the land and the output of its buildings.</p><div class="dm-cc-biomes">' + Object.keys(BIOMES).map((id) => { const b = BIOMES[id]; return '<button type="button" class="dm-cc-biome is-' + id + (d.biome === id ? ' is-on' : '') + '" data-act="cc" data-arg="biome:' + id + '"><span class="dm-biome-art"><i></i><i></i><i></i></span><b>' + b.icon + ' ' + b.name + '</b><small>' + esc(b.blurb) + '</small><em class="is-good">' + esc(b.boosts) + '</em><em class="is-bad">' + esc(b.penalty) + '</em></button>'; }).join('') + '</div>';
@@ -2805,7 +2853,7 @@
     }
     function summaryPage(d) {
         const b = BIOMES[d.biome], sid = S.knight.made ? (S.starter || joinedIds(S)[0] || d.starter) : d.starter, c = sid ? C(sid) : null;
-        return '<div class="dm-cc-summary-hero">' + knightFigure(d.portrait) + '<div>' + crest({ crest: { emblem: d.emblem, color: d.color, shape: d.shape } }, 'is-lg') + '<h3>' + esc((d.title ? d.title + ' ' : '') + (d.given.trim() || 'Your name')) + '</h3><p>' + esc(CALLINGS[d.calling][1]) + '</p></div></div>' +
+        return '<div class="dm-cc-summary-hero">' + knightFigure(d.portrait) + '<div>' + crest(draftCrest(d), 'is-lg') + '<h3>' + esc((d.title ? d.title + ' ' : '') + (d.given.trim() || 'Your name')) + '</h3><p>' + esc(CALLINGS[d.calling][1]) + '</p></div></div>' +
             '<div class="dm-cc-summary-grid"><div><small>Keep</small>' + (b ? '<b>' + b.icon + ' ' + esc(b.name) + '</b><span>' + esc(b.boosts) + '<br>' + esc(b.penalty) + '</span>' : '<b>Choose a land</b><span>Return to the Land step.</span>') + '</div>' +
             '<div><small>' + (S.knight.made ? 'First companion' : 'Starter') + '</small>' + (c ? '<span class="dm-cc-summary-starter">' + speciesArt(sid, c.name, c.el.toUpperCase()) + '</span><b>' + esc(c.name) + '</b><span>' + esc(c.role) + '</span>' : '<b>Choose a starter</b><span>Return to the Starter step.</span>') + '</div></div>' +
             '<p class="dm-cc-mentor-note">SiegeKnight mentors are earned later by meeting them at the gate, on the roads and at Akhar’s Wall.</p>';
@@ -2828,9 +2876,14 @@
             preview.querySelector('b').textContent = (d.title ? d.title + ' ' : '') + (d.given.trim() || 'Your name');
             preview.querySelector('small').textContent = CALLINGS[d.calling][1];
         }
+        // Recolour every crest in place; redraw an outline only when its shape changed, and an
+        // insignia only when it changed, so dragging the hue slider stays cheap.
+        const paint = crestPaint(d);
         body.querySelectorAll('.dm-crest').forEach((badge) => {
-            badge.style.setProperty('--el', 'var(--' + d.color + ')');
-            if (!badge.closest('.dm-cc-shape')) { badge.dataset.shape = d.shape; if (badge.querySelector('i')) badge.querySelector('i').innerHTML = emblemMark(d.emblem); }
+            badge.setAttribute('style', paint);
+            const shape = badge.closest('.dm-cc-shape') ? badge.dataset.shape : d.shape, svg = badge.querySelector('.dm-crest-svg'), mark = badge.querySelector('i');
+            if (svg && badge.dataset.shape !== shape) { badge.dataset.shape = shape; svg.outerHTML = crestSvg(shape); }
+            if (mark && mark.dataset.emblem !== d.emblem) { mark.dataset.emblem = d.emblem; mark.innerHTML = emblemMark(d.emblem); }
         });
         body.querySelectorAll('[data-act="cc"]').forEach((button) => {
             const arg = button.dataset.arg, i = arg.indexOf(':');
@@ -4936,7 +4989,8 @@
             if (first && !BIOMES[draft.biome]) { toast('Choose where your Keep stands.'); showCreationPage('biome'); return; }
             if (first && !STARTER_IDS.includes(draft.starter)) { toast('Choose your first Siegeling.'); showCreationPage('starter'); return; }
             k.given = given; k.title = draft.title; k.name = (draft.title ? draft.title + ' ' : '') + given;
-            k.crest = { emblem: draft.emblem, color: draft.color, shape: draft.shape }; k.calling = draft.calling; k.portrait = draft.portrait;
+            k.crest = { emblem: draft.emblem, color: draft.color, shape: draft.shape };
+            if (crestHue(draft) !== null) k.crest.hue = crestHue(draft); k.calling = draft.calling; k.portrait = draft.portrait;
             s.biome = BIOMES[draft.biome] ? draft.biome : 'woodland';
             if (first) {
                 seedStarter(s, draft.starter);
@@ -5128,6 +5182,13 @@
         });
         // The name field keeps its draft as you type, so tapping a crest or calling never wipes it.
         document.addEventListener('input', (e) => {
+            if (e.target.id === 'dmCrestHue' && draft) {
+                draft.hue = crestHue({ hue: e.target.value });
+                e.target.style.setProperty('--hue', draft.hue);
+                e.target.setAttribute('aria-valuetext', 'Hue ' + draft.hue + ' degrees');
+                updateCreateModal($('ckModalBody'));
+                return;
+            }
             if (e.target.id !== 'dmKnightGiven' || !draft) return;
             draft.given = e.target.value.slice(0, 20);
             const pv = document.querySelector('.dm-cc-preview b');
@@ -5159,7 +5220,7 @@
     window.render_game_to_text = () => JSON.stringify({
         mode: 'dominion', tab: S?.ui.tab, modal: modal?.kind || null,
         knight: S ? { name: S.knight.name, portrait: portraitOf(S.knight), made: !!S.knight.made } : null,
-        creation: modal?.kind === 'create' && draft ? { page: draft.page, pages: creationPages(), name: draft.given, crest: { shape: draft.shape, color: draft.color, insignia: draft.emblem }, biome: draft.biome, starter: draft.starter, sprite: draft.portrait } : null,
+        creation: modal?.kind === 'create' && draft ? { page: draft.page, pages: creationPages(), name: draft.given, crest: { shape: draft.shape, color: draft.color, hue: crestHue(draft), insignia: draft.emblem }, biome: draft.biome, starter: draft.starter, sprite: draft.portrait } : null,
         dominion: S ? { biome: S.biome, starter: S.starter, companions: joinedIds(S), biomeOutput: Object.fromEntries(['woodlot', 'forge', 'fridge', 'generator', 'garden', 'kitchen', 'quarry'].map((id) => [id, biomeMul(S, id)])) } : null,
         report: modal?.kind === 'report' ? { id: modal.arg, tab: modal.reportTab, page: (modal.reportPage || 0) + 1, pages: modal.reportPages, visible: Array.from(document.querySelectorAll('[data-report-cell]:not([hidden])')).map((cell) => cell.innerText) } : null
     });
