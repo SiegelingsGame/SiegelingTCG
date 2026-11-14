@@ -19,7 +19,7 @@
 <!-- The battle stylesheet dresses the real card faces (frames, notches, finishes). -->
 <link rel="stylesheet" href="/css/style.css?v=303">
 <link rel="stylesheet" href="/css/shield-navigation.css?v=7">
-<link rel="stylesheet" href="/css/gauntlet.css?v=17">
+<link rel="stylesheet" href="/css/gauntlet.css?v=18">
 <!-- Music first: it starts while the page is still loading, so the song carries straight on from the last page. -->
 <script src="/js/hub-music.js?v=10" data-autoinit></script>
 </head>
@@ -37,6 +37,8 @@
       <span class="gt-stat" id="gtLives" title="Lives"></span>
       <span class="gt-stat gt-gold" id="gtGold" title="Gold"></span>
       <span class="gt-stat gt-forge" id="gtForges" title="Free forges"></span>
+      <!-- Ending a run lived only at the foot of the Log tab, where players did not find it. -->
+      <button class="gt-stat gt-end-run" id="gtEndRunBtn" type="button">End run</button>
     </div>
   </header>
 
@@ -174,7 +176,7 @@
 <script src="/js/game.js?v=349"></script>
 <script src="/js/card-binder-visual.js?v=37"></script>
 <script src="/js/shield-navigation.js?v=5"></script>
-<script src="/js/gauntlet.js?v=11"></script>
+<script src="/js/gauntlet.js?v=12"></script>
 <!-- Emoji stand-in sprites: scans the page and watches re-renders, so it can load last. -->
 <script src="/js/pixel-icons.js?v=5"></script>
 </body>

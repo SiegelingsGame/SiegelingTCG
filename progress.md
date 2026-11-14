@@ -1,3 +1,10 @@
+Original prompt: Need a way to end gauntlet runs.
+
+- November 14, 2026 **Gauntlet: an End run button in the header.**
+  - **Cause.** The server has always supported ending a run (`POST /api/gauntlet/abandon`, which forfeits a fight in progress and sets the run OVER), but the only way in was an "End this run" button at the foot of the camp's Log tab, which players did not find.
+  - **Change.** `gauntlet.html`: an **End run** chip at the end of the header stats row (hearts · gold · forges · End run), shown whenever the stats are (camp, reward, level-up, battle hand-off) and hidden once the run is OVER. `gauntlet.js`: one `endRun()` confirm-then-abandon handler shared by the new chip and the Log tab button. The start screen's "You have a Gauntlet run saved to your account" card gains **End it** beside **Continue it**, which adopts the saved token and ends that run. `gauntlet.css`: the chip is a red-outlined danger pill. Cache pins `gauntlet.css?v=18`, `gauntlet.js?v=12`.
+  - **Verification.** `node --check js/gauntlet.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium against local Spring Boot at 430x932, 320x568 and 1920x1080: picked a deck and knight, drafted, began the climb. On the camp the stats row reads "♥♥♥ | 40 gold | End run" with the chip on screen and no horizontal scroll. Tapping it raised one confirm; accepting moved the page to the "The run is over" screen with the chip hidden; `GET /api/gauntlet/run` then reports phase `OVER`. No page errors. Camp header screenshot at 430x932 checked. Not exercised: the account card's End it (needs a signed-in account with a saved run), ending mid-battle.
+
 Original prompt: Update the Siege FAB in Siege mode selection when no save data is found, similar to Arena mode. Also the background should fill the back of the screen. Make the HUD consistent across these style of page.
 
 - November 11, 2026 **Siege setup gets the Arena's launch-screen HUD: full-screen art, Main Menu / forward flanks on every step.**
