@@ -1,3 +1,14 @@
+Original prompt: Why do all the screens say Applehead?
+
+- November 14, 2026 **Hub hero: scenes are captioned with the Siegeling in them, not Applehead.**
+  - **Cause.** On a phone the home hero rotates through the tall loading-art scenes. `stagePieces` copied each scene's id, title and art but dropped its `cards` tag list, so `stageCard` found no tagged card. It then tried the hub's own plate list, then `byId(<first word of the id>)` ("air", "earth", "fire"…). `byId` falls back to `CARDS[0]` when nothing matches, and that is Applehead. So every phone scene read "<Title> · APPLEHEAD". Desktop rotates the hub's own plates, which name their card, so it was unaffected.
+  - **Change (`home-redesign.js`).** `stagePieces` keeps `cards`. `stageCard` takes the card a hub plate names, else the scene's first tagged card, else nothing. It looks cards up through a new `knownCard` (`byIdIn` over ALL_CARDS then CARDS), which returns null rather than the first card, so an untagged scene shows just its title. Cache pin `home-redesign.js?v=177` (home-next).
+  - **Verification.** `node --check js/home-redesign.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium stepping the hero with its Next control, live site vs this change (`/api` proxied to live):
+    - 430x932 live: 4/4 captions ended "APPLEHEAD" ("Clash of Fire and Air APPLEHEAD | Earth Warband APPLEHEAD | Kilo Kingdom APPLEHEAD | Fire Loading APPLEHEAD").
+    - 430x932 fixed: "Clash of Fire and Air · PYLORD | Earth Warband · SQUIRE BUD | Kilo Kingdom · MONKWATT | Fire Loading · SUNDILE".
+    - 1920x1080: identical before and after (Bearby, Frostag, Skydon, Cactyjacked'ty with their places).
+    - No page errors.
+
 Original prompt: When you start a gauntlet there are times when it flashes back to the play mode selection. Fix that.
 
 - November 14, 2026 **Gauntlet fights no longer flash the Arena mode picker.**

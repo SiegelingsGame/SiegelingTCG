@@ -1413,7 +1413,8 @@
     var src = (window.SiegelingsLoadingArt && window.SiegelingsLoadingArt.pool()) || [];
     var out = src.map(function (p) {
       var art = tall ? p.portrait || '' : p.landscape || p.portrait || '';
-      return { id: p.id, title: p.title || title(p.id), place: p.place || '', thumb: art, art: art };
+      // `cards` is the scene's tag list (who is in it): stageCard names the first one.
+      return { id: p.id, title: p.title || title(p.id), place: p.place || '', thumb: art, art: art, cards: p.cards || [] };
     }).filter(function (p) { return p.art; });
     // The hub's own plates are not all in the loading pool (the Sunscar Ruins
     // scene is hub-only), and the default rotation names them.
@@ -1465,13 +1466,15 @@
 
   // The card a piece portrays, for the caption. Gallery scenes name it; API
   // pieces usually open with the card id ("bearby-longfuse" -> bearby).
+  // The Siegeling a hero scene is captioned with: the card a hub plate names, else
+  // the scene's first tagged card, else none. Not byId: that falls back to the first
+  // card in the catalog (Applehead), which captioned every untagged scene with it.
+  function knownCard(id) { return byIdIn(ALL_CARDS, id) || byIdIn(CARDS, id); }
   function stageCard(piece) {
-    var tagged = artCards(piece)[0];
-    if (tagged) return tagged;
     for (var i = 0; i < GALLERY.length; i++) {
-      if (GALLERY[i].img === piece.id) return byId(GALLERY[i].card);
+      if (GALLERY[i].img === piece.id && knownCard(GALLERY[i].card)) return knownCard(GALLERY[i].card);
     }
-    return byId(String(piece.id).split('-')[0]);
+    return artCards(piece)[0] || knownCard(String(piece.id).split('-')[0]);
   }
 
   var STAGE_ICON = {
