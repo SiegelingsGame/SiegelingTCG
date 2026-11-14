@@ -1,3 +1,14 @@
+Original prompt: Curse should disable the claim: show a purple change to the button, and the text here should say Curse cannot claim or something.
+
+- November 14, 2026 **Battle Table: a Cursed Siegeling shows as unclaimable in the card preview.**
+  - **Cause.** The server already refuses to claim a Cursed Siegeling (`GameService.claimSiegling` logs "is Cursed and cannot be claimed!"), and `getClaimableSieglings` already skipped Curse. But `isClaimableBoardCell` only checked "battle-tested, our setup turn". So the card preview showed the green CLAIMABLE badge and a live Claim button, the board drew the claim highlight, and the claim popup opened, all for a claim the server then rejects.
+  - **Change (`game.js`, `style.css`).** `isBattleTestedOwnCell` holds the old test; `isClaimableBoardCell` now also requires no Curse, so the board highlight, the popup guard and the claim action all skip a Cursed Siegeling, matching the backend. The preview locates a battle-tested Siegeling as before and flags `cursed`. A Cursed one shows a purple **CURSED** badge, "A Cursed Siegeling cannot be claimed until the Curse wears off.", and a disabled purple **Cursed · cannot claim** button in Curse's Shadow colour. Cache pins `style.css?v=304`, `game.js?v=350` (play, home, home-next, gauntlet, card-dashboard).
+  - **Verification.** `node --check js/game.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. On `play.html` (static, 430x932) with a mocked SETUP state holding one battle-tested Siegeling with no affliction and one with Curse ×2:
+    - `getClaimableSieglings` returns only the clean one; `isClaimableBoardCell` is true for it and false for the Cursed one.
+    - The rendered preview controls are "Claim Pylook" (green, enabled) and "Cursed · cannot claim" (disabled, rgba(120,50,180,.45)) under a purple CURSED badge.
+    - No page errors; screenshot checked.
+    - Not exercised: a live match where Curse lands and then wears off.
+
 Original prompt: Need a way to end gauntlet runs.
 
 - November 14, 2026 **Gauntlet: an End run button in the header.**
