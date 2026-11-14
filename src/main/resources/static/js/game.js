@@ -8453,10 +8453,16 @@ function syncEntryOverlays() {
     const loadoutOverlay = document.getElementById('loadoutOverlay');
     const mulliganOverlay = document.getElementById('mulliganOverlay');
     const showingGameplay = Boolean(gameState);
+    // /play?gauntlet=1 opens a fight the Gauntlet page already started, so the
+    // loadout never belongs on screen: showing it while the match loaded flashed
+    // the Arena's mode picker for half a second. The startup cover stays up
+    // until the fight renders (or the page returns to the run); a load error
+    // still shows the loadout, which is where its Retry lives.
+    const holdForGauntlet = GAUNTLET_ENTRY && !showingGameplay && !loadoutErrorMessage;
 
     document.body?.classList.toggle('gameplay-active', showingGameplay);
     syncArenaMusic();
-    loadoutOverlay?.classList.toggle('visible', !showingGameplay);
+    loadoutOverlay?.classList.toggle('visible', !showingGameplay && !holdForGauntlet);
     if (showingGameplay || ((gameOptions || loadoutErrorMessage) && loadoutOverlay?.classList.contains('visible'))) {
         document.documentElement.classList.remove('play-startup');
     }
@@ -9914,13 +9920,9 @@ async function loadGameOptions() {
         // open deck selection immediately. Critically this happens
         // before any network await, so a slow/hung account restore can't trap
         // them behind an account restore spinner.
-        if (GAUNTLET_ENTRY && window.SieglingsLoadingGate) {
-            window.SieglingsLoadingGate.show({
-                player: { name: getCurrentPlayerName() || 'You', trainerName: 'Your SiegeKnight' },
-                opponent: { name: 'Gauntlet', element: 'FIRE', trainerName: 'The next floor' },
-                minDurationMs: 900
-            });
-        }
+        // A Gauntlet fight loads behind the startup cover alone (see
+        // syncEntryOverlays): the versus gate it used to raise here faded in
+        // over the loadout, which is what flashed.
         syncEntryOverlays();
         loadoutErrorMessage = '';
         updateLoadoutSummary();
@@ -17676,7 +17678,8 @@ function showTooltipHand(event, handIndex) {
     tt.classList.add('visible');
 }
 
-function isClaimableBoardCell(cell, isPlayer) {
+// Battle-tested and our setup turn: the Siegeling would be claimable but for a Curse.
+function isBattleTestedOwnCell(cell, isPlayer) {
     return Boolean(
         isPlayer
         && cell
@@ -17685,6 +17688,12 @@ function isClaimableBoardCell(cell, isPlayer) {
         && !targetMode
         && Number(cell.battlePhasesSeen || 0) > 0
     );
+}
+
+// Curse blocks the claim (GameService.claimSiegling refuses it), so a Cursed
+// Siegeling gets no claim highlight, popup or action here either.
+function isClaimableBoardCell(cell, isPlayer) {
+    return isBattleTestedOwnCell(cell, isPlayer) && !cellHasAffliction(cell, 'CURSE');
 }
 
 // Locate the previewed Siegeling on the player's board so the card preview can
@@ -17697,8 +17706,8 @@ function getClaimablePreviewPosition(card) {
     for (let row = 0; row < 3; row += 1) {
         for (let col = 0; col < 3; col += 1) {
             const cell = gameState.playerBoard?.[row]?.[col];
-            if (cell && cell.instanceId === card.instanceId && isClaimableBoardCell(cell, true)) {
-                return { row, col };
+            if (cell && cell.instanceId === card.instanceId && isBattleTestedOwnCell(cell, true)) {
+                return { row, col, cursed: cellHasAffliction(cell, 'CURSE') };
             }
         }
     }
@@ -17714,6 +17723,15 @@ function renderPreviewClaimControl(card) {
     }
     const elementLabel = card.element ? formatElementLabel(card.element) : 'its element';
     const name = card.name || 'Siegeling';
+    if (pos.cursed) {
+        // Battle-tested but Cursed: say why it cannot be claimed rather than hide the control.
+        let cursed = '<div class="selected-claim-control is-cursed">';
+        cursed += '<div class="selected-claim-note"><span class="selected-claim-badge">Cursed</span>A Cursed Siegeling cannot be claimed until the Curse wears off.</div>';
+        cursed += `<button type="button" class="selected-claim-btn" disabled aria-disabled="true" aria-label="${escapeHtmlAttribute(name)} is Cursed and cannot be claimed">`;
+        cursed += `<span>Cursed · cannot claim</span></button>`;
+        cursed += '</div>';
+        return cursed;
+    }
     let html = '<div class="selected-claim-control">';
     html += `<div class="selected-claim-note"><span class="selected-claim-badge">Claimable</span>Battle-tested — claim it to gain 1 temporary ${escapeHtml(elementLabel)} energy this setup turn.</div>`;
     html += `<button type="button" class="selected-claim-btn" onclick="openClaimPopup(${pos.row}, ${pos.col})" aria-label="Claim ${escapeHtmlAttribute(name)}">`;

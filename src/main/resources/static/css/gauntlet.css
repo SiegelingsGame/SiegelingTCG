@@ -1105,3 +1105,9 @@ body[data-screen="start"] .gt-title { display: none; }
 @media (min-width: 1181px) {
   .gt-home { position: fixed; z-index: 2; top: calc(var(--sn-sat) + 8px); left: max(12px, env(safe-area-inset-left)); }
 }
+
+/* End run: a quiet danger chip at the end of the stats row, on every camp screen. */
+.gt-end-run { cursor: pointer; font: inherit; font-size: inherit; font-weight: 700; color: var(--bad); background: transparent; border-color: rgba(255, 107, 107, 0.5); }
+.gt-end-run:hover, .gt-end-run:focus-visible { background: rgba(255, 107, 107, 0.12); outline: none; }
+.gt-resume-actions { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.gt-resume-actions .gt-btn-danger { margin: 0; }

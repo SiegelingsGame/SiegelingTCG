@@ -449,6 +449,13 @@
     $('gtGold').textContent = run.gold + ' gold';
     $('gtForges').hidden = !run.freeForges;
     $('gtForges').textContent = run.freeForges + ' free forge' + (run.freeForges === 1 ? '' : 's');
+    $('gtEndRunBtn').hidden = run.phase === 'OVER';
+  }
+
+  /** Ends the current run after a confirm; the server forfeits any fight in progress. */
+  function endRun() {
+    if (!window.confirm('End this Gauntlet run? It cannot be resumed.')) return Promise.resolve(null);
+    return act('abandon');
   }
 
   function renderStart() {
@@ -460,10 +467,16 @@
     if (!saved && options.accountRunToken && resume) {
       resume.hidden = false;
       resume.innerHTML = '<p>You have a Gauntlet run saved to your account.</p>'
-        + '<button class="gt-btn gt-btn-small gt-btn-primary" type="button" id="gtResumeAccount">Continue it</button>';
+        + '<span class="gt-resume-actions"><button class="gt-btn gt-btn-small gt-btn-primary" type="button" id="gtResumeAccount">Continue it</button>'
+        + '<button class="gt-btn gt-btn-small gt-btn-danger" type="button" id="gtEndAccountRun">End it</button></span>';
       $('gtResumeAccount').onclick = function () {
         store(RUN_TOKEN_KEY, options.accountRunToken);
         loadRun();
+      };
+      // A saved run blocks nothing, but a player who does not want it back can close it here.
+      $('gtEndAccountRun').onclick = function () {
+        store(RUN_TOKEN_KEY, options.accountRunToken);
+        endRun().then(function (data) { if (!data) store(RUN_TOKEN_KEY, null); });
       };
     }
     $('gtDecks').innerHTML = options.decks.map(function (deck) {
@@ -1014,9 +1027,8 @@
     $('gtResumeBattleBtn').onclick = function () {
       act('battle').then(function (data) { if (data && data.soloToken) goToFight(data.soloToken); });
     };
-    $('gtAbandonBtn').onclick = function () {
-      if (window.confirm('End this Gauntlet run? It cannot be resumed.')) act('abandon');
-    };
+    $('gtAbandonBtn').onclick = endRun;
+    $('gtEndRunBtn').onclick = endRun;
     $('gtNewRunBtn').onclick = function () {
       store(RUN_TOKEN_KEY, null);
       state.run = null;

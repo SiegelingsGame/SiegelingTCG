@@ -3404,6 +3404,21 @@ body.card-drag-active #playerGrid {
 .selected-claim-btn:hover {
     filter: brightness(1.08);
 }
+/* Cursed: the claim is blocked, shown in Curse's Shadow purple. */
+.selected-claim-control.is-cursed .selected-claim-note { color: #e3d0ff; }
+.selected-claim-control.is-cursed .selected-claim-badge {
+    color: #fff;
+    background: var(--shadow, #7832b4);
+    box-shadow: 0 0 6px rgba(120, 50, 180, 0.6);
+}
+.selected-claim-control.is-cursed .selected-claim-btn,
+.selected-claim-control.is-cursed .selected-claim-btn:hover {
+    cursor: not-allowed;
+    filter: none;
+    color: #eadcff;
+    background: rgba(120, 50, 180, 0.45);
+    border-color: rgba(168, 110, 230, 0.85);
+}
 .selected-claim-btn svg {
     width: 14px;
     height: 14px;

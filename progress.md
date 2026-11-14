@@ -1,3 +1,39 @@
+Original prompt: Why do all the screens say Applehead?
+
+- November 14, 2026 **Hub hero: scenes are captioned with the Siegeling in them, not Applehead.**
+  - **Cause.** On a phone the home hero rotates through the tall loading-art scenes. `stagePieces` copied each scene's id, title and art but dropped its `cards` tag list, so `stageCard` found no tagged card. It then tried the hub's own plate list, then `byId(<first word of the id>)` ("air", "earth", "fire"…). `byId` falls back to `CARDS[0]` when nothing matches, and that is Applehead. So every phone scene read "<Title> · APPLEHEAD". Desktop rotates the hub's own plates, which name their card, so it was unaffected.
+  - **Change (`home-redesign.js`).** `stagePieces` keeps `cards`. `stageCard` takes the card a hub plate names, else the scene's first tagged card, else nothing. It looks cards up through a new `knownCard` (`byIdIn` over ALL_CARDS then CARDS), which returns null rather than the first card, so an untagged scene shows just its title. Cache pin `home-redesign.js?v=177` (home-next).
+  - **Verification.** `node --check js/home-redesign.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium stepping the hero with its Next control, live site vs this change (`/api` proxied to live):
+    - 430x932 live: 4/4 captions ended "APPLEHEAD" ("Clash of Fire and Air APPLEHEAD | Earth Warband APPLEHEAD | Kilo Kingdom APPLEHEAD | Fire Loading APPLEHEAD").
+    - 430x932 fixed: "Clash of Fire and Air · PYLORD | Earth Warband · SQUIRE BUD | Kilo Kingdom · MONKWATT | Fire Loading · SUNDILE".
+    - 1920x1080: identical before and after (Bearby, Frostag, Skydon, Cactyjacked'ty with their places).
+    - No page errors.
+
+Original prompt: When you start a gauntlet there are times when it flashes back to the play mode selection. Fix that.
+
+- November 14, 2026 **Gauntlet fights no longer flash the Arena mode picker.**
+  - **Cause.** A Gauntlet floor opens on the Battle Table at `/play?gauntlet=1`, which resumes the fight the Gauntlet page started. While the match loaded, `syncEntryOverlays` treated the page like a normal Arena visit: with the catalog painted from cache it showed `#loadoutOverlay` (Setup step: "Choose your Arena mode") and lifted the startup cover. The versus gate raised for Gauntlet entry faded in on top of it, so for about half a second the mode picker was visible before the fight appeared.
+  - **Change (`game.js`).** `syncEntryOverlays` holds the loadout hidden on Gauntlet entry until the fight renders (`holdForGauntlet`), so the startup art cover stays up and splashes straight into the battle. A load error still shows the loadout, where Retry lives, and a stale fight still returns to `/gauntlet`. The Gauntlet-only versus gate is dropped; it was a second loading screen on top of the first. Cache pin `game.js?v=351` (play, home, home-next, gauntlet, card-dashboard).
+  - **Verification.** `node --check js/game.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium at 430x932 against local Spring Boot: each trial starts a real run, begins it and opens floor 1's fight through the API, stores the solo token as `gauntlet.js` does, warms the play cache, then loads `/play?gauntlet=1`. A per-frame probe counts frames where the loadout is visible with the startup cover gone. With main's `game.js` swapped in: 15–19 frames, from ~150ms to ~630ms, in 3/3 trials. With the fix: 0 frames in 4/4 trials, each ending in the battle (`gameplay-active`). A plain `/play` still shows the loadout; a stale solo token on `/play?gauntlet=1` still lands back on `/gauntlet`. No page errors.
+
+Original prompt: Curse should disable the claim: show a purple change to the button, and the text here should say Curse cannot claim or something.
+
+- November 14, 2026 **Battle Table: a Cursed Siegeling shows as unclaimable in the card preview.**
+  - **Cause.** The server already refuses to claim a Cursed Siegeling (`GameService.claimSiegling` logs "is Cursed and cannot be claimed!"), and `getClaimableSieglings` already skipped Curse. But `isClaimableBoardCell` only checked "battle-tested, our setup turn". So the card preview showed the green CLAIMABLE badge and a live Claim button, the board drew the claim highlight, and the claim popup opened, all for a claim the server then rejects.
+  - **Change (`game.js`, `style.css`).** `isBattleTestedOwnCell` holds the old test; `isClaimableBoardCell` now also requires no Curse, so the board highlight, the popup guard and the claim action all skip a Cursed Siegeling, matching the backend. The preview locates a battle-tested Siegeling as before and flags `cursed`. A Cursed one shows a purple **CURSED** badge, "A Cursed Siegeling cannot be claimed until the Curse wears off.", and a disabled purple **Cursed · cannot claim** button in Curse's Shadow colour. Cache pins `style.css?v=304`, `game.js?v=350` (play, home, home-next, gauntlet, card-dashboard).
+  - **Verification.** `node --check js/game.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. On `play.html` (static, 430x932) with a mocked SETUP state holding one battle-tested Siegeling with no affliction and one with Curse ×2:
+    - `getClaimableSieglings` returns only the clean one; `isClaimableBoardCell` is true for it and false for the Cursed one.
+    - The rendered preview controls are "Claim Pylook" (green, enabled) and "Cursed · cannot claim" (disabled, rgba(120,50,180,.45)) under a purple CURSED badge.
+    - No page errors; screenshot checked.
+    - Not exercised: a live match where Curse lands and then wears off.
+
+Original prompt: Need a way to end gauntlet runs.
+
+- November 14, 2026 **Gauntlet: an End run button in the header.**
+  - **Cause.** The server has always supported ending a run (`POST /api/gauntlet/abandon`, which forfeits a fight in progress and sets the run OVER), but the only way in was an "End this run" button at the foot of the camp's Log tab, which players did not find.
+  - **Change.** `gauntlet.html`: an **End run** chip at the end of the header stats row (hearts · gold · forges · End run), shown whenever the stats are (camp, reward, level-up, battle hand-off) and hidden once the run is OVER. `gauntlet.js`: one `endRun()` confirm-then-abandon handler shared by the new chip and the Log tab button. The start screen's "You have a Gauntlet run saved to your account" card gains **End it** beside **Continue it**, which adopts the saved token and ends that run. `gauntlet.css`: the chip is a red-outlined danger pill. Cache pins `gauntlet.css?v=18`, `gauntlet.js?v=12`.
+  - **Verification.** `node --check js/gauntlet.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium against local Spring Boot at 430x932, 320x568 and 1920x1080: picked a deck and knight, drafted, began the climb. On the camp the stats row reads "♥♥♥ | 40 gold | End run" with the chip on screen and no horizontal scroll. Tapping it raised one confirm; accepting moved the page to the "The run is over" screen with the chip hidden; `GET /api/gauntlet/run` then reports phase `OVER`. No page errors. Camp header screenshot at 430x932 checked. Not exercised: the account card's End it (needs a signed-in account with a saved run), ending mid-battle.
+
 Original prompt: Update the Siege FAB in Siege mode selection when no save data is found, similar to Arena mode. Also the background should fill the back of the screen. Make the HUD consistent across these style of page.
 
 - November 11, 2026 **Siege setup gets the Arena's launch-screen HUD: full-screen art, Main Menu / forward flanks on every step.**
