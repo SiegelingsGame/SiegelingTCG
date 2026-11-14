@@ -8453,10 +8453,16 @@ function syncEntryOverlays() {
     const loadoutOverlay = document.getElementById('loadoutOverlay');
     const mulliganOverlay = document.getElementById('mulliganOverlay');
     const showingGameplay = Boolean(gameState);
+    // /play?gauntlet=1 opens a fight the Gauntlet page already started, so the
+    // loadout never belongs on screen: showing it while the match loaded flashed
+    // the Arena's mode picker for half a second. The startup cover stays up
+    // until the fight renders (or the page returns to the run); a load error
+    // still shows the loadout, which is where its Retry lives.
+    const holdForGauntlet = GAUNTLET_ENTRY && !showingGameplay && !loadoutErrorMessage;
 
     document.body?.classList.toggle('gameplay-active', showingGameplay);
     syncArenaMusic();
-    loadoutOverlay?.classList.toggle('visible', !showingGameplay);
+    loadoutOverlay?.classList.toggle('visible', !showingGameplay && !holdForGauntlet);
     if (showingGameplay || ((gameOptions || loadoutErrorMessage) && loadoutOverlay?.classList.contains('visible'))) {
         document.documentElement.classList.remove('play-startup');
     }
@@ -9914,13 +9920,9 @@ async function loadGameOptions() {
         // open deck selection immediately. Critically this happens
         // before any network await, so a slow/hung account restore can't trap
         // them behind an account restore spinner.
-        if (GAUNTLET_ENTRY && window.SieglingsLoadingGate) {
-            window.SieglingsLoadingGate.show({
-                player: { name: getCurrentPlayerName() || 'You', trainerName: 'Your SiegeKnight' },
-                opponent: { name: 'Gauntlet', element: 'FIRE', trainerName: 'The next floor' },
-                minDurationMs: 900
-            });
-        }
+        // A Gauntlet fight loads behind the startup cover alone (see
+        // syncEntryOverlays): the versus gate it used to raise here faded in
+        // over the loadout, which is what flashed.
         syncEntryOverlays();
         loadoutErrorMessage = '';
         updateLoadoutSummary();

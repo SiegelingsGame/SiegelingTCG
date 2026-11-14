@@ -1,3 +1,10 @@
+Original prompt: When you start a gauntlet there are times when it flashes back to the play mode selection. Fix that.
+
+- November 14, 2026 **Gauntlet fights no longer flash the Arena mode picker.**
+  - **Cause.** A Gauntlet floor opens on the Battle Table at `/play?gauntlet=1`, which resumes the fight the Gauntlet page started. While the match loaded, `syncEntryOverlays` treated the page like a normal Arena visit: with the catalog painted from cache it showed `#loadoutOverlay` (Setup step: "Choose your Arena mode") and lifted the startup cover. The versus gate raised for Gauntlet entry faded in on top of it, so for about half a second the mode picker was visible before the fight appeared.
+  - **Change (`game.js`).** `syncEntryOverlays` holds the loadout hidden on Gauntlet entry until the fight renders (`holdForGauntlet`), so the startup art cover stays up and splashes straight into the battle. A load error still shows the loadout, where Retry lives, and a stale fight still returns to `/gauntlet`. The Gauntlet-only versus gate is dropped; it was a second loading screen on top of the first. Cache pin `game.js?v=351` (play, home, home-next, gauntlet, card-dashboard).
+  - **Verification.** `node --check js/game.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium at 430x932 against local Spring Boot: each trial starts a real run, begins it and opens floor 1's fight through the API, stores the solo token as `gauntlet.js` does, warms the play cache, then loads `/play?gauntlet=1`. A per-frame probe counts frames where the loadout is visible with the startup cover gone. With main's `game.js` swapped in: 15–19 frames, from ~150ms to ~630ms, in 3/3 trials. With the fix: 0 frames in 4/4 trials, each ending in the battle (`gameplay-active`). A plain `/play` still shows the loadout; a stale solo token on `/play?gauntlet=1` still lands back on `/gauntlet`. No page errors.
+
 Original prompt: Curse should disable the claim: show a purple change to the button, and the text here should say Curse cannot claim or something.
 
 - November 14, 2026 **Battle Table: a Cursed Siegeling shows as unclaimable in the card preview.**
