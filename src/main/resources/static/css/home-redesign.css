@@ -5039,9 +5039,12 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     display:block; font-family:var(--serif); font-size:19px; font-weight:600; line-height:1.15;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
+  /* Names every Siegeling in the scene, so a busy scene wraps to a second line
+     rather than cutting the cast off. */
   .sg-stage-caption span {
-    display:block; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase;
-    color:rgba(255,255,255,.88); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
+    font-size:10.5px; letter-spacing:.14em; line-height:1.45; text-transform:uppercase;
+    color:rgba(255,255,255,.88);
   }
   /* The element rides as a pip: element-coloured text vanished on art of the
      same element (Fire captions on Emberwaste plates). */

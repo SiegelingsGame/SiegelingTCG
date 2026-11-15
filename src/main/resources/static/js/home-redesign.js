@@ -1471,10 +1471,19 @@
   // card in the catalog (Applehead), which captioned every untagged scene with it.
   function knownCard(id) { return byIdIn(ALL_CARDS, id) || byIdIn(CARDS, id); }
   function stageCard(piece) {
+    return stageCards(piece)[0] || null;
+  }
+  // Every Siegeling in the scene, the lead first: the card a hub plate names,
+  // then the scene's tags, without repeats. The caption names them all.
+  function stageCards(piece) {
+    var out = [], seen = {};
+    function add(card) { if (card && !seen[card.id]) { seen[card.id] = true; out.push(card); } }
     for (var i = 0; i < GALLERY.length; i++) {
-      if (GALLERY[i].img === piece.id && knownCard(GALLERY[i].card)) return knownCard(GALLERY[i].card);
+      if (GALLERY[i].img === piece.id) add(knownCard(GALLERY[i].card));
     }
-    return artCards(piece)[0] || knownCard(String(piece.id).split('-')[0]);
+    artCards(piece).forEach(add);
+    if (!out.length) add(knownCard(String(piece.id).split('-')[0]));
+    return out;
   }
 
   var STAGE_ICON = {
@@ -2036,12 +2045,12 @@
         next.classList.remove('is-on'); void next.offsetWidth;
       }
       next.classList.add('is-on');
-      var card = stageCard(piece);
+      var cast = stageCards(piece), card = cast[0];
       stage.style.setProperty('--el', color(card && card.element));
       // The header bar is outside the stage, so it takes the accent itself.
       if (stageBar) stageBar.style.setProperty('--el', color(card && card.element));
       caption.innerHTML = '<strong>' + esc(piece.title) + '</strong>' +
-        '<span>' + esc([card && card.name, piece.place].filter(Boolean).join(' · ')) + '</span>';
+        '<span>' + esc(cast.map(function (c) { return c.name; }).concat(piece.place ? [piece.place] : []).join(' · ')) + '</span>';
       var d = '';
       for (var k = 0; k < rotation.length; k++) d += '<i class="' + (k === idx ? 'on' : '') + '"></i>';
       dots.innerHTML = d;

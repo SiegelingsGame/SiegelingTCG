@@ -1,3 +1,13 @@
+Original prompt: On the landing page show the names of all the Siegelings in the image instead of just 1.
+
+- November 15, 2026 **Hub hero caption names every Siegeling in the scene.**
+  - **Change.** `home-redesign.js`: new `stageCards(piece)` returns the whole cast, lead first: the card a hub plate names, then the scene's tags (`ArtCardTagService`), without repeats. `stageCard` is now its first entry and still drives the element pip and accent. The caption line joins every name, then the place: "Breezee · Gagglestand · Hurricrane". `home-redesign.css`: the caption line wraps to at most two lines (line-clamp) instead of one ellipsised line, so a big cast is not cut off. Short landscape screens (max-height 600) still hide the line, as before. Cache pins `home-redesign.js?v=178`, `home-redesign.css?v=187` (home-next).
+  - **Verification.** `node --check js/home-redesign.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium on `home-next.html` (`/api` proxied to live), rotation pinned to busy scenes, stepping with Next:
+    - 430x932: "Hurricanes Roost → BREEZEE · GAGGLESTAND · HURRICRANE" (1 line), "Hatching Day → STRIKEHAWK · PURSEUS · PURSEPHONE · PURSULA · SHELLSHOCK" (2 lines), "Clash of Fire and Air → PYLORD · AEROVANE".
+    - 1920x1080: the same captions, each on one line.
+    - Unpinned desktop: "The Long Fuse → BEARBY · BEARNADE · EMBERWASTE GATE".
+    - No caption clipped, no page errors; screenshot of the Roost caption checked.
+
 Original prompt: Gauntlet should use the Siege button FAB menu as well for returning to Arena menu and fighting. And background images to bring the colourless background to life.
 
 - November 15, 2026 **Gauntlet: the shield-FAB dock on every climb screen, and art behind it.**
