@@ -9950,6 +9950,23 @@ async function loadGameOptions() {
         if (!data) {
             // If we already painted usable (if stale) options from cache, keep
             // them rather than replacing the screen with a hard error.
+            // A Gauntlet entry is the exception: the catalog is not the fight,
+            // and holdForGauntlet hides the loadout until one renders. Returning
+            // here on a warm cache left the startup cover up with no Retry and
+            // never asked /api/game/state. Resume the floor first. If that
+            // cannot, show the loadout — Retry lives there — and keep the solo
+            // token so a later retry can still open the same fight.
+            if (GAUNTLET_ENTRY && await resumeGauntletBattle({ keepTokenOnFailure: true })) {
+                return;
+            }
+            if (GAUNTLET_ENTRY) {
+                // applyLoadoutSummary only offers Retry while gameOptions is
+                // empty. A warm cache would otherwise paint the Arena wizard
+                // (Choose Deck) and swallow the error.
+                gameOptions = null;
+                showLoadoutLoadingError('Unable to open this Gauntlet fight. Press retry once the server is back.');
+                return;
+            }
             if (!gameOptions) {
                 showLoadoutLoadingError('Unable to load deck and SiegeKnight choices. The backend is unavailable right now. Press retry once it comes back.');
             }
@@ -10589,7 +10606,7 @@ function applyPendingHomeLoadout() {
     }
 }
 
-async function resumeGauntletBattle() {
+async function resumeGauntletBattle(options = {}) {
     if (!GAUNTLET_ENTRY) {
         return false;
     }
@@ -10597,18 +10614,25 @@ async function resumeGauntletBattle() {
         window.location.replace('/gauntlet');
         return true;
     };
+    // Called when the catalog request already failed. Do not drop the solo
+    // token or leave for /gauntlet: the loadout's Retry is the way back, and
+    // the token is what that retry uses to open the same fight.
+    const giveUp = () => options.keepTokenOnFailure ? false : backToRun();
     // The boot-time read of the saved token runs before SOLO_SESSION_TOKEN_KEY is
     // initialised (temporal dead zone), so it always comes back null; read it now.
     if (!soloSessionToken) {
         soloSessionToken = loadSavedSoloToken();
     }
     if (!soloSessionToken) {
-        return backToRun();
+        return giveUp();
     }
     const data = await fetchJson(apiUrls('/api/game/state'), {
         headers: getAuthHeaders({ 'X-Solo-Token': soloSessionToken })
     }, LOADOUT_ACTION_TIMEOUT_MS);
     if (!data || data.error || !data.gauntlet) {
+        if (options.keepTokenOnFailure) {
+            return false;
+        }
         // A redeploy drops in-memory matches; the run notices and offers the floor again.
         setSoloSessionToken(null);
         return backToRun();

@@ -1,3 +1,15 @@
+Original prompt: Critical-bug hunt of commits since #1246.
+
+- November 15, 2026 **Gauntlet fight load no longer sticks on the startup cover when the catalog request fails.**
+  - **Cause.** `/play?gauntlet=1` hides the loadout until the fight renders (`holdForGauntlet` in `syncEntryOverlays`). `loadGameOptions` only resumes that fight after `/api/game/options` succeeds. A returning player has the catalog in `sieglingsPlayCache:gameOptions` (24h). When options fails (404, 500, or the 90s timeout) and that cache paints, the function returned without calling `resumeGauntletBattle` and without setting `loadoutErrorMessage`. The hold then kept the loadout hidden, so the startup cover never lifted and Retry never appeared. The solo token stayed put, but nothing on screen could use it. First visit (no cache) already showed Retry; a normal `/play` load still shows the cached loadout.
+  - **Change (`game.js`).** On that failure, resume the floor first and do not drop the solo token if the state request also fails. If the fight cannot be resumed, set the loadout error so the cover lifts and Retry is on screen. The path where options succeed is unchanged, including sending a stale token back to `/gauntlet`. Cache pin `game.js?v=352` (play, home, home-next, gauntlet, card-dashboard).
+  - **Verification.** `node --check js/game.js`. Headless Chromium against the static server. Catalog cache seeded, `/api/game/options` 404:
+    - Before (390x844): `html.play-startup` stayed, `#loadoutOverlay` never gained `visible`, the "Preparing your table" cover stayed up. `/api/game/state` was never requested.
+    - After, state also 404 (390x844 and 1920x1080): cover gone, loadout visible, summary "Unable to open this Gauntlet fight. Press retry once the server is back.", button "Retry Loadout". Clicking it requested `/api/game/state` again. `sieglingsSoloSessionToken` stayed `solo-gauntlet-token`.
+    - After, state returns a Gauntlet match: `gameplay-active`, cover gone, phase DRAW, both health totals 25, empty board.
+    - `/play` with the same cache and a 404 still shows "Deck: Fire and Earth" and "Choose Deck", and does not request `/api/game/state`.
+    - Options 200 and a 404 state still `location.replace('/gauntlet')`. Resume saw the stored solo token with `keepTokenOnFailure` off before that redirect. No page errors on the failure or fight paths.
+
 Original prompt: Why do all the screens say Applehead?
 
 - November 14, 2026 **Hub hero: scenes are captioned with the Siegeling in them, not Applehead.**
