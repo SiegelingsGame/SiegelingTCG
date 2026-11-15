@@ -19,7 +19,7 @@
 <!-- The battle stylesheet dresses the real card faces (frames, notches, finishes). -->
 <link rel="stylesheet" href="/css/style.css?v=304">
 <link rel="stylesheet" href="/css/shield-navigation.css?v=7">
-<link rel="stylesheet" href="/css/gauntlet.css?v=18">
+<link rel="stylesheet" href="/css/gauntlet.css?v=19">
 <!-- Music first: it starts while the page is still loading, so the song carries straight on from the last page. -->
 <script src="/js/hub-music.js?v=10" data-autoinit></script>
 </head>
@@ -77,9 +77,11 @@
         <p class="gt-muted" id="gtDraftNote"></p>
       </div>
       <div class="gt-fit" id="gtDraftCards"></div>
-      <div class="gt-cta gt-cta-row">
-        <button class="gt-btn" id="gtRerollBtn" type="button">Redraw once</button>
-        <button class="gt-btn gt-btn-primary" id="gtBeginBtn" type="button">Begin the climb</button>
+      <!-- The climb's screens dock their two actions either side of the shield FAB,
+           as the start screen (and every play-mode launch screen) does. -->
+      <div class="gt-cta sn-dock">
+        <button class="sn-flank is-left" id="gtRerollBtn" type="button">Redraw once</button>
+        <button class="sn-flank is-right is-gold" id="gtBeginBtn" type="button">Begin the climb</button>
       </div>
     </section>
 
@@ -89,9 +91,10 @@
       <div class="gt-camp-side">
         <div class="gt-track" id="gtTrack" aria-label="This act's floors"></div>
         <article class="gt-encounter" id="gtEncounter"></article>
-        <div class="gt-cta">
-          <button class="gt-btn gt-btn-primary gt-btn-fight" id="gtFightBtn" type="button">Fight floor 1</button>
-        </div>
+      </div>
+      <div class="gt-cta sn-dock gt-camp-dock">
+        <a class="sn-flank is-left" href="/battle">Arena Menu</a>
+        <button class="sn-flank is-right is-gold" id="gtFightBtn" type="button">Fight floor 1</button>
       </div>
       <div class="gt-camp-panel">
         <nav class="gt-tabs" role="tablist">
@@ -148,8 +151,9 @@
     <!-- Run over. -->
     <section class="gt-screen gt-screen-center" id="screenOver">
       <div class="gt-victory" id="gtOver"></div>
-      <div class="gt-cta">
-        <button class="gt-btn gt-btn-primary" id="gtNewRunBtn" type="button">Start a new run</button>
+      <div class="gt-cta sn-dock">
+        <a class="sn-flank is-left" href="/battle">Arena Menu</a>
+        <button class="sn-flank is-right is-gold" id="gtNewRunBtn" type="button">Start a new run</button>
       </div>
     </section>
   </main>
@@ -176,7 +180,7 @@
 <script src="/js/game.js?v=351"></script>
 <script src="/js/card-binder-visual.js?v=37"></script>
 <script src="/js/shield-navigation.js?v=5"></script>
-<script src="/js/gauntlet.js?v=12"></script>
+<script src="/js/gauntlet.js?v=13"></script>
 <!-- Emoji stand-in sprites: scans the page and watches re-renders, so it can load last. -->
 <script src="/js/pixel-icons.js?v=5"></script>
 </body>

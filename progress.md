@@ -1,3 +1,23 @@
+Original prompt: Gauntlet should use the Siege button FAB menu as well for returning to Arena menu and fighting. And background images to bring the colourless background to life.
+
+- November 15, 2026 **Gauntlet: the shield-FAB dock on every climb screen, and art behind it.**
+  - **Before.** Only the start screen docked its actions around the shield FAB, and only it had art. Draft, camp and run-over had full-width buttons (the camp's gold "Fight …" bar) on a flat navy background, under a solid header band.
+  - **Change.**
+    - `gauntlet.html`: three docks, each a left flank and a gold right flank around the FAB:
+      - draft: **Redraw once** | **Begin the climb**
+      - camp: **Arena Menu** (→ `/battle`) | **Fight <encounter>**
+      - run over: **Arena Menu** | **Start a new run**
+    - `gauntlet.js`: the FAB shows on loading, start, draft, camp and over. Reward, level-up and the battle hand-off are single picks and keep their own buttons. `setRunArt` sets `body[data-art]` from the run's lead element: Fire → bearzooka-rampage; Ice/Water → frostag-training; Wind/Electric/Light → skydon-skyreach; anything else → earth-warband.
+    - `gauntlet.css`: every screen past the start draws that scene under the start screen's dark wash. The header band becomes a light fade. Docked screens reserve the dock height. The card sheet (z 90) and toasts (z 95) sit above the dock and the FAB.
+    - Cache pins `gauntlet.css?v=19`, `gauntlet.js?v=13`.
+  - **Verification.** `node --check js/gauntlet.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium against local Spring Boot, a real run at 430x932, 375x667, 844x390 and 1920x1080: start → draft → redraw → begin → camp → open a deck card → Fight → back to the Gauntlet page → End run → over.
+    - Every docked screen shows its two flanks and the FAB, with content 18–34px clear of the dock and no page scroll.
+    - Redraw once greys out after use.
+    - The Blazing Core run shows bearzooka-rampage behind draft, camp and over (the start keeps earth-warband).
+    - The card sheet's bottom edge is hit-testable above the dock.
+    - Fight goes to `/play?gauntlet=1`.
+    - No page errors. Phone draft, camp and over plus desktop camp screenshots checked.
+
 Original prompt: Why do all the screens say Applehead?
 
 - November 14, 2026 **Hub hero: scenes are captioned with the Siegeling in them, not Applehead.**
