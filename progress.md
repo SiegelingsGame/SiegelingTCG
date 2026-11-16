@@ -1,3 +1,13 @@
+Original prompt: Let's bring back these card buttons on the left side (Home's Play / Collection / Shop / Social / Settings plates). But make them hideable through a setting called "Clean UI mode".
+
+- November 16, 2026 **Home: the destination plates are back, with a Clean UI mode switch.**
+  - **Change (`home-redesign.js`).** `stageMarkup` again renders `.sg-stage-cards` (Play, Collection, Shop, Social, Settings) in the top-left, under the profile pill and chat. The plates were removed in #1228 because the shield FAB carries the same destinations; their CSS was still in place. Settings gains a **Clean UI mode** switch (`cleanUi` in `sgHubPrefs`, default off) at the top of the renamed **Display & motion** group; when on, Home omits the plates. Wide screens keep `hub-workspaces.css`'s tall five-row plate column, as before #1228. Cache pin `home-redesign.js?v=179` (home-next).
+  - **Verification.** `node --check js/home-redesign.js`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium on `home-next.html` (`/api` proxied to live) as a guest at 430x932, 390x844, 375x667, 320x568, 844x390 and 1920x1080:
+    - Five plates show, on screen, with no overlap with the right-hand tiles, the caption, Arena, Siege/Dominion, the FAB, the music line or the profile pill. Plates are 30–40px tall on phones, 38px in landscape, 137px on desktop.
+    - Tapping Shop goes to `/shop`.
+    - Settings lists "Clean UI mode" in "Display & motion". Switching it on and returning Home leaves 0 plates.
+    - No page errors. Phone, landscape and desktop screenshots checked.
+
 Original prompt: On the landing page show the names of all the Siegelings in the image instead of just 1.
 
 - November 15, 2026 **Hub hero caption names every Siegeling in the scene.**
