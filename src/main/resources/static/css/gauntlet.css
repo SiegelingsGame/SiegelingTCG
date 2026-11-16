@@ -1111,3 +1111,27 @@ body[data-screen="start"] .gt-title { display: none; }
 .gt-end-run:hover, .gt-end-run:focus-visible { background: rgba(255, 107, 107, 0.12); outline: none; }
 .gt-resume-actions { display: inline-flex; flex-wrap: wrap; gap: 8px; }
 .gt-resume-actions .gt-btn-danger { margin: 0; }
+
+/* ---- The climb wears the launch-screen HUD too ----
+   Every screen past the start has art behind it: a scene of the run's lead
+   element (body[data-art], set by gauntlet.js), under the same dark wash as the
+   start screen so panels and cards stay legible. The header drops its solid band
+   so the art runs to the top, and the draft, camp and run-over screens dock their
+   actions either side of the shield FAB. */
+body { --gt-art: url('/img/gallery/earth-warband.webp'); }
+body[data-art="fire"] { --gt-art: url('/img/gallery/bearzooka-rampage.webp'); }
+body[data-art="ice"] { --gt-art: url('/img/gallery/frostag-training.webp'); }
+body[data-art="wind"] { --gt-art: url('/img/gallery/skydon-skyreach.webp'); }
+body:not([data-screen="start"]) {
+  background:
+    linear-gradient(180deg, rgba(11, 16, 32, 0.72) 0%, rgba(11, 16, 32, 0.62) 38%, rgba(11, 16, 32, 0.9) 100%),
+    var(--gt-art) center 35% / cover no-repeat,
+    var(--gt-bg);
+}
+.gt-top { background: linear-gradient(180deg, rgba(11, 16, 32, 0.55), rgba(11, 16, 32, 0)); border-bottom: 0; }
+.gt-screen:is(#screenDraft, #screenCamp, #screenOver) { padding-bottom: calc(var(--sn-dock-h) + 4px); }
+.gt-cta.sn-dock .sn-flank { white-space: normal; text-wrap: balance; }
+.gt-cta.sn-dock .sn-flank:disabled { opacity: .5; cursor: default; }
+/* The card sheet and toasts sit above the dock and the FAB. */
+.gt-sheet { z-index: 90; }
+.gt-toast { z-index: 95; }

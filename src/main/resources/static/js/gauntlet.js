@@ -111,7 +111,17 @@
   function setRun(run) {
     state.run = run;
     if (run && run.token) store(RUN_TOKEN_KEY, run.token);
+    setRunArt(run);
     render();
+  }
+
+  // The climb's backdrop is a scene of the run's lead element (gauntlet.css keys
+  // the art off body[data-art]); elements without a scene of their own keep the
+  // start screen's Earth warband.
+  var ELEMENT_ART = { FIRE: 'fire', ICE: 'ice', WATER: 'ice', WIND: 'wind', ELECTRIC: 'wind', LIGHT: 'wind', EARTH: 'earth', METAL: 'earth', POISON: 'earth' };
+  function setRunArt(run) {
+    var lead = run && run.elements && run.elements.length ? String(run.elements[0]).toUpperCase() : '';
+    document.body.dataset.art = ELEMENT_ART[lead] || 'earth';
   }
 
   function setScreen(name) {
@@ -1076,14 +1086,15 @@
     });
   }
 
-  // The shield FAB belongs to the start screen, the Gauntlet's launch screen;
-  // the climb's own screens keep the bottom edge for their actions.
+  // The shield FAB sits between the docked actions of the start, draft, camp and
+  // run-over screens. Reward and level-up are a single pick, and the battle
+  // hand-off a single button, so those keep the bottom edge for their own.
+  var FAB_SCREENS = { loading: 1, start: 1, draft: 1, camp: 1, over: 1 };
   function mountShieldNavigation() {
     if (!window.SiegelingsShieldNavigation) return;
     var nav = window.SiegelingsShieldNavigation.mountLinks();
     function sync() {
-      var screen = document.body.dataset.screen;
-      nav.setHidden(screen !== 'start' && screen !== 'loading');
+      nav.setHidden(!FAB_SCREENS[document.body.dataset.screen]);
     }
     new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['data-screen'] });
     sync();

@@ -1471,10 +1471,19 @@
   // card in the catalog (Applehead), which captioned every untagged scene with it.
   function knownCard(id) { return byIdIn(ALL_CARDS, id) || byIdIn(CARDS, id); }
   function stageCard(piece) {
+    return stageCards(piece)[0] || null;
+  }
+  // Every Siegeling in the scene, the lead first: the card a hub plate names,
+  // then the scene's tags, without repeats. The caption names them all.
+  function stageCards(piece) {
+    var out = [], seen = {};
+    function add(card) { if (card && !seen[card.id]) { seen[card.id] = true; out.push(card); } }
     for (var i = 0; i < GALLERY.length; i++) {
-      if (GALLERY[i].img === piece.id && knownCard(GALLERY[i].card)) return knownCard(GALLERY[i].card);
+      if (GALLERY[i].img === piece.id) add(knownCard(GALLERY[i].card));
     }
-    return artCards(piece)[0] || knownCard(String(piece.id).split('-')[0]);
+    artCards(piece).forEach(add);
+    if (!out.length) add(knownCard(String(piece.id).split('-')[0]));
+    return out;
   }
 
   var STAGE_ICON = {
@@ -1895,9 +1904,18 @@
       '<button type="button" class="sg-stage-reveal" data-stage-reveal aria-label="Show menus"></button>' +
       '<div class="sg-stage-ui">' +
         '<div class="sg-stage-lead">' +
-        // The main destinations live in the shield FAB, so the corner holds the
-        // player's own card and the chat channels instead.
+        // The player's own card and chat channels, then the main destinations as
+        // the shop's portrait plates. The plates repeat the shield FAB's menu, so
+        // Settings > Clean UI mode hides them for a barer wall.
         stageProfileMarkup(opts) +
+        (prefValue('cleanUi', false) ? '' :
+          '<nav class="sg-stage-cards" aria-label="Main destinations">' +
+            [['play', 'Play'], ['collection', 'Collection'], ['shop', 'Shop'], ['social', 'Social'], ['settings', 'Settings']].map(function (item) {
+              return '<a class="sg-gtab" href="' + pathForScreen(item[0]) + '" data-screen="' + item[0] + '">' +
+                '<span class="sg-gtab-art">' + hubPanelImage('stage-' + item[0]) + '</span>' +
+                '<span class="sg-gtab-label">' + item[1] + '</span><i class="sg-gtab-gem" aria-hidden="true"></i></a>';
+            }).join('') +
+          '</nav>') +
         '</div>' +
         '<div class="sg-stage-right">' +
           '<nav class="sg-stage-left" aria-label="Home shortcuts">' +
@@ -2036,12 +2054,12 @@
         next.classList.remove('is-on'); void next.offsetWidth;
       }
       next.classList.add('is-on');
-      var card = stageCard(piece);
+      var cast = stageCards(piece), card = cast[0];
       stage.style.setProperty('--el', color(card && card.element));
       // The header bar is outside the stage, so it takes the accent itself.
       if (stageBar) stageBar.style.setProperty('--el', color(card && card.element));
       caption.innerHTML = '<strong>' + esc(piece.title) + '</strong>' +
-        '<span>' + esc([card && card.name, piece.place].filter(Boolean).join(' · ')) + '</span>';
+        '<span>' + esc(cast.map(function (c) { return c.name; }).concat(piece.place ? [piece.place] : []).join(' · ')) + '</span>';
       var d = '';
       for (var k = 0; k < rotation.length; k++) d += '<i class="' + (k === idx ? 'on' : '') + '"></i>';
       dots.innerHTML = d;
@@ -11351,7 +11369,9 @@
   var DISCORD_URL = 'https://discord.gg/T4WrHCGJ9b';
   var SETTINGS = [
     ['Audio', [['music', 'Music', true], ['sfx', 'Sound effects', true], ['voice', 'Battle voice', false]]],
-    ['Motion', [['cardAnim', 'Card animations', true], ['pageTransitions', 'Page transitions', true],
+    // Clean UI mode drops Home's destination plates (Play, Collection, Shop, Social,
+    // Settings); the shield FAB still reaches every one of them.
+    ['Display & motion', [['cleanUi', 'Clean UI mode', false], ['cardAnim', 'Card animations', true], ['pageTransitions', 'Page transitions', true],
                 ['reducedMotion', 'Reduced motion', null], ['parallax', 'Background parallax', true]]],
     ['Notifications', [['inviteNotify', 'Match invites', true], ['keepNotify', 'Keep ready', true],
                        ['resetNotify', 'Daily reset', false]]]
