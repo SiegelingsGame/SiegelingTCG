@@ -12409,6 +12409,8 @@
       shieldNavigation = window.SiegelingsShieldNavigation.mount(host, function (screen) {
         // Messages is a tab of Social, so it names the tab before the render.
         if (screen === 'messages') { setSocialTab('messages'); screen = 'social'; }
+        // Swarm is a separate page (the 3D survival test mode), not a hub screen.
+        if (screen === 'swarm') { window.location.href = '/swarm'; return; }
         show(screen, true, true);
       }, function () { return current; });
     }

@@ -1,3 +1,18 @@
+Original prompt: Let's add this as a testing mode in the siegeling fab on the TCG (the 3D survival game built in SiegelingsRBX/web).
+
+- November 17, 2026 **Swarm: a 3D survival test mode, opened from the shield FAB.**
+  - **Change.**
+    - New page `/swarm` serving `static/swarm/` (index.html, hashed JS/CSS under `assets/`, 128 Siegling art files under `art/`). It is a prebuilt bundle; the source lives in `SiegelingsRBX/web` and is rebuilt into this folder with `npm run build:tcg -- <path to this repo>`. Do not hand-edit files in `static/swarm/`.
+    - The mode: pick a starting Siegling, survive a swarm in a biome arena, recruit up to 6 Sieglings (each attacks on its own) from chests and totems, take up to 6 items, beat the boss. Roster, names, elements and art are a snapshot of the live card data; saves are in `localStorage` only (no server calls).
+    - `shield-navigation.js`: the utilities row gains **Swarm** with a small "test" tag (`data-destination="swarm"`), and `HUB_PATHS.swarm = '/swarm'` for the launch pages that use `mountLinks`. `home-redesign.js`: the hub's own navigate callback sends `swarm` to `/swarm` instead of treating it as a hub screen. `shield-navigation.css`: the tag style.
+    - Routing: `firebase.json` rewrite `/swarm` → `/swarm/index.html` and `swarm` added to the no-cache route list; `WebConfig` forwards `/swarm` and `/swarm/`.
+    - The Swarm page has a "← Hub" link (to `/home`) outside a run. Its viewport meta follows the house rule (no `user-scalable=no`; `touch-action: pan-x pan-y` on `html`/`body`).
+    - Cache pins: `shield-navigation.js?v=6`, `shield-navigation.css?v=8` (adventure, dominion, gauntlet, home-next, play, home-redesign-preview), `home-redesign.js?v=180` (home-next). The Swarm bundle's own files carry content hashes.
+  - **Verification.** `node --check` on `shield-navigation.js` and `home-redesign.js`; `./mvnw -q -DskipTests compile`; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test`. Headless Chromium against `python3 -m http.server` from `static/` (no API):
+    - `home-next.html` at 390x844 and 1920x1080, and `gauntlet.html` at 390x844: opening the shield shows Social, Help and Swarm in one centred row inside the shield; tapping Swarm lands on `/swarm/`.
+    - `/swarm/` boots the game (title "Siegelings · Swarm (test mode)"), the starter picker shows art loaded from `/swarm/art/`, the Hub link is present, and touch controls switch on at the phone viewport.
+    - Not checked here: the Firebase Hosting rewrite and the Spring forward on a deployed build, and real-device play.
+
 Original prompt: Let's bring back these card buttons on the left side (Home's Play / Collection / Shop / Social / Settings plates). But make them hideable through a setting called "Clean UI mode".
 
 - November 16, 2026 **Home: the destination plates are back, with a Clean UI mode switch.**

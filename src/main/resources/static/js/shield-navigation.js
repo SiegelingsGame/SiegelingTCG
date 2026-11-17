@@ -38,7 +38,7 @@
         '<nav class="sn-options" aria-label="Main navigation">' +
           [['play','Play',0],['collection','Collection',1],['decks','Decks',1],['shop','Shop',2],['profile','Profile',2],['settings','Settings',3]].map(function (item) {
             return '<button type="button" class="sn-option sn-' + item[0] + '" data-destination="' + item[0] + '" data-group="' + item[2] + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + icons[item[0]] + '</svg><span>' + item[1] + '</span><b aria-hidden="true">›</b><i class="sn-option-light" aria-hidden="true"></i></button>';
-          }).join('') + '</nav><nav class="sn-utilities" aria-label="More destinations"><button data-destination="social">Social</button><button data-destination="help">Help</button></nav></div>' +
+          }).join('') + '</nav><nav class="sn-utilities" aria-label="More destinations"><button data-destination="social">Social</button><button data-destination="help">Help</button><button data-destination="swarm" class="sn-test">Swarm <small>test</small></button></nav></div>' +
         corner('home', 'Home') + corner('messages', 'Messages') +
         '<button class="sn-close" type="button" aria-label="Close navigation">×</button>' +
       '</section></div>' +
@@ -200,7 +200,9 @@
   var HUB_PATHS = {
     home: '/home', play: '/home?screen=play', collection: '/cards', decks: '/decks',
     shop: '/shop', profile: '/profile', settings: '/settings', social: '/social',
-    messages: '/social', help: '/help'
+    messages: '/social', help: '/help',
+    // Swarm (the 3D survival test mode) is its own page under /swarm.
+    swarm: '/swarm'
   };
   function mountLinks() {
     if (navigator.standalone) document.documentElement.classList.add('sg-standalone');
