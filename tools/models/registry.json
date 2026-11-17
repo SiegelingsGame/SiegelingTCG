@@ -269,10 +269,29 @@
     "element": "Fire",
     "evolvesFrom": null,
     "flags": [],
+    "generator": "hunyuan-shape",
     "modelName": "Draco",
-    "notes": "plan checked against art",
+    "notes": "plan checked against art; art projected (Space texture stage down); 3/4-view art faces 45 deg off",
     "rarity": "Common",
-    "status": "prepped"
+    "rig": {
+      "art": "input.png",
+      "plan": "biped_tail",
+      "yaw": 45
+    },
+    "shipped": {
+      "clips": [
+        "attack",
+        "cheer",
+        "fainted",
+        "hurt",
+        "idle",
+        "walk"
+      ],
+      "kb": 141,
+      "tris": 6000
+    },
+    "status": "shipped",
+    "textured": false
   },
   "dracoil": {
     "art": "swarm/art/dracoil.webp",

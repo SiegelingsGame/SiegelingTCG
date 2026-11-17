@@ -43,14 +43,23 @@ Table.
 **1. Prep:** `python3 tools/models/prep_art.py [--only draco,dracoil]`
 Reads the creature records from the Swarm bundle (94 Siegelings) and writes
 `work/<id>/input.png`: 1024², subject centred with a 12% margin so wings and
-tails are not cut off, plus a copy on white. It also seeds `registry.json`. In
+tails are not cut off, and the painted drop shadow removed (otherwise it becomes
+a slab of geometry under the feet). It also writes a copy on white and the
+unstripped original. It also seeds `registry.json`. In
 each row, check `bodyPlan` before rigging: `biped`, `biped_tail` (upright
 lizards: Draco, Solgator), `winged_biped` (birds: Hurricrane), `quadruped`,
 `winged`, `serpent`, `floater`, `blob`. Most of the roster stands upright, so
 rows default to `biped`, or `winged_biped` when `flying`. The 11 pilot rows
 were checked against their art. Re-running keeps your edits.
 
-**2. Image→3D:** needs a GPU (~16 GB for Hunyuan3D-2 shape + texture). Pick one route:
+**2. Image→3D:** `HF_TOKEN=hf_... python3 tools/models/generate.py <id> [--backend hunyuan-shape|hunyuan|trellis]`
+runs a public Hugging Face Space and writes `work/<id>/raw.glb`. It needs a
+free Hugging Face read token, because anonymous cloud IPs get no GPU quota.
+The default, `hunyuan-shape`, takes about 7 s of GPU per creature and gives the
+best shapes for this roster. Its texture stage is down on the Space, so rig
+with `--art` (stage 3) to project the card art on. TRELLIS gave flat cards for
+Draco's pixel-art style.
+Other routes:
 - *Own machine or a rented GPU:* `Hunyuan3D-2` → `python minimal_demo.py`-style
   `Hunyuan3DDiTFlowMatchingPipeline` + `Hunyuan3DPaintPipeline` on
   `work/<id>/input.png`. Save the output as `work/<id>/raw.glb`.
@@ -72,8 +81,12 @@ or a flat back.
 ```
 blender -b -P tools/models/blender/rig_animate.py -- \
   --in tools/models/work/draco/raw.glb --out tools/models/work/draco/rigged.glb \
-  --plan quadruped [--front -Y] [--tris 6000]
+  --plan biped_tail [--front -Y] [--yaw 45] [--tris 6000] [--art $PWD/tools/models/work/draco/input.png]
 ```
+`--art` paints the input image onto the mesh by straight front projection,
+for untextured generator output. `--yaw` turns three-quarter-view creatures to
+face forward. Draco needed 45. Generator meshes over 50k triangles first lose
+their marching-cubes "fan" slivers.
 The script:
 1. Merges and cleans the mesh, then decimates it to the triangle budget.
 2. Places a template skeleton for the body plan from the mesh's bounding box.
@@ -128,16 +141,13 @@ Never ship it.
 
 ## Status
 
-- Stages 1, 3, 4 and 5 are verified.
-  - Prep ran on all 94 creatures.
-  - Blender 4.4.3 rigged a `biped_tail` mannequin: 7,380 → 6,000 triangles,
-    12 bones, bone-heat weights with no envelope fallback, and all six clips.
-    Rendered in three.js, each clip deforms the mesh: the walk alternates
-    stride, the tail sways, and fainted ends lying down.
-  - It shipped at 100 KB through the gate. The real Swarm bundle loaded it in
-    Draco's slot without falling back to the stand-in.
-  - `selftest.mjs` passes.
-- Stage 2 is blocked here. Both free Hugging Face Spaces (Hunyuan3D-2 and
-  TRELLIS) refuse anonymous runs from this cloud IP ("ZeroGPU quota… 0s left").
-  To run it, use a Hugging Face token (a free account works), your own GPU, or
-  a rented GPU.
+- **Draco is shipped** (`swarm/models/draco.glb`, 141 KB). It was made with
+  Hunyuan3D-2 shape, art projection, the `biped_tail` rig, all six clips, and
+  6,000 triangles. Swarm loads it as the starter companion. The black outlines
+  in the art show as dark streaks on side surfaces; a real texture pass would
+  replace them.
+- All five stages ran on Draco. The metaball mannequin also covers stages 3–5
+  with no GPU.
+- **Rebuild caveat:** a Swarm rebuild from `SiegelingsRBX/web` replaces
+  `static/swarm/`. Copy `draco.glb` and `manifest.json` into that repo's public
+  `models/` folder before the next rebuild.

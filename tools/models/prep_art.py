@@ -5,7 +5,8 @@ Reads the creature records baked into the Swarm bundle (the only place that
 already pairs each Siegeling with its cut-out art, `flying` flag and
 `modelName`), then writes, per creature:
 
-  tools/models/work/<id>/input.png   1024x1024 RGBA, subject centred with 12% margin
+  tools/models/work/<id>/input.png   1024x1024 RGBA, subject centred with 12% margin,
+                                     painted drop shadow removed
   tools/models/work/<id>/input-white.png   same on white (some generators ignore alpha)
 
 and merges a row into tools/models/registry.json. Existing registry rows keep
@@ -23,7 +24,9 @@ import json
 import os
 import re
 
-from PIL import Image
+from collections import deque
+
+from PIL import Image, ImageChops, ImageFilter
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 SWARM = os.path.join(ROOT, 'src', 'main', 'resources', 'static', 'swarm')
@@ -61,6 +64,54 @@ def creatures_from_bundle():
     return out
 
 
+def strip_shadow(im):
+    """Remove the painted drop shadow under the feet.
+
+    Image-to-3D turns it into a slab of geometry the creature stands on. The
+    shadow is opaque near-black like the outlines, so it is told apart by
+    shape: a morphological open keeps thick dark blobs and drops thin
+    outlines. Only the bottom 22% of the subject is searched, then any
+    detached specks left over are dropped.
+    """
+    w, h = im.size
+    alpha = im.getchannel('A')
+    bb = alpha.getbbox()
+    if not bb:
+        return im
+    dark = Image.eval(im.convert('L'), lambda v: 255 if v < 60 else 0)
+    dark = ImageChops.multiply(dark, Image.eval(alpha, lambda v: 255 if v > 128 else 0))
+    blobs = dark.filter(ImageFilter.MinFilter(13)).filter(ImageFilter.MaxFilter(17))
+    top = bb[3] - int((bb[3] - bb[1]) * 0.22)
+    mask = Image.new('L', (w, h), 0)
+    mask.paste(blobs.crop((0, top, w, h)), (0, top))
+    mask = ImageChops.multiply(mask, dark.filter(ImageFilter.MaxFilter(3)))
+    alpha = ImageChops.subtract(alpha, mask)
+    a = alpha.load()
+    seen = bytearray(w * h)
+    comps = []
+    for y in range(h):
+        for x in range(w):
+            if a[x, y] > 40 and not seen[y * w + x]:
+                seen[y * w + x] = 1
+                q, pts = deque([(x, y)]), []
+                while q:
+                    cx, cy = q.popleft()
+                    pts.append((cx, cy))
+                    for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
+                        if 0 <= nx < w and 0 <= ny < h and not seen[ny * w + nx] and a[nx, ny] > 40:
+                            seen[ny * w + nx] = 1
+                            q.append((nx, ny))
+                comps.append(pts)
+    comps.sort(key=len, reverse=True)
+    for pts in comps[1:]:
+        if len(pts) < len(comps[0]) * 0.02:
+            for x, y in pts:
+                a[x, y] = 0
+    out = im.copy()
+    out.putalpha(alpha)
+    return out
+
+
 def prep_image(art_path, dest_dir):
     im = Image.open(art_path).convert('RGBA')
     bbox = im.getchannel('A').point(lambda a: 255 if a > 16 else 0).getbbox()
@@ -72,6 +123,8 @@ def prep_image(art_path, dest_dir):
     canvas = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
     canvas.paste(im, ((SIZE - im.width) // 2, (SIZE - im.height) // 2), im)
     os.makedirs(dest_dir, exist_ok=True)
+    canvas.save(os.path.join(dest_dir, 'input-with-shadow.png'))
+    canvas = strip_shadow(canvas)
     canvas.save(os.path.join(dest_dir, 'input.png'))
     white = Image.new('RGBA', canvas.size, (255, 255, 255, 255))
     white.alpha_composite(canvas)

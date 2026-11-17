@@ -61,15 +61,86 @@ def import_mesh(path):
     return obj
 
 
-def face_front(obj, front):
-    """Rotate so the creature faces -Y (glTF +Z, what three.js treats as forward)."""
-    turn = {'-Y': 0, '+X': 90, '+Y': 180, '-X': -90}[front]
+def project_art(obj, art_path):
+    """Paint the card art onto the mesh by straight projection from the front.
+
+    For when the generator's texture stage is unavailable: image-to-3D models
+    rebuild the shape as seen from the input image's camera, so the art's
+    silhouette lines up with the mesh's front view (glTF +Z, Blender -Y, before
+    any `--front`/`--yaw` turn). Faces the art cannot see take the colour in
+    front of them, which reads fine on stylised creatures. Must run before
+    face_front.
+    """
+    img = bpy.data.images.load(art_path)
+    w, h = img.size
+    px = list(img.pixels)
+    xs, ys = [], []
+    for y in range(h):
+        row = y * w * 4
+        for x in range(w):
+            if px[row + x * 4 + 3] > 0.5:
+                xs.append(x)
+                ys.append(y)
+    # Blender image rows run bottom-up, matching UV v.
+    bx0, bx1, by0, by1 = min(xs), max(xs), min(ys), max(ys)
+    lo, hi = bounds(obj)
+    me = obj.data
+    uv = me.uv_layers.new(name='art_projection')
+    for loop in me.loops:
+        co = me.vertices[loop.vertex_index].co
+        u = (bx0 + (co.x - lo.x) / max(hi.x - lo.x, 1e-6) * (bx1 - bx0)) / w
+        v = (by0 + (co.z - lo.z) / max(hi.z - lo.z, 1e-6) * (by1 - by0)) / h
+        uv.data[loop.index].uv = (u, v)
+    me.uv_layers.active = uv
+    for layer in [l for l in me.uv_layers if l.name != 'art_projection']:
+        me.uv_layers.remove(layer)
+    mat = bpy.data.materials.new('art')
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes['Principled BSDF']
+    bsdf.inputs['Roughness'].default_value = 0.75
+    bsdf.inputs['Metallic'].default_value = 0.0
+    tex = mat.node_tree.nodes.new('ShaderNodeTexImage')
+    tex.image = img
+    tex.interpolation = 'Closest'  # keep the pixel-art edges crisp
+    mat.node_tree.links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
+    me.materials.clear()
+    me.materials.append(mat)
+
+
+def face_front(obj, front, yaw=0.0):
+    """Rotate so the creature faces -Y (glTF +Z, what three.js treats as forward).
+
+    `front` is the axis the generated model faces; `yaw` adds a further turn
+    in degrees (counter-clockwise from above) for art drawn in three-quarter
+    view, where the model comes out facing between two axes.
+    """
+    turn = {'-Y': 0, '-X': 90, '+Y': 180, '+X': -90}[front] + yaw
     if turn:
         obj.rotation_euler[2] = math.radians(turn)
         bpy.ops.object.transform_apply(rotation=True)
 
 
+def drop_slivers(obj, max_edge_frac=0.04):
+    """Delete marching-cubes fans: long, needle-thin triangles where the
+    generator's sampling grid meets the floor. Real faces on a 100k+ triangle
+    generator mesh are tiny, so any edge longer than a few percent of the
+    model is one of these."""
+    import bmesh
+    lo, hi = bounds(obj)
+    limit = max(hi - lo) * max_edge_frac
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bad = [f for f in bm.faces if any(e.calc_length() > limit for e in f.edges)]
+    bmesh.ops.delete(bm, geom=bad, context='FACES')
+    bm.to_mesh(obj.data)
+    bm.free()
+    return len(bad)
+
+
 def clean_and_decimate(obj, target_tris):
+    tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
+    if tris > 50000:
+        print('dropped %d sliver faces' % drop_slivers(obj))
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.ops.mesh.select_all(action='SELECT')
     # Marching-cubes output is full of coincident verts; they break bone heat.
@@ -320,12 +391,16 @@ def main(argv):
     ap.add_argument('--out', required=True)
     ap.add_argument('--plan', default='quadruped', choices=sorted(TEMPLATES))
     ap.add_argument('--front', default='-Y', choices=['-Y', '+Y', '+X', '-X'])
+    ap.add_argument('--yaw', type=float, default=0.0, help='extra turn in degrees, counter-clockwise from above')
     ap.add_argument('--tris', type=int, default=6000)
+    ap.add_argument('--art', help='project this RGBA art onto the mesh from the front (when the generator gave no texture)')
     a = ap.parse_args(argv)
 
     reset_scene()
     obj = import_mesh(a.src)
-    face_front(obj, a.front)
+    if a.art:
+        project_art(obj, a.art)
+    face_front(obj, a.front, a.yaw)
     clean_and_decimate(obj, a.tris)
     lo, hi = bounds(obj)
     arm = build_armature(obj, a.plan)

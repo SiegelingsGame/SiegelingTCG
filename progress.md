@@ -1,3 +1,25 @@
+Original prompt: (Hugging Face token provided) — generate a real Siegeling model through the pipeline.
+
+- November 17, 2026 **First real 3D Siegeling: Draco ships into Swarm as a rigged, animated model.**
+  - **Change.**
+    - New `tools/models/generate.py` runs stage 2 on a Hugging Face Space with the user's `HF_TOKEN`. The default is Hunyuan3D-2 shape-only; textured Hunyuan and TRELLIS are optional backends.
+    - `prep_art.py` now strips the painted drop shadow, which Hunyuan turned into a slab under the feet. A morphological open on dark pixels in the bottom 22% removes the shadow, then detached specks are dropped.
+    - `rig_animate.py` changes:
+      - `--front +X/-X` turned the wrong way; it is now fixed.
+      - New `--yaw`: Draco's three-quarter art faced 45° off forward.
+      - Generator meshes over 50k triangles first lose marching-cubes fan slivers (588 on Draco).
+      - New `--art` projects the card art from the front, because the Space's texture stage is down.
+    - `swarm/models/draco.glb` (141 KB) and `manifest.json` (`draco`) are added. `registry.json` records how Draco was made.
+  - **Verification.**
+    - Hunyuan3D-2 `/generation_all` failed on the Space ("texgen_worker is not defined").
+    - TRELLIS returned flat 1 cm cards twice, for both the RGBA and the white-background input.
+    - Hunyuan `/shape_generation` gave a full Draco: crest, curled tail, arms, legs. With the shadow stripped there is no ground slab. `generate.py` reproduces the same 9.37 MB mesh byte for byte, and the scripted shadow strip matches the hand-made input pixel for pixel.
+    - Rigging dropped 588 slivers, decimated 605,696 → 6,000 triangles, built 12 bones with bone-heat weights (no envelope fallback) and exported all six clips.
+    - three.js renders show every clip deforming with the art colours: walk strides, attack lunges, cheer hops, fainted lies down.
+    - The gate passed (141 KB). `selftest.mjs` passes.
+    - In headless Chromium at 844x390, `/swarm` requested `draco.glb`, and choosing Draco as the starter shows the 3D model following the player instead of the stand-in.
+    - Known flaw: art outlines project as dark streaks on side surfaces.
+
 Original prompt: Ok do it the best way you think I allow (run Blender and try image-to-3D for the 3D model pipeline).
 
 - November 17, 2026 **3D model pipeline: Blender stage proven end to end, body plans fixed for the upright roster.**
