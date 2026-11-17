@@ -130,6 +130,10 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addViewController("/keep").setViewName("forward:/keep.html");
         registry.addViewController("/chronicles").setViewName("forward:/chronicles.html");
         registry.addViewController("/dominion").setViewName("forward:/dominion.html");
+        // Swarm: the 3D survival test mode, a prebuilt bundle under static/swarm/
+        // (built from SiegelingsRBX/web with `npm run build:tcg`).
+        registry.addViewController("/swarm").setViewName("forward:/swarm/index.html");
+        registry.addViewController("/swarm/").setViewName("forward:/swarm/index.html");
 
         registry.addRedirectViewController("/card_dashboard", "/card-dashboard.html");
         registry.addRedirectViewController("/card-dashboard", "/card-dashboard.html");
