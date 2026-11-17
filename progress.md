@@ -1,3 +1,16 @@
+Original prompt: Let's slow the game down a bit, slower starting movement speed and attack animations. Increasing with items, items for additional projectiles, classes of attacks that can be amped by boost: Melee, projectile, aura, random enemy, chain attacks.
+
+- November 17, 2026 **Swarm: slower pacing, five attack classes, class boost items.**
+  - **Change.** `static/swarm/` rebuilt from `SiegelingsRBX/web` (`npm run build:tcg`); no other files touched.
+    - Pace: the player starts at 78% movement speed; attack cooldowns are 30% longer; shots, lunges, mortar arcs and falling strikes are slower; enemies are slightly slower to match. Trail Boots (+12% speed per level), Swift Claw and the class boosts speed things back up.
+    - Attack classes: the 16 attack patterns are grouped into Melee, Projectile, Aura, Random strike and Chain, shown on every attack description. New Ricochet pattern (Chain). Random strikes now land on random nearby enemies.
+    - Items: one boost per class (damage, attack speed, plus area, shot speed, extra strikes or extra jumps), offered only when the team has that class; Splitting Prism adds +1 projectile, orb, trap or strike per level (max 3).
+  - **Verification.** Headless Chromium against the Vite preview of the source:
+    - Each of the 16 patterns killed enemies in a 25-second solo run, with no page errors.
+    - With Fletcher's Quiver at level 3, a projectile Siegeling went from 14 to 22.4 damage and from a 2.47s to a 1.99s cooldown. Trail Boots at level 2 raised move speed from 0.78 to 0.97.
+    - Class boosts appear in level-up offers only for classes on the team.
+    - An unassisted kiting bot survived 126s (84s before the change).
+
 Original prompt: Let's add this as a testing mode in the siegeling fab on the TCG (the 3D survival game built in SiegelingsRBX/web).
 
 - November 17, 2026 **Swarm: a 3D survival test mode, opened from the shield FAB.**
