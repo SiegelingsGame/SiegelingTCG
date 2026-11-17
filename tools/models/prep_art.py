@@ -32,10 +32,10 @@ REGISTRY = os.path.join(ROOT, 'tools', 'models', 'registry.json')
 SIZE = 1024
 MARGIN = 0.12
 
-# Body plans pick the rig template in blender/rig_animate.py. Only `winged`
-# can be inferred (from `flying`); everything else starts as `quadruped`
-# and is corrected by hand in registry.json before rigging.
-BODY_PLANS = ('quadruped', 'biped', 'winged', 'serpent', 'floater', 'blob')
+# Body plans pick the rig template in blender/rig_animate.py. Most Siegelings
+# stand upright, so rows start as `biped` (`winged_biped` when `flying`) and
+# are corrected by hand in registry.json before rigging.
+BODY_PLANS = ('biped', 'biped_tail', 'winged_biped', 'quadruped', 'winged', 'serpent', 'floater', 'blob')
 
 
 def creatures_from_bundle():
@@ -100,7 +100,7 @@ def main():
         prep_image(art, os.path.join(OUT, cid))
         row = registry.get(cid, {})
         row.setdefault('modelName', rec['modelName'])
-        row.setdefault('bodyPlan', 'winged' if rec.get('flying') else 'quadruped')
+        row.setdefault('bodyPlan', 'winged_biped' if rec.get('flying') else 'biped')
         row.setdefault('status', 'prepped')  # prepped -> generated -> rigged -> shipped
         row.setdefault('notes', '')
         row['art'] = 'swarm/' + rec['art']

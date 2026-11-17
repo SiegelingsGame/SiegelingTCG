@@ -1,3 +1,17 @@
+Original prompt: Ok do it the best way you think I allow (run Blender and try image-to-3D for the 3D model pipeline).
+
+- November 17, 2026 **3D model pipeline: Blender stage proven end to end, body plans fixed for the upright roster.**
+  - **Change.** The preview showed that most Siegelings stand on two legs.
+    - `rig_animate.py` gains `biped_tail` (upright lizards: Draco, Solgator) and `winged_biped` (birds: Hurricrane).
+    - `prep_art.py` now defaults rows to `biped`, or `winged_biped` when `flying`.
+    - `registry.json` is re-planned: 70 biped, 18 winged biped, and 11 pilot rows checked against their art.
+    - New `blender/mannequin.py` builds a stand-in for an image-to-3D result: one fused, textured metaball mesh at an arbitrary scale and offset. It lets stages 3–5 run without a GPU. It is never shipped.
+  - **Verification.**
+    - Blender 4.4.3 headless rigged the `biped_tail` mannequin: 7,380 → 6,000 triangles, 12 bones, bone-heat weights with no envelope fallback, all six clips exported.
+    - three.js r128 rendered each clip, front and side. Attack swings the arm and leans the head, cheer jumps, and fainted lies down. Walk at frames 0 and 15 shows the legs alternate stride and the tail sway.
+    - `ship_model.mjs` passed the gate (100 KB, meshopt + WebP). The real `/swarm` bundle requested the model in Draco's slot and logged no stand-in fallback.
+    - Stage 2 could not run: Hunyuan3D-2 and TRELLIS on Hugging Face both refused anonymous runs from this cloud IP (ZeroGPU quota). The user declined to add a Hugging Face token.
+
 Original prompt: Examine the links https://x.com/thegreatest_sv/status/2122353750912483747 lets develop a workflow for creating dynamic siegeling models
 
 - November 17, 2026 **A pipeline for 3D Siegeling models: card art to rigged, animated GLB, shipped into Swarm.**

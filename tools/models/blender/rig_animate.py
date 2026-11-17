@@ -150,6 +150,17 @@ TEMPLATES['winged'] = TEMPLATES['quadruped'] + [
     ('wing_L', 'chest', (0.4, 0.45, 0.6), (0.0, 0.5, 0.85)),
     ('wing_R', 'chest', (0.6, 0.45, 0.6), (1.0, 0.5, 0.85)),
 ]
+# Most of the roster stands upright (Draco, Solgator, Fawny, Squire Bud...).
+# Upright lizards keep a tail behind the hips; birds like Hurricrane keep wings
+# on the chest instead of arms.
+TEMPLATES['biped_tail'] = TEMPLATES['biped'] + [
+    ('tail_1', 'hips', (0.5, 0.6, 0.45), (0.5, 0.8, 0.3)),
+    ('tail_2', 'tail_1', (0.5, 0.8, 0.3), (0.5, 1.0, 0.25)),
+]
+TEMPLATES['winged_biped'] = [b for b in TEMPLATES['biped'] if not b[0].startswith('arm_')] + [
+    ('wing_L', 'chest', (0.35, 0.5, 0.72), (0.0, 0.55, 0.85)),
+    ('wing_R', 'chest', (0.65, 0.5, 0.72), (1.0, 0.55, 0.85)),
+]
 TEMPLATES['blob'] = TEMPLATES['floater']
 
 

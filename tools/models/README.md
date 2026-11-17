@@ -44,9 +44,11 @@ Table.
 Reads the creature records from the Swarm bundle (94 Siegelings) and writes
 `work/<id>/input.png`: 1024², subject centred with a 12% margin so wings and
 tails are not cut off, plus a copy on white. It also seeds `registry.json`. In
-each row, set `bodyPlan` (`quadruped`, `biped`, `winged`, `serpent`, `floater`,
-`blob`) before rigging. Only `winged` is inferred, from `flying`; everything
-else defaults to `quadruped`. Re-running keeps your edits.
+each row, check `bodyPlan` before rigging: `biped`, `biped_tail` (upright
+lizards: Draco, Solgator), `winged_biped` (birds: Hurricrane), `quadruped`,
+`winged`, `serpent`, `floater`, `blob`. Most of the roster stands upright, so
+rows default to `biped`, or `winged_biped` when `flying`. The 11 pilot rows
+were checked against their art. Re-running keeps your edits.
 
 **2. Image→3D:** needs a GPU (~16 GB for Hunyuan3D-2 shape + texture). Pick one route:
 - *Own machine or a rented GPU:* `Hunyuan3D-2` → `python minimal_demo.py`-style
@@ -66,7 +68,7 @@ else defaults to `quadruped`. Re-running keeps your edits.
 Hand-check every result before rigging, looking for extra limbs, a fused jaw
 or a flat back.
 
-**3. Rig + animate:**
+**3. Rig + animate** (Blender 4.2+; 4.4.3 tested):
 ```
 blender -b -P tools/models/blender/rig_animate.py -- \
   --in tools/models/work/draco/raw.glb --out tools/models/work/draco/rigged.glb \
@@ -117,12 +119,25 @@ marks the creature `shipped` in `registry.json`.
 4. **TCG reuse:** load the same GLBs in the Collection card sheet's 3D tab
    (three.js or `<model-viewer>`), behind the 2D art.
 
+## Test mannequin
+
+`blender/mannequin.py --plan <plan> --out work/_mannequin/raw.glb` builds a
+stand-in for an image-to-3D result. It is one fused, textured metaball surface
+at an arbitrary scale and offset, and it exercises stages 3–5 with no GPU.
+Never ship it.
+
 ## Status
 
-- Stages 1, 4 and 5 are verified. Prep ran on all 94 creatures. `selftest.mjs`
-  passes. The shipped self-test GLB is read and requested by the real Swarm
-  bundle (`[models] 1 real creature model(s) available`) with no fallback to
-  the stand-in.
-- Stage 3 is written but has **not been run yet**. Blender was not installed in
-  the session that wrote it, so expect a tuning pass on the pilot.
-- Stage 2 needs a GPU or a hosted service and is not automated here.
+- Stages 1, 3, 4 and 5 are verified.
+  - Prep ran on all 94 creatures.
+  - Blender 4.4.3 rigged a `biped_tail` mannequin: 7,380 → 6,000 triangles,
+    12 bones, bone-heat weights with no envelope fallback, and all six clips.
+    Rendered in three.js, each clip deforms the mesh: the walk alternates
+    stride, the tail sways, and fainted ends lying down.
+  - It shipped at 100 KB through the gate. The real Swarm bundle loaded it in
+    Draco's slot without falling back to the stand-in.
+  - `selftest.mjs` passes.
+- Stage 2 is blocked here. Both free Hugging Face Spaces (Hunyuan3D-2 and
+  TRELLIS) refuse anonymous runs from this cloud IP ("ZeroGPU quota… 0s left").
+  To run it, use a Hugging Face token (a free account works), your own GPU, or
+  a rented GPU.

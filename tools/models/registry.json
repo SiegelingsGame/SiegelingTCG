@@ -1,7 +1,7 @@
 {
   "aerovane": {
     "art": "swarm/art/aerovane.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Wind",
     "evolvesFrom": null,
     "flags": [
@@ -14,18 +14,18 @@
   },
   "applehead": {
     "art": "swarm/art/applehead.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Earth",
     "evolvesFrom": null,
     "flags": [],
     "modelName": "AppleHead",
-    "notes": "",
+    "notes": "plan checked against art",
     "rarity": "Common",
     "status": "prepped"
   },
   "bearby": {
     "art": "swarm/art/bearby.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Fire",
     "evolvesFrom": null,
     "flags": [],
@@ -36,7 +36,7 @@
   },
   "bearnade": {
     "art": "swarm/art/bearnade.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Fire",
     "evolvesFrom": "bearby",
     "flags": [],
@@ -47,7 +47,7 @@
   },
   "bearzooka": {
     "art": "swarm/art/bearzooka.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Fire",
     "evolvesFrom": "bearnade",
     "flags": [],
@@ -58,7 +58,7 @@
   },
   "bleetstrike": {
     "art": "swarm/art/bleetstrike.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Lightning",
     "evolvesFrom": "joltram",
     "flags": [],
@@ -69,7 +69,7 @@
   },
   "blinky": {
     "art": "swarm/art/blinky.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Lightning",
     "evolvesFrom": null,
     "flags": [],
@@ -80,7 +80,7 @@
   },
   "bonoblade": {
     "art": "swarm/art/bonoblade.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Earth",
     "evolvesFrom": "pylme",
     "flags": [],
@@ -91,31 +91,31 @@
   },
   "breezee": {
     "art": "swarm/art/breezee.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "floater",
     "element": "Wind",
     "evolvesFrom": null,
     "flags": [
       "flying"
     ],
     "modelName": "Breezee",
-    "notes": "",
+    "notes": "plan checked against art",
     "rarity": "Common",
     "status": "prepped"
   },
   "cacty": {
     "art": "swarm/art/cacty.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "blob",
     "element": "Earth",
     "evolvesFrom": null,
     "flags": [],
     "modelName": "Cacty",
-    "notes": "",
+    "notes": "plan checked against art",
     "rarity": "Common",
     "status": "prepped"
   },
   "cactyjacked-ty": {
     "art": "swarm/art/cactyjacked-ty.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Earth",
     "evolvesFrom": "jackedty",
     "flags": [],
@@ -126,7 +126,7 @@
   },
   "ceehorcee": {
     "art": "swarm/art/ceehorcee.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Water",
     "evolvesFrom": "ceeponee",
     "flags": [
@@ -139,20 +139,20 @@
   },
   "ceeponee": {
     "art": "swarm/art/ceeponee.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "serpent",
     "element": "Water",
     "evolvesFrom": null,
     "flags": [
       "flying"
     ],
     "modelName": "Ceeponee",
-    "notes": "",
+    "notes": "plan checked against art",
     "rarity": "Common",
     "status": "prepped"
   },
   "ceesteed": {
     "art": "swarm/art/ceesteed.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Water",
     "evolvesFrom": "ceehorcee",
     "flags": [],
@@ -163,7 +163,7 @@
   },
   "chilldoe": {
     "art": "swarm/art/chilldoe.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Ice",
     "evolvesFrom": "fawny",
     "flags": [],
@@ -174,7 +174,7 @@
   },
   "cindergil": {
     "art": "swarm/art/cindergil.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Fire",
     "evolvesFrom": "emberfin",
     "flags": [],
@@ -185,7 +185,7 @@
   },
   "clawkid": {
     "art": "swarm/art/clawkid.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Water",
     "evolvesFrom": null,
     "flags": [],
@@ -196,7 +196,7 @@
   },
   "clawqueen": {
     "art": "swarm/art/clawqueen.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Water",
     "evolvesFrom": "clawkid",
     "flags": [],
@@ -207,7 +207,7 @@
   },
   "cloudpuff": {
     "art": "swarm/art/cloudpuff.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Wind",
     "evolvesFrom": null,
     "flags": [],
@@ -218,7 +218,7 @@
   },
   "cloudsprite": {
     "art": "swarm/art/cloudsprite.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Wind",
     "evolvesFrom": "cloudwisp",
     "flags": [
@@ -232,7 +232,7 @@
   },
   "cloudwisp": {
     "art": "swarm/art/cloudwisp.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Wind",
     "evolvesFrom": "cloudpuff",
     "flags": [],
@@ -243,7 +243,7 @@
   },
   "conchious": {
     "art": "swarm/art/conchious.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Water",
     "evolvesFrom": null,
     "flags": [],
@@ -254,7 +254,7 @@
   },
   "cozycub": {
     "art": "swarm/art/cozycub.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Ice",
     "evolvesFrom": null,
     "flags": [],
@@ -265,12 +265,12 @@
   },
   "draco": {
     "art": "swarm/art/draco.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped_tail",
     "element": "Fire",
     "evolvesFrom": null,
     "flags": [],
     "modelName": "Draco",
-    "notes": "",
+    "notes": "plan checked against art",
     "rarity": "Common",
     "status": "prepped"
   },
@@ -281,13 +281,13 @@
     "evolvesFrom": "draco",
     "flags": [],
     "modelName": "Dracoil",
-    "notes": "",
+    "notes": "plan checked against art",
     "rarity": "Rare",
     "status": "prepped"
   },
   "dracosleaf": {
     "art": "swarm/art/dracosleaf.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Earth",
     "evolvesFrom": "sleafwyrm",
     "flags": [
@@ -300,7 +300,7 @@
   },
   "drillbo": {
     "art": "swarm/art/drillbo.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Metal",
     "evolvesFrom": null,
     "flags": [],
@@ -311,7 +311,7 @@
   },
   "droxyl": {
     "art": "swarm/art/droxyl.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Water",
     "evolvesFrom": "spoutyl",
     "flags": [],
@@ -322,7 +322,7 @@
   },
   "echo": {
     "art": "swarm/art/echo.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Shadow",
     "evolvesFrom": null,
     "flags": [],
@@ -333,7 +333,7 @@
   },
   "echolustrious": {
     "art": "swarm/art/echolustrious.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Shadow",
     "evolvesFrom": "echowing",
     "flags": [],
@@ -344,7 +344,7 @@
   },
   "echowing": {
     "art": "swarm/art/echowing.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Shadow",
     "evolvesFrom": "echo",
     "flags": [],
@@ -355,7 +355,7 @@
   },
   "emberfin": {
     "art": "swarm/art/emberfin.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Fire",
     "evolvesFrom": null,
     "flags": [
@@ -368,7 +368,7 @@
   },
   "emberfox": {
     "art": "swarm/art/emberfox.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Fire",
     "evolvesFrom": null,
     "flags": [],
@@ -379,7 +379,7 @@
   },
   "falcoat": {
     "art": "swarm/art/falcoat.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Ice",
     "evolvesFrom": "falcool",
     "flags": [],
@@ -390,7 +390,7 @@
   },
   "falcool": {
     "art": "swarm/art/falcool.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Ice",
     "evolvesFrom": null,
     "flags": [],
@@ -401,18 +401,18 @@
   },
   "fawny": {
     "art": "swarm/art/fawny.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Ice",
     "evolvesFrom": null,
     "flags": [],
     "modelName": "Fawny",
-    "notes": "",
+    "notes": "plan checked against art",
     "rarity": "Common",
     "status": "prepped"
   },
   "firsky": {
     "art": "swarm/art/firsky.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Fire",
     "evolvesFrom": null,
     "flags": [],
@@ -423,7 +423,7 @@
   },
   "floraknight": {
     "art": "swarm/art/floraknight.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Earth",
     "evolvesFrom": "squirebud",
     "flags": [],
@@ -434,18 +434,18 @@
   },
   "frostag": {
     "art": "swarm/art/frostag.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Ice",
     "evolvesFrom": "chilldoe",
     "flags": [],
     "modelName": "Frostag",
-    "notes": "",
+    "notes": "plan checked against art",
     "rarity": "Rare",
     "status": "prepped"
   },
   "frostfly": {
     "art": "swarm/art/frostfly.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Ice",
     "evolvesFrom": null,
     "flags": [
@@ -459,7 +459,7 @@
   },
   "gagglestand": {
     "art": "swarm/art/gagglestand.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Wind",
     "evolvesFrom": "breezee",
     "flags": [
@@ -472,7 +472,7 @@
   },
   "generoot": {
     "art": "swarm/art/generoot.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Earth",
     "evolvesFrom": "floraknight",
     "flags": [],
@@ -483,7 +483,7 @@
   },
   "glaciemperor": {
     "art": "swarm/art/glaciemperor.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Ice",
     "evolvesFrom": null,
     "flags": [],
@@ -494,7 +494,7 @@
   },
   "golork": {
     "art": "swarm/art/golork.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Psychic",
     "evolvesFrom": null,
     "flags": [],
@@ -505,7 +505,7 @@
   },
   "guerilla": {
     "art": "swarm/art/guerilla.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Earth",
     "evolvesFrom": "bonoblade",
     "flags": [],
@@ -516,7 +516,7 @@
   },
   "gymstone": {
     "art": "swarm/art/gymstone.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Earth",
     "evolvesFrom": null,
     "flags": [],
@@ -527,7 +527,7 @@
   },
   "hurricrane": {
     "art": "swarm/art/hurricrane.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Wind",
     "evolvesFrom": "gagglestand",
     "flags": [
@@ -535,13 +535,13 @@
       "crawling"
     ],
     "modelName": "Hurricrane",
-    "notes": "",
+    "notes": "plan checked against art",
     "rarity": "Epic",
     "status": "prepped"
   },
   "hydroxyl": {
     "art": "swarm/art/hydroxyl.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Water",
     "evolvesFrom": "droxyl",
     "flags": [],
@@ -552,7 +552,7 @@
   },
   "icecuewee": {
     "art": "swarm/art/icecuewee.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Ice",
     "evolvesFrom": "icewee",
     "flags": [],
@@ -563,7 +563,7 @@
   },
   "icewee": {
     "art": "swarm/art/icewee.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Ice",
     "evolvesFrom": null,
     "flags": [],
@@ -574,7 +574,7 @@
   },
   "jackedty": {
     "art": "swarm/art/jackedty.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Earth",
     "evolvesFrom": "cacty",
     "flags": [],
@@ -585,7 +585,7 @@
   },
   "jawbite": {
     "art": "swarm/art/jawbite.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Water",
     "evolvesFrom": "jawby",
     "flags": [],
@@ -596,7 +596,7 @@
   },
   "jawby": {
     "art": "swarm/art/jawby.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Water",
     "evolvesFrom": null,
     "flags": [],
@@ -607,7 +607,7 @@
   },
   "joltram": {
     "art": "swarm/art/joltram.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Lightning",
     "evolvesFrom": "staticap",
     "flags": [],
@@ -618,7 +618,7 @@
   },
   "kilokong": {
     "art": "swarm/art/kilokong.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Lightning",
     "evolvesFrom": "simicircuit",
     "flags": [],
@@ -629,7 +629,7 @@
   },
   "livingwood": {
     "art": "swarm/art/livingwood.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Undead",
     "evolvesFrom": "spookweed",
     "flags": [],
@@ -640,7 +640,7 @@
   },
   "lumina": {
     "art": "swarm/art/lumina.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Ice",
     "evolvesFrom": null,
     "flags": [
@@ -653,7 +653,7 @@
   },
   "luvy": {
     "art": "swarm/art/luvy.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Psychic",
     "evolvesFrom": null,
     "flags": [],
@@ -664,7 +664,7 @@
   },
   "luvyduvysore": {
     "art": "swarm/art/luvyduvysore.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Psychic",
     "evolvesFrom": "luvysore",
     "flags": [],
@@ -675,7 +675,7 @@
   },
   "luvysore": {
     "art": "swarm/art/luvysore.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Psychic",
     "evolvesFrom": "luvy",
     "flags": [],
@@ -686,7 +686,7 @@
   },
   "mentarak": {
     "art": "swarm/art/mentarak.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Psychic",
     "evolvesFrom": "mentaroo",
     "flags": [],
@@ -697,7 +697,7 @@
   },
   "mentaroo": {
     "art": "swarm/art/mentaroo.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Psychic",
     "evolvesFrom": null,
     "flags": [],
@@ -708,7 +708,7 @@
   },
   "monkwatt": {
     "art": "swarm/art/monkwatt.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Lightning",
     "evolvesFrom": null,
     "flags": [],
@@ -719,7 +719,7 @@
   },
   "newt": {
     "art": "swarm/art/newt.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Lightning",
     "evolvesFrom": null,
     "flags": [],
@@ -730,7 +730,7 @@
   },
   "newton": {
     "art": "swarm/art/newton.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Lightning",
     "evolvesFrom": "newt",
     "flags": [],
@@ -741,7 +741,7 @@
   },
   "papapa": {
     "art": "swarm/art/papapa.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Psychic",
     "evolvesFrom": null,
     "flags": [],
@@ -752,7 +752,7 @@
   },
   "peatbeak": {
     "art": "swarm/art/peatbeak.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Ice",
     "evolvesFrom": "falcoat",
     "flags": [
@@ -765,7 +765,7 @@
   },
   "pursephone": {
     "art": "swarm/art/pursephone.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Wind",
     "evolvesFrom": "purseus",
     "flags": [],
@@ -776,7 +776,7 @@
   },
   "purseus": {
     "art": "swarm/art/purseus.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Wind",
     "evolvesFrom": "pursula",
     "flags": [
@@ -789,7 +789,7 @@
   },
   "pursula": {
     "art": "swarm/art/pursula.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Wind",
     "evolvesFrom": null,
     "flags": [],
@@ -800,7 +800,7 @@
   },
   "pyleer": {
     "art": "swarm/art/pyleer.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Fire",
     "evolvesFrom": "pylook",
     "flags": [
@@ -813,7 +813,7 @@
   },
   "pylme": {
     "art": "swarm/art/pylme.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Earth",
     "evolvesFrom": null,
     "flags": [],
@@ -824,7 +824,7 @@
   },
   "pylook": {
     "art": "swarm/art/pylook.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Fire",
     "evolvesFrom": null,
     "flags": [
@@ -837,7 +837,7 @@
   },
   "pylord": {
     "art": "swarm/art/pylord.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Fire",
     "evolvesFrom": null,
     "flags": [],
@@ -848,7 +848,7 @@
   },
   "ragguette": {
     "art": "swarm/art/ragguette.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Undead",
     "evolvesFrom": null,
     "flags": [],
@@ -859,7 +859,7 @@
   },
   "raydile": {
     "art": "swarm/art/raydile.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Fire",
     "evolvesFrom": "sundile",
     "flags": [
@@ -872,7 +872,7 @@
   },
   "sheenx": {
     "art": "swarm/art/sheenx.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Psychic",
     "evolvesFrom": null,
     "flags": [],
@@ -883,7 +883,7 @@
   },
   "shellnaut": {
     "art": "swarm/art/shellnaut.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Water",
     "evolvesFrom": "torqlander",
     "flags": [],
@@ -894,7 +894,7 @@
   },
   "shellpack": {
     "art": "swarm/art/shellpack.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Water",
     "evolvesFrom": null,
     "flags": [],
@@ -905,7 +905,7 @@
   },
   "shellshock": {
     "art": "swarm/art/shellshock.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Wind",
     "evolvesFrom": null,
     "flags": [
@@ -918,7 +918,7 @@
   },
   "simicircuit": {
     "art": "swarm/art/simicircuit.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Lightning",
     "evolvesFrom": "monkwatt",
     "flags": [],
@@ -929,7 +929,7 @@
   },
   "skydon": {
     "art": "swarm/art/skydon.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Wind",
     "evolvesFrom": null,
     "flags": [
@@ -942,7 +942,7 @@
   },
   "sleaf": {
     "art": "swarm/art/sleaf.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Earth",
     "evolvesFrom": null,
     "flags": [],
@@ -953,7 +953,7 @@
   },
   "sleafwyrm": {
     "art": "swarm/art/sleafwyrm.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Earth",
     "evolvesFrom": "sleaf",
     "flags": [
@@ -966,20 +966,20 @@
   },
   "solgator": {
     "art": "swarm/art/solgator.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped_tail",
     "element": "Fire",
     "evolvesFrom": "raydile",
     "flags": [
       "crawling"
     ],
     "modelName": "Solgator",
-    "notes": "",
+    "notes": "plan checked against art",
     "rarity": "Epic",
     "status": "prepped"
   },
   "spookweed": {
     "art": "swarm/art/spookweed.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Undead",
     "evolvesFrom": null,
     "flags": [],
@@ -990,7 +990,7 @@
   },
   "spoutyl": {
     "art": "swarm/art/spoutyl.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Water",
     "evolvesFrom": null,
     "flags": [],
@@ -1001,18 +1001,18 @@
   },
   "squirebud": {
     "art": "swarm/art/squirebud.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Earth",
     "evolvesFrom": null,
     "flags": [],
     "modelName": "SquireBud",
-    "notes": "",
+    "notes": "plan checked against art",
     "rarity": "Common",
     "status": "prepped"
   },
   "staticap": {
     "art": "swarm/art/staticap.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Lightning",
     "evolvesFrom": null,
     "flags": [],
@@ -1023,7 +1023,7 @@
   },
   "strikehawk": {
     "art": "swarm/art/strikehawk.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Wind",
     "evolvesFrom": "shellshock",
     "flags": [
@@ -1036,7 +1036,7 @@
   },
   "sundile": {
     "art": "swarm/art/sundile.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Fire",
     "evolvesFrom": null,
     "flags": [
@@ -1049,7 +1049,7 @@
   },
   "torqlander": {
     "art": "swarm/art/torqlander.webp",
-    "bodyPlan": "winged",
+    "bodyPlan": "winged_biped",
     "element": "Water",
     "evolvesFrom": "shellpack",
     "flags": [
@@ -1062,7 +1062,7 @@
   },
   "toxsleaf": {
     "art": "swarm/art/toxsleaf.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Poison",
     "evolvesFrom": null,
     "flags": [],
@@ -1073,7 +1073,7 @@
   },
   "voidmaw": {
     "art": "swarm/art/voidmaw.webp",
-    "bodyPlan": "quadruped",
+    "bodyPlan": "biped",
     "element": "Shadow",
     "evolvesFrom": "Voiboy",
     "flags": [],
