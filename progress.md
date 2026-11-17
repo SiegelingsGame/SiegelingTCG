@@ -1,3 +1,13 @@
+Original prompt: Multi touch for movement and camera is not working correctly.
+
+- November 17, 2026 **Swarm: two-finger touch fixed (move and camera at once).**
+  - **Cause.** The touch action buttons sit in a 190x190 container in the bottom-right corner. During a run only the jump button is visible there, but the whole container caught touches. That corner is where the right thumb rests to steer the camera, so the camera finger never reached the move/look zone; it looked as if the second finger was ignored.
+  - **Change.** `static/swarm/` rebuilt from `SiegelingsRBX/web`. The button containers (`#t-actions`, `#t-menu`) now pass touches through and only the buttons catch them. If the browser stops reporting a finger without a touchend (for example during an iOS system gesture), the stick or camera is released on the next touch instead of staying stuck.
+  - **Verification.** Headless Chromium with emulated touch on iPhone 13 and Pixel 7, both in landscape:
+    - Before the fix, a second finger in the bottom-right landed on `t-actions` and the camera never turned. After it, stick plus camera both register with the camera finger there, mid-screen, or placed first.
+    - With both fingers down, the player moves and the camera turns, and a third finger on Jump jumps without dropping either.
+    - With exact TouchEvents: lifting the stick finger first releases the stick while the camera keeps turning; lifting the camera finger first leaves the stick pushed; a finger dropped without a touchend is cleared by the next touchstart; no page errors.
+
 Original prompt: Let's slow the game down a bit, slower starting movement speed and attack animations. Increasing with items, items for additional projectiles, classes of attacks that can be amped by boost: Melee, projectile, aura, random enemy, chain attacks.
 
 - November 17, 2026 **Swarm: slower pacing, five attack classes, class boost items.**
