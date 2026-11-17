@@ -5,11 +5,13 @@ Original prompt: Let's slow the game down a bit, slower starting movement speed 
     - Pace: the player starts at 78% movement speed; attack cooldowns are 30% longer; shots, lunges, mortar arcs and falling strikes are slower; enemies are slightly slower to match. Trail Boots (+12% speed per level), Swift Claw and the class boosts speed things back up.
     - Attack classes: the 16 attack patterns are grouped into Melee, Projectile, Aura, Random strike and Chain, shown on every attack description. New Ricochet pattern (Chain). Random strikes now land on random nearby enemies.
     - Items: one boost per class (damage, attack speed, plus area, shot speed, extra strikes or extra jumps), offered only when the team has that class; Splitting Prism adds +1 projectile, orb, trap or strike per level (max 3).
+    - Follow-up (same day): new items **Keen Edge** (+30% crit damage per level over the base 200%), **Spring Heels** (+15% jump height per level) and **Wing Charm** (+1 mid-air jump per level, max 3). Siege Banner is now +12% damage, Heartroot +25 max HP and Regen Moss +0.8 HP/s per level. Jump stats reset when a run ends.
   - **Verification.** Headless Chromium against the Vite preview of the source:
     - Each of the 16 patterns killed enemies in a 25-second solo run, with no page errors.
     - With Fletcher's Quiver at level 3, a projectile Siegeling went from 14 to 22.4 damage and from a 2.47s to a 1.99s cooldown. Trail Boots at level 2 raised move speed from 0.78 to 0.97.
     - Class boosts appear in level-up offers only for classes on the team.
     - An unassisted kiting bot survived 126s (84s before the change).
+    - Items follow-up: jump apex 3.9 studs with no item, 5.6 with Spring Heels 3 (+45%); Wing Charm 1 and 3 gave exactly 1 and 3 mid-air jumps, none without it; a forced crit for 100 dealt 290 with Keen Edge 3; Heartroot 2 gave 150 max HP and Regen Moss 2 gave 1.6 HP/s; all of these reset after the run ended.
 
 Original prompt: Let's add this as a testing mode in the siegeling fab on the TCG (the 3D survival game built in SiegelingsRBX/web).
 
