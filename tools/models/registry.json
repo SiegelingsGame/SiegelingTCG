@@ -1,0 +1,1085 @@
+{
+  "aerovane": {
+    "art": "swarm/art/aerovane.webp",
+    "bodyPlan": "winged",
+    "element": "Wind",
+    "evolvesFrom": null,
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Aerovane",
+    "notes": "",
+    "rarity": "Legendary",
+    "status": "prepped"
+  },
+  "applehead": {
+    "art": "swarm/art/applehead.webp",
+    "bodyPlan": "quadruped",
+    "element": "Earth",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "AppleHead",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "bearby": {
+    "art": "swarm/art/bearby.webp",
+    "bodyPlan": "quadruped",
+    "element": "Fire",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Bearby",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "bearnade": {
+    "art": "swarm/art/bearnade.webp",
+    "bodyPlan": "quadruped",
+    "element": "Fire",
+    "evolvesFrom": "bearby",
+    "flags": [],
+    "modelName": "Bearnade",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "bearzooka": {
+    "art": "swarm/art/bearzooka.webp",
+    "bodyPlan": "quadruped",
+    "element": "Fire",
+    "evolvesFrom": "bearnade",
+    "flags": [],
+    "modelName": "Bearzooka",
+    "notes": "",
+    "rarity": "Epic",
+    "status": "prepped"
+  },
+  "bleetstrike": {
+    "art": "swarm/art/bleetstrike.webp",
+    "bodyPlan": "quadruped",
+    "element": "Lightning",
+    "evolvesFrom": "joltram",
+    "flags": [],
+    "modelName": "Bleetstrike",
+    "notes": "",
+    "rarity": "Epic",
+    "status": "prepped"
+  },
+  "blinky": {
+    "art": "swarm/art/blinky.webp",
+    "bodyPlan": "quadruped",
+    "element": "Lightning",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Blinky",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "bonoblade": {
+    "art": "swarm/art/bonoblade.webp",
+    "bodyPlan": "quadruped",
+    "element": "Earth",
+    "evolvesFrom": "pylme",
+    "flags": [],
+    "modelName": "Bonoblade",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "breezee": {
+    "art": "swarm/art/breezee.webp",
+    "bodyPlan": "winged",
+    "element": "Wind",
+    "evolvesFrom": null,
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Breezee",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "cacty": {
+    "art": "swarm/art/cacty.webp",
+    "bodyPlan": "quadruped",
+    "element": "Earth",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Cacty",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "cactyjacked-ty": {
+    "art": "swarm/art/cactyjacked-ty.webp",
+    "bodyPlan": "quadruped",
+    "element": "Earth",
+    "evolvesFrom": "jackedty",
+    "flags": [],
+    "modelName": "CactyJackedty",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "ceehorcee": {
+    "art": "swarm/art/ceehorcee.webp",
+    "bodyPlan": "winged",
+    "element": "Water",
+    "evolvesFrom": "ceeponee",
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Ceehorcee",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "ceeponee": {
+    "art": "swarm/art/ceeponee.webp",
+    "bodyPlan": "winged",
+    "element": "Water",
+    "evolvesFrom": null,
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Ceeponee",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "ceesteed": {
+    "art": "swarm/art/ceesteed.webp",
+    "bodyPlan": "quadruped",
+    "element": "Water",
+    "evolvesFrom": "ceehorcee",
+    "flags": [],
+    "modelName": "Ceesteed",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "chilldoe": {
+    "art": "swarm/art/chilldoe.webp",
+    "bodyPlan": "quadruped",
+    "element": "Ice",
+    "evolvesFrom": "fawny",
+    "flags": [],
+    "modelName": "Chilldoe",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "cindergil": {
+    "art": "swarm/art/cindergil.webp",
+    "bodyPlan": "quadruped",
+    "element": "Fire",
+    "evolvesFrom": "emberfin",
+    "flags": [],
+    "modelName": "Cindergil",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "clawkid": {
+    "art": "swarm/art/clawkid.webp",
+    "bodyPlan": "quadruped",
+    "element": "Water",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Clawkid",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "clawqueen": {
+    "art": "swarm/art/clawqueen.webp",
+    "bodyPlan": "quadruped",
+    "element": "Water",
+    "evolvesFrom": "clawkid",
+    "flags": [],
+    "modelName": "Clawqueen",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "cloudpuff": {
+    "art": "swarm/art/cloudpuff.webp",
+    "bodyPlan": "quadruped",
+    "element": "Wind",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Cloudpuff",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "cloudsprite": {
+    "art": "swarm/art/cloudsprite.webp",
+    "bodyPlan": "winged",
+    "element": "Wind",
+    "evolvesFrom": "cloudwisp",
+    "flags": [
+      "flying",
+      "crawling"
+    ],
+    "modelName": "Cloudsprite",
+    "notes": "",
+    "rarity": "Epic",
+    "status": "prepped"
+  },
+  "cloudwisp": {
+    "art": "swarm/art/cloudwisp.webp",
+    "bodyPlan": "quadruped",
+    "element": "Wind",
+    "evolvesFrom": "cloudpuff",
+    "flags": [],
+    "modelName": "Cloudwisp",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "conchious": {
+    "art": "swarm/art/conchious.webp",
+    "bodyPlan": "quadruped",
+    "element": "Water",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Conchious",
+    "notes": "",
+    "rarity": "Legendary",
+    "status": "prepped"
+  },
+  "cozycub": {
+    "art": "swarm/art/cozycub.webp",
+    "bodyPlan": "quadruped",
+    "element": "Ice",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Cozycub",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "draco": {
+    "art": "swarm/art/draco.webp",
+    "bodyPlan": "quadruped",
+    "element": "Fire",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Draco",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "dracoil": {
+    "art": "swarm/art/dracoil.webp",
+    "bodyPlan": "quadruped",
+    "element": "Fire",
+    "evolvesFrom": "draco",
+    "flags": [],
+    "modelName": "Dracoil",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "dracosleaf": {
+    "art": "swarm/art/dracosleaf.webp",
+    "bodyPlan": "winged",
+    "element": "Earth",
+    "evolvesFrom": "sleafwyrm",
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Dracosleaf",
+    "notes": "",
+    "rarity": "Epic",
+    "status": "prepped"
+  },
+  "drillbo": {
+    "art": "swarm/art/drillbo.webp",
+    "bodyPlan": "quadruped",
+    "element": "Metal",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Drillbo",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "droxyl": {
+    "art": "swarm/art/droxyl.webp",
+    "bodyPlan": "quadruped",
+    "element": "Water",
+    "evolvesFrom": "spoutyl",
+    "flags": [],
+    "modelName": "Droxyl",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "echo": {
+    "art": "swarm/art/echo.webp",
+    "bodyPlan": "quadruped",
+    "element": "Shadow",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Echo",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "echolustrious": {
+    "art": "swarm/art/echolustrious.webp",
+    "bodyPlan": "quadruped",
+    "element": "Shadow",
+    "evolvesFrom": "echowing",
+    "flags": [],
+    "modelName": "Echolustrious",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "echowing": {
+    "art": "swarm/art/echowing.webp",
+    "bodyPlan": "quadruped",
+    "element": "Shadow",
+    "evolvesFrom": "echo",
+    "flags": [],
+    "modelName": "Echowing",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "emberfin": {
+    "art": "swarm/art/emberfin.webp",
+    "bodyPlan": "winged",
+    "element": "Fire",
+    "evolvesFrom": null,
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Emberfin",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "emberfox": {
+    "art": "swarm/art/emberfox.webp",
+    "bodyPlan": "quadruped",
+    "element": "Fire",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Emberfox",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "falcoat": {
+    "art": "swarm/art/falcoat.webp",
+    "bodyPlan": "quadruped",
+    "element": "Ice",
+    "evolvesFrom": "falcool",
+    "flags": [],
+    "modelName": "Falcoat",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "falcool": {
+    "art": "swarm/art/falcool.webp",
+    "bodyPlan": "quadruped",
+    "element": "Ice",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Falcool",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "fawny": {
+    "art": "swarm/art/fawny.webp",
+    "bodyPlan": "quadruped",
+    "element": "Ice",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Fawny",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "firsky": {
+    "art": "swarm/art/firsky.webp",
+    "bodyPlan": "quadruped",
+    "element": "Fire",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Firsky",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "floraknight": {
+    "art": "swarm/art/floraknight.webp",
+    "bodyPlan": "quadruped",
+    "element": "Earth",
+    "evolvesFrom": "squirebud",
+    "flags": [],
+    "modelName": "FloraKnight",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "frostag": {
+    "art": "swarm/art/frostag.webp",
+    "bodyPlan": "quadruped",
+    "element": "Ice",
+    "evolvesFrom": "chilldoe",
+    "flags": [],
+    "modelName": "Frostag",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "frostfly": {
+    "art": "swarm/art/frostfly.webp",
+    "bodyPlan": "winged",
+    "element": "Ice",
+    "evolvesFrom": null,
+    "flags": [
+      "flying",
+      "crawling"
+    ],
+    "modelName": "Frostfly",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "gagglestand": {
+    "art": "swarm/art/gagglestand.webp",
+    "bodyPlan": "winged",
+    "element": "Wind",
+    "evolvesFrom": "breezee",
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Gagglestand",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "generoot": {
+    "art": "swarm/art/generoot.webp",
+    "bodyPlan": "quadruped",
+    "element": "Earth",
+    "evolvesFrom": "floraknight",
+    "flags": [],
+    "modelName": "Generoot",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "glaciemperor": {
+    "art": "swarm/art/glaciemperor.webp",
+    "bodyPlan": "quadruped",
+    "element": "Ice",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Glaciemperor",
+    "notes": "",
+    "rarity": "Legendary",
+    "status": "prepped"
+  },
+  "golork": {
+    "art": "swarm/art/golork.webp",
+    "bodyPlan": "quadruped",
+    "element": "Psychic",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Golor",
+    "notes": "",
+    "rarity": "Epic",
+    "status": "prepped"
+  },
+  "guerilla": {
+    "art": "swarm/art/guerilla.webp",
+    "bodyPlan": "quadruped",
+    "element": "Earth",
+    "evolvesFrom": "bonoblade",
+    "flags": [],
+    "modelName": "Guerilla",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "gymstone": {
+    "art": "swarm/art/gymstone.webp",
+    "bodyPlan": "quadruped",
+    "element": "Earth",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Gymstone",
+    "notes": "",
+    "rarity": "Legendary",
+    "status": "prepped"
+  },
+  "hurricrane": {
+    "art": "swarm/art/hurricrane.webp",
+    "bodyPlan": "winged",
+    "element": "Wind",
+    "evolvesFrom": "gagglestand",
+    "flags": [
+      "flying",
+      "crawling"
+    ],
+    "modelName": "Hurricrane",
+    "notes": "",
+    "rarity": "Epic",
+    "status": "prepped"
+  },
+  "hydroxyl": {
+    "art": "swarm/art/hydroxyl.webp",
+    "bodyPlan": "quadruped",
+    "element": "Water",
+    "evolvesFrom": "droxyl",
+    "flags": [],
+    "modelName": "Hydroxyl",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "icecuewee": {
+    "art": "swarm/art/icecuewee.webp",
+    "bodyPlan": "quadruped",
+    "element": "Ice",
+    "evolvesFrom": "icewee",
+    "flags": [],
+    "modelName": "Icecuewee",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "icewee": {
+    "art": "swarm/art/icewee.webp",
+    "bodyPlan": "quadruped",
+    "element": "Ice",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Icewee",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "jackedty": {
+    "art": "swarm/art/jackedty.webp",
+    "bodyPlan": "quadruped",
+    "element": "Earth",
+    "evolvesFrom": "cacty",
+    "flags": [],
+    "modelName": "Jackedty",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "jawbite": {
+    "art": "swarm/art/jawbite.webp",
+    "bodyPlan": "quadruped",
+    "element": "Water",
+    "evolvesFrom": "jawby",
+    "flags": [],
+    "modelName": "Jawbite",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "jawby": {
+    "art": "swarm/art/jawby.webp",
+    "bodyPlan": "quadruped",
+    "element": "Water",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Jawby",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "joltram": {
+    "art": "swarm/art/joltram.webp",
+    "bodyPlan": "quadruped",
+    "element": "Lightning",
+    "evolvesFrom": "staticap",
+    "flags": [],
+    "modelName": "Joltram",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "kilokong": {
+    "art": "swarm/art/kilokong.webp",
+    "bodyPlan": "quadruped",
+    "element": "Lightning",
+    "evolvesFrom": "simicircuit",
+    "flags": [],
+    "modelName": "Kilokong",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "livingwood": {
+    "art": "swarm/art/livingwood.webp",
+    "bodyPlan": "quadruped",
+    "element": "Undead",
+    "evolvesFrom": "spookweed",
+    "flags": [],
+    "modelName": "Livingwood",
+    "notes": "",
+    "rarity": "Epic",
+    "status": "prepped"
+  },
+  "lumina": {
+    "art": "swarm/art/lumina.webp",
+    "bodyPlan": "winged",
+    "element": "Ice",
+    "evolvesFrom": null,
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Lumina",
+    "notes": "",
+    "rarity": "Epic",
+    "status": "prepped"
+  },
+  "luvy": {
+    "art": "swarm/art/luvy.webp",
+    "bodyPlan": "quadruped",
+    "element": "Psychic",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Luvy",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "luvyduvysore": {
+    "art": "swarm/art/luvyduvysore.webp",
+    "bodyPlan": "quadruped",
+    "element": "Psychic",
+    "evolvesFrom": "luvysore",
+    "flags": [],
+    "modelName": "LuvyDuvySore",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "luvysore": {
+    "art": "swarm/art/luvysore.webp",
+    "bodyPlan": "quadruped",
+    "element": "Psychic",
+    "evolvesFrom": "luvy",
+    "flags": [],
+    "modelName": "LuvySore",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "mentarak": {
+    "art": "swarm/art/mentarak.webp",
+    "bodyPlan": "quadruped",
+    "element": "Psychic",
+    "evolvesFrom": "mentaroo",
+    "flags": [],
+    "modelName": "mentarak",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "mentaroo": {
+    "art": "swarm/art/mentaroo.webp",
+    "bodyPlan": "quadruped",
+    "element": "Psychic",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Mentaroo",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "monkwatt": {
+    "art": "swarm/art/monkwatt.webp",
+    "bodyPlan": "quadruped",
+    "element": "Lightning",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Monkwatt",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "newt": {
+    "art": "swarm/art/newt.webp",
+    "bodyPlan": "quadruped",
+    "element": "Lightning",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Newt",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "newton": {
+    "art": "swarm/art/newton.webp",
+    "bodyPlan": "quadruped",
+    "element": "Lightning",
+    "evolvesFrom": "newt",
+    "flags": [],
+    "modelName": "Newton",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "papapa": {
+    "art": "swarm/art/papapa.webp",
+    "bodyPlan": "quadruped",
+    "element": "Psychic",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "papap",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "peatbeak": {
+    "art": "swarm/art/peatbeak.webp",
+    "bodyPlan": "winged",
+    "element": "Ice",
+    "evolvesFrom": "falcoat",
+    "flags": [
+      "flying"
+    ],
+    "modelName": "peatbeak",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "pursephone": {
+    "art": "swarm/art/pursephone.webp",
+    "bodyPlan": "quadruped",
+    "element": "Wind",
+    "evolvesFrom": "purseus",
+    "flags": [],
+    "modelName": "Pursephone",
+    "notes": "",
+    "rarity": "Epic",
+    "status": "prepped"
+  },
+  "purseus": {
+    "art": "swarm/art/purseus.webp",
+    "bodyPlan": "winged",
+    "element": "Wind",
+    "evolvesFrom": "pursula",
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Purseus",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "pursula": {
+    "art": "swarm/art/pursula.webp",
+    "bodyPlan": "quadruped",
+    "element": "Wind",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Pursula",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "pyleer": {
+    "art": "swarm/art/pyleer.webp",
+    "bodyPlan": "winged",
+    "element": "Fire",
+    "evolvesFrom": "pylook",
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Pyleer",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "pylme": {
+    "art": "swarm/art/pylme.webp",
+    "bodyPlan": "quadruped",
+    "element": "Earth",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Pylme",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "pylook": {
+    "art": "swarm/art/pylook.webp",
+    "bodyPlan": "winged",
+    "element": "Fire",
+    "evolvesFrom": null,
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Pylook",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "pylord": {
+    "art": "swarm/art/pylord.webp",
+    "bodyPlan": "quadruped",
+    "element": "Fire",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Pylord",
+    "notes": "",
+    "rarity": "Legendary",
+    "status": "prepped"
+  },
+  "ragguette": {
+    "art": "swarm/art/ragguette.webp",
+    "bodyPlan": "quadruped",
+    "element": "Undead",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Ragguette",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "raydile": {
+    "art": "swarm/art/raydile.webp",
+    "bodyPlan": "quadruped",
+    "element": "Fire",
+    "evolvesFrom": "sundile",
+    "flags": [
+      "crawling"
+    ],
+    "modelName": "Raydile",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "sheenx": {
+    "art": "swarm/art/sheenx.webp",
+    "bodyPlan": "quadruped",
+    "element": "Psychic",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Sheenx",
+    "notes": "",
+    "rarity": "Epic",
+    "status": "prepped"
+  },
+  "shellnaut": {
+    "art": "swarm/art/shellnaut.webp",
+    "bodyPlan": "quadruped",
+    "element": "Water",
+    "evolvesFrom": "torqlander",
+    "flags": [],
+    "modelName": "Shellnaut",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "shellpack": {
+    "art": "swarm/art/shellpack.webp",
+    "bodyPlan": "quadruped",
+    "element": "Water",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Shellpack",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "shellshock": {
+    "art": "swarm/art/shellshock.webp",
+    "bodyPlan": "winged",
+    "element": "Wind",
+    "evolvesFrom": null,
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Shellshock",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "simicircuit": {
+    "art": "swarm/art/simicircuit.webp",
+    "bodyPlan": "quadruped",
+    "element": "Lightning",
+    "evolvesFrom": "monkwatt",
+    "flags": [],
+    "modelName": "Simicircuit",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "skydon": {
+    "art": "swarm/art/skydon.webp",
+    "bodyPlan": "winged",
+    "element": "Wind",
+    "evolvesFrom": null,
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Skydon",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "sleaf": {
+    "art": "swarm/art/sleaf.webp",
+    "bodyPlan": "quadruped",
+    "element": "Earth",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "sleaf",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "sleafwyrm": {
+    "art": "swarm/art/sleafwyrm.webp",
+    "bodyPlan": "winged",
+    "element": "Earth",
+    "evolvesFrom": "sleaf",
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Sleafwyrm",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "solgator": {
+    "art": "swarm/art/solgator.webp",
+    "bodyPlan": "quadruped",
+    "element": "Fire",
+    "evolvesFrom": "raydile",
+    "flags": [
+      "crawling"
+    ],
+    "modelName": "Solgator",
+    "notes": "",
+    "rarity": "Epic",
+    "status": "prepped"
+  },
+  "spookweed": {
+    "art": "swarm/art/spookweed.webp",
+    "bodyPlan": "quadruped",
+    "element": "Undead",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Spookyweed",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "spoutyl": {
+    "art": "swarm/art/spoutyl.webp",
+    "bodyPlan": "quadruped",
+    "element": "Water",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Spoutyl",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "squirebud": {
+    "art": "swarm/art/squirebud.webp",
+    "bodyPlan": "quadruped",
+    "element": "Earth",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "SquireBud",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "staticap": {
+    "art": "swarm/art/staticap.webp",
+    "bodyPlan": "quadruped",
+    "element": "Lightning",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Staticap",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "strikehawk": {
+    "art": "swarm/art/strikehawk.webp",
+    "bodyPlan": "winged",
+    "element": "Wind",
+    "evolvesFrom": "shellshock",
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Strikehawk",
+    "notes": "",
+    "rarity": "Rare",
+    "status": "prepped"
+  },
+  "sundile": {
+    "art": "swarm/art/sundile.webp",
+    "bodyPlan": "quadruped",
+    "element": "Fire",
+    "evolvesFrom": null,
+    "flags": [
+      "crawling"
+    ],
+    "modelName": "Sundile",
+    "notes": "",
+    "rarity": "Common",
+    "status": "prepped"
+  },
+  "torqlander": {
+    "art": "swarm/art/torqlander.webp",
+    "bodyPlan": "winged",
+    "element": "Water",
+    "evolvesFrom": "shellpack",
+    "flags": [
+      "flying"
+    ],
+    "modelName": "Torqlander",
+    "notes": "",
+    "rarity": "Uncommon",
+    "status": "prepped"
+  },
+  "toxsleaf": {
+    "art": "swarm/art/toxsleaf.webp",
+    "bodyPlan": "quadruped",
+    "element": "Poison",
+    "evolvesFrom": null,
+    "flags": [],
+    "modelName": "Toxleaf",
+    "notes": "",
+    "rarity": "Legendary",
+    "status": "prepped"
+  },
+  "voidmaw": {
+    "art": "swarm/art/voidmaw.webp",
+    "bodyPlan": "quadruped",
+    "element": "Shadow",
+    "evolvesFrom": "Voiboy",
+    "flags": [],
+    "modelName": "Voidmaw",
+    "notes": "",
+    "rarity": "Epic",
+    "status": "prepped"
+  }
+}

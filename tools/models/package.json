@@ -1,0 +1,19 @@
+{
+  "name": "siegeling-models",
+  "private": true,
+  "type": "module",
+  "description": "Siegeling 3D model pipeline: optimize, validate and ship rigged GLBs (see README.md)",
+  "scripts": {
+    "check": "node check_model.mjs",
+    "ship": "node ship_model.mjs",
+    "selftest": "node selftest.mjs"
+  },
+  "devDependencies": {
+    "@gltf-transform/cli": "4.1.1",
+    "@gltf-transform/core": "4.1.1",
+    "@gltf-transform/extensions": "4.1.1",
+    "@gltf-transform/functions": "4.1.1",
+    "meshoptimizer": "0.22.0",
+    "sharp": "0.33.5"
+  }
+}

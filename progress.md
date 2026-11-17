@@ -1,3 +1,15 @@
+Original prompt: Examine the links https://x.com/thegreatest_sv/status/2122353750912483747 lets develop a workflow for creating dynamic siegeling models
+
+- November 17, 2026 **A pipeline for 3D Siegeling models: card art to rigged, animated GLB, shipped into Swarm.**
+  - **Change.** The post lists open-source AI 3D tools: Hunyuan3D-2, TRELLIS, InstantMesh, MeshAnything, Blender MCP and three.js. The new `tools/models/` turns those into a five-stage workflow, documented in its `README.md`:
+    - `prep_art.py` reads the 94 creature records in the Swarm bundle. It writes centred 1024² image-to-3D inputs to `work/` (gitignored) and seeds `registry.json` with a body plan per creature (`winged` inferred from `flying`, `crawling` kept as a flag) and a status.
+    - Image-to-3D runs on a GPU outside this repo; Hunyuan3D-2 is the default.
+    - `blender/rig_animate.py` is a headless Blender script. It cleans and decimates the mesh, places a body-plan template skeleton from the bounding box and skins it with bone heat (envelope fallback). It then keys idle, walk, attack, hurt, cheer and fainted (the 2D sprite poses) as separate glTF animations.
+    - `check_model.mjs` is the gate. It checks the size, triangle and texture budgets, the skin, meshopt, and that the clip names match the regexes Swarm's loader uses for idle and walk.
+    - `ship_model.mjs` runs gltf-transform `optimize` (meshopt, WebP 1024), gates the result, then writes `swarm/models/<id>.glb` and the `manifest.json` entry the bundle already fetches.
+    - No game code changed, and no model is shipped yet.
+  - **Verification.** `prep_art.py` ran on all 94 creatures. The first run missed Solgator because a JS-escaped quote in its description broke `json.loads`; that is now handled. `node selftest.mjs` passes 6/6. It builds a synthetic two-joint skinned, textured GLB with all six clips; the gate rejects a copy with no walk clip; after optimize the skin, all six clips and meshopt are intact and the manifest maps `draco`. Headless Chromium loaded the real `/swarm/index.html` with the manifest and GLB requests routed to the shipped self-test file. The bundle logged `[models] 1 real creature model(s) available`, requested `draco.glb` and logged no "keeping the stand-in" warning. The two `Texture marked for update` warnings also appear with an empty manifest, so they predate this change. `rig_animate.py` only passes `py_compile`, because Blender could not be installed in this session. The hosted Hunyuan3D-2 run was not attempted, because it would upload card art to a third party.
+
 Original prompt: Multi touch for movement and camera is not working correctly.
 
 - November 17, 2026 **Swarm: two-finger touch fixed (move and camera at once).**
