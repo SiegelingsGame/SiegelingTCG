@@ -1,3 +1,9 @@
+Original prompt: Starter siegelings for swarm should be Draco, SquireBud, Breezee, and Falcool the others should have to be found.
+
+- November 18, 2026 **Swarm: starters are Draco, Squire Bud, Breezee and Falcool.**
+  - **Change.** In `static/swarm/assets/index-mQ-S_013.js` the first-time starter picker now uses a fixed list `["draco","squirebud","breezee","falcool"]`. It used to read every creature whose TCG data has `tcg.starter: true` (13 of them: glowbear, applehead, squirebud, monkwatt, staticap, draco, sundile, fawny, frostfly, ceeponee, shellpack, breezee, pursula). Swarm used that flag only for the starter picker, so every other Siegeling can still be found in the wild, in run chests and from the curator. The TCG card data is unchanged. Players who already chose a starter keep their collection. The picker CSS shows all four in one row on landscape phones and 2x2 on portrait phones with smaller art. Includes are bumped to `?v=4`.
+  - **Verification.** `node --check` on the bundle. Headless Chromium with a cleared save at 874x402, 390x844 and 1920x1080: the picker lists exactly Draco, Squire Bud, Breezee and Falcool; the panel does not scroll at any size; choosing Falcool saves an inventory of `["falcool"]`; no page errors.
+
 Original prompt: For expedition, select Siegeling first then select map on the next tab then start match to save room.
 
 - November 18, 2026 **Swarm: Expedition Gate is now two steps (Siegeling, then stage, then Start).**

@@ -47,3 +47,6 @@
 /* The generic "#panel-body button:hover" rule outranks the selected states above; restate them. */
 #panel-body button.gate-stage.on,#panel-body button.gate-stage.on:hover{background:var(--gold);color:#1a1426;border-color:var(--gold)}
 #panel-body button.gate-go:hover:not(:disabled){background:#ffe48f}
+/* Starter picker offers exactly four Siegelings; keep all four in one row on landscape phones. */
+@media (max-height:500px){.starters{grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}#panel-body .starter{padding:8px 6px;gap:2px}#panel-body .starter img{width:64px;height:64px}#panel-body .starter b{font-size:15px}#panel-body .starter p{font-size:11px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}}
+@media (max-width:640px) and (orientation:portrait){.starters{grid-template-columns:repeat(2,1fr);gap:8px}#panel-body .starter{padding:8px 6px}#panel-body .starter img{width:72px;height:72px}#panel-body .starter p{font-size:11px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}}
