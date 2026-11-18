@@ -1,3 +1,9 @@
+Original prompt: Update this selection screen (Swarm Expedition Gate) make it more efficient and fit on one page.
+
+- November 18, 2026 **Swarm: Expedition Gate fits on one screen.**
+  - **Change.** Edited `static/swarm/` directly; from now on Swarm work happens in this repo instead of rebuilding from `SiegelingsRBX/web`. `CLAUDE.md` says so. In the bundle, `openRunSetup()` now renders: one compact stats strip (runs, wins, best time, plus a one-line rule summary that is hidden on short landscape screens); the 8 stages as a tight chip grid (4 across on landscape phones, 2 on narrow portrait), with the enemy elements shown as icons beside the "Stage" heading; and the starting Siegelings as small tiles (art, name, level, element, class, stats) where tapping a tile starts the run. That replaces the full-width cards with a separate "Start run with…" button. Only the tile area scrolls, so the stats and stages always stay visible. The new CSS is appended to `index-4S9Xue6A.css` under a `gate-` prefix, because a `.rs` class already exists there. Both includes in `swarm/index.html` are now `?v=2`. "1 runs" is now "1 run".
+  - **Verification.** `node --check` on the patched bundle. Headless Chromium with a seeded save of 10 Siegelings, at 874x402 landscape phone, 390x844 portrait and 1920x1080: the panel body never scrolls; on desktop the panel sizes to its content (503px tall); all 8 stages and 10 tiles render with no page errors. Clicking the Frozen Tundra chip set `runStage=frozen` and changed the heading to "enemies: ❄️ Ice". Clicking a tile closed the panel and started the run (`run.active=true`).
+
 Original prompt: Multi touch for movement and camera is not working correctly.
 
 - November 17, 2026 **Swarm: two-finger touch fixed (move and camera at once).**
