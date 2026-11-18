@@ -1,3 +1,9 @@
+Original prompt: In starter selection show the overlay 2d cutout image not the 3d model.
+
+- November 18, 2026 **Swarm: starter picker shows the 2D cutout art.**
+  - **Change.** `openStarter()` in `static/swarm/assets/index-mQ-S_013.js` now uses the creature's 2D art (`/swarm/art/<id>.webp`) and only falls back to `Gi()` when there is no art. `Gi()` swaps in a rendered snapshot of the 3D model whenever one exists, which is what the picker used to show. Other screens still use `Gi()`. The JS include is bumped to `?v=5`.
+  - **Verification.** `node --check` on the bundle. Headless Chromium with a cleared save at 874x402 and 390x844, waiting 3s so the 3D models finish loading and the picker re-renders: all four images are `/swarm/art/{draco,squirebud,breezee,falcool}.webp` and load. With the old code, the same check gave `data:image/png` model snapshots for Draco, Squire Bud and Falcool. No page errors.
+
 Original prompt: Starter siegelings for swarm should be Draco, SquireBud, Breezee, and Falcool the others should have to be found.
 
 - November 18, 2026 **Swarm: starters are Draco, Squire Bud, Breezee and Falcool.**
