@@ -20,3 +20,30 @@
 .gate-pick em{font-style:normal;font-size:10.5px;line-height:1.3;color:#d8d2ee;max-width:100%;overflow-wrap:anywhere}
 @media (max-height:500px){.panel-inner header{padding:6px 14px}.panel-inner h2{font-size:17px}.gate-top small{display:none}.gate-stages{grid-template-columns:repeat(4,1fr)}.gate-team{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}.gate-pick img{width:48px;height:48px}}
 @media (max-width:420px){.gate-stages{grid-template-columns:repeat(2,1fr)}}
+/* Expedition Gate is two steps: pick a Siegeling, then pick the stage and start. Step 2 pins
+   the Start bar outside the scroll area so it is always reachable on landscape phones. */
+.gate-steps{display:flex;gap:6px;margin-bottom:8px}
+#panel-body .gate-step{flex:1 1 0;display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:9px;background:#2d2645;border:1px solid #4a4070;font-size:13px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#panel-body .gate-step i{font-style:normal;flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:#4a4070;font-size:11px;font-weight:700}
+#panel-body .gate-step.on{border-color:var(--gold);background:#ffd76a1f}
+#panel-body .gate-step.on i{background:var(--gold);color:#1a1426}
+#panel-body .gate-step.done i{background:#4bc84b;color:#10200f}
+#panel-body .gate-step b{color:var(--gold)}
+#panel-body .gate-pick.on{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold) inset}
+.gate-s2 .gate-stages{flex:0 1 auto;min-height:0;overflow-y:auto;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));align-content:start}
+#panel-body .gate-s2 .gate-stage{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:8px;align-items:center;padding:8px 10px;white-space:normal}
+#panel-body .gate-s2 .gate-stage span{grid-row:1/3;font-size:20px}
+#panel-body .gate-s2 .gate-stage b{font-size:13px}
+#panel-body .gate-s2 .gate-stage small{font-size:11px;color:var(--muted)}
+#panel-body .gate-s2 .gate-stage.on small{color:#3a2f10}
+.gate-foot{flex:none;display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 10px;border-radius:10px;background:#ffd76a14;border:1px solid var(--line)}
+.gate-foot img{width:40px;height:40px;object-fit:contain;flex:none}
+.gate-foot span{flex:1 1 auto;min-width:0;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gate-foot span b{color:var(--text)}
+#panel-body .gate-go{flex:none;background:var(--gold);color:#1a1426;border-color:var(--gold);font-weight:800;font-size:15px;padding:9px 18px;border-radius:10px}
+#panel-body .gate-go:hover{background:#ffe48f}
+@media (max-height:500px){.gate-steps{margin-bottom:4px}#panel-body .gate-step{padding:5px 9px}.gate-s2 .gate-stages{grid-template-columns:repeat(4,1fr)}.gate-foot{margin-top:6px;padding:5px 8px}.gate-foot img{width:32px;height:32px}}
+@media (max-width:420px){.gate-s2 .gate-stages{grid-template-columns:repeat(2,1fr)}}
+/* The generic "#panel-body button:hover" rule outranks the selected states above; restate them. */
+#panel-body button.gate-stage.on,#panel-body button.gate-stage.on:hover{background:var(--gold);color:#1a1426;border-color:var(--gold)}
+#panel-body button.gate-go:hover:not(:disabled){background:#ffe48f}

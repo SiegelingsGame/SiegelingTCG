@@ -1,3 +1,9 @@
+Original prompt: For expedition, select Siegeling first then select map on the next tab then start match to save room.
+
+- November 18, 2026 **Swarm: Expedition Gate is now two steps (Siegeling, then stage, then Start).**
+  - **Change.** `openRunSetup()` in `static/swarm/assets/index-mQ-S_013.js` now renders two tabs. Step 1 shows the stats strip and the Siegeling tiles; tapping a tile selects it and moves to step 2. Step 2 shows the 8 stages as cards, each listing its enemy elements, plus a fixed bar at the bottom with the chosen Siegeling, the chosen stage and a **Start run** button. The step tabs let the player go back; the Stage tab is disabled until a Siegeling is picked. Walking into the gate always opens on step 1, and the last pick stays highlighted. New click actions are `gatepick` and `gatestep`; `runstart` is unchanged. The CSS is appended to `index-4S9Xue6A.css`; selected states restate the generic `#panel-body button:hover` rule, which otherwise turned the selected stage purple. Both includes are now `?v=3`.
+  - **Verification.** `node --check` on the bundle. Headless Chromium with 10 seeded Siegelings at 874x402, 390x844 and 1920x1080. Step 1 shows 10 tiles, no stages, and the Stage tab is disabled. Tapping Bearby opens step 2 with 8 stages; picking Frozen Tundra highlights it in gold and the bar reads "Bearby Lv 1 → ❄️ Frozen Tundra". The bar stays on screen, the panel body never scrolls, and going back to step 1 keeps Bearby selected. Start run closes the panel and starts the run with Bearby (`run.active=true`). No page errors.
+
 Original prompt: Update this selection screen (Swarm Expedition Gate) make it more efficient and fit on one page.
 
 - November 18, 2026 **Swarm: Expedition Gate fits on one screen.**
