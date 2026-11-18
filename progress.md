@@ -1,3 +1,9 @@
+Original prompt: For all selections use the 2d instead of 3d for now only use 3d when they are in world.
+
+- November 18, 2026 **Swarm: every menu and HUD picture uses the 2D art; 3D only in the world.**
+  - **Change.** In `static/swarm/assets/index-mQ-S_013.js` the shared portrait helper `Gi()` now returns the creature's 2D art whenever it has one (`if(i.art)return i.art;`). It used to skip the art for creatures with a 3D model and render a snapshot instead. `Gi()` is used only by UI: the starter picker, collection cards, base and battle-team slots, both Expedition Gate steps, run results, the run HUD team row and the companion portrait. The 3D world draws real models and never uses it, so it is unaffected. Creatures without art still get the model snapshot as a fallback. The starter-only special case from the previous entry is folded back into `Gi()`. Silver and Gold variants and shinies now show the plain art in menus, since the art has no tinted versions. The JS include is bumped to `?v=6`.
+  - **Verification.** `node --check` on the bundle. Headless Chromium at 874x402 with 8 seeded Siegelings, waiting 4s for models to load, then opening the starter picker, collection, base, gate step 1, gate step 2 and a started run: 0 `data:` model snapshots across 23 images (the old code showed 17 on the same screens). The world scene still has 721 meshes, and there are no page errors.
+
 Original prompt: In starter selection show the overlay 2d cutout image not the 3d model.
 
 - November 18, 2026 **Swarm: starter picker shows the 2D cutout art.**
