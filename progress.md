@@ -1,3 +1,15 @@
+Original prompt: For all selections use the 2d instead of 3d for now only use 3d when they are in world.
+
+- November 18, 2026 **Swarm: every menu and HUD picture uses the 2D art; 3D only in the world.**
+  - **Change.** In `static/swarm/assets/index-mQ-S_013.js` the shared portrait helper `Gi()` now returns the creature's 2D art whenever it has one (`if(i.art)return i.art;`). It used to skip the art for creatures with a 3D model and render a snapshot instead. `Gi()` is used only by UI: the starter picker, collection cards, base and battle-team slots, both Expedition Gate steps, run results, the run HUD team row and the companion portrait. The 3D world draws real models and never uses it, so it is unaffected. Creatures without art still get the model snapshot as a fallback. The starter-only special case from the previous entry is folded back into `Gi()`. Silver and Gold variants and shinies now show the plain art in menus, since the art has no tinted versions. The JS include is bumped to `?v=6`.
+  - **Verification.** `node --check` on the bundle. Headless Chromium at 874x402 with 8 seeded Siegelings, waiting 4s for models to load, then opening the starter picker, collection, base, gate step 1, gate step 2 and a started run: 0 `data:` model snapshots across 23 images (the old code showed 17 on the same screens). The world scene still has 721 meshes, and there are no page errors.
+
+Original prompt: In starter selection show the overlay 2d cutout image not the 3d model.
+
+- November 18, 2026 **Swarm: starter picker shows the 2D cutout art.**
+  - **Change.** `openStarter()` in `static/swarm/assets/index-mQ-S_013.js` now uses the creature's 2D art (`/swarm/art/<id>.webp`) and only falls back to `Gi()` when there is no art. `Gi()` swaps in a rendered snapshot of the 3D model whenever one exists, which is what the picker used to show. Other screens still use `Gi()`. The JS include is bumped to `?v=5`.
+  - **Verification.** `node --check` on the bundle. Headless Chromium with a cleared save at 874x402 and 390x844, waiting 3s so the 3D models finish loading and the picker re-renders: all four images are `/swarm/art/{draco,squirebud,breezee,falcool}.webp` and load. With the old code, the same check gave `data:image/png` model snapshots for Draco, Squire Bud and Falcool. No page errors.
+
 Original prompt: Starter siegelings for swarm should be Draco, SquireBud, Breezee, and Falcool the others should have to be found.
 
 - November 18, 2026 **Swarm: starters are Draco, Squire Bud, Breezee and Falcool.**
