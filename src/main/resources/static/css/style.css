@@ -11734,7 +11734,6 @@ body.placement-active .board-cell.legal {
 .log-entry.is-latest { border-color:rgba(255,207,87,.44); border-left-color:#ffd35a; background:linear-gradient(105deg,rgba(255,191,59,.11),rgba(28,58,111,.58)); }
 .log-round-divider { display:flex; align-items:center; gap:7px; margin:9px 2px 6px; color:#ffd66f; font-size:.74em; font-weight:900; letter-spacing:.12em; text-transform:uppercase; }
 .log-round-divider span { height:1px; flex:1; background:rgba(255,208,87,.55); }
-}
 
 .card-tooltip {
     display: none;
@@ -21772,4 +21771,228 @@ body.gameplay-active .battlefield::after {
         -webkit-box-orient: vertical;
         overflow: hidden;
     }
+}
+
+/* ============================================================
+   ARENA DESK - wide desktop battle table (body.arena-desk, set by
+   updateResponsiveLayoutVars for landscape desktop docks over 1200px).
+   The board takes the full height, both players share one compact rail
+   (each beside its own board half), and the right panel is the card
+   inspector over a hand of full-size cards. The hub header gives way to
+   the shield FAB, which sits under the rail.
+   ============================================================ */
+body.arena-desk.gameplay-active .play-hub-nav {
+    display: none;
+}
+
+body.arena-desk .app-shell {
+    display: grid;
+    grid-template-columns:
+        var(--hud-rail-width)
+        minmax(0, var(--desktop-arena-width))
+        minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--arena-desk-gap, 14px);
+    padding: var(--arena-desk-gutter, 12px);
+    max-width: none;
+    width: 100%;
+    margin: 0;
+}
+
+body.arena-desk .hud-rail {
+    display: flex;
+    grid-column: 1;
+    min-height: 0;
+    width: 100%;
+    border-radius: 18px;
+}
+
+body.arena-desk .hud-rail-enemy { grid-row: 1; }
+body.arena-desk .hud-rail-player {
+    grid-row: 2;
+    /* Room for the shield FAB under the player's details. */
+    padding-bottom: calc(var(--sn-fab-size, 62px) + 14px);
+}
+
+body.arena-desk .battlefield {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+}
+
+body.arena-desk .desktop-menu {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    padding: 12px;
+    gap: 10px;
+    border-radius: 18px;
+}
+
+body.arena-desk .desktop-menu-header {
+    display: none;
+}
+
+/* Board labels sit on the board art; the rail already names each side. */
+body.arena-desk .board-label {
+    font-size: 0.56em;
+    opacity: 0.7;
+}
+
+/* --- Rail: name/HP, knight beside its art, counts and elements in rows --- */
+body.arena-desk .hud-section {
+    padding: 8px 12px;
+}
+
+body.arena-desk .hud-section-label {
+    margin-bottom: 4px;
+}
+
+body.arena-desk .hud-name {
+    font-size: 0.9em;
+}
+
+body.arena-desk .hud-hp-track {
+    height: 9px;
+}
+
+body.arena-desk .hud-knight-card.has-knight-art {
+    flex-direction: row;
+    align-items: stretch;
+}
+
+body.arena-desk .hud-knight-card.has-knight-art .hud-knight-art {
+    flex: 0 0 auto;
+    width: 46%;
+    max-width: 150px;
+    margin: 0;
+    border-radius: 10px 0 0 10px;
+}
+
+body.arena-desk .hud-knight-card.has-knight-art .hud-knight-info {
+    padding: 6px 8px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+body.arena-desk .hud-knight-ability {
+    font-size: 0.62em;
+    line-height: 1.3;
+}
+
+body.arena-desk .hud-counts-row {
+    gap: 6px;
+}
+
+body.arena-desk .hud-count-chip {
+    padding: 4px 8px;
+    min-height: 0;
+}
+
+/* --- Phase strip, moved into the panel by syncArenaDeskTopBar --- */
+body.arena-desk .desktop-menu > .top-bar {
+    flex: 0 0 auto;
+    min-height: 0;
+    height: auto;
+    padding: 6px 10px;
+    border-radius: 12px;
+    justify-content: flex-start;
+    gap: 10px;
+    background: rgba(6, 12, 26, 0.5);
+    border: 1px solid rgba(255, 215, 0, 0.28);
+    box-shadow: none;
+    position: relative;
+    inset: auto;
+    width: auto;
+    margin: 0;
+}
+
+body.arena-desk .desktop-menu > .top-bar .top-bar-center {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+}
+
+body.arena-desk .desktop-menu > .top-bar .energy-detail-details {
+    display: block;
+    margin-left: auto;
+}
+
+body.arena-desk .desktop-menu > .top-bar .phase-badge {
+    font-size: 0.8em;
+    padding: 3px 12px;
+}
+
+/* --- Inspector: one slim tab row, a large card beside its text --- */
+body.arena-desk .desktop-menu-inspect {
+    padding: 8px 10px 10px;
+    border-radius: 14px;
+}
+
+body.arena-desk .desktop-inspect-toolbar {
+    margin-bottom: 8px;
+}
+
+body.arena-desk .desktop-inspect-toggle {
+    padding: 3px;
+    border-radius: 10px;
+}
+
+body.arena-desk .desktop-inspect-tab {
+    min-height: 28px;
+    padding: 4px 8px;
+    font-size: 0.66em;
+    border-radius: 8px;
+}
+
+body.arena-desk .desktop-inspect-viewport {
+    min-height: 0;
+}
+
+body.arena-desk .desktop-preview-card-slot {
+    justify-content: flex-start;
+}
+
+body.arena-desk .desktop-preview-title {
+    font-size: 1.3rem;
+}
+
+/* --- Hand: full-size cards across the panel, actions under them --- */
+body.arena-desk .desktop-menu-bottom-dock {
+    gap: 8px;
+}
+
+body.arena-desk .desktop-menu-hand {
+    padding: 6px 10px 8px;
+    border-radius: 14px;
+    min-height: var(--desktop-hand-section-height);
+    height: var(--desktop-hand-section-height);
+}
+
+body.arena-desk.battle-inline-dock .desktop-menu-hand {
+    height: auto;
+}
+
+body.arena-desk .desktop-section-title {
+    margin-bottom: 4px;
+    font-size: 0.64em;
+}
+
+body.arena-desk .action-bar {
+    padding: 0;
+}
+
+/* Shield FAB centred under the rail column instead of across the arena. */
+body.arena-desk.gameplay-active .sn-fab {
+    left: calc(var(--arena-desk-gutter, 12px) + var(--hud-rail-width) / 2);
+    bottom: calc(var(--arena-desk-gutter, 12px) + 8px);
+}
+
+body.arena-desk .hud-knight-ability-line span {
+    -webkit-line-clamp: 4;
+}
+
+/* The strip now ends at the panel's right edge, so its dropdown opens leftward. */
+body.arena-desk .desktop-menu > .top-bar .energy-detail-dropdown {
+    left: auto;
+    right: 0;
+    transform: none;
+    z-index: 30;
 }
