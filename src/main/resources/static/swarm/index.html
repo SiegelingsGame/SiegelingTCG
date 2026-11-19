@@ -4,20 +4,22 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Siegelings</title>
-  <script type="module" crossorigin src="/swarm/assets/index-mQ-S_013.js?v=9"></script>
-  <link rel="stylesheet" crossorigin href="/swarm/assets/index-4S9Xue6A.css?v=5">
+  <script type="module" crossorigin src="/swarm/assets/index-mQ-S_013.js?v=10"></script>
+  <link rel="stylesheet" crossorigin href="/swarm/assets/index-4S9Xue6A.css?v=6">
 </head>
 <body>
   <canvas id="game"></canvas>
   <div id="labels"></div>
   <div id="hurt"></div>
   <div id="underground"></div>
+  <div id="submerged"></div>
   <div id="crosshair"><i></i></div>
 
   <div id="hud-tl">
     <div class="row"><div id="coins-box" class="pill gold">🪙 <b id="coins">0</b><small id="income"></small></div></div>
     <div class="bar-wrap"><span class="lvl">Lv <b id="plevel">1</b></span><div class="bar xp"><i id="pxp-fill"></i><em id="pxp-text"></em></div></div>
     <div class="bar-wrap"><span class="lvl">❤️</span><div class="bar hp"><i id="hp-fill"></i><em id="hp-text"></em></div></div>
+    <div class="bar-wrap" id="o2-wrap"><span class="lvl">🫧</span><div class="bar o2"><i id="o2-fill"></i><em id="o2-text"></em></div></div>
   </div>
 
   <div id="hud-tr">
@@ -29,7 +31,7 @@
   <div id="companion"><img id="comp-img" alt=""><div><b id="comp-name"></b><div class="bar hp small"><i id="comp-hp"></i></div><small id="comp-state"></small></div></div>
 
   <div id="hotbar">
-    <span><kbd>WASD</kbd> Move</span><span><kbd>Space</kbd> Jump</span><span><kbd>Click</kbd> Shoot</span><span><kbd>F</kbd> Melee</span><span><kbd>E</kbd> Interact</span>
+    <span><kbd>WASD</kbd> Move</span><span><kbd>Space</kbd> Jump/Swim up</span><span><kbd>C</kbd> Dive</span><span><kbd>Click</kbd> Shoot</span><span><kbd>F</kbd> Melee</span><span><kbd>E</kbd> Interact</span>
     <span><kbd>Tab</kbd> Siegelings <b id="inv-count"></b></span><span><kbd>B</kbd> Base</span><span><kbd>M</kbd> Map</span><span><kbd>H</kbd> Home</span>
     <button id="help-btn">? Help</button>
   </div>
