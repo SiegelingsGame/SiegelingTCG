@@ -1,3 +1,26 @@
+Original prompt: add a swimming mechanics and oxygen mechanic, make the underwater area much larger with siegelings that spawn underwater and can swim omnidirectional in the water,
+
+- November 19, 2026 **Swarm: swimming, oxygen, a deep ocean and 3D-swimming Water Siegelings.**
+  - **Change.** All edits are in `static/swarm/assets/index-mQ-S_013.js`, `index-4S9Xue6A.css` and `swarm/index.html`.
+    - **Bigger, deeper water.** The Ocean Shallows gets its own radius (360, up from 270). It is a deep basin down to about −52, with a central trench (about −18 more) and seamounts. The forest lake grows to radius 72, and the forest lake and highland tarn are now about 16 deep.
+    - **Deep water.** Water deeper than `DeepWater` (3.5) no longer has the wading floor; the river and beaches still wade.
+    - **Sea floor.** It has an instanced kelp forest (up to 520 stalks, plus some in the lakes) and glowing reef crystals.
+    - **Swimming.** `swimCheck()` runs before the land physics: once the player is below the surface −1.2 in deep water, swimming takes over. Movement follows the camera in 3D (W/S along the look direction, so looking down and pushing forward dives). Space or ⤒ swims up, C or Ctrl dives, and Shift is a fast swim. Idle drifts gently up. Pressing Space at the surface leaps out, which lets you climb onto the shore. The swimmer is clamped between the sea floor and the surface. The avatar lies flat and tilts with its climb or dive, with kicking legs and stroking arms. Swimming is off during runs.
+    - **Oxygen.** 30s of air drains while your head is under water and refills at 12/s at the surface. At 0 you lose 8 HP every second. A 🫧 bar appears under HP while you're under water or not yet full, pulses red below 30%, and a "Low oxygen" toast warns you. While it shows, the Hub link hides and, on touch, the companion card moves down.
+    - **Underwater look.** When the camera is under water, the fog turns dense blue and a blue vignette (`#submerged`) appears.
+    - **Water Siegelings.** Ocean spawn points below −4 become Water-only swimmers. 22 more reef spawns are spread through the basin (dungeon reefs in the deepest water, levels scaled by depth), and each non-frozen lake gets a low-level swimmer spawn. Swimmers (`aquatic`) spawn at mid-depth. They wander to random 3D points, chase you in 3D, pitch with their climb, and turn back at the edge of deep water.
+    - **Land creatures and companion.** Land Siegelings no longer walk into deep water (raiders excepted). The companion swims beside a swimming player. Attack telegraphs aimed at a swimming target are placed at its depth.
+    - **Help and hotbar** describe swimming and oxygen.
+    - **Cache pins.** JS `?v=10`, CSS `?v=6`.
+  - **Verification.** `node --check`. Headless Chromium with a seeded save, no page errors.
+    - **Swimmers.** 53 spawned (Ceeponee, Spoutyl, Clawkid, Shellpack, Jawbite, Jawby, Ceehorcee, Droxyl, Torqlander, Hydroxyl…), all between the sea floor and the surface. Over a few seconds 7 of 8 moved 11-24 units, with vertical changes of up to ±19.
+    - **Diving.** A player dropped over the ocean began swimming. Looking down and holding W dived to −28 in 2.5s: the avatar pitched to 1.75 rad, the screen was tinted, and the 🫧 bar showed "27s".
+    - **Oxygen.** At 0 air the player lost 20 HP in about 3s and the low-oxygen toast fired. Holding Space rose to −1.3 (the surface), and air was back to 30 within 2s.
+    - **Phone.** On iPhone 13 landscape the 🫧 bar (y 98-120) clears the companion card (moved to y 124) and the Hub link is hidden.
+    - **Runs.** Starting an ocean run showed no swimming, no oxygen bar and no tint.
+    - **Gap.** After a short time 1 land creature was found in deep water, probably spawned on a shoreline point.
+    - **Not checked.** Real-device frame rate with the kelp, and long dives near drop-offs.
+
 Original prompt: expand the size of the open world add underground areas, caves, highlands hills water and a river
 
 - November 19, 2026 **Swarm: bigger overworld with a river, lakes, taller hills, tunnels and caverns.**
