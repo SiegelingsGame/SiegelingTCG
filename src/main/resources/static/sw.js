@@ -15,9 +15,11 @@
  *   - Other static assets (JS/CSS/fonts/manifest/icons) -> stale-while-revalidate
  *     (instant from cache, refreshed in the background; self-heals if stale).
  *
+ *   - /swarm and /swarm/*                               -> not intercepted (see fetch).
+ *
  * Bump CACHE_VERSION to force a clean sweep of every cache on the next visit.
  */
-const CACHE_VERSION = 'v10';
+const CACHE_VERSION = 'v11';
 const STATIC_CACHE = `siegelings-static-${CACHE_VERSION}`;
 const IMAGE_CACHE = `siegelings-img-${CACHE_VERSION}`;
 const HTML_CACHE = `siegelings-html-${CACHE_VERSION}`;
@@ -69,6 +71,12 @@ self.addEventListener('fetch', (event) => {
     // auth/game state is never served stale from the SW.
     if (url.origin !== self.location.origin) return;
     if (url.pathname.startsWith('/api/')) return;
+    // Swarm (the 3D test mode) is left entirely to the browser's HTTP cache.
+    // One visit fetches ~55 models (50+ MB); caching them here filled the
+    // unbounded static cache and pushed card art out of the 120-entry image
+    // cache, slowing the rest of the app and inviting iOS to evict the whole
+    // origin's storage. v11 also sweeps what v10 already cached from Swarm.
+    if (url.pathname === '/swarm' || url.pathname.startsWith('/swarm/')) return;
 
     if (req.mode === 'navigate' || req.destination === 'document') {
         event.respondWith(networkFirst(req));
