@@ -2231,9 +2231,16 @@ body[data-screen="recruitScreen"] .siege-screen{
   flex:1 1 auto; min-height:0; padding:0; display:flex; flex-direction:column;
   width:100%; align-self:stretch;
 }
+/* Fixed to the layout viewport rather than sized off --siege-vh: the visual
+   viewport stops above the home indicator, so a flow-sized stage left the lower
+   safe area showing the page background. With viewport-fit=cover, inset:0
+   reaches under the home bar; only the padding keeps the Claim button clear. */
+html:has(body[data-screen="recruitScreen"]){ background:#05070b; }
 body[data-screen="recruitScreen"] .gacha-stage{
-  flex:1 1 auto; min-height:0; width:100%; border-radius:0; gap:8px; justify-content:flex-end;
-  padding:calc(env(safe-area-inset-top, 0px) + 64px) 16px calc(env(safe-area-inset-bottom, 0px) + 28px);
+  position:fixed; inset:0; z-index:1;
+  min-height:0; width:auto; border-radius:0; gap:8px; justify-content:flex-end;
+  padding:calc(env(safe-area-inset-top, 0px) + 64px) max(16px, env(safe-area-inset-right, 0px))
+          calc(max(env(safe-area-inset-bottom, 0px), 10px) + 10px) max(16px, env(safe-area-inset-left, 0px));
 }
 body[data-screen="recruitScreen"] .gacha-art{
   flex:1 1 auto; min-height:0; height:auto; width:100%; max-height:62vh;
