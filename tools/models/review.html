@@ -1,0 +1,70 @@
+<!doctype html><html><body style="margin:0">
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+const C=180;
+const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}); r.outputEncoding=THREE.sRGBEncoding; document.body.appendChild(r.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x26302c);
+scene.add(new THREE.HemisphereLight(0xffffff,0x445044,1.1)); const d=new THREE.DirectionalLight(0xffffff,.8); d.position.set(2,4,3); scene.add(d);
+const cam=new THREE.PerspectiveCamera(32,1,.01,1000);
+window.renderModel = (url) => new Promise(res => new THREE.GLTFLoader().load(url, g => {
+  const m=g.scene; scene.add(m); m.updateMatrixWorld(true);
+  const rest=new THREE.Box3().setFromObject(m);
+  const meshes=[]; m.traverse(o=>{ if(o.isMesh) meshes.push(o); });
+  const v=new THREE.Vector3();
+  // Bounds of what is actually drawn: skinned vertices after the pose, not the bind-pose geometry.
+  function posedBox(){ const b=new THREE.Box3(); m.updateMatrixWorld(true);
+    for(const me of meshes){ const pos=me.geometry.attributes.position; const step=Math.max(1,Math.floor(pos.count/600));
+      if(me.isSkinnedMesh) me.skeleton.update();
+      for(let i=0;i<pos.count;i+=step){ v.fromBufferAttribute(pos,i); if(me.isSkinnedMesh) me.boneTransform(i,v); v.applyMatrix4(me.matrixWorld); b.expandByPoint(v); } }
+    return b; }
+  const clips=g.animations.length?g.animations:[null]; const fr=[0,.25,.5,.75];
+  r.setSize(C*4, C*clips.length); r.setScissorTest(true);
+  const mixer=new THREE.AnimationMixer(m); const info=[]; const boxes=[];
+  clips.forEach((clip,row)=>{ mixer.stopAllAction(); if(clip){mixer.clipAction(clip).play();}
+    const fb=new THREE.Box3(); const per=[];
+    fr.forEach(f=>{ if(clip) mixer.setTime(clip.duration*f); const b=posedBox(); per.push(b); fb.union(b); });
+    const size=fb.getSize(new THREE.Vector3()), c=fb.getCenter(new THREE.Vector3()); const dist=Math.max(size.x,size.y,size.z)*2.1;
+    fr.forEach((f,col)=>{ if(clip) mixer.setTime(clip.duration*f); m.updateMatrixWorld(true);
+      cam.position.set(c.x+Math.sin(0.6)*dist, c.y+size.y*0.2, c.z+Math.cos(0.6)*dist); cam.lookAt(c);
+      const y=(clips.length-1-row)*C; r.setViewport(col*C,y,C,C); r.setScissor(col*C,y,C,C); r.render(scene,cam); });
+    const b0=per[0]; info.push((clip?clip.name+' ('+clip.duration.toFixed(2)+'s)':'(no clips)'));
+    boxes.push({posed:[b0.min.toArray(),b0.max.toArray()].map(a=>a.map(x=>+x.toFixed(3)))}); });
+  const url2=r.domElement.toDataURL('image/png'); scene.remove(m);
+  res({img:url2, info, rest:[rest.min.toArray(),rest.max.toArray()].map(a=>a.map(x=>+x.toFixed(3))), boxes});
+}, undefined, e => res({err:String(e)})));
+
+window.motion = (url) => new Promise(res => new THREE.GLTFLoader().load(url, g => {
+  const m=g.scene; scene.add(m); const meshes=[]; m.traverse(o=>{ if(o.isMesh) meshes.push(o); }); const v=new THREE.Vector3();
+  function posedBox(){ const b=new THREE.Box3(); m.updateMatrixWorld(true);
+    for(const me of meshes){ const pos=me.geometry.attributes.position; const step=Math.max(1,Math.floor(pos.count/800));
+      if(me.isSkinnedMesh) me.skeleton.update();
+      for(let i=0;i<pos.count;i+=step){ v.fromBufferAttribute(pos,i); if(me.isSkinnedMesh) me.boneTransform(i,v); v.applyMatrix4(me.matrixWorld); b.expandByPoint(v);} } return b; }
+  const mixer=new THREE.AnimationMixer(m); const out={};
+  for(const clip of g.animations){ mixer.stopAllAction(); mixer.clipAction(clip).play();
+    const S=[]; for(let k=0;k<16;k++){ mixer.setTime(clip.duration*k/16); const b=posedBox(); S.push({c:b.getCenter(new THREE.Vector3()), s:b.getSize(new THREE.Vector3()), min:b.min.y}); }
+    const h0=S[0].s.y; const ref=Math.max(S[0].s.x,S[0].s.y,S[0].s.z);
+    let drift=0, hmin=1e9, hmax=0, sizemax=0, sizemin=1e9, ground=0;
+    for(const q of S){ drift=Math.max(drift, Math.hypot(q.c.x-S[0].c.x, q.c.z-S[0].c.z)/ref); hmin=Math.min(hmin,q.s.y/h0); hmax=Math.max(hmax,q.s.y/h0);
+      const sz=Math.max(q.s.x,q.s.y,q.s.z)/ref; sizemax=Math.max(sizemax,sz); sizemin=Math.min(sizemin,sz); ground=Math.max(ground,Math.abs(q.min-S[0].min)/h0); }
+    // does the loop end where it started? a big jump means a one-shot, not a loop
+    mixer.setTime(clip.duration*0.999); const e=posedBox(); const endJump=Math.hypot(...e.getCenter(new THREE.Vector3()).sub(S[0].c).toArray())/ref;
+    out[clip.name]={dur:+clip.duration.toFixed(2), drift:+drift.toFixed(2), hmin:+hmin.toFixed(2), hmax:+hmax.toFixed(2), sizemin:+sizemin.toFixed(2), sizemax:+sizemax.toFixed(2), ground:+ground.toFixed(2), endJump:+endJump.toFixed(2)};
+  }
+  scene.remove(m); res(out);
+}, undefined, e => res({err:String(e)})));
+
+window.strip = (url, clipName, n) => new Promise(res => new THREE.GLTFLoader().load(url, g => {
+  const m=g.scene; scene.add(m); const meshes=[]; m.traverse(o=>{ if(o.isMesh) meshes.push(o); }); const v=new THREE.Vector3();
+  function posedBox(){ const b=new THREE.Box3(); m.updateMatrixWorld(true);
+    for(const me of meshes){ const pos=me.geometry.attributes.position; const step=Math.max(1,Math.floor(pos.count/800)); if(me.isSkinnedMesh) me.skeleton.update();
+      for(let i=0;i<pos.count;i+=step){ v.fromBufferAttribute(pos,i); if(me.isSkinnedMesh) me.boneTransform(i,v); v.applyMatrix4(me.matrixWorld); b.expandByPoint(v);} } return b; }
+  const clip=g.animations.find(a=>a.name===clipName); const mixer=new THREE.AnimationMixer(m); mixer.clipAction(clip).play();
+  const fb=new THREE.Box3(); const foot=[]; for(let k=0;k<n;k++){ mixer.setTime(clip.duration*k/n); const b=posedBox(); fb.union(b); const s=b.getSize(new THREE.Vector3()); foot.push(+(s.x*s.z).toFixed(4)); }
+  const size=fb.getSize(new THREE.Vector3()), c=fb.getCenter(new THREE.Vector3()); const dist=Math.max(size.x,size.y,size.z)*2.1;
+  const W=8, Cc=150; r.setSize(Cc*W, Cc*Math.ceil(n/W)); r.setScissorTest(true);
+  for(let k=0;k<n;k++){ mixer.setTime(clip.duration*k/n); m.updateMatrixWorld(true); cam.position.set(c.x+Math.sin(0.6)*dist,c.y+size.y*0.2,c.z+Math.cos(0.6)*dist); cam.lookAt(c);
+    const col=k%W,row=Math.floor(k/W),y=(Math.ceil(n/W)-1-row)*Cc; r.setViewport(col*Cc,y,Cc,Cc); r.setScissor(col*Cc,y,Cc,Cc); r.render(scene,cam); }
+  const img=r.domElement.toDataURL('image/png'); scene.remove(m); res({img, foot, dur:clip.duration});
+}));
+</script></body></html>

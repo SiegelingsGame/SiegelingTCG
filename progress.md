@@ -1,3 +1,29 @@
+Original prompt: Some of the animations are incorrect, generoot for example is idle doing his faint animation, there are others as well can you review these. (Follow-up: Shellpack is the worst case, you can't see the model because it's stuck in the curled up animation.)
+
+- November 20, 2026 **Swarm creature animations: audited all 77 models, fixed 13 that played the wrong clip.**
+  - **Cause.** The Meshy conversion (#1254) kept each source's idle/move clips by name, and Swarm idles on the first clip matching `/idle|stand|breath/` (else clip 0) and walks on `/walk|run|move|locomotion/`. Several sources were mislabelled:
+    - Generoot's `Idle_5` was a 0.07 s T-pose, and its `Running` was a stagger-and-collapse that ended lying down.
+    - Shellpack's `Idle` was the curled-in-shell pose for the whole loop.
+    - Cloudpuff's `Idle` shrank to a speck and ballooned about 10x.
+    - Flora Knight's `Running` was a 4.4 s sword combo; Pylord's was an overhead punch; Purseus's was a hovering gesture loop.
+    - Squire Bud, Frostag and Pursula (only `Running`), and Jawby and Staticap (only `Move`), idled on their walk.
+    - Bearzooka's and Bleetstrike's walks travelled 1.7 and 1.3 body lengths and snapped back each loop.
+  - **Change.**
+    - New `tools/models/clip-fixes.json` (per-model fixes, each with a reason) and `fix_clips.mjs` (applies them in place, idempotent, keeps meshopt and WebP):
+      - Mislabelled clips are renamed `Attack`, `Faint`, `Hide`, `Puff` or `Idle`, and kept for later use.
+      - Generoot's T-pose is dropped.
+      - Nine models get a new `Idle` that holds a calm pose from their own clip with a slow sway. The pose is chosen at the clip's smallest footprint.
+      - The two drifting walks are made in-place: the first-to-last key ramp is subtracted from each translation track.
+    - New `review_models.mjs` + `review.html` audit any model set: Swarm's idle/walk pick, contact sheets, and motion flags measured on the skinned pose.
+    - Merged `main`. Its manifest is taken, and this branch's lowercase `draco.glb` is removed so it doesn't collide with `main`'s `Draco.glb` on case-insensitive file systems.
+  - **Verification.**
+    - Before: all 52 animated models were rendered at 0/25/50/75% of every clip and read by eye. Generoot's T-pose and collapse, Shellpack's shell, Cloudpuff's balloon, the mislabelled combos, and the drift and size anomalies were confirmed by 16-sample skinned-pose measurements.
+    - After: `review_models.mjs` shows the 13 fixed models idle on `Idle` and walk on a real walk where one exists. Their idle and walk clips carry no flags; the flags left are on renamed unused clips. Contact sheets show each standing in a natural pose: Shellpack is out of its shell, and Generoot is in his stance.
+    - Bearzooka's and Bleetstrike's walk drift went from 1.7x/1.3x to under 0.35x. A second run of `fix_clips.mjs` changes nothing.
+    - The real `/swarm` in headless Chromium (844x390) fetched all 77 GLBs with HTTP 200 and logged `[models] 77 real creature model(s) available`, and picking Squire Bud shows the model beside the player.
+    - Remaining flags were checked by eye and left as intended: flyers and floaters drifting or flapping (Cindergil, Dracosleaf, Falcool, Shellshock, Sleafwyrm, peatbeak, sleaf, Lumina), and Hotdog's pounce idle.
+    - Not fixed: seven models still have no walk clip and glide (Bonoblade, Emberpup, Flora Knight, Generoot, Lumina, Purseus, Pylord), and 25 have no animations at all.
+
 Original prompt: add a swimming mechanics and oxygen mechanic, make the underwater area much larger with siegelings that spawn underwater and can swim omnidirectional in the water,
 
 - November 19, 2026 **Swarm: swimming, oxygen, a deep ocean and 3D-swimming Water Siegelings.**

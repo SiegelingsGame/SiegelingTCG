@@ -139,13 +139,38 @@ stand-in for an image-to-3D result. It is one fused, textured metaball surface
 at an arbitrary scale and offset, and it exercises stages 3–5 with no GPU.
 Never ship it.
 
+## Auditing and fixing existing models
+
+The 77 Meshy-library models in `swarm/models/` (PR #1254) came with whatever
+clips their sources had, and the names decide what Swarm plays. To audit them:
+
+```
+node tools/models/review_models.mjs [--only Shellpack,Generoot]
+```
+
+This prints, for each model, the clip Swarm idles and walks on, plus motion
+flags measured on the skinned pose: frozen, drops (lying down), drifts (root
+motion), size swings and loop jumps. It writes one contact sheet per model, at
+0/25/50/75% of every clip, to `work/_review/`. Read the sheet before acting on
+a flag: wing flaps and floating creatures trip "size" and "drifts" honestly.
+
+Fixes are data in `clip-fixes.json`, applied in place by
+`node tools/models/fix_clips.mjs` (idempotent, keeps meshopt and WebP):
+- `rename`: give a clip a truthful name. A mislabelled attack becomes `Attack`,
+  so Swarm stops walking on it but the clip is kept.
+- `drop`: remove a clip.
+- `idleFrom`: build a new `Idle` from a calm moment of another clip. It holds
+  that pose and sways 35% toward a pose 10% later, over 2.4 s.
+- `inPlace`: remove the travel from a walk that moves off its spot.
+
 ## Status
 
-- **Draco is shipped** (`swarm/models/draco.glb`, 141 KB). It was made with
-  Hunyuan3D-2 shape, art projection, the `biped_tail` rig, all six clips, and
-  6,000 triangles. Swarm loads it as the starter companion. The black outlines
-  in the art show as dark streaks on side surfaces; a real texture pass would
-  replace them.
+- The Hunyuan Draco pilot proved all five stages; see progress.md. `main` has
+  since added a Meshy `Draco.glb`, and that one ships instead: a lowercase
+  `draco.glb` beside it would collide on case-insensitive file systems.
+- 13 Meshy models had wrong clips and are fixed (`clip-fixes.json`). Seven
+  still have no walk clip (they glide), and 25 have no animations at all.
+  Those 32 are candidates for `rig_animate.py`.
 - All five stages ran on Draco. The metaball mannequin also covers stages 3–5
   with no GPU.
 - **Rebuild caveat:** a Swarm rebuild from `SiegelingsRBX/web` replaces
