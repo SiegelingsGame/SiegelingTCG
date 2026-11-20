@@ -1,3 +1,29 @@
+Original prompt: Some of the animations are incorrect, generoot for example is idle doing his faint animation, there are others as well can you review these. (Follow-up: Shellpack is the worst case, you can't see the model because it's stuck in the curled up animation.)
+
+- November 20, 2026 **Swarm creature animations: audited all 77 models, fixed 13 that played the wrong clip.**
+  - **Cause.** The Meshy conversion (#1254) kept each source's idle/move clips by name, and Swarm idles on the first clip matching `/idle|stand|breath/` (else clip 0) and walks on `/walk|run|move|locomotion/`. Several sources were mislabelled:
+    - Generoot's `Idle_5` was a 0.07 s T-pose, and its `Running` was a stagger-and-collapse that ended lying down.
+    - Shellpack's `Idle` was the curled-in-shell pose for the whole loop.
+    - Cloudpuff's `Idle` shrank to a speck and ballooned about 10x.
+    - Flora Knight's `Running` was a 4.4 s sword combo; Pylord's was an overhead punch; Purseus's was a hovering gesture loop.
+    - Squire Bud, Frostag and Pursula (only `Running`), and Jawby and Staticap (only `Move`), idled on their walk.
+    - Bearzooka's and Bleetstrike's walks travelled 1.7 and 1.3 body lengths and snapped back each loop.
+  - **Change.**
+    - New `tools/models/clip-fixes.json` (per-model fixes, each with a reason) and `fix_clips.mjs` (applies them in place, idempotent, keeps meshopt and WebP):
+      - Mislabelled clips are renamed `Attack`, `Faint`, `Hide`, `Puff` or `Idle`, and kept for later use.
+      - Generoot's T-pose is dropped.
+      - Nine models get a new `Idle` that holds a calm pose from their own clip with a slow sway. The pose is chosen at the clip's smallest footprint.
+      - The two drifting walks are made in-place: the first-to-last key ramp is subtracted from each translation track.
+    - New `review_models.mjs` + `review.html` audit any model set: Swarm's idle/walk pick, contact sheets, and motion flags measured on the skinned pose.
+    - Merged `main`. Its manifest is taken, and this branch's lowercase `draco.glb` is removed so it doesn't collide with `main`'s `Draco.glb` on case-insensitive file systems.
+  - **Verification.**
+    - Before: all 52 animated models were rendered at 0/25/50/75% of every clip and read by eye. Generoot's T-pose and collapse, Shellpack's shell, Cloudpuff's balloon, the mislabelled combos, and the drift and size anomalies were confirmed by 16-sample skinned-pose measurements.
+    - After: `review_models.mjs` shows the 13 fixed models idle on `Idle` and walk on a real walk where one exists. Their idle and walk clips carry no flags; the flags left are on renamed unused clips. Contact sheets show each standing in a natural pose: Shellpack is out of its shell, and Generoot is in his stance.
+    - Bearzooka's and Bleetstrike's walk drift went from 1.7x/1.3x to under 0.35x. A second run of `fix_clips.mjs` changes nothing.
+    - The real `/swarm` in headless Chromium (844x390) fetched all 77 GLBs with HTTP 200 and logged `[models] 77 real creature model(s) available`, and picking Squire Bud shows the model beside the player.
+    - Remaining flags were checked by eye and left as intended: flyers and floaters drifting or flapping (Cindergil, Dracosleaf, Falcool, Shellshock, Sleafwyrm, peatbeak, sleaf, Lumina), and Hotdog's pounce idle.
+    - Not fixed: seven models still have no walk clip and glide (Bonoblade, Emberpup, Flora Knight, Generoot, Lumina, Purseus, Pylord), and 25 have no animations at all.
+
 Original prompt: add a swimming mechanics and oxygen mechanic, make the underwater area much larger with siegelings that spawn underwater and can swim omnidirectional in the water,
 
 - November 19, 2026 **Swarm: swimming, oxygen, a deep ocean and 3D-swimming Water Siegelings.**
@@ -81,6 +107,53 @@ Original prompt: Update this selection screen (Swarm Expedition Gate) make it mo
   - **Change.** Edited `static/swarm/` directly; from now on Swarm work happens in this repo instead of rebuilding from `SiegelingsRBX/web`. `CLAUDE.md` says so. In the bundle, `openRunSetup()` now renders: one compact stats strip (runs, wins, best time, plus a one-line rule summary that is hidden on short landscape screens); the 8 stages as a tight chip grid (4 across on landscape phones, 2 on narrow portrait), with the enemy elements shown as icons beside the "Stage" heading; and the starting Siegelings as small tiles (art, name, level, element, class, stats) where tapping a tile starts the run. That replaces the full-width cards with a separate "Start run with…" button. Only the tile area scrolls, so the stats and stages always stay visible. The new CSS is appended to `index-4S9Xue6A.css` under a `gate-` prefix, because a `.rs` class already exists there. Both includes in `swarm/index.html` are now `?v=2`. "1 runs" is now "1 run".
   - **Verification.** `node --check` on the patched bundle. Headless Chromium with a seeded save of 10 Siegelings, at 874x402 landscape phone, 390x844 portrait and 1920x1080: the panel body never scrolls; on desktop the panel sizes to its content (503px tall); all 8 stages and 10 tiles render with no page errors. Clicking the Frozen Tundra chip set `runStage=frozen` and changed the heading to "enemies: ❄️ Ice". Clicking a tile closed the panel and started the run (`run.active=true`).
 
+Original prompt: (Hugging Face token provided) — generate a real Siegeling model through the pipeline.
+
+- November 17, 2026 **First real 3D Siegeling: Draco ships into Swarm as a rigged, animated model.**
+  - **Change.**
+    - New `tools/models/generate.py` runs stage 2 on a Hugging Face Space with the user's `HF_TOKEN`. The default is Hunyuan3D-2 shape-only; textured Hunyuan and TRELLIS are optional backends.
+    - `prep_art.py` now strips the painted drop shadow, which Hunyuan turned into a slab under the feet. A morphological open on dark pixels in the bottom 22% removes the shadow, then detached specks are dropped.
+    - `rig_animate.py` changes:
+      - `--front +X/-X` turned the wrong way; it is now fixed.
+      - New `--yaw`: Draco's three-quarter art faced 45° off forward.
+      - Generator meshes over 50k triangles first lose marching-cubes fan slivers (588 on Draco).
+      - New `--art` projects the card art from the front, because the Space's texture stage is down.
+    - `swarm/models/draco.glb` (141 KB) and `manifest.json` (`draco`) are added. `registry.json` records how Draco was made.
+  - **Verification.**
+    - Hunyuan3D-2 `/generation_all` failed on the Space ("texgen_worker is not defined").
+    - TRELLIS returned flat 1 cm cards twice, for both the RGBA and the white-background input.
+    - Hunyuan `/shape_generation` gave a full Draco: crest, curled tail, arms, legs. With the shadow stripped there is no ground slab. `generate.py` reproduces the same 9.37 MB mesh byte for byte, and the scripted shadow strip matches the hand-made input pixel for pixel.
+    - Rigging dropped 588 slivers, decimated 605,696 → 6,000 triangles, built 12 bones with bone-heat weights (no envelope fallback) and exported all six clips.
+    - three.js renders show every clip deforming with the art colours: walk strides, attack lunges, cheer hops, fainted lies down.
+    - The gate passed (141 KB). `selftest.mjs` passes.
+    - In headless Chromium at 844x390, `/swarm` requested `draco.glb`, and choosing Draco as the starter shows the 3D model following the player instead of the stand-in.
+    - Known flaw: art outlines project as dark streaks on side surfaces.
+
+Original prompt: Ok do it the best way you think I allow (run Blender and try image-to-3D for the 3D model pipeline).
+
+- November 17, 2026 **3D model pipeline: Blender stage proven end to end, body plans fixed for the upright roster.**
+  - **Change.** The preview showed that most Siegelings stand on two legs.
+    - `rig_animate.py` gains `biped_tail` (upright lizards: Draco, Solgator) and `winged_biped` (birds: Hurricrane).
+    - `prep_art.py` now defaults rows to `biped`, or `winged_biped` when `flying`.
+    - `registry.json` is re-planned: 70 biped, 18 winged biped, and 11 pilot rows checked against their art.
+    - New `blender/mannequin.py` builds a stand-in for an image-to-3D result: one fused, textured metaball mesh at an arbitrary scale and offset. It lets stages 3–5 run without a GPU. It is never shipped.
+  - **Verification.**
+    - Blender 4.4.3 headless rigged the `biped_tail` mannequin: 7,380 → 6,000 triangles, 12 bones, bone-heat weights with no envelope fallback, all six clips exported.
+    - three.js r128 rendered each clip, front and side. Attack swings the arm and leans the head, cheer jumps, and fainted lies down. Walk at frames 0 and 15 shows the legs alternate stride and the tail sway.
+    - `ship_model.mjs` passed the gate (100 KB, meshopt + WebP). The real `/swarm` bundle requested the model in Draco's slot and logged no stand-in fallback.
+    - Stage 2 could not run: Hunyuan3D-2 and TRELLIS on Hugging Face both refused anonymous runs from this cloud IP (ZeroGPU quota). The user declined to add a Hugging Face token.
+
+Original prompt: Examine the links https://x.com/thegreatest_sv/status/2122353750912483747 lets develop a workflow for creating dynamic siegeling models
+
+- November 17, 2026 **A pipeline for 3D Siegeling models: card art to rigged, animated GLB, shipped into Swarm.**
+  - **Change.** The post lists open-source AI 3D tools: Hunyuan3D-2, TRELLIS, InstantMesh, MeshAnything, Blender MCP and three.js. The new `tools/models/` turns those into a five-stage workflow, documented in its `README.md`:
+    - `prep_art.py` reads the 94 creature records in the Swarm bundle. It writes centred 1024² image-to-3D inputs to `work/` (gitignored) and seeds `registry.json` with a body plan per creature (`winged` inferred from `flying`, `crawling` kept as a flag) and a status.
+    - Image-to-3D runs on a GPU outside this repo; Hunyuan3D-2 is the default.
+    - `blender/rig_animate.py` is a headless Blender script. It cleans and decimates the mesh, places a body-plan template skeleton from the bounding box and skins it with bone heat (envelope fallback). It then keys idle, walk, attack, hurt, cheer and fainted (the 2D sprite poses) as separate glTF animations.
+    - `check_model.mjs` is the gate. It checks the size, triangle and texture budgets, the skin, meshopt, and that the clip names match the regexes Swarm's loader uses for idle and walk.
+    - `ship_model.mjs` runs gltf-transform `optimize` (meshopt, WebP 1024), gates the result, then writes `swarm/models/<id>.glb` and the `manifest.json` entry the bundle already fetches.
+    - No game code changed, and no model is shipped yet.
+  - **Verification.** `prep_art.py` ran on all 94 creatures. The first run missed Solgator because a JS-escaped quote in its description broke `json.loads`; that is now handled. `node selftest.mjs` passes 6/6. It builds a synthetic two-joint skinned, textured GLB with all six clips; the gate rejects a copy with no walk clip; after optimize the skin, all six clips and meshopt are intact and the manifest maps `draco`. Headless Chromium loaded the real `/swarm/index.html` with the manifest and GLB requests routed to the shipped self-test file. The bundle logged `[models] 1 real creature model(s) available`, requested `draco.glb` and logged no "keeping the stand-in" warning. The two `Texture marked for update` warnings also appear with an empty manifest, so they predate this change. `rig_animate.py` only passes `py_compile`, because Blender could not be installed in this session. The hosted Hunyuan3D-2 run was not attempted, because it would upload card art to a third party.
 Original prompt: Multi touch for movement and camera is not working correctly.
 
 - November 17, 2026 **Swarm: two-finger touch fixed (move and camera at once).**

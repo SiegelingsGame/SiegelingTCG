@@ -1,0 +1,47 @@
+{
+  "_doc": "Per-model animation fixes applied by fix_clips.mjs to swarm/models/*.glb. Swarm idles on the first clip matching /idle|stand|breath/ (else clip 0) and walks on /walk|run|move|locomotion/, so names decide what plays. Found by review_models.cjs on 2026-11-20. Ops: rename [from, to]; drop name; idleFrom {clip, at seconds}: a new 'Idle' that holds a calm pose from that clip with a slow sway; inPlace name: remove root travel so the walk stays on the spot.",
+  "Shellpack.glb": [
+    { "rename": ["Armature|Armature|Idle", "Hide"], "why": "the idle was the curled-in-shell pose for the whole loop; the creature was never visible standing still" },
+    { "idleFrom": { "clip": "Armature|Armature|Move", "at": 0.547 } }
+  ],
+  "Cloudpuff.glb": [
+    { "rename": ["Armature|Armature|Idle", "Puff"], "why": "the idle shrank the body to a speck then ballooned it about 10x" },
+    { "idleFrom": { "clip": "Armature|Armature|Move", "at": 0 } }
+  ],
+  "Generoot.glb": [
+    { "drop": "Armature|Idle_5", "why": "0.07 s T-pose, so Generoot stood frozen with arms out" },
+    { "rename": ["Armature|Running", "Faint"], "why": "a stagger-and-collapse clip, not a run; it ended lying on the ground" },
+    { "idleFrom": { "clip": "Faint", "at": 0.94 } }
+  ],
+  "FloraKnight.glb": [
+    { "rename": ["Armature|Running", "Attack"], "why": "a 4.4 s sword-and-shield combo with a leap, played as both idle and walk" },
+    { "idleFrom": { "clip": "Attack", "at": 2.75 } }
+  ],
+  "Purseus.glb": [
+    { "rename": ["Armature|Running", "Idle"], "why": "a hovering, gesturing loop: fine standing still, wrong as a walk" }
+  ],
+  "Pylord.glb": [
+    { "rename": ["Armature|Running", "Attack"], "why": "a 5.4 s overhead punch, played as the walk" }
+  ],
+  "Jawby.glb": [
+    { "idleFrom": { "clip": "Armature|Armature|Move", "at": 1.016 }, "why": "only a Move clip, so it swam in place while idle" }
+  ],
+  "Staticap.glb": [
+    { "idleFrom": { "clip": "Move", "at": 0.859 }, "why": "only a Move clip, so it walked in place while idle" }
+  ],
+  "SquireBud.glb": [
+    { "idleFrom": { "clip": "Armature|Running", "at": 0.25 }, "why": "only a Running clip, so it ran in place while idle" }
+  ],
+  "Frostag.glb": [
+    { "idleFrom": { "clip": "Armature|Running", "at": 0.25 }, "why": "only a Running clip, so it ran in place while idle" }
+  ],
+  "Pursula.glb": [
+    { "idleFrom": { "clip": "Armature|Running", "at": 0.333 }, "why": "only a Running clip, so it ran in place while idle" }
+  ],
+  "Bearzooka.glb": [
+    { "inPlace": "Armature|Armature|Move", "why": "the walk travelled 1.7 body lengths and snapped back every 6.8 s" }
+  ],
+  "Bleetstrike.glb": [
+    { "inPlace": "Armature|Armature|Move", "why": "the walk travelled 1.3 body lengths and snapped back each loop" }
+  ]
+}

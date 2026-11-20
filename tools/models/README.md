@@ -1,0 +1,178 @@
+# Siegeling 3D models: card art → rigged, animated GLB
+
+The pipeline turns a Siegeling's 2D art into a 3D model that moves. The source
+is a 2026-11-16 post listing open-source AI 3D tools: image-to-3D (Hunyuan3D-2,
+TRELLIS, InstantMesh), retopology (MeshAnything), Blender driven by Claude
+through Blender MCP, Gaussian-splat viewing (SuperSplat), and three.js.
+
+The first consumer is **Swarm** (`/swarm`). Its bundle already has the hook:
+it fetches `/swarm/models/manifest.json` (shipped as `{}`), loads a GLB for any
+creature listed there and falls back to the procedural stand-in otherwise. The
+same GLBs can later go into the Collection card sheet, Siege and the Battle
+Table.
+
+```
+ swarm/art/<id>.webp ─▶ 1 prep_art.py ─▶ work/<id>/input.png
+                                              │
+                        2 image→3D (GPU) ◀────┘   Hunyuan3D-2 (default) / TRELLIS
+                                │
+                         work/<id>/raw.glb
+                                │
+                        3 blender/rig_animate.py  (headless; fix-ups via Blender MCP)
+                                │
+                         work/<id>/rigged.glb
+                                │
+                        4 check_model.mjs  ◀── gate, run inside 5
+                        5 ship_model.mjs   ─▶ swarm/models/<id>.glb + manifest.json
+```
+
+## What the game expects (from the Swarm loader)
+
+| Rule | Why |
+|---|---|
+| `manifest.json` maps the lowercased `modelName` (or `id`) to a file name | This is the loader's lookup key |
+| Clip names matching `/idle\|stand\|breath/` and `/walk\|run\|move\|locomotion/` | Swarm plays these two. With no walk clip the model glides; with no idle it idles on clip 0 |
+| Also `attack`, `hurt`, `cheer`, `fainted` | Same poses as the 2D Siege sprites (`img/sprites/<id>/`), for the TCG views |
+| Any scale or origin is fine | Swarm scales the longest side to `modelDisplaySize × modelScaleMultiplier` and puts the feet on the ground |
+| Faces glTF +Z | Fix a wrong facing per creature with `modelRotationY` / `modelStandUpAngles` in the creature data instead of re-exporting |
+| ≤ 1.5 MB, ≤ 10k triangles, textures ≤ 1024 px, meshopt | Mobile budget. The loader has the meshopt decoder |
+| Silver/Gold/Legend variants | No extra work: the loader tints the emissive colour |
+
+## Stages
+
+**1. Prep:** `python3 tools/models/prep_art.py [--only draco,dracoil]`
+Reads the creature records from the Swarm bundle (94 Siegelings) and writes
+`work/<id>/input.png`: 1024², subject centred with a 12% margin so wings and
+tails are not cut off, and the painted drop shadow removed (otherwise it becomes
+a slab of geometry under the feet). It also writes a copy on white and the
+unstripped original. It also seeds `registry.json`. In
+each row, check `bodyPlan` before rigging: `biped`, `biped_tail` (upright
+lizards: Draco, Solgator), `winged_biped` (birds: Hurricrane), `quadruped`,
+`winged`, `serpent`, `floater`, `blob`. Most of the roster stands upright, so
+rows default to `biped`, or `winged_biped` when `flying`. The 11 pilot rows
+were checked against their art. Re-running keeps your edits.
+
+**2. Image→3D:** `HF_TOKEN=hf_... python3 tools/models/generate.py <id> [--backend hunyuan-shape|hunyuan|trellis]`
+runs a public Hugging Face Space and writes `work/<id>/raw.glb`. It needs a
+free Hugging Face read token, because anonymous cloud IPs get no GPU quota.
+The default, `hunyuan-shape`, takes about 7 s of GPU per creature and gives the
+best shapes for this roster. Its texture stage is down on the Space, so rig
+with `--art` (stage 3) to project the card art on. TRELLIS gave flat cards for
+Draco's pixel-art style.
+Other routes:
+- *Own machine or a rented GPU:* `Hunyuan3D-2` → `python minimal_demo.py`-style
+  `Hunyuan3DDiTFlowMatchingPipeline` + `Hunyuan3DPaintPipeline` on
+  `work/<id>/input.png`. Save the output as `work/<id>/raw.glb`.
+- *Hosted:* the public Space `tencent/Hunyuan3D-2` (`/generation_all`, via
+  `gradio_client`) or a paid API. This uploads your card art to a third party,
+  so it is opt-in.
+- *Better inputs:* the `Hunyuan3D-2mv` multi-view pipeline accepts front, back,
+  left and right images. The Siege sprite sheets have a side view; drawing a
+  back view gives the cleanest bodies.
+- *TRELLIS* is the fallback for creatures Hunyuan mangles, such as thin limbs
+  or fins. *InstantMesh* is faster but gives lower-quality textures.
+- *MeshAnything* gives artist-style low-poly topology (≤800 faces). Use it for
+  untextured distant LODs, not hero models: it drops the texture.
+
+Hand-check every result before rigging, looking for extra limbs, a fused jaw
+or a flat back.
+
+**3. Rig + animate** (Blender 4.2+; 4.4.3 tested):
+```
+blender -b -P tools/models/blender/rig_animate.py -- \
+  --in tools/models/work/draco/raw.glb --out tools/models/work/draco/rigged.glb \
+  --plan biped_tail [--front -Y] [--yaw 45] [--tris 6000] [--art $PWD/tools/models/work/draco/input.png]
+```
+`--art` paints the input image onto the mesh by straight front projection,
+for untextured generator output. `--yaw` turns three-quarter-view creatures to
+face forward. Draco needed 45. Generator meshes over 50k triangles first lose
+their marching-cubes "fan" slivers.
+The script:
+1. Merges and cleans the mesh, then decimates it to the triangle budget.
+2. Places a template skeleton for the body plan from the mesh's bounding box.
+3. Skins it with bone-heat weights, falling back to envelopes when heat fails
+   on a non-manifold AI mesh.
+4. Keys the six clips and exports one glTF animation per clip.
+
+`--front` turns the raw mesh to face forward when the generator faced it
+elsewhere.
+
+For the hand pass, open the same file in Blender with the
+[Blender MCP](https://github.com/ahujasid/blender-mcp) add-on connected to
+Claude on your machine. Ask Claude for things like "the left wing doesn't
+move — reweight it to wing_L" or "make Draco's attack a tail whip". Then
+re-export using the `export()` settings in the script, which keep each clip as
+its own action.
+
+**4–5. Gate and ship:**
+```
+cd tools/models && npm install          # once
+node ship_model.mjs draco work/draco/rigged.glb [--dest <dir>]
+node check_model.mjs some.glb           # gate alone
+node selftest.mjs                       # proves 4–5 with a synthetic rigged GLB
+```
+`ship_model.mjs` runs gltf-transform `optimize` (meshopt, WebP textures at
+1024, no second simplify pass on the skinned mesh). It then runs the gate,
+copies the model into `swarm/models/` and updates `manifest.json`. Finally it
+marks the creature `shipped` in `registry.json`.
+
+> **Swarm is a prebuilt bundle.** `npm run build:tcg` in `SiegelingsRBX/web`
+> replaces `static/swarm/`. Ship models into that repo's public `models/`
+> folder too (`--dest`), or a rebuild loses them.
+
+## Order of work
+
+1. **Pilot:** Draco and Dracoil, one evolution line, quadruped and winged.
+   Run every stage by hand and tune `rig_animate.py`'s clip table against
+   Draco's 2D sprite strips.
+2. **Starters and pack spawns:** the creatures players see most in Swarm.
+3. **Batch:** script stages 2–5 over `registry.json` rows where `status` is
+   `prepped`. Keep the hand-check after stage 2 and a 10-second look at each
+   shipped model in `/swarm`.
+4. **TCG reuse:** load the same GLBs in the Collection card sheet's 3D tab
+   (three.js or `<model-viewer>`), behind the 2D art.
+
+## Test mannequin
+
+`blender/mannequin.py --plan <plan> --out work/_mannequin/raw.glb` builds a
+stand-in for an image-to-3D result. It is one fused, textured metaball surface
+at an arbitrary scale and offset, and it exercises stages 3–5 with no GPU.
+Never ship it.
+
+## Auditing and fixing existing models
+
+The 77 Meshy-library models in `swarm/models/` (PR #1254) came with whatever
+clips their sources had, and the names decide what Swarm plays. To audit them:
+
+```
+node tools/models/review_models.mjs [--only Shellpack,Generoot]
+```
+
+This prints, for each model, the clip Swarm idles and walks on, plus motion
+flags measured on the skinned pose: frozen, drops (lying down), drifts (root
+motion), size swings and loop jumps. It writes one contact sheet per model, at
+0/25/50/75% of every clip, to `work/_review/`. Read the sheet before acting on
+a flag: wing flaps and floating creatures trip "size" and "drifts" honestly.
+
+Fixes are data in `clip-fixes.json`, applied in place by
+`node tools/models/fix_clips.mjs` (idempotent, keeps meshopt and WebP):
+- `rename`: give a clip a truthful name. A mislabelled attack becomes `Attack`,
+  so Swarm stops walking on it but the clip is kept.
+- `drop`: remove a clip.
+- `idleFrom`: build a new `Idle` from a calm moment of another clip. It holds
+  that pose and sways 35% toward a pose 10% later, over 2.4 s.
+- `inPlace`: remove the travel from a walk that moves off its spot.
+
+## Status
+
+- The Hunyuan Draco pilot proved all five stages; see progress.md. `main` has
+  since added a Meshy `Draco.glb`, and that one ships instead: a lowercase
+  `draco.glb` beside it would collide on case-insensitive file systems.
+- 13 Meshy models had wrong clips and are fixed (`clip-fixes.json`). Seven
+  still have no walk clip (they glide), and 25 have no animations at all.
+  Those 32 are candidates for `rig_animate.py`.
+- All five stages ran on Draco. The metaball mannequin also covers stages 3–5
+  with no GPU.
+- **Rebuild caveat:** a Swarm rebuild from `SiegelingsRBX/web` replaces
+  `static/swarm/`. Copy `draco.glb` and `manifest.json` into that repo's public
+  `models/` folder before the next rebuild.
