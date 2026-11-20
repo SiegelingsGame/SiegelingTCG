@@ -4537,6 +4537,34 @@ function getViewportModeLabel() {
 // trapped the strip inside the overflow-hidden rail on real devices while
 // desktop emulation looked fine. Reparenting to <body> guarantees the
 // viewport is the containing block everywhere.
+// Wide desktop (the full sidebar dock on a landscape screen) gives the arena
+// the whole height: the hub header gives way to the shield FAB and the phase
+// strip moves into the side panel, so the board is sized from the viewport
+// instead of what is left under two header bars.
+function isArenaDeskLayout() {
+    return isDesktopSidebarLayout()
+        && !isTabletPortraitDockLayout()
+        && window.matchMedia('(min-width: 1201px) and (orientation: landscape)').matches;
+}
+
+// The phase strip keeps its ids wherever it lives, so moving the node is
+// enough for every renderer that updates it.
+function syncArenaDeskTopBar() {
+    const bar = document.querySelector('.top-bar');
+    const menu = document.getElementById('desktopMenu');
+    const mobileHud = document.getElementById('mobileHud');
+    if (!bar || !menu || !mobileHud) {
+        return;
+    }
+    if (isArenaDeskLayout()) {
+        if (bar.parentElement !== menu) {
+            menu.insertBefore(bar, menu.firstChild);
+        }
+    } else if (bar.parentElement === menu) {
+        mobileHud.parentElement.insertBefore(bar, mobileHud);
+    }
+}
+
 function syncLandscapeAuxHud() {
     const aux = document.querySelector('.action-bar-aux');
     const bar = document.getElementById('actionBar');
@@ -4695,6 +4723,9 @@ function updateResponsiveLayoutVars(force = false) {
     }
     lastViewportSignature = signature;
     syncLandscapeAuxHud();
+    const arenaDesk = isArenaDeskLayout();
+    document.body.classList.toggle('arena-desk', arenaDesk);
+    syncArenaDeskTopBar();
     if (usesLandscapeInspectorMenuDock() && activeDrawer) {
         closeDrawer(true);
     }
@@ -4929,6 +4960,48 @@ function updateResponsiveLayoutVars(force = false) {
             Math.max(compactPreviewMin, compactPreviewMax)
         ));
         previewCardMaxHeight = Math.round(previewCardWidth * cardAspectHeight);
+    }
+    if (arenaDesk) {
+        // One rail column (enemy over player, each beside its own board half),
+        // the arena at the board's real size, and everything else for the card
+        // inspector and a hand of full-size cards.
+        const deskGutter = Math.round(clampNumber(viewportWidth * 0.006, 8, 16));
+        const deskGap = Math.round(clampNumber(viewportWidth * 0.007, 10, 18));
+        const deskArenaHeight = Math.max(0, viewportHeight - (deskGutter * 2));
+        const deskBoardWidth = Math.round(Math.min(
+            Math.round(clampNumber(viewportHeight * 0.5, 360, 760)),
+            Math.max(0, ((deskArenaHeight - boardHeightOffset) / 2) / boardHeightRatio)
+        ));
+        const deskRailWidth = Math.round(clampNumber(viewportWidth * 0.135, 236, 320));
+        const deskArenaWidth = Math.round(deskBoardWidth + clampNumber(deskBoardWidth * 0.45, 120, 280));
+        const deskSidebarWidth = Math.max(420,
+            viewportWidth - (deskGutter * 2) - (deskGap * 2) - deskRailWidth - deskArenaWidth);
+        // Hand cards are sized by height (syncDesktopHandSelectorCardScale),
+        // capped so six of them fit across the panel.
+        const deskHandCardWidth = Math.round(clampNumber(
+            Math.min(viewportHeight * 0.17, (deskSidebarWidth - 48 - (desktopHandGap * 4)) / 5),
+            104,
+            200
+        ));
+        const deskHandSection = Math.round((deskHandCardWidth * cardAspectHeight) + 46);
+        // Inspector gets what is left of the column after the phase strip,
+        // tabs, hand, action row and paddings.
+        const deskPreviewHeight = Math.round(clampNumber(
+            viewportHeight - (deskGutter * 2) - deskHandSection - 210,
+            200,
+            560
+        ));
+        desktopHudRailWidth = deskRailWidth;
+        sidebarWidth = deskSidebarWidth;
+        desktopArenaColumnWidth = deskArenaWidth;
+        handWidth = deskHandCardWidth;
+        desktopHandSectionMinHeight = deskHandSection;
+        desktopHandSectionHeight = deskHandSection;
+        previewCardMaxHeight = deskPreviewHeight;
+        previewCardWidth = Math.round(Math.min(deskPreviewHeight * (5 / 7), deskSidebarWidth * 0.42));
+        previewCardMaxHeight = Math.round(previewCardWidth * cardAspectHeight);
+        root.style.setProperty('--arena-desk-gutter', `${deskGutter}px`);
+        root.style.setProperty('--arena-desk-gap', `${deskGap}px`);
     }
     const overlayWidth = Math.round(clampNumber(viewportWidth * 0.92, 320, 1180));
     const overlayPadding = Math.round(clampNumber(Math.min(viewportWidth, viewportHeight) * 0.026, 14, 28));
@@ -10230,13 +10303,16 @@ function returnToHome(screen) {
         : screen === 'play' ? '/home?screen=play' : '/home';
 }
 
-// The shield FAB belongs to the loadout, a launch screen; the battle table
-// keeps its own chrome, so the FAB hides whenever the loadout does.
+// The shield FAB belongs to the loadout, a launch screen. Phones and tablets
+// keep the battle table's own chrome, so there it hides with the loadout; the
+// wide desktop table has no hub header and uses the FAB as its navigation.
 function mountLoadoutShieldNavigation(overlay) {
     if (!window.SiegelingsShieldNavigation) return;
     const nav = window.SiegelingsShieldNavigation.mountLinks();
-    const sync = () => nav.setHidden(!overlay.classList.contains('visible'));
+    const sync = () => nav.setHidden(!overlay.classList.contains('visible')
+        && !(document.body.classList.contains('arena-desk') && document.body.classList.contains('gameplay-active')));
     new MutationObserver(sync).observe(overlay, { attributes: true, attributeFilter: ['class'] });
+    new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class'] });
     sync();
 }
 
@@ -15456,8 +15532,10 @@ function syncDesktopHandSelectorCardScale() {
     // Desktop holds one card size for the whole match. Dividing the rail by the
     // live hand count made every card grow or shrink each time a card was drawn,
     // played, or discarded; the rail scrolls past the reference row instead.
+    // The arena desk's panel is narrower on a 1440-1600 screen, so it sizes
+    // for five across; wider screens hit the height cap first anyway.
     const visibleCards = isDesktopSidebarLayout()
-        ? HAND_SELECTOR_DESKTOP_CARD_SLOTS
+        ? (isArenaDeskLayout() ? 5 : HAND_SELECTOR_DESKTOP_CARD_SLOTS)
         : Math.max(1, handCards.querySelectorAll('.hand-card').length || 5);
     const root = document.documentElement;
 
