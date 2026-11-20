@@ -6978,7 +6978,7 @@
 
     var art = $('gachaArt');
     art.innerHTML = r.artUrl
-      ? '<img ' + artImgAttrs(r.artUrl, 480, 'this.parentNode.innerHTML=\'<span class=&quot;gacha-fallback&quot;>' + icon(r.element) + '</span>\'') + ' alt="">'
+      ? '<img ' + artImgAttrs(r.artUrl, 960, 'this.parentNode.innerHTML=\'<span class=&quot;gacha-fallback&quot;>' + icon(r.element) + '</span>\'') + ' alt="">'
       : '<span class="gacha-fallback">' + icon(r.element) + '</span>';
 
     // Sparkle field
