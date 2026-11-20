@@ -2222,6 +2222,46 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
 .gacha-spark{position:absolute; color:#fff; opacity:0; animation:gachaTwinkle 2.6s ease-in-out infinite;}
 @keyframes gachaTwinkle{0%,100%{opacity:0; transform:scale(.4);} 50%{opacity:.9; transform:scale(1.15);}}
 
+/* Full-bleed shell: the reveal owns the whole viewport (same fixed shell as the
+   amp picker, topbar floating over it). As an inset rounded card the ray burst
+   was clipped at visible card edges and the page background showed in the
+   gutters and below the card on tall phones. The art takes the free height so
+   the reveal fills the frame instead of leaving dead bands. */
+body[data-screen="recruitScreen"] .siege-screen{
+  flex:1 1 auto; min-height:0; padding:0; display:flex; flex-direction:column;
+  width:100%; align-self:stretch;
+}
+/* Fixed to the layout viewport rather than sized off --siege-vh: the visual
+   viewport stops above the home indicator, so a flow-sized stage left the lower
+   safe area showing the page background. With viewport-fit=cover, inset:0
+   reaches under the home bar; only the padding keeps the Claim button clear. */
+html:has(body[data-screen="recruitScreen"]){ background:#05070b; }
+body[data-screen="recruitScreen"] .gacha-stage{
+  position:fixed; inset:0; z-index:1;
+  min-height:0; width:auto; border-radius:0; gap:8px; justify-content:flex-end;
+  padding:calc(env(safe-area-inset-top, 0px) + 64px) max(16px, env(safe-area-inset-right, 0px))
+          calc(max(env(safe-area-inset-bottom, 0px), 10px) + 10px) max(16px, env(safe-area-inset-left, 0px));
+}
+body[data-screen="recruitScreen"] .gacha-art{
+  flex:1 1 auto; min-height:0; height:auto; width:100%; max-height:62vh;
+  align-items:center;
+}
+body[data-screen="recruitScreen"] .gacha-art img{
+  height:100%; width:auto; max-width:92vw; max-height:100%;
+}
+/* Rays and glow stay centred on the art, which sits above the text block. */
+body[data-screen="recruitScreen"] .gacha-rays,
+body[data-screen="recruitScreen"] .gacha-glow{ top:40%; }
+body[data-screen="recruitScreen"] .gacha-glow{ width:min(90vw,460px); height:min(90vw,460px); }
+body[data-screen="recruitScreen"] .gacha-name{ font-size:clamp(26px,8vw,40px); line-height:1.1; }
+body[data-screen="recruitScreen"] .gacha-stats{ font-size:clamp(13px,3.8vw,16px); }
+body[data-screen="recruitScreen"] .gacha-claim{ margin-top:12px; min-width:min(70vw,280px); }
+/* Soft vignette so the burst fades into the frame rather than ending on a line. */
+body[data-screen="recruitScreen"] .gacha-stage::after{
+  content:""; position:absolute; inset:0; z-index:1; pointer-events:none;
+  background:radial-gradient(ellipse 120% 90% at 50% 40%, transparent 55%, rgba(3,4,8,.65) 100%);
+}
+
 /* stage rarity theming */
 .gacha-stage.stage1 .gacha-banner{color:#8fb7e8;}
 .gacha-stage.stage2{background:radial-gradient(ellipse at 50% 45%, #241c36 0%, #0d0b15 70%);}
@@ -2295,19 +2335,23 @@ body.siege-drag-active .sprite.drop-hover .sp-art{ filter:drop-shadow(0 0 18px r
    of the post-battle moment), but the cards are text-only — an amplification
    has no art, just a before -> after — so they are compact instead of the
    reward screen's full-height sigils. */
-body[data-screen="ampScreen"]{ background:#05070b; height:var(--siege-vh,100dvh); overflow:hidden; }
-body[data-screen="ampScreen"] .siege-app{
+body[data-screen="ampScreen"],
+body[data-screen="recruitScreen"]{ background:#05070b; height:var(--siege-vh,100dvh); overflow:hidden; }
+body[data-screen="ampScreen"] .siege-app,
+body[data-screen="recruitScreen"] .siege-app{
   position:relative; max-width:none; width:100%;
   height:var(--siege-vh,100dvh); min-height:0; overflow:hidden; padding:0;
   display:flex; flex-direction:column;
 }
-body[data-screen="ampScreen"] .siege-topbar{
+body[data-screen="ampScreen"] .siege-topbar,
+body[data-screen="recruitScreen"] .siege-topbar{
   position:absolute; top:0; left:0; right:0; z-index:14; pointer-events:none;
   padding:calc(env(safe-area-inset-top, 0px) + 7px) max(12px, env(safe-area-inset-right, 0px)) 26px
           max(12px, env(safe-area-inset-left, 0px));
   background:linear-gradient(180deg,rgba(4,7,12,.72),rgba(4,7,12,.3) 55%,transparent);
 }
-body[data-screen="ampScreen"] .siege-topbar > *{ pointer-events:auto; }
+body[data-screen="ampScreen"] .siege-topbar > *,
+body[data-screen="recruitScreen"] .siege-topbar > *{ pointer-events:auto; }
 body[data-screen="ampScreen"] .siege-screen{
   flex:1 1 auto; min-height:0; padding:0; display:flex; flex-direction:column;
 }
@@ -2854,8 +2898,6 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
   .camp-grid, .siegeling-grid, .knight-grid{
     grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
   }
-  .gacha-stage{ min-height:calc(100dvh - 56px); }
-  .gacha-art{ height:min(38vh,300px); }
 }
 
 @media (max-width:760px){
@@ -3367,7 +3409,7 @@ body[data-screen="minigameScreen"] #mgActions{ margin-top:12px; }
 
   /* The remaining (page-scrolling) screens keep a readable column rather than
      stretching prose across 2000px — only their grids spend the new width. */
-  body:not([data-screen="mapScreen"]):not([data-screen="battleScreen"]) .siege-screen{
+  body:not([data-screen="mapScreen"]):not([data-screen="battleScreen"]):not([data-screen="recruitScreen"]) .siege-screen{
     max-width:1280px; margin:0 auto;
   }
 }
