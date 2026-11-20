@@ -1,3 +1,16 @@
+Original prompt: Now swarm existence seems to be slowing down the rest of the app, so not load anything for swarm until the option is selected.
+
+- November 20, 2026 **Swarm no longer fills the app's offline caches: the service worker leaves /swarm alone.**
+  - **Cause.** The rest of the app makes no Swarm requests; the hub loads 52 files and none are under `/swarm`. But `sw.js` cached every same-origin GET. One Swarm visit fetches about 96 files, including ~56 GLB models, and storage went from 6.8 MB to 62.4 MB:
+    - 53.4 MB of models went into the unbounded static cache.
+    - 34 Swarm images went into the 120-entry image cache, pushing card art out.
+    On phones that much storage and disk writing slows the rest of the app, and iOS may evict the whole origin's storage under pressure.
+  - **Change.** `sw.js` returns early for `/swarm` and `/swarm/*`, so Swarm uses only the browser's HTTP cache. `CACHE_VERSION` v10 → v11 sweeps what earlier visits already cached. Nothing loads for Swarm until it is opened from the shield FAB.
+  - **Verification.** Headless Chromium with a persistent profile on a local static server:
+    - Upgrade: a profile that had already opened Swarm under v10 (62.6 MB, 59 Swarm entries) dropped to 0.2 MB once the new worker activated.
+    - Under v11, opening Swarm still loaded all 96 files and 56 models, while cache storage stayed at 4.2 MB with 0 Swarm entries.
+    - The hub made 0 `/swarm` requests before and after. `node --check sw.js` passes.
+
 Original prompt: Some of the animations are incorrect, generoot for example is idle doing his faint animation, there are others as well can you review these. (Follow-up: Shellpack is the worst case, you can't see the model because it's stuck in the curled up animation.)
 
 - November 20, 2026 **Swarm creature animations: audited all 77 models, fixed 13 that played the wrong clip.**
