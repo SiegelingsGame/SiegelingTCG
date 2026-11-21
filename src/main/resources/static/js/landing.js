@@ -1890,6 +1890,66 @@
         });
     }
 
+    function bindLandingCards() {
+        const cards = [...document.querySelectorAll('.landing-body > section, .landing-body > .landing-footer')];
+        if (!cards.length || !('IntersectionObserver' in window)) return;
+
+        const pieceSelectors = [
+            '.hero-content', '.hero-scroll-hint', '.landing-section-heading',
+            '.roster-marquee', '.roster-collection-link', '.finish-picker',
+            '.finish-blurb', '.rarity-row', '.creatures-header',
+            '.legendary-row', '.knight-rail', '.modes-head',
+            '.modes-pane > .placement-section', '.mode-extra-links',
+            '.element-rail', '.world-marquee', '.arena-visual',
+            '.arena-copy', '.about-inner', '.footer-inner'
+        ].join(', ');
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+        let currentIndex = 0;
+
+        cards.forEach((card, index) => {
+            card.classList.add('landing-card');
+            card.dataset.cardIndex = String(index);
+            card.querySelectorAll(pieceSelectors).forEach(piece => {
+                if (!piece.parentElement?.closest(pieceSelectors)) piece.classList.add('card-piece');
+            });
+        });
+
+        function enterCard(card) {
+            const index = Number(card.dataset.cardIndex);
+            const direction = index >= currentIndex ? 1 : -1;
+            currentIndex = index;
+            card.classList.add('is-active');
+            if (reducedMotion.matches || (index === 0 && !card.dataset.cardSeen)) {
+                card.dataset.cardSeen = 'true';
+                return;
+            }
+            card.querySelectorAll('.card-piece').forEach((piece, order) => {
+                piece.getAnimations().forEach(animation => animation.cancel());
+                const lateral = (order % 2 ? -1 : 1) * Math.min(70, 26 + order * 9);
+                piece.animate([
+                    { opacity: 0, transform: `translate3d(${lateral}px, ${direction * 58}px, 0) scale(.94) rotate(${lateral > 0 ? 2 : -2}deg)`, filter: 'blur(8px)' },
+                    { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1) rotate(0)', filter: 'blur(0)' }
+                ], {
+                    duration: 680,
+                    delay: Math.min(order, 7) * 85,
+                    easing: 'cubic-bezier(.2,.75,.2,1)',
+                    fill: 'both'
+                }).onfinish = event => event.target.cancel();
+            });
+            card.dataset.cardSeen = 'true';
+        }
+
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) enterCard(entry.target);
+                else if (entry.target.dataset.cardIndex !== '0') entry.target.classList.remove('is-active');
+            });
+        }, { root: document.body, threshold: .2 });
+        cards.forEach(card => observer.observe(card));
+        cards[0].classList.add('is-active');
+        document.body.classList.add('card-motion-ready');
+    }
+
     function init() {
         bindHeroArtStage();
         renderElementRail();
@@ -1900,6 +1960,7 @@
         renderRarityRow();
         bindPlacementDemo();
         bindLandingFab();
+        bindLandingCards();
         bindParallax();
         bindTrailerModal();
         bindLoginModal();
