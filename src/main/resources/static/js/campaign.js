@@ -291,7 +291,10 @@
     var stage = $(stageId);
     if (!stage) return null;
     // Remount when switching sanctuary ↔ land stages.
-    if (state.overworld) state.overworld.enable(false);
+    if (state.overworld) {
+      state.overworld.enable(false);
+      if (state.overworld.dispose) state.overworld.dispose();
+    }
     state.overworld = new window.CampaignOverworld({
       root: stage,
       onInteract: handleOverworldAct,

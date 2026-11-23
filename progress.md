@@ -1,3 +1,9 @@
+Original prompt: The map is 2d the world should be 2.5d with 2d sprites moving in a 3d space made by the pixel assets similar to the animevsplus2 — Use the repo to see how that is built https://github.com/SiegelingsGame/AnimeVsPlus2
+
+- November 23, 2026 **Campaign overworld → true HD-2D (AnimeVsPlus2 Three.js).**
+  - **Change.** Sanctuary / realm walkabout now renders through vendored `three.min.js` + `campaign-world3d.js` (PerspectiveCamera ~38°, golden-hour DirectionalLight + shadows, 3D box buildings with Egypt pixel faces, palm/Bob billboards, single ground atlas). `campaign-overworld.js` keeps stick/WASD/hotspots and falls back to the old CSS plane only if WebGL is missing. ResizeObserver + enable()-time resize fix the hidden-stage 2×2 canvas. Pins: `campaign.css?v=8`, `campaign-world3d.js?v=5`, `campaign-overworld.js?v=6`, `campaign.js?v=9`. Fixture: `campaign-world3d-fixture.html` (Hosting-ignored).
+  - **Verification.** `node --check` on world3d/overworld/campaign.js. Playwright + browser: fixture and `/campaign` Sanctuary show `is-hd2d` + non-trivial `.cm-ow3-canvas`; Bob walks; near-building `!` + prompt. Artifacts: `campaign-hd2d-ground-atlas.png`, `campaign-hd2d-sanctuary-auto.png`, `campaign-hd2d-near-prompt.png`.
+
 Original prompt: Use the pixel based assets to create a starting town and nearby woods for this game. Similar to my anime Vs + Map
 
 - November 23, 2026 **Sanctuary Plaza town + Palm Woods (Anime Vs style).**

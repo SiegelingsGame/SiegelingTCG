@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Campaign HD-2D fixture</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #1a1420; overflow: hidden; }
+    #host { position: absolute; inset: 0; }
+    #hud {
+      position: absolute; left: 12px; top: 12px; z-index: 2;
+      color: #f3e7c2; font: 13px/1.4 ui-sans-serif, system-ui;
+      text-shadow: 0 1px 4px #000; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">HD-2D Sanctuary fixture — WASD / arrows · A interact</div>
+  <div id="host"></div>
+  <script src="/js/vendor/three.min.js"></script>
+  <link rel="stylesheet" href="/css/campaign.css?v=8">
+  <script src="/js/campaign-world3d.js?v=5"></script>
+  <script src="/js/campaign-overworld.js?v=6"></script>
+  <script>
+    var root = document.getElementById('host');
+    var ow = new CampaignOverworld({
+      root: root,
+      onInteract: function (act, b) {
+        document.getElementById('hud').textContent = 'Interact: ' + act + ' · ' + (b && b.label);
+      }
+    });
+    ow.mount();
+    ow.loadSanctuary({
+      message: 'Fixture plaza',
+      gold: 120,
+      rallies: 1,
+      lands: [
+        { id: 'ember-vale', name: 'Ember Vale', elements: ['Fire'], unlocked: true },
+        { id: 'frost-hollow', name: 'Frost Hollow', elements: ['Ice'], unlocked: true }
+      ],
+      follower: { id: 'cacty' }
+    });
+    ow.enable(true);
+  </script>
+</body>
+</html>
