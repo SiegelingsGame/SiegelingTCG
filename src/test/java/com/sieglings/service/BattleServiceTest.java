@@ -10,6 +10,7 @@ import com.sieglings.model.Notch;
 import com.sieglings.model.Player;
 import com.sieglings.model.SieglingCard;
 import com.sieglings.model.enums.Element;
+import com.sieglings.model.enums.ElementalAffliction;
 import com.sieglings.model.enums.NotchDirection;
 import com.sieglings.model.enums.Phase;
 import com.sieglings.model.enums.Rarity;
@@ -27,6 +28,39 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BattleServiceTest {
+
+    @Test
+    void shockAddsToNextMoveSpendThenClears() throws Exception {
+        BattleService battleService = createBattleService();
+        setField(battleService, "elementalAfflictionService", new ElementalAfflictionService());
+        MovesPoolService pool = getField(battleService, "movesPoolService");
+        String moveId = "test:shock:attack";
+        pool.registerLegacyManualMove(moveId, new ManualSieglingCatalog.ManualAbilityDefinition(
+                "Spark", "Deal 2 damage", TargetType.SINGLE_ENEMY,
+                null, null, 0, "damage", 2, false, Element.ELECTRIC, 2, null
+        ), Element.ELECTRIC);
+        SieglingCard card = new SieglingCard("shock-test", "Shock Test", Element.ELECTRIC,
+                Rarity.COMMON, 10, 4, List.of(), Row.FRONT);
+        card.setMoveIds(List.of(moveId));
+        CardInstance attacker = new CardInstance(card, 1, 1, true);
+        attacker.addAfflictionStacks(ElementalAffliction.SHOCK, 3, 5);
+        GameState state = new GameState();
+        Player player = new Player("Player", true);
+        player.setElectricEnergy(5);
+        state.setPlayer(player);
+        state.setEnemy(new Player("AI", false));
+        state.setAt(true, 1, 1, attacker);
+        state.setPendingBattleInstanceId(attacker.getInstanceId());
+
+        BattleAbilityOption option = battleService.getAvailableAbilities(state, attacker).get(0);
+        assertEquals(2, option.getAbility().getRequiredEnergy());
+        assertEquals(5, option.getRequiredEnergy());
+        assertTrue(option.isAffordable());
+
+        battleService.resolvePlayerAction(state, 0, -1, -1);
+        assertEquals(0, attacker.getAfflictionStacks(ElementalAffliction.SHOCK));
+        assertEquals(-5, player.getTemporaryEnergyAdjustment(Element.ELECTRIC));
+    }
 
     @Test
     void defeatedSieglingsDamageTheirOwnerByRarityBounty() {

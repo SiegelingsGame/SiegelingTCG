@@ -174,7 +174,7 @@ public class BattleService {
             int cost = elementalAfflictionService == null
                     ? ability.getRequiredEnergy()
                     : elementalAfflictionService.modifiedAbilityCost(attacker, battleAbilities, i);
-            // Shock: card can only spend (pool - stacks) ⇒ must afford cost + shockTax.
+            // Each Shock stack is paid with the next move, in addition to its printed cost.
             int gatedCost = cost + Math.max(0, shockTax);
             boolean affordable = energyService.canAfford(
                     state,
@@ -185,7 +185,7 @@ public class BattleService {
             if (affordable && isSelfMoveLink(ability)) {
                 affordable = effectService.hasValidMoveLinkDestination(state, attacker);
             }
-            options.add(new BattleAbilityOption(i, ability, ability.getRequiredElement(), cost, affordable));
+            options.add(new BattleAbilityOption(i, ability, ability.getRequiredElement(), gatedCost, affordable));
         }
 
         return options;
@@ -248,7 +248,7 @@ public class BattleService {
                     state,
                     attacker.isOwner(),
                     unavailableAbility.getRequiredElement(),
-                    choice.getRequiredEnergy() + Math.max(0, shockTax)
+                    choice.getRequiredEnergy()
             );
             if (canPay && isSelfMoveLink(unavailableAbility)
                     && !effectService.hasValidMoveLinkDestination(state, attacker)) {
@@ -260,6 +260,10 @@ public class BattleService {
         }
 
         Ability ability = choice.getAbility();
+        energyService.spendEnergy(state, attacker.isOwner(), choice.getRequiredElement(), choice.getRequiredEnergy());
+        if (elementalAfflictionService != null && elementalAfflictionService.shockSpendTax(attacker) > 0) {
+            attacker.clearAffliction(com.sieglings.model.enums.ElementalAffliction.SHOCK);
+        }
         boolean targetEnemy = ability.getTargetType().name().contains("ENEM");
         boolean enemyBoardEmpty = targetEnemy && state.getBoardSieglings(!attacker.isOwner()).isEmpty();
 
