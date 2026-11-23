@@ -273,3 +273,131 @@
 .sn-back:hover { border-color:#ffe0a0; }
 .sn-back:active { transform:scale(.96); }
 .sn-back:focus-visible { outline:2px solid #fff; outline-offset:2px; }
+
+/* ---- Arena battle FAB ----
+   During a match the same FAB shows the player's SiegeKnight portrait until
+   the options menu opens, then it returns to the Siegelings mark. The action
+   badge and options fan live beside it; Quit / Close use the dock flanks. */
+.sn-fab.sn-fab-knight .sn-emblem {
+  background:radial-gradient(circle at 35% 20%, #3a4f6e, #0a1528 78%);
+  overflow:hidden;
+}
+.sn-fab.sn-fab-knight .sn-emblem img {
+  object-fit:cover;
+  object-position:center 18%;
+  transform:scale(1.35);
+}
+.sn-fab.sn-fab-knight .sn-core { display:none; }
+.sn-fab-badge {
+  position:absolute;
+  top:-4px;
+  right:-4px;
+  z-index:2;
+  min-width:22px;
+  height:22px;
+  padding:0 6px;
+  border-radius:999px;
+  border:1.5px solid rgba(226,183,20,.85);
+  background:linear-gradient(135deg, #2a3a62, #152038);
+  color:#f6e7bc;
+  font:800 11px/20px ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.02em;
+  box-shadow:0 2px 8px rgba(0,0,0,.45);
+  pointer-events:auto;
+  cursor:pointer;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+}
+.sn-fab-badge[hidden] { display:none !important; }
+.sn-fab-badge.is-zero {
+  border-color:rgba(120,130,155,.65);
+  background:rgba(80,90,110,.92);
+  color:rgba(220,225,235,.8);
+}
+.sn-fab-badge.is-draw {
+  min-width:38px;
+  font-size:9px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.arena-fab-dock {
+  --sn-dock-fill:rgba(8,10,24,.55);
+  z-index:calc(var(--sn-z, 75) - 1);
+}
+.arena-fab-dock .sn-flank.is-danger {
+  --flank-rim:#f0a090;
+  --flank-bg:linear-gradient(180deg,#7a2a2a 0%,#4a1218 52%,#2a0a0e 100%);
+  --flank-ink:#ffe8e0;
+}
+.arena-fab-options {
+  position:fixed;
+  z-index:calc(var(--sn-z, 75) - 1);
+  left:50%;
+  bottom:calc(var(--sn-fab-bottom) + var(--sn-fab-size) + 14px);
+  transform:translateX(-50%);
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:8px;
+  max-width:min(360px, calc(100vw - 24px));
+  padding:10px 12px;
+  border-radius:18px;
+  border:1px solid rgba(226,183,20,.35);
+  background:linear-gradient(180deg, rgba(24,34,60,.96), rgba(10,14,28,.98));
+  box-shadow:0 14px 36px rgba(0,0,0,.5);
+  pointer-events:auto;
+}
+.arena-fab-options[hidden] { display:none !important; }
+.arena-fab-options .ab-icon {
+  position:relative;
+  flex:0 0 auto;
+  width:58px;
+  height:54px;
+  border-radius:14px;
+  font-size:1.05em;
+  flex-direction:column;
+  gap:2px;
+  padding:6px 4px 4px;
+}
+.arena-fab-options .ab-icon::after {
+  content:attr(data-fab-label);
+  font:700 9px/1.1 ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:rgba(246,231,188,.82);
+}
+.arena-fab-options .ab-icon.ab-music svg { width:18px; height:18px; }
+.arena-fab-options .play-hub-menu-flyout,
+.arena-fab-options .ab-action-counter { display:none !important; }
+body.arena-desk.gameplay-active .arena-fab-options {
+  left:calc(var(--arena-desk-gutter, 12px) + var(--hud-rail-width) / 2);
+  transform:translateX(-50%);
+  max-width:min(320px, calc(var(--hud-rail-width) + 80px));
+}
+body.arena-desk.gameplay-active .arena-fab-dock {
+  left:0;
+  right:auto;
+  width:calc(var(--arena-desk-gutter, 12px) * 2 + var(--hud-rail-width));
+  padding-left:var(--arena-desk-gutter, 12px);
+  padding-right:var(--arena-desk-gutter, 12px);
+}
+body.gameplay-active .action-bar-aux.is-fab-hosted {
+  position:fixed !important;
+  left:-9999px !important;
+  top:auto !important;
+  bottom:auto !important;
+  width:1px !important;
+  height:1px !important;
+  margin:-1px !important;
+  padding:0 !important;
+  overflow:hidden !important;
+  clip:rect(0 0 0 0) !important;
+  border:0 !important;
+  pointer-events:none !important;
+  opacity:0 !important;
+  transform:none !important;
+  max-width:none !important;
+  box-shadow:none !important;
+  background:transparent !important;
+}

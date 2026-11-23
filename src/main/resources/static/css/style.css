@@ -21985,6 +21985,20 @@ body.arena-desk.gameplay-active .sn-fab {
     bottom: calc(var(--arena-desk-gutter, 12px) + 8px);
 }
 
+/* Arena battle: the aux icon strip moves into the SiegeKnight FAB fan, so
+   clear a dock under the shell on phones/tablets for the FAB itself. */
+body.gameplay-active:not(.arena-desk) .app-shell {
+    padding-bottom: calc(var(--sn-fab-size, 62px) + var(--sn-fab-bottom, 13px) + 4px);
+}
+@media (max-width: 767px) {
+    body.gameplay-active:not(.arena-desk) .action-bar {
+        padding-bottom: 2px;
+    }
+    body.gameplay-active:not(.arena-desk) .action-bar-aux.is-fab-hosted {
+        display: none !important;
+    }
+}
+
 body.arena-desk .hud-knight-ability-line span {
     -webkit-line-clamp: 4;
 }

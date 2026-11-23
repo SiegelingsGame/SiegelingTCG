@@ -6567,6 +6567,7 @@ function syncSetupActionsCounter() {
     }
     const valueEl = document.getElementById('setupActionsCounterValue');
     const labelEl = document.getElementById('setupActionsCounterLabel');
+    const onFab = el.classList.contains('sn-fab-badge');
     const gs = gameState;
     if (!gs || gs.gameOver || gs.mulligan?.active || (gs.currentPhase !== 'DRAW' && gs.currentPhase !== 'SETUP')) {
         el.hidden = true;
@@ -6575,7 +6576,7 @@ function syncSetupActionsCounter() {
         if (labelEl) labelEl.textContent = 'Act';
         el.removeAttribute('title');
         el.removeAttribute('aria-haspopup');
-        el.classList.remove('is-zero', 'is-decrement', 'is-increment');
+        el.classList.remove('is-zero', 'is-decrement', 'is-increment', 'is-draw');
         lastSetupActionsRemaining = null;
         closeSetupActionsBreakdown();
         return;
@@ -6585,16 +6586,20 @@ function syncSetupActionsCounter() {
         el.hidden = false;
         el.disabled = !playerActive;
         el.classList.remove('is-zero', 'is-decrement', 'is-increment');
+        el.classList.toggle('is-draw', onFab);
         el.removeAttribute('aria-haspopup');
         el.title = playerActive ? 'Draw a card' : 'Waiting for the opponent to draw';
         el.setAttribute('aria-label', el.title);
-        if (labelEl) labelEl.textContent = 'Draw';
-        if (valueEl) valueEl.textContent = '';
+        if (labelEl) labelEl.textContent = onFab ? 'Draw' : 'Draw';
+        if (valueEl) valueEl.textContent = onFab ? 'Draw' : '';
+        if (onFab && labelEl) labelEl.hidden = true;
         lastSetupActionsRemaining = null;
         closeSetupActionsBreakdown();
         return;
     }
     el.disabled = false;
+    el.classList.remove('is-draw');
+    if (labelEl) labelEl.hidden = onFab;
     el.setAttribute('aria-haspopup', 'dialog');
     el.removeAttribute('aria-label');
     if (labelEl) labelEl.textContent = 'Act';
@@ -6610,9 +6615,10 @@ function syncSetupActionsCounter() {
     const remaining = Math.max(0, budget - used);
     el.hidden = false;
     if (valueEl) {
-        valueEl.textContent = `${remaining}/${budget}`;
+        // Compact badge on the FAB; full "remaining/budget" in the old aux strip.
+        valueEl.textContent = onFab ? String(remaining) : `${remaining}/${budget}`;
     }
-    el.title = `${remaining} Siegeling setup action${remaining === 1 ? '' : 's'} left this turn (${used} of ${budget} used).`;
+    el.title = `${remaining} Siegeling setup action${remaining === 1 ? '' : 's'} left this turn (${used} of ${budget} used). Tap or hover for the breakdown.`;
     el.classList.toggle('is-zero', remaining === 0);
 
     const playerActive = gs.activeSide === 'PLAYER';
@@ -6723,14 +6729,38 @@ function toggleSetupActionsBreakdown(event) {
 }
 
 function handleActionCounterClick(event) {
+    // The badge sits on the FAB; stop the click from opening battle options.
+    event?.stopPropagation();
+    event?.preventDefault?.();
     if (gameState?.currentPhase === 'DRAW') {
-        event?.stopPropagation();
         if (gameState.activeSide === 'PLAYER' && !gameState.gameOver) {
             void playerDraw();
         }
         return;
     }
     toggleSetupActionsBreakdown(event);
+}
+
+function bindArenaFabActionBadgeHover() {
+    const el = document.getElementById('setupActionsCounter');
+    if (!el || el.dataset.fabHoverBound === '1') return;
+    el.dataset.fabHoverBound = '1';
+    let hoverTimer = null;
+    el.addEventListener('pointerenter', (event) => {
+        if (event.pointerType && event.pointerType !== 'mouse') return;
+        if (gameState?.currentPhase !== 'SETUP') return;
+        clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(() => {
+            if (!document.getElementById('setupActionsBreakdown')) {
+                toggleSetupActionsBreakdown();
+            }
+        }, 280);
+    });
+    el.addEventListener('pointerleave', () => {
+        clearTimeout(hoverTimer);
+        // Leave the popover up until outside-click / resize, so a tap after
+        // hover still works; only auto-close when leaving via mouse.
+    });
 }
 
 let desktopInspectTab = 'card';
@@ -8535,6 +8565,7 @@ function syncEntryOverlays() {
 
     document.body?.classList.toggle('gameplay-active', showingGameplay);
     syncArenaMusic();
+    syncArenaBattleFab();
     loadoutOverlay?.classList.toggle('visible', !showingGameplay && !holdForGauntlet);
     if (showingGameplay || ((gameOptions || loadoutErrorMessage) && loadoutOverlay?.classList.contains('visible'))) {
         document.documentElement.classList.remove('play-startup');
@@ -10303,17 +10334,231 @@ function returnToHome(screen) {
         : screen === 'play' ? '/home?screen=play' : '/home';
 }
 
-// The shield FAB belongs to the loadout, a launch screen. Phones and tablets
-// keep the battle table's own chrome, so there it hides with the loadout; the
-// wide desktop table has no hub header and uses the FAB as its navigation.
+// The shield FAB serves the loadout launch screen and, once a match starts,
+// the Arena battle HUD (SiegeKnight face → options fan → full shield).
+let arenaShieldNav = null;
+let arenaFabMenuOpen = false;
+let arenaFabWired = false;
+const ARENA_FAB_OPTION_IDS = [
+    'btnSelectedPreview',
+    'btnBattlePanel',
+    'btnGameLog',
+    'btnEnergyDetail',
+    'btnHint',
+    'sglSpeedToggle',
+    'btnMuteSound'
+];
+
 function mountLoadoutShieldNavigation(overlay) {
     if (!window.SiegelingsShieldNavigation) return;
     const nav = window.SiegelingsShieldNavigation.mountLinks();
-    const sync = () => nav.setHidden(!overlay.classList.contains('visible')
-        && !(document.body.classList.contains('arena-desk') && document.body.classList.contains('gameplay-active')));
+    arenaShieldNav = nav;
+    wireArenaBattleFab(nav);
+    const sync = () => {
+        const loadoutVisible = overlay.classList.contains('visible');
+        const gameplay = document.body.classList.contains('gameplay-active');
+        // Hide only when neither the loadout nor an active match needs it.
+        nav.setHidden(!loadoutVisible && !gameplay);
+        syncArenaBattleFab();
+    };
     new MutationObserver(sync).observe(overlay, { attributes: true, attributeFilter: ['class'] });
     new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class'] });
     sync();
+}
+
+function wireArenaBattleFab(nav) {
+    if (arenaFabWired || !nav?.fab) return;
+    arenaFabWired = true;
+
+    document.getElementById('arenaFabQuit')?.addEventListener('click', () => {
+        void confirmQuitMatch();
+    });
+    document.getElementById('arenaFabClose')?.addEventListener('click', () => {
+        closeArenaFabMenu();
+    });
+
+    const options = document.getElementById('arenaFabOptions');
+    // Utility picks that open a panel should collapse the fan; mute/speed/music stay.
+    options?.addEventListener('click', (event) => {
+        const btn = event.target.closest('button, a, summary');
+        if (!btn || !options.contains(btn)) return;
+        if (btn.id === 'btnMuteSound' || btn.id === 'sglSpeedToggle' || btn.classList.contains('ab-music')) {
+            return;
+        }
+        closeArenaFabMenu();
+    });
+
+    nav.setPrimaryClickHandler(({ shieldOpen }) => {
+        if (!document.body.classList.contains('gameplay-active')) return false;
+        if (shieldOpen) {
+            nav.closeShield();
+            return true;
+        }
+        if (!arenaFabMenuOpen) {
+            openArenaFabMenu();
+            return true;
+        }
+        // Options already open and the face is Siegelings — open the shield.
+        nav.openShield();
+        return true;
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        if (!arenaFabMenuOpen || nav.isShieldOpen?.()) return;
+        event.preventDefault();
+        closeArenaFabMenu();
+    });
+
+    // When the shield finishes closing, restore the correct FAB face.
+    const root = nav.element;
+    if (root) {
+        new MutationObserver(() => {
+            if (document.body.classList.contains('gameplay-active')) {
+                syncArenaBattleFabFace();
+            }
+        }).observe(root, { attributes: true, attributeFilter: ['data-state'] });
+    }
+}
+
+function ensureArenaFabHosts() {
+    const options = document.getElementById('arenaFabOptions');
+    const aux = document.querySelector('.action-bar-aux');
+    const fab = arenaShieldNav?.fab;
+    if (!options || !aux || !fab) return;
+
+    aux.classList.add('is-fab-hosted');
+
+    // Action badge lives on the knight FAB so it stays visible while closed.
+    const counter = document.getElementById('setupActionsCounter');
+    if (counter && counter.parentElement !== fab) {
+        counter.classList.add('sn-fab-badge');
+        fab.appendChild(counter);
+    }
+    bindArenaFabActionBadgeHover();
+
+    const optionLabels = {
+        btnSelectedPreview: 'Card View',
+        btnBattlePanel: 'Battle View',
+        btnGameLog: 'Log',
+        btnEnergyDetail: 'Energy',
+        btnHint: 'Hints',
+        sglSpeedToggle: 'Speed',
+        btnMuteSound: 'Mute'
+    };
+    ARENA_FAB_OPTION_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.parentElement !== options) options.appendChild(el);
+        if (optionLabels[id]) {
+            el.dataset.fabLabel = optionLabels[id];
+            el.title = optionLabels[id];
+        }
+    });
+    const music = aux.querySelector('.ab-music') || document.querySelector('.ab-music');
+    if (music) {
+        if (music.parentElement !== options) options.appendChild(music);
+        music.dataset.fabLabel = 'Music';
+        music.title = 'Music';
+    }
+}
+
+function knightFabArtUrl(trainer) {
+    const url = knightUploadedCardArtUrl(trainer);
+    if (!url) return '';
+    return typeof sgPreferWebp === 'function' ? sgPreferWebp(url) : url;
+}
+
+function syncArenaBattleFabFace() {
+    const nav = arenaShieldNav;
+    if (!nav?.setFabFace) return;
+    const gameplay = document.body.classList.contains('gameplay-active');
+    if (!gameplay) {
+        nav.setFabFace({ mode: 'siegelings', label: 'Summon navigation' });
+        return;
+    }
+    if (arenaFabMenuOpen || nav.isShieldOpen?.()) {
+        nav.setFabFace({
+            mode: 'siegelings',
+            label: arenaFabMenuOpen ? 'Open Siegelings menu' : 'Recall navigation'
+        });
+        return;
+    }
+    const trainer = gameState?.player?.trainer;
+    const src = knightFabArtUrl(trainer);
+    nav.setFabFace({
+        mode: 'knight',
+        src: src || '/img/siegelings-icon-256.webp',
+        alt: trainer?.name || 'SiegeKnight',
+        label: `${trainer?.name || 'SiegeKnight'} battle options`
+    });
+}
+
+function openArenaFabMenu() {
+    if (!document.body.classList.contains('gameplay-active')) return;
+    ensureArenaFabHosts();
+    arenaFabMenuOpen = true;
+    document.body.classList.add('arena-fab-menu-open');
+    const dock = document.getElementById('arenaFabDock');
+    const options = document.getElementById('arenaFabOptions');
+    if (dock) dock.hidden = false;
+    if (options) options.hidden = false;
+    syncArenaBattleFabFace();
+    arenaShieldNav?.fab?.setAttribute('aria-expanded', 'true');
+}
+
+function closeArenaFabMenu() {
+    if (!arenaFabMenuOpen) return;
+    arenaFabMenuOpen = false;
+    document.body.classList.remove('arena-fab-menu-open');
+    const dock = document.getElementById('arenaFabDock');
+    const options = document.getElementById('arenaFabOptions');
+    if (dock) dock.hidden = true;
+    if (options) options.hidden = true;
+    closeSetupActionsBreakdown();
+    syncArenaBattleFabFace();
+    arenaShieldNav?.fab?.setAttribute('aria-expanded', 'false');
+}
+
+function restoreArenaFabHostsToActionBar() {
+    const aux = document.querySelector('.action-bar-aux');
+    if (!aux?.classList.contains('is-fab-hosted')) return;
+    aux.classList.remove('is-fab-hosted');
+    const counter = document.getElementById('setupActionsCounter');
+    if (counter && counter.parentElement !== aux) {
+        counter.classList.remove('sn-fab-badge', 'is-draw', 'is-zero');
+        const musicSlot = aux.querySelector('.ab-music');
+        if (musicSlot?.nextSibling) aux.insertBefore(counter, musicSlot.nextSibling);
+        else aux.appendChild(counter);
+    }
+    ARENA_FAB_OPTION_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && el.parentElement !== aux) aux.appendChild(el);
+    });
+    const music = document.querySelector('#arenaFabOptions .ab-music') || document.querySelector('.ab-music');
+    if (music && music.parentElement !== aux) {
+        const after = document.getElementById('playHubMenuFlyout');
+        if (after?.nextSibling) aux.insertBefore(music, after.nextSibling);
+        else aux.appendChild(music);
+    }
+}
+
+function syncArenaBattleFab() {
+    const gameplay = document.body.classList.contains('gameplay-active');
+    const loadoutVisible = document.getElementById('loadoutOverlay')?.classList.contains('visible');
+    if (!gameplay) {
+        closeArenaFabMenu();
+        restoreArenaFabHostsToActionBar();
+        if (loadoutVisible) {
+            arenaShieldNav?.setFabFace?.({ mode: 'siegelings' });
+        } else {
+            syncArenaBattleFabFace();
+        }
+        return;
+    }
+    ensureArenaFabHosts();
+    syncArenaBattleFabFace();
+    syncSetupActionsCounter();
 }
 
 function selectDeckOption(deckId) {
@@ -10540,6 +10785,11 @@ let tutorialRewardRequested = false;
  */
 window.ArenaTutorialBridge = {
     state: () => gameState,
+    // Headless harnesses inject a match snapshot here because `let gameState`
+    // is script-scoped and never appears on `window`.
+    harnessSetState: (next) => {
+        gameState = next || null;
+    },
     selected: () => selectedCard,
     previewCard: () => getFocusedPreviewCard(),
     // The cells the game itself would accept right now, so the coach can
@@ -13584,6 +13834,9 @@ function updateHudRailKnight(prefix, trainer) {
     }
     art.innerHTML = knightHudCardInnerHtml(trainer);
     if (portrait) portrait.style.display = 'none';
+    if (prefix === 'player') {
+        syncArenaBattleFabFace();
+    }
 }
 
 function getTrainerAbilitySummaries(trainer) {

@@ -159,7 +159,13 @@
         }
       }).catch(function () { /* A new gesture owns completion after cancellation. */ });
     }
-    fab.addEventListener('click', function () { if (!pending) transition(!desired); });
+    var primaryClickHandler = null;
+    var SIEGELINGS_ICON = '/img/siegelings-icon-256.webp';
+    fab.addEventListener('click', function () {
+      if (pending) return;
+      if (typeof primaryClickHandler === 'function' && primaryClickHandler({ shieldOpen: desired })) return;
+      transition(!desired);
+    });
     root.querySelector('.sn-close').addEventListener('click', function () { transition(false); });
     scrim.addEventListener('click', function () { if (!pending) transition(false); });
     root.querySelectorAll('[data-destination]').forEach(function (button) {
@@ -179,7 +185,12 @@
         e.preventDefault(); focusable[(i + (e.shiftKey ? -1 : 1) + focusable.length) % focusable.length].focus();
       }
     });
-    function reset() { pending = null; desired = false; fab.setAttribute('aria-expanded','false'); fab.setAttribute('aria-label','Summon navigation'); finishClosed(false); }
+    function reset() {
+      pending = null; desired = false;
+      fab.setAttribute('aria-expanded','false');
+      if (fab.dataset.face !== 'knight') fab.setAttribute('aria-label','Summon navigation');
+      finishClosed(false);
+    }
     // A changed viewport invalidates the FAB origin. Settle safely instead of
     // flying toward stale coordinates, including on an iOS toolbar resize.
     window.addEventListener('resize', function () { if (!overlay.hidden) reset(); });
@@ -192,7 +203,40 @@
       if (hidden) reset();
       root.hidden = hidden;
     }
-    root.shieldNavigation = { element: root, reset: reset, setHidden: setHidden };
+    // Arena battle swaps the emblem between the player's SiegeKnight portrait
+    // and the Siegelings mark, and can consume the primary click before the
+    // shield opens (knight → options menu; Siegelings center → shield).
+    function setFabFace(opts) {
+      opts = opts || {};
+      var mode = opts.mode === 'knight' ? 'knight' : 'siegelings';
+      var img = fab.querySelector('.sn-emblem img');
+      fab.dataset.face = mode;
+      fab.classList.toggle('sn-fab-knight', mode === 'knight');
+      if (!img) return;
+      if (mode === 'knight' && opts.src) {
+        img.src = opts.src;
+        img.alt = opts.alt || '';
+        fab.setAttribute('aria-label', opts.label || 'Battle options');
+      } else {
+        img.src = SIEGELINGS_ICON;
+        img.alt = '';
+        if (!desired) fab.setAttribute('aria-label', opts.label || 'Summon navigation');
+      }
+    }
+    function setPrimaryClickHandler(handler) {
+      primaryClickHandler = typeof handler === 'function' ? handler : null;
+    }
+    root.shieldNavigation = {
+      element: root,
+      fab: fab,
+      reset: reset,
+      setHidden: setHidden,
+      setFabFace: setFabFace,
+      setPrimaryClickHandler: setPrimaryClickHandler,
+      openShield: function () { transition(true); },
+      closeShield: function () { transition(false); },
+      isShieldOpen: function () { return desired; }
+    };
     return root.shieldNavigation;
   }
   // The play-mode launch screens (Arena, Siege, Gauntlet, Dominion) are their
