@@ -206,22 +206,96 @@
     // Arena battle swaps the emblem between the player's SiegeKnight portrait
     // and the Siegelings mark, and can consume the primary click before the
     // shield opens (knight → options menu; Siegelings center → shield).
-    function setFabFace(opts) {
-      opts = opts || {};
-      var mode = opts.mode === 'knight' ? 'knight' : 'siegelings';
-      var img = fab.querySelector('.sn-emblem img');
+    var faceSwapTimer = 0;
+    var faceSwapToken = 0;
+    function applyFabFace(mode, src, alt, label) {
+      var img = fab.querySelector('.sn-emblem > img:not(.sn-face-outgoing)');
       fab.dataset.face = mode;
       fab.classList.toggle('sn-fab-knight', mode === 'knight');
       if (!img) return;
-      if (mode === 'knight' && opts.src) {
-        img.src = opts.src;
-        img.alt = opts.alt || '';
-        fab.setAttribute('aria-label', opts.label || 'Battle options');
+      if (mode === 'knight' && src) {
+        img.src = src;
+        img.alt = alt || '';
+        fab.setAttribute('aria-label', label || 'Battle options');
       } else {
         img.src = SIEGELINGS_ICON;
         img.alt = '';
-        if (!desired) fab.setAttribute('aria-label', opts.label || 'Summon navigation');
+        if (!desired) fab.setAttribute('aria-label', label || 'Summon navigation');
       }
+    }
+    function setFabFace(opts) {
+      opts = opts || {};
+      var mode = opts.mode === 'knight' ? 'knight' : 'siegelings';
+      var src = (mode === 'knight' && opts.src) ? opts.src : SIEGELINGS_ICON;
+      var alt = (mode === 'knight') ? (opts.alt || '') : '';
+      var label = opts.label || (mode === 'knight' ? 'Battle options' : 'Summon navigation');
+      var emblem = fab.querySelector('.sn-emblem');
+      var img = emblem && emblem.querySelector('img:not(.sn-face-outgoing)');
+      var prevMode = fab.dataset.face || 'siegelings';
+      var prevSrc = img ? img.getAttribute('src') : '';
+      if (!img) {
+        applyFabFace(mode, src, alt, label);
+        return;
+      }
+      // Same face — only refresh label / aria.
+      if (prevMode === mode && prevSrc === src) {
+        if (mode === 'knight') fab.setAttribute('aria-label', label);
+        else if (!desired) fab.setAttribute('aria-label', label);
+        return;
+      }
+      var reduceMotion = false;
+      try { reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* ignore */ }
+      // Instant swap outside battle (loadout) or when motion is reduced.
+      if (reduceMotion || !document.body.classList.contains('gameplay-active')) {
+        if (faceSwapTimer) { clearTimeout(faceSwapTimer); faceSwapTimer = 0; }
+        faceSwapToken += 1;
+        fab.classList.remove('sn-fab-face-swap');
+        var stale = emblem.querySelector('.sn-face-outgoing');
+        if (stale) stale.remove();
+        img.classList.remove('sn-face-incoming', 'is-in');
+        applyFabFace(mode, src, alt, label);
+        return;
+      }
+      // Crossfade: keep the old portrait as an absolute overlay while the new
+      // face scales/fades in underneath, so knight ↔ Siegelings reads as one morph.
+      if (faceSwapTimer) { clearTimeout(faceSwapTimer); faceSwapTimer = 0; }
+      var staleOut = emblem.querySelector('.sn-face-outgoing');
+      if (staleOut) staleOut.remove();
+      img.classList.remove('sn-face-incoming', 'is-in');
+      fab.classList.remove('sn-fab-face-swap');
+
+      var outgoing = img.cloneNode(true);
+      outgoing.className = 'sn-face-outgoing' + (prevMode === 'knight' ? ' is-knight' : ' is-siegelings');
+      outgoing.removeAttribute('id');
+      emblem.insertBefore(outgoing, img);
+
+      applyFabFace(mode, src, alt, label);
+      img.classList.add('sn-face-incoming');
+      fab.classList.add('sn-fab-face-swap');
+      // Pin the incoming face at its "from" styles without transitioning from the
+      // previous portrait's opacity/scale (otherwise it eases 1→0 then jumps to is-in).
+      img.style.setProperty('transition', 'none');
+      void img.offsetWidth;
+      img.style.removeProperty('transition');
+      var token = ++faceSwapToken;
+
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          if (token !== faceSwapToken) return;
+          outgoing.classList.add('is-out');
+          img.classList.add('is-in');
+        });
+      });
+
+      var finish = function () {
+        if (token !== faceSwapToken) return;
+        faceSwapTimer = 0;
+        if (outgoing.parentNode) outgoing.parentNode.removeChild(outgoing);
+        img.classList.remove('sn-face-incoming', 'is-in');
+        img.style.removeProperty('transition');
+        fab.classList.remove('sn-fab-face-swap');
+      };
+      faceSwapTimer = setTimeout(finish, 580);
     }
     function setPrimaryClickHandler(handler) {
       primaryClickHandler = typeof handler === 'function' ? handler : null;

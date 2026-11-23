@@ -1,3 +1,9 @@
+Original prompt: add a smooth animation transition from siegknight image to siegeling logo
+
+- November 22, 2026 **Arena FAB face morph: SiegeKnight ↔ Siegelings.**
+  - **Change.** `setFabFace` crossfades the FAB emblem during gameplay: the outgoing portrait/logo overlays while the incoming face scales and fades in (~560ms), with cancel-safe rapid toggles and an instant swap when `prefers-reduced-motion` is on or outside battle. Cache pins: `shield-navigation.css?v=13`, `shield-navigation.js?v=8`. Preview: `arena-fab-face-preview.html`.
+  - **Verification.** `node --check shield-navigation.js`. Mid-morph DOM sample shows `sn-fab-face-swap` + outgoing/incoming classes. Live recording of Show Knight ↔ Show Siegelings confirms a blended fade/scale, not a snap. Demo under `/opt/cursor/artifacts/arena-fab-face-morph-live.mp4`.
+
 Original prompt: now integrate the trays that appear into the siegeknight fab as well
 
 - November 22, 2026 **Arena utility trays dock onto the SiegeKnight FAB.**

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Arena FAB face morph preview</title>
+  <link rel="stylesheet" href="/css/shield-navigation.css?v=13">
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; background:#0b1224; }
+    body { --sn-z: 80; }
+    .stage {
+      position:fixed; inset:0;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px;
+      background:
+        radial-gradient(circle at 50% 30%, rgba(80,40,20,.35), transparent 55%),
+        linear-gradient(180deg, #1a2744, #0b1224 70%);
+      color:#f6e7bc; font:700 13px/1.3 system-ui,sans-serif;
+    }
+    .stage h1 { margin:0; font:800 14px/1 system-ui,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#ffd700; }
+    .stage p { margin:0; opacity:.7; font-weight:600; }
+    .controls { display:flex; gap:10px; }
+    .controls button {
+      border:1px solid rgba(226,183,20,.45); background:rgba(20,28,48,.92); color:#f6e7bc;
+      border-radius:999px; padding:10px 16px; font:800 12px/1 system-ui,sans-serif;
+      letter-spacing:.06em; text-transform:uppercase; cursor:pointer;
+    }
+  </style>
+</head>
+<body class="gameplay-active">
+<div class="stage">
+  <h1>FAB face morph</h1>
+  <p>SiegeKnight portrait ↔ Siegelings logo</p>
+  <div class="controls">
+    <button type="button" id="toKnight">Show Knight</button>
+    <button type="button" id="toSiegelings">Show Siegelings</button>
+    <button type="button" id="autoToggle">Auto toggle</button>
+  </div>
+</div>
+<script src="/js/shield-navigation.js?v=8"></script>
+<script>
+(function () {
+  var nav = window.SiegelingsShieldNavigation.mountLinks();
+  nav.setHidden(false);
+  var knight = {
+    mode: 'knight',
+    src: '/img/knights/lady-pyla-full-card.webp',
+    alt: 'Lady Pyla',
+    label: 'Lady Pyla battle options'
+  };
+  var logo = { mode: 'siegelings', label: 'Open Siegelings menu' };
+  nav.setFabFace(knight);
+  document.getElementById('toKnight').onclick = function () { nav.setFabFace(knight); };
+  document.getElementById('toSiegelings').onclick = function () { nav.setFabFace(logo); };
+  var timer = 0;
+  document.getElementById('autoToggle').onclick = function () {
+    if (timer) { clearInterval(timer); timer = 0; this.textContent = 'Auto toggle'; return; }
+    var onKnight = true;
+    timer = setInterval(function () {
+      onKnight = !onKnight;
+      nav.setFabFace(onKnight ? knight : logo);
+    }, 1100);
+    this.textContent = 'Stop';
+    nav.setFabFace(logo);
+  };
+  // Kick one morph for screenshot harnesses.
+  setTimeout(function () { nav.setFabFace(logo); }, 500);
+})();
+</script>
+</body>
+</html>
