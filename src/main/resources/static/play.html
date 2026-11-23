@@ -17,7 +17,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script>document.documentElement.classList.add('play-startup');</script>
-    <link rel="stylesheet" href="/css/style.css?v=306">
+    <link rel="stylesheet" href="/css/style.css?v=307">
     <style>
         html.gauntlet-navigation-pending::after {
             content: "";
@@ -30,7 +30,7 @@
     </style>
     <!-- Art-first re-skin of the loadout overlay. After style.css on purpose:
          equal-specificity rules in it are meant to win. -->
-    <link rel="stylesheet" href="/css/shield-navigation.css?v=9">
+    <link rel="stylesheet" href="/css/shield-navigation.css?v=10">
     <link rel="stylesheet" href="/css/hub-music.css?v=2">
     <link rel="stylesheet" href="/css/play-next.css?v=24">
     <link rel="stylesheet" href="/css/coach.css?v=7">
@@ -945,11 +945,11 @@
     </div>
 </div>
 
-<!-- Arena battle FAB: Quit / Close flanks + utility fan. Hidden until a match
-     opens the options menu off the SiegeKnight FAB. -->
+<!-- Arena battle dock: Knight + Draw/End Turn wrap the SiegeKnight FAB.
+     Opening the FAB swaps those flanks for Quit Battle / Close menu. -->
 <div class="sn-dock arena-fab-dock" id="arenaFabDock" hidden>
-    <button class="sn-flank is-left is-danger" type="button" id="arenaFabQuit">Quit Battle</button>
-    <button class="sn-flank is-right" type="button" id="arenaFabClose">Close menu</button>
+    <button class="sn-flank is-left is-danger" type="button" id="arenaFabQuit" hidden>Quit Battle</button>
+    <button class="sn-flank is-right" type="button" id="arenaFabClose" hidden>Close menu</button>
 </div>
 <div class="arena-fab-options" id="arenaFabOptions" hidden role="menu" aria-label="Battle options"></div>
 
@@ -1010,7 +1010,7 @@
     <script src="/js/arena-tutorial.js?v=53"></script>
     <script src="/js/knight-tutorial.js?v=2"></script>
 <script src="/js/shield-navigation.js?v=7"></script>
-<script src="/js/game.js?v=353"></script>
+<script src="/js/game.js?v=354"></script>
     <script src="/js/play-mode-picker.js?v=6"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,

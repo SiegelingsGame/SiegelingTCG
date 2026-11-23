@@ -322,13 +322,82 @@
   text-transform:uppercase;
 }
 .arena-fab-dock {
-  --sn-dock-fill:rgba(8,10,24,.55);
+  --sn-dock-fill:rgba(8,10,24,.72);
   z-index:calc(var(--sn-z, 75) - 1);
+}
+/* Play flanks keep their action-bar ids/handlers but wear the dock chrome so
+   Knight / End Turn read as one control with the SiegeKnight FAB. */
+.arena-fab-dock .arena-fab-play-flank.ab-btn {
+  width:100%;
+  max-width:210px;
+  min-height:var(--sn-flank-h);
+  height:var(--sn-flank-h);
+  margin:0;
+  padding:0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px) 0 22px;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+  color:var(--flank-ink);
+  letter-spacing:.02em;
+  text-transform:none;
+  white-space:nowrap;
+  animation:none;
+}
+.arena-fab-dock .arena-fab-play-flank.ab-btn.is-right {
+  padding:0 22px 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px);
+}
+.arena-fab-dock .arena-fab-play-flank.ab-trainer {
+  --flank-rim:#e9c975;
+  --flank-bg:linear-gradient(180deg,#3a4588 0%,#23275e 52%,#16183f 100%);
+  --flank-ink:#f4ecd6;
+}
+.arena-fab-dock .arena-fab-play-flank.ab-trainer.ab-ability-ready {
+  --flank-rim:#fff3c9;
+  --flank-bg:linear-gradient(180deg,#ffe08a 0%,#e8a83a 48%,#c47a18 100%);
+  --flank-ink:#3b2306;
+}
+.arena-fab-dock .arena-fab-play-flank.ab-trainer.ab-ability-ready::after {
+  content:none;
+}
+.arena-fab-dock .arena-fab-play-flank.ab-draw {
+  --flank-rim:#fff3c9;
+  --flank-bg:linear-gradient(180deg,#fff0b8 0%,#ffc95a 48%,#e89a2a 100%);
+  --flank-ink:#3b2306;
+}
+.arena-fab-dock .arena-fab-play-flank.ab-draw.ab-drawn {
+  --flank-rim:#b8ffc8;
+  --flank-bg:linear-gradient(180deg,#9dffb0 0%,#39ff14 48%,#1fbf3a 100%);
+  --flank-ink:#0d2a12;
+}
+.arena-fab-dock .arena-fab-play-flank.ab-pass,
+.arena-fab-dock .arena-fab-play-flank.ab-cancel-move {
+  --flank-rim:#9ec6ff;
+  --flank-bg:linear-gradient(180deg,#7fb2ff 0%,#3f78ec 48%,#2448b8 100%);
+  --flank-ink:#fff;
+  white-space:normal;
+  text-wrap:balance;
+  font-size:13px;
+  line-height:1.1;
+  gap:2px;
+}
+.arena-fab-dock .arena-fab-play-flank .ab-pass-title {
+  font-weight:800;
+}
+.arena-fab-dock .arena-fab-play-flank .ab-pass-next {
+  font-size:10px;
+  font-weight:600;
+  opacity:.88;
 }
 .arena-fab-dock .sn-flank.is-danger {
   --flank-rim:#f0a090;
   --flank-bg:linear-gradient(180deg,#7a2a2a 0%,#4a1218 52%,#2a0a0e 100%);
   --flank-ink:#ffe8e0;
+}
+@media (min-width:1024px) and (min-height:601px) {
+  .arena-fab-dock .arena-fab-play-flank.ab-btn {
+    max-width:clamp(210px, 20vw, 380px);
+    font-size:clamp(15px, 1.05vw, 19px);
+  }
 }
 .arena-fab-options {
   position:fixed;

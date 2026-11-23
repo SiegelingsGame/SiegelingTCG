@@ -21985,18 +21985,25 @@ body.arena-desk.gameplay-active .sn-fab {
     bottom: calc(var(--arena-desk-gutter, 12px) + 8px);
 }
 
-/* Arena battle: the aux icon strip moves into the SiegeKnight FAB fan, so
-   clear a dock under the shell on phones/tablets for the FAB itself. */
-body.gameplay-active:not(.arena-desk) .app-shell {
-    padding-bottom: calc(var(--sn-fab-size, 62px) + var(--sn-fab-bottom, 13px) + 4px);
+/* Arena battle: primary actions live in the FAB dock, so the old action bar
+   drops out and the hand / battle-move tray keeps the height it frees. */
+body.gameplay-active.arena-fab-docked #actionBar {
+    display: none !important;
 }
-@media (max-width: 767px) {
-    body.gameplay-active:not(.arena-desk) .action-bar {
-        padding-bottom: 2px;
-    }
-    body.gameplay-active:not(.arena-desk) .action-bar-aux.is-fab-hosted {
-        display: none !important;
-    }
+body.gameplay-active.arena-fab-docked:not(.arena-desk) .app-shell {
+    padding-bottom: var(--sn-dock-h, calc(var(--sn-fab-size, 62px) + 26px));
+}
+body.gameplay-active.arena-fab-docked .desktop-menu-bottom-dock {
+    /* Hand fills the panel foot now that the action bar row is gone. */
+    min-height: 0;
+}
+body.gameplay-active.arena-fab-docked .desktop-menu-hand {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+body.arena-desk.gameplay-active.arena-fab-docked .hud-rail-player {
+    /* Dock + FAB already clear the rail foot. */
+    padding-bottom: calc(var(--sn-dock-h, 72px) + 4px);
 }
 
 body.arena-desk .hud-knight-ability-line span {
