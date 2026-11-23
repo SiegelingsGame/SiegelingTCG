@@ -1,3 +1,9 @@
+Original prompt: The lighting and blur is still terrible the assets should be crystal clear
+
+- November 23, 2026 **Campaign HD-2D clarity pass (full-res, no tilt-shift).**
+  - **Change.** Dropped the AnimeVs ~330-row render buffer and tilt-shift DOF that were softening every texture. The world now renders at CSS resolution (DPR capped at 2). Post keeps only a light vignette, soft grade, and night-only lamp bloom. Sprite textures use nearest (no mipmaps); ground uses nearest-mip nearest with 2× denser procedural tiles (`PX` 16→32). Frost look darkened so snow no longer washes Bob out; sun raised for shorter shadows; daytime lamp halos dimmed; soft shadow maps at 2048/4096. Cache pin `campaign-world3d.js?v=8`.
+  - **Verification.** Phone Ice buffer is 390×844 (was 152×330). Center-strip edge metric rose 7.63→10.27 (phone) and 5.4→6.32 (desktop). Screenshots of Ice + Sanctuary show no top/bottom DOF bands; Bob nearest filters confirmed. Demo frames assembled to `campaign-clarity-demo.mp4`.
+
 Original prompt: The walking animations are POOR the assets are faded on the player, Bob grows when he walks
 
 - November 23, 2026 **Squire Bob walk animation rebuilt from the source sheet.**

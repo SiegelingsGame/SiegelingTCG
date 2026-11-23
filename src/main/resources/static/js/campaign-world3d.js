@@ -16,7 +16,7 @@
   var BOB = '/img/sprites/squire-bob/';
   var BOB_ASSET_VERSION = '2';
   var SANC = '/img/campaign/sanctuary/';
-  var PX = 16;
+  var PX = 32;
   var BOB_DIRS = ['up', 'up-right', 'right', 'down-right', 'down', 'down-left', 'left', 'up-left'];
   var BOB_POSES = ['idle', 'walk-a', 'walk-b'];
 
@@ -76,12 +76,12 @@
       grade: [1.05, 0.98, 0.9], night: 0.25, edge: 'palm'
     },
     frost: {
-      grass: ['#eef6ff', '#e0ecf8', '#f8fcff', '#d4e4f2'], sand: ['#d6e2ee', '#c8d6e6', '#e2ecf6', '#b8c8dc'],
-      stone: ['#b9c4d2', '#a9b6c6', '#c9d2de', '#9daabb'], mortar: '#6f7f94', dirt: ['#a8b8cc', '#98aabe', '#b8c8da'],
-      sky: '#c9dcf2', fog: '#d6e4f4', sun: '#ffe8d0', sunI: 0.66, hemiS: '#dfeaff', hemiG: '#6a7a9a', hemiI: 0.5,
-      lampI: 0.55, leaf: ['#e8f2fa', '#d4e4f2', '#f6fbff', '#c2d6ea'], trunk: '#5a4636',
-      frond: ['#4f7a6a', '#5a8a7a', '#6a9a8a', '#3f6a5a'], water: ['#8fc8ec', '#a8d8f4', '#c8e8fc', '#78b4dc'],
-      grade: [0.98, 1.0, 1.07], night: 0.25, edge: 'pine'
+      grass: ['#c8d6e8', '#b8c8dc', '#d4e2f0', '#a8bad0'], sand: ['#b8c8dc', '#a8b8d0', '#c4d2e4', '#98a8c0'],
+      stone: ['#a9b6c6', '#9daabb', '#b9c4d2', '#8e9aac'], mortar: '#5f6f84', dirt: ['#8a9ab0', '#7a8aa0', '#9aaabe'],
+      sky: '#b8d0ea', fog: '#c4d6ea', sun: '#ffe4c8', sunI: 0.52, hemiS: '#d8e8f8', hemiG: '#5a6a88', hemiI: 0.4,
+      lampI: 0.28, leaf: ['#d4e4f2', '#c2d6ea', '#e8f2fa', '#b0c8de'], trunk: '#5a4636',
+      frond: ['#4f7a6a', '#5a8a7a', '#6a9a8a', '#3f6a5a'], water: ['#7ab4dc', '#8fc8ec', '#a8d8f4', '#68a4cc'],
+      grade: [1.0, 1.0, 1.02], night: 0.2, edge: 'pine'
     },
     verdant: {
       grass: ['#6fae4b', '#62a142', '#7dbb55', '#57923a'], sand: ['#c9b47e', '#bca670', '#d6c28c', '#ae9862'],
@@ -412,25 +412,19 @@
     return g;
   }
 
-  // ------------------------------------------------------------------ post (tilt-shift DOF + glow + grade + vignette)
+  // ------------------------------------------------------------------ post (grade + soft vignette; no tilt-shift — clarity first)
   var POST_FS = [
     'uniform sampler2D tDiffuse; uniform vec2 res; uniform vec3 grade; uniform float night; varying vec2 vUv;',
     'void main() {',
-    '  vec3 sharp = texture2D(tDiffuse, vUv).rgb;',
-    '  float d = abs(vUv.y - 0.46);',
-    '  float amt = smoothstep(0.16, 0.5, d) * 3.2;',
-    '  vec3 acc = sharp; float n = 1.0;',
-    '  for (int i = 0; i < 10; i++) { float a = float(i) * 0.628318; vec2 o = vec2(cos(a), sin(a)) / res;',
-    '    acc += texture2D(tDiffuse, vUv + o * amt).rgb; acc += texture2D(tDiffuse, vUv + o * amt * 0.5).rgb; n += 2.0; }',
-    '  vec3 blur = acc / n;',
-    '  vec3 c = mix(sharp, blur, clamp(amt / 2.2, 0.0, 1.0));',
+    '  vec3 c = texture2D(tDiffuse, vUv).rgb;',
+    '  // Night lamps alone keep a mild bloom; daytime stays sharp.',
     '  vec3 g2 = vec3(0.0);',
-    '  for (int i = 0; i < 8; i++) { float a = float(i) * 0.785398; vec3 s = texture2D(tDiffuse, vUv + vec2(cos(a), sin(a)) * 4.0 / res).rgb;',
-    '    g2 += s * max(dot(s, vec3(0.299, 0.587, 0.114)) - 0.84, 0.0); }',
-    '  c += g2 * (0.18 + night * 0.5);',
-    '  c *= grade;',
-    '  vec2 q = (vUv - 0.5) * vec2(1.0, 1.15);',
-    '  c *= 1.0 - dot(q, q) * 0.95;',
+    '  for (int i = 0; i < 8; i++) { float a = float(i) * 0.785398; vec3 s = texture2D(tDiffuse, vUv + vec2(cos(a), sin(a)) * 2.5 / res).rgb;',
+    '    g2 += s * max(dot(s, vec3(0.299, 0.587, 0.114)) - 0.9, 0.0); }',
+    '  c += g2 * (night * 0.28);',
+    '  c *= mix(vec3(1.0), grade, 0.45);',
+    '  vec2 q = (vUv - 0.5) * vec2(1.0, 1.08);',
+    '  c *= 1.0 - dot(q, q) * 0.28;',
     '  gl_FragColor = vec4(c, 1.0);',
     '}'
   ].join('\n');
@@ -469,9 +463,9 @@
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: false, powerPreference: 'high-performance' });
     if (!this.renderer.getContext()) throw new Error('no gl');
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.camera = new THREE.PerspectiveCamera(30, 1, 0.5, 120);
-    this.rt = new THREE.WebGLRenderTarget(4, 4, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+    this.rt = new THREE.WebGLRenderTarget(4, 4, { minFilter: THREE.LinearFilter, magFilter: THREE.NearestFilter });
     this.post = new THREE.ShaderMaterial({
       uniforms: { tDiffuse: { value: this.rt.texture }, res: { value: new THREE.Vector2(4, 4) }, grade: { value: V3(1, 1, 1) }, night: { value: 0 } },
       vertexShader: POST_VS, fragmentShader: POST_FS, depthTest: false, depthWrite: false
@@ -499,7 +493,7 @@
     this.resize();
   };
 
-  /** HD sprites are downsampled hard by the ~330px buffer: mipmaps keep them from shimmering. */
+  /** Sprites stay nearest-neighbour at full resolution so Bob/cutouts stay crystal clear. */
   World3D.prototype._spriteTex = function (url, onload) {
     if (this.imgTex[url]) {
       if (onload && this.imgTex[url].image && this.imgTex[url].image.width) onload(this.imgTex[url]);
@@ -512,7 +506,8 @@
     });
     srgb(t);
     t.magFilter = THREE.NearestFilter;
-    t.minFilter = THREE.LinearMipmapLinearFilter;
+    t.minFilter = THREE.NearestFilter;
+    t.generateMipmaps = false;
     t.userData.shared = true;
     t.userData.waiters = onload ? [onload] : [];
     this.imgTex[url] = t;
@@ -535,11 +530,11 @@
     if (w < 8 || h < 8) return;
     if (w === this._w && h === this._h) return;
     this._w = w; this._h = h;
-    // ~330 rendered rows, upscaled nearest-neighbour: the chunky HD-2D pixel look.
-    var pr = clamp(330 / h, 0.25, 1);
+    // Match CSS pixels (cap 2x DPR). The old ~330-row buffer made every texture mushy after upscale.
+    var pr = Math.min(root.devicePixelRatio || 1, 2);
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(w, h, false);
-    var bw = Math.round(w * pr), bh = Math.round(h * pr);
+    var bw = Math.max(1, Math.round(w * pr)), bh = Math.max(1, Math.round(h * pr));
     this.rt.setSize(bw, bh);
     this.post.uniforms.res.value.set(bw, bh);
     this.camera.aspect = w / h;
@@ -567,14 +562,14 @@
     var sun = this.sun = new THREE.DirectionalLight(col(L.sun), L.sunI);
     sun.castShadow = true;
     var mobile = Math.min(root.innerWidth, root.innerHeight) < 600;
-    sun.shadow.mapSize.set(mobile ? 1024 : 2048, mobile ? 1024 : 2048);
+    sun.shadow.mapSize.set(mobile ? 2048 : 4096, mobile ? 2048 : 4096);
     var sc = sun.shadow.camera;
     sc.left = -16; sc.right = 16; sc.top = 16; sc.bottom = -16; sc.near = 1; sc.far = 60;
     sc.updateProjectionMatrix();
     sun.shadow.bias = -0.0008;
     sun.shadow.normalBias = 0.03;
     S.add(sun, sun.target);
-    this.sunOff = V3(-9, 13, -7);
+    this.sunOff = V3(-8, 18, -6);
 
     this.solid = new Uint8Array(mapW * mapH);
     this.circles = [];
@@ -666,8 +661,9 @@
     function half(t) {
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.repeat.set(0.5, 0.5);
-      // Mipmaps + anisotropy stop the shallow-angle floor from aliasing into stripes.
-      t.minFilter = THREE.LinearMipmapLinearFilter;
+      // Nearest mips keep cobble/sand crisp while still picking a stable LOD at shallow angles.
+      t.magFilter = THREE.NearestFilter;
+      t.minFilter = THREE.NearestMipmapNearestFilter;
       t.generateMipmaps = true;
       t.anisotropy = aniso;
       t.needsUpdate = true;
@@ -1031,7 +1027,7 @@
     pole.position.set(x, 0.95, z);
     pole.castShadow = true;
     S.add(pole);
-    var lan = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.3, 0.26), new THREE.MeshBasicMaterial({ color: col(color).lerp(col('#ffffff'), 0.35) }));
+    var lan = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.3, 0.26), new THREE.MeshBasicMaterial({ color: col(color).lerp(col('#ffffff'), 0.12) }));
     lan.position.set(x, 2.05, z);
     S.add(lan);
     var cap = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.16, 4), new THREE.MeshLambertMaterial({ color: col('#2c2622') }));
@@ -1047,9 +1043,9 @@
       this.haloTex.minFilter = this.haloTex.magFilter = THREE.LinearFilter;
       this.haloTex.userData.shared = true;
     }
-    var halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.haloTex, color: col(color), transparent: true, opacity: 0.35 + L.night * 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+    var halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.haloTex, color: col(color), transparent: true, opacity: 0.12 + L.night * 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
     halo.position.set(x, 2.05, z);
-    halo.scale.set(1.3, 1.3, 1);
+    halo.scale.set(1.05, 1.05, 1);
     S.add(halo);
     var pl = new THREE.PointLight(col(color), L.lampI, 6, 1.8);
     pl.position.set(x, 1.95, z);
