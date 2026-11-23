@@ -1,3 +1,9 @@
+Original prompt: merge and depl;oy
+
+- November 23, 2026 **Arena FAB HUD (#1266) merged to main and live.**
+  - **Change.** Resolved dirty merge with main (cache-bust pins: kept `style.css?v=310`, `shield-navigation.css?v=15`, `shield-navigation.js?v=8`, `game.js?v=357`; took `home-redesign.js?v=181`). Merged PR #1266; Deploy workflow `45115768237` succeeded (Cloud Run + Firebase Hosting/Functions).
+  - **Verification.** Live `https://siegelingstcgtesting.web.app/play` serves those pins. `/api/cards/editor` → `source=FIRESTORE`, `liveEditingEnabled=true`, `firestoreAvailable=true` (Hosting + Cloud Run direct). `config.js` `apiBaseUrl: ''`. `/api/game/options` HTTP 200 with 7 decks. Log: `/opt/cursor/artifacts/arena-fab-deploy-verify.log`.
+
 Original prompt: integrate tinto the mulligan, load all of those elements at the same time, add some flair to the fab ui area for arena battle so it has the same sihlloutte but some flair to it for battle
 
 - November 22, 2026 **Arena mulligan uses the SiegeKnight FAB dock; battle flair on the silhouette.**
