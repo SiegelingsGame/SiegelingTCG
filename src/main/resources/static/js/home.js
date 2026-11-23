@@ -11294,7 +11294,7 @@
         { element: 'Earth', status: 'Leech', cap: 2, icon: '♥', color: '#8fbd58', copy: 'First hit marks; second hit heals its attacker for HP dealt, then clears.' },
         { element: 'Wind', status: 'Disorient', cap: 3, icon: '↝', color: '#96ffb4', copy: 'Raises this card’s lowest-cost ability by 1 per stack.' },
         { element: 'Water', status: 'Soak', cap: 5, icon: '◆', color: '#3296ff', copy: 'Incoming attacks deal +1 damage per stack.' },
-        { element: 'Electric', status: 'Shock', cap: 5, icon: 'ϟ', color: '#ffe63c', copy: 'This card can spend 1 less energy per stack.' },
+        { element: 'Electric', status: 'Shock', cap: 5, icon: 'ϟ', color: '#ffe63c', copy: 'Each stack adds 1 energy to its next move, then clears.' },
         { element: 'Metal', status: 'Rust', cap: 3, icon: '⚙', color: '#a0aab4', copy: 'Next Metal hit gains +1 per stack, then clears.' },
         { element: 'Poison', status: 'Toxin', cap: 5, icon: '☠', color: '#78dc50', copy: 'Blocks healing; heal value removes stacks instead.' },
         { element: 'Shadow', status: 'Curse', cap: 2, icon: '☾', color: '#9a63d6', copy: 'The marked Siegeling cannot be claimed or evolved.' },

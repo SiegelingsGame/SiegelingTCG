@@ -1921,6 +1921,8 @@ public class GameController {
             ability.put("effectValueMax", effectValueMax);
             ability.put("requiredElement", option.getRequiredElement() == null ? null : option.getRequiredElement().name());
             ability.put("requiredEnergy", option.getRequiredEnergy());
+            ability.put("baseRequiredEnergy", option.getAbility().getRequiredEnergy());
+            ability.put("shockEnergy", attacker.getAfflictionStacks(ElementalAffliction.SHOCK));
             ability.put("affordable", option.isAffordable());
             ability.put("fromPrintedPassive", option.getAbility().isBattleOptionFromPrintedPassive());
             abilities.add(ability);

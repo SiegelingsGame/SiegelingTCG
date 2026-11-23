@@ -688,8 +688,8 @@ const STATUS_EFFECT_KEY = {
         group: 'affliction',
         element: 'ELECTRIC',
         cap: 5,
-        summary: 'can spend 1 less energy per badge',
-        detail: 'Inflicted by Electric damage. This card\'s personal spending cap for paying ability costs drops by 1 per stack. The owner\'s energy pool is untouched — only what this Siegeling may spend is limited.'
+        summary: 'next move costs 1 extra energy per stack',
+        detail: 'Inflicted by Electric damage. Each stack adds 1 energy to this Siegeling\'s next move. The full printed cost plus Shock is spent from the shared energy pool, then Shock clears.'
     },
     RUST: {
         name: 'Rust',
@@ -3525,6 +3525,19 @@ function renderBattleAbilityCostEmblems(ability) {
     }
     html += `</span><span class="battle-cost-label">${formatElementLabel(rawElement || element)}</span>`;
     return html;
+}
+
+function renderBattleAbilityCostBreakdown(ability) {
+    const total = getAbilityRequiredEnergy(ability);
+    const base = Number(ability?.baseRequiredEnergy ?? total);
+    const extra = Math.max(0, total - base);
+    const shock = Math.min(extra, Math.max(0, Number(ability?.shockEnergy || 0)));
+    const other = extra - shock;
+    const element = formatElementLabel(ability?.requiredElement || ability?.costElement || 'energy');
+    return `<span class="battle-cost-breakdown">Base ${escapeHtml(String(base))} ${escapeHtml(element)}`
+        + (other ? ` · Status +${other}` : '')
+        + (shock ? ` · Shock +${shock}` : '')
+        + (extra ? ` · Spend ${total}` : '') + '</span>';
 }
 
 function getSortedBattleAbilities(abilities) {
@@ -6932,12 +6945,44 @@ function renderDesktopPreviewEffects(card) {
         <div class="desktop-preview-effects-body">
             <div class="desktop-preview-effect-list">
                 ${activeEffects.length
-                    ? activeEffects.map(({ kind, amount }) => `<span class="desktop-preview-effect-pill" data-status="${escapeHtmlAttribute(kind)}" style="--sb-color:${escapeHtmlAttribute(STATUS_BADGE_PALETTE[kind] || '#8bc2ff')}">${renderStatusBadge(kind, 0)}<span>${escapeHtml(STATUS_EFFECT_KEY[kind]?.name || STATUS_BADGE_LABEL[kind] || kind)}${amount ? ` ${escapeHtml(amount.replace(/^\+/, ''))}` : ''}</span></span>`).join('')
+                    ? activeEffects.map(({ kind, amount }) => {
+                        const info = STATUS_EFFECT_KEY[kind] || {};
+                        const title = info.name || STATUS_BADGE_LABEL[kind] || kind;
+                        const label = `${title}${amount ? ` ${amount.replace(/^\+/, '')}` : ''}`;
+                        return `<button type="button" class="desktop-preview-effect-pill" data-status="${escapeHtmlAttribute(kind)}" style="--sb-color:${escapeHtmlAttribute(STATUS_BADGE_PALETTE[kind] || '#8bc2ff')}" onpointermove="positionEffectPopover(event)" onclick="openEffectKey('${escapeHtmlAttribute(kind)}', event)">${renderStatusBadge(kind, 0)}<span>${escapeHtml(label)}</span><span class="desktop-effect-popover" role="tooltip"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(info.element ? `${formatElementLabel(info.element)} effect` : 'Status effect')}${info.cap ? ` · Max ${info.cap}` : ''}</small><span>${escapeHtml(info.summary || info.detail || 'Active on this card.')}</span><em>Click for effect details</em></span></button>`;
+                    }).join('')
                     : '<span class="desktop-preview-effects-empty">No active effects</span>'}
             </div>
             <button type="button" class="desktop-preview-effects-all" onclick="openAllEffectsKey(event)">View All Effects <span aria-hidden="true">›</span></button>
         </div>
     </section>`;
+}
+
+function positionEffectPopover(event) {
+    const popup = event.currentTarget.querySelector('.desktop-effect-popover');
+    if (!popup) return;
+    popup.style.left = `${Math.min(event.clientX + 16, window.innerWidth - 295)}px`;
+    popup.style.top = `${Math.max(12, event.clientY - 145)}px`;
+}
+
+let desktopPreview3dEnabled = false;
+
+function toggleDesktopPreview3d() {
+    desktopPreview3dEnabled = !desktopPreview3dEnabled;
+    renderDesktopCardPreviewPanel();
+}
+
+function tiltDesktopPreviewCard(event) {
+    if (!desktopPreview3dEnabled) return;
+    const slot = event.currentTarget;
+    const bounds = slot.getBoundingClientRect();
+    slot.style.setProperty('--preview-tilt-x', `${((event.clientY - bounds.top) / bounds.height - 0.5) * -28}deg`);
+    slot.style.setProperty('--preview-tilt-y', `${((event.clientX - bounds.left) / bounds.width - 0.5) * 34}deg`);
+}
+
+function resetDesktopPreviewCardTilt(event) {
+    event.currentTarget.style.setProperty('--preview-tilt-x', '0deg');
+    event.currentTarget.style.setProperty('--preview-tilt-y', '0deg');
 }
 
 function renderDesktopMenuMeta() {
@@ -7058,7 +7103,8 @@ function renderDesktopCardPreviewPanel() {
     }
 
     let html = '<div class="desktop-preview-layout">';
-    html += '<div class="desktop-preview-card-slot">';
+    html += `<div class="desktop-preview-card-slot${desktopPreview3dEnabled ? ' is-3d' : ''}" onpointermove="tiltDesktopPreviewCard(event)" onpointerleave="resetDesktopPreviewCardTilt(event)">`;
+    html += `<button type="button" class="desktop-preview-3d-toggle" aria-pressed="${desktopPreview3dEnabled}" onclick="toggleDesktopPreview3d()">${desktopPreview3dEnabled ? 'Exit 3D Viewport' : '3D Viewport'}</button>`;
     html += renderShowcaseCard(focusedCard, {
         cardClass: 'selected-preview-card desktop-preview-card',
         artVariant: 'selected',
@@ -16749,7 +16795,7 @@ function renderBattlePanel() {
             const effectLine = getBattleAbilityEffectLine(ability);
             const weaknessPreview = formatBattleAbilityWeaknessPreview(ability);
             const tip = `${moveName}: ${effectLine}${weaknessPreview ? ` ${weaknessPreview}` : ''}`;
-            actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-move-name">${escapeHtml(moveName)}</span><span class="battle-ability-effect">${escapeHtml(effectLine)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
+            actionsHtml += `<button class="battle-ability-btn" type="button" data-ability-index="${ability.index}" ${disabled} title="${escapeHtmlAttribute(tip)}"><span class="battle-ability-btn-inner"><span class="battle-ability-copy"><span class="battle-ability-move-name">${escapeHtml(moveName)}</span><span class="battle-ability-effect">${escapeHtml(effectLine)}</span>${weaknessPreview ? `<span class="battle-ability-weakness">${escapeHtml(weaknessPreview)}</span>` : ''}${renderBattleAbilityCostBreakdown(ability)}</span><span class="battle-ability-cost">${renderBattleAbilityCostEmblems(ability)}</span></span></button>`;
         }
         bodyHtml += `<div class="battle-queue-actions">${actionsHtml}</div>`;
     }
