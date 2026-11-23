@@ -399,8 +399,8 @@
 
   Overworld.prototype._paintPlayerCss = function () {
     var p = this.player;
-    var pose = p.walking ? (p.frame ? 'walk-b' : 'walk-a') : 'idle';
-    var src = SPRITE_BASE + p.dir + '-' + pose + '.webp';
+    var pose = p.walking ? ['idle', 'walk-a', 'idle', 'walk-b'][p.frame & 3] : 'idle';
+    var src = SPRITE_BASE + p.dir + '-' + pose + '.webp?v=2';
     if (this.els.playerImg && this.els.playerImg.getAttribute('src') !== src) {
       this.els.playerImg.src = src;
     }
@@ -497,26 +497,35 @@
     return false;
   };
 
+  Overworld.prototype._animatePlayer = function (dt, moving) {
+    var p = this.player;
+    if (!moving) {
+      p.frame = 0;
+      p.frameT = 0;
+      return;
+    }
+    p.frameT += dt;
+    while (p.frameT >= 0.12) {
+      p.frameT -= 0.12;
+      p.frame = (p.frame + 1) & 3;
+    }
+  };
+
   Overworld.prototype._step = function (dt) {
     var v = this._inputVector();
-    var walking = !!(v.x || v.y);
+    var inputWalking = !!(v.x || v.y);
     if (this.use3d) {
-      if (walking) {
+      var oldX = this.player.x, oldZ = this.player.z;
+      if (inputWalking) {
         var nx = this.player.x + v.x * this.speed * dt;
         var nz = this.player.z + v.y * this.speed * dt;
         if (!this._blocked3d(nx, this.player.z)) this.player.x = nx;
         if (!this._blocked3d(this.player.x, nz)) this.player.z = nz;
         var d = dirFromVector(v.x, v.y);
         if (d) this.player.dir = d;
-        this.player.frameT += dt;
-        if (this.player.frameT > 0.16) {
-          this.player.frameT = 0;
-          this.player.frame = this.player.frame ? 0 : 1;
-        }
-      } else {
-        this.player.frame = 0;
-        this.player.frameT = 0;
       }
+      var walking = Math.hypot(this.player.x - oldX, this.player.z - oldZ) > 0.0001;
+      this._animatePlayer(dt, walking);
       this.player.walking = walking;
       this._scanNear3d();
       if (this.world3d) {
@@ -534,23 +543,18 @@
     }
 
     // CSS mode uses player.z as screen Y
-    if (walking) {
+    var cssOldX = this.player.x, cssOldY = this.player.z;
+    if (inputWalking) {
       var cx = this.player.x + v.x * this.speed * dt;
       var cy = this.player.z + v.y * this.speed * dt;
       if (!this._blockedCss(cx, this.player.z)) this.player.x = cx;
       if (!this._blockedCss(this.player.x, cy)) this.player.z = cy;
       var d2 = dirFromVector(v.x, v.y);
       if (d2) this.player.dir = d2;
-      this.player.frameT += dt;
-      if (this.player.frameT > 0.16) {
-        this.player.frameT = 0;
-        this.player.frame = this.player.frame ? 0 : 1;
-      }
-    } else {
-      this.player.frame = 0;
-      this.player.frameT = 0;
     }
-    this.player.walking = walking;
+    var cssWalking = Math.hypot(this.player.x - cssOldX, this.player.z - cssOldY) > 0.01;
+    this._animatePlayer(dt, cssWalking);
+    this.player.walking = cssWalking;
     this._paintPlayerCss();
     this._scanNearCss();
     this._updateMinimapDot();

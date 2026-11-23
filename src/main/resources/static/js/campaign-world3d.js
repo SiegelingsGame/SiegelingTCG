@@ -14,6 +14,7 @@
   if (!THREE) return;
 
   var BOB = '/img/sprites/squire-bob/';
+  var BOB_ASSET_VERSION = '2';
   var SANC = '/img/campaign/sanctuary/';
   var PX = 16;
   var BOB_DIRS = ['up', 'up-right', 'right', 'down-right', 'down', 'down-left', 'left', 'up-left'];
@@ -523,7 +524,7 @@
     BOB_DIRS.forEach(function (d) {
       BOB_POSES.forEach(function (p) {
         var key = d + '-' + p;
-        self.bobTex[key] = self._spriteTex(BOB + key + '.webp');
+        self.bobTex[key] = self._spriteTex(BOB + key + '.webp?v=' + BOB_ASSET_VERSION);
       });
     });
   };
@@ -1265,8 +1266,11 @@
   };
 
   // ------------------------------------------------------------------ characters
-  World3D.prototype._actorMesh = function (w, h) {
-    var mat = new THREE.MeshLambertMaterial({ alphaTest: 0.5, side: THREE.DoubleSide, emissive: col('#ffffff'), emissiveIntensity: 0.2, transparent: true });
+  World3D.prototype._actorMesh = function (w, h, unlit) {
+    // Bob's authored colours should survive the low-resolution post pass; world actors still receive scene light.
+    var mat = unlit
+      ? new THREE.MeshBasicMaterial({ alphaTest: 0.5, side: THREE.DoubleSide, transparent: true })
+      : new THREE.MeshLambertMaterial({ alphaTest: 0.5, side: THREE.DoubleSide, emissive: col('#ffffff'), emissiveIntensity: 0.2, transparent: true });
     var geo = new THREE.PlaneGeometry(1, 1);
     geo.translate(0, 0.5, 0);
     var mesh = new THREE.Mesh(geo, mat);
@@ -1285,7 +1289,7 @@
     if (a.tex === tex) return;
     a.tex = tex;
     a.mesh.material.map = tex;
-    a.mesh.material.emissiveMap = tex;
+    if ('emissiveMap' in a.mesh.material) a.mesh.material.emissiveMap = tex;
     a.mesh.material.needsUpdate = true;
     a.mesh.customDepthMaterial.map = tex;
     a.mesh.customDepthMaterial.needsUpdate = true;
@@ -1531,12 +1535,11 @@
     this._lastT = now;
     var px = state.x, pz = state.z, dir = state.dir || 'down', walking = !!state.walking;
 
-    if (!this.actors.player) this.actors.player = this._actorMesh(1.36, 1.7);
+    if (!this.actors.player) this.actors.player = this._actorMesh(1.36, 1.7, true);
     var p = this.actors.player;
-    var pose = walking ? (state.frame ? 'walk-b' : 'walk-a') : 'idle';
+    var pose = walking ? ['idle', 'walk-a', 'idle', 'walk-b'][state.frame & 3] : 'idle';
     this._setActorTex(p, this.bobTex[dir + '-' + pose] || this.bobTex['down-idle']);
-    var bounce = walking ? Math.abs(Math.sin(now / 95)) * 0.05 : 0;
-    p.mesh.position.set(px, bounce, pz);
+    p.mesh.position.set(px, 0, pz);
     p.shadow.position.set(px, 0.012, pz);
 
     // Follower walks Bob's breadcrumb trail ~1.1 tiles behind.

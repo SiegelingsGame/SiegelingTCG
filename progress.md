@@ -1,3 +1,9 @@
+Original prompt: The walking animations are POOR the assets are faded on the player, Bob grows when he walks
+
+- November 23, 2026 **Squire Bob walk animation rebuilt from the source sheet.**
+  - **Change.** Re-exported all 24 Bob frames from `overworld-sheet.webp` using its real 256px columns and source rows, removed sheet dividers and the baked lavender floor oval, normalized every idle/walk figure to exactly 128px high on a common y=195 foot baseline, and versioned sprite requests at `?v=2`. Bob alone now uses an unlit `MeshBasicMaterial`, preserving the authored yellow/blue palette while followers and wanderers remain scene-lit. The gait is now the source sheet's four-phase idle → walk-a → idle → walk-b cycle at 120ms, with no independent sine bounce. Animation derives from actual displacement, so pushing into collision returns Bob to idle. Cache pins: `campaign-world3d.js?v=7`, `campaign-overworld.js?v=8` in the page and fixture.
+  - **Verification.** Every exported direction/pose measured 128px high with baseline 195. `node --check` passed for both scripts. Headless Chromium at 390x844 and 1280x800 in the Ice realm reported `MeshBasicMaterial`, scale `1.36×1.7×1`, opacity 1, no emissive map, all phases `[0,1,2,3]`, player y=0, and blocked input `walking=false/frame=0`, with no page errors. Manual phone walkthrough covered four cardinal + two diagonal directions and held against north/south/east collision: no growth, faded colour, divider, baked oval, or vertical bounce; blocked poses were pixel-identical. Video model independently confirmed the 4× walkthrough remains clear and shows the animation stopping at boundaries.
+
 Original prompt: This formatting is bad add a "beta modes" button that fits cleanly in the UI it gives two options for Adventure and Swarm
 
 - November 23, 2026 **Shield FAB "Beta modes" picker.**
