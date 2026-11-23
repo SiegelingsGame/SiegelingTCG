@@ -639,3 +639,11 @@ body.gameplay-active .action-bar-aux.is-fab-hosted {
   box-shadow:none !important;
   background:transparent !important;
 }
+/* Four utilities (two of them tagged test modes) must fit the shield's waist on 320px phones. */
+.sn-utilities button { white-space:nowrap; }
+.sn-utilities { gap:12px; }
+@media (max-width: 380px) {
+  .sn-utilities { gap:8px; }
+  .sn-utilities button { font-size:10px; }
+  .sn-utilities .sn-test small { margin-left:2px; padding:0 3px; font-size:7px; }
+}

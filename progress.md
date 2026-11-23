@@ -1,3 +1,9 @@
+Original prompt: Merge this into the live site using a similar beta test link in the siege fab button right next to swarm "testing modes" for swarm and Adventure
+
+- November 23, 2026 **Campaign beta link in the shield FAB.**
+  - **Change.** The shield navigation utilities row now shows `Campaign BETA` next to `Swarm TEST`, routed to `/campaign` from both the link-mode mount (`HUB_PATHS`) and the hub mount in `home-redesign.js`. Utility buttons no longer wrap, and the row tightens under 380px so four entries fit the shield's waist. Bumped `shield-navigation.js?v=9`, `shield-navigation.css?v=16` (11 pages) and `home-redesign.js?v=183`.
+  - **Verification.** `node --check` on both JS files. Headless Chromium opened the FAB on `/home` (390x844, 1280x800) and `/play` (320x568): the Campaign button sits in one row inside the shield, and clicking it lands on `/campaign` with no page errors.
+
 Original prompt: Ok wow this is ROUGH quality compared to what I have with anime Vs redo this with Claude
 
 - November 23, 2026 **Campaign HD-2D world rebuilt as a faithful AnimeVsPlus2 `world3d.js` port.**
