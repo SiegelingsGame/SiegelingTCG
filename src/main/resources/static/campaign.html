@@ -17,7 +17,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/style.css?v=310">
 <link rel="stylesheet" href="/css/shield-navigation.css?v=15">
-<link rel="stylesheet" href="/css/campaign.css?v=5">
+<link rel="stylesheet" href="/css/campaign.css?v=6">
 <script src="/js/hub-music.js?v=10" data-autoinit></script>
 </head>
 <body data-screen="loading">
@@ -55,8 +55,12 @@
     </section>
 
     <section class="cm-screen" id="screenWorld">
-      <p class="cm-banner" id="cmWorldBanner" role="status"></p>
-      <div class="cm-world" id="cmWorld"></div>
+      <div class="cm-stage cm-stage-ow" id="cmSanctuaryStage"></div>
+      <div class="cm-world-overlay" id="cmWorldOverlay" hidden>
+        <p class="cm-banner" id="cmWorldBanner" role="status"></p>
+        <div class="cm-world" id="cmWorld"></div>
+        <button type="button" class="cm-world-close" id="cmWorldClose">Back to Sanctuary</button>
+      </div>
       <div class="cm-cta sn-dock">
         <button class="sn-flank is-left" id="cmPresetBtn" type="button">Arena Preset</button>
         <button class="sn-flank is-right is-gold" id="cmAkharBtn" type="button" hidden>Challenge Akhar</button>
@@ -121,7 +125,7 @@
 <script src="/js/config.js"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
 <script src="/js/shield-navigation.js?v=8"></script>
-<script src="/js/campaign-overworld.js?v=2"></script>
-<script src="/js/campaign.js?v=6"></script>
+<script src="/js/campaign-overworld.js?v=4"></script>
+<script src="/js/campaign.js?v=7"></script>
 </body>
 </html>

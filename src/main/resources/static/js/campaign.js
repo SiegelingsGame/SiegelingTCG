@@ -151,9 +151,10 @@
       setOverworldActive(true);
       return;
     }
-    setOverworldActive(false);
-    renderWorld(run);
+    // WORLD / default hub → walkable Sanctuary town
+    renderSanctuary(run);
     show('world');
+    setOverworldActive(true);
   }
 
   function renderStarters(options) {
@@ -183,13 +184,19 @@
     }).join('');
   }
 
-  function renderWorld(run) {
-    $('cmWorldBanner').textContent = run.lastMessage || 'Choose a Land. Squire Bob waits at the Sanctuary.';
+  function starterFollower(run) {
+    var starter = null;
+    (run.rosterCards || []).forEach(function (c) {
+      if (!starter && c.id === run.starterId) starter = c;
+    });
+    if (!starter && run.rosterCards && run.rosterCards[0]) starter = run.rosterCards[0];
+    return starter ? { id: starter.id, artUrl: starter.artUrl } : null;
+  }
+
+  function fillRealmOverlay(run) {
+    $('cmWorldBanner').textContent = run.lastMessage || 'Choose a Land to travel.';
     var host = $('cmWorld');
-    var bob = '<div class="cm-world-bob">' +
-      '<img src="/img/sprites/squire-bob/down-idle.webp" alt="Squire Bob">' +
-      '<span><b>Squire Bob</b><br>Pick a realm tile to travel. Buildings pop like paper dioramas.</span></div>';
-    host.innerHTML = bob + (run.lands || []).map(function (land) {
+    host.innerHTML = (run.lands || []).map(function (land) {
       var locked = !land.unlocked && !land.rallied;
       var cls = 'cm-land' + (locked ? ' is-locked' : '') + (land.rallied ? ' is-rallied' : '');
       var status = land.rallied ? 'Rallied' : (land.rivalCleared ? 'Knight awaits' : (locked ? 'Sealed' : 'Open'));
@@ -200,58 +207,123 @@
         '<span>' + esc((land.elements && land.elements[0]) || '') + ' · ' + status + '</span></span></button>';
     }).join('');
     var akhar = $('cmAkharBtn');
-    if (akhar) {
-      akhar.hidden = !run.akharUnlocked || run.phase === 'VICTORY';
-    }
+    if (akhar) akhar.hidden = !run.akharUnlocked || run.phase === 'VICTORY';
   }
 
-  function ensureOverworld() {
-    if (state.overworld) return state.overworld;
+  function showRealmOverlay(on) {
+    var ov = $('cmWorldOverlay');
+    if (!ov) return;
+    ov.hidden = !on;
+    if (on && state.run) fillRealmOverlay(state.run);
+  }
+
+  function handleOverworldAct(act, building) {
+    if (act === 'exit' || act === 'realms') {
+      if (act === 'exit') {
+        if (!state.run) return;
+        setOverworldActive(false);
+        renderSanctuary(state.run);
+        show('world');
+        setOverworldActive(true);
+        return;
+      }
+      showRealmOverlay(true);
+      return;
+    }
+    if (act === 'preset') {
+      setOverworldActive(false);
+      state.returnScreen = 'world';
+      renderPreset(state.run);
+      show('preset');
+      return;
+    }
+    if (act === 'travel' && building && building.landId) {
+      busy(function () {
+        return api('/api/campaign/enter-land', { method: 'POST', body: { landId: building.landId } })
+          .then(applyRun);
+      });
+      return;
+    }
+    if (act === 'woods') {
+      // Enter the starter's home land, then start a wild capture in the woods.
+      busy(function () {
+        var home = (state.run && state.run.starterElement)
+          ? String(state.run.starterElement).toLowerCase()
+          : 'fire';
+        var landId = home === 'fire' ? 'fire'
+          : home === 'earth' ? 'earth'
+          : home === 'ice' ? 'ice'
+          : home === 'wind' ? 'wind'
+          : 'fire';
+        // Prefer already-current land if set.
+        if (state.run && state.run.currentLandId) landId = state.run.currentLandId;
+        var enter = (state.run && state.run.phase === 'LAND' && state.run.currentLandId)
+          ? Promise.resolve(state.run)
+          : api('/api/campaign/enter-land', { method: 'POST', body: { landId: landId } });
+        return enter.then(function () {
+          return api('/api/campaign/wild/start', { method: 'POST' }).then(applyRun);
+        });
+      });
+      return;
+    }
+    busy(function () {
+      if (act === 'wild') {
+        return api('/api/campaign/wild/start', { method: 'POST' }).then(applyRun);
+      }
+      if (act === 'rival' || act === 'knight') {
+        return api('/api/campaign/arena/start', {
+          method: 'POST',
+          body: { kind: act === 'rival' ? 'rival' : 'knight' }
+        }).then(function (data) {
+          if (!data.soloToken) throw new Error('No battle token.');
+          goToArena(data.soloToken);
+        });
+      }
+    });
+  }
+
+  function ensureOverworld(stageId) {
+    stageId = stageId || 'cmStage';
+    if (state.overworld && state.overworld.root && state.overworld.root.id === stageId) {
+      return state.overworld;
+    }
     if (!window.CampaignOverworld) return null;
-    var stage = $('cmStage');
+    var stage = $(stageId);
     if (!stage) return null;
+    // Remount when switching sanctuary ↔ land stages.
+    if (state.overworld) state.overworld.enable(false);
     state.overworld = new window.CampaignOverworld({
       root: stage,
-      onInteract: function (act) {
-        if (act === 'exit') {
-          if (!state.run) return;
-          state.run.phase = 'WORLD';
-          setOverworldActive(false);
-          renderWorld(state.run);
-          show('world');
-          return;
-        }
-        busy(function () {
-          if (act === 'wild') {
-            return api('/api/campaign/wild/start', { method: 'POST' }).then(applyRun);
-          }
-          if (act === 'rival' || act === 'knight') {
-            return api('/api/campaign/arena/start', {
-              method: 'POST',
-              body: { kind: act === 'rival' ? 'rival' : 'knight' }
-            }).then(function (data) {
-              if (!data.soloToken) throw new Error('No battle token.');
-              goToArena(data.soloToken);
-            });
-          }
-        });
-      },
+      onInteract: handleOverworldAct,
       onExit: function () {
-        $('cmBackWorld').click();
+        if (document.body.dataset.screen === 'land') $('cmBackWorld').click();
+        else showRealmOverlay(true);
       }
     });
     state.overworld.mount();
     return state.overworld;
   }
 
+  function renderSanctuary(run) {
+    showRealmOverlay(false);
+    var ow = ensureOverworld('cmSanctuaryStage');
+    if (ow) {
+      ow.loadSanctuary({
+        message: run.lastMessage || 'Sanctuary Plaza — palm woods to the north, waystones to the east.',
+        gold: run.gold,
+        rallies: (run.ralliedLandIds || []).length,
+        lands: run.lands || [],
+        follower: starterFollower(run)
+      });
+    }
+    var akhar = $('cmAkharBtn');
+    if (akhar) akhar.hidden = !run.akharUnlocked || run.phase === 'VICTORY';
+  }
+
   function renderLand(run) {
+    showRealmOverlay(false);
     var land = run.currentLand || {};
-    var ow = ensureOverworld();
-    var starter = null;
-    (run.rosterCards || []).forEach(function (c) {
-      if (!starter && c.id === run.starterId) starter = c;
-    });
-    if (!starter && run.rosterCards && run.rosterCards[0]) starter = run.rosterCards[0];
+    var ow = ensureOverworld('cmStage');
     if (ow) {
       ow.loadLand({
         name: land.name || 'Land',
@@ -260,7 +332,9 @@
         element: (land.elements && land.elements[0]) || run.starterElement || 'neutral',
         rivalDone: (run.clearedRivalLandIds || []).indexOf(run.currentLandId) >= 0,
         rallied: (run.ralliedLandIds || []).indexOf(run.currentLandId) >= 0,
-        follower: starter ? { id: starter.id, artUrl: starter.artUrl } : null
+        gold: run.gold,
+        rallies: (run.ralliedLandIds || []).length,
+        follower: starterFollower(run)
       });
     }
   }
@@ -382,28 +456,8 @@
       t = ev.target.closest('[data-act]');
       if (t) {
         var act = t.getAttribute('data-act');
-        if (act === 'exit') {
-          if (!state.run) return;
-          setOverworldActive(false);
-          state.run.phase = 'WORLD';
-          renderWorld(state.run);
-          show('world');
-          return;
-        }
-        busy(function () {
-          if (act === 'wild') {
-            return api('/api/campaign/wild/start', { method: 'POST' }).then(applyRun);
-          }
-          if (act === 'rival' || act === 'knight') {
-            return api('/api/campaign/arena/start', {
-              method: 'POST',
-              body: { kind: act === 'rival' ? 'rival' : 'knight' }
-            }).then(function (data) {
-              if (!data.soloToken) throw new Error('No battle token.');
-              goToArena(data.soloToken);
-            });
-          }
-        });
+        var landId = t.getAttribute('data-land');
+        handleOverworldAct(act, landId ? { landId: landId, label: t.textContent } : null);
         return;
       }
       t = ev.target.closest('#cmRoster [data-id]');
@@ -447,11 +501,15 @@
     $('cmBackWorld').addEventListener('click', function () {
       if (!state.run) return;
       setOverworldActive(false);
-      state.run.phase = 'WORLD';
-      renderWorld(state.run);
+      // Soft return to Sanctuary — server may still be LAND; waystones re-enter.
+      renderSanctuary(state.run);
       show('world');
-      // Soft return — server still has LAND; enter-land again when picking.
+      setOverworldActive(true);
     });
+    var worldClose = $('cmWorldClose');
+    if (worldClose) {
+      worldClose.addEventListener('click', function () { showRealmOverlay(false); });
+    }
     function openPreset() {
       state.returnScreen = document.body.dataset.screen === 'land' ? 'land' : 'world';
       setOverworldActive(false);
@@ -464,6 +522,10 @@
       if (state.returnScreen === 'land' && state.run) {
         renderLand(state.run);
         show('land');
+        setOverworldActive(true);
+      } else if (state.run) {
+        renderSanctuary(state.run);
+        show('world');
         setOverworldActive(true);
       } else {
         show(state.returnScreen || 'world');

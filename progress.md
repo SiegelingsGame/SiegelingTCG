@@ -1,3 +1,9 @@
+Original prompt: Use the pixel based assets to create a starting town and nearby woods for this game. Similar to my anime Vs + Map
+
+- November 23, 2026 **Sanctuary Plaza town + Palm Woods (Anime Vs style).**
+  - **Change.** Campaign hub is now a walkable Sanctuary town built from the Egypt pixel pack (sand/wood tiles, palms, pyramid, pillars, vases) plus Paper Mario house/arena/waystone facades. North grove = Palm Woods wild capture; east waystones travel to realms; Realm Map overlay kept. Anime Vs HUD: location chip, minimap, analog stick, red A button, sunset haze. Assets under `img/campaign/sanctuary/`. Pins: `campaign.css?v=6`, `campaign-overworld.js?v=3`, `campaign.js?v=7`.
+  - **Verification.** `node --check` campaign.js + campaign-overworld.js. Browser: new rally → Sanctuary plaza with palms/buildings/HUD; Palm Woods bang+prompt → wild battle; Realm Map overlay. Screenshots `campaign-sanctuary-*.png`.
+
 Original prompt: Update the visuals to a 2.5d adventure similar to Pokemon style world but with paper Mario style popups buildings. Using squire bob as the starting character moving around the world
 
 - November 23, 2026 **Campaign overworld: Squire Bob walkabout + Paper Mario buildings.**

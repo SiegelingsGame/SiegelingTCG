@@ -568,3 +568,163 @@ body[data-screen="land"] .cm-screen { padding-bottom: calc(72px + env(safe-area-
 }
 .cm-start-hero p { margin: 0; font-size: 13px; color: var(--cm-muted); line-height: 1.4; }
 .cm-start-hero strong { color: var(--cm-gold); font-family: var(--cm-serif); }
+
+/* ---- Sanctuary town (Anime Vs + Map style) ---- */
+body[data-screen="world"] .cm-screen { padding: 0 0 calc(72px + env(safe-area-inset-bottom)); }
+body[data-screen="world"] #cmSanctuaryStage { display: block; }
+.cm-ow.is-sanctuary {
+  background:
+    linear-gradient(180deg, rgba(255,140,60,.28), rgba(20,40,70,.45) 42%, rgba(10,20,36,.55)),
+    radial-gradient(ellipse at 50% 0%, #ffb06a 0%, #7ec8ff 35%, transparent 55%),
+    linear-gradient(180deg, #ff9a4a 0%, #ffc98a 28%, #6fbf66 28%, #3f7a3a 100%);
+}
+.cm-ow-haze {
+  position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  background:
+    radial-gradient(ellipse at 50% 70%, transparent 40%, rgba(8,14,28,.45) 100%),
+    linear-gradient(180deg, transparent 55%, rgba(255,160,80,.12));
+  backdrop-filter: none;
+}
+.cm-ow-topbar {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 6;
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 10px 0; pointer-events: none;
+}
+.cm-ow-loc {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-radius: 10px;
+  background: rgba(12,18,36,.78); border: 1px solid rgba(230,205,140,.28);
+  font-size: 12px; font-weight: 600; color: #f3e7c2;
+  text-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
+.cm-ow-loc-icon {
+  width: 14px; height: 14px; border-radius: 3px;
+  background: linear-gradient(180deg, #7ecb4d, #3f8a3a);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.25);
+}
+.cm-ow-curr {
+  display: flex; gap: 6px; margin-left: auto;
+  font-size: 12px;
+}
+.cm-ow-curr span {
+  padding: 5px 8px; border-radius: 999px;
+  background: rgba(12,18,36,.78); border: 1px solid rgba(230,205,140,.25);
+}
+.cm-ow-minimap {
+  position: relative; width: 96px; height: 96px; flex: 0 0 auto;
+  border-radius: 10px; overflow: hidden;
+  border: 2px solid rgba(230,205,140,.4);
+  box-shadow: 0 6px 14px rgba(0,0,0,.35);
+  background: #2a3a28;
+}
+.cm-ow-minimap canvas { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+.cm-ow-mini-dot {
+  position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px;
+  border-radius: 50%; background: #ffe59a; border: 1px solid #1a1206;
+  box-shadow: 0 0 6px rgba(255,220,120,.8);
+  left: 50%; top: 50%;
+}
+.cm-ow-banner {
+  position: absolute; left: 10px; top: 108px; z-index: 5; max-width: min(70vw, 320px);
+  margin: 0; padding: 7px 12px; border-radius: 10px;
+  background: rgba(12,18,36,.78); border: 1px solid rgba(230,205,140,.28);
+  font-size: 12px; color: #f3e7c2; pointer-events: none;
+}
+.cm-ow.is-sanctuary .cm-ow-hud { display: none; }
+
+.cm-ow-tile {
+  background-size: cover; background-repeat: no-repeat; image-rendering: pixelated;
+}
+.cm-ow-tile.is-sand, .cm-ow-tile.is-sandb { background-color: #c9a56a; }
+.cm-ow-tile.is-path { background-color: #e6d3a0; }
+.cm-ow-tile.is-wood { background-color: #d4b06a; }
+
+.cm-ow-decor {
+  background-size: contain; background-repeat: no-repeat; background-position: 50% 100%;
+  image-rendering: pixelated;
+  transform: rotateX(-48deg); transform-origin: 50% 100%;
+  filter: drop-shadow(0 8px 6px rgba(0,0,0,.35));
+}
+.cm-ow-decor.is-lamp {
+  filter: drop-shadow(0 0 10px rgba(255,200,80,.55)) drop-shadow(0 8px 6px rgba(0,0,0,.3));
+}
+.cm-ow-decor.is-fountain { z-index: 12; }
+
+.cm-ow-build-face { background: transparent; border: 0; }
+.cm-ow-build-img {
+  width: 100%; height: 78%; object-fit: contain; object-position: bottom;
+  image-rendering: pixelated; display: block;
+  filter: drop-shadow(0 6px 4px rgba(0,0,0,.35));
+}
+.cm-ow-build-sign {
+  bottom: 2px; top: auto;
+  background: rgba(12,18,36,.82);
+}
+.cm-ow-build.is-grove .cm-ow-build-roof,
+.cm-ow-build.is-arena .cm-ow-build-roof,
+.cm-ow-build.is-keep .cm-ow-build-roof,
+.cm-ow-build.is-waystone .cm-ow-build-roof,
+.cm-ow-build.is-house .cm-ow-build-roof { display: none; }
+.cm-ow-build.is-grove .cm-ow-build-wall,
+.cm-ow-build.is-arena .cm-ow-build-wall,
+.cm-ow-build.is-keep .cm-ow-build-wall,
+.cm-ow-build.is-waystone .cm-ow-build-wall,
+.cm-ow-build.is-house .cm-ow-build-wall {
+  background: transparent; border: 0;
+}
+.cm-ow-build-door, .cm-ow-build-window, .cm-ow-build-edge { display: none; }
+
+.cm-ow-ring {
+  position: absolute; left: 10%; right: 10%; bottom: 4px; height: 16px;
+  border: 2px solid rgba(255,255,255,.85); border-radius: 50%;
+  box-shadow: 0 0 10px rgba(255,255,255,.35); opacity: .9;
+  transform: rotateX(70deg);
+}
+
+/* Anime Vs controls */
+.cm-ow-stick {
+  position: absolute; left: 14px; bottom: calc(78px + env(safe-area-inset-bottom));
+  width: 118px; height: 118px; z-index: 8; touch-action: none;
+}
+.cm-ow-stick-base {
+  width: 100%; height: 100%; border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.12), rgba(12,18,36,.55));
+  border: 2px solid rgba(230,205,140,.35);
+  display: flex; align-items: center; justify-content: center;
+}
+.cm-ow-stick-knob {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: linear-gradient(180deg, rgba(255,255,255,.35), rgba(180,190,210,.25));
+  border: 2px solid rgba(255,255,255,.45);
+  box-shadow: 0 4px 10px rgba(0,0,0,.35);
+  transform: translate(0,0);
+}
+.cm-ow-btn-a {
+  position: absolute; right: 18px; bottom: calc(88px + env(safe-area-inset-bottom));
+  width: 64px; height: 64px; border-radius: 50%; z-index: 8;
+  appearance: none; border: 0; cursor: pointer;
+  font-weight: 800; font-size: 22px; color: #fff;
+  background: radial-gradient(circle at 35% 30%, #ff8a9a, #e74c5c 60%, #b83240);
+  box-shadow: 0 8px 18px rgba(0,0,0,.4), inset 0 2px 0 rgba(255,255,255,.35);
+  touch-action: manipulation;
+}
+.cm-ow-pad { display: none; } /* replaced by stick + A */
+
+.cm-world-overlay {
+  position: absolute; inset: 0; z-index: 20;
+  display: flex; flex-direction: column;
+  padding: 12px 14px calc(88px + env(safe-area-inset-bottom));
+  background: rgba(8,12,24,.92); backdrop-filter: blur(6px);
+}
+.cm-world-overlay[hidden] { display: none !important; }
+.cm-world-close {
+  appearance: none; margin-top: 10px; align-self: center;
+  border: 0; border-radius: 999px; cursor: pointer;
+  padding: 8px 16px; font-weight: 600;
+  background: var(--cm-gold); color: #1a1206;
+}
+
+@media (min-width: 900px) {
+  .cm-ow-stick { opacity: .45; }
+  .cm-ow-stick:hover, .cm-ow-stick:focus-within { opacity: 1; }
+}
