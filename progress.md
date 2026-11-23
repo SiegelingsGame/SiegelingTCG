@@ -1,3 +1,9 @@
+Original prompt: now integrate the trays that appear into the siegeknight fab as well
+
+- November 22, 2026 **Arena utility trays dock onto the SiegeKnight FAB.**
+  - **Change.** Card / Battle / Log / Energy / Hints drawers no longer cover the FAB as a separate bottom sheet. While a drawer is open in `arena-fab-docked` gameplay, the tray sits on the dock (`arena-fab-tray-open`), FAB chrome stays Quit Battle / Close tray (Siegelings face), and the options fan hides. Close tray, Escape, FAB tap, or backdrop dismiss clears the tray and restores Knight / Draw·End Turn. Cache pins: `style.css?v=309`, `shield-navigation.css?v=12`, `game.js?v=356`. Preview: `arena-fab-tray-preview.html`.
+  - **Verification.** `node --check js/game.js`; `GameJavaScriptRegressionTest` passes. Headless Chromium: drawer `bottom` clears `--sn-dock-h`, dock z-index above tray. Live play.html at 390×844: FAB → Energy docks dossier with Quit/Close tray; Close tray restores Knight/Draw. Screenshots under `/opt/cursor/artifacts/arena-fab-tray-*`.
+
 Original prompt: yes escept yourve changed the coloway of the knigtha nd end turn buttons show a preview in the arena mode
 
 - November 22, 2026 **Arena FAB play flanks restore original Knight / End Turn colors.**

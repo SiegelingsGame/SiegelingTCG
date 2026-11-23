@@ -325,6 +325,11 @@
   --sn-dock-fill:rgba(8,10,24,.72);
   z-index:calc(var(--sn-z, 75) - 1);
 }
+/* When a utility tray is docked onto the FAB, keep the dock chrome above the
+   tray sheet so Quit / Close remain the tray's flanks. */
+body.arena-fab-tray-open .arena-fab-dock {
+  --sn-dock-fill:rgba(10,14,30,.88);
+}
 /* Play flanks keep the Arena action-bar colorway (gold Knight, blue Draw,
    red End Turn) and only borrow the dock's cut shape around the FAB. */
 .arena-fab-dock .arena-fab-play-flank.ab-btn {

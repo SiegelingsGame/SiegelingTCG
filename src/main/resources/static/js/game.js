@@ -5195,6 +5195,7 @@ function openDrawer(name) {
             return;
         }
         activeDrawer = name;
+        syncArenaFabTrayFromDrawer();
         return;
     }
 
@@ -5209,6 +5210,7 @@ function openDrawer(name) {
         drawer.classList.add('visible');
     });
     activeDrawer = name;
+    syncArenaFabTrayFromDrawer();
 }
 
 /** Open a utility menu panel — left inspector on landscape, drawer elsewhere. */
@@ -5313,6 +5315,7 @@ function closeDrawer(immediate = false) {
         }
     });
     activeDrawer = null;
+    syncArenaFabTrayFromDrawer();
 }
 
 function formatPhaseLabel(phase) {
@@ -10388,20 +10391,29 @@ function wireArenaBattleFab(nav) {
     });
 
     const options = document.getElementById('arenaFabOptions');
-    // Utility picks that open a panel should collapse the fan; mute/speed/music stay.
+    // Tray-opening picks keep the FAB chrome (Quit/Close) and dock the drawer
+    // onto the FAB; mute/speed/music stay as in-fan toggles.
     options?.addEventListener('click', (event) => {
         const btn = event.target.closest('button, a, summary');
         if (!btn || !options.contains(btn)) return;
         if (btn.id === 'btnMuteSound' || btn.id === 'sglSpeedToggle' || btn.classList.contains('ab-music')) {
             return;
         }
-        closeArenaFabMenu();
+        // Hide the fan immediately; openDrawer → syncArenaFabTrayFromDrawer
+        // keeps Quit/Close up so the tray reads as part of the FAB.
+        options.hidden = true;
     });
 
     nav.setPrimaryClickHandler(({ shieldOpen }) => {
         if (!document.body.classList.contains('gameplay-active')) return false;
         if (shieldOpen) {
             nav.closeShield();
+            return true;
+        }
+        // A docked tray is already "open" chrome — dismiss it instead of
+        // jumping straight into the full shield.
+        if (document.body.classList.contains('arena-fab-tray-open')) {
+            closeArenaFabMenu();
             return true;
         }
         if (!arenaFabMenuOpen) {
@@ -10415,7 +10427,8 @@ function wireArenaBattleFab(nav) {
 
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
-        if (!arenaFabMenuOpen || nav.isShieldOpen?.()) return;
+        if ((!arenaFabMenuOpen && !document.body.classList.contains('arena-fab-tray-open'))
+            || nav.isShieldOpen?.()) return;
         event.preventDefault();
         closeArenaFabMenu();
     });
@@ -10458,6 +10471,49 @@ function hostArenaFabFlank(btn, side) {
     else dock.appendChild(btn);
 }
 
+function isArenaFabDockedGameplay() {
+    return document.body.classList.contains('gameplay-active')
+        && document.body.classList.contains('arena-fab-docked');
+}
+
+/** Slide-up utility trays (Card / Battle / Log / Energy / Hints) dock onto the
+ *  SiegeKnight FAB: keep Quit/Close chrome, hide the options fan, and let CSS
+ *  sit the drawer on top of the dock instead of covering it. */
+function syncArenaFabTrayFromDrawer() {
+    if (!isArenaFabDockedGameplay()) {
+        if (document.body.classList.contains('arena-fab-tray-open')) {
+            document.body.classList.remove('arena-fab-tray-open');
+        }
+        return;
+    }
+    const trayOpen = Boolean(activeDrawer);
+    const wasTrayOpen = document.body.classList.contains('arena-fab-tray-open');
+    document.body.classList.toggle('arena-fab-tray-open', trayOpen);
+    if (!trayOpen) {
+        // Backdrop / swipe dismiss should also clear FAB chrome that the tray owned.
+        if (wasTrayOpen && arenaFabMenuOpen) {
+            arenaFabMenuOpen = false;
+            document.body.classList.remove('arena-fab-menu-open');
+            const options = document.getElementById('arenaFabOptions');
+            if (options) options.hidden = true;
+            arenaShieldNav?.fab?.setAttribute('aria-expanded', 'false');
+        }
+        syncArenaFabPlayFlanks();
+        syncArenaBattleFabFace();
+        return;
+    }
+    // Tray mode reuses the open-menu chrome so Close / Quit dismiss the tray.
+    if (!arenaFabMenuOpen) {
+        arenaFabMenuOpen = true;
+        document.body.classList.add('arena-fab-menu-open');
+        arenaShieldNav?.fab?.setAttribute('aria-expanded', 'true');
+    }
+    const options = document.getElementById('arenaFabOptions');
+    if (options && !options.hidden) options.hidden = true;
+    syncArenaFabPlayFlanks();
+    syncArenaBattleFabFace();
+}
+
 function syncArenaFabPlayFlanks() {
     const dock = document.getElementById('arenaFabDock');
     const quit = document.getElementById('arenaFabQuit');
@@ -10472,22 +10528,29 @@ function syncArenaFabPlayFlanks() {
     const battle = document.getElementById('btnBattle');
     const endTurn = document.getElementById('btnEndTurn');
     const playButtons = [knight, draw, pass, cancel, battle, endTurn].filter(Boolean);
+    const trayOpen = document.body.classList.contains('arena-fab-tray-open');
 
-    if (arenaFabMenuOpen) {
-        // Options mode: Siegelings flanks replace Knight / End Turn. Park the
-        // play buttons back in the (hidden) action bar so their phase/hidden
+    if (arenaFabMenuOpen || trayOpen) {
+        // Options / tray mode: Siegelings flanks replace Knight / End Turn.
+        // Park play buttons back in the (hidden) action bar so phase/hidden
         // flags stay intact for when the menu closes.
         playButtons.forEach((btn) => {
             clearArenaFabFlankClasses(btn);
             if (bar && btn.parentElement !== bar) bar.appendChild(btn);
         });
         if (quit) quit.hidden = false;
-        if (closeBtn) closeBtn.hidden = false;
+        if (closeBtn) {
+            closeBtn.hidden = false;
+            closeBtn.textContent = trayOpen ? 'Close tray' : 'Close menu';
+        }
         return;
     }
 
     if (quit) quit.hidden = true;
-    if (closeBtn) closeBtn.hidden = true;
+    if (closeBtn) {
+        closeBtn.hidden = true;
+        closeBtn.textContent = 'Close menu';
+    }
 
     // Left: Cancel Move > Pass > Knight. Right: Draw/End Turn (btnDraw morphs
     // during Setup). During Battle the right flank stays empty unless Pass did
@@ -10608,12 +10671,18 @@ function openArenaFabMenu() {
 }
 
 function closeArenaFabMenu() {
-    if (!arenaFabMenuOpen) return;
+    const trayOpen = document.body.classList.contains('arena-fab-tray-open');
+    if (!arenaFabMenuOpen && !trayOpen) return;
     arenaFabMenuOpen = false;
     document.body.classList.remove('arena-fab-menu-open');
+    if (trayOpen) document.body.classList.remove('arena-fab-tray-open');
     const options = document.getElementById('arenaFabOptions');
     if (options) options.hidden = true;
     closeSetupActionsBreakdown();
+    // Dismiss any docked utility tray with the FAB chrome.
+    if (activeDrawer && isArenaFabDockedGameplay()) {
+        closeDrawer(true);
+    }
     syncArenaFabPlayFlanks();
     syncArenaBattleFabFace();
     arenaShieldNav?.fab?.setAttribute('aria-expanded', 'false');
@@ -10625,6 +10694,9 @@ function restoreArenaFabHostsToActionBar() {
     }
     if (document.body.classList.contains('arena-fab-menu-open')) {
         document.body.classList.remove('arena-fab-menu-open');
+    }
+    if (document.body.classList.contains('arena-fab-tray-open')) {
+        document.body.classList.remove('arena-fab-tray-open');
     }
     const dock = document.getElementById('arenaFabDock');
     if (dock && !dock.hidden) dock.hidden = true;
