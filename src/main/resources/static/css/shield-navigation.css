@@ -273,3 +273,369 @@
 .sn-back:hover { border-color:#ffe0a0; }
 .sn-back:active { transform:scale(.96); }
 .sn-back:focus-visible { outline:2px solid #fff; outline-offset:2px; }
+
+/* ---- Arena battle FAB ----
+   During a match the same FAB shows the player's SiegeKnight portrait until
+   the options menu opens, then it returns to the Siegelings mark. The action
+   badge and options fan live beside it; Quit / Close use the dock flanks. */
+.sn-fab.sn-fab-knight .sn-emblem {
+  background:radial-gradient(circle at 35% 20%, #3a4f6e, #0a1528 78%);
+  overflow:hidden;
+}
+.sn-fab.sn-fab-knight .sn-emblem > img:not(.sn-face-outgoing) {
+  object-fit:cover;
+  object-position:center 18%;
+  transform:scale(1.35);
+}
+.sn-fab.sn-fab-knight .sn-core { display:none; }
+/* Knight ↔ Siegelings face morph: outgoing portrait overlays while the new
+   face fades/scales in. Timed to ~560ms to match setFabFace's cleanup. */
+.sn-fab.sn-fab-face-swap .sn-emblem { overflow:hidden; }
+.sn-face-outgoing {
+  position:absolute;
+  inset:0;
+  z-index:2;
+  width:100%;
+  height:100%;
+  border-radius:50%;
+  pointer-events:none;
+  opacity:1;
+  filter:blur(0);
+  transition:opacity .48s ease, transform .56s cubic-bezier(.2,.75,.25,1), filter .48s ease;
+}
+.sn-face-outgoing.is-knight {
+  object-fit:cover;
+  object-position:center 18%;
+  transform:scale(1.35) rotate(0deg);
+}
+.sn-face-outgoing.is-siegelings {
+  object-fit:contain;
+  transform:scale(1) rotate(0deg);
+}
+.sn-face-outgoing.is-out {
+  opacity:0;
+  filter:blur(2.5px);
+}
+.sn-face-outgoing.is-knight.is-out { transform:scale(.76) rotate(-12deg); }
+.sn-face-outgoing.is-siegelings.is-out { transform:scale(1.24) rotate(10deg); }
+.sn-emblem > img.sn-face-incoming {
+  opacity:0;
+  filter:blur(2px);
+  transition:opacity .48s ease .06s, transform .56s cubic-bezier(.2,.75,.25,1), filter .48s ease .06s;
+}
+.sn-fab:not(.sn-fab-knight) .sn-emblem > img.sn-face-incoming {
+  transform:scale(.7) rotate(10deg);
+}
+.sn-fab.sn-fab-knight .sn-emblem > img.sn-face-incoming {
+  transform:scale(1.58) rotate(-10deg);
+}
+.sn-fab:not(.sn-fab-knight) .sn-emblem > img.sn-face-incoming.is-in {
+  opacity:1;
+  filter:none;
+  transform:scale(1) rotate(0deg);
+}
+.sn-fab.sn-fab-knight .sn-emblem > img.sn-face-incoming.is-in {
+  opacity:1;
+  filter:none;
+  transform:scale(1.35) rotate(0deg);
+}
+.sn-fab-badge {
+  position:absolute;
+  top:-4px;
+  right:-4px;
+  z-index:2;
+  min-width:22px;
+  height:22px;
+  padding:0 6px;
+  border-radius:999px;
+  border:1.5px solid rgba(226,183,20,.85);
+  background:linear-gradient(135deg, #2a3a62, #152038);
+  color:#f6e7bc;
+  font:800 11px/20px ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.02em;
+  box-shadow:0 2px 8px rgba(0,0,0,.45);
+  pointer-events:auto;
+  cursor:pointer;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+}
+.sn-fab-badge[hidden] { display:none !important; }
+.sn-fab-badge.is-zero {
+  border-color:rgba(120,130,155,.65);
+  background:rgba(80,90,110,.92);
+  color:rgba(220,225,235,.8);
+}
+.sn-fab-badge.is-draw {
+  min-width:38px;
+  font-size:9px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.arena-fab-dock {
+  --sn-dock-fill:rgba(8,10,24,.72);
+  z-index:calc(var(--sn-z, 75) - 1);
+}
+/* When a utility tray is docked onto the FAB, keep the dock chrome above the
+   tray sheet so Quit / Close remain the tray's flanks. */
+body.arena-fab-tray-open .arena-fab-dock {
+  --sn-dock-fill:rgba(10,14,30,.88);
+}
+/* Arena battle flair: same dock silhouette, with etched gold rails, ember
+   notches at the cut ends, and a hotter FAB rim so the HUD reads as a fight
+   control rather than a plain loadout dock. */
+body.arena-fab-battle .arena-fab-dock {
+  --sn-dock-fill:rgba(6,9,20,.78);
+}
+body.arena-fab-battle .arena-fab-dock::before {
+  background:
+    linear-gradient(90deg, transparent 4%, rgba(255,196,90,.16) 18%, transparent 32%, transparent 68%, rgba(255,196,90,.16) 82%, transparent 96%),
+    linear-gradient(0deg, rgba(8,10,24,.96) 58%, rgba(20,28,48,.55) 78%, transparent);
+  border-top:1px solid rgba(226,183,20,.18);
+  box-shadow:inset 0 1px 0 rgba(255,232,160,.08);
+}
+body.arena-fab-battle .arena-fab-dock::after {
+  /* Short ember rail under the FAB only — long rails crossed the flank labels. */
+  content:'';
+  position:absolute;
+  left:50%;
+  bottom:calc(var(--sn-fab-bottom) + var(--sn-fab-size) / 2 - 1px);
+  width:calc(var(--sn-flank-tuck) * 2 + 18px);
+  height:2px;
+  transform:translateX(-50%);
+  pointer-events:none;
+  z-index:0;
+  background:linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,196,90,.55) 30%,
+    rgba(255,230,150,.35) 50%,
+    rgba(255,196,90,.55) 70%,
+    transparent 100%);
+  opacity:.9;
+}
+body.arena-fab-battle .sn-fab .sn-emblem {
+  border-color:#f0d48a;
+  box-shadow:
+    0 0 0 3px #6b4520,
+    0 0 0 5px rgba(255,196,90,.22),
+    0 4px 16px rgba(0,0,0,.55),
+    0 0 22px rgba(255,160,60,.18);
+}
+body.arena-fab-battle .sn-fab .sn-emblem::before {
+  opacity:.34;
+  border-color:#ffd27a;
+  box-shadow:0 0 18px rgba(255,190,90,.45);
+}
+body.arena-fab-battle .arena-fab-dock .arena-fab-mulligan-flank {
+  --flank-rim:rgba(255,215,0,.42);
+  --flank-bg:linear-gradient(180deg, rgba(36,48,78,.97), rgba(14,20,40,.98));
+  --flank-ink:#f6e7bc;
+  width:100%;
+  max-width:210px;
+  min-height:var(--sn-flank-h);
+  height:var(--sn-flank-h);
+  margin:0;
+  font:800 13px/1.05 ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", "Nunito", system-ui, sans-serif;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+body.arena-fab-battle .arena-fab-dock .arena-fab-mulligan-flank.is-keep {
+  --flank-rim:rgba(255,215,0,.5);
+  --flank-bg:
+    radial-gradient(circle at 50% 0%, rgba(255,230,120,.16), transparent 55%),
+    linear-gradient(180deg, rgba(42,52,82,.97), rgba(16,22,40,.98));
+  --flank-ink:var(--accent, #ffd700);
+}
+body.arena-fab-battle .arena-fab-dock .arena-fab-mulligan-flank.is-redraw {
+  --flank-rim:#7eb6ff;
+  --flank-bg:linear-gradient(180deg, #3f78ec 0%, #2448b8 52%, #1a3278 100%);
+  --flank-ink:#fff;
+  text-shadow:0 1px 2px rgba(0,0,0,.45);
+}
+body.arena-fab-battle .arena-fab-dock .arena-fab-mulligan-flank.is-redraw:disabled,
+body.arena-fab-battle .arena-fab-dock .arena-fab-mulligan-flank.is-redraw[disabled] {
+  --flank-rim:rgba(140,160,190,.4);
+  --flank-bg:linear-gradient(180deg, rgba(48,58,82,.92), rgba(22,28,42,.96));
+  --flank-ink:rgba(220,228,240,.78);
+  text-shadow:none;
+  filter:none;
+  opacity:.92;
+}
+@media (min-width:1024px) and (min-height:601px) {
+  body.arena-fab-battle .arena-fab-dock .arena-fab-mulligan-flank {
+    max-width:clamp(210px, 20vw, 380px);
+    font-size:clamp(14px, 1.02vw, 18px);
+  }
+}
+/* Play flanks keep the Arena action-bar colorway (gold Knight, blue Draw,
+   red End Turn) and only borrow the dock's cut shape around the FAB. */
+.arena-fab-dock .arena-fab-play-flank.ab-btn {
+  --flank-rim:rgba(255,215,0,.34);
+  --flank-bg:linear-gradient(180deg, rgba(28,40,72,.96), rgba(14,20,42,.98));
+  --flank-ink:var(--accent, #ffd700);
+  width:100%;
+  max-width:210px;
+  min-height:var(--sn-flank-h);
+  height:var(--sn-flank-h);
+  margin:0;
+  padding:0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px) 0 22px;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+  color:var(--flank-ink);
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  white-space:nowrap;
+  font-size:0.76em;
+}
+.arena-fab-dock .arena-fab-play-flank.ab-btn.is-right {
+  padding:0 22px 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px);
+}
+.arena-fab-dock .arena-fab-play-flank.ab-trainer {
+  --flank-rim:rgba(255,215,0,.34);
+  --flank-bg:linear-gradient(180deg, rgba(36,44,70,.96), rgba(16,22,40,.98));
+  --flank-ink:var(--accent, #ffd700);
+}
+.arena-fab-dock .arena-fab-play-flank.ab-trainer.ab-ability-ready {
+  --flank-rim:rgba(255,232,120,.88);
+  --flank-bg:
+    radial-gradient(circle at 50% 0%, rgba(255,230,100,.22), transparent 54%),
+    linear-gradient(135deg, rgba(226,183,20,.28), rgba(255,126,42,.18)),
+    linear-gradient(180deg, rgba(36,44,70,.96), rgba(16,22,40,.98));
+  --flank-ink:#fff6c2;
+  animation:knightAbilityReadyPulse 1.05s ease-in-out infinite;
+}
+.arena-fab-dock .arena-fab-play-flank.ab-trainer.ab-ability-ready::after {
+  content:'Ready';
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-left:6px;
+  padding:2px 5px;
+  border-radius:999px;
+  background:rgba(255,231,111,.18);
+  color:#ffe66f;
+  font-size:.68em;
+  font-weight:950;
+  letter-spacing:0;
+  text-transform:uppercase;
+}
+.arena-fab-dock .arena-fab-play-flank.ab-draw {
+  --flank-rim:var(--water, #3296ff);
+  --flank-bg:linear-gradient(180deg, rgba(50,150,255,.16), rgba(18,36,72,.96));
+  --flank-ink:var(--water, #3296ff);
+  box-shadow:0 0 10px rgba(50,150,255,.12);
+}
+.arena-fab-dock .arena-fab-play-flank.ab-draw.ab-drawn {
+  --flank-rim:var(--danger, #e74c3c);
+  --flank-bg:linear-gradient(180deg, rgba(231,76,60,.18), rgba(42,18,22,.96));
+  --flank-ink:var(--danger, #e74c3c);
+  animation:ab-end-pulse 2s ease-in-out infinite;
+}
+.arena-fab-dock .arena-fab-play-flank.ab-pass,
+.arena-fab-dock .arena-fab-play-flank.ab-cancel-move {
+  --flank-rim:rgba(180,200,255,.42);
+  --flank-bg:linear-gradient(180deg, rgba(40,52,88,.96), rgba(16,22,40,.98));
+  --flank-ink:var(--text, #e0e0e0);
+  white-space:normal;
+  text-wrap:balance;
+  letter-spacing:.02em;
+  text-transform:none;
+  font-size:13px;
+  line-height:1.1;
+  gap:2px;
+}
+.arena-fab-dock .arena-fab-play-flank .ab-pass-title {
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  font-size:.76em;
+}
+.arena-fab-dock .arena-fab-play-flank .ab-pass-next {
+  font-size:10px;
+  font-weight:600;
+  color:rgba(214,223,255,.82);
+}
+.arena-fab-dock .sn-flank.is-danger {
+  --flank-rim:#f0a090;
+  --flank-bg:linear-gradient(180deg,#7a2a2a 0%,#4a1218 52%,#2a0a0e 100%);
+  --flank-ink:#ffe8e0;
+}
+@media (min-width:1024px) and (min-height:601px) {
+  .arena-fab-dock .arena-fab-play-flank.ab-btn {
+    max-width:clamp(210px, 20vw, 380px);
+    font-size:clamp(15px, 1.05vw, 19px);
+  }
+}
+.arena-fab-options {
+  position:fixed;
+  z-index:calc(var(--sn-z, 75) - 1);
+  left:50%;
+  bottom:calc(var(--sn-fab-bottom) + var(--sn-fab-size) + 14px);
+  transform:translateX(-50%);
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:8px;
+  max-width:min(360px, calc(100vw - 24px));
+  padding:10px 12px;
+  border-radius:18px;
+  border:1px solid rgba(226,183,20,.35);
+  background:linear-gradient(180deg, rgba(24,34,60,.96), rgba(10,14,28,.98));
+  box-shadow:0 14px 36px rgba(0,0,0,.5);
+  pointer-events:auto;
+}
+.arena-fab-options[hidden] { display:none !important; }
+.arena-fab-options .ab-icon {
+  position:relative;
+  flex:0 0 auto;
+  width:58px;
+  height:54px;
+  border-radius:14px;
+  font-size:1.05em;
+  flex-direction:column;
+  gap:2px;
+  padding:6px 4px 4px;
+}
+.arena-fab-options .ab-icon::after {
+  content:attr(data-fab-label);
+  font:700 9px/1.1 ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:rgba(246,231,188,.82);
+}
+.arena-fab-options .ab-icon.ab-music svg { width:18px; height:18px; }
+.arena-fab-options .play-hub-menu-flyout,
+.arena-fab-options .ab-action-counter { display:none !important; }
+body.arena-desk.gameplay-active .arena-fab-options {
+  left:calc(var(--arena-desk-gutter, 12px) + var(--hud-rail-width) / 2);
+  transform:translateX(-50%);
+  max-width:min(320px, calc(var(--hud-rail-width) + 80px));
+}
+body.arena-desk.gameplay-active .arena-fab-dock {
+  left:0;
+  right:auto;
+  width:calc(var(--arena-desk-gutter, 12px) * 2 + var(--hud-rail-width));
+  padding-left:var(--arena-desk-gutter, 12px);
+  padding-right:var(--arena-desk-gutter, 12px);
+}
+body.gameplay-active .action-bar-aux.is-fab-hosted {
+  position:fixed !important;
+  left:-9999px !important;
+  top:auto !important;
+  bottom:auto !important;
+  width:1px !important;
+  height:1px !important;
+  margin:-1px !important;
+  padding:0 !important;
+  overflow:hidden !important;
+  clip:rect(0 0 0 0) !important;
+  border:0 !important;
+  pointer-events:none !important;
+  opacity:0 !important;
+  transform:none !important;
+  max-width:none !important;
+  box-shadow:none !important;
+  background:transparent !important;
+}

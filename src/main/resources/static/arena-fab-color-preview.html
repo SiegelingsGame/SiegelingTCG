@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Arena FAB color preview</title>
+  <link rel="stylesheet" href="/css/style.css?v=310">
+  <link rel="stylesheet" href="/css/shield-navigation.css?v=15">
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; background:#0b1224; }
+    body { --sn-z: 80; }
+    .preview-arena {
+      position:fixed; inset:0;
+      background:
+        radial-gradient(circle at 50% 20%, rgba(80,40,20,.35), transparent 50%),
+        linear-gradient(180deg, #1a2744, #0b1224 70%);
+    }
+    .preview-board {
+      position:absolute; left:12px; right:12px; top:56px; bottom:calc(var(--sn-dock-h) + 12px);
+      border:1px solid rgba(255,215,0,.22); border-radius:18px;
+      display:flex; align-items:center; justify-content:center;
+      color:rgba(224,224,224,.55); font:700 14px/1.3 system-ui,sans-serif;
+      letter-spacing:.08em; text-transform:uppercase;
+    }
+    .preview-label {
+      position:absolute; top:14px; left:14px; right:14px;
+      display:flex; justify-content:space-between; align-items:center;
+      color:#ffd700; font:800 12px/1 system-ui,sans-serif; letter-spacing:.12em; text-transform:uppercase;
+    }
+    .preview-label span { color:rgba(224,224,224,.7); font-weight:600; letter-spacing:.04em; text-transform:none; }
+    #actionBar, #loadoutOverlay { display:none !important; }
+  </style>
+</head>
+<body class="gameplay-active arena-fab-docked">
+<div class="preview-arena">
+  <div class="preview-label">Arena mode <span>Knight + End Turn keep original colors</span></div>
+  <div class="preview-board">Hand / battle moves tray</div>
+</div>
+<div id="loadoutOverlay"></div>
+<div class="action-bar" id="actionBar">
+  <div class="action-bar-btns" id="actionButtons">
+    <button class="ab-btn ab-trainer ab-primary ab-ability-ready" id="btnTrainerAbility" type="button">⚔ Knight</button>
+    <button class="ab-btn ab-pass ab-primary hidden" id="btnBattlePass" type="button" hidden>
+      <span class="ab-pass-title">Pass</span><span class="ab-pass-next" id="btnBattlePassNext"></span>
+    </button>
+    <button class="ab-btn ab-cancel-move ab-primary hidden" id="btnCancelBattleMove" type="button" hidden>Cancel Move</button>
+    <button class="ab-btn ab-draw ab-primary ab-drawn" id="btnDraw" type="button">⏭ End Turn</button>
+    <button class="ab-btn ab-battle" id="btnBattle" type="button">Auto Battle</button>
+    <button class="ab-btn ab-end" id="btnEndTurn" type="button">End Turn</button>
+  </div>
+  <div class="action-bar-aux">
+    <button class="ab-icon ab-music" type="button" title="Music">M</button>
+    <button type="button" id="setupActionsCounter" class="ab-action-counter sn-fab-badge">
+      <span class="ab-action-counter-label" id="setupActionsCounterLabel" hidden>Act</span>
+      <span class="ab-action-counter-value" id="setupActionsCounterValue">2</span>
+    </button>
+    <button class="ab-icon" id="btnSelectedPreview" type="button" title="Card View">👁</button>
+    <button class="ab-icon" id="btnHint" type="button" title="Hints">?</button>
+    <button class="ab-icon" id="btnBattlePanel" type="button" title="Battle View">⚔</button>
+    <button class="ab-icon" id="btnGameLog" type="button" title="Log">☰</button>
+    <button class="ab-icon" id="btnEnergyDetail" type="button" title="Energy">◇</button>
+    <button class="ab-icon" id="sglSpeedToggle" type="button" title="Speed">▶</button>
+    <button class="ab-icon" id="btnMuteSound" type="button" title="Mute">🔊</button>
+  </div>
+</div>
+<div class="sn-dock arena-fab-dock" id="arenaFabDock">
+  <button class="sn-flank is-left is-danger" type="button" id="arenaFabQuit" hidden>Quit Battle</button>
+  <button class="sn-flank is-right" type="button" id="arenaFabClose" hidden>Close menu</button>
+</div>
+<div class="arena-fab-options" id="arenaFabOptions" hidden role="menu" aria-label="Battle options"></div>
+<script src="/js/shield-navigation.js?v=8"></script>
+<script>
+(function () {
+  var nav = window.SiegelingsShieldNavigation.mountLinks();
+  nav.setHidden(false);
+  nav.setFabFace({
+    mode: 'knight',
+    src: '/img/knights/lady-pyla-full-card.webp',
+    alt: 'Lady Pyla',
+    label: 'Lady Pyla battle options'
+  });
+  var fab = nav.fab;
+  var counter = document.getElementById('setupActionsCounter');
+  fab.appendChild(counter);
+
+  function host(btn, side) {
+    btn.classList.remove('sn-flank', 'is-left', 'is-right', 'is-gold', 'is-blue', 'arena-fab-play-flank');
+    btn.classList.add('sn-flank', 'arena-fab-play-flank', side === 'left' ? 'is-left' : 'is-right');
+    var quit = document.getElementById('arenaFabQuit');
+    document.getElementById('arenaFabDock').insertBefore(btn, quit);
+  }
+  host(document.getElementById('btnTrainerAbility'), 'left');
+  host(document.getElementById('btnDraw'), 'right');
+
+  // Sample the live colors for the verification log.
+  window.__colorSample = function () {
+    var knight = document.getElementById('btnTrainerAbility');
+    var end = document.getElementById('btnDraw');
+    var ks = getComputedStyle(knight);
+    var es = getComputedStyle(end);
+    return {
+      knightColor: ks.color,
+      knightBg: ks.getPropertyValue('--flank-bg').trim(),
+      knightRim: ks.getPropertyValue('--flank-rim').trim(),
+      endColor: es.color,
+      endBg: es.getPropertyValue('--flank-bg').trim(),
+      endRim: es.getPropertyValue('--flank-rim').trim(),
+      hasGoldClass: end.classList.contains('is-gold')
+    };
+  };
+})();
+</script>
+</body>
+</html>

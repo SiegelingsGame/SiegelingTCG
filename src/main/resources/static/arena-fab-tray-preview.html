@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Arena FAB tray preview</title>
+  <link rel="stylesheet" href="/css/style.css?v=310">
+  <link rel="stylesheet" href="/css/shield-navigation.css?v=15">
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; background:#0b1224; }
+    body { --sn-z: 80; }
+    .preview-arena {
+      position:fixed; inset:0;
+      background:
+        radial-gradient(circle at 50% 18%, rgba(80,40,20,.35), transparent 52%),
+        linear-gradient(180deg, #1a2744, #0b1224 70%);
+    }
+    .preview-label {
+      position:absolute; top:14px; left:14px; right:14px; z-index:2;
+      display:flex; justify-content:space-between; gap:10px; align-items:center;
+      color:#ffd700; font:800 12px/1 system-ui,sans-serif; letter-spacing:.12em; text-transform:uppercase;
+    }
+    .preview-label span { color:rgba(224,224,224,.72); font-weight:600; letter-spacing:.04em; text-transform:none; }
+    #actionBar, #loadoutOverlay { display:none !important; }
+  </style>
+</head>
+<body class="gameplay-active arena-fab-docked arena-fab-menu-open arena-fab-tray-open">
+<div class="preview-arena">
+  <div class="preview-label">Arena mode <span>Energy tray docks onto SiegeKnight FAB</span></div>
+</div>
+<div id="loadoutOverlay"></div>
+<div class="action-bar" id="actionBar">
+  <div class="action-bar-btns" id="actionButtons">
+    <button class="ab-btn ab-trainer ab-primary" id="btnTrainerAbility" type="button">⚔ Knight</button>
+    <button class="ab-btn ab-draw ab-primary ab-drawn" id="btnDraw" type="button">⏭ End Turn</button>
+  </div>
+  <div class="action-bar-aux">
+    <button class="ab-icon" id="btnSelectedPreview" type="button" title="Card View">👁</button>
+    <button class="ab-icon" id="btnBattlePanel" type="button" title="Battle View">⚔</button>
+    <button class="ab-icon" id="btnGameLog" type="button" title="Log">☰</button>
+    <button class="ab-icon" id="btnEnergyDetail" type="button" title="Energy">◇</button>
+    <button class="ab-icon" id="btnHint" type="button" title="Hints">?</button>
+    <button class="ab-icon" id="sglSpeedToggle" type="button" title="Speed">▶</button>
+    <button class="ab-icon" id="btnMuteSound" type="button" title="Mute">🔊</button>
+    <button type="button" id="setupActionsCounter" class="ab-action-counter sn-fab-badge">
+      <span class="ab-action-counter-value" id="setupActionsCounterValue">1</span>
+    </button>
+  </div>
+</div>
+
+<div class="drawer-backdrop visible" id="drawerBackdrop"></div>
+<div class="drawer visible" id="drawerKey" data-drawer="energy">
+  <div class="drawer-handle"></div>
+  <h3>Energy Dossier</h3>
+  <div id="drawerEnergyPanel" class="drawer-content energy-detail-panel">
+    <div class="energy-detail-columns">
+      <div class="energy-detail-section energy-detail-player">
+        <div class="energy-detail-sidehead"><span class="energy-detail-sideicon">✦</span><div><div class="energy-detail-h2">Player</div><div class="energy-detail-hp">50 <span>HP</span></div></div></div>
+        <div class="energy-detail-muted">No elemental energy</div>
+        <div class="energy-detail-subh">Combos</div>
+        <div class="energy-detail-muted">No multicolor combo sites</div>
+        <div class="energy-detail-subh">Nexus</div>
+        <div class="energy-detail-muted">No nexus intersections</div>
+      </div>
+      <div class="energy-detail-section energy-detail-enemy">
+        <div class="energy-detail-sidehead"><span class="energy-detail-sideicon">⚔</span><div><div class="energy-detail-h2">AI Opponent</div><div class="energy-detail-hp">50 <span>HP</span></div></div></div>
+        <div class="energy-detail-muted">No elemental energy</div>
+        <div class="energy-detail-subh">Combos</div>
+        <div class="energy-detail-muted">No multicolor combo sites</div>
+        <div class="energy-detail-subh">Nexus</div>
+        <div class="energy-detail-muted">No nexus intersections</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sn-dock arena-fab-dock" id="arenaFabDock">
+  <button class="sn-flank is-left is-danger" type="button" id="arenaFabQuit">Quit Battle</button>
+  <button class="sn-flank is-right" type="button" id="arenaFabClose">Close tray</button>
+</div>
+<div class="arena-fab-options" id="arenaFabOptions" hidden></div>
+<script src="/js/shield-navigation.js?v=8"></script>
+<script>
+(function () {
+  var nav = window.SiegelingsShieldNavigation.mountLinks();
+  nav.setHidden(false);
+  nav.setFabFace({ mode: 'siegelings', label: 'Close energy tray' });
+  var fab = nav.fab;
+  var counter = document.getElementById('setupActionsCounter');
+  fab.appendChild(counter);
+  window.__traySample = function () {
+    var drawer = document.getElementById('drawerKey');
+    var dock = document.getElementById('arenaFabDock');
+    var ds = getComputedStyle(drawer);
+    var dockZ = getComputedStyle(dock).zIndex;
+    var rootZ = getComputedStyle(document.querySelector('.sn-root')).zIndex;
+    return {
+      bodyClass: document.body.className,
+      drawerBottom: ds.bottom,
+      drawerZ: ds.zIndex,
+      dockZ: dockZ,
+      rootZ: rootZ,
+      quitVisible: !document.getElementById('arenaFabQuit').hidden,
+      closeLabel: document.getElementById('arenaFabClose').textContent.trim()
+    };
+  };
+})();
+</script>
+</body>
+</html>

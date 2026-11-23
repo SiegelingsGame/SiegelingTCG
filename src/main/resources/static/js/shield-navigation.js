@@ -159,7 +159,13 @@
         }
       }).catch(function () { /* A new gesture owns completion after cancellation. */ });
     }
-    fab.addEventListener('click', function () { if (!pending) transition(!desired); });
+    var primaryClickHandler = null;
+    var SIEGELINGS_ICON = '/img/siegelings-icon-256.webp';
+    fab.addEventListener('click', function () {
+      if (pending) return;
+      if (typeof primaryClickHandler === 'function' && primaryClickHandler({ shieldOpen: desired })) return;
+      transition(!desired);
+    });
     root.querySelector('.sn-close').addEventListener('click', function () { transition(false); });
     scrim.addEventListener('click', function () { if (!pending) transition(false); });
     root.querySelectorAll('[data-destination]').forEach(function (button) {
@@ -179,7 +185,12 @@
         e.preventDefault(); focusable[(i + (e.shiftKey ? -1 : 1) + focusable.length) % focusable.length].focus();
       }
     });
-    function reset() { pending = null; desired = false; fab.setAttribute('aria-expanded','false'); fab.setAttribute('aria-label','Summon navigation'); finishClosed(false); }
+    function reset() {
+      pending = null; desired = false;
+      fab.setAttribute('aria-expanded','false');
+      if (fab.dataset.face !== 'knight') fab.setAttribute('aria-label','Summon navigation');
+      finishClosed(false);
+    }
     // A changed viewport invalidates the FAB origin. Settle safely instead of
     // flying toward stale coordinates, including on an iOS toolbar resize.
     window.addEventListener('resize', function () { if (!overlay.hidden) reset(); });
@@ -192,7 +203,114 @@
       if (hidden) reset();
       root.hidden = hidden;
     }
-    root.shieldNavigation = { element: root, reset: reset, setHidden: setHidden };
+    // Arena battle swaps the emblem between the player's SiegeKnight portrait
+    // and the Siegelings mark, and can consume the primary click before the
+    // shield opens (knight → options menu; Siegelings center → shield).
+    var faceSwapTimer = 0;
+    var faceSwapToken = 0;
+    function applyFabFace(mode, src, alt, label) {
+      var img = fab.querySelector('.sn-emblem > img:not(.sn-face-outgoing)');
+      fab.dataset.face = mode;
+      fab.classList.toggle('sn-fab-knight', mode === 'knight');
+      if (!img) return;
+      if (mode === 'knight' && src) {
+        img.src = src;
+        img.alt = alt || '';
+        fab.setAttribute('aria-label', label || 'Battle options');
+      } else {
+        img.src = SIEGELINGS_ICON;
+        img.alt = '';
+        if (!desired) fab.setAttribute('aria-label', label || 'Summon navigation');
+      }
+    }
+    function setFabFace(opts) {
+      opts = opts || {};
+      var mode = opts.mode === 'knight' ? 'knight' : 'siegelings';
+      var src = (mode === 'knight' && opts.src) ? opts.src : SIEGELINGS_ICON;
+      var alt = (mode === 'knight') ? (opts.alt || '') : '';
+      var label = opts.label || (mode === 'knight' ? 'Battle options' : 'Summon navigation');
+      var emblem = fab.querySelector('.sn-emblem');
+      var img = emblem && emblem.querySelector('img:not(.sn-face-outgoing)');
+      var prevMode = fab.dataset.face || 'siegelings';
+      var prevSrc = img ? img.getAttribute('src') : '';
+      if (!img) {
+        applyFabFace(mode, src, alt, label);
+        return;
+      }
+      // Same face — only refresh label / aria.
+      if (prevMode === mode && prevSrc === src) {
+        if (mode === 'knight') fab.setAttribute('aria-label', label);
+        else if (!desired) fab.setAttribute('aria-label', label);
+        return;
+      }
+      var reduceMotion = false;
+      try { reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* ignore */ }
+      // Instant swap outside battle (loadout) or when motion is reduced.
+      if (reduceMotion || !document.body.classList.contains('gameplay-active')) {
+        if (faceSwapTimer) { clearTimeout(faceSwapTimer); faceSwapTimer = 0; }
+        faceSwapToken += 1;
+        fab.classList.remove('sn-fab-face-swap');
+        var stale = emblem.querySelector('.sn-face-outgoing');
+        if (stale) stale.remove();
+        img.classList.remove('sn-face-incoming', 'is-in');
+        applyFabFace(mode, src, alt, label);
+        return;
+      }
+      // Crossfade: keep the old portrait as an absolute overlay while the new
+      // face scales/fades in underneath, so knight ↔ Siegelings reads as one morph.
+      if (faceSwapTimer) { clearTimeout(faceSwapTimer); faceSwapTimer = 0; }
+      var staleOut = emblem.querySelector('.sn-face-outgoing');
+      if (staleOut) staleOut.remove();
+      img.classList.remove('sn-face-incoming', 'is-in');
+      fab.classList.remove('sn-fab-face-swap');
+
+      var outgoing = img.cloneNode(true);
+      outgoing.className = 'sn-face-outgoing' + (prevMode === 'knight' ? ' is-knight' : ' is-siegelings');
+      outgoing.removeAttribute('id');
+      emblem.insertBefore(outgoing, img);
+
+      applyFabFace(mode, src, alt, label);
+      img.classList.add('sn-face-incoming');
+      fab.classList.add('sn-fab-face-swap');
+      // Pin the incoming face at its "from" styles without transitioning from the
+      // previous portrait's opacity/scale (otherwise it eases 1→0 then jumps to is-in).
+      img.style.setProperty('transition', 'none');
+      void img.offsetWidth;
+      img.style.removeProperty('transition');
+      var token = ++faceSwapToken;
+
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          if (token !== faceSwapToken) return;
+          outgoing.classList.add('is-out');
+          img.classList.add('is-in');
+        });
+      });
+
+      var finish = function () {
+        if (token !== faceSwapToken) return;
+        faceSwapTimer = 0;
+        if (outgoing.parentNode) outgoing.parentNode.removeChild(outgoing);
+        img.classList.remove('sn-face-incoming', 'is-in');
+        img.style.removeProperty('transition');
+        fab.classList.remove('sn-fab-face-swap');
+      };
+      faceSwapTimer = setTimeout(finish, 580);
+    }
+    function setPrimaryClickHandler(handler) {
+      primaryClickHandler = typeof handler === 'function' ? handler : null;
+    }
+    root.shieldNavigation = {
+      element: root,
+      fab: fab,
+      reset: reset,
+      setHidden: setHidden,
+      setFabFace: setFabFace,
+      setPrimaryClickHandler: setPrimaryClickHandler,
+      openShield: function () { transition(true); },
+      closeShield: function () { transition(false); },
+      isShieldOpen: function () { return desired; }
+    };
     return root.shieldNavigation;
   }
   // The play-mode launch screens (Arena, Siege, Gauntlet, Dominion) are their

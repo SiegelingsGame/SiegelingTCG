@@ -1,3 +1,39 @@
+Original prompt: integrate tinto the mulligan, load all of those elements at the same time, add some flair to the fab ui area for arena battle so it has the same sihlloutte but some flair to it for battle
+
+- November 22, 2026 **Arena mulligan uses the SiegeKnight FAB dock; battle flair on the silhouette.**
+  - **Change.** During the opening-hand decide, Keep hand / Redraw N cards host as FAB flanks (in-overlay action rows hidden). Mulligan overlay clears `--sn-dock-h` so cards and the dock load as one HUD. Waiting on the opponent shows Quit Battle on the left flank. `arena-fab-battle` adds etched ember rails and a hotter FAB rim without changing the dock silhouette. Cache pins: `style.css?v=310`, `shield-navigation.css?v=15`, `game.js?v=357`. Preview: `arena-fab-mulligan-preview.html`.
+  - **Verification.** `node --check js/game.js`; `GameJavaScriptRegressionTest`. Headless sample: Keep/Redraw in dock, `#mulliganActions` hidden, battle flair on. Live play.html mulligan: Keep | knight FAB | Redraw; cards clear the dock; Knight/Draw absent. Screenshots under `/opt/cursor/artifacts/arena-fab-mulligan-*`.
+
+Original prompt: add a smooth animation transition from siegknight image to siegeling logo
+
+- November 22, 2026 **Arena FAB face morph: SiegeKnight ↔ Siegelings.**
+  - **Change.** `setFabFace` crossfades the FAB emblem during gameplay: the outgoing portrait/logo overlays while the incoming face scales and fades in (~560ms), with cancel-safe rapid toggles and an instant swap when `prefers-reduced-motion` is on or outside battle. Cache pins: `shield-navigation.css?v=13`, `shield-navigation.js?v=8`. Preview: `arena-fab-face-preview.html`.
+  - **Verification.** `node --check shield-navigation.js`. Mid-morph DOM sample shows `sn-fab-face-swap` + outgoing/incoming classes. Live recording of Show Knight ↔ Show Siegelings confirms a blended fade/scale, not a snap. Demo under `/opt/cursor/artifacts/arena-fab-face-morph-live.mp4`.
+
+Original prompt: now integrate the trays that appear into the siegeknight fab as well
+
+- November 22, 2026 **Arena utility trays dock onto the SiegeKnight FAB.**
+  - **Change.** Card / Battle / Log / Energy / Hints drawers no longer cover the FAB as a separate bottom sheet. While a drawer is open in `arena-fab-docked` gameplay, the tray sits on the dock (`arena-fab-tray-open`), FAB chrome stays Quit Battle / Close tray (Siegelings face), and the options fan hides. Close tray, Escape, FAB tap, or backdrop dismiss clears the tray and restores Knight / Draw·End Turn. Cache pins: `style.css?v=309`, `shield-navigation.css?v=12`, `game.js?v=356`. Preview: `arena-fab-tray-preview.html`.
+  - **Verification.** `node --check js/game.js`; `GameJavaScriptRegressionTest` passes. Headless Chromium: drawer `bottom` clears `--sn-dock-h`, dock z-index above tray. Live play.html at 390×844: FAB → Energy docks dossier with Quit/Close tray; Close tray restores Knight/Draw. Screenshots under `/opt/cursor/artifacts/arena-fab-tray-*`.
+
+Original prompt: yes escept yourve changed the coloway of the knigtha nd end turn buttons show a preview in the arena mode
+
+- November 22, 2026 **Arena FAB play flanks restore original Knight / End Turn colors.**
+  - **Change.** Docked play flanks no longer pick up loadout `sn-flank.is-gold` / green themes. CSS maps `.arena-fab-play-flank` from the action-bar palette: gold Ready Knight (`ab-trainer` / `ab-ability-ready`), blue Draw (`ab-draw`), red End Turn (`ab-draw.ab-drawn`), and Pass/Cancel neutrals. `hostArenaFabFlank` stopped adding `is-gold` on the right flank. Cache pins: `style.css?v=308`, `shield-navigation.css?v=11`, `game.js?v=355`. Preview harness: `arena-fab-color-preview.html`.
+  - **Verification.** `node --check js/game.js`. Headless Chromium color sample: Knight rim gold / ink cream, End Turn rim `#e74c3c`, `hasGoldClass: false` at 390×844 and 1440×900. Screenshots under `/opt/cursor/artifacts/arena-fab-color-*`.
+
+Original prompt: great start but to save space wrap the knight and end turn buttons around the siegeknight fab button and move all of that ui down to give more space ofr battle moves and card size in thehand preivew etc, when the knightfab activates the knight and endturn buttons then turn into the siegeliggs fab buttons, make that whole ui integrated
+
+- November 22, 2026 **Arena FAB dock: Knight / End Turn wrap the SiegeKnight FAB; action bar reclaimed.**
+  - **Change.** During a match the old `#actionBar` is hidden. Knight and Draw/End Turn become `sn-flank` play flanks around the always-visible SiegeKnight FAB (Pass/Cancel Move can take the left slot in battle). Opening the FAB swaps those flanks for Quit Battle / Close menu and the Siegelings face, with the utility fan above. The freed action-bar height goes to the hand / battle-move tray (`arena-fab-docked` layout). Fixed a body-class MutationObserver re-entrancy stall on load. Cache pins: `style.css?v=307`, `shield-navigation.css?v=10`, `game.js?v=354`.
+  - **Verification.** `node --check js/game.js`; `GameJavaScriptRegressionTest` passes. Headless Chromium harness: closed dock shows Knight + knight face + End Turn with action bar `display:none`; open swaps to Quit Battle / Siegelings / Close menu; Close restores the play flanks. Screenshots and demo under `/opt/cursor/artifacts/arena-fab-dock-*`.
+
+Original prompt: Redesign the hud in arena mode, instead of all these options buttons at the bottom of the screen we do a Siegeknight Fab button in the same place the Siegelings Fab button would but, this button can have a badge that displays your current actions and you can tap or hover over that to view where they come from etc. When you click it it opens options for Card View, Battle View, Log, Music, Mute button etc, when this menu is open the Fab button turns into the Siegelings Icon button with its usual oprions, One says Quit Battle The Other Says Close menu, when you click th central button you get the full siegeshield menu
+
+- November 22, 2026 **Arena battle HUD: SiegeKnight FAB replaces the bottom options strip.**
+  - **Change.** During a match the shield FAB stays visible on every layout (not only arena-desk). Closed, it shows the player's SiegeKnight portrait with a badge for remaining Setup actions (tap/hover opens the existing breakdown popover). Tapping the knight opens a labeled options fan (Card View, Battle View, Log, Energy, Hints, Speed, Mute, Music) and Quit Battle / Close menu flanks; the FAB face swaps to the Siegelings mark. Tapping the center then opens the full shield navigation. The old `.action-bar-aux` icon strip is hosted into that fan and visually retired. `shield-navigation.js` gains `setFabFace` / `setPrimaryClickHandler` / `openShield`; `ArenaTutorialBridge.harnessSetState` lets harnesses inject match state. Cache pins: `style.css?v=306`, `shield-navigation.css?v=9`, `shield-navigation.js?v=7`, `game.js?v=353`, `arena-tutorial.js?v=53`.
+  - **Verification.** `node --check` on the touched JS; `./mvnw -q -Dtest=GameJavaScriptRegressionTest test` passes. Headless Chromium against a static server at 390x844 and 1920x1080 with harness match state: knight face + badge `2`, open menu shows all eight labels plus Quit Battle / Close menu, badge opens the setup-actions breakdown, second FAB tap opens the shield, Close menu returns to the knight face. Screenshots and a short demo clip under `/opt/cursor/artifacts/arena-fab-*`.
+
 Original prompt: Now swarm existence seems to be slowing down the rest of the app, so not load anything for swarm until the option is selected.
 
 - November 20, 2026 **Swarm no longer fills the app's offline caches: the service worker leaves /swarm alone.**
