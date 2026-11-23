@@ -22,7 +22,7 @@
     "active" : true
   }, {
     "element" : "POISON",
-    "active" : true
+    "active" : false
   }, {
     "element" : "PSYCHIC",
     "active" : true
@@ -31,7 +31,7 @@
     "active" : true
   }, {
     "element" : "LIGHT",
-    "active" : true
+    "active" : false
   }, {
     "element" : "SHADOW",
     "active" : true
