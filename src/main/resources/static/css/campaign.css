@@ -48,6 +48,7 @@ body[data-screen="world"] #screenWorld,
 body[data-screen="land"] #screenLand,
 body[data-screen="preset"] #screenPreset,
 body[data-screen="wild"] #screenWild,
+body[data-screen="arenaResume"] #screenArenaResume,
 body[data-screen="victory"] #screenVictory { display: flex; }
 .cm-screen-center { align-items: center; justify-content: center; text-align: center; }
 .cm-lede { margin: 0 0 14px; color: var(--cm-muted); font-size: 14px; line-height: 1.45; max-width: 42rem; }

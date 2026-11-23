@@ -2,7 +2,10 @@
   'use strict';
   var RUN_TOKEN_KEY = 'sieglingsCampaignToken';
   var SOLO_TOKEN_KEY = 'sieglingsSoloSessionToken';
-  var state = { options: null, run: null, selectedStarter: null, presetPick: [], returnScreen: 'world', busy: false };
+  var state = {
+    options: null, run: null, selectedStarter: null, presetPick: [],
+    returnScreen: 'world', busy: false, settlingArena: false
+  };
 
   function $(id) { return document.getElementById(id); }
   function toast(msg) {
@@ -107,8 +110,28 @@
       return;
     }
     if (run.phase === 'ARENA_BATTLE') {
+      // One settle attempt — if the duel is still live, show resume instead of looping.
+      if (state.settlingArena) {
+        renderArenaResume(run);
+        show('arenaResume');
+        return;
+      }
+      state.settlingArena = true;
       toast('Returning to the campaign…');
-      api('/api/campaign/settle', { method: 'POST' }).then(applyRun).catch(function (e) { toast(e.message); });
+      api('/api/campaign/settle', { method: 'POST' }).then(function (next) {
+        state.settlingArena = false;
+        if (next && next.phase === 'ARENA_BATTLE') {
+          renderArenaResume(next);
+          show('arenaResume');
+          return;
+        }
+        applyRun(next);
+      }).catch(function (e) {
+        state.settlingArena = false;
+        toast(e.message);
+        renderArenaResume(run);
+        show('arenaResume');
+      });
       return;
     }
     if (run.phase === 'LAND' || run.phase === 'RALLY') {
@@ -213,6 +236,13 @@
     }).join('');
   }
 
+  function renderArenaResume(run) {
+    state.run = run;
+    var kind = run.pendingArenaKind || 'duel';
+    var label = run.lastBattleEncounter || kind;
+    $('cmArenaResumeMsg').textContent = 'Your Arena fight with ' + label + ' is still open. Return to the table, or withdraw to the Land.';
+  }
+
   function renderWild(run) {
     var b = run.wildBattle || {};
     $('cmWildBanner').textContent = run.pendingCaptureName
@@ -233,8 +263,9 @@
           art = '<span class="cm-unit-fallback" style="display:block;width:48px;height:48px;margin:0 auto;border-radius:50%;background:' +
             elColor(u.element) + '"></span>';
         }
+        var label = u.shadeOf ? ('Shade of ' + u.shadeOf) : u.name;
         return '<div class="cm-unit' + (u.alive === false ? ' is-down' : '') + '">' + art +
-          '<b>' + esc(u.name) + '</b>' +
+          '<b>' + esc(label) + '</b>' +
           '<span class="cm-hp">' + esc(u.hp) + '/' + esc(u.maxHp) + '</span></div>';
       }).join('');
     }
@@ -412,6 +443,19 @@
     $('cmWildFinish').addEventListener('click', function () {
       busy(function () {
         return api('/api/campaign/wild/finish', { method: 'POST' }).then(applyRun);
+      });
+    });
+    $('cmArenaResume').addEventListener('click', function () {
+      var tok = (state.run && state.run.soloToken) || load(SOLO_TOKEN_KEY);
+      if (!tok) {
+        toast('No open duel to return to.');
+        return;
+      }
+      goToArena(tok);
+    });
+    $('cmArenaRetreat').addEventListener('click', function () {
+      busy(function () {
+        return api('/api/campaign/arena/retreat', { method: 'POST' }).then(applyRun);
       });
     });
     $('cmEndBtn').addEventListener('click', function () {

@@ -292,6 +292,23 @@ public class CampaignService {
         }
     }
 
+    /** Leave an unfinished Arena duel without ending the whole campaign. */
+    public CampaignRun retreatArena(String token) {
+        CampaignRun run = require(token);
+        synchronized (run) {
+            if (run.phase != Phase.ARENA_BATTLE) return persist(run);
+            ArenaKind kind = run.pendingArenaKind;
+            run.battleToken = null;
+            run.pendingArenaKind = null;
+            run.pendingArenaLandId = null;
+            run.lastBattleWon = false;
+            run.lastMessage = "You withdrew from the duel.";
+            run.phase = kind == ArenaKind.AKHAR ? Phase.AKHAR_READY : Phase.LAND;
+            if (run.phase == Phase.LAND && run.currentLandId == null) run.phase = Phase.WORLD;
+            return persist(run);
+        }
+    }
+
     public CampaignRun abandon(String token) {
         CampaignRun run = require(token);
         synchronized (run) {
@@ -390,6 +407,9 @@ public class CampaignService {
         m.put("lastBattleWon", run.lastBattleWon);
         m.put("lastBattleEncounter", run.lastBattleEncounter);
         m.put("pendingArenaKind", run.pendingArenaKind == null ? null : run.pendingArenaKind.name());
+        if (run.phase == Phase.ARENA_BATTLE && run.battleToken != null) {
+            m.put("soloToken", run.battleToken);
+        }
 
         List<Map<String, Object>> lands = new ArrayList<>();
         for (SiegeLand land : CampaignContent.elementalLands()) {

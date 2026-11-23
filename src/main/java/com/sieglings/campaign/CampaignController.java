@@ -109,6 +109,11 @@ public class CampaignController {
         return handle(() -> campaign.runView(campaign.settle(token)));
     }
 
+    @PostMapping("/api/campaign/arena/retreat")
+    public Map<String, Object> arenaRetreat(@RequestHeader(value = "X-Campaign-Token", required = false) String token) {
+        return handle(() -> campaign.runView(campaign.retreatArena(token)));
+    }
+
     @PostMapping("/api/campaign/abandon")
     public Map<String, Object> abandon(@RequestHeader(value = "X-Campaign-Token", required = false) String token) {
         return handle(() -> campaign.runView(campaign.abandon(token)));

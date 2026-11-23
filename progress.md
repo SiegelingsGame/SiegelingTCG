@@ -1,8 +1,8 @@
 Original prompt: test run in cursor
 
 - November 23, 2026 **Campaign test-run fixups from browser walkthrough.**
-  - **Change.** Fixed starter `applyRun` crash (`show` shadowed by local `showStats`). Wild battles now end on party wipe even if the Squire knight still lives (`forcePartyWipeLoss`). Starter picker + wild unit art use `SiegeSprites` idle first-frame crops (plus sprite-path fallback when combat art is blank). Cache pins: `campaign.js?v=4`, `campaign.css?v=2`.
-  - **Verification.** `node --check` on `campaign.js`. Local Spring Boot walkthrough at `:8080`: Sundile → Emberfall → wild win → rival Arena mulligan (`/play?campaign=1`). Recording `/opt/cursor/artifacts/campaign-test-run-walkthrough.mp4`; screenshots `campaign-test-0{1..7}-*.png`.
+  - **Change.** Fixed starter `applyRun` crash (`show` shadowed by local `showStats`). Wild battles end on party wipe even if the Squire knight still lives (`forcePartyWipeLoss`). Starter picker + wild unit art use `SiegeSprites` idle crops; foes without shade art get element-matched sprite card ids (`paintFoeSilhouette`) so captures resolve. Unfinished Arena duels no longer settle-loop — resume screen with Return/Withdraw (`/api/campaign/arena/retreat`). Cache pins: `campaign.js?v=5`, `campaign.css?v=3`.
+  - **Verification.** `node --check` on `campaign.js`; `./mvnw -q -DskipTests compile`; `CampaignServiceTest`. API: wild foes return `cardId` + sprite `artUrl`. Browser: foe sprites rendered; Arena resume → Withdraw returns to Land without toast loop. Artifacts: `campaign-demo-*.png`, `campaign-test-run-walkthrough.mp4`.
 
 Original prompt: Campaign Mode: Rally of the Realms (2.5D Dual Combat) — implement the plan
 

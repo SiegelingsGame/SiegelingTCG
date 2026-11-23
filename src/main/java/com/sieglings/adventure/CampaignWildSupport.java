@@ -62,11 +62,53 @@ public class CampaignWildSupport {
         if (foes.isEmpty()) {
             throw new IllegalStateException("No wild Siegelings appeared.");
         }
+        // Local catalogs often lack uploaded cardArtUrl, so shadeCard leaves foes
+        // nameless-of-art. Assign a SiegeSprites-backed card id so the campaign UI
+        // can crop idle strips (and captures can resolve to a real roster card).
+        java.util.Set<String> avoid = new java.util.HashSet<>(partyCardIds);
+        for (Combatant foe : foes) {
+            paintFoeSilhouette(foe, avoid, rng);
+            if (foe.getDisplayCardId() != null) avoid.add(foe.getDisplayCardId());
+        }
         Combatant primary = foes.get(0);
         String captureId = primary.getDisplayCardId();
         combat.startBattle(siege, NodeType.BATTLE, foes, rng);
         byCampaignToken.put(campaignToken, siege);
-        return new StartResult(captureId, primary.getName());
+        String captureName = primary.getShadeOf() != null
+                ? ("Shade of " + primary.getShadeOf())
+                : primary.getName();
+        return new StartResult(captureId, captureName);
+    }
+
+    /** Element → shipped sprite sheets (see siege-sprites.js). */
+    private static final Map<Element, String[]> SPRITE_BY_ELEMENT = Map.ofEntries(
+            Map.entry(Element.FIRE, new String[] { "sundile", "raydile", "solgator" }),
+            Map.entry(Element.EARTH, new String[] { "cacty", "jackedty", "cactyjackedty" }),
+            Map.entry(Element.WIND, new String[] { "breezee", "gagglestand", "hurricrane" }),
+            Map.entry(Element.ICE, new String[] { "fawny", "chilldoe", "frostag" }),
+            Map.entry(Element.WATER, new String[] { "draco", "dracoil" }),
+            Map.entry(Element.POISON, new String[] { "squirebud", "floraknight", "generoot" }),
+            Map.entry(Element.LIGHT, new String[] { "squirebud", "floraknight" }),
+            Map.entry(Element.SHADOW, new String[] { "draco", "dracoil" }),
+            Map.entry(Element.METAL, new String[] { "cacty", "jackedty" }),
+            Map.entry(Element.ELECTRIC, new String[] { "sundile", "raydile" }),
+            Map.entry(Element.PSYCHIC, new String[] { "fawny", "chilldoe" }),
+            Map.entry(Element.UNDEAD, new String[] { "draco", "squirebud" }));
+
+    private void paintFoeSilhouette(Combatant foe, java.util.Set<String> avoid, Random rng) {
+        if (foe.getDisplayCardId() != null) return;
+        String[] pool = SPRITE_BY_ELEMENT.getOrDefault(foe.getElement(),
+                new String[] { "squirebud", "sundile", "cacty", "breezee", "fawny" });
+        List<String> picks = new ArrayList<>();
+        for (String id : pool) {
+            if (!avoid.contains(id)) picks.add(id);
+        }
+        if (picks.isEmpty()) {
+            for (String id : pool) picks.add(id);
+        }
+        String id = picks.get(rng.nextInt(picks.size()));
+        foe.setArtCardId(id);
+        content.findAnySiegling(id).ifPresent(s -> foe.setShadeOf(s.getName()));
     }
 
     public void play(String campaignToken, String cardInstanceId, String targetId, Random rng) {
@@ -158,6 +200,7 @@ public class CampaignWildSupport {
             cm.put("alive", c.isAlive());
             cm.put("position", c.getPosition());
             cm.put("cardId", c.getDisplayCardId());
+            cm.put("shadeOf", c.getShadeOf());
             if (c.getSide() == Side.PLAYER) allies.add(cm); else foes.add(cm);
         }
         b.put("allies", allies);
