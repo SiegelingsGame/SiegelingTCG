@@ -13,6 +13,8 @@ html, body {
   overflow: hidden; background: var(--cm-bg); color: var(--cm-ink);
   font-family: var(--cm-sans); touch-action: pan-x pan-y;
 }
+/* style.css reserves a phone band for the Battle Table hub nav, which this page doesn't have. */
+body { padding-bottom: 0; }
 .cm-shell {
   display: flex; flex-direction: column; height: 100%;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
@@ -271,6 +273,46 @@ body[data-screen="land"] .cm-screen { padding-bottom: calc(72px + env(safe-area-
   image-rendering: crisp-edges;
   touch-action: none;
 }
+.cm-w3-labels {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.cm-w3-tag {
+  position: absolute; left: 0; top: 0;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 3px 8px 4px;
+  border: 1px solid rgba(232, 200, 120, 0.45);
+  border-radius: 6px;
+  background: rgba(20, 14, 24, 0.78);
+  color: #f3e6c4;
+  font: 600 11px/1.15 Georgia, "Times New Roman", serif;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 #000;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  transition: border-color 0.15s, background 0.15s;
+}
+.cm-w3-tag small {
+  font: 500 9px/1.1 system-ui, sans-serif;
+  color: #c9b98f;
+  letter-spacing: 0.02em;
+}
+.cm-w3-tag.is-near {
+  border-color: #ffd56a;
+  background: rgba(58, 38, 12, 0.9);
+  color: #ffe9a8;
+}
+.cm-w3-tag.is-done { filter: grayscale(0.7); opacity: 0.6; }
+.cm-w3-bang {
+  position: absolute; top: -20px; left: 50%;
+  width: 16px; height: 16px; margin-left: -8px;
+  border-radius: 50%;
+  background: #ffd56a; color: #3a2008;
+  font: 800 12px/16px system-ui, sans-serif; text-align: center;
+  display: none;
+}
+.cm-w3-tag.is-near .cm-w3-bang { display: block; animation: cm-w3-bob 0.8s ease-in-out infinite; }
+@keyframes cm-w3-bob { 50% { transform: translateY(-3px); } }
 .cm-ow-plane {
   position: absolute; inset: 6% 2% 0;
   transform: rotateX(48deg);

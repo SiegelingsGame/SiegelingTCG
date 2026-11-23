@@ -17,10 +17,11 @@
 <body>
   <div id="hud">HD-2D Sanctuary fixture — WASD / arrows · A interact</div>
   <div id="host"></div>
+  <script src="/js/siege-sprites.js?v=2"></script>
   <script src="/js/vendor/three.min.js"></script>
-  <link rel="stylesheet" href="/css/campaign.css?v=8">
-  <script src="/js/campaign-world3d.js?v=5"></script>
-  <script src="/js/campaign-overworld.js?v=6"></script>
+  <link rel="stylesheet" href="/css/campaign.css?v=9">
+  <script src="/js/campaign-world3d.js?v=6"></script>
+  <script src="/js/campaign-overworld.js?v=7"></script>
   <script>
     var root = document.getElementById('host');
     var ow = new CampaignOverworld({
@@ -30,7 +31,9 @@
       }
     });
     ow.mount();
-    ow.loadSanctuary({
+    var realm = new URLSearchParams(location.search).get('realm');
+    if (realm) ow.loadLand({ name: realm + ' Realm', landId: 'fixture-' + realm, element: realm, follower: { id: 'cacty' }, gold: 120, rallies: 1 });
+    else ow.loadSanctuary({
       message: 'Fixture plaza',
       gold: 120,
       rallies: 1,

@@ -330,6 +330,7 @@
     if (ow) {
       ow.loadLand({
         name: land.name || 'Land',
+        landId: run.currentLandId,
         message: run.lastMessage || 'Walk Squire Bob to a popup building.',
         background: land.background || '',
         element: (land.elements && land.elements[0]) || run.starterElement || 'neutral',

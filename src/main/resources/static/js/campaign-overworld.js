@@ -223,8 +223,7 @@
     this._hud(cfg);
 
     if (this.use3d && this.world3d) {
-      this.world3d.buildSanctuary();
-      this.world3d.setWaystones(this.lands);
+      this.world3d.loadSanctuary({ lands: this.lands, followerId: this.follower && this.follower.id });
       this.mapW = this.world3d.mapW;
       this.mapH = this.world3d.mapH;
       this.buildings = this.world3d.getBuildings();
@@ -258,7 +257,11 @@
     this._hud(cfg);
 
     if (this.use3d && this.world3d) {
-      this.world3d.buildRealm(cfg);
+      this.world3d.loadRealm({
+        element: cfg.element, landId: cfg.landId, name: cfg.name,
+        rivalDone: !!cfg.rivalDone, rallied: !!cfg.rallied,
+        followerId: this.follower && this.follower.id
+      });
       this.mapW = this.world3d.mapW;
       this.mapH = this.world3d.mapH;
       this.buildings = this.world3d.getBuildings();
@@ -474,20 +477,7 @@
   };
 
   Overworld.prototype._blocked3d = function (x, z) {
-    var margin = 0.6;
-    if (x < margin || z < margin || x > this.mapW - margin || z > this.mapH - margin) return true;
-    var i, b, dx, dz;
-    for (i = 0; i < this.buildings.length; i++) {
-      b = this.buildings[i];
-      dx = x - b.x;
-      dz = z - b.z;
-      // Soft ellipse around building footprint; allow approach from south.
-      if ((dx * dx) / (b.w * b.w * 0.22) + (dz * dz) / (b.d * b.d * 0.22) < 1) {
-        if (z > b.z + b.d * 0.35) continue;
-        return true;
-      }
-    }
-    return false;
+    return this.world3d ? this.world3d.isBlocked(x, z) : false;
   };
 
   Overworld.prototype._blockedCss = function (x, y) {
@@ -536,8 +526,7 @@
           dir: this.player.dir,
           walking: this.player.walking,
           frame: this.player.frame,
-          nearId: this.near && this.near.id,
-          follower: !!this.follower
+          nearId: this.near && this.near.id
         });
       }
       this._updateMinimapDot();
@@ -569,7 +558,7 @@
 
   Overworld.prototype._scanNear3d = function () {
     var best = null;
-    var bestD = 1.8;
+    var bestD = 1.4;
     var i, b, dx, dz, d;
     for (i = 0; i < this.buildings.length; i++) {
       b = this.buildings[i];
