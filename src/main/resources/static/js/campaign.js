@@ -4,7 +4,7 @@
   var SOLO_TOKEN_KEY = 'sieglingsSoloSessionToken';
   var state = {
     options: null, run: null, selectedStarter: null, presetPick: [],
-    returnScreen: 'world', busy: false, settlingArena: false
+    returnScreen: 'world', busy: false, settlingArena: false, overworld: null
   };
 
   function $(id) { return document.getElementById(id); }
@@ -85,6 +85,10 @@
       '" title="' + esc(name) + '">' + figure + '</div>';
   }
 
+  function setOverworldActive(on) {
+    if (state.overworld) state.overworld.enable(!!on);
+  }
+
   function applyRun(run) {
     state.run = run;
     if (run && run.token) store(RUN_TOKEN_KEY, run.token);
@@ -98,18 +102,25 @@
         $('cmRallies').textContent = '⚑ ' + (run.ralliedLandIds || []).length;
       }
     }
-    if (!run) { show('start'); return; }
+    if (!run) {
+      setOverworldActive(false);
+      show('start');
+      return;
+    }
     if (run.phase === 'VICTORY') {
+      setOverworldActive(false);
       $('cmVictory').textContent = run.lastMessage || 'Raidlord Akhar falls. The realms stand united.';
       show('victory');
       return;
     }
     if (run.phase === 'WILD_BATTLE') {
+      setOverworldActive(false);
       renderWild(run);
       show('wild');
       return;
     }
     if (run.phase === 'ARENA_BATTLE') {
+      setOverworldActive(false);
       // One settle attempt — if the duel is still live, show resume instead of looping.
       if (state.settlingArena) {
         renderArenaResume(run);
@@ -137,8 +148,10 @@
     if (run.phase === 'LAND' || run.phase === 'RALLY') {
       renderLand(run);
       show('land');
+      setOverworldActive(true);
       return;
     }
+    setOverworldActive(false);
     renderWorld(run);
     show('world');
   }
@@ -171,9 +184,12 @@
   }
 
   function renderWorld(run) {
-    $('cmWorldBanner').textContent = run.lastMessage || 'Choose a Land.';
+    $('cmWorldBanner').textContent = run.lastMessage || 'Choose a Land. Squire Bob waits at the Sanctuary.';
     var host = $('cmWorld');
-    host.innerHTML = (run.lands || []).map(function (land) {
+    var bob = '<div class="cm-world-bob">' +
+      '<img src="/img/sprites/squire-bob/down-idle.webp" alt="Squire Bob">' +
+      '<span><b>Squire Bob</b><br>Pick a realm tile to travel. Buildings pop like paper dioramas.</span></div>';
+    host.innerHTML = bob + (run.lands || []).map(function (land) {
       var locked = !land.unlocked && !land.rallied;
       var cls = 'cm-land' + (locked ? ' is-locked' : '') + (land.rallied ? ' is-rallied' : '');
       var status = land.rallied ? 'Rallied' : (land.rivalCleared ? 'Knight awaits' : (locked ? 'Sealed' : 'Open'));
@@ -189,40 +205,64 @@
     }
   }
 
+  function ensureOverworld() {
+    if (state.overworld) return state.overworld;
+    if (!window.CampaignOverworld) return null;
+    var stage = $('cmStage');
+    if (!stage) return null;
+    state.overworld = new window.CampaignOverworld({
+      root: stage,
+      onInteract: function (act) {
+        if (act === 'exit') {
+          if (!state.run) return;
+          state.run.phase = 'WORLD';
+          setOverworldActive(false);
+          renderWorld(state.run);
+          show('world');
+          return;
+        }
+        busy(function () {
+          if (act === 'wild') {
+            return api('/api/campaign/wild/start', { method: 'POST' }).then(applyRun);
+          }
+          if (act === 'rival' || act === 'knight') {
+            return api('/api/campaign/arena/start', {
+              method: 'POST',
+              body: { kind: act === 'rival' ? 'rival' : 'knight' }
+            }).then(function (data) {
+              if (!data.soloToken) throw new Error('No battle token.');
+              goToArena(data.soloToken);
+            });
+          }
+        });
+      },
+      onExit: function () {
+        $('cmBackWorld').click();
+      }
+    });
+    state.overworld.mount();
+    return state.overworld;
+  }
+
   function renderLand(run) {
     var land = run.currentLand || {};
-    $('cmStageBg').style.backgroundImage = land.background ? 'url(' + land.background + ')' : '';
-    $('cmLandName').textContent = land.name || 'Land';
-    $('cmLandBanner').textContent = run.lastMessage || '';
-    var depth = $('cmStageDepth');
-    var roster = run.rosterCards || [];
-    var html = '';
-    roster.slice(0, 3).forEach(function (c, i) {
-      var lane = i === 0 ? 'near' : (i === 1 ? 'mid' : 'far');
-      html += cutoutHtml(c, lane, '');
-      // Spread party across the left/center.
-      // positions applied after insert
+    var ow = ensureOverworld();
+    var starter = null;
+    (run.rosterCards || []).forEach(function (c) {
+      if (!starter && c.id === run.starterId) starter = c;
     });
-    // NPC knight silhouette on the right as a still cutout cue.
-    html += '<div class="cm-cutout is-near is-npc" style="right:10%;left:auto" title="Realm challenge">' +
-      '<span style="font-size:42px;opacity:.85">⚔</span></div>';
-    depth.innerHTML = html;
-    var cuts = depth.querySelectorAll('.cm-cutout:not(.is-npc)');
-    cuts.forEach(function (node, i) {
-      node.style.left = (12 + i * 18) + '%';
-    });
-
-    var rivalDone = (run.clearedRivalLandIds || []).indexOf(run.currentLandId) >= 0;
-    var rallied = (run.ralliedLandIds || []).indexOf(run.currentLandId) >= 0;
-    var actions = $('cmLandActions');
-    actions.innerHTML =
-      '<button type="button" data-act="wild">Wild capture (Siege)</button>' +
-      (rivalDone
-        ? ''
-        : '<button type="button" data-act="rival">Rival trainer (Arena)</button>') +
-      (rallied
-        ? '<button type="button" disabled>Realm rallied</button>'
-        : '<button type="button" class="is-gold" data-act="knight">SiegeKnight (50 HP)</button>');
+    if (!starter && run.rosterCards && run.rosterCards[0]) starter = run.rosterCards[0];
+    if (ow) {
+      ow.loadLand({
+        name: land.name || 'Land',
+        message: run.lastMessage || 'Walk Squire Bob to a popup building.',
+        background: land.background || '',
+        element: (land.elements && land.elements[0]) || run.starterElement || 'neutral',
+        rivalDone: (run.clearedRivalLandIds || []).indexOf(run.currentLandId) >= 0,
+        rallied: (run.ralliedLandIds || []).indexOf(run.currentLandId) >= 0,
+        follower: starter ? { id: starter.id, artUrl: starter.artUrl } : null
+      });
+    }
   }
 
   function renderPreset(run) {
@@ -342,6 +382,14 @@
       t = ev.target.closest('[data-act]');
       if (t) {
         var act = t.getAttribute('data-act');
+        if (act === 'exit') {
+          if (!state.run) return;
+          setOverworldActive(false);
+          state.run.phase = 'WORLD';
+          renderWorld(state.run);
+          show('world');
+          return;
+        }
         busy(function () {
           if (act === 'wild') {
             return api('/api/campaign/wild/start', { method: 'POST' }).then(applyRun);
@@ -398,6 +446,7 @@
     });
     $('cmBackWorld').addEventListener('click', function () {
       if (!state.run) return;
+      setOverworldActive(false);
       state.run.phase = 'WORLD';
       renderWorld(state.run);
       show('world');
@@ -405,13 +454,20 @@
     });
     function openPreset() {
       state.returnScreen = document.body.dataset.screen === 'land' ? 'land' : 'world';
+      setOverworldActive(false);
       renderPreset(state.run);
       show('preset');
     }
     $('cmPresetBtn').addEventListener('click', openPreset);
     $('cmPresetBtn2').addEventListener('click', openPreset);
     $('cmPresetBack').addEventListener('click', function () {
-      show(state.returnScreen || 'world');
+      if (state.returnScreen === 'land' && state.run) {
+        renderLand(state.run);
+        show('land');
+        setOverworldActive(true);
+      } else {
+        show(state.returnScreen || 'world');
+      }
     });
     $('cmPresetSave').addEventListener('click', function () {
       busy(function () {
@@ -422,6 +478,7 @@
             if (state.returnScreen === 'land') {
               renderLand(run);
               show('land');
+              setOverworldActive(true);
             }
           });
       });

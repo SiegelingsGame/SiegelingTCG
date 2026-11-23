@@ -1,3 +1,9 @@
+Original prompt: Update the visuals to a 2.5d adventure similar to Pokemon style world but with paper Mario style popups buildings. Using squire bob as the starting character moving around the world
+
+- November 23, 2026 **Campaign overworld: Squire Bob walkabout + Paper Mario buildings.**
+  - **Change.** Imported 8-dir Squire Bob sheets under `img/sprites/squire-bob/`. Land screen is a tilted grass/path overworld (`campaign-overworld.js`) with Bob as the avatar (WASD/arrows + pad), follower starter, and popup buildings for Wild Grove / Rival Arena / Knight Keep / Waystone. World map tiles get roof lips; start screen shows Bob. Cache pins: `campaign.css?v=5`, `campaign-overworld.js?v=2`, `campaign.js?v=6`.
+  - **Verification.** `node --check` on `campaign.js` + `campaign-overworld.js`. Browser: Bob walks with facing changes; near-building `!` + gold prompt; Enter/prompt starts wild battle. Screenshots `campaign-ow-*.png`.
+
 Original prompt: test run in cursor
 
 - November 23, 2026 **Campaign test-run fixups from browser walkthrough.**

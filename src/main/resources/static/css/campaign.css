@@ -214,3 +214,357 @@ body[data-screen="victory"] #screenVictory { display: flex; }
   border: 1px solid rgba(230,205,140,.35); font-size: 13px;
 }
 body[data-screen="land"] .cm-screen { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+
+/* ---- 2.5D overworld (Pokémon walk + Paper Mario popups) ---- */
+.cm-stage-ow { border: 0; border-radius: 0; background: transparent; }
+.cm-ow {
+  position: absolute; inset: 0; overflow: hidden;
+  --ow-el: var(--fire);
+  background:
+    linear-gradient(180deg, rgba(8,14,28,.35), rgba(8,14,28,.55)),
+    var(--ow-land-img, none) center/cover no-repeat,
+    linear-gradient(180deg, #6ec8ff 0%, #b8e4ff 38%, #7bc56b 38%, #4a8f45 100%);
+}
+.cm-ow[data-element="fire"] { --ow-el: var(--fire); }
+.cm-ow[data-element="earth"] { --ow-el: var(--earth); }
+.cm-ow[data-element="wind"] { --ow-el: var(--wind); }
+.cm-ow[data-element="ice"] { --ow-el: var(--ice); }
+.cm-ow[data-element="water"] { --ow-el: var(--water); }
+.cm-ow-sky {
+  position: absolute; left: 0; right: 0; top: 0; height: 34%;
+  background:
+    radial-gradient(ellipse 40% 30% at 78% 28%, rgba(255,255,255,.55), transparent 60%),
+    linear-gradient(180deg, #7ec8ff, #c9ebff 70%, transparent);
+  pointer-events: none; z-index: 0;
+}
+.cm-ow-horizon {
+  position: absolute; left: 0; right: 0; top: 30%; height: 12%;
+  background: linear-gradient(180deg, transparent, rgba(40,70,30,.25));
+  pointer-events: none; z-index: 0;
+}
+.cm-ow-viewport {
+  position: absolute; inset: 0 0 96px 0;
+  perspective: 900px; perspective-origin: 50% 18%;
+  z-index: 1;
+}
+.cm-ow-plane {
+  position: absolute; inset: 6% 2% 0;
+  transform: rotateX(48deg);
+  transform-style: preserve-3d;
+  transform-origin: 50% 100%;
+}
+.cm-ow-world {
+  position: absolute; width: 920px; height: 640px; left: 50%; top: 0;
+  margin-left: -460px;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.cm-ow-ground {
+  position: absolute; inset: 0;
+  display: grid; gap: 0;
+  border-radius: 18px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.35);
+  overflow: hidden;
+  background: #3f7a3a;
+}
+.cm-ow-tile {
+  display: block; position: relative;
+}
+.cm-ow-tile.is-grass {
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.06) 25%, transparent 25%) -8px 0 / 16px 16px,
+    linear-gradient(45deg, rgba(0,0,0,.05) 25%, transparent 25%) -8px 0 / 16px 16px,
+    #4f9a48;
+}
+.cm-ow-tile.is-meadow { background: #5aad52; }
+.cm-ow-tile.is-path {
+  background:
+    radial-gradient(circle at 30% 40%, rgba(255,255,255,.12), transparent 40%),
+    #c9a56a;
+  box-shadow: inset 0 0 0 1px rgba(90,60,30,.18);
+}
+.cm-ow-props { position: absolute; inset: 0; pointer-events: none; }
+.cm-ow-props .cm-ow-build { pointer-events: auto; }
+
+/* Paper Mario popup buildings — flat faces that rise off the ground plane */
+.cm-ow-build {
+  position: absolute; appearance: none; border: 0; padding: 0; background: transparent;
+  cursor: pointer; transform-origin: 50% 100%; transform-style: preserve-3d;
+  transform: translateZ(1px) rotateX(-48deg) scaleY(1);
+  transition: transform .22s ease, filter .2s;
+  filter: drop-shadow(0 10px 8px rgba(0,0,0,.35));
+}
+.cm-ow-build.is-near {
+  transform: translateZ(12px) rotateX(-48deg) scaleY(1.08) translateY(-6px);
+  filter: drop-shadow(0 16px 12px rgba(0,0,0,.45));
+}
+.cm-ow-build.is-disabled { opacity: .55; cursor: default; filter: grayscale(.4) drop-shadow(0 8px 6px rgba(0,0,0,.3)); }
+.cm-ow-build-shadow {
+  position: absolute; left: 8%; right: 8%; bottom: -6%; height: 18%;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,.4), transparent 70%);
+  transform: rotateX(70deg); pointer-events: none;
+}
+.cm-ow-build-edge {
+  position: absolute; right: -10px; top: 18%; bottom: 4%; width: 10px;
+  background: linear-gradient(180deg, rgba(0,0,0,.28), rgba(0,0,0,.45));
+  transform: skewY(-18deg); transform-origin: 0 0; border-radius: 0 4px 4px 0;
+  pointer-events: none;
+}
+.cm-ow-build-bang {
+  position: absolute; left: 50%; top: -18px; transform: translateX(-50%) scale(0);
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #f0d79a; color: #1a1206; font-weight: 800; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 10px rgba(0,0,0,.35); pointer-events: none;
+  transition: transform .18s ease;
+}
+.cm-ow-build.is-near .cm-ow-build-bang { transform: translateX(-50%) scale(1); }
+.cm-ow-build-face {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  transform-style: preserve-3d;
+}
+.cm-ow-build-window {
+  position: absolute; top: 28%; left: 14%; width: 18%; height: 22%;
+  background: linear-gradient(180deg, #9fd6ff, #3a6ea5);
+  border: 2px solid rgba(40,30,20,.35); border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.25);
+}
+.cm-ow-build-window::after {
+  content: ""; position: absolute; top: 0; right: -140%; width: 100%; height: 100%;
+  background: inherit; border: inherit; border-radius: inherit; box-shadow: inherit;
+}
+.cm-ow-build-roof {
+  flex: 0 0 28%;
+  background: linear-gradient(180deg, #f2d48a, #b8843c);
+  clip-path: polygon(8% 100%, 50% 8%, 92% 100%);
+  border-bottom: 2px solid rgba(60,40,10,.35);
+}
+.cm-ow-build.is-grove .cm-ow-build-roof {
+  background: linear-gradient(180deg, #9fe08a, #3f8a3a);
+  clip-path: polygon(4% 100%, 22% 35%, 50% 5%, 78% 35%, 96% 100%);
+}
+.cm-ow-build.is-arena .cm-ow-build-roof {
+  background: linear-gradient(180deg, #ff9a6a, var(--ow-el, #ff501e));
+  clip-path: polygon(0 100%, 0 40%, 50% 5%, 100% 40%, 100% 100%);
+}
+.cm-ow-build.is-keep .cm-ow-build-roof {
+  background: linear-gradient(180deg, #d8e2f0, #6a7a98);
+  clip-path: polygon(5% 100%, 5% 35%, 20% 35%, 20% 10%, 35% 10%, 35% 35%, 65% 35%, 65% 10%, 80% 10%, 80% 35%, 95% 35%, 95% 100%);
+}
+.cm-ow-build.is-waystone .cm-ow-build-roof {
+  background: linear-gradient(180deg, #c9d8ff, #6a7cff);
+  clip-path: polygon(50% 0, 90% 100%, 10% 100%);
+}
+.cm-ow-build-wall {
+  flex: 1 1 auto; position: relative;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.12), transparent 40%),
+    linear-gradient(90deg, rgba(0,0,0,.12), transparent 18%, transparent 82%, rgba(0,0,0,.14)),
+    #f4ebe0;
+  border: 2px solid rgba(40,30,20,.35);
+  border-top: 0; border-radius: 0 0 6px 6px;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.cm-ow-build.is-grove .cm-ow-build-wall { background: linear-gradient(180deg, #6fbf66, #2f6b36); }
+.cm-ow-build.is-arena .cm-ow-build-wall {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.1), transparent),
+    repeating-linear-gradient(90deg, #8a3a28 0 10px, #6e2e20 10px 20px);
+}
+.cm-ow-build.is-keep .cm-ow-build-wall { background: linear-gradient(180deg, #9aa6b8, #5a6578); }
+.cm-ow-build.is-waystone .cm-ow-build-wall {
+  background: linear-gradient(180deg, #e8eeff, #8a96d8);
+  border-radius: 8px 8px 10px 10px;
+}
+.cm-ow-build-door {
+  position: absolute; bottom: 0; left: 50%; width: 28%; height: 42%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #5a3a22, #2a180e);
+  border-radius: 8px 8px 0 0;
+  box-shadow: inset 0 0 0 2px rgba(255,220,160,.15);
+}
+.cm-ow-build.is-waystone .cm-ow-build-door {
+  width: 36%; height: 50%;
+  background: radial-gradient(circle at 50% 40%, #ffe9a0, #6a7cff 70%);
+  border-radius: 50% 50% 8px 8px;
+}
+.cm-ow-build-sign {
+  position: absolute; left: 6%; right: 6%; top: 8%;
+  padding: 3px 4px; border-radius: 6px;
+  background: rgba(12,18,36,.78); color: #f7efd8;
+  text-align: center; line-height: 1.15;
+  transform: translateZ(2px);
+}
+.cm-ow-build-sign b { display: block; font-size: 10px; font-family: var(--cm-serif); }
+.cm-ow-build-sign small { display: block; font-size: 9px; opacity: .8; }
+
+.cm-ow-decor {
+  position: absolute; width: 48px; height: 64px;
+  transform: rotateX(-48deg); transform-origin: 50% 100%;
+  pointer-events: none;
+}
+.cm-ow-decor.is-tree {
+  background:
+    radial-gradient(ellipse at 50% 30%, #6fd86a 0 38%, transparent 40%),
+    linear-gradient(180deg, transparent 48%, #6b4424 48% 100%);
+  width: 56px; height: 78px;
+}
+.cm-ow-decor.is-tall { height: 96px; width: 64px; }
+.cm-ow-decor.is-bush {
+  width: 44px; height: 28px;
+  background: radial-gradient(ellipse at 50% 60%, #4ea84a 0 60%, transparent 62%);
+}
+.cm-ow-decor.is-rock {
+  width: 36px; height: 24px;
+  background: radial-gradient(ellipse at 50% 70%, #8a8e96 0 60%, transparent 62%);
+}
+
+.cm-ow-player, .cm-ow-follower {
+  position: absolute; left: 0; top: 0; width: 72px; height: 90px;
+  margin-left: -36px; margin-top: -78px;
+  transform: translate(0,0); transform-origin: 50% 100%;
+  pointer-events: none;
+  /* Counter the ground tilt so Bob reads as a standing paper cutout */
+  --bob-billboard: rotateX(-48deg);
+  filter: drop-shadow(0 8px 6px rgba(0,0,0,.35));
+}
+.cm-ow-player {
+  transform: translate(0,0) var(--bob-billboard);
+  will-change: transform;
+}
+.cm-ow-player img {
+  width: 72px; height: 90px; object-fit: contain; display: block;
+  image-rendering: auto;
+}
+.cm-ow-shadow {
+  position: absolute; left: 18%; right: 18%; bottom: 2px; height: 12px;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,.4), transparent 70%);
+  transform: rotateX(70deg);
+}
+.cm-ow-shadow.is-small { left: 25%; right: 25%; height: 8px; }
+.cm-ow-follower {
+  width: 56px; height: 48px; margin-left: -28px; margin-top: -40px;
+  transform: translate(0,0) rotateX(-48deg);
+  opacity: .95;
+}
+.cm-ow-follower-art, .cm-ow-follow-sprite {
+  display: block; width: 56px; height: 40px;
+}
+.cm-ow-follow-sprite {
+  background-repeat: no-repeat; background-position: 0 0;
+}
+.cm-ow-follow-dot {
+  display: block; width: 28px; height: 28px; margin: 6px auto 0;
+  border-radius: 50%; background: var(--ow-el, #95a5a6);
+}
+
+.cm-ow-hud {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 5;
+  padding: 10px 12px 0; pointer-events: none;
+}
+.cm-ow-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cm-ow-place {
+  font-family: var(--cm-serif); font-size: 1.15rem; font-weight: 600;
+  text-shadow: 0 2px 8px rgba(0,0,0,.55);
+}
+.cm-ow-hint { font-size: 11px; color: rgba(255,255,255,.78); text-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.cm-ow-banner {
+  margin: 8px 0 0; padding: 7px 12px; border-radius: 10px; max-width: 34rem;
+  background: rgba(12,18,36,.78); border: 1px solid rgba(230,205,140,.28);
+  font-size: 12px; color: #f3e7c2; pointer-events: none;
+}
+.cm-ow-prompt {
+  position: absolute; left: 50%; bottom: calc(118px + env(safe-area-inset-bottom));
+  transform: translateX(-50%); z-index: 8; pointer-events: auto;
+}
+.cm-ow-prompt[hidden] { display: none !important; }
+.cm-ow-prompt-btn {
+  appearance: none; border: 0; border-radius: 999px; cursor: pointer;
+  padding: 10px 18px; font-weight: 700; font-size: 13px;
+  color: #1a1206; background: linear-gradient(180deg, #f0d79a, #b8954a);
+  box-shadow: 0 8px 18px rgba(0,0,0,.35);
+  animation: cm-ow-pulse 1.6s ease-in-out infinite;
+}
+@keyframes cm-ow-pulse {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-ow-prompt-btn, .cm-ow-build { animation: none; transition: none; }
+}
+
+.cm-ow-pad {
+  position: absolute; left: 10px; bottom: calc(78px + env(safe-area-inset-bottom));
+  width: 132px; height: 132px; z-index: 7;
+}
+.cm-ow-pad-btn, .cm-ow-pad-a {
+  position: absolute; width: 40px; height: 40px; border-radius: 12px;
+  border: 1px solid rgba(230,205,140,.35); background: rgba(12,18,36,.72);
+  color: #fff; appearance: none; cursor: pointer;
+  touch-action: none;
+}
+.cm-ow-pad-btn.is-up { left: 46px; top: 4px; }
+.cm-ow-pad-btn.is-down { left: 46px; bottom: 4px; }
+.cm-ow-pad-btn.is-left { left: 4px; top: 46px; }
+.cm-ow-pad-btn.is-right { right: 4px; top: 46px; }
+.cm-ow-pad-btn::after {
+  content: ""; position: absolute; inset: 12px;
+  border: solid rgba(243,231,194,.9); border-width: 0 2px 2px 0;
+}
+.cm-ow-pad-btn.is-up::after { transform: rotate(-135deg); inset: 14px 12px 10px; }
+.cm-ow-pad-btn.is-down::after { transform: rotate(45deg); inset: 10px 12px 14px; }
+.cm-ow-pad-btn.is-left::after { transform: rotate(135deg); inset: 12px 10px 12px 14px; }
+.cm-ow-pad-btn.is-right::after { transform: rotate(-45deg); inset: 12px 14px 12px 10px; }
+.cm-ow-pad-a {
+  right: -58px; top: 46px; width: 48px; height: 48px; border-radius: 50%;
+  font-weight: 800; background: linear-gradient(180deg, #f0d79a, #b8954a); color: #1a1206;
+  border-color: transparent;
+}
+@media (min-width: 900px) {
+  .cm-ow-pad { opacity: .35; }
+  .cm-ow-pad:hover, .cm-ow-pad:focus-within { opacity: 1; }
+}
+
+/* World map as popup realm tiles */
+.cm-world {
+  perspective: 820px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(126,200,255,.2), transparent 55%),
+    linear-gradient(180deg, rgba(20,40,70,.4), transparent);
+  border-radius: 14px; padding: 8px;
+}
+.cm-land {
+  transform: rotateX(12deg);
+  transform-origin: 50% 100%;
+  box-shadow: 0 14px 20px rgba(0,0,0,.35);
+  transition: transform .2s ease, outline .2s;
+}
+.cm-land::before {
+  content: ""; position: absolute; left: 10%; right: 10%; top: -10px; height: 18px;
+  background: linear-gradient(180deg, #f0d79a, #b8954a);
+  clip-path: polygon(0 100%, 50% 0, 100% 100%);
+  z-index: 2;
+}
+.cm-land:hover:not(:disabled), .cm-land:focus-visible:not(:disabled) {
+  transform: rotateX(8deg) translateY(-4px) scale(1.02);
+}
+.cm-world-bob {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 10px;
+  padding: 8px 10px; border-radius: 12px;
+  background: rgba(12,18,36,.72); border: 1px solid rgba(230,205,140,.25);
+}
+.cm-world-bob img { width: 44px; height: 56px; object-fit: contain; filter: drop-shadow(0 4px 4px rgba(0,0,0,.4)); }
+.cm-world-bob span { font-size: 13px; color: var(--cm-muted); }
+.cm-world-bob b { color: var(--cm-ink); font-family: var(--cm-serif); }
+
+/* Start screen: show Squire Bob alongside starters */
+.cm-start-hero {
+  display: flex; align-items: flex-end; gap: 12px; margin: 0 0 12px;
+}
+.cm-start-hero img {
+  width: 72px; height: 90px; object-fit: contain;
+  filter: drop-shadow(0 8px 8px rgba(0,0,0,.45));
+  animation: cm-bob 2.8s ease-in-out infinite;
+}
+.cm-start-hero p { margin: 0; font-size: 13px; color: var(--cm-muted); line-height: 1.4; }
+.cm-start-hero strong { color: var(--cm-gold); font-family: var(--cm-serif); }

@@ -17,7 +17,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/style.css?v=310">
 <link rel="stylesheet" href="/css/shield-navigation.css?v=15">
-<link rel="stylesheet" href="/css/campaign.css?v=3">
+<link rel="stylesheet" href="/css/campaign.css?v=5">
 <script src="/js/hub-music.js?v=10" data-autoinit></script>
 </head>
 <body data-screen="loading">
@@ -42,7 +42,10 @@
 
     <section class="cm-screen" id="screenStart">
       <div class="cm-resume" id="cmResume" hidden></div>
-      <p class="cm-lede">You are a <b>Squire</b>. Choose your first Siegeling, tour the elemental Lands, capture allies in Siege battles, duel trainers on the Arena table, and rally every realm against <b>Raidlord Akhar</b>.</p>
+      <div class="cm-start-hero">
+        <img src="/img/sprites/squire-bob/down-idle.webp" alt="Squire Bob" width="72" height="90">
+        <p>You are <strong>Squire Bob</strong>. Choose your first Siegeling, then walk the realms in a 2.5D adventure — popup buildings mark wilds, rivals, and knights on the path to <b>Raidlord Akhar</b>.</p>
+      </div>
       <h2 class="cm-h2">Choose your partner</h2>
       <div class="cm-starters" id="cmStarters"></div>
       <div class="cm-cta sn-dock">
@@ -61,15 +64,7 @@
     </section>
 
     <section class="cm-screen" id="screenLand">
-      <div class="cm-stage" id="cmStage">
-        <div class="cm-stage-bg" id="cmStageBg" aria-hidden="true"></div>
-        <div class="cm-stage-depth" id="cmStageDepth"></div>
-        <div class="cm-stage-ui">
-          <h2 class="cm-land-name" id="cmLandName"></h2>
-          <p class="cm-banner" id="cmLandBanner" role="status"></p>
-          <div class="cm-land-actions" id="cmLandActions"></div>
-        </div>
-      </div>
+      <div class="cm-stage cm-stage-ow" id="cmStage"></div>
       <div class="cm-cta sn-dock">
         <button class="sn-flank is-left" id="cmBackWorld" type="button">World Map</button>
         <button class="sn-flank is-right" id="cmPresetBtn2" type="button">Preset</button>
@@ -126,6 +121,7 @@
 <script src="/js/config.js"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
 <script src="/js/shield-navigation.js?v=8"></script>
-<script src="/js/campaign.js?v=5"></script>
+<script src="/js/campaign-overworld.js?v=2"></script>
+<script src="/js/campaign.js?v=6"></script>
 </body>
 </html>
