@@ -15854,10 +15854,73 @@ body.gameplay-active.arena-fab-docked.mulligan-active .sn-root {
 }
 
 .mulligan-card-slot.is-interactive:hover {
-    transform: translateY(-2px);
+    transform: none;
     border-color: rgba(255, 255, 255, 0.18);
     background: rgba(255, 255, 255, 0.05);
 }
+
+/* Keep the selected card in its grid cell through the reveal turn. */
+.mulligan-card-slot.is-flipping.is-interactive:hover {
+    transform: perspective(900px) rotateY(0deg);
+}
+.mulligan-card-slot.is-flipping.is-face-down.is-interactive:hover {
+    transform: perspective(900px) rotateY(180deg);
+}
+
+.desktop-preview-card-slot.is-3d {
+    perspective: 850px;
+    overflow: visible;
+}
+.desktop-preview-card-slot.is-3d .desktop-preview-card {
+    transform: rotateX(var(--preview-tilt-x, 0deg)) rotateY(var(--preview-tilt-y, 0deg));
+    transform-style: preserve-3d;
+    transition: transform 120ms ease-out;
+    box-shadow: 0 18px 35px rgba(0, 0, 0, .55);
+}
+.desktop-preview-3d-toggle {
+    flex: none;
+    margin-bottom: 6px;
+    padding: 5px 10px;
+    border: 1px solid #6da5ef;
+    border-radius: 999px;
+    background: #18345f;
+    color: #e8f3ff;
+    font: inherit;
+    font-size: .68em;
+    cursor: pointer;
+}
+.desktop-preview-3d-toggle[aria-pressed="true"] {
+    background: #4c75b4;
+}
+.desktop-preview-effect-pill {
+    position: relative;
+    cursor: pointer;
+    font: inherit;
+}
+.desktop-effect-popover {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    width: 270px;
+    padding: 12px;
+    border: 2px solid var(--sb-color, #8bc2ff);
+    border-radius: 12px;
+    background: linear-gradient(145deg, #1b2e53, #0d182f);
+    box-shadow: 0 12px 30px #000a, inset 0 1px #ffffff30;
+    color: #f5f8ff;
+    text-align: left;
+    white-space: normal;
+    pointer-events: none;
+}
+.desktop-preview-effect-pill:hover .desktop-effect-popover,
+.desktop-preview-effect-pill:focus-visible .desktop-effect-popover {
+    display: grid;
+    gap: 5px;
+}
+.desktop-effect-popover strong { color: var(--sb-color, #8bc2ff); font-size: 1.15em; }
+.desktop-effect-popover small { color: #afc7ee; text-transform: uppercase; letter-spacing: .08em; }
+.desktop-effect-popover em { color: #8bc2ff; font-size: .85em; font-style: normal; }
+.battle-cost-breakdown { display: block; margin-top: 2px; color: #a8c6fb; font-size: .75em; }
 
 .mulligan-card-slot.is-interactive:focus-visible {
     outline: 2px solid rgba(120, 200, 255, 0.85);

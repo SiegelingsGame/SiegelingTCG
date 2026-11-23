@@ -234,8 +234,7 @@ public class ElementalAfflictionService {
     }
 
     /**
-     * Shock: this card can only spend {@code available - stacks}. Equivalent gate:
-     * must afford {@code cost + shockStacks}.
+     * Each Shock stack adds one energy to the next move's spend.
      */
     public int shockSpendTax(CardInstance attacker) {
         if (!isEnabled() || attacker == null) return 0;
