@@ -57,15 +57,22 @@
     return 'var(--' + key + ', #95a5a6)';
   }
 
+  function spriteIdleUrl(cardId) {
+    var sheet = window.SiegeSprites && window.SiegeSprites.forCard(cardId);
+    return sheet ? (sheet.dir + 'idle.webp') : '';
+  }
+
   function cutoutHtml(card, lane, extraClass) {
-    var art = (card && (card.artUrl || (card.card && card.card.cardArtUrl))) || '';
-    var name = card && card.name ? card.name : '';
     var id = card && card.id ? card.id : '';
+    var art = (card && (card.artUrl || (card.card && card.card.cardArtUrl))) || spriteIdleUrl(id) || '';
+    var name = card && card.name ? card.name : '';
     var sheet = window.SiegeSprites && window.SiegeSprites.forCard(id);
     var figure;
     if (sheet) {
+      // Pose sheets are single strip files (…-idle.webp), same as adventure.css.
       figure = '<span class="cm-anim" style="display:block;width:100%;aspect-ratio:' +
-        (sheet.w + '/' + sheet.h) + ';background:url(' + esc(sheet.dir) + 'idle-0.webp) center/contain no-repeat"></span>';
+        (sheet.w + '/' + sheet.h) + ';background:url(' + esc(sheet.dir) + 'idle.webp) 0 0 / ' +
+        ((sheet.frames.idle || 1) * 100) + '% 100% no-repeat"></span>';
     } else if (art) {
       figure = '<img src="' + esc(art) + '" alt="" loading="lazy" decoding="async">';
     } else {
@@ -80,9 +87,10 @@
     if (run && run.token) store(RUN_TOKEN_KEY, run.token);
     var stats = $('cmStats');
     if (stats) {
-      var show = run && run.phase !== 'OVER' && run.phase !== 'NEW_GAME';
-      stats.hidden = !show;
-      if (show) {
+      // Do not name this `show` — that shadows the screen-switch helper below.
+      var showStats = run && run.phase !== 'OVER' && run.phase !== 'NEW_GAME';
+      stats.hidden = !showStats;
+      if (showStats) {
         $('cmGold').textContent = '◎ ' + (run.gold || 0);
         $('cmRallies').textContent = '⚑ ' + (run.ralliedLandIds || []).length;
       }
@@ -116,10 +124,23 @@
     var host = $('cmStarters');
     if (!host) return;
     host.innerHTML = (options.starters || []).map(function (s) {
-      var art = s.artUrl || '';
+      var sheet = window.SiegeSprites && window.SiegeSprites.forCard(s.id);
+      var art = s.artUrl || (s.card && s.card.cardArtUrl) || '';
+      var artHtml;
+      if (sheet) {
+        // Crop the idle strip to the first cell so the picker shows one pose, not the whole sheet.
+        var frames = sheet.frames.idle || 1;
+        artHtml = '<span class="cm-starter-sprite" style="width:100%;height:100%;display:block;background:url(' +
+          esc(sheet.dir + 'idle.webp') + ') 0 0 / ' + (frames * 100) + '% 100% no-repeat;background-size:' +
+          (frames * 100) + '% 100%"></span>';
+      } else if (art) {
+        artHtml = '<img src="' + esc(art) + '" alt="">';
+      } else {
+        artHtml = '';
+      }
       return '<button type="button" class="cm-starter" data-starter="' + esc(s.id) + '">' +
         '<span class="cm-el" style="color:' + elColor(s.element) + '">' + esc(s.element) + '</span>' +
-        '<span class="cm-starter-art">' + (art ? '<img src="' + esc(art) + '" alt="">' : '') + '</span>' +
+        '<span class="cm-starter-art">' + artHtml + '</span>' +
         '<b>' + esc(s.name) + '</b>' +
         '<small>' + esc(s.blurb || '') + (s.landName ? ' · ' + esc(s.landName) : '') + '</small>' +
         '</button>';
@@ -200,8 +221,19 @@
     function units(list, hostId) {
       var host = $(hostId);
       host.innerHTML = (list || []).map(function (u) {
-        return '<div class="cm-unit' + (u.alive === false ? ' is-down' : '') + '">' +
-          (u.artUrl ? '<img src="' + esc(u.artUrl) + '" alt="">' : '<span>◇</span>') +
+        var sheet = window.SiegeSprites && window.SiegeSprites.forCard(u.cardId);
+        var art;
+        if (sheet) {
+          var frames = sheet.frames.idle || 1;
+          art = '<span class="cm-unit-sprite" style="display:block;width:72px;height:48px;margin:0 auto;background:url(' +
+            esc(sheet.dir + 'idle.webp') + ') 0 0 / ' + (frames * 100) + '% 100% no-repeat"></span>';
+        } else if (u.artUrl) {
+          art = '<img src="' + esc(u.artUrl) + '" alt="">';
+        } else {
+          art = '<span class="cm-unit-fallback" style="display:block;width:48px;height:48px;margin:0 auto;border-radius:50%;background:' +
+            elColor(u.element) + '"></span>';
+        }
+        return '<div class="cm-unit' + (u.alive === false ? ' is-down' : '') + '">' + art +
           '<b>' + esc(u.name) + '</b>' +
           '<span class="cm-hp">' + esc(u.hp) + '/' + esc(u.maxHp) + '</span></div>';
       }).join('');

@@ -74,9 +74,11 @@ body[data-screen="victory"] #screenVictory { display: flex; }
 .cm-starter:hover { transform: translateY(-2px); }
 .cm-starter-art {
   height: 88px; display: flex; align-items: flex-end; justify-content: center;
-  filter: drop-shadow(0 8px 8px rgba(0,0,0,.45));
+  filter: drop-shadow(0 8px 8px rgba(0,0,0,.45)); overflow: hidden;
 }
-.cm-starter-art img { max-height: 100%; max-width: 100%; object-fit: contain; }
+.cm-starter-art img, .cm-starter-art .cm-starter-sprite {
+  max-height: 100%; max-width: 140px; width: 140px; height: 72px; object-fit: contain;
+}
 .cm-starter b { font-family: var(--cm-serif); font-size: 1.05rem; }
 .cm-starter small { color: var(--cm-muted); font-size: 12px; line-height: 1.35; }
 .cm-el {

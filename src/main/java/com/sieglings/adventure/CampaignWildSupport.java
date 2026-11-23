@@ -73,10 +73,13 @@ public class CampaignWildSupport {
         SiegeRun siege = require(campaignToken);
         SiegeCombatEngine.PlayResult result = combat.playCard(siege, cardInstanceId, targetId, rng);
         if (!result.ok) throw new IllegalArgumentException(result.message);
+        forcePartyWipeLoss(siege);
     }
 
     public void endTurn(String campaignToken, Random rng) {
-        combat.endPlayerTurn(require(campaignToken), rng);
+        SiegeRun siege = require(campaignToken);
+        combat.endPlayerTurn(siege, rng);
+        forcePartyWipeLoss(siege);
     }
 
     public boolean isOver(String campaignToken) {
@@ -91,6 +94,30 @@ public class CampaignWildSupport {
         if (siege == null) return false;
         SiegeBattle battle = siege.getBattle();
         return battle != null && battle.getPhase() == BattlePhase.WON;
+    }
+
+    /**
+     * Siege normally keeps fighting while the Knight lives even if the warband is down.
+     * Campaign captures are about the Siegelings — a wiped party ends the skirmish.
+     */
+    private void forcePartyWipeLoss(SiegeRun siege) {
+        SiegeBattle battle = siege.getBattle();
+        if (battle == null || battle.isOver()) return;
+        boolean partyAlive = false;
+        for (Combatant c : battle.getCombatants()) {
+            if (c.getSide() == Side.PLAYER && !c.isKnight() && c.isAlive()) {
+                partyAlive = true;
+                break;
+            }
+        }
+        if (partyAlive) return;
+        if (battle.living(Side.ENEMY).isEmpty()) {
+            battle.setPhase(BattlePhase.WON);
+            battle.log("Victory! The wild Siegelings are defeated.");
+        } else {
+            battle.setPhase(BattlePhase.LOST);
+            battle.log("Your warband has fallen — the wilds drive you back.");
+        }
     }
 
     public void clear(String campaignToken) {
@@ -122,7 +149,11 @@ public class CampaignWildSupport {
             cm.put("name", c.getName());
             cm.put("hp", c.getHp());
             cm.put("maxHp", c.getMaxHp());
-            cm.put("artUrl", c.getArtUrl());
+            String art = c.getArtUrl();
+            if ((art == null || art.isBlank()) && c.getDisplayCardId() != null) {
+                art = "/img/sprites/" + c.getDisplayCardId() + "/" + c.getDisplayCardId() + "-idle.webp";
+            }
+            cm.put("artUrl", art);
             cm.put("element", c.getElement() == null ? null : c.getElement().name());
             cm.put("alive", c.isAlive());
             cm.put("position", c.getPosition());

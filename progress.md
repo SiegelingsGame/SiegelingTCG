@@ -1,4 +1,10 @@
-Original prompt: Campaign Mode: Rally of the Realms (2.5D + Dual Combat) — implement the plan
+Original prompt: test run in cursor
+
+- November 23, 2026 **Campaign test-run fixups from browser walkthrough.**
+  - **Change.** Fixed starter `applyRun` crash (`show` shadowed by local `showStats`). Wild battles now end on party wipe even if the Squire knight still lives (`forcePartyWipeLoss`). Starter picker + wild unit art use `SiegeSprites` idle first-frame crops (plus sprite-path fallback when combat art is blank). Cache pins: `campaign.js?v=4`, `campaign.css?v=2`.
+  - **Verification.** `node --check` on `campaign.js`. Local Spring Boot walkthrough at `:8080`: Sundile → Emberfall → wild win → rival Arena mulligan (`/play?campaign=1`). Recording `/opt/cursor/artifacts/campaign-test-run-walkthrough.mp4`; screenshots `campaign-test-0{1..7}-*.png`.
+
+Original prompt: Campaign Mode: Rally of the Realms (2.5D Dual Combat) — implement the plan
 
 - November 23, 2026 **Campaign Mode: Rally of the Realms ships.**
   - **Change.** New story campaign at `/campaign`: Squire start with Sundile/Cacty/Fawny/Breezee; 2.5D Land scenes via OVERLAY cutouts + `SiegeSprites`; wild captures through `SiegeCombatEngine` (`CampaignWildSupport`); trainer/knight/Akhar duels via `GameService.newCampaignGame` → `/play?campaign=1` with pre-placed N∈1..5 presets, wipe-warband wins, 50 HP for official knights. Poison/Light knights added; POISON/LIGHT activated in `live-elements.json`; Raidlord Akhar trainer + coalition shield. Design doc `docs/campaign/README.md`. Cache pins: `game.js?v=358`, `home-redesign.js?v=182`, `campaign.css?v=1`, `campaign.js?v=1`.
