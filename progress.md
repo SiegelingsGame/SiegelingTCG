@@ -1,3 +1,9 @@
+Original prompt: This formatting is bad add a "beta modes" button that fits cleanly in the UI it gives two options for Adventure and Swarm
+
+- November 23, 2026 **Shield FAB "Beta modes" picker.**
+  - **Change.** The utilities row is back to three entries: Social · Help · a gold `Beta modes` pill. The pill swaps the shield's main grid for a Beta modes panel with two option-styled cards, Adventure (Rally of the Realms → `/campaign`) and Swarm (3D survival → `/swarm`). Cards stay in the shield's straight-sided upper area, landscape lays them side by side, and the pill becomes `‹ Back`. Escape closes the panel before the shield, Tab skips the hidden grid, and closing the shield resets the panel. Bumped `shield-navigation.js?v=10` / `shield-navigation.css?v=17` on all 11 pages.
+  - **Verification.** `node --check shield-navigation.js`. Headless Chromium at 390x844, 320x568, 1280x800 and 844x390: closed shield shows the three-entry row; opened panel cards measured inside the shield content box (276x62 at 390, 226x62 at 320, side by side in landscape); Escape → panel hidden and shield still open; Adventure → `/campaign`, Swarm → `/swarm`; no page errors.
+
 Original prompt: Merge this into the live site using a similar beta test link in the siege fab button right next to swarm "testing modes" for swarm and Adventure
 
 - November 23, 2026 **Campaign beta link in the shield FAB.**

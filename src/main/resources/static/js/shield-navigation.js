@@ -10,8 +10,14 @@
     profile: '<circle cx="12" cy="7" r="4"/><path d="M3 22v-4c0-8 18-8 18 0v4z"/>',
     settings: '<path d="m9 3 1-2h4l1 2 3 2 3 1v4l-2 2 2 3v4l-3 1-3 2h-5l-2-2-4-1v-4l2-3-2-2V6l3-1z"/><circle cx="12" cy="12" r="4"/>',
     home: '<path d="M3 11 12 3l9 8M5 10v10h5v-6h4v6h5V10"/>',
-    messages: '<path d="M3 5h18v12H8l-5 4z"/><path d="M7 9h10M7 13h6"/>'
+    messages: '<path d="M3 5h18v12H8l-5 4z"/><path d="M7 9h10M7 13h6"/>',
+    campaign: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/><path d="M12 3v2m0 14v2M3 12h2m14 0h2"/>',
+    swarm: '<circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="m7 7 3 3m7-3-3 3m-7 7 3-3m7 3-3-3"/>'
   };
+  // Beta modes swap in for the main grid, so they share its option styling.
+  function betaOption(id, title, sub) {
+    return '<button type="button" class="sn-option sn-beta-option" data-destination="' + id + '" data-group="1"><svg viewBox="0 0 24 24" aria-hidden="true">' + icons[id] + '</svg><span>' + title + '<small>' + sub + '</small></span><b aria-hidden="true">›</b><i class="sn-option-light" aria-hidden="true"></i></button>';
+  }
   // Home and Messages ride the shield's top corners, mirroring the close button.
   function corner(id, label) {
     return '<button type="button" class="sn-corner sn-corner-' + id + '" data-destination="' + id + '" aria-label="' + label + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + icons[id] + '</svg></button>';
@@ -38,7 +44,10 @@
         '<nav class="sn-options" aria-label="Main navigation">' +
           [['play','Play',0],['collection','Collection',1],['decks','Decks',1],['shop','Shop',2],['profile','Profile',2],['settings','Settings',3]].map(function (item) {
             return '<button type="button" class="sn-option sn-' + item[0] + '" data-destination="' + item[0] + '" data-group="' + item[2] + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + icons[item[0]] + '</svg><span>' + item[1] + '</span><b aria-hidden="true">›</b><i class="sn-option-light" aria-hidden="true"></i></button>';
-          }).join('') + '</nav><nav class="sn-utilities" aria-label="More destinations"><button data-destination="social">Social</button><button data-destination="help">Help</button><button data-destination="swarm" class="sn-test">Swarm <small>test</small></button><button data-destination="campaign" class="sn-test">Campaign <small>beta</small></button></nav></div>' +
+          }).join('') + '</nav>' +
+          '<nav class="sn-beta" aria-label="Beta modes" hidden><p class="sn-beta-title">Beta modes<small>Early test builds — progress may reset</small></p>' +
+            betaOption('campaign', 'Adventure', 'Rally of the Realms') + betaOption('swarm', 'Swarm', '3D survival') + '</nav>' +
+          '<nav class="sn-utilities" aria-label="More destinations"><button data-destination="social">Social</button><button data-destination="help">Help</button><button type="button" class="sn-beta-toggle" aria-expanded="false">Beta modes</button></nav></div>' +
         corner('home', 'Home') + corner('messages', 'Messages') +
         '<button class="sn-close" type="button" aria-label="Close navigation">×</button>' +
       '</section></div>' +
@@ -69,7 +78,16 @@
       collapsed = 'translate(' + (f.left + f.width / 2 - s.left - s.width / 2) + 'px,' +
         (f.top + f.height / 2 - s.top - s.height / 2) + 'px) scale(.12) rotateX(24deg) rotateY(-9deg)';
     }
+    var content = root.querySelector('.sn-content'), betaPanel = root.querySelector('.sn-beta');
+    var betaToggle = root.querySelector('.sn-beta-toggle');
+    function showBeta(on) {
+      content.classList.toggle('sn-show-beta', on);
+      betaPanel.hidden = !on;
+      betaToggle.setAttribute('aria-expanded', String(on));
+      betaToggle.textContent = on ? '\u2039 Back' : 'Beta modes';
+    }
     function finishClosed(restore) {
+      showBeta(false);
       cancel(); overlay.hidden = true; root.dataset.state = 'closed';
       root.classList.remove('sn-selecting');
       options.forEach(function (b) { b.classList.remove('sn-selected'); });
@@ -176,11 +194,18 @@
         transition(false);
       });
     });
+    betaToggle.addEventListener('click', function () {
+      if (pending || !desired) return;
+      var on = betaPanel.hidden;
+      showBeta(on);
+      (on ? betaPanel.querySelector('.sn-option') : options[0]).focus({ preventScroll: true });
+    });
     root.addEventListener('keydown', function (e) {
       if (overlay.hidden) return;
+      if (e.key === 'Escape' && !betaPanel.hidden && !pending) { e.preventDefault(); e.stopPropagation(); showBeta(false); betaToggle.focus({ preventScroll: true }); return; }
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (!pending) transition(false); }
       if (e.key === 'Tab') {
-        var focusable = Array.from(root.querySelectorAll('button')).filter(function (b) { return !b.closest('[inert]'); });
+        var focusable = Array.from(root.querySelectorAll('button')).filter(function (b) { return !b.closest('[inert]') && b.getClientRects().length; });
         var i = focusable.indexOf(document.activeElement);
         e.preventDefault(); focusable[(i + (e.shiftKey ? -1 : 1) + focusable.length) % focusable.length].focus();
       }

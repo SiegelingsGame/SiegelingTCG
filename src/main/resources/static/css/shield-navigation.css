@@ -639,11 +639,26 @@ body.gameplay-active .action-bar-aux.is-fab-hosted {
   box-shadow:none !important;
   background:transparent !important;
 }
-/* Four utilities (two of them tagged test modes) must fit the shield's waist on 320px phones. */
+/* Beta modes: one pill in the utilities row that swaps the main grid for the test-mode cards. */
 .sn-utilities button { white-space:nowrap; }
-.sn-utilities { gap:12px; }
-@media (max-width: 380px) {
-  .sn-utilities { gap:8px; }
-  .sn-utilities button { font-size:10px; }
-  .sn-utilities .sn-test small { margin-left:2px; padding:0 3px; font-size:7px; }
+.sn-utilities .sn-beta-toggle { padding:3px 10px; border:1px solid #a78a53; border-radius:999px; background:linear-gradient(135deg,#2a2418,#0d1420); color:#e6c987; letter-spacing:.04em; box-shadow:inset 0 0 0 1px #080f1e; }
+.sn-utilities .sn-beta-toggle[aria-expanded="true"] { border-color:#ffdf94; color:#ffe7b0; }
+.sn-show-beta .sn-options { display:none; }
+/* Cards stay in the upper, straight-sided part of the shield; its frame curves in below Profile. */
+.sn-beta { width:100%; flex:1; min-height:0; display:grid; grid-template-rows:auto minmax(44px,62px) minmax(44px,62px); gap:9px; align-content:start; justify-items:center; padding-top:4px; }
+.sn-beta[hidden] { display:none; }
+.sn-beta-title { margin:0; display:flex; flex-direction:column; align-items:center; gap:2px; color:#f6e7bc; font:clamp(15px, 5.2cqw, 20px)/1.1 Georgia,serif; font-variant:small-caps; letter-spacing:.04em; }
+.sn-beta-title small { font:9px/1.3 system-ui,sans-serif; font-variant:normal; letter-spacing:.06em; color:#ba9f6b; }
+.sn-beta-option { width:92%; padding:8px 12px; }
+.sn-beta-option svg { width:28px; height:28px; }
+.sn-beta-option span { display:flex; flex-direction:column; gap:2px; text-align:left; }
+.sn-beta-option small { font:10px/1.2 system-ui,sans-serif; letter-spacing:.05em; color:#b9a172; }
+@media (max-height:500px) and (orientation:landscape) {
+  .sn-beta { grid-template-columns:1fr 1fr; grid-template-rows:auto minmax(44px,1fr); gap:5px; padding-top:0; }
+  .sn-beta-title { grid-column:1 / -1; flex-direction:row; gap:8px; align-items:baseline; justify-content:center; }
+  .sn-beta-option { width:100%; }
+}
+@media (max-height:650px) and (orientation:portrait) {
+  .sn-beta { gap:6px; }
+  .sn-beta-title small { display:none; }
 }
