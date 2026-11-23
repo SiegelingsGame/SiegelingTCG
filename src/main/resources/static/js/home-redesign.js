@@ -583,7 +583,7 @@
     'Gallery': 'art', 'Events': 'events', 'Lobbies': 'lobbies', 'Tournaments': 'tournaments'
   };
   var EXTERNAL = {
-    'Arena': '/battle', 'Battle': '/battle', 'Siege': '/siege', 'Gauntlet': '/gauntlet', 'Keep': '/keep', 'Chronicles': '/chronicles', 'Dominion': '/dominion',
+    'Arena': '/battle', 'Battle': '/battle', 'Siege': '/siege', 'Gauntlet': '/gauntlet', 'Campaign': '/campaign', 'Keep': '/keep', 'Chronicles': '/chronicles', 'Dominion': '/dominion',
     'Social Lobbies': 'social',
     'Featured Packs': 'shop', 'Open Packs': 'shop', 'Siegelcoins': 'shop'
   };
@@ -3414,7 +3414,7 @@
   // Battle vs Siege before showing a single image. Same two modes, same
   // vocabulary, but each is a full-bleed plate carrying a label and one line.
   var MODES = [
-    { id: 'battle', label: 'Arena', tag: 'Battle · Gauntlet · Tutorial',
+    { id: 'battle', label: 'Arena', tag: 'Battle · Gauntlet · Campaign · Tutorial',
       line: 'Levels off — all deck and reads.',
       art: '/img/gallery/frostag-training.webp', el: 'ICE', primary: true, cta: 'Play' },
     { id: 'siege', label: 'Siege', tag: 'Adventure · Battlegrounds · Endless',

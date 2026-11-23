@@ -239,6 +239,37 @@ public class TrainerCatalogService {
                 definition("trainer30", "Cosmic Overlord", Element.PSYCHIC, Rarity.LEGENDARY, "SiegeLord",
                         Ability.passive("Third Eye", "All Psychic allies gain +2 attack damage", "damage_boost", 2),
                         new Ability("Psychic Storm", "Deal 4 damage to all enemies in Front Row", TargetType.ROW_ENEMIES, Row.FRONT, 0, "damage", 4, false),
+                        true),
+
+                definition("trainer31", "Fen Page", Element.POISON, Rarity.UNCOMMON, "SiegeSquire",
+                        Ability.passiveRow("Venom Screen", "Front Row allies gain +1 attack damage", "damage_boost", 1, Row.FRONT, TargetType.ROW_ALLIES),
+                        Ability.damage("Toxin Dart", "Deal 2 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 2),
+                        false),
+                definition("trainer32", "Venom Warden", Element.POISON, Rarity.RARE, "SiegeKnight",
+                        Ability.passive("Miasma Veil", "All Poison allies gain +1 attack damage", "damage_boost", 1),
+                        Ability.damage("Blight Order", "Deal 3 damage to 1 enemy", TargetType.SINGLE_ENEMY, null, 1, 3),
+                        false),
+                definition("trainer33", "Plague Regent", Element.POISON, Rarity.LEGENDARY, "SiegeLord",
+                        Ability.passive("Epidemic Crown", "All Poison allies gain +2 attack damage", "damage_boost", 2),
+                        Ability.damage("Black Bloom", "Deal 4 damage to all enemies in Front Row", TargetType.ROW_ENEMIES, Row.FRONT, 0, 4),
+                        true),
+
+                definition("trainer34", "Dawn Page", Element.LIGHT, Rarity.UNCOMMON, "SiegeSquire",
+                        Ability.passiveRow("Halo Line", "Back Row allies gain +1 max Health", "health_boost", 1, Row.BACK, TargetType.ROW_ALLIES),
+                        Ability.heal("Morning Grace", "Heal 1 ally for 3", TargetType.SINGLE_ALLY, null, 1, 3),
+                        false),
+                definition("trainer35", "Radiant Warden", Element.LIGHT, Rarity.RARE, "SiegeKnight",
+                        Ability.passive("Sunlit Aegis", "All Light allies gain +1 max Health", "health_boost", 1),
+                        Ability.heal("Dawnflare", "Heal 1 ally for 4", TargetType.SINGLE_ALLY, null, 1, 4),
+                        false),
+                definition("trainer36", "Solar Sovereign", Element.LIGHT, Rarity.LEGENDARY, "SiegeLord",
+                        Ability.passive("Daybreak Throne", "All Light allies gain +2 max Health", "health_boost", 2),
+                        new Ability("Judgment Ray", "Deal 4 damage to all enemies in Front Row", TargetType.ROW_ENEMIES, Row.FRONT, 0, "damage", 4, false),
+                        true),
+
+                definition("raidlord-akhar", "Raidlord Akhar", Element.SHADOW, Rarity.LEGENDARY, "SiegeLord",
+                        Ability.passive("Raid Banner", "All Shadow allies gain +2 attack damage", "damage_boost", 2),
+                        Ability.damage("Ashen Verdict", "Deal 5 direct damage to the enemy player", TargetType.ENEMY_PLAYER, null, 0, 5),
                         true)
         );
     }

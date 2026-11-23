@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="/js/page-transitions.js?v=10"></script>
+<meta name="apple-mobile-web-app-title" content="Siegelings">
+<meta name="application-name" content="Siegelings">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#0b1020">
+<title>Siegelings TCG — Rally of the Realms</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/favicon-48x48.png" sizes="48x48">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/style.css?v=310">
+<link rel="stylesheet" href="/css/shield-navigation.css?v=15">
+<link rel="stylesheet" href="/css/campaign.css?v=1">
+<script src="/js/hub-music.js?v=10" data-autoinit></script>
+</head>
+<body data-screen="loading">
+<div class="cm-shell">
+  <header class="cm-top">
+    <a class="sn-back cm-home" href="/battle" aria-label="Back to the Arena menu"><span aria-hidden="true">&lsaquo;</span>Arena Menu</a>
+    <div class="cm-title">
+      <span class="cm-eyebrow">Campaign</span>
+      <h1>Rally of the Realms</h1>
+    </div>
+    <div class="cm-stats" id="cmStats" hidden>
+      <span class="cm-stat" id="cmGold"></span>
+      <span class="cm-stat" id="cmRallies"></span>
+      <button class="cm-stat cm-end" id="cmEndBtn" type="button">End</button>
+    </div>
+  </header>
+
+  <main class="cm-main" id="cmMain">
+    <section class="cm-screen" id="screenLoading">
+      <p class="cm-muted cm-center">Loading the campaign&hellip;</p>
+    </section>
+
+    <section class="cm-screen" id="screenStart">
+      <div class="cm-resume" id="cmResume" hidden></div>
+      <p class="cm-lede">You are a <b>Squire</b>. Choose your first Siegeling, tour the elemental Lands, capture allies in Siege battles, duel trainers on the Arena table, and rally every realm against <b>Raidlord Akhar</b>.</p>
+      <h2 class="cm-h2">Choose your partner</h2>
+      <div class="cm-starters" id="cmStarters"></div>
+      <div class="cm-cta sn-dock">
+        <a class="sn-flank is-left" href="/home">Main Menu</a>
+        <button class="sn-flank is-right is-gold" id="cmStartBtn" type="button" disabled>Begin the rally</button>
+      </div>
+    </section>
+
+    <section class="cm-screen" id="screenWorld">
+      <p class="cm-banner" id="cmWorldBanner" role="status"></p>
+      <div class="cm-world" id="cmWorld"></div>
+      <div class="cm-cta sn-dock">
+        <button class="sn-flank is-left" id="cmPresetBtn" type="button">Arena Preset</button>
+        <button class="sn-flank is-right is-gold" id="cmAkharBtn" type="button" hidden>Challenge Akhar</button>
+      </div>
+    </section>
+
+    <section class="cm-screen" id="screenLand">
+      <div class="cm-stage" id="cmStage">
+        <div class="cm-stage-bg" id="cmStageBg" aria-hidden="true"></div>
+        <div class="cm-stage-depth" id="cmStageDepth"></div>
+        <div class="cm-stage-ui">
+          <h2 class="cm-land-name" id="cmLandName"></h2>
+          <p class="cm-banner" id="cmLandBanner" role="status"></p>
+          <div class="cm-land-actions" id="cmLandActions"></div>
+        </div>
+      </div>
+      <div class="cm-cta sn-dock">
+        <button class="sn-flank is-left" id="cmBackWorld" type="button">World Map</button>
+        <button class="sn-flank is-right" id="cmPresetBtn2" type="button">Preset</button>
+      </div>
+    </section>
+
+    <section class="cm-screen" id="screenPreset">
+      <h2 class="cm-h2">Arena preset (up to 5)</h2>
+      <p class="cm-muted">Your best Siegelings for trainer and knight duels. Order matters — the first N fight.</p>
+      <div class="cm-roster" id="cmRoster"></div>
+      <div class="cm-cta sn-dock">
+        <button class="sn-flank is-left" id="cmPresetBack" type="button">Back</button>
+        <button class="sn-flank is-right is-gold" id="cmPresetSave" type="button">Save preset</button>
+      </div>
+    </section>
+
+    <section class="cm-screen" id="screenWild">
+      <div class="cm-wild" id="cmWild">
+        <div class="cm-wild-lines">
+          <div class="cm-wild-foes" id="cmWildFoes"></div>
+          <div class="cm-wild-allies" id="cmWildAllies"></div>
+        </div>
+        <p class="cm-banner" id="cmWildBanner"></p>
+        <div class="cm-wild-hand" id="cmWildHand"></div>
+        <div class="cm-wild-ap" id="cmWildAp"></div>
+      </div>
+      <div class="cm-cta sn-dock">
+        <button class="sn-flank is-left" id="cmWildEnd" type="button">End Turn</button>
+        <button class="sn-flank is-right is-gold" id="cmWildFinish" type="button" hidden>Continue</button>
+      </div>
+    </section>
+
+    <section class="cm-screen cm-screen-center" id="screenVictory">
+      <div class="cm-victory" id="cmVictory"></div>
+      <div class="cm-cta sn-dock">
+        <a class="sn-flank is-left" href="/battle">Arena Menu</a>
+        <button class="sn-flank is-right is-gold" id="cmNewBtn" type="button">New campaign</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="cm-toast" id="cmToast" role="status" aria-live="polite" hidden></div>
+
+<script src="/js/viewport-unit.js?v=3"></script>
+<script src="/js/config.js"></script>
+<script src="/js/siege-sprites.js?v=2"></script>
+<script src="/js/shield-navigation.js?v=8"></script>
+<script src="/js/campaign.js?v=1"></script>
+</body>
+</html>

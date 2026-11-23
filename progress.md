@@ -1,3 +1,9 @@
+Original prompt: Campaign Mode: Rally of the Realms (2.5D + Dual Combat) — implement the plan
+
+- November 23, 2026 **Campaign Mode: Rally of the Realms ships.**
+  - **Change.** New story campaign at `/campaign`: Squire start with Sundile/Cacty/Fawny/Breezee; 2.5D Land scenes via OVERLAY cutouts + `SiegeSprites`; wild captures through `SiegeCombatEngine` (`CampaignWildSupport`); trainer/knight/Akhar duels via `GameService.newCampaignGame` → `/play?campaign=1` with pre-placed N∈1..5 presets, wipe-warband wins, 50 HP for official knights. Poison/Light knights added; POISON/LIGHT activated in `live-elements.json`; Raidlord Akhar trainer + coalition shield. Design doc `docs/campaign/README.md`. Cache pins: `game.js?v=358`, `home-redesign.js?v=182`, `campaign.css?v=1`, `campaign.js?v=1`.
+  - **Verification.** `./mvnw -q -DskipTests compile`; `./mvnw -q -Dtest=CampaignServiceTest test`; `node --check` on `campaign.js`/`game.js`. Live local smoke: `/api/campaign/options` lists four starters; start→enter-land→wild/start → `WILD_BATTLE`; arena/start rival → `soloToken` + `ARENA_BATTLE`; `/campaign` HTTP 200.
+
 Original prompt: merge and depl;oy
 
 - November 23, 2026 **Arena FAB HUD (#1266) merged to main and live.**

@@ -42,7 +42,7 @@
         ]
       },
       {
-        "source": "/@(landing|home|login|social|cards|decks|lobbies|events|tournaments|profile|achievements|deck-builder|shop|play|battle|siege|gauntlet|keep|chronicles|dominion|swarm|help|legacy|settings|next|gallery|room)",
+        "source": "/@(landing|home|login|social|cards|decks|lobbies|events|tournaments|profile|achievements|deck-builder|shop|play|battle|siege|gauntlet|campaign|keep|chronicles|dominion|swarm|help|legacy|settings|next|gallery|room)",
         "headers": [
           {
             "key": "Cache-Control",
@@ -259,6 +259,10 @@
       {
         "source": "/gauntlet",
         "destination": "/gauntlet.html"
+      },
+      {
+        "source": "/campaign",
+        "destination": "/campaign.html"
       },
       {
         "source": "/keep",

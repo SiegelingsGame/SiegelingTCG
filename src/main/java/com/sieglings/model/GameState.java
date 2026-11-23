@@ -76,6 +76,12 @@ public class GameState {
     private Integer gauntletFloor;
     private String gauntletEncounterName;
     private boolean gauntletBossFight;
+    /** Campaign Arena skirmish: wipe the enemy warband to win (HP still ends the match). */
+    private boolean campaignMatch;
+    private String campaignEncounterName;
+    private boolean campaignOfficial;
+    private boolean campaignWipeWin;
+    private int campaignCoalitionBonus;
     /** NORMAL or FORFEIT when the match ends. */
     private String endReason = "NORMAL";
     /** Display name of the player who forfeited, if any. */
@@ -380,6 +386,18 @@ public class GameState {
         this.gauntletFloor = floor;
         this.gauntletEncounterName = encounterName;
         this.gauntletBossFight = bossFight;
+    }
+    public boolean isCampaignMatch() { return campaignMatch; }
+    public String getCampaignEncounterName() { return campaignEncounterName; }
+    public boolean isCampaignOfficial() { return campaignOfficial; }
+    public boolean isCampaignWipeWin() { return campaignWipeWin; }
+    public int getCampaignCoalitionBonus() { return campaignCoalitionBonus; }
+    public void markCampaign(String encounterName, boolean official, boolean wipeWin, int coalitionBonus) {
+        this.campaignMatch = true;
+        this.campaignEncounterName = encounterName;
+        this.campaignOfficial = official;
+        this.campaignWipeWin = wipeWin;
+        this.campaignCoalitionBonus = Math.max(0, coalitionBonus);
     }
     public String getEndReason() { return endReason; }
     public void setEndReason(String endReason) { this.endReason = endReason; }

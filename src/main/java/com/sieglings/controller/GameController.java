@@ -964,6 +964,14 @@ public class GameController {
             gauntlet.put("boss", gs.isGauntletBossFight());
             resp.put("gauntlet", gauntlet);
         }
+        if (gs.isCampaignMatch()) {
+            Map<String, Object> campaign = new LinkedHashMap<>();
+            campaign.put("encounter", gs.getCampaignEncounterName());
+            campaign.put("official", gs.isCampaignOfficial());
+            campaign.put("wipeWin", gs.isCampaignWipeWin());
+            campaign.put("coalition", gs.getCampaignCoalitionBonus());
+            resp.put("campaign", campaign);
+        }
         resp.put("multiplayer", roomId != null);
         resp.put("roomId", roomId);
         resp.put("viewerSide", viewerIsPlayer ? "PLAYER" : "ENEMY");

@@ -325,6 +325,15 @@ const GAUNTLET_ENTRY = (function () {
     }
 })();
 
+// /play?campaign=1: Rally of the Realms handed off an Arena skirmish the same way Gauntlet does.
+const CAMPAIGN_ENTRY = (function () {
+    try {
+        return new URLSearchParams(window.location.search).get('campaign') === '1';
+    } catch (e) {
+        return false;
+    }
+})();
+
 // Mirror of TournamentService.checkLoadout, so the picker never offers a deck
 // the server will refuse. Returns '' when allowed, otherwise the reason.
 function tournamentDeckProblem(tournament, elements, customDeck) {
@@ -8078,9 +8087,12 @@ function renderGameOverOverlay() {
     }
 
     const gauntlet = gameState.gauntlet || null;
+    const campaign = gameState.campaign || null;
     const subtext = document.getElementById('gameOverSubtext');
     if (subtext && gauntlet) {
         subtext.textContent = `Gauntlet floor ${gauntlet.floor}: ${gauntlet.encounter || 'the next fight'}`;
+    } else if (subtext && campaign) {
+        subtext.textContent = `Campaign: ${campaign.encounter || 'duel'}`;
     } else if (subtext) {
         subtext.textContent = isOnline
             ? `Match vs ${endScreen.opponentName || gameState.enemyName || 'opponent'}`
@@ -8135,6 +8147,11 @@ function renderGameOverOverlay() {
         rewardsEl.innerHTML = result === 'WIN'
             ? '<h3>Floor cleared</h3><p class="game-over-rewards-note">Return to the Gauntlet to collect gold, pick a card and level your SiegeKnight.</p>'
             : '<h3>Fallen</h3><p class="game-over-rewards-note">This fight costs one life. The floor will wait for a rematch.</p>';
+        rewardsEl.classList.remove('is-guest-preview');
+    } else if (rewardsEl && campaign) {
+        rewardsEl.innerHTML = result === 'WIN'
+            ? '<h3>Duel won</h3><p class="game-over-rewards-note">Return to Rally of the Realms to continue the story.</p>'
+            : '<h3>Defeated</h3><p class="game-over-rewards-note">Return to the campaign and challenge them again.</p>';
         rewardsEl.classList.remove('is-guest-preview');
     } else if (rewardsEl) {
         const gold = Number(endScreen.goldEarned || 0);
@@ -8203,18 +8220,22 @@ function renderGameOverOverlay() {
     }
 
     if (btnPlayAgain) {
-        btnPlayAgain.hidden = isOnline || Boolean(gauntlet);
+        btnPlayAgain.hidden = isOnline || Boolean(gauntlet) || Boolean(campaign);
     }
     if (btnMainMenu) {
-        btnMainMenu.hidden = Boolean(gauntlet);
+        btnMainMenu.hidden = Boolean(gauntlet) || Boolean(campaign);
     }
     const btnGauntlet = document.getElementById('btnGameOverGauntlet');
     if (btnGauntlet) {
         btnGauntlet.hidden = !gauntlet;
     }
+    const btnCampaign = document.getElementById('btnGameOverCampaign');
+    if (btnCampaign) {
+        btnCampaign.hidden = !campaign;
+    }
     // Exactly one visible button wears the result's colours: the way to keep
-    // playing (Rematch, Advanced Tutorial, Play Again, Return to the Gauntlet).
-    const leadButton = [btnRematch, btnAdvanced, btnPlayAgain, btnGauntlet]
+    // playing (Rematch, Advanced Tutorial, Play Again, Return to the Gauntlet / Campaign).
+    const leadButton = [btnRematch, btnAdvanced, btnPlayAgain, btnGauntlet, btnCampaign]
         .find((btn) => btn && !btn.hidden && !btn.disabled) || null;
     document.querySelectorAll('.game-over-actions .btn').forEach((btn) => {
         btn.classList.toggle('is-lead', btn === leadButton);
@@ -8610,7 +8631,7 @@ function syncEntryOverlays() {
     // the Arena's mode picker for half a second. The startup cover stays up
     // until the fight renders (or the page returns to the run); a load error
     // still shows the loadout, which is where its Retry lives.
-    const holdForGauntlet = GAUNTLET_ENTRY && !showingGameplay && !loadoutErrorMessage;
+    const holdForGauntlet = (GAUNTLET_ENTRY || CAMPAIGN_ENTRY) && !showingGameplay && !loadoutErrorMessage;
 
     document.body?.classList.toggle('gameplay-active', showingGameplay);
     syncArenaMusic();
@@ -10126,7 +10147,7 @@ async function loadGameOptions() {
     syncPlayAuthViews();
         renderLoadoutOptions();
         updateLoadoutSummary();
-        const resumed = await resumeMultiplayerSession() || await resumeGauntletBattle();
+        const resumed = await resumeMultiplayerSession() || await resumeGauntletBattle() || await resumeCampaignBattle();
         if (!resumed) {
             syncEntryOverlays();
         }
@@ -11045,7 +11066,7 @@ function setMatchMode(mode) {
     currentRoomStatus = null;
     loadoutErrorMessage = '';
     tutorialMatchActive = mode === 'tutorial';
-    if (mode === 'gauntlet') loadoutStep = 'setup';
+    if (mode === 'gauntlet' || mode === 'campaign') loadoutStep = 'setup';
     if (mode === 'online') {
         hydrateOnlineStateFromUrl();
     } else {
@@ -11269,6 +11290,43 @@ function returnToGauntlet() {
     window.location.href = '/gauntlet';
 }
 window.returnToGauntlet = returnToGauntlet;
+
+async function resumeCampaignBattle() {
+    if (!CAMPAIGN_ENTRY) {
+        return false;
+    }
+    const backToRun = () => {
+        window.location.replace('/campaign');
+        return true;
+    };
+    if (!soloSessionToken) {
+        soloSessionToken = loadSavedSoloToken();
+    }
+    if (!soloSessionToken) {
+        return backToRun();
+    }
+    const data = await fetchJson(apiUrls('/api/game/state'), {
+        headers: getAuthHeaders({ 'X-Solo-Token': soloSessionToken })
+    }, LOADOUT_ACTION_TIMEOUT_MS);
+    if (!data || data.error || !data.campaign) {
+        setSoloSessionToken(null);
+        return backToRun();
+    }
+    matchMode = 'solo';
+    tutorialMatchActive = false;
+    clearExternalSocketElementMemory();
+    gameState = data;
+    render();
+    syncEntryOverlays();
+    window.SieglingsLoadingGate?.hide?.();
+    return true;
+}
+
+function returnToCampaign() {
+    setSoloSessionToken(null);
+    window.location.href = '/campaign';
+}
+window.returnToCampaign = returnToCampaign;
 
 async function resumeMultiplayerSession() {
     if (!multiplayerSession?.roomId || !multiplayerSession?.playerToken) {
@@ -11965,6 +12023,7 @@ function renderLoadoutOptions() {
     onlineMatchTab.classList.toggle('hidden', inviteFlow);
     const tutorialMatchTab = document.getElementById('tutorialMatchTab');
     const gauntletMatchTab = document.getElementById('gauntletMatchTab');
+    const campaignMatchTab = document.getElementById('campaignMatchTab');
     if (tutorialMatchTab) {
         tutorialMatchTab.classList.toggle('active', isTutorialMatchMode());
         tutorialMatchTab.setAttribute('aria-pressed', isTutorialMatchMode() ? 'true' : 'false');
@@ -11973,6 +12032,10 @@ function renderLoadoutOptions() {
     if (gauntletMatchTab) {
         gauntletMatchTab.classList.toggle('active', matchMode === 'gauntlet');
         gauntletMatchTab.setAttribute('aria-pressed', matchMode === 'gauntlet' ? 'true' : 'false');
+    }
+    if (campaignMatchTab) {
+        campaignMatchTab.classList.toggle('active', matchMode === 'campaign');
+        campaignMatchTab.setAttribute('aria-pressed', matchMode === 'campaign' ? 'true' : 'false');
     }
     onlineMatchPanel.classList.toggle('hidden', matchMode !== 'online' || hideOnlineLoadout);
     hostRoomTab.classList.toggle('active', onlineRoomMode === 'create');
@@ -12324,6 +12387,9 @@ function getLoadoutStartButtonLabel() {
     if (matchMode === 'gauntlet') {
         return 'Start Gauntlet';
     }
+    if (matchMode === 'campaign') {
+        return 'Open Campaign';
+    }
     if (isTutorialMatchMode()) {
         return 'Start Tutorial Match';
     }
@@ -12515,6 +12581,10 @@ async function startSelectedGame() {
     if (loadoutStartPending) return;
     if (matchMode === 'gauntlet') {
         window.location.assign('/gauntlet');
+        return;
+    }
+    if (matchMode === 'campaign') {
+        window.location.assign('/campaign');
         return;
     }
     if (isTutorialMatchMode()) {

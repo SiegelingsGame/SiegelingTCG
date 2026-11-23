@@ -635,6 +635,19 @@ public class BattleService {
         } else if (state.getEnemy().getHealth() <= 0) {
             state.setGameOver(true);
             state.setWinner(state.getPlayer().getName());
+        } else if (state.isCampaignWipeWin() && !state.isGameOver()) {
+            boolean enemyEmpty = state.getBoardSieglings(false).isEmpty();
+            boolean playerEmpty = state.getBoardSieglings(true).isEmpty();
+            if (enemyEmpty && playerEmpty) {
+                state.setGameOver(true);
+                state.setWinner("Draw");
+            } else if (enemyEmpty) {
+                state.setGameOver(true);
+                state.setWinner(state.getPlayer().getName());
+            } else if (playerEmpty) {
+                state.setGameOver(true);
+                state.setWinner(state.getEnemy().getName());
+            }
         }
 
         if (state.isGameOver() && matchHistoryService != null) {
