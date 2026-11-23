@@ -10450,8 +10450,8 @@ function hostArenaFabFlank(btn, side) {
     const dock = document.getElementById('arenaFabDock');
     if (!btn || !dock) return;
     clearArenaFabFlankClasses(btn);
+    // Keep Arena action-bar colors; do not apply sn-flank is-gold/is-blue themes.
     btn.classList.add('sn-flank', 'arena-fab-play-flank', side === 'left' ? 'is-left' : 'is-right');
-    if (side === 'right') btn.classList.add('is-gold');
     // Keep Quit/Close after the play flanks so grid columns stay stable.
     const quit = document.getElementById('arenaFabQuit');
     if (quit && quit.parentElement === dock) dock.insertBefore(btn, quit);

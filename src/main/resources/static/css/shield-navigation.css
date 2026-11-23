@@ -325,9 +325,12 @@
   --sn-dock-fill:rgba(8,10,24,.72);
   z-index:calc(var(--sn-z, 75) - 1);
 }
-/* Play flanks keep their action-bar ids/handlers but wear the dock chrome so
-   Knight / End Turn read as one control with the SiegeKnight FAB. */
+/* Play flanks keep the Arena action-bar colorway (gold Knight, blue Draw,
+   red End Turn) and only borrow the dock's cut shape around the FAB. */
 .arena-fab-dock .arena-fab-play-flank.ab-btn {
+  --flank-rim:rgba(255,215,0,.34);
+  --flank-bg:linear-gradient(180deg, rgba(28,40,72,.96), rgba(14,20,42,.98));
+  --flank-ink:var(--accent, #ffd700);
   width:100%;
   max-width:210px;
   min-height:var(--sn-flank-h);
@@ -338,55 +341,78 @@
   border-radius:0;
   box-shadow:none;
   color:var(--flank-ink);
-  letter-spacing:.02em;
-  text-transform:none;
+  letter-spacing:.08em;
+  text-transform:uppercase;
   white-space:nowrap;
-  animation:none;
+  font-size:0.76em;
 }
 .arena-fab-dock .arena-fab-play-flank.ab-btn.is-right {
   padding:0 22px 0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 10px);
 }
 .arena-fab-dock .arena-fab-play-flank.ab-trainer {
-  --flank-rim:#e9c975;
-  --flank-bg:linear-gradient(180deg,#3a4588 0%,#23275e 52%,#16183f 100%);
-  --flank-ink:#f4ecd6;
+  --flank-rim:rgba(255,215,0,.34);
+  --flank-bg:linear-gradient(180deg, rgba(36,44,70,.96), rgba(16,22,40,.98));
+  --flank-ink:var(--accent, #ffd700);
 }
 .arena-fab-dock .arena-fab-play-flank.ab-trainer.ab-ability-ready {
-  --flank-rim:#fff3c9;
-  --flank-bg:linear-gradient(180deg,#ffe08a 0%,#e8a83a 48%,#c47a18 100%);
-  --flank-ink:#3b2306;
+  --flank-rim:rgba(255,232,120,.88);
+  --flank-bg:
+    radial-gradient(circle at 50% 0%, rgba(255,230,100,.22), transparent 54%),
+    linear-gradient(135deg, rgba(226,183,20,.28), rgba(255,126,42,.18)),
+    linear-gradient(180deg, rgba(36,44,70,.96), rgba(16,22,40,.98));
+  --flank-ink:#fff6c2;
+  animation:knightAbilityReadyPulse 1.05s ease-in-out infinite;
 }
 .arena-fab-dock .arena-fab-play-flank.ab-trainer.ab-ability-ready::after {
-  content:none;
+  content:'Ready';
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-left:6px;
+  padding:2px 5px;
+  border-radius:999px;
+  background:rgba(255,231,111,.18);
+  color:#ffe66f;
+  font-size:.68em;
+  font-weight:950;
+  letter-spacing:0;
+  text-transform:uppercase;
 }
 .arena-fab-dock .arena-fab-play-flank.ab-draw {
-  --flank-rim:#fff3c9;
-  --flank-bg:linear-gradient(180deg,#fff0b8 0%,#ffc95a 48%,#e89a2a 100%);
-  --flank-ink:#3b2306;
+  --flank-rim:var(--water, #3296ff);
+  --flank-bg:linear-gradient(180deg, rgba(50,150,255,.16), rgba(18,36,72,.96));
+  --flank-ink:var(--water, #3296ff);
+  box-shadow:0 0 10px rgba(50,150,255,.12);
 }
 .arena-fab-dock .arena-fab-play-flank.ab-draw.ab-drawn {
-  --flank-rim:#b8ffc8;
-  --flank-bg:linear-gradient(180deg,#9dffb0 0%,#39ff14 48%,#1fbf3a 100%);
-  --flank-ink:#0d2a12;
+  --flank-rim:var(--danger, #e74c3c);
+  --flank-bg:linear-gradient(180deg, rgba(231,76,60,.18), rgba(42,18,22,.96));
+  --flank-ink:var(--danger, #e74c3c);
+  animation:ab-end-pulse 2s ease-in-out infinite;
 }
 .arena-fab-dock .arena-fab-play-flank.ab-pass,
 .arena-fab-dock .arena-fab-play-flank.ab-cancel-move {
-  --flank-rim:#9ec6ff;
-  --flank-bg:linear-gradient(180deg,#7fb2ff 0%,#3f78ec 48%,#2448b8 100%);
-  --flank-ink:#fff;
+  --flank-rim:rgba(180,200,255,.42);
+  --flank-bg:linear-gradient(180deg, rgba(40,52,88,.96), rgba(16,22,40,.98));
+  --flank-ink:var(--text, #e0e0e0);
   white-space:normal;
   text-wrap:balance;
+  letter-spacing:.02em;
+  text-transform:none;
   font-size:13px;
   line-height:1.1;
   gap:2px;
 }
 .arena-fab-dock .arena-fab-play-flank .ab-pass-title {
   font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  font-size:.76em;
 }
 .arena-fab-dock .arena-fab-play-flank .ab-pass-next {
   font-size:10px;
   font-weight:600;
-  opacity:.88;
+  color:rgba(214,223,255,.82);
 }
 .arena-fab-dock .sn-flank.is-danger {
   --flank-rim:#f0a090;

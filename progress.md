@@ -1,3 +1,9 @@
+Original prompt: yes escept yourve changed the coloway of the knigtha nd end turn buttons show a preview in the arena mode
+
+- November 22, 2026 **Arena FAB play flanks restore original Knight / End Turn colors.**
+  - **Change.** Docked play flanks no longer pick up loadout `sn-flank.is-gold` / green themes. CSS maps `.arena-fab-play-flank` from the action-bar palette: gold Ready Knight (`ab-trainer` / `ab-ability-ready`), blue Draw (`ab-draw`), red End Turn (`ab-draw.ab-drawn`), and Pass/Cancel neutrals. `hostArenaFabFlank` stopped adding `is-gold` on the right flank. Cache pins: `style.css?v=308`, `shield-navigation.css?v=11`, `game.js?v=355`. Preview harness: `arena-fab-color-preview.html`.
+  - **Verification.** `node --check js/game.js`. Headless Chromium color sample: Knight rim gold / ink cream, End Turn rim `#e74c3c`, `hasGoldClass: false` at 390×844 and 1440×900. Screenshots under `/opt/cursor/artifacts/arena-fab-color-*`.
+
 Original prompt: great start but to save space wrap the knight and end turn buttons around the siegeknight fab button and move all of that ui down to give more space ofr battle moves and card size in thehand preivew etc, when the knightfab activates the knight and endturn buttons then turn into the siegeliggs fab buttons, make that whole ui integrated
 
 - November 22, 2026 **Arena FAB dock: Knight / End Turn wrap the SiegeKnight FAB; action bar reclaimed.**
