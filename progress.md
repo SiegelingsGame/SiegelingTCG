@@ -1,3 +1,9 @@
+Original prompt: integrate tinto the mulligan, load all of those elements at the same time, add some flair to the fab ui area for arena battle so it has the same sihlloutte but some flair to it for battle
+
+- November 22, 2026 **Arena mulligan uses the SiegeKnight FAB dock; battle flair on the silhouette.**
+  - **Change.** During the opening-hand decide, Keep hand / Redraw N cards host as FAB flanks (in-overlay action rows hidden). Mulligan overlay clears `--sn-dock-h` so cards and the dock load as one HUD. Waiting on the opponent shows Quit Battle on the left flank. `arena-fab-battle` adds etched ember rails and a hotter FAB rim without changing the dock silhouette. Cache pins: `style.css?v=310`, `shield-navigation.css?v=15`, `game.js?v=357`. Preview: `arena-fab-mulligan-preview.html`.
+  - **Verification.** `node --check js/game.js`; `GameJavaScriptRegressionTest`. Headless sample: Keep/Redraw in dock, `#mulliganActions` hidden, battle flair on. Live play.html mulligan: Keep | knight FAB | Redraw; cards clear the dock; Knight/Draw absent. Screenshots under `/opt/cursor/artifacts/arena-fab-mulligan-*`.
+
 Original prompt: add a smooth animation transition from siegknight image to siegeling logo
 
 - November 22, 2026 **Arena FAB face morph: SiegeKnight ↔ Siegelings.**

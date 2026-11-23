@@ -14692,6 +14692,21 @@ body.mulligan-active .hand-lift-layer {
     visibility: hidden;
 }
 
+/* Arena FAB dock owns Keep / Redraw during mulligan — hide the in-box action
+   row and clear the dock height so the opening hand and FAB load as one HUD. */
+body.arena-fab-docked.mulligan-active #mulliganActions,
+body.arena-fab-docked.mulligan-active #mulliganWaitActions {
+    display: none !important;
+}
+body.gameplay-active.arena-fab-docked .mulligan-overlay {
+    padding-bottom: calc(var(--sn-dock-h, 88px) + 10px);
+    z-index: calc(var(--sn-z, 75) - 2);
+}
+body.gameplay-active.arena-fab-docked.mulligan-active .arena-fab-dock,
+body.gameplay-active.arena-fab-docked.mulligan-active .sn-root {
+    z-index: calc(var(--sn-z, 75) + 2);
+}
+
 .coin-flip-overlay {
     position: fixed;
     inset: 0;
@@ -21106,6 +21121,9 @@ body.sgl-opponent-turn .battle-cta-row {
         justify-content: center;
         overflow: hidden;
         overscroll-behavior: none;
+    }
+    body.gameplay-active.arena-fab-docked .mulligan-overlay {
+        padding-bottom: calc(var(--sn-dock-h, 88px) + var(--device-safe-bottom, 0px) + 6px);
     }
 
     body.gameplay-active .mulligan-box {

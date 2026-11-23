@@ -10456,19 +10456,33 @@ function arenaFabButtonVisible(el) {
 
 function clearArenaFabFlankClasses(btn) {
     if (!btn) return;
-    btn.classList.remove('sn-flank', 'is-left', 'is-right', 'is-gold', 'is-blue', 'arena-fab-play-flank');
+    btn.classList.remove(
+        'sn-flank', 'is-left', 'is-right', 'is-gold', 'is-blue',
+        'arena-fab-play-flank', 'arena-fab-mulligan-flank', 'is-keep', 'is-redraw'
+    );
 }
 
-function hostArenaFabFlank(btn, side) {
+function hostArenaFabFlank(btn, side, extraClass) {
     const dock = document.getElementById('arenaFabDock');
     if (!btn || !dock) return;
     clearArenaFabFlankClasses(btn);
     // Keep Arena action-bar colors; do not apply sn-flank is-gold/is-blue themes.
     btn.classList.add('sn-flank', 'arena-fab-play-flank', side === 'left' ? 'is-left' : 'is-right');
+    if (extraClass) btn.classList.add(extraClass);
     // Keep Quit/Close after the play flanks so grid columns stay stable.
     const quit = document.getElementById('arenaFabQuit');
     if (quit && quit.parentElement === dock) dock.insertBefore(btn, quit);
     else dock.appendChild(btn);
+}
+
+function parkArenaFabMulliganButtons() {
+    const actions = document.getElementById('mulliganActions');
+    ['btnMulliganKeep', 'btnMulliganRedraw'].forEach((id) => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        clearArenaFabFlankClasses(btn);
+        if (actions && btn.parentElement !== actions) actions.appendChild(btn);
+    });
 }
 
 function isArenaFabDockedGameplay() {
@@ -10527,8 +10541,16 @@ function syncArenaFabPlayFlanks() {
     const cancel = document.getElementById('btnCancelBattleMove');
     const battle = document.getElementById('btnBattle');
     const endTurn = document.getElementById('btnEndTurn');
+    const keepBtn = document.getElementById('btnMulliganKeep');
+    const redrawBtn = document.getElementById('btnMulliganRedraw');
     const playButtons = [knight, draw, pass, cancel, battle, endTurn].filter(Boolean);
     const trayOpen = document.body.classList.contains('arena-fab-tray-open');
+    const mulliganDecide = Boolean(
+        document.body.classList.contains('mulligan-active')
+        && gameState?.mulligan?.youPending
+        && keepBtn
+        && redrawBtn
+    );
 
     if (arenaFabMenuOpen || trayOpen) {
         // Options / tray mode: Siegelings flanks replace Knight / End Turn.
@@ -10538,6 +10560,7 @@ function syncArenaFabPlayFlanks() {
             clearArenaFabFlankClasses(btn);
             if (bar && btn.parentElement !== bar) bar.appendChild(btn);
         });
+        parkArenaFabMulliganButtons();
         if (quit) quit.hidden = false;
         if (closeBtn) {
             closeBtn.hidden = false;
@@ -10550,6 +10573,45 @@ function syncArenaFabPlayFlanks() {
     if (closeBtn) {
         closeBtn.hidden = true;
         closeBtn.textContent = 'Close menu';
+    }
+
+    // Opening-hand decide: Keep | knight FAB | Redraw — same dock as battle,
+    // loaded with the mulligan overlay so the actions are never buried under it.
+    if (mulliganDecide) {
+        playButtons.forEach((btn) => {
+            clearArenaFabFlankClasses(btn);
+            if (bar && btn.parentElement !== bar) bar.appendChild(btn);
+        });
+        keepBtn.hidden = false;
+        keepBtn.classList.remove('hidden');
+        redrawBtn.hidden = false;
+        redrawBtn.classList.remove('hidden');
+        hostArenaFabFlank(keepBtn, 'left', 'arena-fab-mulligan-flank');
+        keepBtn.classList.add('is-keep');
+        hostArenaFabFlank(redrawBtn, 'right', 'arena-fab-mulligan-flank');
+        redrawBtn.classList.add('is-redraw');
+        return;
+    }
+
+    parkArenaFabMulliganButtons();
+
+    // Waiting on the opponent's mulligan: Quit Battle + knight FAB (no Draw).
+    if (document.body.classList.contains('mulligan-active')) {
+        playButtons.forEach((btn) => {
+            clearArenaFabFlankClasses(btn);
+            if (bar && btn.parentElement !== bar) bar.appendChild(btn);
+        });
+        if (quit) {
+            quit.classList.add('sn-flank', 'is-left', 'is-danger');
+            quit.classList.remove('is-right', 'arena-fab-play-flank', 'arena-fab-mulligan-flank');
+            quit.hidden = false;
+            if (quit.parentElement !== dock) {
+                if (closeBtn && closeBtn.parentElement === dock) dock.insertBefore(quit, closeBtn);
+                else dock.appendChild(quit);
+            }
+        }
+        if (closeBtn) closeBtn.hidden = true;
+        return;
     }
 
     // Left: Cancel Move > Pass > Knight. Right: Draw/End Turn (btnDraw morphs
@@ -10589,6 +10651,11 @@ function ensureArenaFabHosts() {
     if (!aux.classList.contains('is-fab-hosted')) aux.classList.add('is-fab-hosted');
     if (!document.body.classList.contains('arena-fab-docked')) {
         document.body.classList.add('arena-fab-docked');
+    }
+    // Battle flair rides the same dock silhouette for the whole match, including
+    // the opening-hand decide so mulligan and DRAW load as one HUD.
+    if (!document.body.classList.contains('arena-fab-battle')) {
+        document.body.classList.add('arena-fab-battle');
     }
 
     // Action badge lives on the knight FAB so it stays visible while closed.
@@ -10698,6 +10765,9 @@ function restoreArenaFabHostsToActionBar() {
     if (document.body.classList.contains('arena-fab-tray-open')) {
         document.body.classList.remove('arena-fab-tray-open');
     }
+    if (document.body.classList.contains('arena-fab-battle')) {
+        document.body.classList.remove('arena-fab-battle');
+    }
     const dock = document.getElementById('arenaFabDock');
     if (dock && !dock.hidden) dock.hidden = true;
     const options = document.getElementById('arenaFabOptions');
@@ -10716,6 +10786,7 @@ function restoreArenaFabHostsToActionBar() {
             btn.hidden = false;
             if (bar && btn.parentElement !== bar) bar.appendChild(btn);
         });
+    parkArenaFabMulliganButtons();
 
     const aux = document.querySelector('.action-bar-aux');
     if (!aux?.classList.contains('is-fab-hosted')) return;
@@ -16484,10 +16555,13 @@ function syncMulliganBodyState() {
     // The mulligan overlay is translucent, so the bottom hand dock showed
     // through it — the same five cards the player is already choosing from,
     // rendered twice. Drive a body flag off the overlay's own visibility so
-    // the dock can be hidden (without collapsing, which would resize the
-    // board) for as long as the overlay is up, reveal hold included.
+    // the hand dock stays hidden (without collapsing, which would resize the
+    // board) while Keep/Redraw live on the SiegeKnight FAB flanks.
     const overlay = document.getElementById('mulliganOverlay');
     document.body?.classList.toggle('mulligan-active', Boolean(overlay?.classList.contains('visible')));
+    if (document.body.classList.contains('arena-fab-docked')) {
+        syncArenaFabPlayFlanks();
+    }
 }
 
 function renderMulliganOverlay() {

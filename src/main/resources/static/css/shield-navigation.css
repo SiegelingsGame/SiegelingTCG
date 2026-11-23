@@ -381,6 +381,93 @@
 body.arena-fab-tray-open .arena-fab-dock {
   --sn-dock-fill:rgba(10,14,30,.88);
 }
+/* Arena battle flair: same dock silhouette, with etched gold rails, ember
+   notches at the cut ends, and a hotter FAB rim so the HUD reads as a fight
+   control rather than a plain loadout dock. */
+body.arena-fab-battle .arena-fab-dock {
+  --sn-dock-fill:rgba(6,9,20,.78);
+}
+body.arena-fab-battle .arena-fab-dock::before {
+  background:
+    linear-gradient(90deg, transparent 4%, rgba(255,196,90,.16) 18%, transparent 32%, transparent 68%, rgba(255,196,90,.16) 82%, transparent 96%),
+    linear-gradient(0deg, rgba(8,10,24,.96) 58%, rgba(20,28,48,.55) 78%, transparent);
+  border-top:1px solid rgba(226,183,20,.18);
+  box-shadow:inset 0 1px 0 rgba(255,232,160,.08);
+}
+body.arena-fab-battle .arena-fab-dock::after {
+  /* Short ember rail under the FAB only — long rails crossed the flank labels. */
+  content:'';
+  position:absolute;
+  left:50%;
+  bottom:calc(var(--sn-fab-bottom) + var(--sn-fab-size) / 2 - 1px);
+  width:calc(var(--sn-flank-tuck) * 2 + 18px);
+  height:2px;
+  transform:translateX(-50%);
+  pointer-events:none;
+  z-index:0;
+  background:linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,196,90,.55) 30%,
+    rgba(255,230,150,.35) 50%,
+    rgba(255,196,90,.55) 70%,
+    transparent 100%);
+  opacity:.9;
+}
+body.arena-fab-battle .sn-fab .sn-emblem {
+  border-color:#f0d48a;
+  box-shadow:
+    0 0 0 3px #6b4520,
+    0 0 0 5px rgba(255,196,90,.22),
+    0 4px 16px rgba(0,0,0,.55),
+    0 0 22px rgba(255,160,60,.18);
+}
+body.arena-fab-battle .sn-fab .sn-emblem::before {
+  opacity:.34;
+  border-color:#ffd27a;
+  box-shadow:0 0 18px rgba(255,190,90,.45);
+}
+body.arena-fab-battle .arena-fab-dock .arena-fab-mulligan-flank {
+  --flank-rim:rgba(255,215,0,.42);
+  --flank-bg:linear-gradient(180deg, rgba(36,48,78,.97), rgba(14,20,40,.98));
+  --flank-ink:#f6e7bc;
+  width:100%;
+  max-width:210px;
+  min-height:var(--sn-flank-h);
+  height:var(--sn-flank-h);
+  margin:0;
+  font:800 13px/1.05 ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", "Nunito", system-ui, sans-serif;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+body.arena-fab-battle .arena-fab-dock .arena-fab-mulligan-flank.is-keep {
+  --flank-rim:rgba(255,215,0,.5);
+  --flank-bg:
+    radial-gradient(circle at 50% 0%, rgba(255,230,120,.16), transparent 55%),
+    linear-gradient(180deg, rgba(42,52,82,.97), rgba(16,22,40,.98));
+  --flank-ink:var(--accent, #ffd700);
+}
+body.arena-fab-battle .arena-fab-dock .arena-fab-mulligan-flank.is-redraw {
+  --flank-rim:#7eb6ff;
+  --flank-bg:linear-gradient(180deg, #3f78ec 0%, #2448b8 52%, #1a3278 100%);
+  --flank-ink:#fff;
+  text-shadow:0 1px 2px rgba(0,0,0,.45);
+}
+body.arena-fab-battle .arena-fab-dock .arena-fab-mulligan-flank.is-redraw:disabled,
+body.arena-fab-battle .arena-fab-dock .arena-fab-mulligan-flank.is-redraw[disabled] {
+  --flank-rim:rgba(140,160,190,.4);
+  --flank-bg:linear-gradient(180deg, rgba(48,58,82,.92), rgba(22,28,42,.96));
+  --flank-ink:rgba(220,228,240,.78);
+  text-shadow:none;
+  filter:none;
+  opacity:.92;
+}
+@media (min-width:1024px) and (min-height:601px) {
+  body.arena-fab-battle .arena-fab-dock .arena-fab-mulligan-flank {
+    max-width:clamp(210px, 20vw, 380px);
+    font-size:clamp(14px, 1.02vw, 18px);
+  }
+}
 /* Play flanks keep the Arena action-bar colorway (gold Knight, blue Draw,
    red End Turn) and only borrow the dock's cut shape around the FAB. */
 .arena-fab-dock .arena-fab-play-flank.ab-btn {
