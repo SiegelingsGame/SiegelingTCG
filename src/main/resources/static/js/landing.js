@@ -1206,14 +1206,19 @@
                 const tint = `var(--element-${art.element}, var(--siegelings-blue))`;
                 stage.style.setProperty('--hero-art-color', tint);
                 document.body.style.setProperty('--hero-art-color', tint);
-                // Keep the fixed bleed plate in sync so overscroll / home-indicator
-                // bands show the same wallpaper, not a flat navy strip.
+                // Keep the fixed bleed plate + slime drip in sync so overscroll
+                // / home-indicator bands show the same morphed wallpaper.
+                const wallPaint =
+                    `linear-gradient(180deg, rgba(7,13,34,.28) 0%, rgba(7,13,34,.1) 38%, rgba(7,13,34,.55) 100%), url('${url}')`;
                 const wall = document.querySelector('.landing-wallpaper');
                 if (wall) {
-                    wall.style.backgroundImage =
-                        `linear-gradient(180deg, rgba(7,13,34,.42) 0%, rgba(7,13,34,.18) 42%, rgba(7,13,34,.88) 100%), url('${url}')`;
+                    wall.style.backgroundImage = wallPaint;
                     wall.style.backgroundSize = 'cover';
                     wall.style.backgroundPosition = 'center';
+                }
+                const slime = document.getElementById('landingSlime');
+                if (slime) {
+                    slime.style.backgroundImage = wallPaint;
                 }
                 if (caption) caption.textContent = art.title;
             };
@@ -1594,11 +1599,21 @@
             const d = damp(px);
             const mag = Math.abs(d);
             amount = d;
-            body.style.setProperty('--slime-stretch', (mag / 520).toFixed(4));
-            body.style.setProperty('--slime-shift', (edge === 'top' ? mag * 0.35 : 0).toFixed(1) + 'px');
-            slime.style.setProperty('--slime', Math.max(0, mag).toFixed(1) + 'px');
-            slime.style.setProperty('--slime-bulge', Math.min(70, 28 + mag * 0.45).toFixed(1) + '%');
-            slime.style.setProperty('--slime-scale', (mag / 900).toFixed(4));
+            // Stronger vertical morph so the revealed band is clearly stretched art.
+            body.style.setProperty('--slime-stretch', (mag / 260).toFixed(4));
+            body.style.setProperty('--slime-shift', (edge === 'top' ? mag * 0.92 : 0).toFixed(1) + 'px');
+            slime.style.setProperty('--slime', Math.max(0, mag * 1.05).toFixed(1) + 'px');
+            slime.style.setProperty('--slime-bulge', Math.min(78, 32 + mag * 0.55).toFixed(1) + '%');
+            slime.style.setProperty('--slime-scale', (mag / 700).toFixed(4));
+            // If art has not loaded yet, still morph the CSS gradient plate.
+            if (!slime.style.backgroundImage) {
+                const wall = document.querySelector('.landing-wallpaper');
+                if (wall && wall.style.backgroundImage) {
+                    slime.style.backgroundImage = wall.style.backgroundImage;
+                } else if (wall) {
+                    slime.style.backgroundImage = getComputedStyle(wall).backgroundImage;
+                }
+            }
             body.classList.toggle('is-slime-top', edge === 'top' && mag > 0.5);
             body.classList.toggle('is-slime-bottom', edge === 'bottom' && mag > 0.5);
         }
