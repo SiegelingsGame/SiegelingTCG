@@ -217,6 +217,24 @@
     if (on && state.run) fillRealmOverlay(state.run);
   }
 
+  /** Open-world grass rolls → Siege AP wild fight (stays on /campaign). */
+  function startRandomWildEncounter() {
+    busy(function () {
+      return api('/api/campaign/wild/start', { method: 'POST' })
+        .then(applyRun)
+        .catch(function (e) {
+          var ow = state.overworld;
+          if (ow && ow.encounter) {
+            ow.encounter.pending = false;
+            ow.encounter.grace = ow.encounter.graceOnEnter || 5.5;
+            if (ow.els && ow.els.ow) ow.els.ow.classList.remove('is-encounter');
+            if (ow.setBanner) ow.setBanner('The wilds settle… keep exploring.');
+          }
+          throw e;
+        });
+    });
+  }
+
   function handleOverworldAct(act, building) {
     if (act === 'exit' || act === 'realms') {
       if (act === 'exit') {
@@ -267,9 +285,11 @@
       return;
     }
     busy(function () {
+      // Grove gates + random grass rolls share Siege wild battles.
       if (act === 'wild') {
         return api('/api/campaign/wild/start', { method: 'POST' }).then(applyRun);
       }
+      // Rival trainers and realm SiegeKnights always use Arena Battle Table.
       if (act === 'rival' || act === 'knight') {
         return api('/api/campaign/arena/start', {
           method: 'POST',
@@ -298,6 +318,7 @@
     state.overworld = new window.CampaignOverworld({
       root: stage,
       onInteract: handleOverworldAct,
+      onEncounter: startRandomWildEncounter,
       onExit: function () {
         if (document.body.dataset.screen === 'land') $('cmBackWorld').click();
         else showRealmOverlay(true);

@@ -1,3 +1,9 @@
+Original prompt: Ok add random encounter battles in the open world, these should be siege style battles, knight battles should be arena style battles.
+
+- November 24, 2026 **Campaign: random open-world Siege encounters; knights stay Arena.**
+  - **Change.** Realm walkabouts roll for wild Siegeling fights while walking (grace after enter, suppressed near hotspots so Rival/Knight Arena approaches stay clean). Hits flash “A wild Siegeling appears!” then `POST /api/campaign/wild/start` (Siege AP / `WILD_BATTLE`). Sanctuary plaza is safe; Palm Woods / Wild Grove remain opt-in. `act:rival` / `act:knight` still route to `/api/campaign/arena/start` → `/play?campaign=1`. Cache pins: `campaign.css?v=10`, `campaign-world3d.js?v=11`, `campaign-overworld.js?v=12`, `campaign.js?v=12`.
+  - **Verification.** `node --check` on overworld + campaign.js. Headless Chrome fixture: force-roll triggers encounter flash + `onEncounter`; near a building no roll; Sanctuary has encounters disabled. API: wild/start → `WILD_BATTLE`; arena/start knight → `ARENA_BATTLE` + soloToken.
+
 Original prompt: In adventure mode add these Siegeknights — Pyla, Airek, Glacia — These are NPCs you’ll meet in the mode
 
 - November 24, 2026 **Campaign Adventure: Lady Pyla, Ser Airek, and Glacia as meetable SiegeKnight NPCs.**

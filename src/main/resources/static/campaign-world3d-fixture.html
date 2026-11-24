@@ -19,18 +19,24 @@
   <div id="host"></div>
   <script src="/js/siege-sprites.js?v=2"></script>
   <script src="/js/vendor/three.min.js"></script>
-  <link rel="stylesheet" href="/css/campaign.css?v=9">
+  <link rel="stylesheet" href="/css/campaign.css?v=10">
   <script src="/js/campaign-world3d.js?v=11"></script>
-  <script src="/js/campaign-overworld.js?v=9"></script>
+  <script src="/js/campaign-overworld.js?v=12"></script>
   <script>
     var root = document.getElementById('host');
+    window.__encounters = [];
     var ow = new CampaignOverworld({
       root: root,
       onInteract: function (act, b) {
         document.getElementById('hud').textContent = 'Interact: ' + act + ' · ' + (b && b.label);
+      },
+      onEncounter: function () {
+        window.__encounters.push({ t: Date.now(), map: ow.mapId });
+        document.getElementById('hud').textContent = 'Encounter: Siege wild battle';
       }
     });
     ow.mount();
+    window.ow = ow;
     var realm = new URLSearchParams(location.search).get('realm');
     if (realm) ow.loadLand({ name: realm + ' Realm', landId: 'fixture-' + realm, element: realm, follower: { id: 'cacty' }, gold: 120, rallies: 1 });
     else ow.loadSanctuary({
