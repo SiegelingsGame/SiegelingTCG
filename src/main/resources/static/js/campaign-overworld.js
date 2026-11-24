@@ -609,7 +609,8 @@
       wild: 'Enter Wild Grove',
       woods: 'Enter Palm Woods',
       rival: 'Challenge Rival Arena',
-      knight: 'Challenge Knight Keep',
+      knight: this.near.knightId ? ('Challenge ' + (this.near.label || 'SiegeKnight')) : 'Challenge Knight Keep',
+      'meet-knight': 'Speak with ' + (this.near.label || 'SiegeKnight'),
       exit: 'Return to Sanctuary',
       realms: 'Open Realm Map',
       travel: 'Travel to ' + (this.near.label || 'realm'),
@@ -626,6 +627,23 @@
     if (!this.near || this.near.disabled) return;
     if (this.near.act === 'flavor') {
       this.setBanner(this.near.label + ' — a quiet corner of the Sanctuary.');
+      return;
+    }
+    if (this.near.act === 'meet-knight') {
+      var lines = {
+        pyla: 'Lady Pyla grins. “Emberfall answers to fire — find me there when you are ready.”',
+        'ser-airek': 'Ser Airek nods. “The winds of Zephyr Reach keep watch. Challenge me at the keep.”',
+        glacia: 'Glacia’s staff glints. “Frostveil’s quiet holds. Meet me when the ice calls.”'
+      };
+      var rallied = {
+        pyla: 'Lady Pyla clasps your forearm. “Emberfall stands with the Charter.”',
+        'ser-airek': 'Ser Airek salutes. “Zephyr Reach flies the Charter’s colours.”',
+        glacia: 'Glacia bows. “Frostveil is rallied. The cold remembers your name.”'
+      };
+      var id = this.near.knightId;
+      var msg = (this.near.sub === 'Rallied' ? rallied[id] : null) || lines[id] ||
+        (this.near.label + ' greets you.');
+      this.setBanner(msg);
       return;
     }
     this.onInteract(this.near.act, this.near);

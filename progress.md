@@ -1,3 +1,9 @@
+Original prompt: In adventure mode add these Siegeknights — Pyla, Airek, Glacia — These are NPCs you’ll meet in the mode
+
+- November 24, 2026 **Campaign Adventure: Lady Pyla, Ser Airek, and Glacia as meetable SiegeKnight NPCs.**
+  - **Change.** Imported owner concept + 8-dir walk sheets under `img/sprites/{pyla,ser-airek,glacia}/` (Bob-compatible 160×200 frames; slicer at `tools/sprites/slice-campaign-knight-sheets.py`). Added **Glacia** (Ice) to `TrainerCatalogService` with card/shop art. Fire/Wind/Ice realm knights are now `pyla` / `ser-airek` / `glacia`. Sanctuary plaza spawns all three as wandering 8-dir NPCs you can speak with; their home realms place them by the keep (Speak when rallied, Challenge before). NPC hotspots stay off the building fade list so the HD-2D frame loop stays healthy. Cache pins: `campaign-world3d.js?v=11`, `campaign-overworld.js?v=9`, `campaign.js?v=11`, `home-redesign.js?v=184`.
+  - **Verification.** `node --check` on campaign-world3d/overworld/campaign.js; `./mvnw -q -Dtest=CampaignServiceTest test`. Headless Chrome on the world3d fixture: no page errors; 72 knight frames loaded; Sanctuary shows Pyla/Airek/Glacia in the plaza; beside Glacia the prompt reads “Speak with Glacia” and sets her Frostveil line; Fire realm beside Pyla prompts “Challenge Lady Pyla” and fires `act:knight`. API start run reports `fire→pyla`, `wind→ser-airek`, `ice→glacia`.
+
 Original prompt: The lighting and blur is still terrible the assets should be crystal clear
 
 - November 23, 2026 **Campaign HD-2D clarity pass (full-res, no tilt-shift).**

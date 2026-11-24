@@ -4498,6 +4498,8 @@
     'isaac-tesla':       { file: 'isaac-tesla', pos: '46% 30%' },
     'pyla':              { file: 'pyla', pos: '40% 30%' },
     'trainer10':         { file: 'pyla', pos: '40% 30%' },
+    'glacia':            { file: 'glacia', pos: '42% 28%' },
+    'ser-airek':         { file: 'ser-airek', pos: '48% 30%' },
     'lady-clarice':      { file: 'lady-clarice', pos: '48% 30%' },
     'cera':              { file: 'cera', pos: '44% 30%' },
     'hera':              { file: 'hera', pos: '50% 30%' },

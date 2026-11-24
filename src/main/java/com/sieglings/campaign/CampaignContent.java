@@ -23,11 +23,12 @@ public final class CampaignContent {
 
     /** Realm SiegeKnight id per Land element id (SiegeLand elemental id). */
     public static final Map<String, String> REALM_KNIGHT_BY_LAND = Map.ofEntries(
-            Map.entry("fire", "trainer02"),
+            // Named campaign NPCs hold Fire / Wind / Ice; other realms keep roster knights.
+            Map.entry("fire", "pyla"),
             Map.entry("earth", "trainer05"),
-            Map.entry("wind", "trainer06"),
+            Map.entry("wind", "ser-airek"),
             Map.entry("water", "trainer04"),
-            Map.entry("ice", "trainer09"),
+            Map.entry("ice", "glacia"),
             Map.entry("shadow", "trainer07"),
             Map.entry("electric", "trainer08"),
             Map.entry("metal", "trainer23"),
@@ -35,6 +36,13 @@ public final class CampaignContent {
             Map.entry("psychic", "trainer29"),
             Map.entry("poison", "trainer32"),
             Map.entry("light", "trainer35")
+    );
+
+    /** Overworld SiegeKnight NPCs you meet in Sanctuary / their home realm. */
+    public static final Map<String, String> SANCTUARY_NPC_KNIGHTS = Map.of(
+            "pyla", "fire",
+            "ser-airek", "wind",
+            "glacia", "ice"
     );
 
     /** Rival (road) trainer per Land — squire-tier when available. */

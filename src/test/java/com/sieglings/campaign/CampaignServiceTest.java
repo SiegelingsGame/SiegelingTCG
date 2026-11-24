@@ -71,4 +71,14 @@ class CampaignServiceTest {
         assertEquals(4, starters.size());
         assertEquals("squire-bob", options.get("squireId"));
     }
+
+    @Test
+    void namedSiegeKnightsGuardFireWindAndIceRealms() {
+        assertEquals("pyla", CampaignContent.REALM_KNIGHT_BY_LAND.get("fire"));
+        assertEquals("ser-airek", CampaignContent.REALM_KNIGHT_BY_LAND.get("wind"));
+        assertEquals("glacia", CampaignContent.REALM_KNIGHT_BY_LAND.get("ice"));
+        assertEquals("fire", CampaignContent.SANCTUARY_NPC_KNIGHTS.get("pyla"));
+        assertEquals("wind", CampaignContent.SANCTUARY_NPC_KNIGHTS.get("ser-airek"));
+        assertEquals("ice", CampaignContent.SANCTUARY_NPC_KNIGHTS.get("glacia"));
+    }
 }
