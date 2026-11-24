@@ -1203,7 +1203,23 @@
                 back.classList.add('is-visible');
                 layers[front].classList.remove('is-visible');
                 front = 1 - front;
-                stage.style.setProperty('--hero-art-color', `var(--element-${art.element}, var(--siegelings-blue))`);
+                const tint = `var(--element-${art.element}, var(--siegelings-blue))`;
+                stage.style.setProperty('--hero-art-color', tint);
+                document.body.style.setProperty('--hero-art-color', tint);
+                // Keep the fixed bleed plate + slime drip in sync so overscroll
+                // / home-indicator bands show the same morphed wallpaper.
+                const wallPaint =
+                    `linear-gradient(180deg, rgba(7,13,34,.28) 0%, rgba(7,13,34,.1) 38%, rgba(7,13,34,.55) 100%), url('${url}')`;
+                const wall = document.querySelector('.landing-wallpaper');
+                if (wall) {
+                    wall.style.backgroundImage = wallPaint;
+                    wall.style.backgroundSize = 'cover';
+                    wall.style.backgroundPosition = 'center';
+                }
+                const slime = document.getElementById('landingSlime');
+                if (slime) {
+                    slime.style.backgroundImage = wallPaint;
+                }
                 if (caption) caption.textContent = art.title;
             };
             image.src = url;
@@ -1519,6 +1535,9 @@
         let lastX = 0, lastY = 0;
         function apply() {
             pending = false;
+            // Skip while the slime rubber-band owns the wallpaper transform.
+            if (document.body.classList.contains('is-slime-top') ||
+                document.body.classList.contains('is-slime-bottom')) return;
             const w = window.innerWidth || 1;
             const h = window.innerHeight || 1;
             const cx = (lastX / w - 0.5) * 2;  // -1 .. 1
@@ -1540,6 +1559,136 @@
         hero.addEventListener('pointerleave', () => {
             layers.forEach((layer) => { layer.style.transform = ''; });
         });
+    }
+
+    // ── Slime overscroll (pull where there is nowhere to scroll) ───────────
+    // Rubber-bands a liquid bulge tinted with the wallpaper / hero art colour
+    // when the player pulls down at the top, pulls up at the bottom, or drags
+    // on the hero chapter (which itself does not scroll).
+    function bindSlimeOverscroll() {
+        const body = document.body;
+        const slime = document.getElementById('landingSlime');
+        if (!slime || !body.classList.contains('landing-body')) return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+        let startY = 0;
+        let active = false;
+        let edge = null; // 'top' | 'bottom'
+        let amount = 0;
+        let pointerId = null;
+
+        function damp(px) {
+            // Soft asymptotic stretch — feels gooey past ~80px.
+            const sign = px < 0 ? -1 : 1;
+            const mag = Math.abs(px);
+            return sign * (mag * 0.55) / (1 + mag / 220);
+        }
+
+        function clearSlime() {
+            amount = 0;
+            edge = null;
+            body.classList.remove('is-slime-top', 'is-slime-bottom');
+            body.style.removeProperty('--slime-stretch');
+            body.style.removeProperty('--slime-shift');
+            slime.style.removeProperty('--slime');
+            slime.style.removeProperty('--slime-bulge');
+            slime.style.removeProperty('--slime-scale');
+        }
+
+        function paint(px) {
+            const d = damp(px);
+            const mag = Math.abs(d);
+            amount = d;
+            // Stronger vertical morph so the revealed band is clearly stretched art.
+            body.style.setProperty('--slime-stretch', (mag / 260).toFixed(4));
+            body.style.setProperty('--slime-shift', (edge === 'top' ? mag * 0.92 : 0).toFixed(1) + 'px');
+            slime.style.setProperty('--slime', Math.max(0, mag * 1.05).toFixed(1) + 'px');
+            slime.style.setProperty('--slime-bulge', Math.min(78, 32 + mag * 0.55).toFixed(1) + '%');
+            slime.style.setProperty('--slime-scale', (mag / 700).toFixed(4));
+            // If art has not loaded yet, still morph the CSS gradient plate.
+            if (!slime.style.backgroundImage) {
+                const wall = document.querySelector('.landing-wallpaper');
+                if (wall && wall.style.backgroundImage) {
+                    slime.style.backgroundImage = wall.style.backgroundImage;
+                } else if (wall) {
+                    slime.style.backgroundImage = getComputedStyle(wall).backgroundImage;
+                }
+            }
+            body.classList.toggle('is-slime-top', edge === 'top' && mag > 0.5);
+            body.classList.toggle('is-slime-bottom', edge === 'bottom' && mag > 0.5);
+        }
+
+        function release() {
+            if (!active && !edge) return;
+            active = false;
+            pointerId = null;
+            // Spring back.
+            const from = amount;
+            const t0 = performance.now();
+            function tick(now) {
+                const t = Math.min(1, (now - t0) / 320);
+                const ease = 1 - Math.pow(1 - t, 3);
+                paint(from * (1 - ease));
+                if (t < 1) requestAnimationFrame(tick);
+                else clearSlime();
+            }
+            requestAnimationFrame(tick);
+        }
+
+        function atTop() {
+            return body.scrollTop <= 1;
+        }
+        function atBottom() {
+            return body.scrollTop + body.clientHeight >= body.scrollHeight - 1;
+        }
+        function onHeroLockedSurface(target) {
+            const hero = document.getElementById('hero');
+            if (!hero || !hero.contains(target)) return false;
+            // Hero chapter itself does not scroll — any vertical drag is "no destination".
+            return true;
+        }
+
+        body.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            if (e.target.closest('a, button, input, textarea, select, [role="dialog"], .landing-fab')) return;
+            startY = e.clientY;
+            active = false;
+            edge = null;
+            pointerId = e.pointerId;
+        }, { passive: true });
+
+        body.addEventListener('pointermove', (e) => {
+            if (pointerId != null && e.pointerId !== pointerId) return;
+            if (startY == null) return;
+            const dy = e.clientY - startY;
+            const heroLock = onHeroLockedSurface(e.target);
+            if (!active) {
+                if (Math.abs(dy) < 10) return;
+                if (dy > 0 && (atTop() || heroLock)) {
+                    active = true;
+                    edge = 'top';
+                } else if (dy < 0 && (atBottom() || (heroLock && atTop()))) {
+                    // On the hero at the page top, upward drag snaps to the next chapter —
+                    // only rubber-band upward when already at the document bottom.
+                    if (atBottom()) {
+                        active = true;
+                        edge = 'bottom';
+                    } else {
+                        return;
+                    }
+                } else {
+                    return;
+                }
+                try { body.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+            }
+            if (!active) return;
+            e.preventDefault();
+            paint(edge === 'top' ? Math.max(0, dy) : Math.min(0, dy));
+        }, { passive: false });
+
+        body.addEventListener('pointerup', release, { passive: true });
+        body.addEventListener('pointercancel', release, { passive: true });
+        body.addEventListener('lostpointercapture', release, { passive: true });
     }
 
     // ── Trailer modal ─────────────────────────────────────────────────────
@@ -1962,6 +2111,7 @@
         bindLandingFab();
         bindLandingCards();
         bindParallax();
+        bindSlimeOverscroll();
         bindTrailerModal();
         bindLoginModal();
         bindPlayNow();
