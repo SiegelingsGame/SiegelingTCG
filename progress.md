@@ -1,3 +1,9 @@
+Original prompt: Merge and deploy
+
+- November 24, 2026 **Landing standalone `--sg-vh` safe-zone (#1276) merged and live.**
+  - **Change.** Merged arena viewport-unit / `--landing-vh` shell to `main`; Deploy run `45504174356` succeeded.
+  - **Verification.** Live `/` serves `landing.css?v=69`, `landing.js?v=69`, `viewport-unit.js?v=3` (HTTP 200). Live CSS includes `--landing-vh` / `--device-safe-bottom` / `sg-standalone` / `max(100dvh, var(--sg-vh`. `/api/cards/editor` → `source=FIRESTORE`. `config.js` `apiBaseUrl: ''`.
+
 Original prompt: Ok I need you to review the iPhone safe zone rules. There is code for this in arena mode for sure since the ui goes into the safe zone and apply to the landing page since it’s still not correct on the browser version it works but as the mobile web app it does not
 
 - November 24, 2026 **Landing: adopt arena `--sg-vh` safe-zone rules for installed iPhone.**
