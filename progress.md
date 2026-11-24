@@ -1,3 +1,9 @@
+Original prompt: Ok I need you to review the iPhone safe zone rules. There is code for this in arena mode for sure since the ui goes into the safe zone and apply to the landing page since it’s still not correct on the browser version it works but as the mobile web app it does not
+
+- November 24, 2026 **Landing: adopt arena `--sg-vh` safe-zone rules for installed iPhone.**
+  - **Change.** Browser tab looked fine after #1275; the installed web app still left a home-indicator dead band because iOS can report a `dvh` shorter than the glass. Landing now loads `viewport-unit.js` (same as `play.html` / hub), sizes the shell with `--landing-vh: max(100dvh, var(--sg-vh))`, and gives wallpaper / `.hero-bg` an explicit `--landing-vh` height instead of `inset:0` alone. Chrome uses `--device-safe-*` plus `--landing-sat` (standalone status-band clear, same idea as `--sn-sat`). Pins: `landing.css?v=69`, `landing.js?v=69`.
+  - **Verification.** `node --check` landing.js. Headless: `viewport-unit.js` present, `sg-standalone` class, shell layers 844 with `--sg-vh:844px`. Short viewport 810 + `--sg-vh:844px` → body/wallpaper/hero-bg/scroll all grow to 844 (past the short visual viewport). PCG top ≈107 with sat 59+40; FAB bottom gap 34. Screenshots `landing-standalone-hero.png`, `landing-standalone-shortfall-probe.png`.
+
 Original prompt: Ok merge and deploy
 
 - November 24, 2026 **Landing home-indicator wallpaper fix (#1275) merged and live.**

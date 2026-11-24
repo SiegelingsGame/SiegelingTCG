@@ -24,10 +24,13 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="stylesheet" href="/css/landing.css?v=68">
+    <link rel="stylesheet" href="/css/landing.css?v=69">
     <link rel="stylesheet" href="/css/hub-music.css?v=2">
     <link rel="stylesheet" href="/css/card-face.css?v=11">
     <link rel="stylesheet" href="/css/holographic.css?v=11">
+    <!-- Same --sg-vh corrector the arena / hub use: installed iOS can report a
+         dvh shorter than the glass and leave a dead band under the hero. -->
+    <script src="/js/viewport-unit.js?v=3"></script>
     <!-- Carries on a song the player was already listening to in the game; a
          first visit stays quiet (hub-music.js, data-autoinit="continue"). -->
     <script src="/js/hub-music.js?v=10" data-autoinit="continue"></script>
@@ -415,7 +418,7 @@
 <script src="/js/art-reveal.js?v=3"></script>
 <script src="/js/landing-particles.js?v=5"></script>
 <script src="/js/play-mode-picker.js?v=6"></script>
-<script src="/js/landing.js?v=68"></script>
+<script src="/js/landing.js?v=69"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
 <script src="/js/landing-modes.js?v=2"></script>
 <script src="/js/sw-register.js?v=1"></script>

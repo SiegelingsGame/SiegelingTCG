@@ -52,17 +52,44 @@
 
 * { box-sizing: border-box; }
 
+/* Safe-area tokens — same names/roles as style.css / the arena shell so landing
+   chrome clears the home indicator the same way the battle dock does, while
+   backgrounds still paint into that band. */
+:root {
+    --device-safe-top: env(safe-area-inset-top, 0px);
+    --device-safe-right: env(safe-area-inset-right, 0px);
+    --device-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --device-safe-left: env(safe-area-inset-left, 0px);
+    /* Top clear for the PCG chip. Installed iOS draws an extra blur band under
+       the status bar that CSS cannot paint into (same rule as --sn-sat). */
+    --landing-sat: var(--device-safe-top);
+    /* Shell height the arena / hub use: dvh, or --sg-vh when standalone iOS
+       under-reports the glass (viewport-unit.js). */
+    --landing-vh: max(100dvh, var(--sg-vh, 0px));
+}
+@media (display-mode: standalone) {
+    :root {
+        --landing-sat: calc(var(--device-safe-top) + min(40px, var(--device-safe-top) * 4));
+    }
+}
+:root.sg-standalone {
+    --landing-sat: calc(var(--device-safe-top) + min(40px, var(--device-safe-top) * 4));
+}
+
 /* Deep wallpaper base — matches the hero vignette so the iPhone home-indicator
-   band and overscroll never flash a different flat navy. -webkit-fill-available
-   reaches under the home indicator where 100dvh often stops on iOS. */
+   band and overscroll never flash a different flat navy. Height follows the
+   arena rule (max(100dvh, --sg-vh)), not -webkit-fill-available alone — that
+   still under-fills an installed web app when iOS launches short. */
 html {
     height: 100%;
-    height: -webkit-fill-available;
+    height: var(--landing-vh);
     overflow: hidden;
     background-color: #070d22;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
+    /* Match arena: block stray pinch zoom that permanently clips the shell. */
+    touch-action: pan-x pan-y;
 }
 .landing-body {
     margin: 0;
@@ -70,6 +97,7 @@ html {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    touch-action: pan-x pan-y;
     /* Same stack as .hero-bg-far so safe-area gutters stay continuous. */
     background:
         radial-gradient(ellipse at 50% 70%, rgba(245, 166, 35, 0.18), transparent 55%),
@@ -77,24 +105,24 @@ html {
     /* Body is the layout shell — scrolling lives on .landing-scroll so fixed
        wallpaper is not trapped inside an overflow scroller on iOS. */
     position: relative;
-    height: 100%;
-    height: 100dvh;
-    height: -webkit-fill-available;
-    min-height: 100vh;
-    min-height: -webkit-fill-available;
+    height: var(--sg-vh, 100vh);
+    height: var(--landing-vh);
+    min-height: var(--landing-vh);
     overflow: hidden;
 }
 
-/* Fixed full-bleed plate under every chapter — paints through top/bottom
-   safe areas and the rubber-band region Safari would otherwise leave empty.
-   inset:0 against the layout viewport (viewport-fit=cover) reaches under the
-   home indicator; percentage bleeds alone did not. */
+/* Fixed full-bleed plate under every chapter. Explicit height (not only
+   inset:0): on an installed iPhone, fixed inset:0 tracks the short visual
+   viewport and still leaves the home-indicator dead band empty — the same
+   reason .sg-app sizes with max(100dvh, --sg-vh) instead of inset:0. */
 .landing-wallpaper {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
     width: 100%;
-    height: 100%;
-    height: -webkit-fill-available;
+    height: var(--landing-vh);
+    min-height: 100%;
     z-index: 0;
     pointer-events: none;
     background:
@@ -138,7 +166,7 @@ html {
     border-radius: 0 0 50% 50% / 0 0 var(--slime-bulge) var(--slime-bulge);
     background-position: center top;
     /* Stretch the same hero art into the drip so the gap stays “morphed”. */
-    background-size: 115% calc(100dvh + var(--slime) * 1.35);
+    background-size: 115% calc(var(--landing-vh) + var(--slime) * 1.35);
     transform: scaleX(calc(1 + var(--slime-scale, 0)));
     transform-origin: 50% 0%;
     box-shadow:
@@ -151,7 +179,7 @@ html {
     height: max(var(--slime), 1px);
     border-radius: 50% 50% 0 0 / var(--slime-bulge) var(--slime-bulge) 0 0;
     background-position: center bottom;
-    background-size: 115% calc(100dvh + var(--slime) * 1.35);
+    background-size: 115% calc(var(--landing-vh) + var(--slime) * 1.35);
     transform: scaleX(calc(1 + var(--slime-scale, 0)));
     transform-origin: 50% 100%;
     box-shadow:
@@ -193,8 +221,7 @@ html {
     position: relative;
     z-index: 1;
     height: 100%;
-    height: 100dvh;
-    height: -webkit-fill-available;
+    height: var(--landing-vh);
     overflow-x: hidden;
     overflow-y: auto;
     scroll-snap-type: y mandatory;
@@ -208,8 +235,7 @@ html {
     z-index: 1;
     box-sizing: border-box;
     height: 100%;
-    height: 100dvh;
-    height: -webkit-fill-available;
+    height: var(--landing-vh);
     min-height: 0;
     scroll-snap-align: start;
     scroll-snap-stop: always;
@@ -241,10 +267,10 @@ img { display: block; }
 .pcg-watermark {
     position: fixed;
     /* Sit just under the status-bar / Dynamic Island band — never behind the
-       clock. The phone media query used to hard-code top:12px and ignored the
-       inset, which parked the chip under the time. */
-    top: calc(env(safe-area-inset-top, 0px) + 10px);
-    left: calc(env(safe-area-inset-left, 0px) + 14px);
+       clock. --landing-sat matches arena/hub standalone top clear (extra band
+       under the status bar on installed iOS that CSS cannot paint into). */
+    top: calc(var(--landing-sat) + 10px);
+    left: calc(var(--device-safe-left) + 14px);
     z-index: 60;
     display: flex;
     align-items: center;
@@ -344,10 +370,11 @@ img { display: block; }
 .hero {
     position: relative;
     min-height: 100%;
-    min-height: 100dvh;
-    min-height: -webkit-fill-available;
+    min-height: var(--landing-vh);
     padding: 120px 24px 60px;
-    padding-bottom: max(60px, calc(28px + env(safe-area-inset-bottom, 0px)));
+    /* Content clears the home indicator; the fixed hero-bg still paints into it
+       (same split as the arena dock: chrome padded, shell full-bleed). */
+    padding-bottom: max(60px, calc(28px + var(--device-safe-bottom)));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -432,12 +459,16 @@ img { display: block; }
 }
 
 .hero-bg {
-    /* Fixed to the layout viewport (same recruit-reveal pattern): flow-sized
-       100dvh stops above the iPhone home indicator, leaving a dead band.
-       inset:0 with viewport-fit=cover reaches under that bar. Opaque later
-       chapters cover this layer while scrolling. */
+    /* Same height contract as .sg-app / .landing-wallpaper: explicit --landing-vh
+       so an installed web app's under-reported dvh cannot leave a dead band
+       under the art. Opaque later chapters cover this layer while scrolling. */
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: var(--landing-vh);
+    min-height: 100%;
     z-index: 0;
     pointer-events: none;
     will-change: transform;
@@ -794,7 +825,7 @@ img { display: block; }
 
 .hero-scroll-hint {
     position: absolute;
-    bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(22px + var(--device-safe-bottom));
     left: 50%;
     transform: translateX(-50%);
     z-index: 3;
@@ -1695,7 +1726,7 @@ img { display: block; }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 760px) {
-    .hero { padding: 100px 18px 60px; min-height: 100%; min-height: -webkit-fill-available; }
+    .hero { padding: 100px 18px 60px; min-height: 100%; min-height: var(--landing-vh); }
     .sgl-gate-vs { grid-template-columns: 1fr; gap: 12px; }
     /* The last 26px: the flavour line sat just past the fold. */
     .sgl-gate-content { gap: 12px; }
@@ -1735,8 +1766,8 @@ img { display: block; }
     .sgl-vs-emblem-text { font-size: 1.8rem; }
     .sgl-knight-card.right { transform: translateX(0); }
     .pcg-watermark {
-        top: calc(env(safe-area-inset-top, 0px) + 8px);
-        left: max(10px, calc(env(safe-area-inset-left, 0px) + 6px));
+        top: calc(var(--landing-sat) + 8px);
+        left: max(10px, calc(var(--device-safe-left) + 6px));
         padding: 4px 10px 4px 6px;
     }
     .pcg-watermark-text { display: none; }
@@ -1769,8 +1800,10 @@ img { display: block; }
     --fab-inset: 8px;
     position: fixed;
     z-index: 150;
-    right: max(18px, env(safe-area-inset-right));
-    bottom: max(22px, env(safe-area-inset-bottom));
+    /* Same clearance as the arena FAB (--sn-fab-bottom): chrome above the home
+       indicator, wallpaper still painting the band behind it. */
+    right: max(18px, var(--device-safe-right));
+    bottom: max(22px, var(--device-safe-bottom));
 }
 /* The Siegelings emblem in a gold rim, the same medallion the hub's shield
    button wears, so the landing's navigation reads as the game's own. */
@@ -1917,8 +1950,8 @@ img { display: block; }
 .hero-art-caption {
     position: absolute;
     z-index: 5;
-    left: max(22px, env(safe-area-inset-left));
-    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    left: max(22px, var(--device-safe-left));
+    bottom: calc(20px + var(--device-safe-bottom));
     margin: 0;
     padding: 6px 13px;
     border: 1px solid color-mix(in srgb, var(--hero-art-color, var(--siegelings-blue)), transparent 55%);
@@ -2417,7 +2450,7 @@ img { display: block; }
     .knight-rail { grid-auto-columns: minmax(168px, 72vw); }
     .world-tile { width: min(78vw, 320px); }
     /* Sits above the scroll hint on phones, where the hero is tallest. */
-    .hero-art-caption { left: 50%; transform: translateX(-50%); bottom: calc(66px + env(safe-area-inset-bottom, 0px)); font-size: .58rem; }
+    .hero-art-caption { left: 50%; transform: translateX(-50%); bottom: calc(66px + var(--device-safe-bottom)); font-size: .58rem; }
     .mode-extra-links a { padding: 8px 13px; font-size: .68rem; }
 }
 
@@ -2446,7 +2479,7 @@ img { display: block; }
     .arena-section { grid-template-columns: 1fr; padding-left: 24px; padding-right: 24px; text-align: center; }
     .arena-visual { max-width: 276px; }
     .arena-actions { justify-content: center; }
-    .landing-fab { --fab-size: 48px; right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); }
+    .landing-fab { --fab-size: 48px; right: max(14px, var(--device-safe-right)); bottom: max(14px, var(--device-safe-bottom)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
