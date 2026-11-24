@@ -15,10 +15,32 @@
 
   var BOB = '/img/sprites/squire-bob/';
   var BOB_ASSET_VERSION = '2';
+  var KNIGHT_ASSET_VERSION = '1';
   var SANC = '/img/campaign/sanctuary/';
   var PX = 32;
   var BOB_DIRS = ['up', 'up-right', 'right', 'down-right', 'down', 'down-left', 'left', 'up-left'];
   var BOB_POSES = ['idle', 'walk-a', 'walk-b'];
+  // Named SiegeKnights you meet in Sanctuary and their home realms.
+  var KNIGHT_NPCS = {
+    pyla: {
+      id: 'pyla', name: 'Lady Pyla', element: 'fire', landId: 'fire',
+      dir: '/img/sprites/pyla/',
+      hello: 'Lady Pyla grins. “Emberfall answers to fire — find me there when you are ready.”',
+      rallied: 'Lady Pyla clasps your forearm. “Emberfall stands with the Charter.”'
+    },
+    'ser-airek': {
+      id: 'ser-airek', name: 'Ser Airek', element: 'wind', landId: 'wind',
+      dir: '/img/sprites/ser-airek/',
+      hello: 'Ser Airek nods. “The winds of Zephyr Reach keep watch. Challenge me at the keep.”',
+      rallied: 'Ser Airek salutes. “Zephyr Reach flies the Charter’s colours.”'
+    },
+    glacia: {
+      id: 'glacia', name: 'Glacia', element: 'ice', landId: 'ice',
+      dir: '/img/sprites/glacia/',
+      hello: 'Glacia’s staff glints. “Frostveil’s quiet holds. Meet me when the ice calls.”',
+      rallied: 'Glacia bows. “Frostveil is rallied. The cold remembers your name.”'
+    }
+  };
 
   function V3(x, y, z) { return new THREE.Vector3(x, y, z); }
   function col(c) { return new THREE.Color(c); }
@@ -477,7 +499,9 @@
     this.loader = new THREE.TextureLoader();
     this.imgTex = {};
     this.bobTex = {};
+    this.knightTex = {};
     this._preloadBob();
+    this._preloadKnightNpcs();
     this.frondTexture = frondTex();
     this.trunkTexture = trunkTex();
     this.frondTexture.userData.shared = this.trunkTexture.userData.shared = true;
@@ -520,6 +544,20 @@
       BOB_POSES.forEach(function (p) {
         var key = d + '-' + p;
         self.bobTex[key] = self._spriteTex(BOB + key + '.webp?v=' + BOB_ASSET_VERSION);
+      });
+    });
+  };
+
+  World3D.prototype._preloadKnightNpcs = function () {
+    var self = this;
+    Object.keys(KNIGHT_NPCS).forEach(function (id) {
+      var def = KNIGHT_NPCS[id];
+      var bag = self.knightTex[id] = {};
+      BOB_DIRS.forEach(function (d) {
+        BOB_POSES.forEach(function (p) {
+          var key = d + '-' + p;
+          bag[key] = self._spriteTex(def.dir + key + '.webp?v=' + KNIGHT_ASSET_VERSION);
+        });
       });
     });
   };
@@ -574,6 +612,7 @@
     this.solid = new Uint8Array(mapW * mapH);
     this.circles = [];
     this.buildings = [];
+    this.npcHotspots = [];
     this.lampLights = [];
     this.trees = [];
     this.crystals = [];
@@ -1348,6 +1387,53 @@
     });
   };
 
+  /** Face an 8-dir sheet from a movement delta (same vocabulary as Bob). */
+  World3D.prototype._dirFromDelta = function (dx, dz) {
+    if (Math.abs(dx) < 0.001 && Math.abs(dz) < 0.001) return null;
+    var ang = Math.atan2(dx, -dz); // 0 = up (−z)
+    var step = Math.PI / 4;
+    var i = Math.round(ang / step) & 7;
+    return BOB_DIRS[i];
+  };
+
+  /**
+   * Named SiegeKnight NPCs — Bob-style 8-dir cut-outs with an interact hotspot.
+   * `act` is meet-knight (Sanctuary chat) or knight (realm duel) when still open.
+   */
+  World3D.prototype._knightNpcs = function (list) {
+    var self = this;
+    list.forEach(function (n) {
+      var def = KNIGHT_NPCS[n.id];
+      if (!def || !self.knightTex[n.id]) return;
+      var a = self._actorMesh(1.28, 1.6, true);
+      self._setActorTex(a, self.knightTex[n.id]['down-idle']);
+      a.mesh.position.set(n.x, 0, n.z);
+      a.shadow.position.set(n.x, 0.012, n.z);
+      var act = n.act || 'meet-knight';
+      var sub = n.sub || def.element;
+      self.npcs.push({
+        kind: 'knight', knightId: def.id, a: a, tex: self.knightTex[n.id],
+        hx: n.x, hz: n.z, x: n.x, z: n.z, tx: n.x, tz: n.z,
+        wait: 1.2 + self.rnd() * 2.5, dir: 'down', moving: false,
+        phase: self.rnd() * 1000, r: n.r || 1.1
+      });
+      // Hotspot lives outside `buildings` so the camera fade loop (needs parts) skips it.
+      self.npcHotspots.push({
+        id: 'npc-' + def.id,
+        act: act,
+        knightId: def.id,
+        label: def.name,
+        sub: sub,
+        disabled: !!n.disabled,
+        // x/z + approach* are what CampaignOverworld scans; keep them live as the NPC walks.
+        x: n.x, z: n.z, cx: n.x, cz: n.z,
+        approachX: n.x, approachZ: n.z + 1.1,
+        labelY: 2.1
+      });
+      self.circles.push({ x: n.x, z: n.z, r: 0.35 });
+    });
+  };
+
   // ------------------------------------------------------------------ maps
   World3D.prototype.loadSanctuary = function (cfg) {
     if (!this.ready) return;
@@ -1407,6 +1493,12 @@
       { id: 'raydile', x: 6.2, z: 17.4, h: 0.55, r: 1.2 },
       { id: 'chilldoe', x: 28.4, z: 17.2, h: 0.6, r: 1.4 }
     ]);
+    // SiegeKnight NPCs linger by the plaza stalls — talk to learn their realms.
+    this._knightNpcs([
+      { id: 'pyla', x: 12.6, z: 12.4, r: 0.9, sub: 'Fire · Emberfall' },
+      { id: 'ser-airek', x: 21.2, z: 12.6, r: 0.9, sub: 'Wind · Zephyr Reach' },
+      { id: 'glacia', x: 17.0, z: 10.6, r: 0.9, sub: 'Ice · Frostveil' }
+    ]);
 
     this.spawn = { x: 17, z: 19.2 };
     this.setFollower(cfg.followerId);
@@ -1447,17 +1539,29 @@
       { id: natives[0], x: 11.2, z: 15.2, h: 0.62 },
       { id: natives[1], x: 19.2, z: 14.6, h: 0.66 }
     ]);
+    // Home-realm SiegeKnight stands near the keep; challenge them before they are rallied.
+    var realmKnight = { fire: 'pyla', wind: 'ser-airek', ice: 'glacia' }[el];
+    if (realmKnight) {
+      this._knightNpcs([{
+        id: realmKnight, x: 14.6, z: 5.4, r: 0.7,
+        act: rallied ? 'meet-knight' : 'knight',
+        sub: rallied ? 'Rallied' : 'Challenge',
+        disabled: false
+      }]);
+    }
     this.spawn = { x: 14.95, z: 15.8 };
     this.setFollower(cfg.followerId);
   };
 
   World3D.prototype.getBuildings = function () {
-    return this.buildings.filter(function (b) { return !!b.act; }).map(function (b) {
+    var fromBuildings = this.buildings.filter(function (b) { return !!b.act; }).map(function (b) {
       return {
         id: b.id, act: b.act, landId: b.landId, label: b.label, sub: b.sub, disabled: b.disabled,
         x: b.cx, z: b.cz, approachX: b.approachX, approachZ: b.approachZ
       };
     });
+    // Same object references so Overworld proximity tracks wandering knights.
+    return fromBuildings.concat(this.npcHotspots || []);
   };
 
   // ------------------------------------------------------------------ per-frame
@@ -1508,15 +1612,42 @@
         var dx = n.tx - n.x, dz = n.tz - n.z, d = Math.sqrt(dx * dx + dz * dz);
         if (d < 0.05) { n.moving = false; n.wait = 1.5 + self.rnd() * 3.5; }
         else {
-          var s = Math.min(d, 0.9 * dt);
+          var speed = n.kind === 'knight' ? 0.7 : 0.9;
+          var s = Math.min(d, speed * dt);
           var nx = n.x + dx / d * s, nz = n.z + dz / d * s;
           if (self.isBlocked(nx, nz, 0.2)) { n.moving = false; n.wait = 0.8; }
-          else { n.x = nx; n.z = nz; if (Math.abs(dx) > 0.02) n.left = dx < 0; }
+          else {
+            n.x = nx; n.z = nz;
+            if (n.kind === 'knight') {
+              var faced = self._dirFromDelta(dx, dz);
+              if (faced) n.dir = faced;
+            } else if (Math.abs(dx) > 0.02) {
+              n.left = dx < 0;
+            }
+          }
         }
       } else if ((n.wait -= dt) <= 0) {
         var a = self.rnd() * 6.28, r = self.rnd() * n.r;
         n.tx = n.hx + Math.cos(a) * r; n.tz = n.hz + Math.sin(a) * r;
         n.moving = true;
+      }
+      // Knight hotspots follow the wandering sprite so the A prompt stays on them.
+      if (n.kind === 'knight') {
+        var bi, b = null, spots = self.npcHotspots || [];
+        for (bi = 0; bi < spots.length; bi++) {
+          if (spots[bi].id === 'npc-' + n.knightId) { b = spots[bi]; break; }
+        }
+        if (b) {
+          b.x = b.cx = n.x;
+          b.z = b.cz = n.z;
+          b.approachX = n.x;
+          b.approachZ = n.z + 1.0;
+        }
+        n.a.mesh.position.set(n.x, 0, n.z);
+        n.a.shadow.position.set(n.x, 0.012, n.z);
+        var pose = n.moving ? ['idle', 'walk-a', 'idle', 'walk-b'][Math.floor((t + n.phase) / 120) & 3] : 'idle';
+        self._setActorTex(n.a, n.tex[(n.dir || 'down') + '-' + pose] || n.tex['down-idle']);
+        return;
       }
       n.a.mesh.position.set(n.x, -n.a.sink, n.z);
       n.a.shadow.position.set(n.x, 0.012, n.z);

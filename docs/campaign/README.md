@@ -65,5 +65,6 @@ Land backgrounds from `img/lands/{element}.webp`. Characters are OVERLAY cutouts
 - [x] Twelve Lands (SiegeLand ids)
 - [x] Poison + Light SiegeKnights; activate POISON/LIGHT in live-elements
 - [x] Raidlord Akhar finale + rally modifiers
+- [x] Named realm NPCs: Lady Pyla (Fire), Ser Airek (Wind), Glacia (Ice) — Sanctuary walkabouts + home-realm duels
 - [ ] Full rival trainer scripts per Land (starter set ships)
 - [ ] Polished story VO / cutscenes
