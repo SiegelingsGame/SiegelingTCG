@@ -1,3 +1,9 @@
+Original prompt: The Siegeling logo Fab button is missing from these screens. Instead of an onscreen A button turn the right Fab option to an “Interact” button.
+
+- November 24, 2026 **Campaign mounts Siegelings FAB; overworld A → dock Interact.**
+  - **Change.** `campaign.js` now calls `SiegelingsShieldNavigation.mountLinks()` so the center Siegelings logo FAB appears on every campaign screen (start + Sanctuary/land). Removed the red on-screen A control from `campaign-overworld.js`. World/land right `sn-flank` buttons are now Interact (enabled + gold when a building is in range) and call `tryInteract()`. Challenge Akhar moved onto a walk-up Sanctuary keep when unlocked. Pins: `campaign.css?v=10`, `campaign-world3d.js?v=9`, `campaign-overworld.js?v=9`, `campaign.js?v=11`.
+  - **Verification.** `node --check` on campaign/overworld/world3d. Headless Chromium at 390x844 and 1280x800 on `/campaign`: FAB visible (`Summon navigation`), `has-shield-navigation` on body, no `#cmOwBtnA` / `.cm-ow-btn-a`. Fixture near Realm Map: Interact enables + gold and fires `realms`. Live Sanctuary resume: dock shows Arena Preset · Siegelings FAB · Interact with no red A.
+
 Original prompt: The lighting and blur is still terrible the assets should be crystal clear
 
 - November 23, 2026 **Campaign HD-2D clarity pass (full-res, no tilt-shift).**

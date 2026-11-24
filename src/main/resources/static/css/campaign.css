@@ -766,16 +766,7 @@ body[data-screen="world"] #cmSanctuaryStage { display: block; }
   box-shadow: 0 4px 10px rgba(0,0,0,.35);
   transform: translate(0,0);
 }
-.cm-ow-btn-a {
-  position: absolute; right: 18px; bottom: calc(88px + env(safe-area-inset-bottom));
-  width: 64px; height: 64px; border-radius: 50%; z-index: 8;
-  appearance: none; border: 0; cursor: pointer;
-  font-weight: 800; font-size: 22px; color: #fff;
-  background: radial-gradient(circle at 35% 30%, #ff8a9a, #e74c5c 60%, #b83240);
-  box-shadow: 0 8px 18px rgba(0,0,0,.4), inset 0 2px 0 rgba(255,255,255,.35);
-  touch-action: manipulation;
-}
-.cm-ow-pad { display: none; } /* replaced by stick + A */
+.cm-ow-pad { display: none; } /* stick + dock Interact flank */
 
 .cm-world-overlay {
   position: absolute; inset: 0; z-index: 20;

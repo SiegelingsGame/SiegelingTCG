@@ -89,7 +89,6 @@
         '<div class="cm-ow-stick" id="cmOwStick" aria-label="Move">' +
           '<div class="cm-ow-stick-base"><div class="cm-ow-stick-knob" id="cmOwKnob"></div></div>' +
         '</div>' +
-        '<button type="button" class="cm-ow-btn-a" id="cmOwBtnA" aria-label="Interact">A</button>' +
       '</div>';
 
     this.els = {
@@ -151,8 +150,6 @@
     if (this.els.promptBtn) {
       this.els.promptBtn.addEventListener('click', function () { self.tryInteract(); });
     }
-    var btnA = this.root.querySelector('#cmOwBtnA');
-    if (btnA) btnA.addEventListener('click', function () { self.tryInteract(); });
 
     var stick = this.root.querySelector('#cmOwStick');
     if (!stick) return;
@@ -223,7 +220,11 @@
     this._hud(cfg);
 
     if (this.use3d && this.world3d) {
-      this.world3d.loadSanctuary({ lands: this.lands, followerId: this.follower && this.follower.id });
+      this.world3d.loadSanctuary({
+        lands: this.lands,
+        followerId: this.follower && this.follower.id,
+        akharUnlocked: !!cfg.akharUnlocked
+      });
       this.mapW = this.world3d.mapW;
       this.mapH = this.world3d.mapH;
       this.buildings = this.world3d.getBuildings();
@@ -339,6 +340,13 @@
       { id: 'woods', act: 'woods', label: 'Palm Woods', sub: 'Wild capture', x: 600, y: 90, w: 180, h: 110, pop: 'grove', img: ASSET + 'decor/palm.webp' },
       { id: 'realms', act: 'realms', label: 'Realm Map', sub: 'Travel', x: 640, y: 860, w: 140, h: 100, pop: 'waystone', img: ASSET + 'props/waystone.webp' }
     ];
+    // Final boss used to live on the right dock; Interact reaches it as a keep.
+    if (cfg.akharUnlocked) {
+      buildings.push({
+        id: 'akhar', act: 'akhar', label: 'Raidlord Akhar', sub: 'Final challenge',
+        x: 1080, y: 80, w: 150, h: 130, pop: 'keep', img: ASSET + 'props/pyramid-door.webp'
+      });
+    }
     (cfg.lands || []).filter(function (l) { return l.unlocked || l.rallied; }).slice(0, 6).forEach(function (land, i) {
       buildings.push({
         id: 'way-' + land.id, act: 'travel', landId: land.id,
@@ -602,14 +610,23 @@
   Overworld.prototype._updatePrompt = function () {
     var p = this.els.prompt;
     var btn = this.els.promptBtn;
+    var can = !!(this.near && !this.near.disabled);
+    // Right dock flanks replace the old on-screen A — gold + enabled when a
+    // building is in interact range.
+    document.querySelectorAll('.cm-interact-flank').forEach(function (el) {
+      el.disabled = !can;
+      el.classList.toggle('is-gold', can);
+      el.setAttribute('aria-disabled', can ? 'false' : 'true');
+    });
     if (!p || !btn) return;
-    if (!this.near) { p.hidden = true; return; }
+    if (!can) { p.hidden = true; return; }
     p.hidden = false;
     var verbs = {
       wild: 'Enter Wild Grove',
       woods: 'Enter Palm Woods',
       rival: 'Challenge Rival Arena',
       knight: 'Challenge Knight Keep',
+      akhar: 'Challenge Raidlord Akhar',
       exit: 'Return to Sanctuary',
       realms: 'Open Realm Map',
       travel: 'Travel to ' + (this.near.label || 'realm'),

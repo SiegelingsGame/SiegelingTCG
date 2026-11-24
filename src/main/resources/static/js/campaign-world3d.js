@@ -1372,6 +1372,13 @@
     this._arena({ id: 'arena', act: 'preset', label: 'Arena Gate', sub: 'Preset deck', x: 27.5, z: 9.5, r: 3, banner: '#c0392b' });
     this._gate({ id: 'woods', act: 'woods', label: 'Palm Woods', sub: 'Wild capture', x: 10, z: 1.2, span: 2.6 });
     this._obelisk({ id: 'realms', act: 'realms', label: 'Realm Map', sub: 'Travel', x: 17, z: 24.5, glow: '#a8b4ff', h: 2.8 });
+    // Right dock is Interact now — Akhar is a walk-up keep when unlocked.
+    if (cfg.akharUnlocked) {
+      this._keep({
+        id: 'akhar', act: 'akhar', label: 'Raidlord Akhar', sub: 'Final challenge',
+        x: 26.5, z: 1.2, w: 6.5, d: 3.4, banner: '#8b1a1a'
+      });
+    }
     var lands = (cfg.lands || []).filter(function (l) { return l.unlocked || l.rallied; }).slice(0, 6);
     var self = this;
     lands.forEach(function (land, i) {

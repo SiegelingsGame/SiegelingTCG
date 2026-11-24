@@ -206,8 +206,6 @@
         '<span class="cm-land-body"><strong>' + esc(land.name) + '</strong>' +
         '<span>' + esc((land.elements && land.elements[0]) || '') + ' · ' + status + '</span></span></button>';
     }).join('');
-    var akhar = $('cmAkharBtn');
-    if (akhar) akhar.hidden = !run.akharUnlocked || run.phase === 'VICTORY';
   }
 
   function showRealmOverlay(on) {
@@ -235,6 +233,16 @@
       state.returnScreen = 'world';
       renderPreset(state.run);
       show('preset');
+      return;
+    }
+    if (act === 'akhar') {
+      busy(function () {
+        return api('/api/campaign/arena/start', { method: 'POST', body: { kind: 'akhar' } })
+          .then(function (data) {
+            if (!data.soloToken) throw new Error('No battle token.');
+            goToArena(data.soloToken);
+          });
+      });
       return;
     }
     if (act === 'travel' && building && building.landId) {
@@ -316,11 +324,10 @@
         gold: run.gold,
         rallies: (run.ralliedLandIds || []).length,
         lands: run.lands || [],
-        follower: starterFollower(run)
+        follower: starterFollower(run),
+        akharUnlocked: !!run.akharUnlocked && run.phase !== 'VICTORY'
       });
     }
-    var akhar = $('cmAkharBtn');
-    if (akhar) akhar.hidden = !run.akharUnlocked || run.phase === 'VICTORY';
   }
 
   function renderLand(run) {
@@ -413,7 +420,15 @@
       .finally(function () { state.busy = false; });
   }
 
+  function mountShieldNavigation() {
+    if (!window.SiegelingsShieldNavigation) return;
+    // Campaign keeps the Siegelings FAB on every screen so hub destinations stay
+    // one tap away — same mountLinks pattern as Adventure launch screens.
+    window.SiegelingsShieldNavigation.mountLinks();
+  }
+
   function boot() {
+    mountShieldNavigation();
     show('loading');
     api('/api/campaign/options').then(function (options) {
       state.options = options;
@@ -521,7 +536,13 @@
       show('preset');
     }
     $('cmPresetBtn').addEventListener('click', openPreset);
-    $('cmPresetBtn2').addEventListener('click', openPreset);
+    function clickInteract() {
+      if (state.overworld) state.overworld.tryInteract();
+    }
+    var interactWorld = $('cmInteractWorld');
+    var interactLand = $('cmInteractLand');
+    if (interactWorld) interactWorld.addEventListener('click', clickInteract);
+    if (interactLand) interactLand.addEventListener('click', clickInteract);
     $('cmPresetBack').addEventListener('click', function () {
       if (state.returnScreen === 'land' && state.run) {
         renderLand(state.run);
@@ -546,15 +567,6 @@
               show('land');
               setOverworldActive(true);
             }
-          });
-      });
-    });
-    $('cmAkharBtn').addEventListener('click', function () {
-      busy(function () {
-        return api('/api/campaign/arena/start', { method: 'POST', body: { kind: 'akhar' } })
-          .then(function (data) {
-            if (!data.soloToken) throw new Error('No battle token.');
-            goToArena(data.soloToken);
           });
       });
     });

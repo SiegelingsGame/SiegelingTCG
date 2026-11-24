@@ -15,22 +15,31 @@
   </style>
 </head>
 <body>
-  <div id="hud">HD-2D Sanctuary fixture — WASD / arrows · A interact</div>
+  <div id="hud">HD-2D Sanctuary fixture — WASD / arrows · Interact flank</div>
   <div id="host"></div>
+  <div class="cm-cta sn-dock" style="position:fixed;left:0;right:0;bottom:0;z-index:5">
+    <button class="sn-flank is-left" type="button">Arena Preset</button>
+    <button class="sn-flank is-right cm-interact-flank" id="cmInteractWorld" type="button" disabled>Interact</button>
+  </div>
   <script src="/js/siege-sprites.js?v=2"></script>
   <script src="/js/vendor/three.min.js"></script>
-  <link rel="stylesheet" href="/css/campaign.css?v=9">
-  <script src="/js/campaign-world3d.js?v=8"></script>
-  <script src="/js/campaign-overworld.js?v=8"></script>
+  <link rel="stylesheet" href="/css/shield-navigation.css?v=17">
+  <link rel="stylesheet" href="/css/campaign.css?v=10">
+  <script src="/js/campaign-world3d.js?v=9"></script>
+  <script src="/js/campaign-overworld.js?v=9"></script>
   <script>
     var root = document.getElementById('host');
+    var lastAct = null;
     var ow = new CampaignOverworld({
       root: root,
       onInteract: function (act, b) {
+        lastAct = act;
+        window.__lastInteract = act;
         document.getElementById('hud').textContent = 'Interact: ' + act + ' · ' + (b && b.label);
       }
     });
     ow.mount();
+    document.getElementById('cmInteractWorld').addEventListener('click', function () { ow.tryInteract(); });
     var realm = new URLSearchParams(location.search).get('realm');
     if (realm) ow.loadLand({ name: realm + ' Realm', landId: 'fixture-' + realm, element: realm, follower: { id: 'cacty' }, gold: 120, rallies: 1 });
     else ow.loadSanctuary({
@@ -44,6 +53,7 @@
       follower: { id: 'cacty' }
     });
     ow.enable(true);
+    window.ow = ow;
   </script>
 </body>
 </html>
