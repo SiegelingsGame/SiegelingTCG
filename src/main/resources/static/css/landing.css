@@ -53,34 +53,48 @@
 * { box-sizing: border-box; }
 
 /* Deep wallpaper base — matches the hero vignette so the iPhone home-indicator
-   band and overscroll never flash a different flat navy. */
+   band and overscroll never flash a different flat navy. -webkit-fill-available
+   reaches under the home indicator where 100dvh often stops on iOS. */
 html {
     height: 100%;
+    height: -webkit-fill-available;
     overflow: hidden;
-    background: #070d22;
+    background-color: #070d22;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 .landing-body {
     margin: 0;
     color: #f4f6fb;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     /* Same stack as .hero-bg-far so safe-area gutters stay continuous. */
     background:
         radial-gradient(ellipse at 50% 70%, rgba(245, 166, 35, 0.18), transparent 55%),
         linear-gradient(180deg, #0a1530 0%, #0d1b3e 42%, #070d22 100%);
+    /* Body is the layout shell — scrolling lives on .landing-scroll so fixed
+       wallpaper is not trapped inside an overflow scroller on iOS. */
+    position: relative;
+    height: 100%;
+    height: 100dvh;
+    height: -webkit-fill-available;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    overflow: hidden;
 }
 
 /* Fixed full-bleed plate under every chapter — paints through top/bottom
-   safe areas and the rubber-band region Safari would otherwise leave empty. */
+   safe areas and the rubber-band region Safari would otherwise leave empty.
+   inset:0 against the layout viewport (viewport-fit=cover) reaches under the
+   home indicator; percentage bleeds alone did not. */
 .landing-wallpaper {
     position: fixed;
-    /* Extra bleed so rubber-band / home-indicator never show a naked plate. */
-    top: -12%;
-    right: -6%;
-    bottom: -12%;
-    left: -6%;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    height: -webkit-fill-available;
     z-index: 0;
     pointer-events: none;
     background:
@@ -175,23 +189,27 @@ html {
 
 /* Each landing chapter is a viewport card. Tall chapters scroll within the
    card, then the outer page snaps to the following chapter. */
-.landing-body {
+.landing-scroll {
     position: relative;
     z-index: 1;
-    height: 100vh;
+    height: 100%;
     height: 100dvh;
+    height: -webkit-fill-available;
+    overflow-x: hidden;
     overflow-y: auto;
     scroll-snap-type: y mandatory;
     /* Custom slime rubber-band owns the edge pull; keep native bounce quiet. */
     overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
 }
-.landing-body > section,
-.landing-body > .landing-footer {
+.landing-scroll > section,
+.landing-scroll > .landing-footer {
     position: relative;
     z-index: 1;
     box-sizing: border-box;
-    height: 100vh;
+    height: 100%;
     height: 100dvh;
+    height: -webkit-fill-available;
     min-height: 0;
     scroll-snap-align: start;
     scroll-snap-stop: always;
@@ -200,19 +218,19 @@ html {
 }
 /* Mixed overflow-x/y collapses `visible` to `auto` in CSS — keep hero fully
    visible so .hero-bg can paint the home-indicator band. */
-.landing-body > section:not(.hero),
-.landing-body > .landing-footer {
+.landing-scroll > section:not(.hero),
+.landing-scroll > .landing-footer {
     overflow-x: hidden;
     overflow-y: auto;
     align-content: center;
 }
-.landing-body > .hero { overflow: visible; }
+.landing-scroll > .hero { overflow: visible; }
 
 .card-motion-ready .landing-card .card-piece { opacity: 0; }
 .card-motion-ready .landing-card.is-active .card-piece { opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
-    .landing-body { scroll-snap-type: y proximity; }
+    .landing-scroll { scroll-snap-type: y proximity; }
     .card-motion-ready .landing-card .card-piece { opacity: 1; }
 }
 
@@ -325,7 +343,7 @@ img { display: block; }
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 .hero {
     position: relative;
-    min-height: 100vh;
+    min-height: 100%;
     min-height: 100dvh;
     min-height: -webkit-fill-available;
     padding: 120px 24px 60px;
@@ -414,14 +432,14 @@ img { display: block; }
 }
 
 .hero-bg {
-    position: absolute;
-    /* Bleed past the section edges so the home-indicator band and notch never
-       reveal a different flat colour under the art. */
-    top: calc(-8% - env(safe-area-inset-top, 0px));
-    right: -8%;
-    bottom: calc(-8% - env(safe-area-inset-bottom, 0px) - 28px);
-    left: -8%;
+    /* Fixed to the layout viewport (same recruit-reveal pattern): flow-sized
+       100dvh stops above the iPhone home indicator, leaving a dead band.
+       inset:0 with viewport-fit=cover reaches under that bar. Opaque later
+       chapters cover this layer while scrolling. */
+    position: fixed;
+    inset: 0;
     z-index: 0;
+    pointer-events: none;
     will-change: transform;
     transform-origin: 50% 0%;
 }
@@ -451,9 +469,11 @@ img { display: block; }
 .hero-vignette {
     position: absolute;
     inset: 0;
+    /* Keep the wordmark readable without sealing the home-indicator band
+       under an opaque navy slab — that read as a second “safe area” bar. */
     background:
-        radial-gradient(ellipse at 50% 45%, transparent 25%, rgba(8, 12, 28, 0.85) 75%),
-        linear-gradient(180deg, transparent 30%, rgba(8, 12, 28, 0.7) 100%);
+        radial-gradient(ellipse at 50% 42%, transparent 28%, rgba(8, 12, 28, 0.72) 78%),
+        linear-gradient(180deg, transparent 42%, rgba(8, 12, 28, 0.28) 78%, rgba(8, 12, 28, 0.38) 100%);
     z-index: 1;
 }
 .hero-element-orb {
@@ -774,7 +794,7 @@ img { display: block; }
 
 .hero-scroll-hint {
     position: absolute;
-    bottom: 22px;
+    bottom: calc(22px + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     z-index: 3;
@@ -1675,7 +1695,7 @@ img { display: block; }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 760px) {
-    .hero { padding: 100px 18px 60px; min-height: 92vh; }
+    .hero { padding: 100px 18px 60px; min-height: 100%; min-height: -webkit-fill-available; }
     .sgl-gate-vs { grid-template-columns: 1fr; gap: 12px; }
     /* The last 26px: the flavour line sat just past the fold. */
     .sgl-gate-content { gap: 12px; }
@@ -1886,11 +1906,11 @@ img { display: block; }
     content: '';
     position: absolute;
     inset: 0;
-    /* Soft bottom fade — keep wordmark readable without painting a hard navy
-       slab over the home-indicator band. */
+    /* Soft mid fade for the wordmark; bottom stays mostly the painted land so
+       the home-indicator band continues the wallpaper instead of a navy plate. */
     background:
-        radial-gradient(ellipse at 50% 42%, transparent 22%, rgba(6, 11, 30, .5) 76%),
-        linear-gradient(180deg, rgba(7, 13, 34, .48) 0%, rgba(7, 13, 34, .08) 40%, rgba(7, 13, 34, .42) 100%),
+        radial-gradient(ellipse at 50% 40%, transparent 24%, rgba(6, 11, 30, .42) 78%),
+        linear-gradient(180deg, rgba(7, 13, 34, .4) 0%, rgba(7, 13, 34, .06) 38%, rgba(7, 13, 34, .12) 72%, rgba(7, 13, 34, .22) 100%),
         linear-gradient(180deg, color-mix(in srgb, var(--hero-art-color, var(--siegelings-blue)), transparent 86%), transparent 60%);
 }
 .hero-bg-far, .hero-bg-mid { opacity: .55; }
