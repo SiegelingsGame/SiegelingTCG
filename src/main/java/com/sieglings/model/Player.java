@@ -140,18 +140,19 @@ public class Player {
                 throw new IllegalArgumentException("Invalid hand index for mulligan: " + i);
             }
         }
-        List<Integer> sortedDesc = new ArrayList<>(unique);
-        sortedDesc.sort(Collections.reverseOrder());
+        List<Integer> slots = new ArrayList<>(unique);
         List<Card> returning = new ArrayList<>();
-        for (int idx : sortedDesc) {
-            returning.add(hand.remove(idx));
+        for (int idx : slots) {
+            returning.add(hand.get(idx));
         }
         deck.addAll(returning);
         if (shuffle) {
             shuffleDeck();
         }
-        for (int j = 0; j < returning.size(); j++) {
-            drawCard();
+        for (int idx : slots) {
+            if (!deck.isEmpty()) {
+                hand.set(idx, deck.remove(0));
+            }
         }
     }
 

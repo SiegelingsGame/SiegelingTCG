@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Arena FAB mulligan preview</title>
+  <link rel="stylesheet" href="/css/style.css?v=310">
+  <link rel="stylesheet" href="/css/shield-navigation.css?v=17">
+  <style>
+    html, body { margin:0; height:100%; overflow:hidden; background:#050914; }
+    body { --sn-z: 80; }
+    #actionBar, #loadoutOverlay { display:none !important; }
+    .preview-note {
+      position:fixed; top:10px; left:12px; right:12px; z-index:90;
+      color:#ffd700; font:800 11px/1.2 system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
+      pointer-events:none;
+    }
+    .preview-note span { color:rgba(224,224,224,.7); font-weight:600; letter-spacing:.03em; text-transform:none; }
+  </style>
+</head>
+<body class="gameplay-active arena-fab-docked arena-fab-battle mulligan-active">
+<div class="preview-note">Mulligan dock <span>Keep / Redraw flanks + battle flair</span></div>
+<div id="loadoutOverlay"></div>
+<div class="action-bar" id="actionBar">
+  <div class="action-bar-btns" id="actionButtons">
+    <button class="ab-btn ab-trainer ab-primary" id="btnTrainerAbility" type="button">⚔ Knight</button>
+    <button class="ab-btn ab-draw ab-primary" id="btnDraw" type="button">Draw</button>
+  </div>
+  <div class="action-bar-aux">
+    <button class="ab-icon" id="btnSelectedPreview" type="button">👁</button>
+    <button class="ab-icon" id="btnBattlePanel" type="button">⚔</button>
+    <button class="ab-icon" id="btnGameLog" type="button">☰</button>
+    <button class="ab-icon" id="btnEnergyDetail" type="button">◇</button>
+    <button class="ab-icon" id="btnHint" type="button">?</button>
+    <button class="ab-icon" id="sglSpeedToggle" type="button">▶</button>
+    <button class="ab-icon" id="btnMuteSound" type="button">🔊</button>
+    <button type="button" id="setupActionsCounter" class="ab-action-counter sn-fab-badge" hidden>
+      <span class="ab-action-counter-value" id="setupActionsCounterValue">0</span>
+    </button>
+  </div>
+</div>
+
+<div class="mulligan-overlay visible" id="mulliganOverlay">
+  <div class="mulligan-box">
+    <div class="loadout-kicker">Opening Hand</div>
+    <h2>Keep your hand or redraw some cards once.</h2>
+    <p class="loadout-copy" id="mulliganCopy">Select cards to shuffle back, then Redraw — or Keep hand.</p>
+    <div class="mulligan-hand-preview" id="mulliganHandPreview">
+      <div class="mulligan-card-slot is-selected" style="background:rgba(40,20,30,.8);border:1px solid rgba(231,76,60,.5);border-radius:10px;min-height:72px;display:grid;place-items:center;color:#f8b4ae;font:700 12px system-ui;">Redraw</div>
+      <div class="mulligan-card-slot" style="background:rgba(20,40,30,.8);border:1px solid rgba(80,200,120,.45);border-radius:10px;min-height:72px;display:grid;place-items:center;color:#b8f0c8;font:700 12px system-ui;">Keep</div>
+      <div class="mulligan-card-slot is-selected" style="background:rgba(40,20,30,.8);border:1px solid rgba(231,76,60,.5);border-radius:10px;min-height:72px;display:grid;place-items:center;color:#f8b4ae;font:700 12px system-ui;">Redraw</div>
+      <div class="mulligan-card-slot" style="background:rgba(20,40,30,.8);border:1px solid rgba(80,200,120,.45);border-radius:10px;min-height:72px;display:grid;place-items:center;color:#b8f0c8;font:700 12px system-ui;">Keep</div>
+      <div class="mulligan-card-slot" style="background:rgba(20,40,30,.8);border:1px solid rgba(80,200,120,.45);border-radius:10px;min-height:72px;display:grid;place-items:center;color:#b8f0c8;font:700 12px system-ui;">Keep</div>
+    </div>
+    <div class="mulligan-actions" id="mulliganActions">
+      <button class="btn" type="button" id="btnMulliganKeep">Keep hand</button>
+      <button class="btn btn-primary" type="button" id="btnMulliganRedraw">Redraw 2 cards</button>
+    </div>
+  </div>
+</div>
+
+<div class="sn-dock arena-fab-dock" id="arenaFabDock">
+  <button class="sn-flank is-left is-danger" type="button" id="arenaFabQuit" hidden>Quit Battle</button>
+  <button class="sn-flank is-right" type="button" id="arenaFabClose" hidden>Close menu</button>
+</div>
+<div class="arena-fab-options" id="arenaFabOptions" hidden></div>
+<script src="/js/shield-navigation.js?v=10"></script>
+<script>
+(function () {
+  var nav = window.SiegelingsShieldNavigation.mountLinks();
+  nav.setHidden(false);
+  nav.setFabFace({
+    mode: 'knight',
+    src: '/img/knights/lady-pyla-full-card.webp',
+    alt: 'Lady Pyla',
+    label: 'Lady Pyla battle options'
+  });
+  var fab = nav.fab;
+  var counter = document.getElementById('setupActionsCounter');
+  fab.appendChild(counter);
+
+  function host(btn, side, extra) {
+    btn.classList.remove('sn-flank', 'is-left', 'is-right', 'is-gold', 'is-blue', 'arena-fab-play-flank', 'arena-fab-mulligan-flank', 'is-keep', 'is-redraw');
+    btn.classList.add('sn-flank', 'arena-fab-play-flank', side === 'left' ? 'is-left' : 'is-right');
+    if (extra) btn.classList.add(extra);
+    var quit = document.getElementById('arenaFabQuit');
+    document.getElementById('arenaFabDock').insertBefore(btn, quit);
+  }
+  var keep = document.getElementById('btnMulliganKeep');
+  var redraw = document.getElementById('btnMulliganRedraw');
+  host(keep, 'left', 'arena-fab-mulligan-flank');
+  keep.classList.add('is-keep');
+  host(redraw, 'right', 'arena-fab-mulligan-flank');
+  redraw.classList.add('is-redraw');
+
+  window.__mulliganSample = function () {
+    var dock = document.getElementById('arenaFabDock');
+    var keepBtn = document.getElementById('btnMulliganKeep');
+    var redrawBtn = document.getElementById('btnMulliganRedraw');
+    return {
+      bodyClass: document.body.className,
+      keepInDock: keepBtn.parentElement === dock,
+      redrawInDock: redrawBtn.parentElement === dock,
+      keepText: keepBtn.textContent.trim(),
+      redrawText: redrawBtn.textContent.trim(),
+      actionsHidden: getComputedStyle(document.getElementById('mulliganActions')).display === 'none',
+      battleFlair: document.body.classList.contains('arena-fab-battle')
+    };
+  };
+})();
+</script>
+</body>
+</html>

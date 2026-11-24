@@ -10,8 +10,14 @@
     profile: '<circle cx="12" cy="7" r="4"/><path d="M3 22v-4c0-8 18-8 18 0v4z"/>',
     settings: '<path d="m9 3 1-2h4l1 2 3 2 3 1v4l-2 2 2 3v4l-3 1-3 2h-5l-2-2-4-1v-4l2-3-2-2V6l3-1z"/><circle cx="12" cy="12" r="4"/>',
     home: '<path d="M3 11 12 3l9 8M5 10v10h5v-6h4v6h5V10"/>',
-    messages: '<path d="M3 5h18v12H8l-5 4z"/><path d="M7 9h10M7 13h6"/>'
+    messages: '<path d="M3 5h18v12H8l-5 4z"/><path d="M7 9h10M7 13h6"/>',
+    campaign: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/><path d="M12 3v2m0 14v2M3 12h2m14 0h2"/>',
+    swarm: '<circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="m7 7 3 3m7-3-3 3m-7 7 3-3m7 3-3-3"/>'
   };
+  // Beta modes swap in for the main grid, so they share its option styling.
+  function betaOption(id, title, sub) {
+    return '<button type="button" class="sn-option sn-beta-option" data-destination="' + id + '" data-group="1"><svg viewBox="0 0 24 24" aria-hidden="true">' + icons[id] + '</svg><span>' + title + '<small>' + sub + '</small></span><b aria-hidden="true">›</b><i class="sn-option-light" aria-hidden="true"></i></button>';
+  }
   // Home and Messages ride the shield's top corners, mirroring the close button.
   function corner(id, label) {
     return '<button type="button" class="sn-corner sn-corner-' + id + '" data-destination="' + id + '" aria-label="' + label + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + icons[id] + '</svg></button>';
@@ -38,7 +44,10 @@
         '<nav class="sn-options" aria-label="Main navigation">' +
           [['play','Play',0],['collection','Collection',1],['decks','Decks',1],['shop','Shop',2],['profile','Profile',2],['settings','Settings',3]].map(function (item) {
             return '<button type="button" class="sn-option sn-' + item[0] + '" data-destination="' + item[0] + '" data-group="' + item[2] + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + icons[item[0]] + '</svg><span>' + item[1] + '</span><b aria-hidden="true">›</b><i class="sn-option-light" aria-hidden="true"></i></button>';
-          }).join('') + '</nav><nav class="sn-utilities" aria-label="More destinations"><button data-destination="social">Social</button><button data-destination="help">Help</button><button data-destination="swarm" class="sn-test">Swarm <small>test</small></button></nav></div>' +
+          }).join('') + '</nav>' +
+          '<nav class="sn-beta" aria-label="Beta modes" hidden><p class="sn-beta-title">Beta modes<small>Early test builds — progress may reset</small></p>' +
+            betaOption('campaign', 'Adventure', 'Rally of the Realms') + betaOption('swarm', 'Swarm', '3D survival') + '</nav>' +
+          '<nav class="sn-utilities" aria-label="More destinations"><button data-destination="social">Social</button><button data-destination="help">Help</button><button type="button" class="sn-beta-toggle" aria-expanded="false">Beta modes</button></nav></div>' +
         corner('home', 'Home') + corner('messages', 'Messages') +
         '<button class="sn-close" type="button" aria-label="Close navigation">×</button>' +
       '</section></div>' +
@@ -69,7 +78,16 @@
       collapsed = 'translate(' + (f.left + f.width / 2 - s.left - s.width / 2) + 'px,' +
         (f.top + f.height / 2 - s.top - s.height / 2) + 'px) scale(.12) rotateX(24deg) rotateY(-9deg)';
     }
+    var content = root.querySelector('.sn-content'), betaPanel = root.querySelector('.sn-beta');
+    var betaToggle = root.querySelector('.sn-beta-toggle');
+    function showBeta(on) {
+      content.classList.toggle('sn-show-beta', on);
+      betaPanel.hidden = !on;
+      betaToggle.setAttribute('aria-expanded', String(on));
+      betaToggle.textContent = on ? '\u2039 Back' : 'Beta modes';
+    }
     function finishClosed(restore) {
+      showBeta(false);
       cancel(); overlay.hidden = true; root.dataset.state = 'closed';
       root.classList.remove('sn-selecting');
       options.forEach(function (b) { b.classList.remove('sn-selected'); });
@@ -159,7 +177,13 @@
         }
       }).catch(function () { /* A new gesture owns completion after cancellation. */ });
     }
-    fab.addEventListener('click', function () { if (!pending) transition(!desired); });
+    var primaryClickHandler = null;
+    var SIEGELINGS_ICON = '/img/siegelings-icon-256.webp';
+    fab.addEventListener('click', function () {
+      if (pending) return;
+      if (typeof primaryClickHandler === 'function' && primaryClickHandler({ shieldOpen: desired })) return;
+      transition(!desired);
+    });
     root.querySelector('.sn-close').addEventListener('click', function () { transition(false); });
     scrim.addEventListener('click', function () { if (!pending) transition(false); });
     root.querySelectorAll('[data-destination]').forEach(function (button) {
@@ -170,16 +194,28 @@
         transition(false);
       });
     });
+    betaToggle.addEventListener('click', function () {
+      if (pending || !desired) return;
+      var on = betaPanel.hidden;
+      showBeta(on);
+      (on ? betaPanel.querySelector('.sn-option') : options[0]).focus({ preventScroll: true });
+    });
     root.addEventListener('keydown', function (e) {
       if (overlay.hidden) return;
+      if (e.key === 'Escape' && !betaPanel.hidden && !pending) { e.preventDefault(); e.stopPropagation(); showBeta(false); betaToggle.focus({ preventScroll: true }); return; }
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (!pending) transition(false); }
       if (e.key === 'Tab') {
-        var focusable = Array.from(root.querySelectorAll('button')).filter(function (b) { return !b.closest('[inert]'); });
+        var focusable = Array.from(root.querySelectorAll('button')).filter(function (b) { return !b.closest('[inert]') && b.getClientRects().length; });
         var i = focusable.indexOf(document.activeElement);
         e.preventDefault(); focusable[(i + (e.shiftKey ? -1 : 1) + focusable.length) % focusable.length].focus();
       }
     });
-    function reset() { pending = null; desired = false; fab.setAttribute('aria-expanded','false'); fab.setAttribute('aria-label','Summon navigation'); finishClosed(false); }
+    function reset() {
+      pending = null; desired = false;
+      fab.setAttribute('aria-expanded','false');
+      if (fab.dataset.face !== 'knight') fab.setAttribute('aria-label','Summon navigation');
+      finishClosed(false);
+    }
     // A changed viewport invalidates the FAB origin. Settle safely instead of
     // flying toward stale coordinates, including on an iOS toolbar resize.
     window.addEventListener('resize', function () { if (!overlay.hidden) reset(); });
@@ -192,7 +228,114 @@
       if (hidden) reset();
       root.hidden = hidden;
     }
-    root.shieldNavigation = { element: root, reset: reset, setHidden: setHidden };
+    // Arena battle swaps the emblem between the player's SiegeKnight portrait
+    // and the Siegelings mark, and can consume the primary click before the
+    // shield opens (knight → options menu; Siegelings center → shield).
+    var faceSwapTimer = 0;
+    var faceSwapToken = 0;
+    function applyFabFace(mode, src, alt, label) {
+      var img = fab.querySelector('.sn-emblem > img:not(.sn-face-outgoing)');
+      fab.dataset.face = mode;
+      fab.classList.toggle('sn-fab-knight', mode === 'knight');
+      if (!img) return;
+      if (mode === 'knight' && src) {
+        img.src = src;
+        img.alt = alt || '';
+        fab.setAttribute('aria-label', label || 'Battle options');
+      } else {
+        img.src = SIEGELINGS_ICON;
+        img.alt = '';
+        if (!desired) fab.setAttribute('aria-label', label || 'Summon navigation');
+      }
+    }
+    function setFabFace(opts) {
+      opts = opts || {};
+      var mode = opts.mode === 'knight' ? 'knight' : 'siegelings';
+      var src = (mode === 'knight' && opts.src) ? opts.src : SIEGELINGS_ICON;
+      var alt = (mode === 'knight') ? (opts.alt || '') : '';
+      var label = opts.label || (mode === 'knight' ? 'Battle options' : 'Summon navigation');
+      var emblem = fab.querySelector('.sn-emblem');
+      var img = emblem && emblem.querySelector('img:not(.sn-face-outgoing)');
+      var prevMode = fab.dataset.face || 'siegelings';
+      var prevSrc = img ? img.getAttribute('src') : '';
+      if (!img) {
+        applyFabFace(mode, src, alt, label);
+        return;
+      }
+      // Same face — only refresh label / aria.
+      if (prevMode === mode && prevSrc === src) {
+        if (mode === 'knight') fab.setAttribute('aria-label', label);
+        else if (!desired) fab.setAttribute('aria-label', label);
+        return;
+      }
+      var reduceMotion = false;
+      try { reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* ignore */ }
+      // Instant swap outside battle (loadout) or when motion is reduced.
+      if (reduceMotion || !document.body.classList.contains('gameplay-active')) {
+        if (faceSwapTimer) { clearTimeout(faceSwapTimer); faceSwapTimer = 0; }
+        faceSwapToken += 1;
+        fab.classList.remove('sn-fab-face-swap');
+        var stale = emblem.querySelector('.sn-face-outgoing');
+        if (stale) stale.remove();
+        img.classList.remove('sn-face-incoming', 'is-in');
+        applyFabFace(mode, src, alt, label);
+        return;
+      }
+      // Crossfade: keep the old portrait as an absolute overlay while the new
+      // face scales/fades in underneath, so knight ↔ Siegelings reads as one morph.
+      if (faceSwapTimer) { clearTimeout(faceSwapTimer); faceSwapTimer = 0; }
+      var staleOut = emblem.querySelector('.sn-face-outgoing');
+      if (staleOut) staleOut.remove();
+      img.classList.remove('sn-face-incoming', 'is-in');
+      fab.classList.remove('sn-fab-face-swap');
+
+      var outgoing = img.cloneNode(true);
+      outgoing.className = 'sn-face-outgoing' + (prevMode === 'knight' ? ' is-knight' : ' is-siegelings');
+      outgoing.removeAttribute('id');
+      emblem.insertBefore(outgoing, img);
+
+      applyFabFace(mode, src, alt, label);
+      img.classList.add('sn-face-incoming');
+      fab.classList.add('sn-fab-face-swap');
+      // Pin the incoming face at its "from" styles without transitioning from the
+      // previous portrait's opacity/scale (otherwise it eases 1→0 then jumps to is-in).
+      img.style.setProperty('transition', 'none');
+      void img.offsetWidth;
+      img.style.removeProperty('transition');
+      var token = ++faceSwapToken;
+
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          if (token !== faceSwapToken) return;
+          outgoing.classList.add('is-out');
+          img.classList.add('is-in');
+        });
+      });
+
+      var finish = function () {
+        if (token !== faceSwapToken) return;
+        faceSwapTimer = 0;
+        if (outgoing.parentNode) outgoing.parentNode.removeChild(outgoing);
+        img.classList.remove('sn-face-incoming', 'is-in');
+        img.style.removeProperty('transition');
+        fab.classList.remove('sn-fab-face-swap');
+      };
+      faceSwapTimer = setTimeout(finish, 580);
+    }
+    function setPrimaryClickHandler(handler) {
+      primaryClickHandler = typeof handler === 'function' ? handler : null;
+    }
+    root.shieldNavigation = {
+      element: root,
+      fab: fab,
+      reset: reset,
+      setHidden: setHidden,
+      setFabFace: setFabFace,
+      setPrimaryClickHandler: setPrimaryClickHandler,
+      openShield: function () { transition(true); },
+      closeShield: function () { transition(false); },
+      isShieldOpen: function () { return desired; }
+    };
     return root.shieldNavigation;
   }
   // The play-mode launch screens (Arena, Siege, Gauntlet, Dominion) are their
@@ -201,8 +344,8 @@
     home: '/home', play: '/home?screen=play', collection: '/cards', decks: '/decks',
     shop: '/shop', profile: '/profile', settings: '/settings', social: '/social',
     messages: '/social', help: '/help',
-    // Swarm (the 3D survival test mode) is its own page under /swarm.
-    swarm: '/swarm'
+    // Swarm and Campaign (test modes) are their own pages.
+    swarm: '/swarm', campaign: '/campaign'
   };
   function mountLinks() {
     if (navigator.standalone) document.documentElement.classList.add('sg-standalone');

@@ -265,6 +265,96 @@ public class GameService {
     public record GauntletPlacement(SieglingCard card, int row, int col) {}
 
     /**
+     * Campaign Arena skirmish: both presets are pre-placed, Strategies/Deceptions fill the
+     * hand, and (when wipeWin) clearing the enemy warboard ends the match.
+     */
+    public SoloHandle newCampaignGame(GauntletSide playerSide, GauntletSide enemySide,
+                                      String encounterName, boolean official, boolean wipeWin,
+                                      int coalitionBonus) {
+        GameState state = new GameState();
+        state.setEnemyHumanControlled(false);
+        state.setMatchHistoryRecorded(true);
+        state.markCampaign(encounterName, official, wipeWin, coalitionBonus);
+
+        Player player = new Player(safePlayerName(playerSide.name(), "Player"), true);
+        Player enemy = new Player(enemySide.name(), false);
+        player.setMaxHealthAndRefill(playerSide.maxHealth());
+        enemy.setMaxHealthAndRefill(enemySide.maxHealth());
+        player.setDeck(new ArrayList<>(playerSide.deck()));
+        enemy.setDeck(new ArrayList<>(enemySide.deck()));
+        player.setActiveTrainer(playerSide.trainer());
+        enemy.setActiveTrainer(enemySide.trainer());
+        player.setLoadoutLabel(playerSide.label());
+        enemy.setLoadoutLabel(enemySide.label());
+        player.shuffleDeck();
+        biasOpeningDraw(player);
+        state.setPlayer(player);
+        state.setEnemy(enemy);
+
+        placeGauntletOpeningBoard(state, enemySide.board());
+        placeCampaignPlayerBoard(state, playerSide.board());
+        enemy.shuffleDeck();
+        biasOpeningDraw(enemy);
+
+        for (int i = 0; i < Math.max(1, playerSide.openingHandSize()); i++) {
+            player.drawCard();
+        }
+        for (int i = 0; i < Math.max(1, enemySide.openingHandSize()); i++) {
+            enemy.drawCard();
+        }
+
+        if (coalitionBonus > 0) {
+            // Each rallied kingdom grants a small opening shield to the Squire's line.
+            for (CardInstance unit : state.getBoardSieglings(true)) {
+                if (unit != null) unit.addShield(coalitionBonus);
+            }
+            state.log("Coalition of " + coalitionBonus + " realms fortifies your warband (+"
+                    + coalitionBonus + " Shield).");
+        }
+
+        state.setCurrentPhase(Phase.MULLIGAN);
+        state.resetRoundOrder(true);
+        state.setMulliganPending(true, true);
+        state.setMulliganUsed(true, false);
+        state.setMulliganUsed(false, false);
+        state.log("Game started!");
+        state.log("Campaign duel: " + encounterName + ".");
+        state.log(player.getName() + " begins at " + player.getHealth() + " health; "
+                + enemy.getName() + " at " + enemy.getHealth() + ".");
+        if (wipeWin) {
+            state.log("Wipe the enemy warband to claim victory.");
+        }
+        state.log("Opening hand check: each player may mulligan once (replace any subset; draw as many as you return).");
+        recalculateTrainerPassiveStatBuffs(state);
+        effectService.recalculateBoardAuraDamageBoosts(state);
+        energyService.recalculateEnergy(state);
+        resolveAutomatedOpeningMulligan(state, false);
+        tryCompleteOpeningMulligan(state);
+
+        purgeStaleSoloGames();
+        String token = generateSoloToken();
+        soloGames.put(token, new SoloSession(state));
+        return new SoloHandle(token, state);
+    }
+
+    void placeCampaignPlayerBoard(GameState state, List<GauntletPlacement> openingBoard) {
+        for (GauntletPlacement placement : openingBoard == null ? List.<GauntletPlacement>of() : openingBoard) {
+            if (placement == null || placement.card() == null) continue;
+            List<int[]> legal = placementService.getLegalOpeningPlacements(state, true, placement.card());
+            if (legal.isEmpty()) {
+                state.getPlayer().getDeck().add(placement.card());
+                continue;
+            }
+            int[] cell = legal.stream()
+                    .filter(pos -> pos[0] == placement.row() && pos[1] == placement.col())
+                    .findFirst().orElse(legal.get(0));
+            CardInstance placed = new CardInstance(placement.card(), cell[0], cell[1], true);
+            placed.setPlacementOrder(state.consumePlacementOrder());
+            state.setAt(true, cell[0], cell[1], placed);
+        }
+    }
+
+    /**
      * Starts an Gauntlet run's battle. Same rules engine and client as a solo match; what
      * differs is that both decks come from the run, HP is set per encounter (25 for the
      * player, a little for a lone wild Siegeling, 30 for a floor-ten knight), wild packs
@@ -1512,6 +1602,22 @@ public class GameService {
             state.setGameOver(true);
             state.setWinner(state.getPlayer().getName());
             state.log(state.getEnemy().getName() + " has fallen! " + state.getPlayer().getName() + " wins!");
+        } else if (state.isCampaignWipeWin()) {
+            boolean enemyEmpty = state.getBoardSieglings(false).isEmpty();
+            boolean playerEmpty = state.getBoardSieglings(true).isEmpty();
+            if (enemyEmpty && playerEmpty) {
+                state.setGameOver(true);
+                state.setWinner("Draw");
+                state.log("Both warbands fell!");
+            } else if (enemyEmpty) {
+                state.setGameOver(true);
+                state.setWinner(state.getPlayer().getName());
+                state.log("Enemy warband wiped! " + state.getPlayer().getName() + " wins the campaign duel.");
+            } else if (playerEmpty) {
+                state.setGameOver(true);
+                state.setWinner(state.getEnemy().getName());
+                state.log("Your warband was wiped! " + state.getEnemy().getName() + " wins.");
+            }
         }
 
         if (state.isGameOver()) {

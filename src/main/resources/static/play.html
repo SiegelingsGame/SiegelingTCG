@@ -17,7 +17,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <script>document.documentElement.classList.add('play-startup');</script>
-    <link rel="stylesheet" href="/css/style.css?v=305">
+    <link rel="stylesheet" href="/css/style.css?v=310">
     <style>
         html.gauntlet-navigation-pending::after {
             content: "";
@@ -30,7 +30,7 @@
     </style>
     <!-- Art-first re-skin of the loadout overlay. After style.css on purpose:
          equal-specificity rules in it are meant to win. -->
-    <link rel="stylesheet" href="/css/shield-navigation.css?v=8">
+    <link rel="stylesheet" href="/css/shield-navigation.css?v=17">
     <link rel="stylesheet" href="/css/hub-music.css?v=2">
     <link rel="stylesheet" href="/css/play-next.css?v=24">
     <link rel="stylesheet" href="/css/coach.css?v=7">
@@ -760,6 +760,7 @@
             <button class="btn btn-primary" type="button" id="btnGameOverAdvanced" onclick="startAdvancedTutorialMatch()" hidden>Advanced Tutorial &#9654;</button>
             <button class="btn" type="button" id="btnGameOverPlayAgain" onclick="openLoadoutSelector()" hidden>Play Again</button>
             <button class="btn btn-primary" type="button" id="btnGameOverGauntlet" onclick="returnToGauntlet()" hidden>Return to the Gauntlet &#9654;</button>
+            <button class="btn btn-primary" type="button" id="btnGameOverCampaign" onclick="returnToCampaign()" hidden>Return to Campaign &#9654;</button>
             <button class="btn" type="button" id="btnGameOverMainMenu" onclick="leaveEndScreenToHome()" hidden>Main Menu</button>
         </div>
     </div>
@@ -817,6 +818,12 @@
                             <span class="battle-mode-title">Gauntlet</span>
                             <span class="battle-mode-description">Draft 10 cards. Grow your deck as you climb.</span>
                             <span class="battle-mode-meta">Draft your climb</span>
+                        </button>
+                        <button class="battle-mode-card battle-mode-campaign" id="campaignMatchTab" type="button" onclick="setMatchMode('campaign')" aria-pressed="false">
+                            <span class="battle-mode-kicker">Story · Rally the realms</span>
+                            <span class="battle-mode-title">Campaign</span>
+                            <span class="battle-mode-description">Start as a Squire. Capture allies, duel knights, face Akhar.</span>
+                            <span class="battle-mode-meta">Rally of the Realms</span>
                         </button>
                         <button class="battle-mode-card battle-mode-tutorial" id="tutorialMatchTab" type="button" onclick="setMatchMode('tutorial')" aria-pressed="false">
                             <span class="battle-mode-kicker">Guided match</span>
@@ -945,6 +952,14 @@
     </div>
 </div>
 
+<!-- Arena battle dock: Knight + Draw/End Turn wrap the SiegeKnight FAB.
+     Opening the FAB swaps those flanks for Quit Battle / Close menu. -->
+<div class="sn-dock arena-fab-dock" id="arenaFabDock" hidden>
+    <button class="sn-flank is-left is-danger" type="button" id="arenaFabQuit" hidden>Quit Battle</button>
+    <button class="sn-flank is-right" type="button" id="arenaFabClose" hidden>Close menu</button>
+</div>
+<div class="arena-fab-options" id="arenaFabOptions" hidden role="menu" aria-label="Battle options"></div>
+
 <div class="coin-flip-overlay hidden" id="coinFlipOverlay" aria-live="polite">
     <div class="coin-flip-box">
         <div class="loadout-kicker">Turn Order</div>
@@ -961,7 +976,7 @@
         <p class="loadout-copy" id="mulliganCopy">Each player gets one mulligan before the first draw phase begins.</p>
         <div class="mulligan-hand-preview" id="mulliganHandPreview"></div>
         <div class="mulligan-actions" id="mulliganActions">
-            <button class="btn" type="button" onclick="submitMulliganKeep()">Keep hand</button>
+            <button class="btn" type="button" id="btnMulliganKeep" onclick="submitMulliganKeep()">Keep hand</button>
             <button class="btn btn-primary" type="button" id="btnMulliganRedraw" onclick="submitMulliganSelected()">Redraw selected</button>
         </div>
         <div class="mulligan-actions hidden" id="mulliganWaitActions">
@@ -999,10 +1014,10 @@
 <script type="module" src="/js/firebase-init.js?v=2"></script>
     <script src="/js/catalog-sync.js?v=2"></script>
     <script src="/js/coach.js?v=11"></script>
-    <script src="/js/arena-tutorial.js?v=52"></script>
+    <script src="/js/arena-tutorial.js?v=53"></script>
     <script src="/js/knight-tutorial.js?v=2"></script>
-<script src="/js/shield-navigation.js?v=6"></script>
-<script src="/js/game.js?v=352"></script>
+<script src="/js/shield-navigation.js?v=10"></script>
+<script src="/js/game.js?v=358"></script>
     <script src="/js/play-mode-picker.js?v=6"></script>
     <script src="/js/play-hud.js?v=4"></script>
     <!-- Defines window.SieglingsCardBinderVisual (buildArtTransformStyle). Without it,

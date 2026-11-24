@@ -964,6 +964,14 @@ public class GameController {
             gauntlet.put("boss", gs.isGauntletBossFight());
             resp.put("gauntlet", gauntlet);
         }
+        if (gs.isCampaignMatch()) {
+            Map<String, Object> campaign = new LinkedHashMap<>();
+            campaign.put("encounter", gs.getCampaignEncounterName());
+            campaign.put("official", gs.isCampaignOfficial());
+            campaign.put("wipeWin", gs.isCampaignWipeWin());
+            campaign.put("coalition", gs.getCampaignCoalitionBonus());
+            resp.put("campaign", campaign);
+        }
         resp.put("multiplayer", roomId != null);
         resp.put("roomId", roomId);
         resp.put("viewerSide", viewerIsPlayer ? "PLAYER" : "ENEMY");
@@ -1921,6 +1929,8 @@ public class GameController {
             ability.put("effectValueMax", effectValueMax);
             ability.put("requiredElement", option.getRequiredElement() == null ? null : option.getRequiredElement().name());
             ability.put("requiredEnergy", option.getRequiredEnergy());
+            ability.put("baseRequiredEnergy", option.getAbility().getRequiredEnergy());
+            ability.put("shockEnergy", attacker.getAfflictionStacks(ElementalAffliction.SHOCK));
             ability.put("affordable", option.isAffordable());
             ability.put("fromPrintedPassive", option.getAbility().isBattleOptionFromPrintedPassive());
             abilities.add(ability);

@@ -4,9 +4,9 @@ import com.sieglings.model.enums.Element;
 import java.util.*;
 
 /** Server-owned biome rules. A land is rolled once per boss segment, never per request. */
-record SiegeLand(String id, String name, String kind, List<Element> elements, NodeType feature,
+public record SiegeLand(String id, String name, String kind, List<Element> elements, NodeType feature,
                  String featureName, String terrain, String perk, String eventTitle, String eventPrompt) {
-    static final List<SiegeLand> ALL = List.of(
+    public static final List<SiegeLand> ALL = List.of(
         elemental("fire", "Emberfall", Element.FIRE, NodeType.SMITH, "Ember Forge", "Cinder heat", "ATTACK", "The Cinder Smith", "A soot-covered smith tends a forge fed by the mountain's heart."),
         elemental("ice", "Frostveil", Element.ICE, NodeType.REST, "Frost Shelter", "Glacial cover", "SHIELD", "The Frozen Waystation", "An icekeeper offers shelter beside a Siegeling trapped in frost."),
         elemental("wind", "Zephyr Reach", Element.WIND, NodeType.CARAVAN, "Sky Caravan", "Tailwinds", "SPEED", "The Sky Courier", "A courier's glider has landed beside a wind-carved arch."),
@@ -29,11 +29,11 @@ record SiegeLand(String id, String name, String kind, List<Element> elements, No
                                        String terrain, String perk, String title, String prompt) {
         return new SiegeLand(id, name, "ELEMENTAL", List.of(element), feature, featureName, terrain, perk, title, prompt);
     }
-    static SiegeLand byId(String id) { return ALL.stream().filter(l -> l.id.equals(id)).findFirst().orElse(null); }
+    public static SiegeLand byId(String id) { return ALL.stream().filter(l -> l.id.equals(id)).findFirst().orElse(null); }
     boolean badlands() { return "BADLANDS".equals(kind); }
     boolean favors(Element e) { return elements.contains(e); }
     double goldMultiplier() { return "GOLD".equals(perk) ? 1.5 : badlands() ? 1.25 : 1; }
-    String background() { return "/img/lands/" + id + ".webp"; }
+    public String background() { return "/img/lands/" + id + ".webp"; }
     Map<String,String> locations() {
         Map<String,String> art = new LinkedHashMap<>();
         for (String scene : List.of("journey", "shelter", "elite", "boss"))
@@ -79,7 +79,7 @@ record SiegeLand(String id, String name, String kind, List<Element> elements, No
         };
     }
 
-    Map<String,Object> toMap() {
+    public Map<String,Object> toMap() {
         Map<String,Object> m = new LinkedHashMap<>();
         m.put("id", id); m.put("name", name); m.put("kind", kind);
         m.put("elements", elements.stream().map(Enum::name).toList()); m.put("background", background());

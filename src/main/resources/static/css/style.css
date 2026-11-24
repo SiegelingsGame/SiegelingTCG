@@ -14692,6 +14692,21 @@ body.mulligan-active .hand-lift-layer {
     visibility: hidden;
 }
 
+/* Arena FAB dock owns Keep / Redraw during mulligan — hide the in-box action
+   row and clear the dock height so the opening hand and FAB load as one HUD. */
+body.arena-fab-docked.mulligan-active #mulliganActions,
+body.arena-fab-docked.mulligan-active #mulliganWaitActions {
+    display: none !important;
+}
+body.gameplay-active.arena-fab-docked .mulligan-overlay {
+    padding-bottom: calc(var(--sn-dock-h, 88px) + 10px);
+    z-index: calc(var(--sn-z, 75) - 2);
+}
+body.gameplay-active.arena-fab-docked.mulligan-active .arena-fab-dock,
+body.gameplay-active.arena-fab-docked.mulligan-active .sn-root {
+    z-index: calc(var(--sn-z, 75) + 2);
+}
+
 .coin-flip-overlay {
     position: fixed;
     inset: 0;
@@ -15839,10 +15854,73 @@ body.mulligan-active .hand-lift-layer {
 }
 
 .mulligan-card-slot.is-interactive:hover {
-    transform: translateY(-2px);
+    transform: none;
     border-color: rgba(255, 255, 255, 0.18);
     background: rgba(255, 255, 255, 0.05);
 }
+
+/* Keep the selected card in its grid cell through the reveal turn. */
+.mulligan-card-slot.is-flipping.is-interactive:hover {
+    transform: perspective(900px) rotateY(0deg);
+}
+.mulligan-card-slot.is-flipping.is-face-down.is-interactive:hover {
+    transform: perspective(900px) rotateY(180deg);
+}
+
+.desktop-preview-card-slot.is-3d {
+    perspective: 850px;
+    overflow: visible;
+}
+.desktop-preview-card-slot.is-3d .desktop-preview-card {
+    transform: rotateX(var(--preview-tilt-x, 0deg)) rotateY(var(--preview-tilt-y, 0deg));
+    transform-style: preserve-3d;
+    transition: transform 120ms ease-out;
+    box-shadow: 0 18px 35px rgba(0, 0, 0, .55);
+}
+.desktop-preview-3d-toggle {
+    flex: none;
+    margin-bottom: 6px;
+    padding: 5px 10px;
+    border: 1px solid #6da5ef;
+    border-radius: 999px;
+    background: #18345f;
+    color: #e8f3ff;
+    font: inherit;
+    font-size: .68em;
+    cursor: pointer;
+}
+.desktop-preview-3d-toggle[aria-pressed="true"] {
+    background: #4c75b4;
+}
+.desktop-preview-effect-pill {
+    position: relative;
+    cursor: pointer;
+    font: inherit;
+}
+.desktop-effect-popover {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    width: 270px;
+    padding: 12px;
+    border: 2px solid var(--sb-color, #8bc2ff);
+    border-radius: 12px;
+    background: linear-gradient(145deg, #1b2e53, #0d182f);
+    box-shadow: 0 12px 30px #000a, inset 0 1px #ffffff30;
+    color: #f5f8ff;
+    text-align: left;
+    white-space: normal;
+    pointer-events: none;
+}
+.desktop-preview-effect-pill:hover .desktop-effect-popover,
+.desktop-preview-effect-pill:focus-visible .desktop-effect-popover {
+    display: grid;
+    gap: 5px;
+}
+.desktop-effect-popover strong { color: var(--sb-color, #8bc2ff); font-size: 1.15em; }
+.desktop-effect-popover small { color: #afc7ee; text-transform: uppercase; letter-spacing: .08em; }
+.desktop-effect-popover em { color: #8bc2ff; font-size: .85em; font-style: normal; }
+.battle-cost-breakdown { display: block; margin-top: 2px; color: #a8c6fb; font-size: .75em; }
 
 .mulligan-card-slot.is-interactive:focus-visible {
     outline: 2px solid rgba(120, 200, 255, 0.85);
@@ -21107,6 +21185,9 @@ body.sgl-opponent-turn .battle-cta-row {
         overflow: hidden;
         overscroll-behavior: none;
     }
+    body.gameplay-active.arena-fab-docked .mulligan-overlay {
+        padding-bottom: calc(var(--sn-dock-h, 88px) + var(--device-safe-bottom, 0px) + 6px);
+    }
 
     body.gameplay-active .mulligan-box {
         display: flex;
@@ -21983,6 +22064,64 @@ body.arena-desk .action-bar {
 body.arena-desk.gameplay-active .sn-fab {
     left: calc(var(--arena-desk-gutter, 12px) + var(--hud-rail-width) / 2);
     bottom: calc(var(--arena-desk-gutter, 12px) + 8px);
+}
+
+/* Arena battle: primary actions live in the FAB dock, so the old action bar
+   drops out and the hand / battle-move tray keeps the height it frees. */
+body.gameplay-active.arena-fab-docked #actionBar {
+    display: none !important;
+}
+body.gameplay-active.arena-fab-docked:not(.arena-desk) .app-shell {
+    padding-bottom: var(--sn-dock-h, calc(var(--sn-fab-size, 62px) + 26px));
+}
+body.gameplay-active.arena-fab-docked .desktop-menu-bottom-dock {
+    /* Hand fills the panel foot now that the action bar row is gone. */
+    min-height: 0;
+}
+body.gameplay-active.arena-fab-docked .desktop-menu-hand {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+body.arena-desk.gameplay-active.arena-fab-docked .hud-rail-player {
+    /* Dock + FAB already clear the rail foot. */
+    padding-bottom: calc(var(--sn-dock-h, 72px) + 4px);
+}
+
+/* Utility trays (Energy / Card / Log / Battle / Hints) dock onto the
+   SiegeKnight FAB instead of covering it as a separate bottom sheet. */
+body.gameplay-active.arena-fab-docked.arena-fab-tray-open {
+    --arena-fab-tray-z: 520;
+}
+body.gameplay-active.arena-fab-docked.arena-fab-tray-open .sn-root,
+body.gameplay-active.arena-fab-docked.arena-fab-tray-open .arena-fab-dock {
+    z-index: calc(var(--arena-fab-tray-z) + 2);
+}
+body.gameplay-active.arena-fab-docked.arena-fab-tray-open .arena-fab-options {
+    display: none !important;
+}
+body.gameplay-active.arena-fab-docked.arena-fab-tray-open .drawer-backdrop {
+    z-index: var(--arena-fab-tray-z);
+    /* Leave the FAB dock clear so Quit / Close stay hittable. */
+    bottom: var(--sn-dock-h, 88px);
+}
+body.gameplay-active.arena-fab-docked.arena-fab-tray-open .drawer {
+    z-index: calc(var(--arena-fab-tray-z) + 1);
+    left: 10px;
+    right: 10px;
+    bottom: calc(var(--sn-dock-h, 88px) - 12px);
+    max-height: min(58vh, calc(100dvh - var(--sn-dock-h, 88px) - 20px - env(safe-area-inset-top, 0px)));
+    border-radius: 18px;
+    border: 1px solid rgba(226, 183, 20, 0.42);
+    border-top: 2px solid var(--accent, #ffd700);
+    padding-bottom: 16px;
+    box-shadow:
+        0 18px 40px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(255, 215, 0, 0.06);
+    background: linear-gradient(180deg, #243456, #121a32 72%);
+}
+body.gameplay-active.arena-fab-docked.arena-fab-tray-open .drawer.drawer-dragging {
+    /* Keep the dock gap while the user swipes the tray down. */
+    bottom: calc(var(--sn-dock-h, 88px) - 12px);
 }
 
 body.arena-desk .hud-knight-ability-line span {

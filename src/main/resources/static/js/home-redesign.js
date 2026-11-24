@@ -583,7 +583,7 @@
     'Gallery': 'art', 'Events': 'events', 'Lobbies': 'lobbies', 'Tournaments': 'tournaments'
   };
   var EXTERNAL = {
-    'Arena': '/battle', 'Battle': '/battle', 'Siege': '/siege', 'Gauntlet': '/gauntlet', 'Keep': '/keep', 'Chronicles': '/chronicles', 'Dominion': '/dominion',
+    'Arena': '/battle', 'Battle': '/battle', 'Siege': '/siege', 'Gauntlet': '/gauntlet', 'Campaign': '/campaign', 'Keep': '/keep', 'Chronicles': '/chronicles', 'Dominion': '/dominion',
     'Social Lobbies': 'social',
     'Featured Packs': 'shop', 'Open Packs': 'shop', 'Siegelcoins': 'shop'
   };
@@ -3414,7 +3414,7 @@
   // Battle vs Siege before showing a single image. Same two modes, same
   // vocabulary, but each is a full-bleed plate carrying a label and one line.
   var MODES = [
-    { id: 'battle', label: 'Arena', tag: 'Battle · Gauntlet · Tutorial',
+    { id: 'battle', label: 'Arena', tag: 'Battle · Gauntlet · Campaign · Tutorial',
       line: 'Levels off — all deck and reads.',
       art: '/img/gallery/frostag-training.webp', el: 'ICE', primary: true, cta: 'Play' },
     { id: 'siege', label: 'Siege', tag: 'Adventure · Battlegrounds · Endless',
@@ -4498,6 +4498,8 @@
     'isaac-tesla':       { file: 'isaac-tesla', pos: '46% 30%' },
     'pyla':              { file: 'pyla', pos: '40% 30%' },
     'trainer10':         { file: 'pyla', pos: '40% 30%' },
+    'glacia':            { file: 'glacia', pos: '42% 28%' },
+    'ser-airek':         { file: 'ser-airek', pos: '48% 30%' },
     'lady-clarice':      { file: 'lady-clarice', pos: '48% 30%' },
     'cera':              { file: 'cera', pos: '44% 30%' },
     'hera':              { file: 'hera', pos: '50% 30%' },
@@ -11571,7 +11573,7 @@
       ['sub', 'Elemental afflictions'],
       ['aff', [
         ['Fire', 'FIRE', 'Burn', '5', 'Owner Setup: deal 1 damage per stack, then clear.'],
-        ['Electric', 'ELECTRIC', 'Shock', '5', 'This card may spend 1 less energy per stack on its abilities.'],
+        ['Electric', 'ELECTRIC', 'Shock', '5', 'Each stack adds 1 energy to its next move, then clears.'],
         ['Poison', 'POISON', 'Toxin', '5', 'Cannot heal. Heal attempts remove Toxin stacks 1:1 instead.'],
         ['Wind', 'WIND', 'Disorient', '3', '+1 cost per stack on the lowest-cost ability.'],
         ['Shadow', 'SHADOW', 'Curse', '2', 'Cannot claim or evolve while any Curse remains.'],
@@ -12409,8 +12411,9 @@
       shieldNavigation = window.SiegelingsShieldNavigation.mount(host, function (screen) {
         // Messages is a tab of Social, so it names the tab before the render.
         if (screen === 'messages') { setSocialTab('messages'); screen = 'social'; }
-        // Swarm is a separate page (the 3D survival test mode), not a hub screen.
+        // Swarm and Campaign are separate test-mode pages, not hub screens.
         if (screen === 'swarm') { window.location.href = '/swarm'; return; }
+        if (screen === 'campaign') { window.location.href = '/campaign'; return; }
         show(screen, true, true);
       }, function () { return current; });
     }

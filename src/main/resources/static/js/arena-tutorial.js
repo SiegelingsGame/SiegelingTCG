@@ -2190,18 +2190,15 @@
         body: 'Clears your current ability selection so you can choose another move.',
         skipIf: function () { return !visible('#btnCancelBattleMove'); } },
 
-      { id: 'adv-hud-home', title: 'Back to Home', target: '.action-bar-aux a[aria-label="Back to Home"]',
-        body: 'Returns to the Home page.',
-        skipIf: function () { return !visible('.action-bar-aux a[aria-label="Back to Home"]'); } },
-      { id: 'adv-hud-menu', title: 'Site menu', target: '#playHubMenuFlyout summary',
-        body: 'Opens navigation to your Keep, cards, decks and other pages.',
-        skipIf: function () { return !visible('#playHubMenuFlyout summary'); } },
+      { id: 'adv-hud-fab', title: 'SiegeKnight menu', target: '.sn-fab',
+        body: 'Opens battle options (Card View, Battle View, Log, Music, Mute). The badge shows your remaining Setup actions — tap it for the breakdown.',
+        skipIf: function () { return !visible('.sn-fab'); } },
 
       { id: 'adv-hud-act', title: 'Setup actions', target: '#setupActionsCounter',
-        body: 'Shows how many <b>Setup actions</b> you have left. Placing, casting and claiming each use an action.',
+        body: 'Shows how many <b>Setup actions</b> you have left. Tap or hover for where they come from.',
         skipIf: function () { return !visible('#setupActionsCounter'); } },
 
-      { id: 'adv-hud-preview', title: 'Card Preview', target: '#btnSelectedPreview',
+      { id: 'adv-hud-preview', title: 'Card View', target: '#btnSelectedPreview',
         body: 'Opens the selected card’s art, stats, abilities and costs.',
         skipIf: function () { return !visible('#btnSelectedPreview'); } },
 
@@ -2209,7 +2206,7 @@
         body: 'Shows guidance for the action the game is waiting for.',
         skipIf: function () { return !visible('#btnHint'); } },
 
-      { id: 'adv-hud-queue', title: 'Hand and battle view', target: '#btnBattlePanel',
+      { id: 'adv-hud-queue', title: 'Battle View', target: '#btnBattlePanel',
         body: 'Switches between your hand and the battle action panel during battle. During Setup, it opens a preview of your Siegelings’ attacks.',
         skipIf: function () { return !visible('#btnBattlePanel'); } },
 
@@ -2229,9 +2226,9 @@
         body: 'Turns game sound on or off.',
         skipIf: function () { return !visible('#btnMuteSound'); } },
 
-      { id: 'adv-hud-quit', title: 'Quit', target: '#btnQuitOrNewGame',
+      { id: 'adv-hud-quit', title: 'Quit Battle', target: '#arenaFabQuit',
         body: 'Leaves this match and opens setup for a new one.',
-        skipIf: function () { return !visible('#btnQuitOrNewGame'); } },
+        skipIf: function () { return !visible('#arenaFabQuit'); } },
 
       { id: 'adv-read', title: 'Check an effect or action', target: '#btnHint',
         body: 'Use <b>Hints</b> for the next action and <b>All Effects</b> to look up a badge’s rules during play.' },
