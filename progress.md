@@ -1,3 +1,9 @@
+Original prompt: Merge and deploy
+
+- November 24, 2026 **Landing safe-area + slime overscroll (#1274) merged and live.**
+  - **Change.** Merged PCG inset / continuous wallpaper / morphed top-pull slime to `main`; Deploy run `45486280831` succeeded.
+  - **Verification.** Live `/` and `/landing` serve `landing.css?v=66`, `landing.js?v=67` (HTTP 200). Live JS includes `bindSlimeOverscroll` + wallpaper sync; CSS has `.landing-wallpaper` / `.is-slime-top`. `/api/cards/editor` (Hosting + Cloud Run) → `source=FIRESTORE`. `config.js` `apiBaseUrl: ''`.
+
 Original prompt: Fix the layout of this screen the PCG logo is blurred in the safe area behind the date it should fall right under that date space. Also the bottom of the screen has a safe area with a different color the wallpaper and background should be continuous through the bottom safe area of the device scrolling from the top or a place with no destination should start a liquid slime like stretchy effect with the consistent color of the background wallpaper or image
 
 - November 24, 2026 **Landing: PCG under status bar, continuous wallpaper, slime overscroll.**
