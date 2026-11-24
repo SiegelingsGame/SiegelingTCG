@@ -24,6 +24,8 @@
     this.root = opts.root;
     this.onInteract = opts.onInteract || function () {};
     this.onExit = opts.onExit || function () {};
+    // Fired when a realm grass roll hits — Campaign starts a Siege-style wild battle.
+    this.onEncounter = opts.onEncounter || function () {};
     this.enabled = false;
     this.keys = {};
     this.pad = { x: 0, y: 0 };
@@ -42,6 +44,18 @@
     this.follower = null;
     this.world3d = null;
     this.use3d = false;
+    // Random open-world encounters (realm only). Sanctuary plaza is safe;
+    // Palm Woods / Wild Grove remain opt-in gates. Knight/rival hotspots are
+    // also safe so Arena challenges are never stolen by a grass roll.
+    this.encounter = {
+      enabled: false,
+      pending: false,
+      accum: 0,
+      grace: 0,
+      chance: 0.12,
+      stepDist: 0.9,
+      graceOnEnter: 5.5
+    };
   }
 
   Overworld.prototype.mount = function () {
@@ -207,11 +221,68 @@
     if (this.els.flags) this.els.flags.textContent = '⚑ ' + (cfg.rallies != null ? cfg.rallies : 0);
   };
 
+  Overworld.prototype._resetEncounter = function (enabled) {
+    var e = this.encounter;
+    e.stepDist = this.use3d ? 0.9 : 28;
+    e.graceOnEnter = this.use3d ? 5.5 : 160;
+    e.enabled = !!enabled;
+    e.pending = false;
+    e.accum = 0;
+    e.grace = enabled ? e.graceOnEnter : 0;
+    if (this.els.ow) this.els.ow.classList.remove('is-encounter');
+  };
+
+  /** True when Bob is near a hotspot — keep Arena approaches (knight/rival) safe. */
+  Overworld.prototype._encounterSafeZone = function () {
+    return !!(this.near && !this.near.disabled);
+  };
+
+  Overworld.prototype._tickEncounter = function (dist) {
+    var e = this.encounter;
+    if (!e.enabled || e.pending || !dist) return;
+    if (this._encounterSafeZone()) return;
+    e.accum += dist;
+    while (e.accum >= e.stepDist) {
+      e.accum -= e.stepDist;
+      if (e.grace > 0) {
+        e.grace -= e.stepDist;
+        continue;
+      }
+      var roll = typeof e._forceRoll === 'number' ? e._forceRoll : Math.random();
+      if (roll < e.chance) {
+        this._triggerEncounter();
+        return;
+      }
+    }
+  };
+
+  Overworld.prototype._triggerEncounter = function () {
+    var e = this.encounter;
+    if (e.pending) return;
+    e.pending = true;
+    this.keys = {};
+    this.pad.x = 0;
+    this.pad.y = 0;
+    if (this.els.knob) this.els.knob.style.transform = 'translate(0,0)';
+    if (this.els.ow) this.els.ow.classList.add('is-encounter');
+    this.setBanner('A wild Siegeling appears!');
+    var self = this;
+    setTimeout(function () {
+      try { self.onEncounter(); }
+      catch (err) {
+        e.pending = false;
+        if (self.els.ow) self.els.ow.classList.remove('is-encounter');
+        self.setBanner('The wilds settle… try walking again.');
+      }
+    }, 420);
+  };
+
   Overworld.prototype.loadSanctuary = function (cfg) {
     cfg = cfg || {};
     this.mapId = 'sanctuary';
     this.lands = cfg.lands || [];
     this.follower = cfg.follower || null;
+    this._resetEncounter(false);
     if (this.els.ow) {
       this.els.ow.classList.add('is-sanctuary');
       this.els.ow.classList.remove('is-realm');
@@ -247,13 +318,15 @@
     cfg = cfg || {};
     this.mapId = 'realm';
     this.follower = cfg.follower || null;
+    this._resetEncounter(true);
     if (this.els.ow) {
       this.els.ow.classList.remove('is-sanctuary');
       this.els.ow.classList.add('is-realm');
       this.els.ow.dataset.element = (cfg.element || 'neutral').toLowerCase();
     }
     this.els.place.textContent = cfg.name || 'Land';
-    this.els.banner.textContent = cfg.message || 'Walk to a popup building to challenge it.';
+    this.els.banner.textContent = cfg.message ||
+      'Wander the wilds for Siege encounters — challenge the Rival Arena or Knight Keep for Arena duels.';
     this._hud(cfg);
 
     if (this.use3d && this.world3d) {
@@ -514,6 +587,11 @@
   Overworld.prototype._step = function (dt) {
     var v = this._inputVector();
     var inputWalking = !!(v.x || v.y);
+    // Freeze movement once an encounter flash has started.
+    if (this.encounter.pending) {
+      inputWalking = false;
+      v = { x: 0, y: 0 };
+    }
     if (this.use3d) {
       var oldX = this.player.x, oldZ = this.player.z;
       if (inputWalking) {
@@ -524,10 +602,12 @@
         var d = dirFromVector(v.x, v.y);
         if (d) this.player.dir = d;
       }
-      var walking = Math.hypot(this.player.x - oldX, this.player.z - oldZ) > 0.0001;
+      var walked = Math.hypot(this.player.x - oldX, this.player.z - oldZ);
+      var walking = walked > 0.0001;
       this._animatePlayer(dt, walking);
       this.player.walking = walking;
       this._scanNear3d();
+      this._tickEncounter(walked);
       if (this.world3d) {
         this.world3d.frame({
           x: this.player.x,
@@ -552,11 +632,13 @@
       var d2 = dirFromVector(v.x, v.y);
       if (d2) this.player.dir = d2;
     }
-    var cssWalking = Math.hypot(this.player.x - cssOldX, this.player.z - cssOldY) > 0.01;
+    var cssWalked = Math.hypot(this.player.x - cssOldX, this.player.z - cssOldY);
+    var cssWalking = cssWalked > 0.01;
     this._animatePlayer(dt, cssWalking);
     this.player.walking = cssWalking;
     this._paintPlayerCss();
     this._scanNearCss();
+    this._tickEncounter(cssWalked);
     this._updateMinimapDot();
   };
 

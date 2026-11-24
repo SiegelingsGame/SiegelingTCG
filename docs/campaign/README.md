@@ -23,8 +23,8 @@ Raidlord Akhar threatens the Sanctuary Charter (Keep lore). You begin as Squire 
 
 | Encounter | Engine | Notes |
 |---|---|---|
-| Wild / capture | `SiegeCombatEngine` via `/api/campaign/wild/**` | Recruit on win |
-| Rival trainer / realm knight / Akhar | Battle Table via `GameService.newCampaignGame` → `/play?campaign=1` | Preset warbands |
+| Open-world random encounters + Wild Grove / Palm Woods | `SiegeCombatEngine` via `/api/campaign/wild/**` (Siege AP) | Recruit on win; grass rolls while walking a realm (safe near buildings / Sanctuary) |
+| Rival trainer / realm knight / Akhar | Battle Table via `GameService.newCampaignGame` → `/play?campaign=1` (Arena) | Preset warbands; knight keep + named NPC challenges stay Arena |
 
 ## Arena skirmish rules
 
@@ -37,10 +37,10 @@ Raidlord Akhar threatens the Sanctuary Charter (Keep lore). You begin as Squire 
 
 ## Zone loop
 
-1. World map → enter Land (2.5D cutout scene on Land art).
-2. Wild captures grow the roster / Arena preset.
+1. World map → enter Land (HD-2D realm walkabout).
+2. Walking the open realm can trigger **random Siege encounters**; Wild Grove / Palm Woods remain opt-in gates. Captures grow the roster / Arena preset.
 3. Rival trainers (Arena, small N, reduced HP).
-4. Realm SiegeKnight (Arena, N=5, 50 HP) → **Rally** that Land.
+4. Realm SiegeKnight (Arena, N=5, 50 HP) → **Rally** that Land. Approaching a knight/rival hotspot suppresses grass rolls so the Arena challenge stays available.
 5. After enough rallies, **Akhar** unlocks (N=5, 50 HP, coalition modifiers).
 
 ## Presentation
