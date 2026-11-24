@@ -1,3 +1,9 @@
+Original prompt: Move the PCG logo up a bit
+
+- November 24, 2026 **Landing: nudge PCG watermark up under the status bar.**
+  - **Change.** Standalone `--landing-sat` (+40pt hub blur-band clear) parked the PCG chip too low under the clock. Watermark now uses raw `--device-safe-top` + 4px (phone + 2px). Pin `landing.css?v=70`.
+  - **Verification.** Headless 390×844 with safe-top 59: PCG `top` 61px (was ~107). Screenshot `landing-pcg-logo-up.png`.
+
 Original prompt: Merge and deploy
 
 - November 24, 2026 **Landing standalone `--sg-vh` safe-zone (#1276) merged and live.**

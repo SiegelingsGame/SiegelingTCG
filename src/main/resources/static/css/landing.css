@@ -266,10 +266,11 @@ img { display: block; }
 /* ── PartyChatGaming watermark ───────────────────────────────────────────── */
 .pcg-watermark {
     position: fixed;
-    /* Sit just under the status-bar / Dynamic Island band — never behind the
-       clock. --landing-sat matches arena/hub standalone top clear (extra band
-       under the status bar on installed iOS that CSS cannot paint into). */
-    top: calc(var(--landing-sat) + 10px);
+    /* Sit just under the status-bar / Dynamic Island — use the raw safe-area
+       inset, not --landing-sat. The hub’s +40pt standalone bump is for the
+       status-bar blur band over interactive chrome; on this chip it left a
+       tall empty gap under the clock. */
+    top: calc(var(--device-safe-top) + 4px);
     left: calc(var(--device-safe-left) + 14px);
     z-index: 60;
     display: flex;
@@ -1766,7 +1767,7 @@ img { display: block; }
     .sgl-vs-emblem-text { font-size: 1.8rem; }
     .sgl-knight-card.right { transform: translateX(0); }
     .pcg-watermark {
-        top: calc(var(--landing-sat) + 8px);
+        top: calc(var(--device-safe-top) + 2px);
         left: max(10px, calc(var(--device-safe-left) + 6px));
         padding: 4px 10px 4px 6px;
     }
