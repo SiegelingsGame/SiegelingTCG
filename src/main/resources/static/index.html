@@ -24,7 +24,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="stylesheet" href="/css/landing.css?v=66">
+    <link rel="stylesheet" href="/css/landing.css?v=68">
     <link rel="stylesheet" href="/css/hub-music.css?v=2">
     <link rel="stylesheet" href="/css/card-face.css?v=11">
     <link rel="stylesheet" href="/css/holographic.css?v=11">
@@ -46,6 +46,10 @@
     <span class="pcg-watermark-text">PartyChatGaming</span>
 </header>
 
+<!-- Chapters scroll inside this shell. Wallpaper + slime stay outside so
+     position:fixed can paint the iPhone home-indicator band (iOS treats fixed
+     descendants of an overflow scroller as local to that scroller). -->
+<div class="landing-scroll" id="landingScroll">
 <!-- ── Hero ──────────────────────────────────────────────────────────────── -->
 <section class="hero" id="hero">
     <div class="hero-bg" aria-hidden="true">
@@ -100,24 +104,6 @@
         <span class="scroll-hint-arrow"></span>
     </div>
 </section>
-
-<!-- Quick navigation keeps the long-form landing page easy to explore on mobile. -->
-<nav class="landing-fab" aria-label="Explore Siegelings">
-    <button class="landing-fab-toggle" type="button" aria-expanded="false" aria-controls="landingFabMenu" aria-label="Open page navigation">
-        <img src="/img/siegelings-icon-256.webp" alt="" width="54" height="54" decoding="async">
-    </button>
-    <div class="landing-fab-menu" id="landingFabMenu" hidden>
-        <a href="#roster">Siegelings</a>
-        <a href="#rarities">Rarities</a>
-        <a href="#creatures">Legendaries</a>
-        <a href="#knights">SiegeKnights</a>
-        <a href="#modes">Game Modes</a>
-        <a href="#elements">Elements</a>
-        <a href="#world">World Art</a>
-        <a href="#arena">Arenas</a>
-        <a href="#about">About</a>
-    </div>
-</nav>
 
 <!-- ── Siegeling roster: two counter-scrolling card rows ──────────────────── -->
 <section class="roster-section binder-face-scope" id="roster" aria-labelledby="rosterTitle">
@@ -370,6 +356,25 @@
         <div class="footer-copy">© <span id="footerYear"></span> PartyChatGaming. Siegelings and SiegeKnights are trademarks of PartyChatGaming.</div>
     </div>
 </footer>
+</div><!-- /.landing-scroll -->
+
+<!-- Quick navigation keeps the long-form landing page easy to explore on mobile. -->
+<nav class="landing-fab" aria-label="Explore Siegelings">
+    <button class="landing-fab-toggle" type="button" aria-expanded="false" aria-controls="landingFabMenu" aria-label="Open page navigation">
+        <img src="/img/siegelings-icon-256.webp" alt="" width="54" height="54" decoding="async">
+    </button>
+    <div class="landing-fab-menu" id="landingFabMenu" hidden>
+        <a href="#roster">Siegelings</a>
+        <a href="#rarities">Rarities</a>
+        <a href="#creatures">Legendaries</a>
+        <a href="#knights">SiegeKnights</a>
+        <a href="#modes">Game Modes</a>
+        <a href="#elements">Elements</a>
+        <a href="#world">World Art</a>
+        <a href="#arena">Arenas</a>
+        <a href="#about">About</a>
+    </div>
+</nav>
 
 <template id="pcgBubbleLogoTemplate">
     <div class="pcg-bubble-logo pcg-bubble-large" aria-label="PartyChatGaming">
@@ -410,7 +415,7 @@
 <script src="/js/art-reveal.js?v=3"></script>
 <script src="/js/landing-particles.js?v=5"></script>
 <script src="/js/play-mode-picker.js?v=6"></script>
-<script src="/js/landing.js?v=67"></script>
+<script src="/js/landing.js?v=68"></script>
 <script src="/js/siege-sprites.js?v=2"></script>
 <script src="/js/landing-modes.js?v=2"></script>
 <script src="/js/sw-register.js?v=1"></script>

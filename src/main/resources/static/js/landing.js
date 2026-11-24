@@ -1206,16 +1206,23 @@
                 const tint = `var(--element-${art.element}, var(--siegelings-blue))`;
                 stage.style.setProperty('--hero-art-color', tint);
                 document.body.style.setProperty('--hero-art-color', tint);
-                // Keep the fixed bleed plate + slime drip in sync so overscroll
-                // / home-indicator bands show the same morphed wallpaper.
+                // Keep the fixed bleed plate + slime drip + html fallback in sync
+                // so the home-indicator band never falls back to flat navy.
+                // Bottom stop stays light on purpose — a heavy navy wash here
+                // looked like the old safe-area bar even when the art was present.
                 const wallPaint =
-                    `linear-gradient(180deg, rgba(7,13,34,.28) 0%, rgba(7,13,34,.1) 38%, rgba(7,13,34,.55) 100%), url('${url}')`;
+                    `linear-gradient(180deg, rgba(7,13,34,.28) 0%, rgba(7,13,34,.08) 42%, rgba(7,13,34,.16) 100%), url('${url}')`;
                 const wall = document.querySelector('.landing-wallpaper');
                 if (wall) {
                     wall.style.backgroundImage = wallPaint;
                     wall.style.backgroundSize = 'cover';
                     wall.style.backgroundPosition = 'center';
                 }
+                // html paints the strip iOS leaves below 100dvh when fixed layers
+                // are still settling; same art, cover crop.
+                document.documentElement.style.backgroundImage = wallPaint;
+                document.documentElement.style.backgroundSize = 'cover';
+                document.documentElement.style.backgroundPosition = 'center';
                 const slime = document.getElementById('landingSlime');
                 if (slime) {
                     slime.style.backgroundImage = wallPaint;
@@ -1567,6 +1574,7 @@
     // on the hero chapter (which itself does not scroll).
     function bindSlimeOverscroll() {
         const body = document.body;
+        const scroller = document.getElementById('landingScroll') || body;
         const slime = document.getElementById('landingSlime');
         if (!slime || !body.classList.contains('landing-body')) return;
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -1636,10 +1644,10 @@
         }
 
         function atTop() {
-            return body.scrollTop <= 1;
+            return scroller.scrollTop <= 1;
         }
         function atBottom() {
-            return body.scrollTop + body.clientHeight >= body.scrollHeight - 1;
+            return scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
         }
         function onHeroLockedSurface(target) {
             const hero = document.getElementById('hero');
@@ -1648,7 +1656,7 @@
             return true;
         }
 
-        body.addEventListener('pointerdown', (e) => {
+        scroller.addEventListener('pointerdown', (e) => {
             if (e.pointerType === 'mouse' && e.button !== 0) return;
             if (e.target.closest('a, button, input, textarea, select, [role="dialog"], .landing-fab')) return;
             startY = e.clientY;
@@ -1657,7 +1665,7 @@
             pointerId = e.pointerId;
         }, { passive: true });
 
-        body.addEventListener('pointermove', (e) => {
+        scroller.addEventListener('pointermove', (e) => {
             if (pointerId != null && e.pointerId !== pointerId) return;
             if (startY == null) return;
             const dy = e.clientY - startY;
@@ -1679,16 +1687,16 @@
                 } else {
                     return;
                 }
-                try { body.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                try { scroller.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
             }
             if (!active) return;
             e.preventDefault();
             paint(edge === 'top' ? Math.max(0, dy) : Math.min(0, dy));
         }, { passive: false });
 
-        body.addEventListener('pointerup', release, { passive: true });
-        body.addEventListener('pointercancel', release, { passive: true });
-        body.addEventListener('lostpointercapture', release, { passive: true });
+        scroller.addEventListener('pointerup', release, { passive: true });
+        scroller.addEventListener('pointercancel', release, { passive: true });
+        scroller.addEventListener('lostpointercapture', release, { passive: true });
     }
 
     // ── Trailer modal ─────────────────────────────────────────────────────
@@ -1697,13 +1705,16 @@
         const trigger = document.getElementById('ctaTrailer');
         if (!modal || !trigger) return;
 
+        const scroller = document.getElementById('landingScroll');
         function open() {
             modal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
+            if (scroller) scroller.style.overflow = 'hidden';
+            else document.body.style.overflow = 'hidden';
         }
         function close() {
             modal.classList.add('hidden');
-            document.body.style.overflow = '';
+            if (scroller) scroller.style.overflow = '';
+            else document.body.style.overflow = '';
         }
         trigger.addEventListener('click', open);
         modal.querySelectorAll('[data-close-trailer]').forEach((el) => {
@@ -1757,17 +1768,20 @@
         let draft = { email: '', password: '' };
         let busy = false;
 
+        const scroller = document.getElementById('landingScroll');
         function open() {
             step = 'credentials';
             draft = { email: '', password: '' };
             render();
             modal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
+            if (scroller) scroller.style.overflow = 'hidden';
+            else document.body.style.overflow = 'hidden';
             window.setTimeout(() => body.querySelector('input')?.focus(), 30);
         }
         function close() {
             modal.classList.add('hidden');
-            document.body.style.overflow = '';
+            if (scroller) scroller.style.overflow = '';
+            else document.body.style.overflow = '';
         }
 
         function render() {
@@ -2040,7 +2054,8 @@
     }
 
     function bindLandingCards() {
-        const cards = [...document.querySelectorAll('.landing-body > section, .landing-body > .landing-footer')];
+        const scroller = document.getElementById('landingScroll') || document.body;
+        const cards = [...scroller.querySelectorAll(':scope > section, :scope > .landing-footer')];
         if (!cards.length || !('IntersectionObserver' in window)) return;
 
         const pieceSelectors = [
@@ -2093,7 +2108,7 @@
                 if (entry.isIntersecting) enterCard(entry.target);
                 else if (entry.target.dataset.cardIndex !== '0') entry.target.classList.remove('is-active');
             });
-        }, { root: document.body, threshold: .2 });
+        }, { root: scroller, threshold: .2 });
         cards.forEach(card => observer.observe(card));
         cards[0].classList.add('is-active');
         document.body.classList.add('card-motion-ready');

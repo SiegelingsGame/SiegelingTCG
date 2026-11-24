@@ -1,3 +1,9 @@
+Original prompt: As you can see the safe area in the bottom portion of the screen is still there ?
+
+- November 24, 2026 **Landing: paint wallpaper through the iPhone home-indicator band.**
+  - **Change.** `#1274` still left a hard navy strip under the hero: `position:fixed` wallpaper lived inside the scrolling `body`, so iOS treated it as local to the scroller and `100dvh` stopped above the home indicator (same class of bug as the Siege recruit reveal). Chapters now scroll in `#landingScroll`; wallpaper + slime + FAB stay outside. `.landing-wallpaper` and `.hero-bg` use `position:fixed; inset:0` with `-webkit-fill-available`, hero art syncs onto `html` too, bottom vignette / wallpaper wash lightened so the band reads as art not a slab. Pins: `landing.css?v=68`, `landing.js?v=68`.
+  - **Verification.** `node --check` landing.js. Headless Chrome 390×844: body `overflow:hidden`, scroller present, wallpaper/hero-bg fixed covering 0…844. Simulated 34px gap below a shortened scroller paints magenta wallpaper (not lime body). Bottom-row continuity maxΔ≈11 (no hard cut). Screenshots `landing-hero-fullbleed.png`, `landing-gap-magenta-probe.png`.
+
 Original prompt: Merge and deploy
 
 - November 24, 2026 **Landing safe-area + slime overscroll (#1274) merged and live.**
