@@ -1,3 +1,9 @@
+Original prompt: Ok merge and deploy
+
+- November 24, 2026 **Landing home-indicator wallpaper fix (#1275) merged and live.**
+  - **Change.** Merged `#landingScroll` / fixed `inset:0` wallpaper + softened bottom wash to `main`; Deploy run `45498786552` succeeded.
+  - **Verification.** Live `/` serves `landing.css?v=68` and `landing.js?v=68` (HTTP 200). Live CSS includes `.landing-scroll` / `webkit-fill-available` / `inset: 0`; live JS includes `landingScroll` + `documentElement.style.backgroundImage`. `/api/cards/editor` → `source=FIRESTORE`, `liveEditingEnabled=true`. `config.js` `apiBaseUrl: ''`.
+
 Original prompt: As you can see the safe area in the bottom portion of the screen is still there ?
 
 - November 24, 2026 **Landing: paint wallpaper through the iPhone home-indicator band.**
