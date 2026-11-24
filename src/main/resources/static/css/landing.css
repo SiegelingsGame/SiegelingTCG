@@ -52,42 +52,140 @@
 
 * { box-sizing: border-box; }
 
+/* Deep wallpaper base — matches the hero vignette so the iPhone home-indicator
+   band and overscroll never flash a different flat navy. */
+html {
+    height: 100%;
+    overflow: hidden;
+    background: #070d22;
+}
 .landing-body {
     margin: 0;
-    background: var(--siegelings-navy);
     color: #f4f6fb;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    /* Same stack as .hero-bg-far so safe-area gutters stay continuous. */
+    background:
+        radial-gradient(ellipse at 50% 70%, rgba(245, 166, 35, 0.18), transparent 55%),
+        linear-gradient(180deg, #0a1530 0%, #0d1b3e 42%, #070d22 100%);
+}
+
+/* Fixed full-bleed plate under every chapter — paints through top/bottom
+   safe areas and the rubber-band region Safari would otherwise leave empty. */
+.landing-wallpaper {
+    position: fixed;
+    /* Extra bleed so rubber-band / home-indicator never show a naked plate. */
+    top: -12%;
+    right: -6%;
+    bottom: -12%;
+    left: -6%;
+    z-index: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 12% 70%, rgba(255, 69, 0, 0.28), transparent 22%),
+        radial-gradient(circle at 88% 60%, rgba(0, 207, 255, 0.26), transparent 22%),
+        radial-gradient(circle at 50% 85%, rgba(245, 166, 35, 0.3), transparent 36%),
+        radial-gradient(circle at 28% 22%, rgba(168, 85, 247, 0.2), transparent 28%),
+        radial-gradient(ellipse at 50% 70%, rgba(245, 166, 35, 0.18), transparent 55%),
+        linear-gradient(180deg, #0a1530 0%, #0d1b3e 42%, #070d22 100%);
+    background-size: cover;
+    background-position: center;
+    transform-origin: 50% 0%;
+    will-change: transform;
+}
+
+/* Liquid slime rubber-band — stretches from the pulled edge with wallpaper tint. */
+.landing-slime {
+    --slime: 0px;
+    --slime-bulge: 0%;
+    position: fixed;
+    left: -8%;
+    right: -8%;
+    height: 0;
+    z-index: 4;
+    pointer-events: none;
+    opacity: 0;
+    background:
+        radial-gradient(ellipse at 50% var(--slime-focus, 0%),
+            color-mix(in srgb, var(--hero-art-color, #1e90ff) 35%, #0a1530) 0%,
+            rgba(10, 21, 48, 0.92) 42%,
+            rgba(7, 13, 34, 0.55) 70%,
+            transparent 100%);
+    filter: blur(0.2px);
+    transition: opacity .18s ease;
+    will-change: height, border-radius, transform;
+}
+.landing-body.is-slime-top .landing-slime,
+.landing-body.is-slime-bottom .landing-slime { opacity: 1; }
+.landing-body.is-slime-top .landing-slime {
+    top: 0;
+    --slime-focus: 0%;
+    height: var(--slime);
+    border-radius: 0 0 50% 50% / 0 0 var(--slime-bulge) var(--slime-bulge);
+    transform: scaleX(calc(1 + var(--slime-scale, 0)));
+    transform-origin: 50% 0%;
+}
+.landing-body.is-slime-bottom .landing-slime {
+    bottom: 0;
+    top: auto;
+    --slime-focus: 100%;
+    height: var(--slime);
+    border-radius: 50% 50% 0 0 / var(--slime-bulge) var(--slime-bulge) 0 0;
+    transform: scaleX(calc(1 + var(--slime-scale, 0)));
+    transform-origin: 50% 100%;
+}
+.landing-body.is-slime-top .landing-wallpaper,
+.landing-body.is-slime-top .hero-bg {
+    transform: scaleY(calc(1 + var(--slime-stretch, 0))) translate3d(0, var(--slime-shift, 0px), 0);
+    transform-origin: 50% 0%;
+}
+.landing-body.is-slime-bottom .landing-wallpaper {
+    transform: scaleY(calc(1 + var(--slime-stretch, 0)));
+    transform-origin: 50% 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+    .landing-slime { display: none !important; }
+    .landing-body.is-slime-top .landing-wallpaper,
+    .landing-body.is-slime-top .hero-bg,
+    .landing-body.is-slime-bottom .landing-wallpaper { transform: none; }
 }
 
 /* Each landing chapter is a viewport card. Tall chapters scroll within the
    card, then the outer page snaps to the following chapter. */
-html { height: 100%; overflow: hidden; }
 .landing-body {
+    position: relative;
+    z-index: 1;
     height: 100vh;
     height: 100dvh;
     overflow-y: auto;
     scroll-snap-type: y mandatory;
-    overscroll-behavior-y: contain;
+    /* Custom slime rubber-band owns the edge pull; keep native bounce quiet. */
+    overscroll-behavior-y: none;
 }
 .landing-body > section,
 .landing-body > .landing-footer {
+    position: relative;
+    z-index: 1;
     box-sizing: border-box;
     height: 100vh;
     height: 100dvh;
     min-height: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
     scroll-snap-align: start;
     scroll-snap-stop: always;
     scrollbar-width: thin;
     scrollbar-color: rgba(143, 189, 235, .35) transparent;
 }
+/* Mixed overflow-x/y collapses `visible` to `auto` in CSS — keep hero fully
+   visible so .hero-bg can paint the home-indicator band. */
 .landing-body > section:not(.hero),
-.landing-body > .landing-footer { align-content: center; }
-.landing-body > .hero { overflow-y: hidden; }
+.landing-body > .landing-footer {
+    overflow-x: hidden;
+    overflow-y: auto;
+    align-content: center;
+}
+.landing-body > .hero { overflow: visible; }
 
 .card-motion-ready .landing-card .card-piece { opacity: 0; }
 .card-motion-ready .landing-card.is-active .card-piece { opacity: 1; }
@@ -103,10 +201,11 @@ img { display: block; }
 /* ── PartyChatGaming watermark ───────────────────────────────────────────── */
 .pcg-watermark {
     position: fixed;
-    /* Background flows edge-to-edge (viewport-fit=cover); keep the chip itself
-       clear of the notch/camera and the rounded corner. */
-    top: calc(18px + env(safe-area-inset-top, 0px));
-    left: calc(22px + env(safe-area-inset-left, 0px));
+    /* Sit just under the status-bar / Dynamic Island band — never behind the
+       clock. The phone media query used to hard-code top:12px and ignored the
+       inset, which parked the chip under the time. */
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    left: calc(env(safe-area-inset-left, 0px) + 14px);
     z-index: 60;
     display: flex;
     align-items: center;
@@ -206,11 +305,15 @@ img { display: block; }
 .hero {
     position: relative;
     min-height: 100vh;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
     padding: 120px 24px 60px;
+    padding-bottom: max(60px, calc(28px + env(safe-area-inset-bottom, 0px)));
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
+    /* Do not clip .hero-bg — it must paint through the bottom safe area. */
+    overflow: visible;
 }
 
 .hero .hero-particle-canvas,
@@ -291,9 +394,15 @@ img { display: block; }
 
 .hero-bg {
     position: absolute;
-    inset: -8% -8%;
+    /* Bleed past the section edges so the home-indicator band and notch never
+       reveal a different flat colour under the art. */
+    top: calc(-8% - env(safe-area-inset-top, 0px));
+    right: -8%;
+    bottom: calc(-8% - env(safe-area-inset-bottom, 0px) - 28px);
+    left: -8%;
     z-index: 0;
     will-change: transform;
+    transform-origin: 50% 0%;
 }
 .hero-bg-layer {
     position: absolute;
@@ -1584,7 +1693,11 @@ img { display: block; }
     .sgl-vs-emblem { width: 70px; height: 70px; }
     .sgl-vs-emblem-text { font-size: 1.8rem; }
     .sgl-knight-card.right { transform: translateX(0); }
-    .pcg-watermark { top: 12px; left: 12px; padding: 4px 10px 4px 6px; }
+    .pcg-watermark {
+        top: calc(env(safe-area-inset-top, 0px) + 8px);
+        left: max(10px, calc(env(safe-area-inset-left, 0px) + 6px));
+        padding: 4px 10px 4px 6px;
+    }
     .pcg-watermark-text { display: none; }
     .pcg-bubble-large { padding: 12px 16px; border-radius: 18px; }
     .pcg-bubble-large .pcg-letter { font-size: 1.1rem; padding: 6px 8px; }
@@ -1752,9 +1865,11 @@ img { display: block; }
     content: '';
     position: absolute;
     inset: 0;
+    /* Soft bottom fade — keep wordmark readable without painting a hard navy
+       slab over the home-indicator band. */
     background:
-        radial-gradient(ellipse at 50% 42%, transparent 22%, rgba(6, 11, 30, .55) 76%),
-        linear-gradient(180deg, rgba(7, 13, 34, .5) 0%, rgba(7, 13, 34, .1) 38%, rgba(7, 13, 34, .9) 100%),
+        radial-gradient(ellipse at 50% 42%, transparent 22%, rgba(6, 11, 30, .5) 76%),
+        linear-gradient(180deg, rgba(7, 13, 34, .48) 0%, rgba(7, 13, 34, .08) 40%, rgba(7, 13, 34, .42) 100%),
         linear-gradient(180deg, color-mix(in srgb, var(--hero-art-color, var(--siegelings-blue)), transparent 86%), transparent 60%);
 }
 .hero-bg-far, .hero-bg-mid { opacity: .55; }

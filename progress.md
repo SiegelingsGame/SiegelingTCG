@@ -1,3 +1,9 @@
+Original prompt: Fix the layout of this screen the PCG logo is blurred in the safe area behind the date it should fall right under that date space. Also the bottom of the screen has a safe area with a different color the wallpaper and background should be continuous through the bottom safe area of the device scrolling from the top or a place with no destination should start a liquid slime like stretchy effect with the consistent color of the background wallpaper or image
+
+- November 24, 2026 **Landing: PCG under status bar, continuous wallpaper, slime overscroll.**
+  - **Change.** Phone rule no longer hard-codes `top:12px` on `.pcg-watermark` — it sits at `env(safe-area-inset-top) + 8px`. Fixed `.landing-wallpaper` + matched `html`/`body` base (`#070d22`) paint through the home-indicator band; hero vignette softened and `.hero` overflow stays `visible` so `.hero-bg` can bleed. Pulling from the top (or other no-destination edges) runs a gooey slime rubber-band tinted with the hero art colour. Pins: `landing.css?v=65`, `landing.js?v=66` (`play.html` css pin too).
+  - **Verification.** `node --check` landing.js. Headless Chrome 390×844 with CDP safe-area insets 59/34: watermark top 67px (clears status bar); wallpaper fixed + synced to hero art; hero overflow visible and hero-bg bottom past the viewport; slime pull class paints a wallpaper-tinted bulge. Screenshots `landing-safe-area-fixed.jpg`, `landing-slime-pull.jpg`.
+
 Original prompt: Merge and deploy
 
 - November 24, 2026 **Campaign NPCs + random encounters (#1272/#1273) merged and live.**
