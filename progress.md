@@ -1,3 +1,9 @@
+Original prompt: Merge and deploy
+
+- November 24, 2026 **Campaign NPCs + random encounters (#1272/#1273) merged and live.**
+  - **Change.** Merged Lady Pyla / Ser Airek / Glacia NPCs and realm grass-roll Siege encounters to `main`; Deploy runs `45433712761` then `45433936067` succeeded.
+  - **Verification.** Live `https://siegelingstcgtesting.web.app/campaign` serves `campaign.css?v=10`, `campaign-world3d.js?v=11`, `campaign-overworld.js?v=12`, `campaign.js?v=12`. Knight sprite frames HTTP 200. `/api/cards/editor` (Hosting + Cloud Run) → `source=FIRESTORE`, `liveEditingEnabled=true`, `firestoreAvailable=true`. `config.js` `apiBaseUrl: ''`. `/api/game/options` HTTP 200 with 7 decks.
+
 Original prompt: Ok add random encounter battles in the open world, these should be siege style battles, knight battles should be arena style battles.
 
 - November 24, 2026 **Campaign: random open-world Siege encounters; knights stay Arena.**
