@@ -1,3 +1,9 @@
+Original prompt: Merge and deploy
+
+- November 25, 2026 **Landing wallpapers (#1279) + Arena no-Campaign (#1281) merged and live.**
+  - **Change.** Merged #1279 then #1281 (rebased onto main after wallpaper landed). Deploy runs `45698909250` (#1279) and `45698967890` (#1281 tip) succeeded.
+  - **Verification.** Live `/` serves `landing.css?v=73`, `landing.js?v=70`. Live `/play.html` has no `#campaignMatchTab` / `.battle-mode-campaign`; mode titles PvP / PvE / Gauntlet / Tutorial. `/api/cards/editor` (Hosting + Cloud Run) → `source=FIRESTORE`, `liveEditingEnabled=true`. `config.js` `apiBaseUrl: ''`. `/api/game/options` HTTP 200 with 7 decks. Log: `/opt/cursor/artifacts/merge-deploy-verify.log`.
+
 Original prompt: Campaigns should not appear under arena modes
 
 - November 25, 2026 **Remove Campaign from Arena mode picker.**
