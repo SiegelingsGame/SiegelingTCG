@@ -599,6 +599,35 @@
             </div>`;
     }
 
+    // Scale the binder face off its rendered width (slots are often well under
+    // the 146px binder default), then keep the name on one line so it cannot
+    // mid-word wrap ("Applehea / d") the way overflow-wrap:anywhere does.
+    function fitCardTitle(card) {
+        const slot = card.closest('.mulligan-card-slot');
+        if (slot) {
+            const faceWidth = slot.clientWidth || card.clientWidth;
+            if (faceWidth) {
+                const slotSize = Math.min(15, Math.max(9, faceWidth * 0.12));
+                slot.style.fontSize = `${slotSize.toFixed(2)}px`;
+            }
+        }
+        const title = card.querySelector('.card-title');
+        if (!title) return;
+        title.style.fontSize = '';
+        title.style.whiteSpace = 'nowrap';
+        title.style.overflowWrap = 'normal';
+        title.style.textWrap = 'nowrap';
+        const width = title.clientWidth;
+        if (!width) return;
+        let size = parseFloat(window.getComputedStyle(title).fontSize) || 12;
+        const minPx = Math.max(5.5, size * 0.55);
+        let guard = 24;
+        while (title.scrollWidth > width + 0.5 && size > minPx && guard-- > 0) {
+            size = Math.max(minPx, size * 0.94);
+            title.style.fontSize = `${size.toFixed(2)}px`;
+        }
+    }
+
     // Description fit: every card prints its whole description. Same binary
     // search as game.js fitFramedSummaryList, but with a lower floor, because
     // the binder's 7px floor still clips the longest lore on a phone-sized
@@ -682,7 +711,10 @@
     function fitCardDescriptions(root) {
         if (!root) return;
         const memo = new Map();
-        root.querySelectorAll('.binder-framed-slot .hand-card').forEach((card) => fitCardDescription(card, memo));
+        root.querySelectorAll('.binder-framed-slot .hand-card').forEach((card) => {
+            fitCardTitle(card);
+            fitCardDescription(card, memo);
+        });
     }
 
     // Cards are fitted after layout, again once web fonts settle (metrics

@@ -1,3 +1,15 @@
+Original prompt: Make sure each tab arena siege and dominion fit. Fix the text wrap on cards and make sure the card images load at the correct size and orientation on this initial preview I prefer the first image over the second.
+
+- November 25, 2026 **Landing: stacked hand preview, one-line titles, all mode tabs fit.**
+  - **Change.** Dropped the short-phone side-by-side hand chips (titles wrapped mid-word; faces looked crushed). Arena hand stays stacked art-above-copy. Board slots stay ≥~90–118px with 5:7 faces; `fitCardTitle` scales slot font from face width and forces one-line names. Art windows use `object-fit: contain` + centered flex. Arena / Siege / Dominion still clear one `landing-vh` with `overflow-y: hidden`. Pins: `landing.css?v=72`, `landing.js?v=70`.
+  - **Verification.** Headless Chromium (forced fresh assets): all three tabs + Siege Map + Dominion Keep report overflow 0 at 390×844, 375×667, 390×780, 1920×1080. Board/hand titles (`Applehead`, `Bonoblade`, …) measure one line (`white-space: nowrap`, `scrollWidth <= clientWidth`). Face aspect ≈0.715 (5:7); art natural 1024×1536 upright. Screenshots `oath-v2-iphone13.png`, `oath-v2-iphoneSE.png`, `oath-tab-*.png`.
+
+Original prompt: Resize the Choose your oath slide so that everything fits on screen in mobile and web app formats the scrolling is messing up the card slide action
+
+- November 25, 2026 **Landing: fit Choose Your Path slide so the hand carousel can swipe.**
+  - **Change.** The `#modes` snap slide was taller than `landing-vh`, so its inner vertical scroller stole horizontal pans on the placement hand. Compacted the Arena / Siege / Dominion demos (smaller board + hand chips, side-by-side hand cards on short phones, single-row extra links, tighter Siege/Dominion panels), set `.landing-scroll > section.modes-pane { overflow-y: hidden }` at specificity that beats the section scroller rule, and gave `.placement-hand` `touch-action: pan-x`. Pin `landing.css?v=71` (`index.html`, `play.html`).
+  - **Verification.** Headless Chromium against statics: Arena / Siege (Advantage + Map) / Dominion (Knight + Keep) report `scrollHeight - clientHeight === 0` and `overflow-y: hidden` at 390×844, 375×667, 393×852, 390×780, 390×700, 1440×900, 1920×1080. Touch swipe on the hand moves `scrollLeft` while `#modes.scrollTop` stays 0. Screenshots `/opt/cursor/artifacts/oath-final-iphone13-clean.png`, `oath-final-iphoneSE-clean.png`, `oath-fit-desktop1080.png`.
+
 Original prompt: Deploy
 
 - November 25, 2026 **Landing PCG logo nudge (#1277) merged and live.**
