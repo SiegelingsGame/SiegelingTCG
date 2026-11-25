@@ -1,3 +1,9 @@
+Original prompt: Campaigns should not appear under arena modes
+
+- November 25, 2026 **Remove Campaign from Arena mode picker.**
+  - **Change.** Dropped the Campaign card from `/play` setup (PvP / PvE / Gauntlet / Tutorial remain). Hub Play plate tag no longer lists Campaign; Campaign stays in shield Beta modes only. Pin: `home-redesign.js?v=185`.
+  - **Verification.** Grep confirms no `#campaignMatchTab` / `.battle-mode-campaign` in `play.html`. `node --check` home-redesign.js. Headless Chrome: Arena setup lists four mode cards only.
+
 Original prompt: Choose your own path, the main page and others shows wallpapers in the backgrounded, continue this through all slides behind every page of the landing page.
 
 - November 25, 2026 **Landing: landscape wallpapers behind every snap slide.**
