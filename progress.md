@@ -1,3 +1,9 @@
+Original prompt: Make sure each tab arena siege and dominion fit. Fix the text wrap on cards and make sure the card images load at the correct size and orientation on this initial preview I prefer the first image over the second.
+
+- November 25, 2026 **Landing: stacked hand preview, one-line titles, all mode tabs fit.**
+  - **Change.** Dropped the short-phone side-by-side hand chips (titles wrapped mid-word; faces looked crushed). Arena hand stays stacked art-above-copy. Board slots stay ≥~90–118px with 5:7 faces; `fitCardTitle` scales slot font from face width and forces one-line names. Art windows use `object-fit: contain` + centered flex. Arena / Siege / Dominion still clear one `landing-vh` with `overflow-y: hidden`. Pins: `landing.css?v=72`, `landing.js?v=70`.
+  - **Verification.** Headless Chromium (forced fresh assets): all three tabs + Siege Map + Dominion Keep report overflow 0 at 390×844, 375×667, 390×780, 1920×1080. Board/hand titles (`Applehead`, `Bonoblade`, …) measure one line (`white-space: nowrap`, `scrollWidth <= clientWidth`). Face aspect ≈0.715 (5:7); art natural 1024×1536 upright. Screenshots `oath-v2-iphone13.png`, `oath-v2-iphoneSE.png`, `oath-tab-*.png`.
+
 Original prompt: Resize the Choose your oath slide so that everything fits on screen in mobile and web app formats the scrolling is messing up the card slide action
 
 - November 25, 2026 **Landing: fit Choose Your Path slide so the hand carousel can swipe.**
