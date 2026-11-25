@@ -1,3 +1,9 @@
+Original prompt: Deploy
+
+- November 25, 2026 **Landing PCG logo nudge (#1277) merged and live.**
+  - **Change.** Merged PCG watermark top inset fix to `main`; Deploy run `45643445814` succeeded.
+  - **Verification.** Live `/` serves `landing.css?v=70` (HTTP 200) with `top: calc(var(--device-safe-top) + 4px)`. `/api/cards/editor` → `source=FIRESTORE`.
+
 Original prompt: Move the PCG logo up a bit
 
 - November 24, 2026 **Landing: nudge PCG watermark up under the status bar.**
