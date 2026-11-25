@@ -1,3 +1,9 @@
+Original prompt: Resize the Choose your oath slide so that everything fits on screen in mobile and web app formats the scrolling is messing up the card slide action
+
+- November 25, 2026 **Landing: fit Choose Your Path slide so the hand carousel can swipe.**
+  - **Change.** The `#modes` snap slide was taller than `landing-vh`, so its inner vertical scroller stole horizontal pans on the placement hand. Compacted the Arena / Siege / Dominion demos (smaller board + hand chips, side-by-side hand cards on short phones, single-row extra links, tighter Siege/Dominion panels), set `.landing-scroll > section.modes-pane { overflow-y: hidden }` at specificity that beats the section scroller rule, and gave `.placement-hand` `touch-action: pan-x`. Pin `landing.css?v=71` (`index.html`, `play.html`).
+  - **Verification.** Headless Chromium against statics: Arena / Siege (Advantage + Map) / Dominion (Knight + Keep) report `scrollHeight - clientHeight === 0` and `overflow-y: hidden` at 390×844, 375×667, 393×852, 390×780, 390×700, 1440×900, 1920×1080. Touch swipe on the hand moves `scrollLeft` while `#modes.scrollTop` stays 0. Screenshots `/opt/cursor/artifacts/oath-final-iphone13-clean.png`, `oath-final-iphoneSE-clean.png`, `oath-fit-desktop1080.png`.
+
 Original prompt: Deploy
 
 - November 25, 2026 **Landing PCG logo nudge (#1277) merged and live.**
