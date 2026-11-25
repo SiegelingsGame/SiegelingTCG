@@ -4975,14 +4975,11 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     box-shadow:0 0 0 1.5px #092434;
   }
 
-  /* Modes on the right, Campaign as the one loud button; Arena stacks with
-     Siege in the left flank so the FAB still wraps four ways to play. */
+  /* Modes on the right: Campaign + Dominion as loud crowns, Arena and Siege
+     as separate flank buttons so the FAB wraps four ways to play. */
   .sg-stage-right {
     grid-area:right; align-self:end; display:flex; flex-direction:column; align-items:stretch; gap:8px;
     width:min(200px, 26vw);
-  }
-  .sg-stage-flank-stack {
-    display:flex; flex-direction:column; gap:6px; min-width:0;
   }
   .sg-app .sg-stage-mode {
     display:flex; flex-direction:column; justify-content:center; padding:7px 14px; min-height:44px;
@@ -4992,7 +4989,6 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
   }
   .sg-app .sg-stage-mode.is-arena { border-color:rgba(255,180,70,.42); }
-  .sg-app .sg-stage-mode.is-keep { border-color:rgba(84,168,240,.36); }
   .sg-stage-mode-kicker { font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); }
   .sg-stage-mode strong { font-family:var(--serif); font-size:16px; font-weight:600; line-height:1.15; }
   .sg-app a.sg-stage-play {
@@ -5001,6 +4997,11 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     text-decoration:none; color:#2b0d02; position:relative; overflow:hidden;
     background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
     box-shadow:0 10px 30px rgba(255,120,45,.5), 0 0 0 1px rgba(255,236,190,.7) inset;
+  }
+  .sg-app a.sg-stage-play.is-under {
+    background:linear-gradient(135deg, #7ad7ff 0%, #3a8dff 44%, #2450c8 100%);
+    color:#071428;
+    box-shadow:0 10px 30px rgba(58,141,255,.45), 0 0 0 1px rgba(190,220,255,.7) inset;
   }
   .sg-app a.sg-stage-play::after {
     content:''; position:absolute; inset:0;
@@ -5366,10 +5367,9 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
    The landscape stage stood on end, hung only with portrait art. The same
    pieces keep the same corners where the phone allows: destinations down the
    left, the launcher icons as a rail down the right, the caption bottom-left,
-   Campaign as the one loud button. Arena + Siege stack on the left FAB flank
-   and Dominion keeps the right, so the art keeps the middle of the screen.
-   The art controls drop out of the crowded header into their own pill just
-   under it. */
+   Campaign and Dominion as loud crowns above/below the FAB, Arena and Siege
+   as separate flanks. The art controls drop out of the crowded header into
+   their own pill just under it. */
 @media (orientation:portrait) and (max-width:1023px) {
   .sg-stage {
     --stage-top:calc(max(6px, var(--sg-sat)) + 44px);
@@ -5390,24 +5390,26 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   .sg-stage-ui {
     padding:calc(var(--stage-top) + 6px) max(12px, var(--sar)) calc(var(--stage-bottom) - 18px) max(12px, var(--sal));
     grid-template-columns:minmax(0, 1fr) 72px minmax(0, 1fr);
-    grid-template-rows:auto minmax(0, 1fr) auto auto 48px;
+    grid-template-rows:auto minmax(0, 1fr) auto auto 48px 48px;
     grid-template-areas:
       "lead lead tiles"
       ". . tiles"
       "deck deck deck"
       "play play play"
-      "siege siege keep";
+      "siege siege keep"
+      "under under under";
     gap:8px 8px;
   }
   .has-shield-navigation .sg-stage-ui {
     padding-bottom:calc(13px + env(safe-area-inset-bottom, 0px));
-    grid-template-rows:auto minmax(0, 1fr) auto auto 62px;
+    grid-template-rows:auto minmax(0, 1fr) auto auto 62px 48px;
     grid-template-areas:
       "lead lead tiles"
       ". . tiles"
       "deck deck deck"
       "play play play"
-      "siege fab keep";
+      "siege fab keep"
+      "under under under";
   }
 
   /* The lead area is half the grid, but the tile rail beside it is only 58px
@@ -5426,66 +5428,56 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   }
   .sg-stage-tile-ico { width:38px; height:38px; }
   .sg-stage-badge { right:4px; }
-  .sg-stage-flank-stack.is-left {
-    grid-area:siege; align-self:center; justify-self:end; width:min(100%, 260px);
+  .sg-app .sg-stage-mode.is-arena {
+    grid-area:siege; align-self:center; justify-self:end; width:min(100%, 260px); min-height:46px; padding:6px 12px;
   }
-  .sg-app .sg-stage-mode.is-keep { grid-area:keep; justify-self:start; width:min(100%, 260px); min-height:46px; padding:6px 12px; }
+  .sg-app .sg-stage-mode:not(.is-arena) {
+    grid-area:keep; align-self:center; justify-self:start; width:min(100%, 260px); min-height:46px; padding:6px 12px;
+  }
   .sg-stage-mode-kicker { font-size:8px; letter-spacing:.14em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sg-stage-mode strong { font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .sg-app a.sg-stage-play {
+  .sg-app a.sg-stage-play:not(.is-under) {
     grid-area:play; justify-self:center; width:min(100%, 340px); height:54px; font-size:21px;
+  }
+  .sg-app a.sg-stage-play.is-under {
+    grid-area:under; justify-self:center; width:min(100%, 340px); height:48px; font-size:19px;
   }
   .sg-stage-deck { grid-area:deck; }
   .sg-stage-caption strong { font-size:21px; }
 
   /* With the shield, four ways to play wrap the S button as one control:
-     Arena + Siege stack inside the left flank shell, Dominion is the right
-     flank, and Campaign is the crown across the top (notched where the FAB
-     rises into it). The last row is the FAB's height and ends at its bottom
-     inset, so its centre is the FAB's; the middle column is the width the
-     flank cuts reach into. */
+     Arena and Siege are separate flanks, Campaign crowns the top (notched
+     where the FAB rises into it), and Dominion is a matching loud crown
+     under the FAB (notched from above). The flank row is the FAB's height;
+     the under row sits just below and borrows the FAB-bottom inset. */
   .has-shield-navigation .sg-stage-ui {
     grid-template-columns:minmax(0, 1fr) calc(var(--sn-flank-tuck) * 2) minmax(0, 1fr);
-    grid-template-rows:auto minmax(0, 1fr) auto auto var(--sn-fab-size);
-    padding-bottom:var(--sn-fab-bottom);
+    grid-template-rows:auto minmax(0, 1fr) auto auto var(--sn-fab-size) calc(var(--sn-flank-h) - 4px);
+    padding-bottom:max(8px, calc(var(--sn-fab-bottom) - 4px));
     column-gap:0;
   }
-  .has-shield-navigation .sg-stage-flank-stack.is-left,
-  .has-shield-navigation .sg-app .sg-stage-mode.is-keep,
+  .has-shield-navigation .sg-app .sg-stage-mode,
   .has-shield-navigation .sg-app a.sg-stage-play { isolation:isolate; position:relative; }
-  .has-shield-navigation .sg-stage-flank-stack.is-left {
+  .has-shield-navigation .sg-app .sg-stage-mode.is-arena {
     --mode-rim:#d9b45f;
     --mode-fill:linear-gradient(180deg, #2c3374 0%, #1a1c52 52%, #10113a 100%);
     --cut-x:calc(100% + var(--sn-flank-tuck));
-    align-self:center; justify-self:end; width:100%; max-width:230px;
-    height:var(--sn-flank-h); min-height:0; gap:0; padding:0;
-    border:0; border-radius:0; background:var(--mode-rim);
+    align-self:center; justify-self:end; width:100%; max-width:230px; height:var(--sn-flank-h); min-height:0;
+    padding:0 calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 8px) 0 22px;
+    align-items:flex-end; text-align:right;
+    border:0; border-radius:0; box-shadow:none; background:var(--mode-rim);
     clip-path:polygon(16px 0, 100% 0, 100% 100%, 16px 100%, 0 50%);
     -webkit-mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) - .5px), #000 var(--sn-flank-r));
     mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) - .5px), #000 var(--sn-flank-r));
     filter:drop-shadow(0 6px 12px rgba(0,0,0,.45));
   }
-  .has-shield-navigation .sg-stage-flank-stack.is-left::before {
+  .has-shield-navigation .sg-app .sg-stage-mode.is-arena::before {
     content:''; position:absolute; inset:0; z-index:-1; background:var(--mode-fill);
     clip-path:polygon(17.2px 2px, 100% 2px, 100% calc(100% - 2px), 17.2px calc(100% - 2px), 2.3px 50%);
     -webkit-mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) + 1.5px), #000 calc(var(--sn-flank-r) + 2px));
     mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) + 1.5px), #000 calc(var(--sn-flank-r) + 2px));
   }
-  .has-shield-navigation .sg-stage-flank-stack.is-left .sg-stage-mode {
-    flex:1 1 0; min-height:0; height:auto; width:auto; max-width:none;
-    margin:0; padding:2px calc(var(--sn-flank-r) - var(--sn-flank-tuck) + 8px) 2px 22px;
-    align-items:flex-end; text-align:right; justify-content:center; gap:0;
-    border:0; border-radius:0; box-shadow:none; background:transparent;
-    backdrop-filter:none; -webkit-backdrop-filter:none;
-    clip-path:none; -webkit-mask:none; mask:none; filter:none;
-  }
-  .has-shield-navigation .sg-stage-flank-stack.is-left .sg-stage-mode-kicker { font-size:7px; letter-spacing:.1em; }
-  .has-shield-navigation .sg-stage-flank-stack.is-left .sg-stage-mode strong { font-size:13px; }
-  .has-shield-navigation .sg-stage-flank-stack.is-left .sg-stage-mode + .sg-stage-mode {
-    box-shadow:inset 0 1px 0 rgba(217, 180, 95, .28);
-  }
-  .has-shield-navigation .sg-stage-flank-stack.is-left .sg-stage-mode::before { content:none; }
-  .has-shield-navigation .sg-app .sg-stage-mode.is-keep {
+  .has-shield-navigation .sg-app .sg-stage-mode:not(.is-arena) {
     --mode-rim:#d9b45f;
     --mode-fill:linear-gradient(180deg, #23527f 0%, #173a66 52%, #0e2547 100%);
     --cut-x:calc(var(--sn-flank-tuck) * -1);
@@ -5498,7 +5490,7 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) - .5px), #000 var(--sn-flank-r));
     filter:drop-shadow(0 6px 12px rgba(0,0,0,.45));
   }
-  .has-shield-navigation .sg-app .sg-stage-mode.is-keep::before {
+  .has-shield-navigation .sg-app .sg-stage-mode:not(.is-arena)::before {
     content:''; position:absolute; inset:0; z-index:-1; background:var(--mode-fill);
     clip-path:polygon(0 2px, calc(100% - 17.2px) 2px, calc(100% - 2.3px) 50%, calc(100% - 17.2px) calc(100% - 2px), 0 calc(100% - 2px));
     -webkit-mask:radial-gradient(circle at var(--cut-x) 50%, transparent calc(var(--sn-flank-r) + 1.5px), #000 calc(var(--sn-flank-r) + 2px));
@@ -5506,12 +5498,11 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
   }
   .has-shield-navigation .sg-stage-mode-kicker { color:rgba(244,236,214,.72); }
   .has-shield-navigation .sg-stage-mode strong { color:#f4ecd6; }
-  .has-shield-navigation .sg-stage-flank-stack.is-left .sg-stage-mode:active,
-  .has-shield-navigation .sg-app .sg-stage-mode.is-keep:active { transform:scale(.97); }
+  .has-shield-navigation .sg-app .sg-stage-mode:active { transform:scale(.97); }
 
   /* Campaign spans both flanks, sitting 2px above the FAB's top; the notch is a
      circle on the FAB's centre a few px wider than the flank cuts. */
-  .has-shield-navigation .sg-app a.sg-stage-play {
+  .has-shield-navigation .sg-app a.sg-stage-play:not(.is-under) {
     --notch-y:calc(100% + var(--sn-fab-size) / 2 + 2px);
     width:100%; max-width:calc(230px * 2 + var(--sn-flank-tuck) * 2); margin-bottom:-6px;
     border-radius:16px 16px 22px 22px;
@@ -5521,12 +5512,32 @@ button.sg-toggle-row { width:100%; font:inherit; cursor:pointer; text-align:left
     -webkit-mask:radial-gradient(circle at 50% var(--notch-y), transparent calc(var(--sn-flank-r) + 2.5px), #000 calc(var(--sn-flank-r) + 3px));
     mask:radial-gradient(circle at 50% var(--notch-y), transparent calc(var(--sn-flank-r) + 2.5px), #000 calc(var(--sn-flank-r) + 3px));
   }
-  .has-shield-navigation .sg-app a.sg-stage-play::before {
+  .has-shield-navigation .sg-app a.sg-stage-play:not(.is-under)::before {
     content:''; position:absolute; inset:2px; z-index:-1; border-radius:14px 14px 20px 20px;
     background:linear-gradient(135deg, #ffe066 0%, var(--amber) 44%, #ff5a3c 100%);
     -webkit-mask:radial-gradient(circle at 50% calc(var(--notch-y) - 2px), transparent calc(var(--sn-flank-r) + 4.5px), #000 calc(var(--sn-flank-r) + 5px));
     mask:radial-gradient(circle at 50% calc(var(--notch-y) - 2px), transparent calc(var(--sn-flank-r) + 4.5px), #000 calc(var(--sn-flank-r) + 5px));
   }
+
+  /* Dominion mirrors Campaign under the FAB: same width, notch carved from the
+     top where the FAB sits, cooler blue fill so the two crowns read as a pair. */
+  .has-shield-navigation .sg-app a.sg-stage-play.is-under {
+    --notch-y:calc(0% - var(--sn-fab-size) / 2 - 2px);
+    align-self:start; width:100%; max-width:calc(230px * 2 + var(--sn-flank-tuck) * 2); height:var(--sn-flank-h);
+    margin-top:-10px; padding-top:6px;
+    border-radius:22px 22px 16px 16px;
+    background:#cfe9ff;
+    box-shadow:none; filter:drop-shadow(0 8px 18px rgba(58,141,255,.4));
+    -webkit-mask:radial-gradient(circle at 50% var(--notch-y), transparent calc(var(--sn-flank-r) + 2.5px), #000 calc(var(--sn-flank-r) + 3px));
+    mask:radial-gradient(circle at 50% var(--notch-y), transparent calc(var(--sn-flank-r) + 2.5px), #000 calc(var(--sn-flank-r) + 3px));
+  }
+  .has-shield-navigation .sg-app a.sg-stage-play.is-under::before {
+    content:''; position:absolute; inset:2px; z-index:-1; border-radius:20px 20px 14px 14px;
+    background:linear-gradient(135deg, #7ad7ff 0%, #3a8dff 44%, #2450c8 100%);
+    -webkit-mask:radial-gradient(circle at 50% calc(var(--notch-y) + 2px), transparent calc(var(--sn-flank-r) + 4.5px), #000 calc(var(--sn-flank-r) + 5px));
+    mask:radial-gradient(circle at 50% calc(var(--notch-y) + 2px), transparent calc(var(--sn-flank-r) + 4.5px), #000 calc(var(--sn-flank-r) + 5px));
+  }
+  .has-shield-navigation .sg-app a.sg-stage-play.is-under::after { animation-delay:.6s; }
 
   .sg-stage-panel { padding-top:calc(var(--stage-top) + 6px); }
 

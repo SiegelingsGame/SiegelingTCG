@@ -1,3 +1,9 @@
+Original prompt: Add a similar Loud Crown but under the buttons are an and siege should not be combined. Add a fourth option under
+
+- November 25, 2026 **FAB mock: separate Arena/Siege flanks + Dominion crown under.**
+  - **Change.** Uncombined the left flank stack. Home stage launcher is now a sandwich: **Campaign** loud crown above the FAB, **Arena** and **Siege** as separate left/right flanks, **Dominion** as a matching loud crown under the FAB (blue fill, top notch). Pins: `home-redesign.css?v=189`, `home-redesign.js?v=186`.
+  - **Verification.** `node --check` home-redesign.js. Headless Chrome 390×844: no `.sg-stage-flank-stack`; Campaign / Arena / Siege / Dominion boxes stack as crown → flanks → under-crown. Screenshots `/opt/cursor/artifacts/fab-sandwich-home-phone.png`, `fab-sandwich-dock.png`.
+
 Original prompt: Eventually campaign will be the fourth button located where arena is located and arena will be a similar styled button but along the bottom of the Siegeling fab button. Remove campaign from the arena mode selection and show a mockup up this new 4 option Fab
 
 - November 25, 2026 **Hub FAB four-mode mock + Campaign off Arena picker.**

@@ -1925,18 +1925,14 @@
           link('gallery', 'Gallery', pathForScreen('art'), ' data-screen="art"') +
           link('lobbies', 'Lobbies', HREF.lobbies, lobbiesAttrs().replace(' href="' + HREF.lobbies + '"', '')) +
         '</nav>' +
-          // Four-way launcher mock: Campaign crowns the FAB; Arena joins Siege
-          // on the left flank (stacked) and Dominion keeps the right. DOM order
-          // keeps the loud button last so the landscape column still stacks
-          // flanks above the crown; portrait places them by grid-area.
-          '<div class="sg-stage-flank-stack is-left" aria-label="Arena and Siege">' +
-            '<a class="sg-stage-mode is-arena" href="' + HREF.battle + '">' +
-              '<span class="sg-stage-mode-kicker">Battle · Gauntlet · Tutorial</span><strong>Arena</strong></a>' +
-            stageSiegeMarkup(opts) +
-          '</div>' +
-          '<a class="sg-stage-mode is-keep" href="/dominion">' +
-            '<span class="sg-stage-mode-kicker">Knight &amp; Keep</span><strong>Dominion</strong></a>' +
+          // Four-way launcher mock: Campaign crowns the FAB, Arena and Siege
+          // are separate flanks (not stacked), and Dominion is a second loud
+          // crown under the FAB. Portrait places them by grid-area.
+          '<a class="sg-stage-mode is-arena" href="' + HREF.battle + '">' +
+            '<span class="sg-stage-mode-kicker">Battle · Gauntlet · Tutorial</span><strong>Arena</strong></a>' +
+          stageSiegeMarkup(opts) +
           '<a class="sg-stage-play" href="' + HREF.campaign + '">Campaign</a>' +
+          '<a class="sg-stage-play is-under" href="/dominion">Dominion</a>' +
         '</div>' +
         '<div class="sg-stage-deck">' +
           // The title of the piece on the wall holds the far bottom-left corner.
