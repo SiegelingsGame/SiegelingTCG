@@ -3414,7 +3414,7 @@
   // Battle vs Siege before showing a single image. Same two modes, same
   // vocabulary, but each is a full-bleed plate carrying a label and one line.
   var MODES = [
-    { id: 'battle', label: 'Arena', tag: 'Battle · Gauntlet · Campaign · Tutorial',
+    { id: 'battle', label: 'Arena', tag: 'Battle · Gauntlet · Tutorial',
       line: 'Levels off — all deck and reads.',
       art: '/img/gallery/frostag-training.webp', el: 'ICE', primary: true, cta: 'Play' },
     { id: 'siege', label: 'Siege', tag: 'Adventure · Battlegrounds · Endless',
