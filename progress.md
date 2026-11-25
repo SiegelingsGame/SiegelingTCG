@@ -1,3 +1,9 @@
+Original prompt: Choose your own path, the main page and others shows wallpapers in the backgrounded, continue this through all slides behind every page of the landing page.
+
+- November 25, 2026 **Landing: landscape wallpapers behind every snap slide.**
+  - **Change.** Hero already rotates painted lands and Choose Your Path (`.modes-pane`) already washes a landscape through `::before` + luminosity. The remaining solid chapters (roster, rarities, legendaries, knights, elements, world, arenas, about, footer) now use the same recipe with themed `/img/art/loading/*-landscape.webp` art so the scroll never drops into a flat navy plate. Rarities also got a navy gradient base so the wash has something to blend with. Pin: `landing.css?v=73` (`index.html`, `play.html`).
+  - **Verification.** Headless Chrome against statics: every snap section's `::before` resolves the expected landscape URL (phone 390×844 + desk 1920×1080). Content children keep `z-index:1` above the wash. Screenshots `/opt/cursor/artifacts/wall-final-phone-*.png`, `wall-final-desk-*.png`; log `landing-slide-wallpapers-verify.json`.
+
 Original prompt: Merge and deploy
 
 - November 25, 2026 **Choose Your Path mobile fit (#1278) merged and live.**

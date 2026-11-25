@@ -1920,6 +1920,50 @@ img { display: block; }
 .about-inner { width: min(760px, 100%); margin: 0 auto; }
 .about-actions { justify-content: center; }
 
+/* Landscape washes behind every snap slide — same recipe as .modes-pane::before
+   (hero keeps its rotating art stage; modes already paints its own). Each slide
+   gets a themed land so the scroll never drops into a flat navy plate. */
+.roster-section::before,
+.rarity-section::before,
+.creatures::before,
+.knights-section::before,
+.elements-section::before,
+.world-section::before,
+.arena-section::before,
+.about-section::before,
+.landing-footer::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: .18;
+    pointer-events: none;
+    background-position: center;
+    background-size: cover;
+    mix-blend-mode: luminosity;
+}
+.roster-section::before { background-image: url('/img/art/loading/falcool-cliff-landscape.webp'); }
+.rarity-section::before { background-image: url('/img/art/loading/light-landscape.webp'); }
+.creatures::before { background-image: url('/img/art/loading/emberfox-lava-falls-landscape.webp'); }
+.knights-section::before { background-image: url('/img/art/loading/floraknight-landscape.webp'); }
+.elements-section::before { background-image: url('/img/art/loading/electric-landscape.webp'); }
+.world-section::before { background-image: url('/img/art/loading/sand-landscape.webp'); opacity: .14; }
+.arena-section::before { background-image: url('/img/art/loading/air-battle-landscape.webp'); }
+.about-section::before { background-image: url('/img/art/loading/water-beach-landscape.webp'); }
+/* PCG footer keeps its brand wash; art stays quieter so purple/pink still lead. */
+.landing-footer::before { background-image: url('/img/art/loading/clawfloor-landscape.webp'); opacity: .12; }
+.roster-section > *,
+.rarity-section > *,
+.creatures > *,
+.knights-section > *,
+.elements-section > *,
+.world-section > *,
+.arena-section > *,
+.about-section > *,
+.landing-footer > * {
+    position: relative;
+    z-index: 1;
+}
+
 
 /* ── Art-first landing: hero art stage, elements, knights, world gallery ──── */
 
@@ -2629,7 +2673,13 @@ img { display: block; }
 .legendary-card p { margin: 0; color: rgba(228, 235, 252, .74); font-size: .8rem; line-height: 1.5; text-align: center; }
 
 /* Rarity showcase: the same card in each rarity frame, a single row. */
-.rarity-section { padding: 70px 24px 64px; }
+.rarity-section {
+    padding: 70px 24px 64px;
+    background:
+        radial-gradient(ellipse at 70% 10%, rgba(255, 215, 120, .12), transparent 42%),
+        radial-gradient(ellipse at 20% 90%, rgba(120, 90, 255, .14), transparent 44%),
+        #081428;
+}
 .rarity-row {
     width: min(1040px, 100%);
     margin: 0 auto;
