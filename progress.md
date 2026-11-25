@@ -1,3 +1,9 @@
+Original prompt: Eventually campaign will be the fourth button located where arena is located and arena will be a similar styled button but along the bottom of the Siegeling fab button. Remove campaign from the arena mode selection and show a mockup up this new 4 option Fab
+
+- November 25, 2026 **Hub FAB four-mode mock + Campaign off Arena picker.**
+  - **Change.** Removed the Campaign card from `/play` Arena mode setup (PvP / PvE / Gauntlet / Tutorial remain). Home stage launcher mock: loud crown button is now **Campaign** (`/campaign`); **Arena** stacks with **Siege** in the left FAB flank; **Dominion** keeps the right. Play tray lists Campaign first. Pins: `home-redesign.css?v=188`, `home-redesign.js?v=185`.
+  - **Verification.** `node --check` home-redesign.js. Headless Chrome 390×844: stage reports Campaign crown + Arena/Siege stack + Dominion; play setup lists four mode cards and no `#campaignMatchTab`. Screenshots `/opt/cursor/artifacts/fab-four-home-phone.png`, `fab-four-home-dock.png`, `fab-four-arena-modes.png`.
+
 Original prompt: Merge and deploy
 
 - November 25, 2026 **Choose Your Path mobile fit (#1278) merged and live.**

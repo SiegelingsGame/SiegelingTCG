@@ -587,7 +587,7 @@
     'Social Lobbies': 'social',
     'Featured Packs': 'shop', 'Open Packs': 'shop', 'Siegelcoins': 'shop'
   };
-  var HREF = { battle: '/battle', siege: '/siege', keep: '/keep', chronicles: '/chronicles',
+  var HREF = { battle: '/battle', siege: '/siege', campaign: '/campaign', keep: '/keep', chronicles: '/chronicles',
                lobbies: '/lobbies', login: '/login', help: '/help' };
 
   // Every "Lobbies" control opens the Lobbies screen (open tables plus the
@@ -637,7 +637,7 @@
           ['Continue Playing', runs ? n(runs) : '']] },
       // Keep this tray aligned with the top-level Play destinations.
       { id: 'play', ico: '⚔', label: 'Play', screen: 'play', items: [
-          ['Arena', ''], ['Siege', runs ? 'Saved' : ''], ['Dominion', ''],
+          ['Campaign', ''], ['Arena', ''], ['Siege', runs ? 'Saved' : ''], ['Dominion', ''],
           ['Lobbies & Tournaments', n(rooms) ? n(rooms) + ' open' : '']] },
       { id: 'collection', ico: '◈', label: 'Collection', screen: 'collection', items: [
           ['Cards', n(live.ownedTotal != null ? live.ownedTotal : (ALL_CARDS.length || null))],
@@ -1925,10 +1925,18 @@
           link('gallery', 'Gallery', pathForScreen('art'), ' data-screen="art"') +
           link('lobbies', 'Lobbies', HREF.lobbies, lobbiesAttrs().replace(' href="' + HREF.lobbies + '"', '')) +
         '</nav>' +
-          stageSiegeMarkup(opts) +
+          // Four-way launcher mock: Campaign crowns the FAB; Arena joins Siege
+          // on the left flank (stacked) and Dominion keeps the right. DOM order
+          // keeps the loud button last so the landscape column still stacks
+          // flanks above the crown; portrait places them by grid-area.
+          '<div class="sg-stage-flank-stack is-left" aria-label="Arena and Siege">' +
+            '<a class="sg-stage-mode is-arena" href="' + HREF.battle + '">' +
+              '<span class="sg-stage-mode-kicker">Battle · Gauntlet · Tutorial</span><strong>Arena</strong></a>' +
+            stageSiegeMarkup(opts) +
+          '</div>' +
           '<a class="sg-stage-mode is-keep" href="/dominion">' +
             '<span class="sg-stage-mode-kicker">Knight &amp; Keep</span><strong>Dominion</strong></a>' +
-          '<a class="sg-stage-play" href="' + HREF.battle + '">Arena</a>' +
+          '<a class="sg-stage-play" href="' + HREF.campaign + '">Campaign</a>' +
         '</div>' +
         '<div class="sg-stage-deck">' +
           // The title of the piece on the wall holds the far bottom-left corner.
@@ -3414,7 +3422,7 @@
   // Battle vs Siege before showing a single image. Same two modes, same
   // vocabulary, but each is a full-bleed plate carrying a label and one line.
   var MODES = [
-    { id: 'battle', label: 'Arena', tag: 'Battle · Gauntlet · Campaign · Tutorial',
+    { id: 'battle', label: 'Arena', tag: 'Battle · Gauntlet · Tutorial',
       line: 'Levels off — all deck and reads.',
       art: '/img/gallery/frostag-training.webp', el: 'ICE', primary: true, cta: 'Play' },
     { id: 'siege', label: 'Siege', tag: 'Adventure · Battlegrounds · Endless',
