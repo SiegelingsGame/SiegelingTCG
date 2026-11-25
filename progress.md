@@ -1,3 +1,9 @@
+Original prompt: Merge and deploy
+
+- November 25, 2026 **Choose Your Path mobile fit (#1278) merged and live.**
+  - **Change.** Rebased onto `main`, merged #1278; Deploy run `45685442141` succeeded.
+  - **Verification.** Live `/` serves `landing.css?v=72`, `landing.js?v=70` (HTTP 200) with `section.modes-pane` overflow lock, hand `touch-action: pan-x`, and `fitCardTitle`. `/api/cards/editor` (Hosting + Cloud Run) → `source=FIRESTORE`, `liveEditingEnabled=true`. `config.js` `apiBaseUrl: ''`. `/api/game/options` HTTP 200 with 7 decks. Log: `/opt/cursor/artifacts/oath-slide-deploy-verify.log`.
+
 Original prompt: Make sure each tab arena siege and dominion fit. Fix the text wrap on cards and make sure the card images load at the correct size and orientation on this initial preview I prefer the first image over the second.
 
 - November 25, 2026 **Landing: stacked hand preview, one-line titles, all mode tabs fit.**
