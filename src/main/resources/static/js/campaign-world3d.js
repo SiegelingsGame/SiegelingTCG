@@ -25,9 +25,9 @@
   // by rarity (Common 0.72 of Bob, up to 2x that for Legendary).
   var BOB_PLANE_H = 1.7;
   var BOB_BODY_H = BOB_PLANE_H * 128 / 200;
-  function siegelingBodyH(cardId) {
+  function siegelingBodyH(cardId, rarity) {
     var f = root.SiegeSprites && root.SiegeSprites.heightVsSquire;
-    return BOB_BODY_H * (f ? root.SiegeSprites.heightVsSquire(cardId) : 0.72);
+    return BOB_BODY_H * (f ? root.SiegeSprites.heightVsSquire(cardId, rarity) : 0.72);
   }
   // Named SiegeKnights you meet in Sanctuary and their home realms.
   var KNIGHT_NPCS = {
@@ -1367,6 +1367,32 @@
     this._setActorTex(a, a.strips.idle.tex);
     return a;
   };
+  /** A Siegeling with no sheet stands as its card's overlay cutout: one painted
+      frame (linear filtering, unlike the pixel sheets), sized once its alpha
+      bounds are measured so the creature's body, not the file, is bodyH tall. */
+  World3D.prototype._cutoutActor = function (card, bodyH) {
+    var S = root.SiegeSprites;
+    var url = S && S.overlayUrl && S.overlayUrl(card);
+    if (!url) return null;
+    var a = this._actorMesh(bodyH, bodyH);
+    a.sink = 0;
+    a.tex = null;
+    var t = this.loader.load(S.cutoutSrc(url, 480));
+    srgb(t);
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearFilter;
+    t.generateMipmaps = false;
+    a.strips = { idle: { tex: t, n: 1 } };
+    S.measureCutout(url, 480, function (b) {
+      var planeH = bodyH / Math.max(0.05, b.bottom - b.top);
+      var planeW = planeH * (b.aspect || 1);
+      a.mesh.scale.set(planeW, planeH, 1);
+      a.sink = (1 - b.bottom) * planeH;
+      a.shadow.scale.setScalar(Math.min(1.6, planeW * (b.right - b.left) * 0.5));
+    });
+    this._setActorTex(a, t);
+    return a;
+  };
   World3D.prototype._animSiegeling = function (a, moving, faceLeft, t) {
     var strip = moving && a.strips.walk ? a.strips.walk : a.strips.idle;
     this._setActorTex(a, strip.tex);
@@ -1375,7 +1401,7 @@
     else { strip.tex.repeat.x = 1 / strip.n; strip.tex.offset.x = f / strip.n; }
   };
 
-  World3D.prototype.setFollower = function (cardId) {
+  World3D.prototype.setFollower = function (cardId, card) {
     if (!this.scene) return;
     if (this.actors.follower && this.followerId === cardId) return;
     if (this.actors.follower) {
@@ -1383,14 +1409,18 @@
       this.actors.follower = null;
     }
     this.followerId = cardId || null;
-    if (cardId) this.actors.follower = this._siegeling(cardId, siegelingBodyH(cardId));
+    if (cardId) {
+      var bodyH = siegelingBodyH(cardId, card && card.rarity);
+      this.actors.follower = this._siegeling(cardId, bodyH) || this._cutoutActor(card, bodyH);
+    }
   };
 
   /** Ambient Siegelings wandering near a home point (life in the plaza, like AnimeVs NPCs). */
   World3D.prototype._wanderers = function (list) {
     var self = this;
     list.forEach(function (n) {
-      var a = self._siegeling(n.id, siegelingBodyH(n.id));
+      var bodyH = siegelingBodyH(n.id, n.rarity);
+      var a = self._siegeling(n.id, bodyH) || self._cutoutActor(n, bodyH);
       if (!a) return;
       self.npcs.push({ a: a, hx: n.x, hz: n.z, x: n.x, z: n.z, tx: n.x, tz: n.z, wait: 1 + self.rnd() * 3, left: false, moving: false, phase: self.rnd() * 1000, r: n.r || 1.6 });
     });
@@ -1510,7 +1540,7 @@
     ]);
 
     this.spawn = { x: 17, z: 19.2 };
-    this.setFollower(cfg.followerId);
+    this.setFollower(cfg.followerId, cfg.follower);
   };
 
   World3D.prototype.loadRealm = function (cfg) {
@@ -1559,7 +1589,7 @@
       }]);
     }
     this.spawn = { x: 14.95, z: 15.8 };
-    this.setFollower(cfg.followerId);
+    this.setFollower(cfg.followerId, cfg.follower);
   };
 
   World3D.prototype.getBuildings = function () {

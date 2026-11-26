@@ -182,7 +182,7 @@ body[data-screen="victory"] #screenVictory { display: flex; }
   display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 120px;
 }
 .cm-roster-card.is-on { border-color: var(--cm-gold); box-shadow: inset 0 0 0 1px rgba(230,205,140,.35); }
-.cm-roster-card img { height: 72px; width: auto; object-fit: contain; filter: drop-shadow(0 6px 6px rgba(0,0,0,.4)); }
+.cm-roster-card > img { height: 72px; width: auto; object-fit: contain; filter: drop-shadow(0 6px 6px rgba(0,0,0,.4)); }
 .cm-roster-card b { font-size: 12px; text-align: center; }
 
 .cm-wild { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -194,7 +194,7 @@ body[data-screen="victory"] #screenVictory { display: flex; }
   width: 88px; text-align: center; font-size: 11px;
   filter: drop-shadow(0 8px 6px rgba(0,0,0,.4));
 }
-.cm-unit img { width: 72px; height: 72px; object-fit: contain; }
+.cm-unit > img { width: 72px; height: 72px; object-fit: contain; }
 .cm-unit.is-down { opacity: .35; filter: grayscale(1); }
 .cm-hp { display: block; margin-top: 2px; color: #f3e7c2; }
 .cm-wild-hand {
@@ -1009,3 +1009,24 @@ body[data-screen="world"] #cmSanctuaryStage { display: block; }
 }
 /* Over the painted backdrop the header reads as part of the scene, not a band. */
 body[data-screen="start"] .cm-top { background: linear-gradient(180deg, rgba(11,16,32,.55), transparent); border-bottom-color: transparent; }
+
+/* ---- Figures: sheet, else overlay cutout, else element dot ----
+   A .cm-cut box is the body's box: campaign.js measures the cutout's alpha
+   bounds and scales/offsets the image so the creature (not the file's padding)
+   fills it, feet on the box floor. Before measuring it simply fills the box. */
+.cm-cut { position: absolute; inset: 0; pointer-events: none; }
+.cm-cut > img {
+  position: absolute; left: 50%; bottom: var(--cut-b, 0%); height: var(--cut-h, 100%);
+  width: auto; max-width: none; object-fit: contain;
+  transform: translateX(calc(-50% + var(--cut-dx, 0%)));
+  filter: drop-shadow(0 0 1px rgba(20,14,8,.9)) drop-shadow(0 6px 6px rgba(0,0,0,.4));
+}
+.cm-anim.is-still > i { animation: none !important; }
+.cm-dot {
+  position: absolute; left: 50%; bottom: 0; width: 46%; aspect-ratio: 1; transform: translateX(-50%);
+  border-radius: 50%; box-shadow: inset 0 -6px 10px rgba(0,0,0,.35), 0 4px 8px rgba(0,0,0,.4);
+}
+/* Fixed figure boxes for the roster and the wild fight (thumbnail scale, not world scale). */
+.cm-fig { position: relative; display: block; width: 72px; height: 60px; margin: 0 auto; }
+.cm-roster-card .cm-fig { width: 84px; height: 64px; }
+.cm-show-partner > .cm-cut, .cm-show-partner > .cm-dot { z-index: 0; }
