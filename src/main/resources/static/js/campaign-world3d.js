@@ -20,6 +20,15 @@
   var PX = 32;
   var BOB_DIRS = ['up', 'up-right', 'right', 'down-right', 'down', 'down-left', 'left', 'up-left'];
   var BOB_POSES = ['idle', 'walk-a', 'walk-b'];
+  // Bob's plane is 1.7 tall and his figure fills 128 of the frame's 200px rows,
+  // so this is his standing height in world units. Siegelings are sized from it
+  // by rarity (Common 0.72 of Bob, up to 2x that for Legendary).
+  var BOB_PLANE_H = 1.7;
+  var BOB_BODY_H = BOB_PLANE_H * 128 / 200;
+  function siegelingBodyH(cardId, rarity) {
+    var f = root.SiegeSprites && root.SiegeSprites.heightVsSquire;
+    return BOB_BODY_H * (f ? root.SiegeSprites.heightVsSquire(cardId, rarity) : 0.72);
+  }
   // Named SiegeKnights you meet in Sanctuary and their home realms.
   var KNIGHT_NPCS = {
     pyla: {
@@ -1358,6 +1367,32 @@
     this._setActorTex(a, a.strips.idle.tex);
     return a;
   };
+  /** A Siegeling with no sheet stands as its card's overlay cutout: one painted
+      frame (linear filtering, unlike the pixel sheets), sized once its alpha
+      bounds are measured so the creature's body, not the file, is bodyH tall. */
+  World3D.prototype._cutoutActor = function (card, bodyH) {
+    var S = root.SiegeSprites;
+    var url = S && S.overlayUrl && S.overlayUrl(card);
+    if (!url) return null;
+    var a = this._actorMesh(bodyH, bodyH);
+    a.sink = 0;
+    a.tex = null;
+    var t = this.loader.load(S.cutoutSrc(url, 480));
+    srgb(t);
+    t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearFilter;
+    t.generateMipmaps = false;
+    a.strips = { idle: { tex: t, n: 1 } };
+    S.measureCutout(url, 480, function (b) {
+      var planeH = bodyH / Math.max(0.05, b.bottom - b.top);
+      var planeW = planeH * (b.aspect || 1);
+      a.mesh.scale.set(planeW, planeH, 1);
+      a.sink = (1 - b.bottom) * planeH;
+      a.shadow.scale.setScalar(Math.min(1.6, planeW * (b.right - b.left) * 0.5));
+    });
+    this._setActorTex(a, t);
+    return a;
+  };
   World3D.prototype._animSiegeling = function (a, moving, faceLeft, t) {
     var strip = moving && a.strips.walk ? a.strips.walk : a.strips.idle;
     this._setActorTex(a, strip.tex);
@@ -1366,7 +1401,7 @@
     else { strip.tex.repeat.x = 1 / strip.n; strip.tex.offset.x = f / strip.n; }
   };
 
-  World3D.prototype.setFollower = function (cardId) {
+  World3D.prototype.setFollower = function (cardId, card) {
     if (!this.scene) return;
     if (this.actors.follower && this.followerId === cardId) return;
     if (this.actors.follower) {
@@ -1374,14 +1409,18 @@
       this.actors.follower = null;
     }
     this.followerId = cardId || null;
-    if (cardId) this.actors.follower = this._siegeling(cardId, 0.78);
+    if (cardId) {
+      var bodyH = siegelingBodyH(cardId, card && card.rarity);
+      this.actors.follower = this._siegeling(cardId, bodyH) || this._cutoutActor(card, bodyH);
+    }
   };
 
   /** Ambient Siegelings wandering near a home point (life in the plaza, like AnimeVs NPCs). */
   World3D.prototype._wanderers = function (list) {
     var self = this;
     list.forEach(function (n) {
-      var a = self._siegeling(n.id, n.h || 0.7);
+      var bodyH = siegelingBodyH(n.id, n.rarity);
+      var a = self._siegeling(n.id, bodyH) || self._cutoutActor(n, bodyH);
       if (!a) return;
       self.npcs.push({ a: a, hx: n.x, hz: n.z, x: n.x, z: n.z, tx: n.x, tz: n.z, wait: 1 + self.rnd() * 3, left: false, moving: false, phase: self.rnd() * 1000, r: n.r || 1.6 });
     });
@@ -1488,10 +1527,10 @@
     this._forestEdge('palm');
     this._motes();
     this._wanderers([
-      { id: 'cacty', x: 13.2, z: 17.6, h: 0.62 },
-      { id: 'fawny', x: 21.2, z: 16.8, h: 0.6 },
-      { id: 'raydile', x: 6.2, z: 17.4, h: 0.55, r: 1.2 },
-      { id: 'chilldoe', x: 28.4, z: 17.2, h: 0.6, r: 1.4 }
+      { id: 'cacty', x: 13.2, z: 17.6 },
+      { id: 'fawny', x: 21.2, z: 16.8 },
+      { id: 'raydile', x: 6.2, z: 17.4, r: 1.2 },
+      { id: 'chilldoe', x: 28.4, z: 17.2, r: 1.4 }
     ]);
     // SiegeKnight NPCs linger by the plaza stalls — talk to learn their realms.
     this._knightNpcs([
@@ -1501,7 +1540,7 @@
     ]);
 
     this.spawn = { x: 17, z: 19.2 };
-    this.setFollower(cfg.followerId);
+    this.setFollower(cfg.followerId, cfg.follower);
   };
 
   World3D.prototype.loadRealm = function (cfg) {
@@ -1536,8 +1575,8 @@
     this._motes();
     var natives = { fire: ['sundile', 'draco'], earth: ['cacty', 'generoot'], wind: ['breezee', 'gagglestand'], ice: ['fawny', 'chilldoe'] }[el] || ['raydile', 'floraknight'];
     this._wanderers([
-      { id: natives[0], x: 11.2, z: 15.2, h: 0.62 },
-      { id: natives[1], x: 19.2, z: 14.6, h: 0.66 }
+      { id: natives[0], x: 11.2, z: 15.2 },
+      { id: natives[1], x: 19.2, z: 14.6 }
     ]);
     // Home-realm SiegeKnight stands near the keep; challenge them before they are rallied.
     var realmKnight = { fire: 'pyla', wind: 'ser-airek', ice: 'glacia' }[el];
@@ -1550,7 +1589,7 @@
       }]);
     }
     this.spawn = { x: 14.95, z: 15.8 };
-    this.setFollower(cfg.followerId);
+    this.setFollower(cfg.followerId, cfg.follower);
   };
 
   World3D.prototype.getBuildings = function () {
@@ -1662,7 +1701,7 @@
     this._lastT = now;
     var px = state.x, pz = state.z, dir = state.dir || 'down', walking = !!state.walking;
 
-    if (!this.actors.player) this.actors.player = this._actorMesh(1.36, 1.7, true);
+    if (!this.actors.player) this.actors.player = this._actorMesh(1.36, BOB_PLANE_H, true);
     var p = this.actors.player;
     var pose = walking ? ['idle', 'walk-a', 'idle', 'walk-b'][state.frame & 3] : 'idle';
     this._setActorTex(p, this.bobTex[dir + '-' + pose] || this.bobTex['down-idle']);

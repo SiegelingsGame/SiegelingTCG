@@ -294,7 +294,7 @@
     this._hud(cfg);
 
     if (this.use3d && this.world3d) {
-      this.world3d.loadSanctuary({ lands: this.lands, followerId: this.follower && this.follower.id });
+      this.world3d.loadSanctuary({ lands: this.lands, followerId: this.follower && this.follower.id, follower: this.follower });
       this.mapW = this.world3d.mapW;
       this.mapH = this.world3d.mapH;
       this.buildings = this.world3d.getBuildings();
@@ -333,7 +333,8 @@
       this.world3d.loadRealm({
         element: cfg.element, landId: cfg.landId, name: cfg.name,
         rivalDone: !!cfg.rivalDone, rallied: !!cfg.rallied,
-        followerId: this.follower && this.follower.id
+        followerId: this.follower && this.follower.id,
+        follower: this.follower
       });
       this.mapW = this.world3d.mapW;
       this.mapH = this.world3d.mapH;

@@ -60,29 +60,37 @@
     return 'var(--' + key + ', #95a5a6)';
   }
 
-  function spriteIdleUrl(cardId) {
-    var sheet = window.SiegeSprites && window.SiegeSprites.forCard(cardId);
-    return sheet ? (sheet.dir + 'idle.webp') : '';
+  // Figure for any Siegeling: its animated sheet, else the card's overlay cutout
+  // (sized by its measured body, see fitCutouts), else an element-coloured dot.
+  // `still` holds a sheet on its first frame (thumbnails).
+  function figureHtml(card, width, still) {
+    var S = window.SiegeSprites;
+    var id = card && (card.cardId || card.id);
+    var sheet = S && S.forCard(id);
+    if (sheet) return animHtml(sheet, 'idle', still);
+    var url = S && S.overlayUrl(card);
+    if (url) {
+      // The mirror is the readable, resized copy; if it is unreachable the raw
+      // file still draws (unmeasured), and a dead file hides rather than breaks.
+      return '<span class="cm-cut" data-cut="' + esc(url) + '" data-w="' + (width || 480) + '">' +
+        '<img src="' + esc(S.cutoutSrc(url, width || 480)) + '" alt="" decoding="async" ' +
+        'onerror="var r=this.parentNode.getAttribute(\'data-cut\');if(this.getAttribute(\'src\')!==r){this.src=r}else{this.onerror=null;this.style.visibility=\'hidden\'}"></span>';
+    }
+    return '<span class="cm-dot" style="background:' + elColor(card && card.element) + '"></span>';
   }
 
-  function cutoutHtml(card, lane, extraClass) {
-    var id = card && card.id ? card.id : '';
-    var art = (card && (card.artUrl || (card.card && card.card.cardArtUrl))) || spriteIdleUrl(id) || '';
-    var name = card && card.name ? card.name : '';
-    var sheet = window.SiegeSprites && window.SiegeSprites.forCard(id);
-    var figure;
-    if (sheet) {
-      // Pose sheets are single strip files (…-idle.webp), same as adventure.css.
-      figure = '<span class="cm-anim" style="display:block;width:100%;aspect-ratio:' +
-        (sheet.w + '/' + sheet.h) + ';background:url(' + esc(sheet.dir) + 'idle.webp) 0 0 / ' +
-        ((sheet.frames.idle || 1) * 100) + '% 100% no-repeat"></span>';
-    } else if (art) {
-      figure = '<img src="' + esc(art) + '" alt="" loading="lazy" decoding="async">';
-    } else {
-      figure = '<span style="font-size:28px">◇</span>';
-    }
-    return '<div class="cm-cutout is-' + esc(lane) + (extraClass ? ' ' + extraClass : '') +
-      '" title="' + esc(name) + '">' + figure + '</div>';
+  function fitCutouts(root) {
+    var S = window.SiegeSprites;
+    if (!S || !root) return;
+    Array.prototype.forEach.call(root.querySelectorAll('.cm-cut[data-cut]:not(.is-fit)'), function (el) {
+      el.classList.add('is-fit');
+      S.measureCutout(el.getAttribute('data-cut'), Number(el.getAttribute('data-w')) || 480, function (b) {
+        var h = Math.max(0.05, b.bottom - b.top);
+        el.style.setProperty('--cut-h', (100 / h).toFixed(2) + '%');
+        el.style.setProperty('--cut-b', (-100 * (1 - b.bottom) / h).toFixed(2) + '%');
+        el.style.setProperty('--cut-dx', ((0.5 - (b.left + b.right) / 2) * 100).toFixed(2) + '%');
+      });
+    });
   }
 
   function setOverworldActive(on) {
@@ -157,31 +165,78 @@
     setOverworldActive(true);
   }
 
+  function landThumb(s) {
+    return s.landId ? '/img/lands/thumbs/' + s.landId + '.webp' : (s.background || '');
+  }
+
+  // A looping idle strip: the cell keeps the sheet's aspect, and is scaled so the
+  // body (sheet.fit of the cell) fills the box and the feet (sheet.base) meet the floor.
+  function animHtml(sheet, pose, still) {
+    pose = sheet.frames[pose] ? pose : 'idle';
+    var n = sheet.frames[pose] || 1;
+    var cellPct = 100 / sheet.fit;
+    return '<span class="cm-anim' + (still ? ' is-still' : '') + '" style="aspect-ratio:' + sheet.w + '/' + sheet.h +
+      ';height:' + cellPct.toFixed(1) + '%;bottom:' + (-cellPct * (sheet.base || 0)).toFixed(1) + '%">' +
+      '<i style="--n:' + n + ';background-image:url(' + esc(sheet.dir + pose + '.webp') + ')"></i></span>';
+  }
+
+  function partnerArtHtml(s) { return figureHtml(s, 480); }
+
   function renderStarters(options) {
     var host = $('cmStarters');
     if (!host) return;
-    host.innerHTML = (options.starters || []).map(function (s) {
-      var sheet = window.SiegeSprites && window.SiegeSprites.forCard(s.id);
-      var art = s.artUrl || (s.card && s.card.cardArtUrl) || '';
-      var artHtml;
-      if (sheet) {
-        // Crop the idle strip to the first cell so the picker shows one pose, not the whole sheet.
-        var frames = sheet.frames.idle || 1;
-        artHtml = '<span class="cm-starter-sprite" style="width:100%;height:100%;display:block;background:url(' +
-          esc(sheet.dir + 'idle.webp') + ') 0 0 / ' + (frames * 100) + '% 100% no-repeat;background-size:' +
-          (frames * 100) + '% 100%"></span>';
-      } else if (art) {
-        artHtml = '<img src="' + esc(art) + '" alt="">';
-      } else {
-        artHtml = '';
-      }
-      return '<button type="button" class="cm-starter" data-starter="' + esc(s.id) + '">' +
-        '<span class="cm-el" style="color:' + elColor(s.element) + '">' + esc(s.element) + '</span>' +
-        '<span class="cm-starter-art">' + artHtml + '</span>' +
-        '<b>' + esc(s.name) + '</b>' +
-        '<small>' + esc(s.blurb || '') + (s.landName ? ' · ' + esc(s.landName) : '') + '</small>' +
+    var list = options.starters || [];
+    host.innerHTML = list.map(function (s) {
+      return '<button type="button" class="cm-starter" role="radio" aria-checked="false" data-starter="' + esc(s.id) +
+        '" style="--cm-el-c:' + elColor(s.element) + ';--cm-land:url(' + esc(landThumb(s)) + ')">' +
+        '<span class="cm-starter-art">' + partnerArtHtml(s) + '</span>' +
+        '<span class="cm-starter-name"><b>' + esc(s.name) + '</b><small>' + esc(s.landName || s.element) + '</small></span>' +
         '</button>';
     }).join('');
+    fitCutouts(host);
+    // The stage needs a subject from the first paint, so the first partner starts chosen.
+    if (list.length && !state.selectedStarter) selectStarter(list[0].id);
+    else if (state.selectedStarter) selectStarter(state.selectedStarter);
+  }
+
+  function selectStarter(id) {
+    var list = (state.options && state.options.starters) || [];
+    var s = null;
+    list.forEach(function (x) { if (x.id === id) s = x; });
+    if (!s) return;
+    state.selectedStarter = id;
+    document.querySelectorAll('.cm-starter').forEach(function (n) {
+      var on = n.getAttribute('data-starter') === id;
+      n.classList.toggle('is-on', on);
+      n.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    $('cmStartBtn').disabled = false;
+    var color = elColor(s.element);
+    $('cmShow').style.setProperty('--cm-el-c', color);
+    $('cmShowEl').textContent = s.element || '';
+    $('cmShowEl').style.color = color;
+    $('cmShowLand').textContent = s.landName || '';
+    $('cmShowName').textContent = s.name || id;
+    $('cmShowBlurb').textContent = s.blurb || '';
+    var partner = $('cmShowPartner');
+    partner.innerHTML = partnerArtHtml(s);
+    fitCutouts(partner);
+    var sizer = window.SiegeSprites && window.SiegeSprites.heightVsSquire;
+    partner.style.setProperty('--cm-size', sizer ? window.SiegeSprites.heightVsSquire(s.id, s.rarity || (s.card && s.card.rarity)) : 0.72);
+    partner.classList.remove('is-arriving');
+    void partner.offsetWidth;
+    partner.classList.add('is-arriving');
+    // Land paintings crossfade: the new layer fades in over the old one, then the old
+    // one is dropped, so a quick tap-through never flashes the bare panel.
+    var bg = s.background || landThumb(s);
+    [['cmShowArt', bg], ['cmAmbient', landThumb(s)]].forEach(function (pair) {
+      var host = $(pair[0]);
+      var layer = document.createElement('i');
+      layer.style.backgroundImage = 'url(' + pair[1] + ')';
+      host.appendChild(layer);
+      requestAnimationFrame(function () { layer.classList.add('is-in'); });
+      while (host.children.length > 2) host.removeChild(host.firstChild);
+    });
   }
 
   function starterFollower(run) {
@@ -190,7 +245,12 @@
       if (!starter && c.id === run.starterId) starter = c;
     });
     if (!starter && run.rosterCards && run.rosterCards[0]) starter = run.rosterCards[0];
-    return starter ? { id: starter.id, artUrl: starter.artUrl } : null;
+    // Art mode and rarity ride along so the 3D world can stand an overlay
+    // cutout (at its rarity size) when the partner has no sheet.
+    return starter ? {
+      id: starter.id, artUrl: starter.artUrl, cardArtMode: starter.cardArtMode,
+      rarity: starter.card && starter.card.rarity
+    } : null;
   }
 
   function fillRealmOverlay(run) {
@@ -370,9 +430,10 @@
     host.innerHTML = (run.rosterCards || []).map(function (c) {
       var on = state.presetPick.indexOf(c.id) >= 0;
       return '<button type="button" class="cm-roster-card' + (on ? ' is-on' : '') + '" data-id="' + esc(c.id) + '">' +
-        (c.artUrl ? '<img src="' + esc(c.artUrl) + '" alt="">' : '') +
+        '<span class="cm-fig">' + figureHtml(c, 240, true) + '</span>' +
         '<b>' + esc(c.name) + '</b></button>';
     }).join('');
+    fitCutouts(host);
   }
 
   function renderArenaResume(run) {
@@ -390,18 +451,9 @@
     function units(list, hostId) {
       var host = $(hostId);
       host.innerHTML = (list || []).map(function (u) {
-        var sheet = window.SiegeSprites && window.SiegeSprites.forCard(u.cardId);
-        var art;
-        if (sheet) {
-          var frames = sheet.frames.idle || 1;
-          art = '<span class="cm-unit-sprite" style="display:block;width:72px;height:48px;margin:0 auto;background:url(' +
-            esc(sheet.dir + 'idle.webp') + ') 0 0 / ' + (frames * 100) + '% 100% no-repeat"></span>';
-        } else if (u.artUrl) {
-          art = '<img src="' + esc(u.artUrl) + '" alt="">';
-        } else {
-          art = '<span class="cm-unit-fallback" style="display:block;width:48px;height:48px;margin:0 auto;border-radius:50%;background:' +
-            elColor(u.element) + '"></span>';
-        }
+        // Units without a sheet once fell back to whatever art the server had,
+        // including a guessed sprite path that 404s; now it is the overlay cutout.
+        var art = '<span class="cm-fig">' + figureHtml(u, 240) + '</span>';
         var label = u.shadeOf ? ('Shade of ' + u.shadeOf) : u.name;
         return '<div class="cm-unit' + (u.alive === false ? ' is-down' : '') + '">' + art +
           '<b>' + esc(label) + '</b>' +
@@ -410,6 +462,7 @@
     }
     units(b.enemies, 'cmWildFoes');
     units(b.allies, 'cmWildAllies');
+    fitCutouts($('cmWild'));
     $('cmWildAp').textContent = b.over ? '' : ('AP ' + (b.actionPoints || 0) + '/' + (b.maxActionPoints || 3));
     var hand = $('cmWildHand');
     hand.innerHTML = (b.hand || []).map(function (c) {
@@ -434,7 +487,27 @@
       .finally(function () { state.busy = false; });
   }
 
+  // The resume line read the raw id ("sundile"); show the partner's card name.
+  function starterName(id) {
+    var hit = null;
+    ((state.options && state.options.starters) || []).forEach(function (s) { if (s.id === id) hit = s; });
+    return hit && hit.name ? hit.name : (id || 'your partner');
+  }
+
+  // Every campaign screen has a flanked sn-dock built around the FAB slot, but the
+  // page never mounted the shield, so the middle of the dock sat empty. The wild
+  // fight keeps it hidden: its hand and AP row need the bottom edge.
+  var FAB_HIDDEN = { wild: 1 };
+  function mountShieldNavigation() {
+    if (!window.SiegelingsShieldNavigation) return;
+    var nav = window.SiegelingsShieldNavigation.mountLinks();
+    function sync() { nav.setHidden(!!FAB_HIDDEN[document.body.dataset.screen]); }
+    new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['data-screen'] });
+    sync();
+  }
+
   function boot() {
+    mountShieldNavigation();
     show('loading');
     api('/api/campaign/options').then(function (options) {
       state.options = options;
@@ -446,7 +519,7 @@
           var resume = $('cmResume');
           resume.hidden = false;
           resume.innerHTML = '<div>Resume as <b>' + esc(run.playerName || 'Squire') + '</b> with ' +
-            esc(run.starterId || 'your partner') + '.</div>' +
+            esc(starterName(run.starterId)) + '.</div>' +
             '<button type="button" id="cmResumeBtn">Continue</button>';
           show('start');
         }).catch(function () {
@@ -463,11 +536,7 @@
     document.body.addEventListener('click', function (ev) {
       var t = ev.target.closest('[data-starter]');
       if (t) {
-        state.selectedStarter = t.getAttribute('data-starter');
-        document.querySelectorAll('.cm-starter').forEach(function (n) {
-          n.classList.toggle('is-on', n.getAttribute('data-starter') === state.selectedStarter);
-        });
-        $('cmStartBtn').disabled = !state.selectedStarter;
+        selectStarter(t.getAttribute('data-starter'));
         return;
       }
       t = ev.target.closest('[data-land]');

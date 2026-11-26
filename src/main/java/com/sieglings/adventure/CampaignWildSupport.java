@@ -200,6 +200,16 @@ public class CampaignWildSupport {
             cm.put("alive", c.isAlive());
             cm.put("position", c.getPosition());
             cm.put("cardId", c.getDisplayCardId());
+            // A unit with no animated sheet stands as its card's overlay cutout, so
+            // the client needs the card art and its mode (only OVERLAY is a cutout).
+            if (c.getDisplayCardId() != null) {
+                content.findAnySiegling(c.getDisplayCardId()).ifPresent(card -> {
+                    if (card.getCardArtUrl() != null && !card.getCardArtUrl().isBlank()) {
+                        cm.put("cardArtUrl", card.getCardArtUrl());
+                        cm.put("cardArtMode", card.getCardArtMode());
+                    }
+                });
+            }
             cm.put("shadeOf", c.getShadeOf());
             if (c.getSide() == Side.PLAYER) allies.add(cm); else foes.add(cm);
         }
