@@ -22,7 +22,7 @@
   var BOB_POSES = ['idle', 'walk-a', 'walk-b'];
   // Bob's plane is 1.7 tall and his figure fills 128 of the frame's 200px rows,
   // so this is his standing height in world units. Siegelings are sized from it
-  // by evolution stage (a medium Siegeling matches Bob).
+  // by rarity (Common 0.72 of Bob, up to 2x that for Legendary).
   var BOB_PLANE_H = 1.7;
   var BOB_BODY_H = BOB_PLANE_H * 128 / 200;
   function siegelingBodyH(cardId) {

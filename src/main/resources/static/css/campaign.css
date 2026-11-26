@@ -887,8 +887,8 @@ body[data-screen="world"] #cmSanctuaryStage { display: block; }
   animation: cm-bob 2.8s ease-in-out infinite;
 }
 .cm-show-partner {
-  /* Body height = Bob's figure x the stage scale (SiegeSprites.heightVsSquire):
-     a medium Siegeling stands as tall as Bob, a basic starter at 0.72. */
+  /* Body height = Bob's figure x the rarity scale (SiegeSprites.heightVsSquire):
+     a Common stands at 0.72 of Bob, a Legendary at twice that. */
   position: relative; height: calc(100% * .64 * var(--cm-size, .72));
   aspect-ratio: 1; display: flex; align-items: flex-end; justify-content: center;
   filter: drop-shadow(0 10px 10px rgba(0,0,0,.5));

@@ -1,3 +1,9 @@
+Original prompt: Legendaries and mythic should be much larger it should be scaled based on rarity with common being the basic size up to legendary being 2x
+
+- November 26, 2026 **Campaign: size Siegelings by rarity (Common 1× → Legendary 2×).**
+  - **Change.** Replaced the stage-based sizing with rarity: `SiegeSprites.heightVsSquire(id, rarity)` returns `0.72 × {COMMON 1, UNCOMMON 1.25, RARE 1.5, EPIC 1.75, LEGENDARY 2, MYTHIC 2}` of Squire Bob's figure. Mythic is not a TCG rarity today and sizes as Legendary. The registry carries each sprite's catalog rarity (matches `GeneratedCreatureCatalog` and `siegling-overrides.json`). The start screen passes the live `card.rarity` from `/api/campaign/options` so dashboard edits win, and the 3D world uses the table. None of the 17 sprite-backed Siegelings is Legendary yet; the largest are Epic (Solgator, Hurricrane at 1.26× Bob). Pins: `siege-sprites.js?v=4` (six pages), `campaign-world3d.js?v=13`, `campaign.css?v=14`, `campaign.js?v=16`.
+  - **Verification.** `node --check` on the three files. Node unit check: sundile 0.72, raydile 0.90, dracoil 1.08, solgator 1.26, LEGENDARY/mythic 1.44, unknown id 0.72. Headless start screen at 390×844 and 1920×1080 with a mocked Legendary and Mythic: partner/common ratios 1 / 1.25 / 1.5 / 1.75 / 2 / 2, the 2× figure stays inside the stage, no errors. The 3D fixture shows Commons at 0.72 and Uncommon Raydile/Chilldoe at 0.90 of Bob.
+
 Original prompt: Update the size Bob is the height of a medium siegeling resize these
 
 - November 26, 2026 **Campaign: size Siegelings against Squire Bob by evolution stage.**

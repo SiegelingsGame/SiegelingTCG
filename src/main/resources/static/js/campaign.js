@@ -217,7 +217,7 @@
     var partner = $('cmShowPartner');
     partner.innerHTML = partnerArtHtml(s);
     var sizer = window.SiegeSprites && window.SiegeSprites.heightVsSquire;
-    partner.style.setProperty('--cm-size', sizer ? window.SiegeSprites.heightVsSquire(s.id) : 0.72);
+    partner.style.setProperty('--cm-size', sizer ? window.SiegeSprites.heightVsSquire(s.id, s.rarity || (s.card && s.card.rarity)) : 0.72);
     partner.classList.remove('is-arriving');
     void partner.offsetWidth;
     partner.classList.add('is-arriving');
