@@ -11,7 +11,10 @@
       "**/node_modules/**",
       "**/*-fixture.html",
       "**/*-preview.html",
-      "**/*.d.ts"
+      "**/*.d.ts",
+      "pixelforge/cli.js",
+      "pixelforge/test.js",
+      "pixelforge/sync.sh"
     ],
     "headers": [
       {
