@@ -90,50 +90,7 @@ body[data-screen="victory"] #screenVictory { display: flex; }
 .cm-screen-center { align-items: center; justify-content: center; text-align: center; }
 .cm-lede { margin: 0 0 14px; color: var(--cm-muted); font-size: 14px; line-height: 1.45; max-width: 42rem; }
 .cm-h2 { margin: 0; font-family: var(--cm-serif); font-size: 18px; font-weight: 600; color: var(--cm-gold); }
-#screenStart > * { flex: 0 0 auto; min-width: 0; }
-#screenStart > .cm-starters { flex: 1 1 0; }
-.cm-muted { color: var(--cm-muted); font-size: 13px; }
-.cm-center { text-align: center; margin-top: 30vh; }
-.cm-banner {
-  margin: 0 0 10px; padding: 8px 12px; border-radius: 10px;
-  background: rgba(22,31,56,.85); border: 1px solid rgba(230,205,140,.2);
-  font-size: 13px; color: #f3e7c2;
-}
-.cm-starters {
-  flex: 1 1 0; min-height: 0; display: grid; align-content: start;
-  grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
-  overflow-y: auto; overscroll-behavior: contain; padding: 2px;
-}
-@media (min-width: 900px) { .cm-starters { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-/* Partner tiles use the Gauntlet pick card: flat panel, gold line, element-tinted top edge. */
-.cm-starter {
-  --cm-el-c: var(--cm-gold);
-  position: relative; overflow: hidden;
-  appearance: none; border: 1px solid var(--cm-line); border-radius: 14px;
-  background:
-    radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--cm-el-c) 16%, transparent), transparent 70%),
-    var(--cm-panel);
-  color: var(--cm-ink); padding: 10px 12px 12px; text-align: left; cursor: pointer;
-  display: flex; flex-direction: column; gap: 4px; min-height: 0;
-  transition: border-color .12s ease, transform .12s ease;
-}
-.cm-starter::before {
-  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px;
-  background: var(--cm-el-c); opacity: .75;
-}
-.cm-starter.is-on { border-color: var(--cm-gold); box-shadow: 0 0 0 2px rgba(230,205,140,.35) inset; }
-.cm-starter:focus-visible { outline: 2px solid var(--cm-gold); outline-offset: 2px; }
-@media (hover: hover) { .cm-starter:hover { transform: translateY(-2px); border-color: var(--cm-line-strong); } }
-.cm-starter-art {
-  height: clamp(64px, 11dvh, 96px); display: flex; align-items: flex-end; justify-content: center;
-  filter: drop-shadow(0 8px 8px rgba(0,0,0,.45)); overflow: hidden; margin: 2px 0 4px;
-}
-.cm-starter-art img, .cm-starter-art .cm-starter-sprite {
-  max-height: 100%; max-width: 140px; width: 140px; height: 72px; object-fit: contain;
-}
-.cm-starter b { font-weight: 700; font-size: 15px; }
-.cm-starter small { color: var(--cm-muted); font-size: 12px; line-height: 1.35; }
-.cm-starter .cm-land-tag { color: var(--cm-faint); font-size: 11px; letter-spacing: .04em; }
+/* Element chip: tinted by its own text colour, set inline per element. */
 .cm-el {
   align-self: flex-start;
   display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
@@ -698,21 +655,6 @@ body[data-screen="land"] .cm-screen { padding-bottom: calc(72px + env(safe-area-
 .cm-world-bob span { font-size: 13px; color: var(--cm-muted); }
 .cm-world-bob b { color: var(--cm-ink); font-family: var(--cm-serif); }
 
-/* Start screen: show Squire Bob alongside starters */
-.cm-start-hero {
-  display: flex; align-items: center; gap: 12px; margin: 0;
-  padding: 8px 12px; border-radius: 14px;
-  border: 1px solid var(--cm-line);
-  background: linear-gradient(135deg, rgba(230,205,140,.10), rgba(22,31,56,.6));
-}
-.cm-start-hero img {
-  flex: 0 0 auto; width: 56px; height: 70px; object-fit: contain; border: 0;
-  filter: drop-shadow(0 8px 8px rgba(0,0,0,.45));
-  animation: cm-bob 2.8s ease-in-out infinite;
-}
-.cm-start-hero p { margin: 0; font-size: 13px; color: var(--cm-muted); line-height: 1.4; }
-.cm-start-hero strong { color: var(--cm-gold); font-family: var(--cm-serif); }
-
 /* ---- Sanctuary town (Anime Vs + Map style) ---- */
 body[data-screen="world"] .cm-screen { padding: 0 0 calc(72px + env(safe-area-inset-bottom)); }
 body[data-screen="world"] #cmSanctuaryStage { display: block; }
@@ -872,3 +814,191 @@ body[data-screen="world"] #cmSanctuaryStage { display: block; }
   .cm-ow-stick { opacity: .45; }
   .cm-ow-stick:hover, .cm-ow-stick:focus-within { opacity: 1; }
 }
+
+/* ---- Start screen, art first ----
+   One column that never scrolls: resume row (when present), the stage (the only
+   flexing child, painted with the chosen partner's home Land), and the four Land
+   tabs. The page behind it is the same painting, blurred, so the screen reads as
+   one place rather than a panel on navy. */
+#screenStart { gap: 10px; isolation: isolate; }
+#screenStart > * { flex: 0 0 auto; min-width: 0; }
+#screenStart > .cm-show { flex: 1 1 0; min-height: 0; }
+
+.cm-ambient { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+/* The fixed backdrop spans the whole viewport (past the 1180px shell); the header
+   stays above it. */
+.cm-top { position: relative; z-index: 2; }
+.cm-ambient > i {
+  position: absolute; inset: -40px; background: center/cover no-repeat;
+  filter: blur(28px) saturate(1.15) brightness(.42); opacity: 0; transition: opacity .6s ease;
+}
+.cm-ambient > i.is-in { opacity: 1; }
+.cm-ambient::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(11,16,32,.35), rgba(11,16,32,.7) 70%, rgba(11,16,32,.92));
+}
+
+.cm-show {
+  --cm-el-c: var(--cm-gold);
+  position: relative; overflow: hidden; isolation: isolate;
+  border-radius: 20px; border: 1px solid var(--cm-line-strong);
+  background: #0e1528;
+  box-shadow: 0 18px 40px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.4) inset;
+}
+.cm-show-art { position: absolute; inset: 0; z-index: -2; }
+.cm-show-art > i {
+  position: absolute; inset: 0; background: center 62%/cover no-repeat;
+  opacity: 0; transform: scale(1.06); transition: opacity .55s ease, transform 6s ease-out;
+}
+.cm-show-art > i.is-in { opacity: 1; transform: scale(1); }
+/* Top scrim for the intro line, deep foot scrim for the name, element tint at the floor. */
+.cm-show-shade {
+  position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(6,10,20,.62) 0%, rgba(6,10,20,0) 22%),
+    linear-gradient(0deg, rgba(6,10,20,.96) 0%, rgba(6,10,20,.78) 22%, rgba(6,10,20,0) 52%),
+    radial-gradient(70% 34% at 50% 74%, color-mix(in srgb, var(--cm-el-c) 26%, transparent), transparent 70%);
+  transition: background .4s ease;
+}
+.cm-show-intro {
+  position: absolute; left: 14px; right: 14px; top: 12px; margin: 0;
+  font-size: 13px; line-height: 1.35; color: rgba(238,243,251,.88);
+  text-shadow: 0 1px 6px rgba(0,0,0,.7); text-wrap: balance;
+}
+.cm-show-intro b { color: var(--cm-gold); font-family: var(--cm-serif); font-weight: 600; }
+
+/* The two figures share one floor line just above the copy block. */
+.cm-show-ground {
+  position: absolute; left: 0; right: 0; bottom: clamp(96px, 26%, 150px); height: min(40%, 230px);
+  display: flex; align-items: flex-end; justify-content: center; gap: 4%;
+  pointer-events: none;
+}
+.cm-show-ground::before {
+  content: ""; position: absolute; left: 18%; right: 18%; bottom: -10px; height: 22px;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,.55), transparent 70%);
+}
+.cm-show-bob {
+  position: relative; height: 66%; width: auto; object-fit: contain;
+  filter: drop-shadow(0 6px 6px rgba(0,0,0,.5));
+  animation: cm-bob 2.8s ease-in-out infinite;
+}
+.cm-show-partner {
+  position: relative; height: 72%; aspect-ratio: 1; display: flex; align-items: flex-end; justify-content: center;
+  filter: drop-shadow(0 10px 10px rgba(0,0,0,.5));
+}
+.cm-show-partner > img { max-height: 100%; max-width: 100%; object-fit: contain; }
+.cm-show-partner.is-arriving { animation: cm-arrive .5s cubic-bezier(.2,.8,.2,1.2) both; }
+@keyframes cm-arrive {
+  from { opacity: 0; transform: translateY(14px) scale(.9); }
+  to { opacity: 1; transform: none; }
+}
+
+.cm-show-copy {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 0 16px 14px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.cm-show-meta {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--cm-muted);
+}
+.cm-show-name {
+  margin: 0; font-family: var(--cm-serif); font-weight: 600; line-height: 1;
+  font-size: clamp(30px, 9vw, 52px); color: #fff4d6;
+  text-shadow: 0 2px 0 rgba(0,0,0,.35), 0 0 24px color-mix(in srgb, var(--cm-el-c) 45%, transparent);
+}
+.cm-show-blurb { margin: 0; font-size: 14px; line-height: 1.4; color: rgba(238,243,251,.82); max-width: 34rem; }
+
+/* Shared sprite strip: n frames laid side by side, stepped with transform. */
+.cm-anim { position: absolute; left: 50%; transform: translateX(-50%); overflow: hidden; }
+.cm-anim > i {
+  display: block; height: 100%; width: calc(var(--n) * 100%);
+  background: 0 0/100% 100% no-repeat;
+  animation: cm-strip 1s steps(var(--n)) infinite;
+}
+@keyframes cm-strip { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+
+/* Land tabs: each is a little painting with its Siegeling standing in it. */
+.cm-starters {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
+}
+.cm-starter {
+  --cm-el-c: var(--cm-gold);
+  position: relative; overflow: hidden; isolation: isolate;
+  appearance: none; padding: 0; cursor: pointer; color: var(--cm-ink); text-align: center;
+  aspect-ratio: 3 / 4; max-height: 22dvh; width: 100%;
+  border-radius: 14px; border: 1px solid var(--cm-line);
+  background: var(--cm-land) center 62%/cover no-repeat, var(--cm-panel);
+  display: flex; flex-direction: column; justify-content: flex-end;
+  transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease, filter .15s ease;
+  filter: saturate(.7) brightness(.78);
+}
+.cm-starter::after {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(0deg, rgba(6,10,20,.92) 0%, rgba(6,10,20,.2) 48%, transparent 70%);
+}
+.cm-starter::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--cm-el-c);
+}
+.cm-starter.is-on {
+  filter: none; border-color: var(--cm-gold); transform: translateY(-3px);
+  box-shadow: 0 0 0 2px rgba(230,205,140,.45), 0 10px 22px rgba(0,0,0,.45),
+    0 0 18px color-mix(in srgb, var(--cm-el-c) 40%, transparent);
+}
+.cm-starter:focus-visible { outline: 2px solid var(--cm-gold); outline-offset: 2px; }
+@media (hover: hover) { .cm-starter:not(.is-on):hover { filter: saturate(.9) brightness(.95); } }
+.cm-starter-art { position: absolute; left: 8%; right: 8%; top: 14%; bottom: 34%; z-index: -1; }
+.cm-starter-art > img { width: 100%; height: 100%; object-fit: contain; }
+/* Tabs hold the first idle frame; only the stage plays the loop. */
+.cm-starter .cm-anim > i { animation: none; }
+.cm-starter.is-on .cm-anim > i { animation: cm-strip 1s steps(var(--n)) infinite; }
+.cm-starter-name { padding: 0 6px 7px; display: flex; flex-direction: column; gap: 1px; }
+.cm-starter-name b { font-size: 13px; font-weight: 700; }
+.cm-starter-name small { font-size: 10px; color: var(--cm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+@media (max-width: 360px) {
+  .cm-show-intro { font-size: 12px; }
+  .cm-show-blurb { font-size: 13px; }
+  .cm-starter-name small { display: none; }
+}
+/* Short phones (SE): the stage keeps the art, the intro line steps aside. */
+@media (max-height: 640px) {
+  .cm-show-intro { display: none; }
+  .cm-show-ground { height: min(46%, 200px); }
+}
+/* Wide screens and landscape phones: stage on the left, Land tabs as a 2x2 column beside it. */
+@media (min-width: 900px), (orientation: landscape) and (max-height: 500px) {
+  #screenStart {
+    display: none; grid-template-columns: minmax(0, 1fr) minmax(280px, 34%);
+    grid-template-rows: auto minmax(0, 1fr); column-gap: 18px; row-gap: 12px;
+  }
+  body[data-screen="start"] #screenStart { display: grid; }
+  #screenStart > .cm-resume { grid-column: 1 / -1; }
+  #screenStart > .cm-show { grid-column: 1; grid-row: 2; }
+  #screenStart > .cm-starters {
+    grid-column: 2; grid-row: 2; grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: center; gap: 12px;
+  }
+  .cm-starter { max-height: none; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  #screenStart > .cm-starters { grid-template-rows: repeat(2, minmax(0, 1fr)); align-content: stretch; gap: 8px; }
+  .cm-starter { aspect-ratio: auto; height: 100%; }
+  .cm-show-intro { display: none; }
+  .cm-show-ground { bottom: 92px; height: calc(100% - 100px); }
+  .cm-show-name { font-size: 30px; }
+  .cm-show-blurb { font-size: 13px; }
+}
+@media (min-width: 900px) {
+  .cm-show-ground { height: min(42%, 320px); }
+  .cm-starter-name b { font-size: 16px; }
+  .cm-starter-name small { font-size: 11px; }
+  .cm-show-intro { left: 22px; top: 18px; font-size: 15px; max-width: 36rem; }
+  .cm-show-copy { padding: 0 24px 22px; }
+  .cm-show-blurb { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-anim > i, .cm-show-bob, .cm-show-partner.is-arriving { animation: none !important; }
+  .cm-show-art > i { transition: opacity .2s; transform: none; }
+}
+/* Over the painted backdrop the header reads as part of the scene, not a band. */
+body[data-screen="start"] .cm-top { background: linear-gradient(180deg, rgba(11,16,32,.55), transparent); border-bottom-color: transparent; }

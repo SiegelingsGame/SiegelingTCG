@@ -1,3 +1,9 @@
+Original prompt: Redesign the page with an art first approach
+
+- November 26, 2026 **Campaign start screen: art-first redesign.**
+  - **Change.** The partner picker is now a painted stage. The chosen starter's home Land painting (`/img/lands/<land>.webp`, from the `background` field the options API already sends) fills a rounded stage and crossfades on each pick. Squire Bob and the partner (its looping idle strip from `SiegeSprites`) stand together on the floor line, with the element chip, Land, a large serif name and the blurb laid over a foot scrim. The same painting, blurred, backs the whole viewport. The four text cards became painted Land tabs (thumb painting + sprite + name, element top edge; only the selected tab animates). The first partner starts selected, so Begin is live from the first paint. Layouts: phones stack resume / stage / one row of four tabs with no scroll; ≥900px and landscape phones put the stage left and a 2×2 tab column right; short phones drop the intro line. Reduced motion stops the loops and the zoom. Pins: `campaign.css?v=12`, `campaign.js?v=14`.
+  - **Verification.** `node --check js/campaign.js`. Headless Chromium with mocked `/api/campaign/options` + `/run` at 390×844, 375×667, 320×568, 844×390, 1920×1080: no page or request errors, no document or screen scroll, tabs end above the dock, the partner stands above the name, exactly one tab `is-on`, and Begin is enabled. The idle strip's transform changes between samples, and six rapid tab taps leave two art layers each in the stage and backdrop.
+
 Original prompt: Make this new adventure beta mode match the style of the rest of the site bring the design in line. Fix the missing Fab button as well
 
 - November 26, 2026 **Campaign (Rally of the Realms): site styling + shield FAB.**

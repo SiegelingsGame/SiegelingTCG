@@ -157,36 +157,79 @@
     setOverworldActive(true);
   }
 
+  function landThumb(s) {
+    return s.landId ? '/img/lands/thumbs/' + s.landId + '.webp' : (s.background || '');
+  }
+
+  // A looping idle strip: the cell keeps the sheet's aspect, and is scaled so the
+  // body (sheet.fit of the cell) fills the box and the feet (sheet.base) meet the floor.
+  function animHtml(sheet, pose) {
+    pose = sheet.frames[pose] ? pose : 'idle';
+    var n = sheet.frames[pose] || 1;
+    var cellPct = 100 / sheet.fit;
+    return '<span class="cm-anim" style="aspect-ratio:' + sheet.w + '/' + sheet.h +
+      ';height:' + cellPct.toFixed(1) + '%;bottom:' + (-cellPct * (sheet.base || 0)).toFixed(1) + '%">' +
+      '<i style="--n:' + n + ';background-image:url(' + esc(sheet.dir + pose + '.webp') + ')"></i></span>';
+  }
+
+  function partnerArtHtml(s) {
+    var sheet = window.SiegeSprites && window.SiegeSprites.forCard(s.id);
+    if (sheet) return animHtml(sheet, 'idle');
+    var art = s.artUrl || (s.card && s.card.cardArtUrl) || '';
+    return art ? '<img src="' + esc(art) + '" alt="">' : '';
+  }
+
   function renderStarters(options) {
     var host = $('cmStarters');
     if (!host) return;
-    host.innerHTML = (options.starters || []).map(function (s) {
-      var sheet = window.SiegeSprites && window.SiegeSprites.forCard(s.id);
-      var art = s.artUrl || (s.card && s.card.cardArtUrl) || '';
-      var artHtml;
-      if (sheet) {
-        // Crop the idle strip to the first cell so the picker shows one pose, not the whole sheet.
-        var frames = sheet.frames.idle || 1;
-        artHtml = '<span class="cm-starter-sprite" style="width:100%;height:100%;display:block;background:url(' +
-          esc(sheet.dir + 'idle.webp') + ') 0 0 / ' + (frames * 100) + '% 100% no-repeat;background-size:' +
-          (frames * 100) + '% 100%"></span>';
-      } else if (art) {
-        artHtml = '<img src="' + esc(art) + '" alt="">';
-      } else {
-        artHtml = '';
-      }
-      // Blurbs already name the home Land ("from Emberfall."), so the Land only gets
-      // its own line when the blurb leaves it out.
-      var blurb = s.blurb || '';
-      var landTag = s.landName && blurb.indexOf(s.landName) < 0
-        ? '<span class="cm-land-tag">' + esc(s.landName) + '</span>' : '';
-      return '<button type="button" class="cm-starter" data-starter="' + esc(s.id) + '" style="--cm-el-c:' + elColor(s.element) + '">' +
-        '<span class="cm-el" style="color:' + elColor(s.element) + '">' + esc(s.element) + '</span>' +
-        '<span class="cm-starter-art">' + artHtml + '</span>' +
-        '<b>' + esc(s.name) + '</b>' +
-        '<small>' + esc(blurb) + '</small>' + landTag +
+    var list = options.starters || [];
+    host.innerHTML = list.map(function (s) {
+      return '<button type="button" class="cm-starter" role="radio" aria-checked="false" data-starter="' + esc(s.id) +
+        '" style="--cm-el-c:' + elColor(s.element) + ';--cm-land:url(' + esc(landThumb(s)) + ')">' +
+        '<span class="cm-starter-art">' + partnerArtHtml(s) + '</span>' +
+        '<span class="cm-starter-name"><b>' + esc(s.name) + '</b><small>' + esc(s.landName || s.element) + '</small></span>' +
         '</button>';
     }).join('');
+    // The stage needs a subject from the first paint, so the first partner starts chosen.
+    if (list.length && !state.selectedStarter) selectStarter(list[0].id);
+    else if (state.selectedStarter) selectStarter(state.selectedStarter);
+  }
+
+  function selectStarter(id) {
+    var list = (state.options && state.options.starters) || [];
+    var s = null;
+    list.forEach(function (x) { if (x.id === id) s = x; });
+    if (!s) return;
+    state.selectedStarter = id;
+    document.querySelectorAll('.cm-starter').forEach(function (n) {
+      var on = n.getAttribute('data-starter') === id;
+      n.classList.toggle('is-on', on);
+      n.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    $('cmStartBtn').disabled = false;
+    var color = elColor(s.element);
+    $('cmShow').style.setProperty('--cm-el-c', color);
+    $('cmShowEl').textContent = s.element || '';
+    $('cmShowEl').style.color = color;
+    $('cmShowLand').textContent = s.landName || '';
+    $('cmShowName').textContent = s.name || id;
+    $('cmShowBlurb').textContent = s.blurb || '';
+    var partner = $('cmShowPartner');
+    partner.innerHTML = partnerArtHtml(s);
+    partner.classList.remove('is-arriving');
+    void partner.offsetWidth;
+    partner.classList.add('is-arriving');
+    // Land paintings crossfade: the new layer fades in over the old one, then the old
+    // one is dropped, so a quick tap-through never flashes the bare panel.
+    var bg = s.background || landThumb(s);
+    [['cmShowArt', bg], ['cmAmbient', landThumb(s)]].forEach(function (pair) {
+      var host = $(pair[0]);
+      var layer = document.createElement('i');
+      layer.style.backgroundImage = 'url(' + pair[1] + ')';
+      host.appendChild(layer);
+      requestAnimationFrame(function () { layer.classList.add('is-in'); });
+      while (host.children.length > 2) host.removeChild(host.firstChild);
+    });
   }
 
   function starterFollower(run) {
@@ -488,11 +531,7 @@
     document.body.addEventListener('click', function (ev) {
       var t = ev.target.closest('[data-starter]');
       if (t) {
-        state.selectedStarter = t.getAttribute('data-starter');
-        document.querySelectorAll('.cm-starter').forEach(function (n) {
-          n.classList.toggle('is-on', n.getAttribute('data-starter') === state.selectedStarter);
-        });
-        $('cmStartBtn').disabled = !state.selectedStarter;
+        selectStarter(t.getAttribute('data-starter'));
         return;
       }
       t = ev.target.closest('[data-land]');
