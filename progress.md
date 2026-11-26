@@ -1,3 +1,9 @@
+Original prompt: Deploy
+
+- November 26, 2026 **Campaign art-first + rarity sizing + overlay cutouts + FAB (#1282) merged and live.**
+  - **Change.** Merged #1282 to `main` (merge commit `06a931ea`); Deploy run `45882870454` succeeded.
+  - **Verification.** Live `/campaign` serves `campaign.css?v=15`, `campaign.js?v=17`, `campaign-world3d.js?v=14`, `campaign-overworld.js?v=13`, `siege-sprites.js?v=5`; `/siege`, `/home` and `/` also serve `siege-sprites.js?v=5`, and the live file contains `measureCutout`/`RARITY_SCALE`. `/api/cards/editor` (Hosting + Cloud Run direct) → `source=FIRESTORE`, `liveEditingEnabled=true`, `firestoreAvailable=true`. `config.js` `apiBaseUrl: ''`. `/api/game/options` 200. `/api/campaign/options` 200 with four starters carrying `background` + `COMMON` rarity. The live art mirror returns Pylord's overlay as `image/webp` 200. Headless 390×844 on live `/campaign`: start screen shows the Emberfall stage with Sundile's animated sheet, 4 Land tabs, Begin enabled, shield FAB visible, no document scroll, no page errors.
+
 Original prompt: If no sprite exist use the cutout from the card overlay
 
 - November 26, 2026 **Campaign: overlay cutout fallback for Siegelings without a sprite sheet.**
