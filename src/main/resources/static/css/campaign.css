@@ -5,43 +5,78 @@
   --undead: #8c78a0; --psychic: #c896ff; --poison: #7ecb4d; --light: #ffe59a;
   --cm-bg: #0b1020; --cm-ink: #eef3fb; --cm-muted: #a9b4cc; --cm-gold: #e6cd8c;
   --cm-serif: ui-serif, "Iowan Old Style", Palatino, Georgia, serif;
-  --cm-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --cm-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, system-ui, sans-serif;
+  /* Same panel/line tokens as gauntlet.css so the beta mode reads as part of the site. */
+  --cm-panel: #161f38; --cm-panel-2: #1d2846; --cm-faint: #7480a0; --cm-gold-deep: #b8954a;
+  --cm-line: rgba(230,205,140,.18); --cm-line-strong: rgba(230,205,140,.42);
 }
+[hidden] { display: none !important; }
 * { box-sizing: border-box; }
 html, body {
-  margin: 0; height: 100%; height: 100dvh; height: var(--sg-vh, 100dvh);
+  margin: 0; height: var(--sg-vh, 100vh); height: max(100dvh, var(--sg-vh, 0px));
   overflow: hidden; background: var(--cm-bg); color: var(--cm-ink);
   font-family: var(--cm-sans); touch-action: pan-x pan-y;
 }
 /* style.css reserves a phone band for the Battle Table hub nav, which this page doesn't have. */
-body { padding-bottom: 0; }
+body {
+  padding: 0 !important;
+  /* The Gauntlet / hub wash: a gold glow up top, a violet one at the foot. */
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(230,205,140,.10), transparent 60%),
+    radial-gradient(900px 500px at 100% 100%, rgba(120,50,180,.12), transparent 60%),
+    var(--cm-bg);
+}
+button { font-family: inherit; touch-action: manipulation; }
 .cm-shell {
   display: flex; flex-direction: column; height: 100%;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+  width: 100%; max-width: 1180px; margin: 0 auto;
 }
+/* Header mirrors .gt-top: back pill left, gold one-line title, stat pills right.
+   --sn-sat clears the standalone iOS blur band as well as the status bar. */
 .cm-top {
   flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
-  padding: 10px 14px 8px; border-bottom: 1px solid rgba(230,205,140,.18);
+  padding: calc(8px + var(--sn-sat, env(safe-area-inset-top))) max(16px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--cm-line);
+  background: linear-gradient(180deg, rgba(11,16,32,.96), rgba(11,16,32,.82));
 }
-.cm-title { flex: 1 1 auto; min-width: 0; text-align: center; }
+.cm-home { flex: 0 0 auto; }
+.cm-title { flex: 1 1 auto; min-width: 0; }
 .cm-eyebrow {
-  display: block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--cm-gold); opacity: .85;
+  display: block; font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--cm-faint);
 }
 .cm-title h1 {
-  margin: 0; font-family: var(--cm-serif); font-size: clamp(1.05rem, 3.6vw, 1.45rem);
-  font-weight: 600; letter-spacing: .02em;
+  margin: 0; font-family: var(--cm-serif); font-size: 21px; line-height: 1.1;
+  font-weight: 600; color: var(--cm-gold);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.cm-stats { display: flex; gap: 6px; align-items: center; }
+.cm-stats { flex: 0 0 auto; display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
 .cm-stat {
-  font-size: 12px; padding: 4px 8px; border-radius: 999px;
-  border: 1px solid rgba(230,205,140,.28); background: rgba(18,26,48,.7);
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 13px; font-weight: 600; padding: 4px 9px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid var(--cm-line); background: var(--cm-panel); color: var(--cm-ink);
 }
-.cm-end { color: #ff8a8a; border-color: rgba(255,107,107,.4); cursor: pointer; background: transparent; }
+#cmGold { color: var(--cm-gold); }
+.cm-end { color: #ff6b6b; border-color: rgba(255,107,107,.5); cursor: pointer; background: transparent; }
+/* On phones the back pill, title and three stat pills cannot share one row without
+   truncating the title, so the stats take a slim second row once a run is live. */
+@media (max-width: 560px) {
+  .cm-top:has(.cm-stats:not([hidden])) { flex-wrap: wrap; row-gap: 6px; }
+  .cm-stats { order: 3; flex: 1 0 100%; }
+}
+@media (max-width: 430px) {
+  .cm-title h1 { font-size: 18px; }
+  .cm-stat { padding: 3px 7px; font-size: 12px; }
+}
+@media (max-width: 360px) {
+  .cm-eyebrow { display: none; }
+  .cm-title h1 { font-size: 16px; }
+}
 .cm-main { flex: 1 1 auto; min-height: 0; position: relative; }
 .cm-screen {
   position: absolute; inset: 0; display: none; flex-direction: column;
-  padding: 12px 14px calc(88px + env(safe-area-inset-bottom));
+  gap: 10px;
+  padding: 10px max(16px, env(safe-area-inset-right)) calc(var(--sn-dock-h, 88px) + 4px) max(16px, env(safe-area-inset-left));
   overflow: hidden;
 }
 body[data-screen="loading"] #screenLoading,
@@ -54,7 +89,9 @@ body[data-screen="arenaResume"] #screenArenaResume,
 body[data-screen="victory"] #screenVictory { display: flex; }
 .cm-screen-center { align-items: center; justify-content: center; text-align: center; }
 .cm-lede { margin: 0 0 14px; color: var(--cm-muted); font-size: 14px; line-height: 1.45; max-width: 42rem; }
-.cm-h2 { margin: 0 0 10px; font-family: var(--cm-serif); font-size: 1.1rem; font-weight: 600; }
+.cm-h2 { margin: 0; font-family: var(--cm-serif); font-size: 18px; font-weight: 600; color: var(--cm-gold); }
+#screenStart > * { flex: 0 0 auto; min-width: 0; }
+#screenStart > .cm-starters { flex: 1 1 0; }
 .cm-muted { color: var(--cm-muted); font-size: 13px; }
 .cm-center { text-align: center; margin-top: 30vh; }
 .cm-banner {
@@ -63,30 +100,46 @@ body[data-screen="victory"] #screenVictory { display: flex; }
   font-size: 13px; color: #f3e7c2;
 }
 .cm-starters {
-  flex: 1 1 auto; min-height: 0; display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; overflow: auto;
+  flex: 1 1 0; min-height: 0; display: grid; align-content: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
+  overflow-y: auto; overscroll-behavior: contain; padding: 2px;
 }
+@media (min-width: 900px) { .cm-starters { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+/* Partner tiles use the Gauntlet pick card: flat panel, gold line, element-tinted top edge. */
 .cm-starter {
-  appearance: none; border: 1px solid rgba(230,205,140,.22); border-radius: 14px;
-  background: linear-gradient(160deg, rgba(30,40,70,.95), rgba(12,18,36,.98));
-  color: inherit; padding: 12px; text-align: left; cursor: pointer;
-  display: flex; flex-direction: column; gap: 8px; min-height: 150px;
-  transition: border-color .2s, transform .2s;
+  --cm-el-c: var(--cm-gold);
+  position: relative; overflow: hidden;
+  appearance: none; border: 1px solid var(--cm-line); border-radius: 14px;
+  background:
+    radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--cm-el-c) 16%, transparent), transparent 70%),
+    var(--cm-panel);
+  color: var(--cm-ink); padding: 10px 12px 12px; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px; min-height: 0;
+  transition: border-color .12s ease, transform .12s ease;
 }
-.cm-starter.is-on { border-color: var(--cm-gold); box-shadow: 0 0 0 1px rgba(230,205,140,.35); }
-.cm-starter:hover { transform: translateY(-2px); }
+.cm-starter::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+  background: var(--cm-el-c); opacity: .75;
+}
+.cm-starter.is-on { border-color: var(--cm-gold); box-shadow: 0 0 0 2px rgba(230,205,140,.35) inset; }
+.cm-starter:focus-visible { outline: 2px solid var(--cm-gold); outline-offset: 2px; }
+@media (hover: hover) { .cm-starter:hover { transform: translateY(-2px); border-color: var(--cm-line-strong); } }
 .cm-starter-art {
-  height: 88px; display: flex; align-items: flex-end; justify-content: center;
-  filter: drop-shadow(0 8px 8px rgba(0,0,0,.45)); overflow: hidden;
+  height: clamp(64px, 11dvh, 96px); display: flex; align-items: flex-end; justify-content: center;
+  filter: drop-shadow(0 8px 8px rgba(0,0,0,.45)); overflow: hidden; margin: 2px 0 4px;
 }
 .cm-starter-art img, .cm-starter-art .cm-starter-sprite {
   max-height: 100%; max-width: 140px; width: 140px; height: 72px; object-fit: contain;
 }
-.cm-starter b { font-family: var(--cm-serif); font-size: 1.05rem; }
+.cm-starter b { font-weight: 700; font-size: 15px; }
 .cm-starter small { color: var(--cm-muted); font-size: 12px; line-height: 1.35; }
+.cm-starter .cm-land-tag { color: var(--cm-faint); font-size: 11px; letter-spacing: .04em; }
 .cm-el {
-  display: inline-block; font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
-  padding: 2px 6px; border-radius: 999px; background: rgba(255,255,255,.08);
+  align-self: flex-start;
+  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+  background: color-mix(in srgb, currentColor 12%, transparent);
 }
 .cm-world {
   flex: 1 1 auto; min-height: 0; overflow: auto;
@@ -201,14 +254,20 @@ body[data-screen="victory"] #screenVictory { display: flex; }
 
 .cm-victory { font-family: var(--cm-serif); font-size: clamp(1.4rem, 5vw, 2rem); max-width: 22rem; }
 .cm-resume {
-  margin-bottom: 12px; padding: 10px 12px; border-radius: 12px;
-  border: 1px solid rgba(230,205,140,.28); background: rgba(22,31,56,.8);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 12px; border-radius: 12px; font-size: 13px;
+  border: 1px solid var(--cm-gold); background: rgba(230,205,140,.08);
 }
+.cm-resume[hidden] { display: none; }
+.cm-resume b { color: var(--cm-gold); }
 .cm-resume button {
-  margin-top: 8px; appearance: none; border: 0; border-radius: 999px;
-  background: var(--cm-gold); color: #1a1206; padding: 6px 12px; font-weight: 600; cursor: pointer;
+  flex: 0 0 auto; appearance: none; border: 1px solid #f6e2a6; border-radius: 12px;
+  background: linear-gradient(180deg, #f1d891, var(--cm-gold-deep)); color: #1a1206;
+  min-height: 34px; padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
-.cm-cta.sn-dock { position: absolute; left: 0; right: 0; bottom: 0; }
+.cm-cta.sn-dock { --sn-dock-fill: rgba(11,16,32,.5); }
+.cm-cta.sn-dock .sn-flank { white-space: normal; text-wrap: balance; }
+.cm-cta.sn-dock .sn-flank:disabled { opacity: .5; cursor: default; }
 .cm-toast {
   position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom));
   transform: translateX(-50%); z-index: 40; max-width: min(90vw, 360px);
@@ -641,10 +700,13 @@ body[data-screen="land"] .cm-screen { padding-bottom: calc(72px + env(safe-area-
 
 /* Start screen: show Squire Bob alongside starters */
 .cm-start-hero {
-  display: flex; align-items: flex-end; gap: 12px; margin: 0 0 12px;
+  display: flex; align-items: center; gap: 12px; margin: 0;
+  padding: 8px 12px; border-radius: 14px;
+  border: 1px solid var(--cm-line);
+  background: linear-gradient(135deg, rgba(230,205,140,.10), rgba(22,31,56,.6));
 }
 .cm-start-hero img {
-  width: 72px; height: 90px; object-fit: contain;
+  flex: 0 0 auto; width: 56px; height: 70px; object-fit: contain; border: 0;
   filter: drop-shadow(0 8px 8px rgba(0,0,0,.45));
   animation: cm-bob 2.8s ease-in-out infinite;
 }

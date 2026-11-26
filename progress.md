@@ -1,3 +1,9 @@
+Original prompt: Make this new adventure beta mode match the style of the rest of the site bring the design in line. Fix the missing Fab button as well
+
+- November 26, 2026 **Campaign (Rally of the Realms): site styling + shield FAB.**
+  - **Change.** `campaign.html` loaded `shield-navigation.js` but `campaign.js` never called `mountLinks()`, so every screen's flanked `sn-dock` had an empty middle. It now mounts the shield like the Gauntlet does (hidden only on the wild-fight screen, which needs the bottom edge). `campaign.css` now uses the Gauntlet/hub tokens: header with `--sn-sat` padding, left-aligned one-line gold serif title, pill stats that drop to a second row on phones (≤560px) once a run is live, gold-bordered resume row with a gold Continue button, the hero in a gold-wash panel, partner cards as flat `--panel` picks with an element top edge/glow and an inline element chip (it used to stretch full-width), the Gauntlet body wash, and the dock's `sn-dock` positioning (dropped the absolute override). Also fixed the shell shrinking to content width, the resume line showing the raw id (`sundile` → `Sundile`), and the duplicated Land in starter blurbs. Pins: `campaign.css?v=11`, `campaign.js?v=13`.
+  - **Verification.** `node --check js/campaign.js`. Headless Chromium against statics with mocked `/api/campaign/options` + `/run`: at 390×844, 320×568, 1920×1080 the FAB renders centred between Main Menu / Begin the rally, the title is one line and gold, the element chip is ~44px wide, no document scroll, no page errors; `data-screen="wild"` hides the FAB. With stats shown, the title no longer truncates at 390/320 (stats wrap to row two). Screenshots `cm-phone.png`, `cm-desk.png`, `hd-390.png` in the session scratchpad.
+
 Original prompt: Merge and deploy
 
 - November 25, 2026 **Landing wallpapers (#1279) + Arena no-Campaign (#1281) merged and live.**

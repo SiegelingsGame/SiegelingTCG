@@ -175,11 +175,16 @@
       } else {
         artHtml = '';
       }
-      return '<button type="button" class="cm-starter" data-starter="' + esc(s.id) + '">' +
+      // Blurbs already name the home Land ("from Emberfall."), so the Land only gets
+      // its own line when the blurb leaves it out.
+      var blurb = s.blurb || '';
+      var landTag = s.landName && blurb.indexOf(s.landName) < 0
+        ? '<span class="cm-land-tag">' + esc(s.landName) + '</span>' : '';
+      return '<button type="button" class="cm-starter" data-starter="' + esc(s.id) + '" style="--cm-el-c:' + elColor(s.element) + '">' +
         '<span class="cm-el" style="color:' + elColor(s.element) + '">' + esc(s.element) + '</span>' +
         '<span class="cm-starter-art">' + artHtml + '</span>' +
         '<b>' + esc(s.name) + '</b>' +
-        '<small>' + esc(s.blurb || '') + (s.landName ? ' · ' + esc(s.landName) : '') + '</small>' +
+        '<small>' + esc(blurb) + '</small>' + landTag +
         '</button>';
     }).join('');
   }
@@ -434,7 +439,27 @@
       .finally(function () { state.busy = false; });
   }
 
+  // The resume line read the raw id ("sundile"); show the partner's card name.
+  function starterName(id) {
+    var hit = null;
+    ((state.options && state.options.starters) || []).forEach(function (s) { if (s.id === id) hit = s; });
+    return hit && hit.name ? hit.name : (id || 'your partner');
+  }
+
+  // Every campaign screen has a flanked sn-dock built around the FAB slot, but the
+  // page never mounted the shield, so the middle of the dock sat empty. The wild
+  // fight keeps it hidden: its hand and AP row need the bottom edge.
+  var FAB_HIDDEN = { wild: 1 };
+  function mountShieldNavigation() {
+    if (!window.SiegelingsShieldNavigation) return;
+    var nav = window.SiegelingsShieldNavigation.mountLinks();
+    function sync() { nav.setHidden(!!FAB_HIDDEN[document.body.dataset.screen]); }
+    new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['data-screen'] });
+    sync();
+  }
+
   function boot() {
+    mountShieldNavigation();
     show('loading');
     api('/api/campaign/options').then(function (options) {
       state.options = options;
@@ -446,7 +471,7 @@
           var resume = $('cmResume');
           resume.hidden = false;
           resume.innerHTML = '<div>Resume as <b>' + esc(run.playerName || 'Squire') + '</b> with ' +
-            esc(run.starterId || 'your partner') + '.</div>' +
+            esc(starterName(run.starterId)) + '.</div>' +
             '<button type="button" id="cmResumeBtn">Continue</button>';
           show('start');
         }).catch(function () {
