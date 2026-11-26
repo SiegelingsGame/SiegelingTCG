@@ -1,3 +1,12 @@
+Original prompt: Merge and deploy
+
+- November 26, 2026 **Campaign SiegelinQ / Wildlands / Arena formation (#1284) merged and live.**
+  - **Change.** Merged `origin/main` (#1283 PixelForge, no campaign overlap) into the branch, then merged #1284 to `main` (`dca4d157`). Deploy run `45892805689` succeeded.
+  - **Verification.**
+    - **Assets and health.** Live `/campaign` serves `campaign.css?v=17`, `campaign.js?v=19`, `campaign-overworld.js?v=15`, `campaign-world3d.js?v=15`, `siege-sprites.js?v=5`, `game.js?v=358`, `card-binder-visual.js?v=37`. `/api/cards/editor` (Hosting + Cloud Run direct) → `FIRESTORE`, `liveEditingEnabled=true`, `firestoreAvailable=true`. `config.js` `apiBaseUrl: ''`. `/api/game/options` 200.
+    - **Live API.** A new run seeds squad `[null, fawny, null]`, follower `fawny` and ArenaTeam max 5. All 12 Sigil Legendaries resolve live (pylord … patience). The 6 Wildlands roamers are OVERLAY-art cutouts, and the CoDex reports 128 entries, all with overlay art. The test run was abandoned afterwards.
+    - **Headless 390×844 on live `/campaign`.** Begin → world: header hidden, dock SiegelinQ | FAB | A Explore. SiegelinQ shows Follower / ArenaTeam / SiegeSquad; ArenaTeam renders Sundile's real card face (1/5). The test campaign was ended from Settings. No page errors.
+
 Original prompt: SiegelinQ with a Q is the team setup: Follower, Arena and Siege mode teams; 5 placements for ArenaTeam, 3 for SiegeSquad. The bottom HUD should be the Siegelings FAB HUD: left the SiegelinQ menu, right the A/interact button, the FAB opens the FAB. Arena placement up to 5 shown as their card versions with notches, set up before battle. SiegeSquad up to 3 with left/center/right formation.
 
 - November 26, 2026 **Campaign: SiegelinQ teams (Follower, ArenaTeam 5, SiegeSquad L/C/R), walking dock, wilds back to Siege mode.**
