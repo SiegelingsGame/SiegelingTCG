@@ -17,7 +17,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/style.css?v=310">
 <link rel="stylesheet" href="/css/shield-navigation.css?v=17">
-<link rel="stylesheet" href="/css/campaign.css?v=16">
+<link rel="stylesheet" href="/css/campaign.css?v=17">
 <script src="/js/hub-music.js?v=10" data-autoinit></script>
 </head>
 <body data-screen="loading">
@@ -74,17 +74,18 @@
         <div class="cm-world" id="cmWorld"></div>
         <button type="button" class="cm-world-close" id="cmWorldClose">Back to Sanctuary</button>
       </div>
-      <div class="cm-cta sn-dock">
-        <button class="sn-flank is-left" id="cmPresetBtn" type="button">Realm Map</button>
-        <button class="sn-flank is-right is-gold" id="cmAkharBtn" type="button" hidden>Challenge Akhar</button>
+      <!-- Walking HUD: SiegelinQ menu | site FAB | A (interact, labelled with what A will do). -->
+      <div class="cm-cta sn-dock cm-walk-dock">
+        <button class="sn-flank is-left" data-open-q type="button">SiegelinQ</button>
+        <button class="sn-flank is-right cm-act-btn" data-act-btn type="button" aria-label="Interact"><b class="cm-act-a" aria-hidden="true">A</b><span data-act-label>Explore</span></button>
       </div>
     </section>
 
     <section class="cm-screen" id="screenLand">
       <div class="cm-stage cm-stage-ow" id="cmStage"></div>
-      <div class="cm-cta sn-dock">
-        <button class="sn-flank is-left" id="cmBackWorld" type="button">Sanctuary</button>
-        <button class="sn-flank is-right" id="cmPresetBtn2" type="button">Formation</button>
+      <div class="cm-cta sn-dock cm-walk-dock">
+        <button class="sn-flank is-left" data-open-q type="button">SiegelinQ</button>
+        <button class="sn-flank is-right cm-act-btn" data-act-btn type="button" aria-label="Interact"><b class="cm-act-a" aria-hidden="true">A</b><span data-act-label>Explore</span></button>
       </div>
     </section>
 
@@ -93,10 +94,10 @@
     <section class="cm-screen" id="screenPreset">
       <div class="cm-pre-head">
         <div>
-          <span class="cm-eyebrow">Arena formation</span>
-          <h2 class="cm-h2">Place up to <span id="cmPreMax">3</span> Siegelings</h2>
+          <span class="cm-eyebrow" id="cmPreEyebrow">ArenaTeam formation</span>
+          <h2 class="cm-h2" id="cmPreTitle">Place up to <span id="cmPreMax">5</span> Siegelings</h2>
         </div>
-        <span class="cm-pre-count" id="cmPreCount">0/3</span>
+        <span class="cm-pre-count" id="cmPreCount">0/5</span>
       </div>
       <div class="cm-board-wrap" id="cmBoardWrap">
         <span class="cm-board-foe" aria-hidden="true">Enemy line ▲</span>
@@ -106,7 +107,7 @@
       <div class="cm-bench" id="cmBench" role="listbox" aria-label="Your Siegelings"></div>
       <div class="cm-cta sn-dock">
         <button class="sn-flank is-left" id="cmPresetBack" type="button">Back</button>
-        <button class="sn-flank is-right is-gold" id="cmPresetSave" type="button">Save formation</button>
+        <button class="sn-flank is-right is-gold" id="cmPresetSave" type="button">Save ArenaTeam</button>
       </div>
     </section>
 
@@ -165,10 +166,15 @@
 <script src="/js/viewport-unit.js?v=3"></script>
 <script src="/js/config.js"></script>
 <script src="/js/siege-sprites.js?v=5"></script>
+<!-- ArenaTeam cards are the real card faces (frame, notches, art) drawn by the shared
+     renderer: card-binder-visual.js over game.js, which only boots its battle UI when
+     #loadoutOverlay exists, so here it is a library (same as the Gauntlet). -->
+<script src="/js/game.js?v=358"></script>
+<script src="/js/card-binder-visual.js?v=37"></script>
 <script src="/js/shield-navigation.js?v=10"></script>
 <script src="/js/vendor/three.min.js"></script>
 <script src="/js/campaign-world3d.js?v=15"></script>
-<script src="/js/campaign-overworld.js?v=14"></script>
-<script src="/js/campaign.js?v=18"></script>
+<script src="/js/campaign-overworld.js?v=15"></script>
+<script src="/js/campaign.js?v=19"></script>
 </body>
 </html>

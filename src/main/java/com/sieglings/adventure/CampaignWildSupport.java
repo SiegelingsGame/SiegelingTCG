@@ -28,6 +28,15 @@ public class CampaignWildSupport {
 
     public StartResult start(String campaignToken, TrainerCard squire, List<String> partyCardIds,
                              SiegeLand land, Random rng) {
+        return start(campaignToken, squire, partyCardIds, land, rng, null);
+    }
+
+    /**
+     * @param leadCardId the roaming Siegeling Bob walked into: it leads the wild pack (and
+     *                   is what a win catches); null lets the pack pick its own lead.
+     */
+    public StartResult start(String campaignToken, TrainerCard squire, List<String> partyCardIds,
+                             SiegeLand land, Random rng, String leadCardId) {
         SiegeRun siege = new SiegeRun("campaign-wild-" + campaignToken);
         siege.setKnightId(squire.getId());
         siege.setKnightName(squire.getName());
@@ -71,6 +80,14 @@ public class CampaignWildSupport {
             if (foe.getDisplayCardId() != null) avoid.add(foe.getDisplayCardId());
         }
         Combatant primary = foes.get(0);
+        if (leadCardId != null && content.findAnySiegling(leadCardId).isPresent()) {
+            primary.setArtCardId(leadCardId);
+            // A pack member built from a real card shows that card; repoint it at the lead.
+            if (primary.getDisplayCardId() != null && !leadCardId.equals(primary.getDisplayCardId())) {
+                primary.setSourceCardId(leadCardId);
+            }
+            content.findAnySiegling(leadCardId).ifPresent(s -> primary.setShadeOf(s.getName()));
+        }
         String captureId = primary.getDisplayCardId();
         combat.startBattle(siege, NodeType.BATTLE, foes, rng);
         byCampaignToken.put(campaignToken, siege);

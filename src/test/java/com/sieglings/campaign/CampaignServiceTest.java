@@ -89,15 +89,52 @@ class CampaignServiceTest {
     }
 
     @Test
-    void presetCapsArenaPartyAtThreeAndKeepsChosenCells() {
-        CampaignRun run = runWith("cacty", "fawny", "breezee");
-        CampaignRun saved = campaign.setPreset(run.token, List.of("sundile", "cacty", "fawny", "breezee"),
-                Map.of("sundile", 4, "cacty", 0, "fawny", 2));
-        assertEquals(List.of("sundile", "cacty", "fawny"), saved.arenaPreset);
+    void arenaTeamCapsAtFiveAndKeepsChosenCells() {
+        CampaignRun run = runWith("cacty", "fawny", "breezee", "pylord");
+        run.roster.add("extra");
+        CampaignRun saved = campaign.setPreset(run.token, List.of("sundile", "cacty", "fawny", "breezee", "pylord", "extra"),
+                Map.of("sundile", 4, "cacty", 0, "fawny", 2, "breezee", 6, "pylord", 8));
+        assertEquals(List.of("sundile", "cacty", "fawny", "breezee", "pylord"), saved.arenaPreset);
         assertEquals(4, saved.presetCells.get("sundile"));
         assertEquals(0, saved.presetCells.get("cacty"));
-        assertEquals(2, saved.presetCells.get("fawny"));
-        assertEquals(3, CampaignContent.partySizeFor(CampaignRun.ArenaKind.AKHAR, 9));
+        assertEquals(8, saved.presetCells.get("pylord"));
+        assertEquals(5, CampaignRun.ARENA_PARTY_MAX);
+    }
+
+    @Test
+    void siegeSquadHoldsLeftCenterRightAndFollowerIsChosen() {
+        CampaignRun run = runWith("cacty", "fawny");
+        assertEquals(java.util.Arrays.asList(null, "sundile", null), run.siegeSquad);
+        assertEquals("sundile", run.followerId);
+        CampaignRun set = campaign.setSquad(run.token, java.util.Arrays.asList("fawny", null, "cacty"));
+        assertEquals(java.util.Arrays.asList("fawny", null, "cacty"), set.siegeSquad);
+        assertEquals(List.of("fawny", "cacty"), set.squadInOrder());
+        assertThrows(IllegalArgumentException.class, () -> campaign.setSquad(run.token, List.of("cacty", "cacty")));
+        assertThrows(IllegalArgumentException.class, () -> campaign.setSquad(run.token, java.util.Arrays.asList(null, null, null)));
+        assertEquals("cacty", campaign.setFollower(run.token, "cacty").followerId);
+        assertThrows(IllegalArgumentException.class, () -> campaign.setFollower(run.token, "pylord"));
+    }
+
+    @Test
+    void wildSiegeBattlesUseTheSquadAndReturnToTheArea() {
+        CampaignRun run = runWith("cacty");
+        campaign.setSquad(run.token, java.util.Arrays.asList("cacty", "sundile", null));
+        com.sieglings.model.TrainerCard squire = new com.sieglings.model.TrainerCard();
+        when(cardDefs.getActiveTrainerById("squire-bob")).thenReturn(Optional.of(squire));
+        when(wildSupport.start(org.mockito.ArgumentMatchers.eq(run.token), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(List.of("cacty", "sundile")), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.isNull()))
+                .thenReturn(new CampaignWildSupport.StartResult("fawny", "Fawny"));
+        run.area = "fire";
+        CampaignRun started = campaign.startWild(run.token, null, "fire");
+        assertEquals(CampaignRun.Phase.WILD_BATTLE, started.phase);
+        when(wildSupport.isOver(run.token)).thenReturn(true);
+        when(wildSupport.won(run.token)).thenReturn(true);
+        CampaignRun after = campaign.finishWild(run.token);
+        assertTrue(after.roster.contains("fawny"));
+        assertTrue(after.siegeSquad.contains("fawny"));
+        assertEquals(CampaignRun.Phase.LAND, after.phase);
+        assertEquals("fire", after.area);
     }
 
     @Test
@@ -146,6 +183,7 @@ class CampaignServiceTest {
         assertTrue(after.roster.contains("cacty"));
         assertTrue(after.arenaPreset.contains("cacty"));
         assertTrue(after.presetCells.containsKey("cacty"));
+        assertTrue(after.siegeSquad.contains("cacty"));
         assertEquals("wildlands", after.area);
         assertEquals(CampaignRun.Phase.WORLD, after.phase);
         assertEquals(2, after.level);

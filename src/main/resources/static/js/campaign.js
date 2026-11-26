@@ -242,17 +242,19 @@
     });
   }
 
+  /** The Siegeling walking behind Bob: the SiegelinQ follower, else the starter. */
   function starterFollower(run) {
-    var starter = null;
+    var want = run.followerId || run.starterId;
+    var pick = null;
     (run.rosterCards || []).forEach(function (c) {
-      if (!starter && c.id === run.starterId) starter = c;
+      if (!pick && c.id === want) pick = c;
     });
-    if (!starter && run.rosterCards && run.rosterCards[0]) starter = run.rosterCards[0];
+    if (!pick && run.rosterCards && run.rosterCards[0]) pick = run.rosterCards[0];
     // Art mode and rarity ride along so the 3D world can stand an overlay
-    // cutout (at its rarity size) when the partner has no sheet.
-    return starter ? {
-      id: starter.id, artUrl: starter.artUrl, cardArtMode: starter.cardArtMode,
-      rarity: starter.card && starter.card.rarity
+    // cutout (at its rarity size) when the follower has no sheet.
+    return pick ? {
+      id: pick.id, artUrl: pick.artUrl, cardArtMode: pick.cardArtMode,
+      rarity: pick.rarity || (pick.card && pick.card.rarity)
     } : null;
   }
 
@@ -269,8 +271,6 @@
         '<span class="cm-land-body"><strong>' + esc(land.name) + '</strong>' +
         '<span>' + esc((land.elements && land.elements[0]) || '') + ' · ' + status + '</span></span></button>';
     }).join('');
-    var akhar = $('cmAkharBtn');
-    if (akhar) akhar.hidden = !run.akharUnlocked || run.phase === 'VICTORY';
   }
 
   function showRealmOverlay(on) {
@@ -301,7 +301,7 @@
     return all[area] || [];
   }
 
-  /** Tall grass rolled an encounter: one of the area's roamers charges in. */
+  /** Tall grass rolled an encounter: one of the area's roamers charges in (Siege mode). */
   function startRandomWildEncounter() {
     var area = currentArea();
     var pool = wildsFor(area);
@@ -317,11 +317,16 @@
     if (!pool.length) { settle('The grass rustles, but nothing appears.'); return; }
     var pick = pool[Math.floor(Math.random() * pool.length)];
     busy(function () {
-      return startArena({ kind: 'wild', cardId: pick.id, area: area }).catch(function (e) {
+      return startWildBattle(pick.id, area).catch(function (e) {
         settle('The wilds settle… keep exploring.');
         throw e;
       });
     });
+  }
+
+  /** Wild Siegelings fight in Siege mode: the SiegeSquad (left, center, right) on this page. */
+  function startWildBattle(cardId, area) {
+    return api('/api/campaign/wild/start', { method: 'POST', body: { cardId: cardId, area: area } }).then(applyRun);
   }
 
   /** Record where Bob walks so a battle (or a reload) returns him there. */
@@ -372,15 +377,17 @@
       return;
     }
     if (act === 'wild-foe' && building && building.cardId) {
-      busy(function () { return startArena({ kind: 'wild', cardId: building.cardId, area: currentArea() }); });
+      busy(function () { return startWildBattle(building.cardId, currentArea()); });
       return;
     }
+    // Arena battles (Battle Table) open the ArenaTeam formation first, with a Fight button.
     if (act === 'legendary') {
-      busy(function () { return startArena({ kind: 'legendary' }); });
+      var lg = state.run && state.run.currentLand && state.run.currentLand.legendary;
+      openPreBattle({ kind: 'legendary' }, lg ? lg.name : 'the Legendary');
       return;
     }
     if (act === 'rival' || act === 'knight') {
-      busy(function () { return startArena({ kind: act }); });
+      openPreBattle({ kind: act }, building && building.label ? building.label : (act === 'rival' ? 'the Rival' : 'the SiegeKnight'));
     }
   }
 
@@ -401,13 +408,30 @@
       root: stage,
       onInteract: handleOverworldAct,
       onEncounter: startRandomWildEncounter,
+      onPrompt: syncActButton,
       onExit: function () {
-        if (document.body.dataset.screen === 'land') $('cmBackWorld').click();
+        if (document.body.dataset.screen === 'land' || state.mapArea === 'wildlands') handleOverworldAct('exit');
         else showRealmOverlay(true);
       }
     });
     state.overworld.mount();
     return state.overworld;
+  }
+
+  // The dock's A button carries what A will do here (or Explore when nothing is near).
+  function syncActButton(near, text) {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-act-btn]'), function (btn) {
+      var label = btn.querySelector('[data-act-label]');
+      if (label) label.textContent = near ? text : 'Explore';
+      btn.classList.toggle('is-live', !!(near && !near.disabled));
+    });
+  }
+
+  function pressAct() {
+    var ow = state.overworld;
+    if (!ow) return;
+    if (ow.near) { ow.tryInteract(); return; }
+    if (ow.setBanner) ow.setBanner('Walk up to someone or something, then press A.');
   }
 
   function renderWildlands(run) {
@@ -422,8 +446,6 @@
     });
     if (!ok) { renderSanctuary(run); return; }
     state.mapArea = 'wildlands';
-    var akhar = $('cmAkharBtn');
-    if (akhar) akhar.hidden = !run.akharUnlocked || run.phase === 'VICTORY';
   }
 
   function renderSanctuary(run) {
@@ -439,8 +461,6 @@
         follower: starterFollower(run)
       });
     }
-    var akhar = $('cmAkharBtn');
-    if (akhar) akhar.hidden = !run.akharUnlocked || run.phase === 'VICTORY';
   }
 
   function renderLand(run) {
@@ -499,8 +519,16 @@
     }).join('');
   }
 
+  /** The real card face (frame, notches, art) from the shared renderer, or '' without it. */
+  function cardFace(c) {
+    var v = window.SieglingsCardBinderVisual;
+    if (!v || !v.renderBinderCardTile || !c || !c.card) return '';
+    try { return v.renderBinderCardTile(c.card, { summaryMode: 'description', descriptionText: '' }) || ''; }
+    catch (e) { return ''; }
+  }
+
   function renderPreset(run) {
-    var max = run.arenaPartyMax || 3;
+    var max = run.arenaPartyMax || 5;
     state.formation = {};
     (run.arenaPreset || []).slice(0, max).forEach(function (id) {
       var cell = run.presetCells && run.presetCells[id];
@@ -523,7 +551,7 @@
 
   function drawFormation() {
     var run = state.run || {};
-    var max = run.arenaPartyMax || 3;
+    var max = run.arenaPartyMax || 5;
     var at = {};
     formationIds().forEach(function (id) { at[state.formation[id]] = id; });
     var board = $('cmBoard');
@@ -534,12 +562,14 @@
       var id = at[cell];
       var c = id ? rosterCard(id) : null;
       var picked = state.formationPick && state.formationPick === id;
-      cells.push('<button type="button" class="cm-cell' + (c ? ' has-unit' : '') + (picked ? ' is-picked' : '') +
+      var face = c ? cardFace(c) : '';
+      cells.push('<button type="button" class="cm-cell' + (c ? ' has-unit' : '') + (face ? ' has-face' : '') + (picked ? ' is-picked' : '') +
         (cell < 3 ? ' is-front' : '') + '" data-cell="' + cell + '" role="gridcell" aria-label="' +
         (c ? esc(c.name) : 'Empty square') + '">' +
-        (c ? '<span class="cm-cell-unit" style="--cm-el-c:' + elColor(c.element) + '">' + notchesHtml(c) +
-          '<span class="cm-fig">' + figureHtml(c, 240, !picked) + '</span>' +
-          '<b>' + esc(c.name) + '</b></span>' : '<span class="cm-cell-empty" aria-hidden="true">+</span>') +
+        (c ? (face ? '<span class="cm-cell-face">' + face + '</span>'
+          : '<span class="cm-cell-unit" style="--cm-el-c:' + elColor(c.element) + '">' + notchesHtml(c) +
+            '<span class="cm-fig">' + figureHtml(c, 240, !picked) + '</span>' +
+            '<b>' + esc(c.name) + '</b></span>') : '<span class="cm-cell-empty" aria-hidden="true">+</span>') +
         '</button>');
     }
     board.innerHTML = cells.join('');
@@ -573,7 +603,7 @@
   }
 
   function formationTap(target) {
-    var max = (state.run && state.run.arenaPartyMax) || 3;
+    var max = (state.run && state.run.arenaPartyMax) || 5;
     var benchBtn = target.closest('[data-bench]');
     if (benchBtn) {
       var id = benchBtn.getAttribute('data-bench');
@@ -616,12 +646,23 @@
     return true;
   }
 
-  function openPresetFrom(screen) {
+  function openPresetFrom(screen, battle, foeName) {
     state.returnScreen = screen || 'world';
+    state.preBattle = battle || null;
     closeMenu();
     setOverworldActive(false);
     renderPreset(state.run);
+    $('cmPreEyebrow').textContent = battle ? 'Before the duel' : 'ArenaTeam formation';
+    $('cmPreTitle').innerHTML = battle ? 'Your ArenaTeam vs <b>' + esc(foeName || 'the foe') + '</b>'
+      : 'Place up to <span id="cmPreMax">' + ((state.run && state.run.arenaPartyMax) || 5) + '</span> Siegelings';
+    $('cmPresetSave').textContent = battle ? 'Fight!' : 'Save ArenaTeam';
     show('preset');
+  }
+
+  /** Arena battles start from the formation: check the ArenaTeam, then Fight. */
+  function openPreBattle(battle, foeName) {
+    var screen = document.body.dataset.screen;
+    openPresetFrom(screen === 'land' ? 'land' : 'world', battle, foeName);
   }
 
   function returnFromPreset(run) {
@@ -643,8 +684,7 @@
   // ---- Rally menu (opened from the shield FAB) ------------------------------
 
   var MENU_ITEMS = [
-    { id: 'siegelings', title: 'Siegelings', sub: 'Party, items, team', icon: '◈' },
-    { id: 'formation', title: 'Formation', sub: 'Arena board', icon: '▦' },
+    { id: 'siegelings', title: 'Box & Bag', sub: 'Siegelings, items', icon: '◈' },
     { id: 'codex', title: 'CoDex', sub: 'Every Siegeling', icon: '❖' },
     { id: 'squire', title: 'Squire', sub: 'Knight level', icon: '⚔' },
     { id: 'journal', title: 'Journal', sub: 'Quests & log', icon: '✎' },
@@ -682,15 +722,21 @@
     var run = state.run || {};
     var html = '';
     if (id === 'home') {
-      title.textContent = 'Rally Menu';
+      title.textContent = 'SiegelinQ';
       eyebrow.textContent = squireName(run) + ' · Lv ' + (run.level || 1);
-      html = '<div class="cm-menu-grid">' + MENU_ITEMS.map(function (it) {
+      html = teamsHtml(run) + akharCta(run) + '<div class="cm-menu-grid">' + MENU_ITEMS.map(function (it) {
         return '<button type="button" class="cm-menu-tile is-' + it.id + '" data-panel="' + it.id + '">' +
           '<span class="cm-menu-ico" aria-hidden="true">' + it.icon + '</span>' +
           '<b>' + it.title + '</b><small>' + it.sub + '</small></button>';
       }).join('') + '</div>' + menuStatus(run);
+    } else if (id === 'follower') {
+      title.textContent = 'Follower'; eyebrow.textContent = 'SiegelinQ';
+      html = followerPanel(run);
+    } else if (id === 'squad') {
+      title.textContent = 'SiegeSquad'; eyebrow.textContent = 'SiegelinQ · Siege battles';
+      html = squadPanel(run);
     } else if (id === 'siegelings') {
-      title.textContent = 'Siegelings'; eyebrow.textContent = 'Party & roster';
+      title.textContent = 'Box & Bag'; eyebrow.textContent = 'Siegelings & items';
       html = siegelingsPanel(run);
     } else if (id.indexOf('mon:') === 0) {
       var c = rosterCard(id.slice(4));
@@ -719,6 +765,123 @@
     body.innerHTML = html;
     body.scrollTop = 0;
     fitCutouts(body);
+  }
+
+  // ---- SiegelinQ teams: Follower, ArenaTeam (Battle Table), SiegeSquad (Siege mode) ----
+
+  function minis(ids, slots) {
+    var out = [];
+    for (var i = 0; i < slots; i++) {
+      var c = ids[i] ? rosterCard(ids[i]) : null;
+      out.push('<span class="cm-mini' + (c ? '' : ' is-empty') + '">' + (c ? '<span class="cm-fig">' + figureHtml(c, 240, true) + '</span>' : '') + '</span>');
+    }
+    return out.join('');
+  }
+
+  function teamsHtml(run) {
+    var follower = rosterCard(run.followerId) || rosterCard(run.starterId);
+    var arena = run.arenaPreset || [];
+    var squad = run.siegeSquad || [null, null, null];
+    var placed = squad.filter(Boolean).length;
+    return '<h3 class="cm-menu-h">Teams</h3><div class="cm-teams">' +
+      '<button type="button" class="cm-team is-follower" data-panel="follower">' +
+        '<span class="cm-team-art">' + (follower ? '<span class="cm-fig">' + figureHtml(follower, 240) + '</span>' : '') + '</span>' +
+        '<span class="cm-team-txt"><b>Follower</b><small>' + esc(follower ? follower.name : 'None') + ' walks with Bob</small></span></button>' +
+      '<button type="button" class="cm-team is-arena" data-panel="formation">' +
+        '<span class="cm-team-row">' + minis(arena, run.arenaPartyMax || 5) + '</span>' +
+        '<span class="cm-team-txt"><b>ArenaTeam</b><small>' + arena.length + '/' + (run.arenaPartyMax || 5) + ' placed · Battle Table</small></span></button>' +
+      '<button type="button" class="cm-team is-squad" data-panel="squad">' +
+        '<span class="cm-team-row is-3">' + minis(squad, run.siegeSquadMax || 3) + '</span>' +
+        '<span class="cm-team-txt"><b>SiegeSquad</b><small>' + placed + '/' + (run.siegeSquadMax || 3) + ' · Left · Center · Right</small></span></button>' +
+      '</div>';
+  }
+
+  function akharCta(run) {
+    if (!run.akharUnlocked || run.phase === 'VICTORY') return '';
+    return '<button type="button" class="cm-menu-cta cm-akhar-cta" data-akhar>Challenge Raidlord Akhar</button>';
+  }
+
+  function followerPanel(run) {
+    var list = run.rosterCards || [];
+    var current = run.followerId || run.starterId;
+    return '<p class="cm-muted">The Siegeling that walks behind Bob through the Sanctuary, the Wildlands and every Land.</p>' +
+      '<div class="cm-mon-grid">' + list.map(function (c) {
+        return monTile(c, run, c.id === current ? ' is-party' : '').replace('data-panel="mon:' + esc(c.id) + '"', 'data-follow="' + esc(c.id) + '"')
+          .replace('</button>', (c.id === current ? '<em class="cm-mon-badge">Following</em>' : '') + '</button>');
+      }).join('') + '</div>';
+  }
+
+  var SQUAD_SLOTS = ['Left', 'Center', 'Right'];
+  function squadPanel(run) {
+    if (!state.squadDraft) state.squadDraft = (run.siegeSquad || [null, null, null]).slice(0, 3);
+    while (state.squadDraft.length < 3) state.squadDraft.push(null);
+    var draft = state.squadDraft;
+    var sel = state.squadSlot == null ? null : state.squadSlot;
+    var list = run.rosterCards || [];
+    return '<p class="cm-muted">Your three for Siege battles in the wilds. Tap a slot, then a Siegeling. Order matters: enemies aim at positions.</p>' +
+      '<div class="cm-squad">' + SQUAD_SLOTS.map(function (label, i) {
+        var c = draft[i] ? rosterCard(draft[i]) : null;
+        return '<button type="button" class="cm-squad-slot' + (sel === i ? ' is-picked' : '') + (c ? '' : ' is-empty') + '" data-squad-slot="' + i + '"' +
+          (c ? ' style="--cm-el-c:' + elColor(c.element) + '"' : '') + '>' +
+          '<span class="cm-squad-pos">' + label + '</span>' +
+          '<span class="cm-fig">' + (c ? figureHtml(c, 240) : '') + '</span>' +
+          '<b>' + (c ? esc(c.name) : 'Empty') + '</b>' +
+          (c ? '<small>HP ' + esc(c.health != null ? c.health : '?') + ' · SPD ' + esc(c.speed != null ? c.speed : '?') + '</small>' : '<small>Tap, then pick</small>') +
+          '</button>';
+      }).join('') + '</div>' +
+      (sel != null && draft[sel] ? '<button type="button" class="cm-linkbtn cm-squad-clear" data-squad-clear>Empty the ' + SQUAD_SLOTS[sel].toLowerCase() + ' slot</button>' : '') +
+      '<h3 class="cm-menu-h">' + (sel != null ? 'Pick for ' + SQUAD_SLOTS[sel] : 'Your Siegelings') + '</h3>' +
+      '<div class="cm-mon-grid">' + list.map(function (c) {
+        var at = draft.indexOf(c.id);
+        return monTile(c, run, at >= 0 ? ' is-party' : '').replace('data-panel="mon:' + esc(c.id) + '"', 'data-squad-pick="' + esc(c.id) + '"')
+          .replace('</button>', (at >= 0 ? '<em class="cm-mon-badge">' + SQUAD_SLOTS[at] + '</em>' : '') + '</button>');
+      }).join('') + '</div>' +
+      '<button type="button" class="cm-menu-cta" data-squad-save>Save SiegeSquad</button>';
+  }
+
+  function squadTap(t) {
+    var slot = t.closest('[data-squad-slot]');
+    if (slot) {
+      var i = Number(slot.getAttribute('data-squad-slot'));
+      state.squadSlot = state.squadSlot === i ? null : i;
+      menuPanel('squad');
+      return true;
+    }
+    if (t.closest('[data-squad-clear]')) {
+      if (state.squadSlot != null) state.squadDraft[state.squadSlot] = null;
+      menuPanel('squad');
+      return true;
+    }
+    var pick = t.closest('[data-squad-pick]');
+    if (pick) {
+      var id = pick.getAttribute('data-squad-pick');
+      var draft = state.squadDraft;
+      var target = state.squadSlot;
+      if (target == null) {
+        // No slot picked: fill the first empty one, center first.
+        [1, 0, 2].some(function (k) { if (!draft[k]) { target = k; return true; } return false; });
+        if (target == null) { toast('Pick a slot to swap into first.'); return true; }
+      }
+      var from = draft.indexOf(id);
+      if (from >= 0) draft[from] = draft[target];
+      draft[target] = id;
+      state.squadSlot = null;
+      menuPanel('squad');
+      return true;
+    }
+    if (t.closest('[data-squad-save]')) {
+      var slots = state.squadDraft.slice(0, 3);
+      busy(function () {
+        return api('/api/campaign/squad', { method: 'POST', body: { slots: slots } }).then(function (run) {
+          state.run = run;
+          state.squadDraft = null;
+          toast('SiegeSquad saved.');
+          menuPanel('home');
+        });
+      });
+      return true;
+    }
+    return false;
   }
 
   function squireName(run) {
@@ -755,7 +918,7 @@
         '<button type="button" class="cm-mon is-empty" data-panel="formation"><span class="cm-fig"></span><span class="cm-mon-txt"><b>Empty slot</b><small>Add one in Formation</small></span></button>');
     }
     var bag = (run.items || []);
-    return '<h3 class="cm-menu-h">Arena party</h3><div class="cm-mon-list">' + slots.join('') + '</div>' +
+    return '<h3 class="cm-menu-h">ArenaTeam</h3><div class="cm-mon-list">' + slots.join('') + '</div>' +
       '<h3 class="cm-menu-h">Box <span>' + bench.length + '</span></h3>' +
       (bench.length ? '<div class="cm-mon-grid">' + bench.map(function (c) { return monTile(c, run); }).join('') + '</div>'
         : '<p class="cm-muted">Catch wild Siegelings in the Wildlands and the Lands to fill your box.</p>') +
@@ -979,6 +1142,29 @@
   function menuClick(ev) {
     var t = ev.target;
     if (t.closest('[data-menu-close]')) { closeMenu(); return; }
+    if (state.menuPanel === 'squad' && squadTap(t)) return;
+    var fol = t.closest('[data-follow]');
+    if (fol) {
+      var fid = fol.getAttribute('data-follow');
+      busy(function () {
+        return api('/api/campaign/follower', { method: 'POST', body: { cardId: fid } }).then(function (run) {
+          state.run = run;
+          var f = starterFollower(run);
+          var ow = state.overworld;
+          if (ow) {
+            ow.follower = f;
+            if (ow.world3d && ow.world3d.setFollower) ow.world3d.setFollower(f && f.id, f);
+          }
+          toast(run.lastMessage || 'Follower set.');
+          menuPanel('follower');
+        });
+      });
+      return;
+    }
+    if (t.closest('[data-akhar]')) {
+      openPreBattle({ kind: 'akhar' }, 'Raidlord Akhar');
+      return;
+    }
     var p = t.closest('[data-panel]');
     if (p) {
       var id = p.getAttribute('data-panel');
@@ -1023,6 +1209,8 @@
 
   function menuBack() {
     var id = state.menuPanel || 'home';
+    state.squadDraft = null;
+    state.squadSlot = null;
     if (id.indexOf('mon:') === 0) menuPanel('siegelings');
     else if (id.indexOf('dex:') === 0) { menuPanel('codex'); }
     else menuPanel('home');
@@ -1092,13 +1280,10 @@
   var FAB_HIDDEN = { wild: 1 };
   function mountShieldNavigation() {
     if (!window.SiegelingsShieldNavigation) return;
+    // The FAB is the site's own shield; SiegelinQ has its own dock button.
     var nav = state.nav = window.SiegelingsShieldNavigation.mountLinks();
-    // During a run the FAB opens the Rally menu first; its Main menu tile opens the shield.
     nav.setPrimaryClickHandler(function (info) {
-      if (info && info.shieldOpen) return false;
-      if (menuOpen()) { closeMenu(); return true; }
-      var screen = document.body.dataset.screen;
-      if (state.run && (screen === 'world' || screen === 'land' || screen === 'preset')) return openMenu('home');
+      if (menuOpen() && !(info && info.shieldOpen)) closeMenu();
       return false;
     });
     function sync() { nav.setHidden(!!FAB_HIDDEN[document.body.dataset.screen]); }
@@ -1198,24 +1383,11 @@
         busy(function () { return api('/api/campaign/run').then(applyRun); });
       }
     });
-    $('cmBackWorld').addEventListener('click', function () {
-      if (!state.run) return;
-      busy(function () {
-        return setArea('sanctuary').then(function (run) {
-          setOverworldActive(false);
-          renderSanctuary(run);
-          show('world');
-          setOverworldActive(true);
-        });
-      });
-    });
     var worldClose = $('cmWorldClose');
     if (worldClose) {
       worldClose.addEventListener('click', function () { showRealmOverlay(false); });
     }
-    $('cmPresetBtn').addEventListener('click', function () { showRealmOverlay(true); });
-    $('cmPresetBtn2').addEventListener('click', function () { openPresetFrom('land'); });
-    $('cmPresetBack').addEventListener('click', function () { returnFromPreset(); });
+    $('cmPresetBack').addEventListener('click', function () { state.preBattle = null; returnFromPreset(); });
     $('cmPresetSave').addEventListener('click', function () {
       var ids = formationIds();
       var cells = {};
@@ -1227,13 +1399,18 @@
             // The battle's placement rules may move a unit to the nearest linked square.
             var moved = ids.filter(function (id) { return run.presetCells && run.presetCells[id] !== cells[id]; });
             toast(moved.length ? 'Saved. ' + moved.map(function (id) { var c = rosterCard(id); return c ? c.name : id; }).join(', ') +
-              ' moved to a square it can link from.' : 'Formation saved.');
+              ' moved to a square it can link from.' : (state.preBattle ? 'To battle!' : 'ArenaTeam saved.'));
+            var battle = state.preBattle;
+            state.preBattle = null;
+            if (battle) return startArena(battle);
             returnFromPreset(run);
           });
       });
     });
-    $('cmAkharBtn').addEventListener('click', function () {
-      busy(function () { return startArena({ kind: 'akhar' }); });
+    // Walking dock: SiegelinQ menu on the left, A on the right (the FAB is the site shield).
+    document.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-open-q]')) { openMenu('home'); return; }
+      if (ev.target.closest('[data-act-btn]')) pressAct();
     });
     $('cmWildEnd').addEventListener('click', function () {
       busy(function () {

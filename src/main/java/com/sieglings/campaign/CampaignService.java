@@ -103,6 +103,8 @@ public class CampaignService {
         run.roster.add(starter.cardId());
         run.arenaPreset.add(starter.cardId());
         run.presetCells.put(starter.cardId(), 1);
+        run.siegeSquad = new ArrayList<>(java.util.Arrays.asList(null, starter.cardId(), null));
+        run.followerId = starter.cardId();
         run.seen.add(starter.cardId());
         run.items.add("oak-charm");
         run.area = "sanctuary";
@@ -238,6 +240,43 @@ public class CampaignService {
         }
     }
 
+    /**
+     * SiegeSquad for Siege-mode (wild) battles: three slots, left, center and right.
+     * Null or blank leaves a slot empty; a Siegeling can stand in one slot only.
+     */
+    public CampaignRun setSquad(String token, List<String> slots) {
+        CampaignRun run = require(token);
+        synchronized (run) {
+            List<String> clean = new ArrayList<>();
+            for (int i = 0; i < CampaignRun.SIEGE_SQUAD_MAX; i++) {
+                String id = slots != null && i < slots.size() ? slots.get(i) : null;
+                if (id == null || id.isBlank() || "null".equals(id)) { clean.add(null); continue; }
+                if (!run.roster.contains(id)) throw new IllegalArgumentException(id + " is not in your campaign roster.");
+                if (clean.contains(id)) throw new IllegalArgumentException(cardName(id) + " can only stand in one slot.");
+                clean.add(id);
+            }
+            if (clean.stream().allMatch(java.util.Objects::isNull)) {
+                throw new IllegalArgumentException("Your SiegeSquad needs at least one Siegeling.");
+            }
+            run.siegeSquad = clean;
+            run.lastMessage = "SiegeSquad set.";
+            return persist(run);
+        }
+    }
+
+    /** Which roster Siegeling walks behind Bob in the overworld. */
+    public CampaignRun setFollower(String token, String cardId) {
+        CampaignRun run = require(token);
+        synchronized (run) {
+            if (cardId == null || !run.roster.contains(cardId)) {
+                throw new IllegalArgumentException("That Siegeling is not in your roster.");
+            }
+            run.followerId = cardId;
+            run.lastMessage = cardName(cardId) + " now follows you.";
+            return persist(run);
+        }
+    }
+
     /** Hands an item to a roster Siegeling (or takes it back with a null item). */
     public CampaignRun equip(String token, String cardId, String itemId) {
         CampaignRun run = require(token);
@@ -265,24 +304,56 @@ public class CampaignService {
     // ---- Wild (Siege AP) -------------------------------------------------
 
     public CampaignRun startWild(String token) {
+        return startWild(token, null, null);
+    }
+
+    /**
+     * A Siege-mode wild battle: the SiegeSquad (left, center, right) against a wild pack led
+     * by the roamer Bob walked into, from wherever he is walking (a Land or the Wildlands).
+     * Winning catches the lead.
+     */
+    public CampaignRun startWild(String token, String leadCardId, String area) {
         CampaignRun run = require(token);
         synchronized (run) {
             settleArenaIfNeeded(run);
-            requirePhase(run, Phase.LAND);
-            SiegeLand land = SiegeLand.byId(run.currentLandId);
-            if (land == null) throw new IllegalArgumentException("Enter a Land first.");
+            requirePhase(run, Phase.WORLD, Phase.LAND, Phase.RALLY, Phase.AKHAR_READY);
+            String fightArea = area == null || area.isBlank() ? run.area : area.trim().toLowerCase();
+            if (leadCardId != null && !leadCardId.isBlank() && !wildPoolIds(run, fightArea).contains(leadCardId)) {
+                throw new IllegalArgumentException("That Siegeling does not roam here.");
+            }
+            SiegeLand land = landFor(run, fightArea, leadCardId);
+            if (land == null) throw new IllegalArgumentException("Nothing roams here.");
 
             TrainerCard squire = cardDefs.getActiveTrainerById(CampaignContent.SQUIRE_ID)
                     .orElseThrow(() -> new IllegalStateException("Squire Bob missing."));
-            List<String> partyIds = new ArrayList<>(run.arenaPreset.isEmpty() ? run.roster : run.arenaPreset);
+            List<String> partyIds = run.squadInOrder();
+            if (partyIds.isEmpty()) {
+                List<String> fallback = run.arenaPreset.isEmpty() ? run.roster : run.arenaPreset;
+                partyIds = new ArrayList<>(fallback.subList(0, Math.min(CampaignRun.SIEGE_SQUAD_MAX, fallback.size())));
+            }
             Random rng = new Random(run.token.hashCode() ^ System.nanoTime());
-            CampaignWildSupport.StartResult started = wildSupport.start(run.token, squire, partyIds, land, rng);
+            CampaignWildSupport.StartResult started = wildSupport.start(run.token, squire, partyIds, land, rng,
+                    leadCardId == null || leadCardId.isBlank() ? null : leadCardId);
             run.pendingCaptureCardId = started.captureCardId();
             run.pendingCaptureName = started.captureName();
+            run.pendingArenaArea = fightArea;
+            if (started.captureCardId() != null) run.seen.add(started.captureCardId());
             run.phase = Phase.WILD_BATTLE;
             run.lastMessage = "A wild " + started.captureName() + " blocks the path!";
             return persist(run);
         }
+    }
+
+    /** The Land whose wilds a battle draws on: the area's own, else the lead's element's. */
+    private SiegeLand landFor(CampaignRun run, String area, String leadCardId) {
+        SiegeLand own = SiegeLand.byId(area);
+        if (own != null) return own;
+        Element el = leadCardId == null ? null : cardDefs.findCardCopy(leadCardId).map(Card::getElement).orElse(null);
+        for (SiegeLand l : CampaignContent.elementalLands()) {
+            if (el != null && l.elements().get(0) == el) return l;
+        }
+        SiegeLand current = SiegeLand.byId(run.currentLandId);
+        return current != null ? current : CampaignContent.elementalLands().get(0);
     }
 
     public CampaignRun wildPlay(String token, String cardId, String targetId) {
@@ -319,26 +390,48 @@ public class CampaignService {
 
     private void finishWildIfOver(CampaignRun run) {
         if (!wildSupport.isOver(run.token)) return;
+        if (run.pendingArenaArea != null) run.area = run.pendingArenaArea;
         if (wildSupport.won(run.token)) {
             String captureId = run.pendingCaptureCardId;
             if (captureId != null && cardDefs.findCardCopy(captureId).isPresent() && !run.roster.contains(captureId)) {
                 run.roster.add(captureId);
-                if (run.arenaPreset.size() < 5) run.arenaPreset.add(captureId);
+                joinTeams(run, captureId);
                 run.lastMessage = "You rallied " + run.pendingCaptureName + " to your cause!";
+                journal(run, "capture", "Caught " + cardName(captureId) + ".");
                 run.gold += 8;
             } else {
-                SiegeLand land = SiegeLand.byId(run.currentLandId);
-                run.lastMessage = "Victory in the wilds of " + (land != null ? land.name() : "the Land") + ".";
+                run.lastMessage = "Victory in the wilds.";
                 run.gold += 5;
             }
-            run.phase = Phase.LAND;
+            gainXp(run, 25);
+            Random rng = new Random(System.nanoTime());
+            if (rng.nextInt(100) < 30) {
+                CampaignItems.Item item = CampaignItems.roll(ArenaKind.WILD, rng);
+                run.items.add(item.id());
+                run.lastMessage += " Found " + item.name() + ".";
+                journal(run, "item", "Found " + item.name() + " (" + item.effectText() + ").");
+            }
         } else {
             run.lastMessage = "Your warband was driven back. Rest and try again.";
-            run.phase = Phase.LAND;
         }
+        run.phase = phaseForArea(run, null);
         wildSupport.clear(run.token);
         run.pendingCaptureCardId = null;
         run.pendingCaptureName = null;
+        run.pendingArenaArea = null;
+    }
+
+    /** A new catch fills a free SiegeSquad slot and a free ArenaTeam place, if there are any. */
+    private void joinTeams(CampaignRun run, String cardId) {
+        while (run.siegeSquad.size() < CampaignRun.SIEGE_SQUAD_MAX) run.siegeSquad.add(null);
+        int[] order = {1, 0, 2};
+        for (int i : order) {
+            if (run.siegeSquad.get(i) == null) { run.siegeSquad.set(i, cardId); break; }
+        }
+        if (run.arenaPreset.size() < CampaignRun.ARENA_PARTY_MAX && !run.arenaPreset.contains(cardId)) {
+            run.arenaPreset.add(cardId);
+            run.presetCells.put(cardId, firstFreeCell(new LinkedHashSet<>(run.presetCells.values())));
+        }
     }
 
     // ---- Arena (Battle Table) --------------------------------------------
@@ -401,7 +494,8 @@ public class CampaignService {
             String landId = kind == ArenaKind.AKHAR || kind == ArenaKind.WILD ? null : run.currentLandId;
             EncounterSpec enemy = kind == ArenaKind.WILD ? wildEncounter(run, fightArea, wildCardId)
                     : kind == ArenaKind.LEGENDARY ? legendaryEncounter(run.currentLandId)
-                    : enemyFor(kind, landId, CampaignRun.ARENA_PARTY_MAX, run.ralliedLandIds.size());
+                    : enemyFor(kind, landId, kind == ArenaKind.RIVAL ? Math.min(3, n) : Math.max(3, n),
+                            run.ralliedLandIds.size());
             int playerHp = kind == ArenaKind.WILD ? CampaignContent.RIVAL_HP : CampaignContent.playerHpFor(kind);
 
             GameService.GauntletSide playerSide = new GameService.GauntletSide(
@@ -546,11 +640,7 @@ public class CampaignService {
             String name = cardName(wildId);
             if (wildId != null && !run.roster.contains(wildId) && cardDefs.findCardCopy(wildId).isPresent()) {
                 run.roster.add(wildId);
-                if (run.arenaPreset.size() < CampaignRun.ARENA_PARTY_MAX) {
-                    run.arenaPreset.add(wildId);
-                    Set<Integer> taken = new LinkedHashSet<>(run.presetCells.values());
-                    run.presetCells.put(wildId, firstFreeCell(taken));
-                }
+                joinTeams(run, wildId);
                 run.lastMessage = "You rallied " + name + " to your cause!";
                 journal(run, "capture", "Caught " + name + ".");
             } else {
@@ -681,6 +771,11 @@ public class CampaignService {
         m.put("arenaPreset", new ArrayList<>(run.arenaPreset));
         m.put("presetCells", new LinkedHashMap<>(run.presetCells));
         m.put("arenaPartyMax", CampaignRun.ARENA_PARTY_MAX);
+        List<String> squad = new ArrayList<>(run.siegeSquad);
+        while (squad.size() < CampaignRun.SIEGE_SQUAD_MAX) squad.add(null);
+        m.put("siegeSquad", squad);
+        m.put("siegeSquadMax", CampaignRun.SIEGE_SQUAD_MAX);
+        m.put("followerId", run.followerId != null && run.roster.contains(run.followerId) ? run.followerId : run.starterId);
         m.put("area", run.area);
         m.put("level", run.level);
         m.put("xp", run.xp);

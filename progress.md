@@ -1,3 +1,31 @@
+Original prompt: SiegelinQ with a Q is the team setup: Follower, Arena and Siege mode teams; 5 placements for ArenaTeam, 3 for SiegeSquad. The bottom HUD should be the Siegelings FAB HUD: left the SiegelinQ menu, right the A/interact button, the FAB opens the FAB. Arena placement up to 5 shown as their card versions with notches, set up before battle. SiegeSquad up to 3 with left/center/right formation.
+
+- November 26, 2026 **Campaign: SiegelinQ teams (Follower, ArenaTeam 5, SiegeSquad L/C/R), walking dock, wilds back to Siege mode.**
+  - **Change.**
+    - **Server.**
+      - `CampaignRun.ARENA_PARTY_MAX = 5`; new `siegeSquad` (left, center, right; null = empty), `SIEGE_SQUAD_MAX = 3` and `followerId`.
+      - New endpoints `POST /api/campaign/squad` and `POST /api/campaign/follower`. `/wild/start` takes `cardId` + `area`, and `CampaignWildSupport.start` makes that roamer the pack lead (and the catch).
+      - Wild battles run in Siege mode with the squad in left/center/right order (Siege position = squad order). They start from the Sanctuary, the Wildlands or a Land and return Bob there with XP, a 30% item roll and a journal entry.
+      - Catches fill a free squad slot (center first) and a free ArenaTeam place.
+      - Arena kinds (rival, knight, Legendary, Akhar) field up to 5; rivals bring up to 3, other foes 3–5.
+    - **Walking dock.** World and Land screens now share one dock: the left flank is **SiegelinQ** (opens the menu), the right flank is **A** and shows what A will do ("Battle Raydile", else "Explore") via a new `Overworld onPrompt` hook. The overworld's own A button and prompt pill are hidden there, and the FAB is the plain site shield again. The old Realm Map / Sanctuary / Formation / Akhar flanks moved to their obelisks and into SiegelinQ (Akhar shows as a CTA when unlocked).
+    - **SiegelinQ menu.**
+      - Home leads with three team cards: Follower, ArenaTeam (x/5 minis) and SiegeSquad (L/C/R minis), followed by the Box & Bag, CoDex, Squire, Journal, Sigils, Settings and Main menu tiles.
+      - Follower picker updates the 3D follower live. SiegeSquad editor: tap a slot then a Siegeling, swap, empty a slot, save.
+      - ArenaTeam formation shows **real card faces with notches** in 5:7 cells (`card-binder-visual.js` over `game.js` as a library, like the Gauntlet; sprite/cutout fallback), 5 max.
+      - Rival, knight, Legendary and Akhar battles open the formation first ("Before the duel · Your ArenaTeam vs X", **Fight!** saves and starts).
+    - **Pins.** `campaign.css?v=17`, `campaign.js?v=19`, `campaign-overworld.js?v=15` (campaign + fixture), plus `game.js?v=358` and `card-binder-visual.js?v=37` now loaded on `campaign.html`.
+  - **Verification.**
+    - **Unit tests.** `CampaignServiceTest` 12/12, including new tests: ArenaTeam caps at 5 with cells; SiegeSquad L/C/R, duplicate/empty rejection and follower choice; a wild Siege battle uses the squad in order, catches into the squad and returns to the Land.
+    - **Local app API.** Start seeds squad `[null, cacty, null]` and follower `cacty`; squad and follower saves work and reject a non-roster follower. A Wildlands `wild/start` with roamer `breezee` produces a Siege battle led by Breezee with Cacty on position 0.
+    - **Headless Chromium at 390×844 and 1920×1080.**
+      - Dock reads SiegelinQ | FAB | A Explore; the overworld A button is hidden; the stick sits above the dock.
+      - SiegelinQ shows 3 team cards; the squad editor assigns Right = Pylord; the follower list badges the current follower.
+      - ArenaTeam renders 4→5 real card faces (face 119px in a 122px cell, no overflow).
+      - Akhar CTA opens the pre-battle formation with Fight!; Back returns to the world.
+      - Fixture: `onPrompt` reports "Battle Raydile" next to a roamer and clears when walking away.
+      - No page errors.
+
 Original prompt: Update the game screen so it's full screen. Add an open world area where you can walk and start battles. Arena style battles should use the arena engine with 3 Siegelings max. Update the preset screen to show an arena style board you place the card positions of your Siegelings on the 3x3 board. Update the fab interface: a Pokémon-style menu for your party and owned Siegelings (items, team view), the CoDex (silhouettes, evolutions, elements), a player screen (knight ability, level, XP), a journal, settings (UI colour, filters), and a Sigils screen (one per element's Legendary).
 
 - November 26, 2026 **Campaign: full-screen world, Wildlands, 3-a-side Arena, formation board, Rally menu.**

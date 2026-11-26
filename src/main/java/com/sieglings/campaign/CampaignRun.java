@@ -36,8 +36,10 @@ public class CampaignRun {
         LEGENDARY
     }
 
-    /** Most Siegelings either side fields in a campaign Arena battle. */
-    public static final int ARENA_PARTY_MAX = 3;
+    /** ArenaTeam: most Siegelings placed on the Battle Table board. */
+    public static final int ARENA_PARTY_MAX = 5;
+    /** SiegeSquad: Siege-mode (wild) battles field three, standing left, center and right. */
+    public static final int SIEGE_SQUAD_MAX = 3;
 
     public String token;
     public String ownerUserId = "";
@@ -53,10 +55,15 @@ public class CampaignRun {
 
     /** Owned Siegeling card ids (campaign roster). */
     public List<String> roster = new ArrayList<>();
-    /** Up to {@link #ARENA_PARTY_MAX} card ids that take the field in Arena battles. */
+    /** ArenaTeam: up to {@link #ARENA_PARTY_MAX} card ids placed for Arena battles. */
     public List<String> arenaPreset = new ArrayList<>();
     /** Board cell (row * 3 + col on the player's half; row 0 is the front line) per preset card. */
     public Map<String, Integer> presetCells = new LinkedHashMap<>();
+
+    /** SiegeSquad slots in order left, center, right; null marks an empty slot. */
+    public List<String> siegeSquad = new ArrayList<>();
+    /** The roster Siegeling that walks behind Bob in the overworld. */
+    public String followerId;
 
     /** Where Bob is walking: "sanctuary", "wildlands", or a Land id. Battles return here. */
     public String area = "sanctuary";
@@ -96,6 +103,13 @@ public class CampaignRun {
 
     public String pendingCaptureCardId;
     public String pendingCaptureName;
+
+    /** The squad as the Siege engine fields it: filled slots, left to right. */
+    public List<String> squadInOrder() {
+        List<String> out = new ArrayList<>();
+        for (String id : siegeSquad) if (id != null && !id.isBlank() && roster.contains(id)) out.add(id);
+        return out;
+    }
 
     public int maxPresetSize() {
         return Math.min(ARENA_PARTY_MAX, Math.max(1, roster.size()));

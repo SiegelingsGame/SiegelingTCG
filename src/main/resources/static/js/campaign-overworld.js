@@ -26,6 +26,8 @@
     this.onExit = opts.onExit || function () {};
     // Fired when a realm grass roll hits — Campaign starts a Siege-style wild battle.
     this.onEncounter = opts.onEncounter || function () {};
+    // Pages with their own A button (the campaign dock) mirror the prompt there.
+    this.onPrompt = opts.onPrompt || null;
     this.enabled = false;
     this.keys = {};
     this.pad = { x: 0, y: 0 };
@@ -728,7 +730,11 @@
     var p = this.els.prompt;
     var btn = this.els.promptBtn;
     if (!p || !btn) return;
-    if (!this.near) { p.hidden = true; return; }
+    if (!this.near) {
+      p.hidden = true;
+      if (this.onPrompt) this.onPrompt(null, '');
+      return;
+    }
     p.hidden = false;
     var verbs = {
       wild: 'Enter Wild Grove',
@@ -748,6 +754,7 @@
       ? (this.near.label + (this.near.sub ? ' — ' + this.near.sub : ''))
       : (verbs[this.near.act] || ('Enter ' + this.near.label));
     btn.classList.toggle('is-closed', !!this.near.disabled);
+    if (this.onPrompt) this.onPrompt(this.near, btn.textContent);
     btn.setAttribute('data-act', this.near.act);
     if (this.near.landId) btn.setAttribute('data-land', this.near.landId);
     else btn.removeAttribute('data-land');

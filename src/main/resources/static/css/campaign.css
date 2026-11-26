@@ -1398,3 +1398,77 @@ button.cm-item { cursor: pointer; }
 .cm-menu { align-items: center; }
 .cm-menu-sheet { max-height: calc(100% - var(--sn-dock-h, 80px) - 12px - var(--sn-sat, env(safe-area-inset-top))); }
 @media (max-width: 639px) { .cm-menu { align-items: stretch; } .cm-menu-sheet { max-height: none; } }
+
+/* ---- Walking dock: SiegelinQ | FAB | A ----
+   The overworld's own A button and prompt pill give way to the dock's right flank,
+   which carries what A will do ("Battle Raydile") and lights up when something is near. */
+#screenWorld .cm-ow-btn-a, #screenLand .cm-ow-btn-a,
+#screenWorld .cm-ow-prompt, #screenLand .cm-ow-prompt { display: none !important; }
+#screenWorld .cm-ow-stick, #screenLand .cm-ow-stick { bottom: calc(var(--sn-dock-h, 80px) + 8px); }
+.cm-act-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.cm-act-btn span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm-act-a {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 14px; font-weight: 800; color: #fff;
+  background: radial-gradient(circle at 35% 30%, #ff8a9a, #e74c5c 60%, #b83240);
+  box-shadow: 0 2px 6px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.35);
+}
+.cm-act-btn:not(.is-live) span { opacity: .7; }
+.cm-act-btn.is-live { filter: drop-shadow(0 0 10px rgba(255,120,140,.45)); }
+
+/* ---- ArenaTeam board with real card faces (5:7 cells) ---- */
+.cm-board {
+  --cw: min(calc((100cqh - 56px) / 3 / 1.4), calc((100cqw - 74px) / 3), 132px);
+  grid-template-columns: 16px repeat(3, var(--cw)); grid-auto-rows: calc(var(--cw) * 1.4);
+}
+.cm-cell-unit b { font-size: clamp(9px, calc(var(--cw) / 10), 13px); }
+.cm-cell.has-face { border-color: transparent; background: none; box-shadow: none; padding: 0; }
+.cm-cell-face { position: absolute; inset: 0; display: block; container-type: inline-size; }
+.cm-cell-face > *,
+.cm-cell-face .mulligan-card-slot,
+.cm-cell-face .binder-framed-slot,
+.cm-cell-face .binder-card { width: 100%; max-width: none; height: auto; max-height: none; margin: 0; }
+.cm-cell.has-face.is-picked { box-shadow: 0 0 0 3px var(--cm-gold), 0 12px 24px rgba(0,0,0,.5); border-radius: 10px; }
+
+/* ---- SiegelinQ home: the three teams ---- */
+.cm-teams { display: grid; gap: 8px; margin-bottom: 4px; }
+@media (min-width: 640px) { .cm-teams { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.cm-team {
+  appearance: none; cursor: pointer; color: var(--cm-ink); text-align: left; overflow: hidden;
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; min-height: 76px; border-radius: 16px;
+  border: 1px solid var(--cm-line-strong);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cm-gold) 12%, transparent), var(--cm-panel) 70%);
+}
+@media (min-width: 640px) { .cm-team { flex-direction: column; align-items: flex-start; } }
+.cm-team-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.cm-team-txt b { font-size: 16px; font-family: var(--cm-serif); color: var(--cm-gold); }
+.cm-team-txt small { font-size: 11.5px; color: var(--cm-muted); }
+.cm-team-art { flex: 0 0 auto; width: 64px; height: 54px; position: relative; }
+.cm-team-art .cm-fig { width: 100%; height: 100%; }
+.cm-team-row { flex: 0 0 auto; display: flex; gap: 3px; }
+.cm-mini { position: relative; width: 30px; height: 34px; border-radius: 8px; background: rgba(255,255,255,.05); border: 1px solid var(--cm-line); overflow: hidden; }
+.cm-team-row.is-3 .cm-mini { width: 40px; }
+.cm-mini.is-empty { border-style: dashed; }
+.cm-mini .cm-fig { width: 100%; height: 100%; }
+.cm-akhar-cta { width: 100%; margin: 6px 0 10px; }
+.cm-mon-badge {
+  position: absolute; bottom: 6px; right: 8px; font-style: normal; font-size: 9.5px; font-weight: 700;
+  padding: 2px 7px; border-radius: 999px; background: var(--cm-gold); color: #1a1206;
+}
+
+/* ---- SiegeSquad: left, center, right ---- */
+.cm-squad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 6px 0; }
+.cm-squad-slot {
+  position: relative; appearance: none; cursor: pointer; color: var(--cm-ink); overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 22px 6px 10px; min-height: 150px;
+  border-radius: 16px; border: 1px solid var(--cm-line-strong);
+  background: radial-gradient(80% 55% at 50% 72%, color-mix(in srgb, var(--cm-el-c, #888) 28%, transparent), var(--cm-panel));
+}
+.cm-squad-slot.is-empty { border-style: dashed; background: var(--cm-panel); }
+.cm-squad-slot.is-picked { border-color: var(--cm-gold); box-shadow: 0 0 0 2px var(--cm-gold); }
+.cm-squad-pos { position: absolute; top: 6px; left: 0; right: 0; text-align: center; font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--cm-gold); }
+.cm-squad-slot .cm-fig { width: 84%; height: 70px; }
+.cm-squad-slot b { font-size: 13px; }
+.cm-squad-slot small { font-size: 10.5px; color: var(--cm-muted); }
+.cm-squad-clear { display: block; margin: 2px auto 0; font-size: 12px; }
+.cm-mon-badge { top: 6px; bottom: auto; }
