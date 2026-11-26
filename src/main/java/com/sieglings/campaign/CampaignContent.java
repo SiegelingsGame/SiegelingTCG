@@ -61,6 +61,22 @@ public final class CampaignContent {
             Map.entry("light", "trainer34")
     );
 
+    /** The Legendary guarding each element's shrine; beating it earns that element's Sigil. */
+    public static final Map<String, String> LEGENDARY_BY_ELEMENT = Map.ofEntries(
+            Map.entry("fire", "pylord"),
+            Map.entry("ice", "glaciemperor"),
+            Map.entry("wind", "aerovane"),
+            Map.entry("earth", "gymstone"),
+            Map.entry("water", "conchious"),
+            Map.entry("electric", "new-siegli"),
+            Map.entry("metal", "siegebot"),
+            Map.entry("shadow", "penitence"),
+            Map.entry("undead", "mors"),
+            Map.entry("psychic", "gos"),
+            Map.entry("poison", "toxsleaf"),
+            Map.entry("light", "patience")
+    );
+
     public static final String AKHAR_ID = "raidlord-akhar";
     public static final String SQUIRE_ID = "squire-bob";
 
@@ -100,12 +116,9 @@ public final class CampaignContent {
         return m;
     }
 
+    /** Arena battles field at most three Siegelings a side, whatever the roster size. */
     public static int partySizeFor(CampaignRun.ArenaKind kind, int rosterSize) {
-        int cap = Math.min(5, Math.max(1, rosterSize));
-        return switch (kind) {
-            case RIVAL -> Math.min(cap, Math.max(1, Math.min(3, rosterSize)));
-            case KNIGHT, AKHAR -> cap;
-        };
+        return Math.min(CampaignRun.ARENA_PARTY_MAX, Math.max(1, rosterSize));
     }
 
     public static int playerHpFor(CampaignRun.ArenaKind kind) {

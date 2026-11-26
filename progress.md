@@ -1,3 +1,40 @@
+Original prompt: Update the game screen so it's full screen. Add an open world area where you can walk and start battles. Arena style battles should use the arena engine with 3 Siegelings max. Update the preset screen to show an arena style board you place the card positions of your Siegelings on the 3x3 board. Update the fab interface: a Pokémon-style menu for your party and owned Siegelings (items, team view), the CoDex (silhouettes, evolutions, elements), a player screen (knight ability, level, XP), a journal, settings (UI colour, filters), and a Sigils screen (one per element's Legendary).
+
+- November 26, 2026 **Campaign: full-screen world, Wildlands, 3-a-side Arena, formation board, Rally menu.**
+  - **Change.**
+    - **Server (`com.sieglings.campaign`).** `CampaignRun` gains `presetCells`, `area`, `level`/`xp`, `items`/`equipped`, `sigils`, `seen`, `journal`, `pendingWildCardId`/`pendingArenaArea`; `ARENA_PARTY_MAX = 3`. New `CampaignItems` (Shield / max-Health / Speed held items; only buffs the Battle Table keeps through its per-round recalcs). `CampaignService`:
+      - Every Arena battle fields ≤3 a side.
+      - The player's units stand on their saved cells under Squire Bob at his level (`leveledTrainer`), with held items applied.
+      - New kinds: `WILD` (a roamer from the area's pool, which is basic Common/Uncommon of the Land's element, or every opened Land's element in the Wildlands; a win catches it) and `LEGENDARY` (opens once the Land's rival falls; a win earns that element's Sigil via `CampaignContent.LEGENDARY_BY_ELEMENT`, with a catalog fallback).
+      - XP and level-ups, item drops, a journal and CoDex sightings on settle; battles return Bob to the area he was walking.
+      - Preset cells are resolved through the battle's own opening placement (`GameService.previewCampaignBoard`), so the formation screen never re-implements notch/socket rules.
+      - New endpoints: `POST /api/campaign/equip`, `POST /api/campaign/area`, `GET /api/campaign/codex`. `/preset` takes `cells`; `/arena/start` takes `kind: wild|legendary` + `cardId`/`area`.
+      - `GameController.clientTrainerJson` feeds the Squire screen.
+    - **World.** Walking screens hide the page header and run edge to edge (one HUD); the Palm Woods / realm gates lead to the new **Wildlands** (`World3D.loadWildlands`, `Overworld.loadWildlands`): meadow, ponds, groves, and roaming wild Siegelings carrying moving "Battle" hotspots. Lands get roamers in place of ambient wanderers plus a **Legendary Shrine**; closed hotspots now explain themselves. Grass rolls pick a roamer and start an Arena battle (the Siege AP wild screen remains only for in-flight old runs).
+    - **Formation.** The preset screen is an Arena board half on the starter element's board skin: a Front/Middle/Back 3×3 with notch dots and a bench strip. Tap to place, move or swap, 3 max. Saved cells come back from the server; moved units are reported.
+    - **Rally menu.** The shield FAB opens it during a run, with tiles for Siegelings, Formation, CoDex, Squire, Journal, Sigils, Settings and Main menu (which opens the shield):
+      - Siegelings: party, box, bag, a detail view with moves and give/take items.
+      - CoDex: caught/seen/total, element filter, silhouettes for unknown entries, evolution line.
+      - Squire: level, XP bar, passive/active.
+      - Journal: computed quests plus the log.
+      - Sigils: 12 cards, the Legendary silhouetted until earned.
+      - Settings: 6 accent colours, 7 world filters on the 3D canvas, minimap toggle, End campaign.
+    - **Fixed.** A boot race could drop a returning player on the start screen.
+    - **Pins.** `campaign.css?v=16`, `campaign.js?v=18`, `campaign-world3d.js?v=15`, `campaign-overworld.js?v=14` (+ fixture).
+  - **Verification.**
+    - **Unit tests.** `CampaignServiceTest` 10/10, with 6 new tests: 3-max preset keeps cells, cells follow battle placement, equip, a wild win catches and levels up, a Legendary win earns its Sigil, all 12 Lands map to a Legendary. Full `mvn -q test` run.
+    - **Live API (local app).** Driven against `mvn spring-boot:run` with real HTTP calls:
+      - Start, formation cell 4, area Wildlands, wild battle with real board placement (Sundile on [1,1]).
+      - The Oak Charm logs +2 Shield; a forfeit returns to the Wildlands.
+      - CoDex 130 entries / 54 evolution links; the shrine is gated until the rival falls.
+    - **Headless Chromium.** At 390×844, 375×667 and 1920×1080 against the local app:
+      - Header hidden and stage = viewport on world/land.
+      - FAB opens the menu with 8 tiles, and every panel renders with no horizontal overflow.
+      - Settings persist accent/filter (canvas filter applied).
+      - Formation places 3 and refuses a 4th; save round-trips.
+      - The 3D fixture spawns 6 Wildlands roamers (sprites + a measured overlay cutout), the walk-up prompt reads "Battle Raydile", A fires `wild-foe`, and the sealed and open shrine prompts are both correct.
+      - No page errors.
+
 Original prompt: Deploy
 
 - November 26, 2026 **Campaign art-first + rarity sizing + overlay cutouts + FAB (#1282) merged and live.**

@@ -1,8 +1,10 @@
 package com.sieglings.campaign;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -27,8 +29,15 @@ public class CampaignRun {
     public enum ArenaKind {
         RIVAL,
         KNIGHT,
-        AKHAR
+        AKHAR,
+        /** A roaming wild Siegeling met in the open world; winning captures it. */
+        WILD,
+        /** A Land's elemental Legendary at its shrine; winning earns that element's Sigil. */
+        LEGENDARY
     }
+
+    /** Most Siegelings either side fields in a campaign Arena battle. */
+    public static final int ARENA_PARTY_MAX = 3;
 
     public String token;
     public String ownerUserId = "";
@@ -44,8 +53,33 @@ public class CampaignRun {
 
     /** Owned Siegeling card ids (campaign roster). */
     public List<String> roster = new ArrayList<>();
-    /** Up to 5 card ids for Arena presets; first N used per fight. */
+    /** Up to {@link #ARENA_PARTY_MAX} card ids that take the field in Arena battles. */
     public List<String> arenaPreset = new ArrayList<>();
+    /** Board cell (row * 3 + col on the player's half; row 0 is the front line) per preset card. */
+    public Map<String, Integer> presetCells = new LinkedHashMap<>();
+
+    /** Where Bob is walking: "sanctuary", "wildlands", or a Land id. Battles return here. */
+    public String area = "sanctuary";
+
+    /** Squire Bob's SiegeKnight level and experience toward the next one. */
+    public int level = 1;
+    public int xp;
+
+    /** Unequipped campaign items (ids from {@link CampaignItems}); duplicates allowed. */
+    public List<String> items = new ArrayList<>();
+    /** Item held by each roster Siegeling. */
+    public Map<String, String> equipped = new LinkedHashMap<>();
+
+    /** Element ids whose Legendary has been defeated (one Sigil each). */
+    public Set<String> sigils = new LinkedHashSet<>();
+    /** Card ids met in battle; caught ones live in {@link #roster}. Drives the CoDex. */
+    public Set<String> seen = new LinkedHashSet<>();
+    /** Newest-last quest journal: {at, kind, text}. */
+    public List<Map<String, Object>> journal = new ArrayList<>();
+
+    /** The wild Siegeling an Arena WILD battle is for (captured on a win). */
+    public String pendingWildCardId;
+    public String pendingArenaArea;
 
     public String currentLandId;
     public Set<String> unlockedLandIds = new LinkedHashSet<>();
@@ -64,6 +98,12 @@ public class CampaignRun {
     public String pendingCaptureName;
 
     public int maxPresetSize() {
-        return Math.min(5, Math.max(1, roster.size()));
+        return Math.min(ARENA_PARTY_MAX, Math.max(1, roster.size()));
     }
+
+    public static int xpToNext(int level) {
+        return 100 * Math.max(1, level);
+    }
+
+    public static final int MAX_LEVEL = 10;
 }

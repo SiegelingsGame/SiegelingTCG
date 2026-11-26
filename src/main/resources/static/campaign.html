@@ -17,7 +17,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/style.css?v=310">
 <link rel="stylesheet" href="/css/shield-navigation.css?v=17">
-<link rel="stylesheet" href="/css/campaign.css?v=15">
+<link rel="stylesheet" href="/css/campaign.css?v=16">
 <script src="/js/hub-music.js?v=10" data-autoinit></script>
 </head>
 <body data-screen="loading">
@@ -75,7 +75,7 @@
         <button type="button" class="cm-world-close" id="cmWorldClose">Back to Sanctuary</button>
       </div>
       <div class="cm-cta sn-dock">
-        <button class="sn-flank is-left" id="cmPresetBtn" type="button">Arena Preset</button>
+        <button class="sn-flank is-left" id="cmPresetBtn" type="button">Realm Map</button>
         <button class="sn-flank is-right is-gold" id="cmAkharBtn" type="button" hidden>Challenge Akhar</button>
       </div>
     </section>
@@ -83,18 +83,30 @@
     <section class="cm-screen" id="screenLand">
       <div class="cm-stage cm-stage-ow" id="cmStage"></div>
       <div class="cm-cta sn-dock">
-        <button class="sn-flank is-left" id="cmBackWorld" type="button">World Map</button>
-        <button class="sn-flank is-right" id="cmPresetBtn2" type="button">Preset</button>
+        <button class="sn-flank is-left" id="cmBackWorld" type="button">Sanctuary</button>
+        <button class="sn-flank is-right" id="cmPresetBtn2" type="button">Formation</button>
       </div>
     </section>
 
+    <!-- Formation: the Arena party on a real 3x3 board half. Row 0 is the front line
+         (it faces the enemy); the server resolves cells with the battle's placement rules. -->
     <section class="cm-screen" id="screenPreset">
-      <h2 class="cm-h2">Arena preset (up to 5)</h2>
-      <p class="cm-muted">Your best Siegelings for trainer and knight duels. Order matters — the first N fight.</p>
-      <div class="cm-roster" id="cmRoster"></div>
+      <div class="cm-pre-head">
+        <div>
+          <span class="cm-eyebrow">Arena formation</span>
+          <h2 class="cm-h2">Place up to <span id="cmPreMax">3</span> Siegelings</h2>
+        </div>
+        <span class="cm-pre-count" id="cmPreCount">0/3</span>
+      </div>
+      <div class="cm-board-wrap" id="cmBoardWrap">
+        <span class="cm-board-foe" aria-hidden="true">Enemy line ▲</span>
+        <div class="cm-board" id="cmBoard" role="grid" aria-label="Your board half"></div>
+      </div>
+      <p class="cm-pre-hint" id="cmPreHint">Tap a Siegeling below, then a square. Tap a placed one to move or bench it.</p>
+      <div class="cm-bench" id="cmBench" role="listbox" aria-label="Your Siegelings"></div>
       <div class="cm-cta sn-dock">
         <button class="sn-flank is-left" id="cmPresetBack" type="button">Back</button>
-        <button class="sn-flank is-right is-gold" id="cmPresetSave" type="button">Save preset</button>
+        <button class="sn-flank is-right is-gold" id="cmPresetSave" type="button">Save formation</button>
       </div>
     </section>
 
@@ -132,6 +144,22 @@
   </main>
 </div>
 
+<!-- Rally menu: the campaign's own pause menu, opened from the shield FAB. -->
+<div class="cm-menu" id="cmMenu" hidden>
+  <div class="cm-menu-scrim" data-menu-close></div>
+  <section class="cm-menu-sheet" role="dialog" aria-modal="true" aria-labelledby="cmMenuTitle">
+    <header class="cm-menu-head">
+      <button type="button" class="cm-menu-back" id="cmMenuBack" aria-label="Back" hidden>&lsaquo;</button>
+      <div class="cm-menu-titles">
+        <span class="cm-eyebrow" id="cmMenuEyebrow">Rally of the Realms</span>
+        <h2 id="cmMenuTitle">Rally Menu</h2>
+      </div>
+      <button type="button" class="cm-menu-x" data-menu-close aria-label="Close menu">&times;</button>
+    </header>
+    <div class="cm-menu-body" id="cmMenuBody"></div>
+  </section>
+</div>
+
 <div class="cm-toast" id="cmToast" role="status" aria-live="polite" hidden></div>
 
 <script src="/js/viewport-unit.js?v=3"></script>
@@ -139,8 +167,8 @@
 <script src="/js/siege-sprites.js?v=5"></script>
 <script src="/js/shield-navigation.js?v=10"></script>
 <script src="/js/vendor/three.min.js"></script>
-<script src="/js/campaign-world3d.js?v=14"></script>
-<script src="/js/campaign-overworld.js?v=13"></script>
-<script src="/js/campaign.js?v=17"></script>
+<script src="/js/campaign-world3d.js?v=15"></script>
+<script src="/js/campaign-overworld.js?v=14"></script>
+<script src="/js/campaign.js?v=18"></script>
 </body>
 </html>

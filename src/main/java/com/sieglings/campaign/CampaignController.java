@@ -30,6 +30,7 @@ public class CampaignController {
     @PostConstruct
     void shareCardJson() {
         campaign.useClientCardJson(gameController::clientCardJson);
+        campaign.useClientTrainerJson(gameController::clientTrainerJson);
     }
 
     @GetMapping("/api/campaign/options")
@@ -68,8 +69,31 @@ public class CampaignController {
             List<String> ids = req == null || !(req.get("cardIds") instanceof List<?> list)
                     ? List.of()
                     : list.stream().map(String::valueOf).toList();
-            return campaign.runView(campaign.setPreset(token, ids));
+            Map<String, Integer> cells = new LinkedHashMap<>();
+            if (req != null && req.get("cells") instanceof Map<?, ?> raw) {
+                raw.forEach((k, v) -> {
+                    if (k != null && v instanceof Number n) cells.put(String.valueOf(k), n.intValue());
+                });
+            }
+            return campaign.runView(campaign.setPreset(token, ids, cells));
         });
+    }
+
+    @PostMapping("/api/campaign/equip")
+    public Map<String, Object> equip(@RequestHeader(value = "X-Campaign-Token", required = false) String token,
+                                     @RequestBody Map<String, Object> req) {
+        return handle(() -> campaign.runView(campaign.equip(token, str(req, "cardId"), str(req, "itemId"))));
+    }
+
+    @PostMapping("/api/campaign/area")
+    public Map<String, Object> area(@RequestHeader(value = "X-Campaign-Token", required = false) String token,
+                                    @RequestBody Map<String, Object> req) {
+        return handle(() -> campaign.runView(campaign.setArea(token, str(req, "area"))));
+    }
+
+    @GetMapping("/api/campaign/codex")
+    public Map<String, Object> codex(@RequestHeader(value = "X-Campaign-Token", required = false) String token) {
+        return handle(() -> campaign.codex(token));
     }
 
     @PostMapping("/api/campaign/wild/start")
@@ -97,7 +121,7 @@ public class CampaignController {
     public Map<String, Object> arenaStart(@RequestHeader(value = "X-Campaign-Token", required = false) String token,
                                           @RequestBody Map<String, Object> req) {
         return handle(() -> {
-            String soloToken = campaign.startArena(token, str(req, "kind"));
+            String soloToken = campaign.startArena(token, str(req, "kind"), str(req, "cardId"), str(req, "area"));
             Map<String, Object> out = new LinkedHashMap<>(campaign.runView(campaign.view(token)));
             out.put("soloToken", soloToken);
             return out;

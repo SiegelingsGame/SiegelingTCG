@@ -435,6 +435,29 @@ public class GameService {
         }
     }
 
+    /**
+     * Where a campaign preset would actually stand: runs the same opening-placement pass
+     * the battle uses on an empty board, so the preset screen shows real (legal) cells
+     * rather than re-implementing notch and socket rules in the browser. Returns
+     * {row, col} per placed card id in order; cards that cannot be placed are omitted.
+     */
+    public List<Map.Entry<String, int[]>> previewCampaignBoard(List<GauntletPlacement> openingBoard) {
+        GameState state = new GameState();
+        state.setPlayer(new Player("Preview", true));
+        state.setEnemy(new Player("Preview foe", false));
+        placeCampaignPlayerBoard(state, openingBoard);
+        List<Map.Entry<String, int[]>> out = new ArrayList<>();
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                CardInstance unit = state.getAt(true, row, col);
+                if (unit != null && unit.getCard() != null) {
+                    out.add(Map.entry(unit.getCard().getId(), new int[]{row, col}));
+                }
+            }
+        }
+        return out;
+    }
+
     /** Applies the SiegeKnight level bonus to a fresh trainer copy (Gauntlet knights level per run). */
     public TrainerCard leveledTrainer(TrainerCard trainer, int level) {
         return applyTrainerLevel(trainer, level);
