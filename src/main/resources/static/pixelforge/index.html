@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PixelForge</title>
+<meta name="description" content="Procedural pixel-art attack effect and cutscene generator shared by Siegelings TCG, ANIME VS+ and Generations.">
+<link rel="stylesheet" href="editor.css?v=1">
+</head>
+<body>
+<header class="pf-top">
+  <h1>Pixel<span>Forge</span></h1>
+  <div class="pf-filters" id="filters" role="group" aria-label="Project filter"></div>
+  <div class="pf-actions">
+    <button id="newEffect" type="button">New effect</button>
+    <button id="newCutscene" type="button">New cutscene</button>
+    <label class="pf-file">Import spec<input id="importSpec" type="file" accept=".json,application/json"></label>
+  </div>
+</header>
+
+<main class="pf-main">
+  <aside class="pf-panel pf-left">
+    <section>
+      <h2>Presets</h2>
+      <div class="pf-gallery" id="gallery"></div>
+    </section>
+  </aside>
+
+  <section class="pf-center">
+    <div class="pf-stage" id="stage">
+      <canvas id="view" width="64" height="64" aria-label="Effect preview"></canvas>
+    </div>
+    <div class="pf-transport">
+      <button id="play" type="button" aria-label="Play or pause">❚❚</button>
+      <input id="scrub" type="range" min="0" max="15" value="0" aria-label="Frame">
+      <span id="frameLabel" class="pf-mono">0/0</span>
+      <label>Zoom <select id="zoom"><option>auto</option><option>1</option><option>2</option><option>3</option><option>4</option><option>6</option><option>8</option></select></label>
+      <label>Bg <select id="bgMode"><option value="checker">checker</option><option value="dark">dark</option><option value="light">light</option><option value="grass">grass</option></select></label>
+    </div>
+    <div class="pf-strip" id="strip" aria-label="Frames"></div>
+    <div class="pf-stats pf-mono" id="stats"></div>
+
+    <section class="pf-export">
+      <h2>Export</h2>
+      <div class="pf-row">
+        <label>Name <input id="exportName" value="effect" spellcheck="false"></label>
+        <label>GIF scale <select id="gifScale"><option>2</option><option selected>3</option><option>4</option><option>6</option></select></label>
+        <label>Sheet scale <select id="sheetScale"><option selected>1</option><option>2</option><option>3</option><option>4</option></select></label>
+      </div>
+      <div class="pf-row">
+        <button id="exPng" type="button">Sheet PNG + JSON</button>
+        <button id="exGif" type="button">GIF</button>
+        <button id="exFrames" type="button">Frames .zip</button>
+        <button id="exSpec" type="button">Spec .json</button>
+        <button id="exLink" type="button">Copy share link</button>
+      </div>
+      <div class="pf-row">
+        <label>Element set <select id="setMode"><option value="elements">all 15 element ramps</option><option value="seeds">8 seed variations</option></select></label>
+        <button id="exSet" type="button" class="pf-primary">Generate set .zip</button>
+      </div>
+      <p class="pf-hint">Sheets come with Aseprite-format JSON plus a <code>pf</code> block (frame size, fps, pivot, impact frame) read by <code>player.js</code>, Phaser, Godot SpriteFrames importers and AnimeVs's <code>AVFX</code> table.</p>
+    </section>
+  </section>
+
+  <aside class="pf-panel pf-right">
+    <section>
+      <h2>Clip</h2>
+      <div class="pf-grid" id="clipProps"></div>
+    </section>
+    <section>
+      <div class="pf-h2row"><h2>Layers</h2>
+        <select id="addLayer" aria-label="Add layer"><option value="">+ add layer</option></select></div>
+      <ol class="pf-layers" id="layers"></ol>
+    </section>
+    <section>
+      <div class="pf-h2row"><h2>Post</h2>
+        <select id="addPost" aria-label="Add post pass"><option value="">+ add pass</option></select></div>
+      <ol class="pf-layers" id="posts"></ol>
+    </section>
+    <section>
+      <div class="pf-h2row"><h2 id="inspTitle">Inspector</h2>
+        <button id="recolor" type="button" title="Apply this layer's ramp to every field layer">Ramp → all</button></div>
+      <div class="pf-insp" id="inspector"></div>
+    </section>
+  </aside>
+</main>
+
+<script src="core.js?v=1"></script>
+<script src="presets.js?v=1"></script>
+<script src="editor.js?v=1"></script>
+</body>
+</html>
