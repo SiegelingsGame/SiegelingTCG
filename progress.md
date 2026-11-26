@@ -1,3 +1,12 @@
+Original prompt: Deploy
+
+- November 26, 2026 **ArenaTeam formation drag-and-drop / links (#1285) merged and live.**
+  - **Change.** Merged #1285 to `main` (`b6561911`); Deploy run `45902254563` succeeded.
+  - **Verification.**
+    - **Assets and health.** Live `/campaign` serves `campaign.css?v=18`, `campaign.js?v=20`. `/api/cards/editor` (Hosting + Cloud Run direct) → `FIRESTORE`, `liveEditingEnabled=true`, `firestoreAvailable=true`. `config.js` `apiBaseUrl: ''`. `/api/game/options` 200.
+    - **Live API.** A new run seeds its starter on cell 7 (front center).
+    - **Headless 390×844 on live `/campaign`.** Rows read Front/Middle/Back with the starter in the top (front) row; the bench shows its card face. Dragging it from cell 7 to cell 6 then Save → "ArenaTeam saved.", and the server stored `{breezee: 6}`. No page errors. The test run was abandoned.
+
 Original prompt: The bottom should show the cards with notches to guide your placement, enable drag and drop onto the board. Also when notches connect show a link connection or combo connection.
 
 - November 26, 2026 **ArenaTeam formation: card bench, drag and drop, link/combo overlay, front row fixed.**
