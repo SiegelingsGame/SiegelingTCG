@@ -30,6 +30,7 @@ public class CampaignController {
     @PostConstruct
     void shareCardJson() {
         campaign.useClientCardJson(gameController::clientCardJson);
+        campaign.useClientTrainerJson(gameController::clientTrainerJson);
     }
 
     @GetMapping("/api/campaign/options")
@@ -68,13 +69,55 @@ public class CampaignController {
             List<String> ids = req == null || !(req.get("cardIds") instanceof List<?> list)
                     ? List.of()
                     : list.stream().map(String::valueOf).toList();
-            return campaign.runView(campaign.setPreset(token, ids));
+            Map<String, Integer> cells = new LinkedHashMap<>();
+            if (req != null && req.get("cells") instanceof Map<?, ?> raw) {
+                raw.forEach((k, v) -> {
+                    if (k != null && v instanceof Number n) cells.put(String.valueOf(k), n.intValue());
+                });
+            }
+            return campaign.runView(campaign.setPreset(token, ids, cells));
         });
     }
 
+    @PostMapping("/api/campaign/equip")
+    public Map<String, Object> equip(@RequestHeader(value = "X-Campaign-Token", required = false) String token,
+                                     @RequestBody Map<String, Object> req) {
+        return handle(() -> campaign.runView(campaign.equip(token, str(req, "cardId"), str(req, "itemId"))));
+    }
+
+    @PostMapping("/api/campaign/area")
+    public Map<String, Object> area(@RequestHeader(value = "X-Campaign-Token", required = false) String token,
+                                    @RequestBody Map<String, Object> req) {
+        return handle(() -> campaign.runView(campaign.setArea(token, str(req, "area"))));
+    }
+
+    @GetMapping("/api/campaign/codex")
+    public Map<String, Object> codex(@RequestHeader(value = "X-Campaign-Token", required = false) String token) {
+        return handle(() -> campaign.codex(token));
+    }
+
     @PostMapping("/api/campaign/wild/start")
-    public Map<String, Object> wildStart(@RequestHeader(value = "X-Campaign-Token", required = false) String token) {
-        return handle(() -> campaign.runView(campaign.startWild(token)));
+    public Map<String, Object> wildStart(@RequestHeader(value = "X-Campaign-Token", required = false) String token,
+                                         @RequestBody(required = false) Map<String, Object> req) {
+        return handle(() -> campaign.runView(campaign.startWild(token, str(req, "cardId"), str(req, "area"))));
+    }
+
+    @PostMapping("/api/campaign/squad")
+    public Map<String, Object> squad(@RequestHeader(value = "X-Campaign-Token", required = false) String token,
+                                     @RequestBody Map<String, Object> req) {
+        return handle(() -> {
+            List<String> slots = new java.util.ArrayList<>();
+            if (req != null && req.get("slots") instanceof List<?> list) {
+                for (Object o : list) slots.add(o == null ? null : String.valueOf(o));
+            }
+            return campaign.runView(campaign.setSquad(token, slots));
+        });
+    }
+
+    @PostMapping("/api/campaign/follower")
+    public Map<String, Object> follower(@RequestHeader(value = "X-Campaign-Token", required = false) String token,
+                                        @RequestBody Map<String, Object> req) {
+        return handle(() -> campaign.runView(campaign.setFollower(token, str(req, "cardId"))));
     }
 
     @PostMapping("/api/campaign/wild/play")
@@ -97,7 +140,7 @@ public class CampaignController {
     public Map<String, Object> arenaStart(@RequestHeader(value = "X-Campaign-Token", required = false) String token,
                                           @RequestBody Map<String, Object> req) {
         return handle(() -> {
-            String soloToken = campaign.startArena(token, str(req, "kind"));
+            String soloToken = campaign.startArena(token, str(req, "kind"), str(req, "cardId"), str(req, "area"));
             Map<String, Object> out = new LinkedHashMap<>(campaign.runView(campaign.view(token)));
             out.put("soloToken", soloToken);
             return out;

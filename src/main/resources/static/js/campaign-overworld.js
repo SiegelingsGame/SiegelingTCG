@@ -26,6 +26,8 @@
     this.onExit = opts.onExit || function () {};
     // Fired when a realm grass roll hits — Campaign starts a Siege-style wild battle.
     this.onEncounter = opts.onEncounter || function () {};
+    // Pages with their own A button (the campaign dock) mirror the prompt there.
+    this.onPrompt = opts.onPrompt || null;
     this.enabled = false;
     this.keys = {};
     this.pad = { x: 0, y: 0 };
@@ -333,6 +335,8 @@
       this.world3d.loadRealm({
         element: cfg.element, landId: cfg.landId, name: cfg.name,
         rivalDone: !!cfg.rivalDone, rallied: !!cfg.rallied,
+        wilds: cfg.wilds || [], legendary: cfg.legendary || null,
+        shrineOpen: !!cfg.shrineOpen, sigilEarned: !!cfg.sigilEarned,
         followerId: this.follower && this.follower.id,
         follower: this.follower
       });
@@ -351,6 +355,46 @@
     }
 
     this._loadLandCss(cfg);
+  };
+
+  /**
+   * The Wildlands open world (3D only): roaming wild Siegelings to walk up to and
+   * battle, with tall-grass rolls as well. Without WebGL it falls back to the
+   * Sanctuary, whose Palm Woods gate then starts a battle directly.
+   */
+  Overworld.prototype.loadWildlands = function (cfg) {
+    cfg = cfg || {};
+    if (!(this.use3d && this.world3d && this.world3d.loadWildlands)) return false;
+    this.mapId = 'wildlands';
+    this.follower = cfg.follower || null;
+    this._resetEncounter(true);
+    if (this.els.ow) {
+      this.els.ow.classList.remove('is-sanctuary');
+      this.els.ow.classList.add('is-realm');
+      this.els.ow.dataset.element = 'earth';
+    }
+    this.els.place.textContent = 'The Wildlands';
+    this.els.banner.textContent = cfg.message ||
+      'Wild Siegelings roam the meadow. Walk up to one and press A to battle it.';
+    this._hud(cfg);
+    this.world3d.loadWildlands({
+      wilds: cfg.wilds || [],
+      followerId: this.follower && this.follower.id,
+      follower: this.follower
+    });
+    this.mapW = this.world3d.mapW;
+    this.mapH = this.world3d.mapH;
+    this.buildings = this.world3d.getBuildings();
+    var spawn = this.world3d.spawn || { x: 20, z: 28 };
+    this.player.x = spawn.x;
+    this.player.z = spawn.z;
+    this.player.dir = 'up';
+    this.player.walking = false;
+    this.near = null;
+    this._updatePrompt();
+    this._drawMinimap();
+    this._scheduleResize();
+    return true;
   };
 
   /* ---------- CSS fallback path (no WebGL) ---------- */
@@ -649,7 +693,7 @@
     var i, b, dx, dz, d;
     for (i = 0; i < this.buildings.length; i++) {
       b = this.buildings[i];
-      if (b.disabled) continue;
+      // Closed hotspots (sealed shrine, cleared arena) still answer, with the reason why.
       dx = this.player.x - (b.approachX != null ? b.approachX : b.x);
       dz = this.player.z - (b.approachZ != null ? b.approachZ : b.z);
       d = Math.sqrt(dx * dx + dz * dz);
@@ -686,11 +730,17 @@
     var p = this.els.prompt;
     var btn = this.els.promptBtn;
     if (!p || !btn) return;
-    if (!this.near) { p.hidden = true; return; }
+    if (!this.near) {
+      p.hidden = true;
+      if (this.onPrompt) this.onPrompt(null, '');
+      return;
+    }
     p.hidden = false;
     var verbs = {
       wild: 'Enter Wild Grove',
-      woods: 'Enter Palm Woods',
+      woods: 'Enter the Wildlands',
+      'wild-foe': 'Battle ' + (this.near.label || 'the wild Siegeling'),
+      legendary: 'Challenge the Legendary',
       rival: 'Challenge Rival Arena',
       knight: this.near.knightId ? ('Challenge ' + (this.near.label || 'SiegeKnight')) : 'Challenge Knight Keep',
       'meet-knight': 'Speak with ' + (this.near.label || 'SiegeKnight'),
@@ -700,14 +750,23 @@
       preset: 'Edit Arena Preset',
       flavor: 'Look around'
     };
-    btn.textContent = verbs[this.near.act] || ('Enter ' + this.near.label);
+    btn.textContent = this.near.disabled
+      ? (this.near.label + (this.near.sub ? ' — ' + this.near.sub : ''))
+      : (verbs[this.near.act] || ('Enter ' + this.near.label));
+    btn.classList.toggle('is-closed', !!this.near.disabled);
+    if (this.onPrompt) this.onPrompt(this.near, btn.textContent);
     btn.setAttribute('data-act', this.near.act);
     if (this.near.landId) btn.setAttribute('data-land', this.near.landId);
     else btn.removeAttribute('data-land');
   };
 
   Overworld.prototype.tryInteract = function () {
-    if (!this.near || this.near.disabled) return;
+    if (!this.near) return;
+    // A closed hotspot (sealed shrine, cleared arena) explains itself instead of doing nothing.
+    if (this.near.disabled) {
+      this.setBanner(this.near.label + (this.near.sub ? ' — ' + this.near.sub + '.' : '.'));
+      return;
+    }
     if (this.near.act === 'flavor') {
       this.setBanner(this.near.label + ' — a quiet corner of the Sanctuary.');
       return;

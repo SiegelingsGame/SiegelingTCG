@@ -1,3 +1,74 @@
+Original prompt: SiegelinQ with a Q is the team setup: Follower, Arena and Siege mode teams; 5 placements for ArenaTeam, 3 for SiegeSquad. The bottom HUD should be the Siegelings FAB HUD: left the SiegelinQ menu, right the A/interact button, the FAB opens the FAB. Arena placement up to 5 shown as their card versions with notches, set up before battle. SiegeSquad up to 3 with left/center/right formation.
+
+- November 26, 2026 **Campaign: SiegelinQ teams (Follower, ArenaTeam 5, SiegeSquad L/C/R), walking dock, wilds back to Siege mode.**
+  - **Change.**
+    - **Server.**
+      - `CampaignRun.ARENA_PARTY_MAX = 5`; new `siegeSquad` (left, center, right; null = empty), `SIEGE_SQUAD_MAX = 3` and `followerId`.
+      - New endpoints `POST /api/campaign/squad` and `POST /api/campaign/follower`. `/wild/start` takes `cardId` + `area`, and `CampaignWildSupport.start` makes that roamer the pack lead (and the catch).
+      - Wild battles run in Siege mode with the squad in left/center/right order (Siege position = squad order). They start from the Sanctuary, the Wildlands or a Land and return Bob there with XP, a 30% item roll and a journal entry.
+      - Catches fill a free squad slot (center first) and a free ArenaTeam place.
+      - Arena kinds (rival, knight, Legendary, Akhar) field up to 5; rivals bring up to 3, other foes 3–5.
+    - **Walking dock.** World and Land screens now share one dock: the left flank is **SiegelinQ** (opens the menu), the right flank is **A** and shows what A will do ("Battle Raydile", else "Explore") via a new `Overworld onPrompt` hook. The overworld's own A button and prompt pill are hidden there, and the FAB is the plain site shield again. The old Realm Map / Sanctuary / Formation / Akhar flanks moved to their obelisks and into SiegelinQ (Akhar shows as a CTA when unlocked).
+    - **SiegelinQ menu.**
+      - Home leads with three team cards: Follower, ArenaTeam (x/5 minis) and SiegeSquad (L/C/R minis), followed by the Box & Bag, CoDex, Squire, Journal, Sigils, Settings and Main menu tiles.
+      - Follower picker updates the 3D follower live. SiegeSquad editor: tap a slot then a Siegeling, swap, empty a slot, save.
+      - ArenaTeam formation shows **real card faces with notches** in 5:7 cells (`card-binder-visual.js` over `game.js` as a library, like the Gauntlet; sprite/cutout fallback), 5 max.
+      - Rival, knight, Legendary and Akhar battles open the formation first ("Before the duel · Your ArenaTeam vs X", **Fight!** saves and starts).
+    - **Pins.** `campaign.css?v=17`, `campaign.js?v=19`, `campaign-overworld.js?v=15` (campaign + fixture), plus `game.js?v=358` and `card-binder-visual.js?v=37` now loaded on `campaign.html`.
+  - **Verification.**
+    - **Unit tests.** `CampaignServiceTest` 12/12, including new tests: ArenaTeam caps at 5 with cells; SiegeSquad L/C/R, duplicate/empty rejection and follower choice; a wild Siege battle uses the squad in order, catches into the squad and returns to the Land.
+    - **Local app API.** Start seeds squad `[null, cacty, null]` and follower `cacty`; squad and follower saves work and reject a non-roster follower. A Wildlands `wild/start` with roamer `breezee` produces a Siege battle led by Breezee with Cacty on position 0.
+    - **Headless Chromium at 390×844 and 1920×1080.**
+      - Dock reads SiegelinQ | FAB | A Explore; the overworld A button is hidden; the stick sits above the dock.
+      - SiegelinQ shows 3 team cards; the squad editor assigns Right = Pylord; the follower list badges the current follower.
+      - ArenaTeam renders 4→5 real card faces (face 119px in a 122px cell, no overflow).
+      - Akhar CTA opens the pre-battle formation with Fight!; Back returns to the world.
+      - Fixture: `onPrompt` reports "Battle Raydile" next to a roamer and clears when walking away.
+      - No page errors.
+
+Original prompt: Update the game screen so it's full screen. Add an open world area where you can walk and start battles. Arena style battles should use the arena engine with 3 Siegelings max. Update the preset screen to show an arena style board you place the card positions of your Siegelings on the 3x3 board. Update the fab interface: a Pokémon-style menu for your party and owned Siegelings (items, team view), the CoDex (silhouettes, evolutions, elements), a player screen (knight ability, level, XP), a journal, settings (UI colour, filters), and a Sigils screen (one per element's Legendary).
+
+- November 26, 2026 **Campaign: full-screen world, Wildlands, 3-a-side Arena, formation board, Rally menu.**
+  - **Change.**
+    - **Server (`com.sieglings.campaign`).** `CampaignRun` gains `presetCells`, `area`, `level`/`xp`, `items`/`equipped`, `sigils`, `seen`, `journal`, `pendingWildCardId`/`pendingArenaArea`; `ARENA_PARTY_MAX = 3`. New `CampaignItems` (Shield / max-Health / Speed held items; only buffs the Battle Table keeps through its per-round recalcs). `CampaignService`:
+      - Every Arena battle fields ≤3 a side.
+      - The player's units stand on their saved cells under Squire Bob at his level (`leveledTrainer`), with held items applied.
+      - New kinds: `WILD` (a roamer from the area's pool, which is basic Common/Uncommon of the Land's element, or every opened Land's element in the Wildlands; a win catches it) and `LEGENDARY` (opens once the Land's rival falls; a win earns that element's Sigil via `CampaignContent.LEGENDARY_BY_ELEMENT`, with a catalog fallback).
+      - XP and level-ups, item drops, a journal and CoDex sightings on settle; battles return Bob to the area he was walking.
+      - Preset cells are resolved through the battle's own opening placement (`GameService.previewCampaignBoard`), so the formation screen never re-implements notch/socket rules.
+      - New endpoints: `POST /api/campaign/equip`, `POST /api/campaign/area`, `GET /api/campaign/codex`. `/preset` takes `cells`; `/arena/start` takes `kind: wild|legendary` + `cardId`/`area`.
+      - `GameController.clientTrainerJson` feeds the Squire screen.
+    - **World.** Walking screens hide the page header and run edge to edge (one HUD); the Palm Woods / realm gates lead to the new **Wildlands** (`World3D.loadWildlands`, `Overworld.loadWildlands`): meadow, ponds, groves, and roaming wild Siegelings carrying moving "Battle" hotspots. Lands get roamers in place of ambient wanderers plus a **Legendary Shrine**; closed hotspots now explain themselves. Grass rolls pick a roamer and start an Arena battle (the Siege AP wild screen remains only for in-flight old runs).
+    - **Formation.** The preset screen is an Arena board half on the starter element's board skin: a Front/Middle/Back 3×3 with notch dots and a bench strip. Tap to place, move or swap, 3 max. Saved cells come back from the server; moved units are reported.
+    - **Rally menu.** The shield FAB opens it during a run, with tiles for Siegelings, Formation, CoDex, Squire, Journal, Sigils, Settings and Main menu (which opens the shield):
+      - Siegelings: party, box, bag, a detail view with moves and give/take items.
+      - CoDex: caught/seen/total, element filter, silhouettes for unknown entries, evolution line.
+      - Squire: level, XP bar, passive/active.
+      - Journal: computed quests plus the log.
+      - Sigils: 12 cards, the Legendary silhouetted until earned.
+      - Settings: 6 accent colours, 7 world filters on the 3D canvas, minimap toggle, End campaign.
+    - **Fixed.** A boot race could drop a returning player on the start screen.
+    - **Pins.** `campaign.css?v=16`, `campaign.js?v=18`, `campaign-world3d.js?v=15`, `campaign-overworld.js?v=14` (+ fixture).
+  - **Verification.**
+    - **Unit tests.** `CampaignServiceTest` 10/10, with 6 new tests: 3-max preset keeps cells, cells follow battle placement, equip, a wild win catches and levels up, a Legendary win earns its Sigil, all 12 Lands map to a Legendary. Full `mvn -q test`: 969/971 pass; the 2 errors (`PlayerProgressionControllerStarterPackTest`, null `battlefieldSkinCatalog`) fail identically on `origin/main`.
+    - **Live API (local app).** Driven against `mvn spring-boot:run` with real HTTP calls:
+      - Start, formation cell 4, area Wildlands, wild battle with real board placement (Sundile on [1,1]).
+      - The Oak Charm logs +2 Shield; a forfeit returns to the Wildlands.
+      - CoDex 130 entries / 54 evolution links; the shrine is gated until the rival falls.
+    - **Headless Chromium.** At 390×844, 375×667 and 1920×1080 against the local app:
+      - Header hidden and stage = viewport on world/land.
+      - FAB opens the menu with 8 tiles, and every panel renders with no horizontal overflow.
+      - Settings persist accent/filter (canvas filter applied).
+      - Formation places 3 and refuses a 4th; save round-trips.
+      - The 3D fixture spawns 6 Wildlands roamers (sprites + a measured overlay cutout), the walk-up prompt reads "Battle Raydile", A fires `wild-foe`, and the sealed and open shrine prompts are both correct.
+      - No page errors.
+
+Original prompt: Deploy
+
+- November 26, 2026 **Campaign art-first + rarity sizing + overlay cutouts + FAB (#1282) merged and live.**
+  - **Change.** Merged #1282 to `main` (merge commit `06a931ea`); Deploy run `45882870454` succeeded.
+  - **Verification.** Live `/campaign` serves `campaign.css?v=15`, `campaign.js?v=17`, `campaign-world3d.js?v=14`, `campaign-overworld.js?v=13`, `siege-sprites.js?v=5`; `/siege`, `/home` and `/` also serve `siege-sprites.js?v=5`, and the live file contains `measureCutout`/`RARITY_SCALE`. `/api/cards/editor` (Hosting + Cloud Run direct) → `source=FIRESTORE`, `liveEditingEnabled=true`, `firestoreAvailable=true`. `config.js` `apiBaseUrl: ''`. `/api/game/options` 200. `/api/campaign/options` 200 with four starters carrying `background` + `COMMON` rarity. The live art mirror returns Pylord's overlay as `image/webp` 200. Headless 390×844 on live `/campaign`: start screen shows the Emberfall stage with Sundile's animated sheet, 4 Land tabs, Begin enabled, shield FAB visible, no document scroll, no page errors.
+
 Original prompt: If no sprite exist use the cutout from the card overlay
 
 - November 26, 2026 **Campaign: overlay cutout fallback for Siegelings without a sprite sheet.**

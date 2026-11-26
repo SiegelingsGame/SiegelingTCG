@@ -1426,6 +1426,33 @@
     });
   };
 
+  /**
+   * Roaming wild Siegelings you can battle: wanderers that carry a live hotspot
+   * (like the knight NPCs), so walking up to one and pressing A starts a fight.
+   * `list` rows are campaign card rows ({id, name, rarity, artUrl, cardArtMode, caught}).
+   */
+  World3D.prototype._wildRoamers = function (list, spots) {
+    var self = this;
+    (list || []).forEach(function (card, i) {
+      var spot = spots[i % spots.length];
+      var bodyH = siegelingBodyH(card.id, card.rarity);
+      var a = self._siegeling(card.id, bodyH) || self._cutoutActor(card, bodyH);
+      if (!a) return;
+      var hot = {
+        id: 'wild-' + card.id + '-' + i, act: 'wild-foe', cardId: card.id,
+        label: card.name || card.id,
+        sub: (card.caught ? 'Caught · ' : 'Wild · ') + String(card.rarity || 'COMMON').toLowerCase() + ' · Battle',
+        x: spot[0], z: spot[1], cx: spot[0], cz: spot[1],
+        approachX: spot[0], approachZ: spot[1] + 0.9, labelY: Math.max(1.3, bodyH + 0.5)
+      };
+      self.npcHotspots.push(hot);
+      self.npcs.push({
+        kind: 'wild', hot: hot, a: a, hx: spot[0], hz: spot[1], x: spot[0], z: spot[1], tx: spot[0], tz: spot[1],
+        wait: 0.5 + self.rnd() * 2, left: false, moving: false, phase: self.rnd() * 1000, r: spot[2] || 2.2
+      });
+    });
+  };
+
   /** Face an 8-dir sheet from a movement delta (same vocabulary as Bob). */
   World3D.prototype._dirFromDelta = function (dx, dz) {
     if (Math.abs(dx) < 0.001 && Math.abs(dz) < 0.001) return null;
@@ -1495,7 +1522,7 @@
     this._pyramid({ id: 'pyramid', act: 'flavor', label: 'Relic Shrine', sub: 'Sanctuary', x: 14, z: 3.5, w: 6, d: 5 });
     this._house({ id: 'house', act: 'flavor', label: 'Squire Lodge', sub: 'Rest · story', x: 2, z: 9, w: 5, d: 4, door: 2, theme: 'sandstone', awning: ['#c0392b', '#f4e4c4'] });
     this._arena({ id: 'arena', act: 'preset', label: 'Arena Gate', sub: 'Preset deck', x: 27.5, z: 9.5, r: 3, banner: '#c0392b' });
-    this._gate({ id: 'woods', act: 'woods', label: 'Palm Woods', sub: 'Wild capture', x: 10, z: 1.2, span: 2.6 });
+    this._gate({ id: 'woods', act: 'woods', label: 'Wildlands', sub: 'Open world · battles', x: 10, z: 1.2, span: 2.6 });
     this._obelisk({ id: 'realms', act: 'realms', label: 'Realm Map', sub: 'Travel', x: 17, z: 24.5, glow: '#a8b4ff', h: 2.8 });
     var lands = (cfg.lands || []).filter(function (l) { return l.unlocked || l.rallied; }).slice(0, 6);
     var self = this;
@@ -1561,7 +1588,7 @@
     var rivalDone = !!cfg.rivalDone, rallied = !!cfg.rallied;
     this._keep({ id: 'knight', act: 'knight', label: 'Knight Keep', sub: rallied ? 'Rallied' : 'SiegeKnight', x: 11.5, z: 1.8, w: 7, d: 3.6, banner: glow, disabled: rallied });
     this._arena({ id: 'rival', act: 'rival', label: 'Rival Arena', sub: rivalDone ? 'Cleared' : 'Arena duel', x: 24.5, z: 7.5, r: 2.6, banner: glow, disabled: rivalDone });
-    this._gate({ id: 'wild', act: 'wild', label: 'Wild Grove', sub: 'Siege capture', x: 4.5, z: 1.2, span: 2.6 });
+    this._gate({ id: 'wildlands', act: 'woods', label: 'Wildlands', sub: 'Open world', x: 4.5, z: 1.2, span: 2.6 });
     this._obelisk({ id: 'exit', act: 'exit', label: 'Sanctuary', sub: 'Return home', x: 14.95, z: 20.6, glow: '#a8b4ff', h: 2.4 });
     this._obelisk({ id: 'monument', x: 14.95, z: 12.5, glow: glow, h: 2.8 });
     this.buildings.pop();
@@ -1573,11 +1600,16 @@
     else this._leafTrees(inner.map(function (p) { return [p[0], p[1], 2.2]; }), L.edge === 'pine');
     this._forestEdge(L.edge);
     this._motes();
-    var natives = { fire: ['sundile', 'draco'], earth: ['cacty', 'generoot'], wind: ['breezee', 'gagglestand'], ice: ['fawny', 'chilldoe'] }[el] || ['raydile', 'floraknight'];
-    this._wanderers([
-      { id: natives[0], x: 11.2, z: 15.2 },
-      { id: natives[1], x: 19.2, z: 14.6 }
-    ]);
+    // The Land's roaming wilds: walk up and press A to battle (and catch) them.
+    this._wildRoamers(cfg.wilds || [], [[5.2, 16.4, 2.4], [24.6, 15.2, 2.4], [6.0, 8.8, 2.0], [23.2, 21.0, 2.0]]);
+    // The Legendary shrine opens once this Land's rival falls; beating it earns the Sigil.
+    var legend = cfg.legendary || null;
+    this._obelisk({
+      id: 'legendary', act: 'legendary', x: 4.5, z: 20.4, glow: glow, h: 3.1,
+      label: 'Legendary Shrine',
+      sub: cfg.sigilEarned ? 'Sigil earned' : (cfg.shrineOpen ? (legend ? legend.name : 'Legendary') + ' · Battle' : 'Beat the rival first'),
+      disabled: !!cfg.sigilEarned || !cfg.shrineOpen
+    });
     // Home-realm SiegeKnight stands near the keep; challenge them before they are rallied.
     var realmKnight = { fire: 'pyla', wind: 'ser-airek', ice: 'glacia' }[el];
     if (realmKnight) {
@@ -1589,6 +1621,48 @@
       }]);
     }
     this.spawn = { x: 14.95, z: 15.8 };
+    this.setFollower(cfg.followerId, cfg.follower);
+  };
+
+  /**
+   * The Wildlands: an open meadow north of the Sanctuary. No buildings to visit, just
+   * room to roam, ponds and groves, and wild Siegelings from every opened Land walking
+   * about. Walk into one and press A to battle it; tall grass also rolls encounters.
+   */
+  World3D.prototype.loadWildlands = function (cfg) {
+    if (!this.ready) return;
+    cfg = cfg || {};
+    var W = 40, H = 34;
+    this._newScene('verdant', W, H, 41);
+    var ponds = [{ x: 9, z: 9, rx: 3.4, rz: 2.4 }, { x: 31, z: 22, rx: 3.0, rz: 2.2 }];
+    this._ground(function (x, z) {
+      for (var i = 0; i < ponds.length; i++) {
+        var p = ponds[i], dx = (x + 0.5 - p.x) / p.rx, dz = (z + 0.5 - p.z) / p.rz;
+        if (dx * dx + dz * dz < 1) return 'water';
+        if (dx * dx + dz * dz < 1.6) return 'sand';
+      }
+      // A winding dirt road north from the Sanctuary gate.
+      var roadX = 20 + Math.round(Math.sin(z / 4.2) * 3);
+      if (Math.abs(x - roadX) <= 0 || (x === roadX + 1 && z > 20)) return 'road';
+      if (x >= 16 && x <= 24 && z >= 13 && z <= 17) return 'plaza';
+      return (x * 5 + z * 11) % 13 < 2 ? 'sand' : 'grass';
+    });
+    this._obelisk({ id: 'exit', act: 'exit', label: 'Sanctuary', sub: 'Return home', x: 20.5, z: 31.2, glow: '#a8b4ff', h: 2.4 });
+    this._obelisk({ id: 'menhir', x: 20.5, z: 15, glow: '#9cff9c', h: 3.2 });
+    this.buildings.pop();
+    var self = this;
+    var groves = [[3, 3, 2.4], [6.4, 19, 2.2], [3.2, 27.4, 2.3], [13.2, 24.4, 2.0], [28.6, 4.2, 2.3], [35.6, 9.8, 2.2],
+      [36.4, 28.6, 2.4], [26.8, 29.6, 2.1], [14.6, 5.2, 2.0], [33.4, 15.4, 2.2], [9.2, 31.0, 2.1], [24.8, 9.4, 2.0]];
+    this._leafTrees(groves, false);
+    this._leafTrees([[2.4, 14.4, 2.6], [37.4, 20.0, 2.5], [17.2, 1.8, 2.4], [30.4, 32.0, 2.3]], true);
+    var bush = (SANC || '/img/campaign/sanctuary/') + 'decor/bush.webp';
+    [[11.6, 14.2], [12.6, 15.0], [27.6, 13.6], [28.4, 14.6], [15.2, 21.8], [25.6, 22.4], [8.4, 23.2], [31.4, 7.6], [6.8, 12.6], [34.2, 25.4]]
+      .forEach(function (p) { self._cutout(bush, p[0], p[1], 0.7, 1); });
+    this._forestEdge('leaf');
+    this._motes();
+    this._wildRoamers(cfg.wilds || [], [[11.0, 17.6, 3.0], [28.8, 17.2, 3.0], [14.2, 9.6, 2.6], [27.2, 26.0, 2.8],
+      [7.4, 25.6, 2.4], [33.0, 12.0, 2.6], [20.2, 6.4, 2.4], [12.4, 28.6, 2.2]]);
+    this.spawn = { x: 20.5, z: 29.4 };
     this.setFollower(cfg.followerId, cfg.follower);
   };
 
@@ -1687,6 +1761,12 @@
         var pose = n.moving ? ['idle', 'walk-a', 'idle', 'walk-b'][Math.floor((t + n.phase) / 120) & 3] : 'idle';
         self._setActorTex(n.a, n.tex[(n.dir || 'down') + '-' + pose] || n.tex['down-idle']);
         return;
+      }
+      if (n.hot) {
+        n.hot.x = n.hot.cx = n.x;
+        n.hot.z = n.hot.cz = n.z;
+        n.hot.approachX = n.x;
+        n.hot.approachZ = n.z + 0.9;
       }
       n.a.mesh.position.set(n.x, -n.a.sink, n.z);
       n.a.shadow.position.set(n.x, 0.012, n.z);

@@ -1430,6 +1430,10 @@ public class GameController {
         return serializeCard(card);
     }
 
+    public Map<String, Object> clientTrainerJson(TrainerCard trainer) {
+        return serializeTrainer(trainer);
+    }
+
     private Map<String, Object> serializeCard(Card card) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", card.getId());
