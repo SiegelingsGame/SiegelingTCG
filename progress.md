@@ -1,3 +1,9 @@
+Original prompt: Update the size Bob is the height of a medium siegeling resize these
+
+- November 26, 2026 **Campaign: size Siegelings against Squire Bob by evolution stage.**
+  - **Change.** `siege-sprites.js` now records each sheet's evolution stage and exposes `SiegeSprites.heightVsSquire(id)`: medium (stage 2) = 1.0× Bob's figure, basic = 0.72×, final = 1.3×. Two-stage lines (draco) end at medium. On the start stage Bob fills the floor row and the partner's body is `Bob figure (64% of his 160×200 frame) × scale`, with Bob's frame dropped 2.5% so both pairs of feet share the floor line. Previously the partner box was 72% vs Bob's 66%, so basics stood taller than Bob. In the 3D world (`campaign-world3d.js`) the follower and wanderers size from `BOB_PLANE_H × 128/200 × scale` instead of hand-set heights, so Raydile/Chilldoe (0.55/0.6) now match Bob (1.088) and Generoot (stage 3) stands taller. The 2D non-WebGL fallback is unchanged. Pins: `siege-sprites.js?v=3` (adventure, campaign, home-next, index, two fixtures), `campaign-world3d.js?v=12`, `campaign.css?v=13`, `campaign.js?v=15`.
+  - **Verification.** `node --check` on all three JS files. Headless start screen with Sundile/Raydile/Solgator/Fawny mocked: partner/Bob-figure ratio 0.72 / 1.00 / 1.30 / 0.72 at 390×844, 1920×1080 and 844×390, feet within 4px. A side-by-side screenshot shows Raydile's figure level with Bob's. `campaign-world3d-fixture.html` (SwiftShader): Bob figure 1.088; follower Cacty and Cacty/Fawny wanderers 0.72; Raydile/Chilldoe 1.00; no page errors.
+
 Original prompt: Redesign the page with an art first approach
 
 - November 26, 2026 **Campaign start screen: art-first redesign.**

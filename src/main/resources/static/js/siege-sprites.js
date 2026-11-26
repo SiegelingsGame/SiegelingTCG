@@ -53,11 +53,24 @@
     breezee: 'breezee', gagglestand: 'gagglestand', hurricrane: 'hurricrane',
     fawny: 'fawny', chilldoe: 'chilldoe', frostag: 'frostag',
     draco: 'draco', dracoil: 'dracoil' };
+  // Evolution stage per sheet, for sizing Siegelings against Squire Bob: a
+  // medium (stage 2) Siegeling stands as tall as Bob, basics are smaller and
+  // finals larger. Two-stage lines (draco) end at medium.
+  var stages = { squirebud: 1, floraknight: 2, generoot: 3,
+    sundile: 1, raydile: 2, solgator: 3, cacty: 1, jackedty: 2, cactyjackedty: 3,
+    breezee: 1, gagglestand: 2, hurricrane: 3, fawny: 1, chilldoe: 2, frostag: 3,
+    draco: 1, dracoil: 2 };
+  var STAGE_HEIGHT = { 1: 0.72, 2: 1, 3: 1.3 };
   window.SiegeSprites = {
     sheets: sheets,
     cards: cards,
     poses: ['idle', 'walk', 'attack', 'cheer', 'hurt', 'fainted'],
     /** The sheet for a card id, or null when it has no animated sprite yet. */
-    forCard: function (id) { return id && cards[id] ? sheets[cards[id]] : null; }
+    forCard: function (id) { return id && cards[id] ? sheets[cards[id]] : null; },
+    /** Body height as a share of Squire Bob's figure height (medium = 1). */
+    heightVsSquire: function (id) {
+      var key = id && cards[id];
+      return STAGE_HEIGHT[(key && stages[key]) || 1];
+    }
   };
 })();

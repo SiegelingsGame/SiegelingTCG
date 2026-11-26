@@ -878,12 +878,19 @@ body[data-screen="world"] #cmSanctuaryStage { display: block; }
   background: radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,.55), transparent 70%);
 }
 .cm-show-bob {
-  position: relative; height: 66%; width: auto; object-fit: contain;
+  /* Bob's frame is the size reference: his figure is 64% of it (128 of 200 rows)
+     and his feet sit 2.5% above its foot, so the frame drops by that much to put
+     both pairs of feet on the floor line. */
+  position: relative; height: 100%; width: auto; object-fit: contain;
+  translate: 0 2.5%;
   filter: drop-shadow(0 6px 6px rgba(0,0,0,.5));
   animation: cm-bob 2.8s ease-in-out infinite;
 }
 .cm-show-partner {
-  position: relative; height: 72%; aspect-ratio: 1; display: flex; align-items: flex-end; justify-content: center;
+  /* Body height = Bob's figure x the stage scale (SiegeSprites.heightVsSquire):
+     a medium Siegeling stands as tall as Bob, a basic starter at 0.72. */
+  position: relative; height: calc(100% * .64 * var(--cm-size, .72));
+  aspect-ratio: 1; display: flex; align-items: flex-end; justify-content: center;
   filter: drop-shadow(0 10px 10px rgba(0,0,0,.5));
 }
 .cm-show-partner > img { max-height: 100%; max-width: 100%; object-fit: contain; }

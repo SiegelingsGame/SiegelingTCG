@@ -20,6 +20,15 @@
   var PX = 32;
   var BOB_DIRS = ['up', 'up-right', 'right', 'down-right', 'down', 'down-left', 'left', 'up-left'];
   var BOB_POSES = ['idle', 'walk-a', 'walk-b'];
+  // Bob's plane is 1.7 tall and his figure fills 128 of the frame's 200px rows,
+  // so this is his standing height in world units. Siegelings are sized from it
+  // by evolution stage (a medium Siegeling matches Bob).
+  var BOB_PLANE_H = 1.7;
+  var BOB_BODY_H = BOB_PLANE_H * 128 / 200;
+  function siegelingBodyH(cardId) {
+    var f = root.SiegeSprites && root.SiegeSprites.heightVsSquire;
+    return BOB_BODY_H * (f ? root.SiegeSprites.heightVsSquire(cardId) : 0.72);
+  }
   // Named SiegeKnights you meet in Sanctuary and their home realms.
   var KNIGHT_NPCS = {
     pyla: {
@@ -1374,14 +1383,14 @@
       this.actors.follower = null;
     }
     this.followerId = cardId || null;
-    if (cardId) this.actors.follower = this._siegeling(cardId, 0.78);
+    if (cardId) this.actors.follower = this._siegeling(cardId, siegelingBodyH(cardId));
   };
 
   /** Ambient Siegelings wandering near a home point (life in the plaza, like AnimeVs NPCs). */
   World3D.prototype._wanderers = function (list) {
     var self = this;
     list.forEach(function (n) {
-      var a = self._siegeling(n.id, n.h || 0.7);
+      var a = self._siegeling(n.id, siegelingBodyH(n.id));
       if (!a) return;
       self.npcs.push({ a: a, hx: n.x, hz: n.z, x: n.x, z: n.z, tx: n.x, tz: n.z, wait: 1 + self.rnd() * 3, left: false, moving: false, phase: self.rnd() * 1000, r: n.r || 1.6 });
     });
@@ -1488,10 +1497,10 @@
     this._forestEdge('palm');
     this._motes();
     this._wanderers([
-      { id: 'cacty', x: 13.2, z: 17.6, h: 0.62 },
-      { id: 'fawny', x: 21.2, z: 16.8, h: 0.6 },
-      { id: 'raydile', x: 6.2, z: 17.4, h: 0.55, r: 1.2 },
-      { id: 'chilldoe', x: 28.4, z: 17.2, h: 0.6, r: 1.4 }
+      { id: 'cacty', x: 13.2, z: 17.6 },
+      { id: 'fawny', x: 21.2, z: 16.8 },
+      { id: 'raydile', x: 6.2, z: 17.4, r: 1.2 },
+      { id: 'chilldoe', x: 28.4, z: 17.2, r: 1.4 }
     ]);
     // SiegeKnight NPCs linger by the plaza stalls — talk to learn their realms.
     this._knightNpcs([
@@ -1536,8 +1545,8 @@
     this._motes();
     var natives = { fire: ['sundile', 'draco'], earth: ['cacty', 'generoot'], wind: ['breezee', 'gagglestand'], ice: ['fawny', 'chilldoe'] }[el] || ['raydile', 'floraknight'];
     this._wanderers([
-      { id: natives[0], x: 11.2, z: 15.2, h: 0.62 },
-      { id: natives[1], x: 19.2, z: 14.6, h: 0.66 }
+      { id: natives[0], x: 11.2, z: 15.2 },
+      { id: natives[1], x: 19.2, z: 14.6 }
     ]);
     // Home-realm SiegeKnight stands near the keep; challenge them before they are rallied.
     var realmKnight = { fire: 'pyla', wind: 'ser-airek', ice: 'glacia' }[el];
@@ -1662,7 +1671,7 @@
     this._lastT = now;
     var px = state.x, pz = state.z, dir = state.dir || 'down', walking = !!state.walking;
 
-    if (!this.actors.player) this.actors.player = this._actorMesh(1.36, 1.7, true);
+    if (!this.actors.player) this.actors.player = this._actorMesh(1.36, BOB_PLANE_H, true);
     var p = this.actors.player;
     var pose = walking ? ['idle', 'walk-a', 'idle', 'walk-b'][state.frame & 3] : 'idle';
     this._setActorTex(p, this.bobTex[dir + '-' + pose] || this.bobTex['down-idle']);
