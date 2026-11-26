@@ -102,7 +102,8 @@ public class CampaignService {
         run.trainerId = CampaignContent.SQUIRE_ID;
         run.roster.add(starter.cardId());
         run.arenaPreset.add(starter.cardId());
-        run.presetCells.put(starter.cardId(), 1);
+        // Cell 7 = row 2, middle column: the front line's center.
+        run.presetCells.put(starter.cardId(), 7);
         run.siegeSquad = new ArrayList<>(java.util.Arrays.asList(null, starter.cardId(), null));
         run.followerId = starter.cardId();
         run.seen.add(starter.cardId());
