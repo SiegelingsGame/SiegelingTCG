@@ -549,31 +549,132 @@
     });
   }
 
+  // ---- Formation rules (the Battle Table's own, via game.js when loaded) ----
+  // Board row 2 is the front line and draws on top; TOP points toward row + 1.
+  var VIS_ROWS = [2, 1, 0];
+  var OPPOSITE = { TOP: 'BOTTOM', TOP_RIGHT: 'BOTTOM_LEFT', RIGHT: 'LEFT', BOTTOM_RIGHT: 'TOP_LEFT',
+    BOTTOM: 'TOP', BOTTOM_LEFT: 'TOP_RIGHT', LEFT: 'RIGHT', TOP_LEFT: 'BOTTOM_RIGHT' };
+  var DELTA = { TOP: [0, 1], TOP_RIGHT: [1, 1], RIGHT: [1, 0], BOTTOM_RIGHT: [1, -1],
+    BOTTOM: [0, -1], BOTTOM_LEFT: [-1, -1], LEFT: [-1, 0], TOP_LEFT: [-1, 1] };
+  // Notch position inside a card on EnergyService's half-cell point grid (x right, y up).
+  var LOCAL = { TOP: [1, 2], TOP_RIGHT: [2, 2], RIGHT: [2, 1], BOTTOM_RIGHT: [2, 0],
+    BOTTOM: [1, 0], BOTTOM_LEFT: [0, 0], LEFT: [0, 1], TOP_LEFT: [0, 2] };
+
+  function notchesOf(id) {
+    var c = rosterCard(id);
+    return ((c && c.card && c.card.notches) || []).map(function (n) {
+      return { direction: String(n.direction || '').toUpperCase(), element: String(n.element || 'NEUTRAL').toUpperCase() };
+    });
+  }
+
+  /** The formation as a 3x3 board of {id, notches}, optionally leaving one unit out. */
+  function formationBoard(excludeId) {
+    var b = [[null, null, null], [null, null, null], [null, null, null]];
+    formationIds().forEach(function (id) {
+      if (id === excludeId) return;
+      var cell = state.formation[id];
+      b[Math.floor(cell / 3)][cell % 3] = { id: id, notches: notchesOf(id) };
+    });
+    return b;
+  }
+
+  function hasOpposite(notches, dir) {
+    var want = OPPOSITE[dir];
+    return (notches || []).some(function (n) { return n.direction === want; });
+  }
+
+  /** Reciprocal links on a board: one per card pair (as EnergyService counts them). */
+  function formationLinks(board) {
+    var links = [], pairs = {};
+    for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) {
+      var a = board[r][c];
+      if (!a) continue;
+      a.notches.forEach(function (n) {
+        var d = DELTA[n.direction];
+        if (!d) return;
+        var nr = r + d[1], nc = c + d[0];
+        if (nr < 0 || nr > 2 || nc < 0 || nc > 2) return;
+        var b = board[nr][nc];
+        if (!b || !hasOpposite(b.notches, n.direction)) return;
+        var key = Math.min(r * 3 + c, nr * 3 + nc) + '|' + Math.max(r * 3 + c, nr * 3 + nc);
+        if (pairs[key]) return;
+        pairs[key] = 1;
+        var back = b.notches.filter(function (m) { return m.direction === OPPOSITE[n.direction]; })[0];
+        var lp = LOCAL[n.direction];
+        links.push({ r: r, c: c, nr: nr, nc: nc, dir: n.direction, ea: n.element, eb: back ? back.element : n.element,
+          px: c * 2 + lp[0], py: r * 2 + lp[1] });
+      });
+    }
+    return links;
+  }
+
+  /** Combo points: interior points where linked notches of two or more distinct elements meet. */
+  function formationCombos(links) {
+    var at = {};
+    links.forEach(function (l) {
+      if (l.px <= 0 || l.px >= 6 || l.py <= 0 || l.py >= 6) return;
+      var k = l.px + ':' + l.py;
+      (at[k] = at[k] || { links: [], elements: [] }).links.push(l);
+      [l.ea, l.eb].forEach(function (e) { if (at[k].elements.indexOf(e) < 0) at[k].elements.push(e); });
+    });
+    return Object.keys(at).map(function (k) { return at[k]; }).filter(function (p) { return p.elements.length >= 2; });
+  }
+
+  /** Would `id` be legal on (r, c)? First unit anywhere; later ones must link or anchor a socket. */
+  function placementGuide(id, r, c) {
+    var board = formationBoard(id);
+    var others = 0, b, x, y;
+    for (y = 0; y < 3; y++) for (x = 0; x < 3; x++) if (board[y][x]) others++;
+    var card = { notches: notchesOf(id) };
+    var links = 0;
+    card.notches.forEach(function (n) {
+      var d = DELTA[n.direction];
+      if (!d) return;
+      var nr = r + d[1], nc = c + d[0];
+      if (nr < 0 || nr > 2 || nc < 0 || nc > 2) return;
+      b = board[nr][nc];
+      if (b && hasOpposite(b.notches, n.direction)) links++;
+    });
+    var socket = typeof window.canCardAnchorToSocket === 'function'
+      ? window.canCardAnchorToSocket(card, r, c)
+      : card.notches.some(function (n) { return (c === 0 && n.direction === 'LEFT') || (c === 2 && n.direction === 'RIGHT') || (r === 0 && n.direction === 'BOTTOM'); });
+    var linked = typeof window.canCardLinkAt === 'function' ? window.canCardLinkAt(card, r, c, board) : links > 0;
+    return { links: links, socket: socket, legal: others === 0 || linked || socket };
+  }
+
   function drawFormation() {
     var run = state.run || {};
     var max = run.arenaPartyMax || 5;
     var at = {};
     formationIds().forEach(function (id) { at[state.formation[id]] = id; });
+    var pick = state.formationPick;
     var board = $('cmBoard');
     var cells = [];
-    var ROWS = ['Front', 'Middle', 'Back'];
-    for (var cell = 0; cell < 9; cell++) {
-      if (cell % 3 === 0) cells.push('<span class="cm-row-label" aria-hidden="true">' + ROWS[cell / 3] + '</span>');
-      var id = at[cell];
-      var c = id ? rosterCard(id) : null;
-      var picked = state.formationPick && state.formationPick === id;
-      var face = c ? cardFace(c) : '';
-      cells.push('<button type="button" class="cm-cell' + (c ? ' has-unit' : '') + (face ? ' has-face' : '') + (picked ? ' is-picked' : '') +
-        (cell < 3 ? ' is-front' : '') + '" data-cell="' + cell + '" role="gridcell" aria-label="' +
-        (c ? esc(c.name) : 'Empty square') + '">' +
-        (c ? (face ? '<span class="cm-cell-face">' + face + '</span>'
-          : '<span class="cm-cell-unit" style="--cm-el-c:' + elColor(c.element) + '">' + notchesHtml(c) +
-            '<span class="cm-fig">' + figureHtml(c, 240, !picked) + '</span>' +
-            '<b>' + esc(c.name) + '</b></span>') : '<span class="cm-cell-empty" aria-hidden="true">+</span>') +
-        '</button>');
-    }
-    board.innerHTML = cells.join('');
+    var ROW_NAMES = { 2: 'Front', 1: 'Middle', 0: 'Back' };
+    VIS_ROWS.forEach(function (r) {
+      cells.push('<span class="cm-row-label" aria-hidden="true">' + ROW_NAMES[r] + '</span>');
+      for (var col = 0; col < 3; col++) {
+        var cell = r * 3 + col;
+        var id = at[cell];
+        var c = id ? rosterCard(id) : null;
+        var picked = pick && pick === id;
+        var guide = pick && !id ? placementGuide(pick, r, col) : null;
+        var face = c ? cardFace(c) : '';
+        cells.push('<button type="button" class="cm-cell' + (c ? ' has-unit' : '') + (face ? ' has-face' : '') + (picked ? ' is-picked' : '') +
+          (r === 2 ? ' is-front' : '') + (guide ? (guide.legal ? ' is-legal' : ' is-illegal') + (guide.links ? ' is-linking' : '') : '') +
+          '" data-cell="' + cell + '" role="gridcell" aria-label="' + (c ? esc(c.name) : 'Empty square') + '">' +
+          (c ? (face ? '<span class="cm-cell-face" data-drag="' + esc(id) + '">' + face + '</span>'
+            : '<span class="cm-cell-unit" data-drag="' + esc(id) + '" style="--cm-el-c:' + elColor(c.element) + '">' + notchesHtml(c) +
+              '<span class="cm-fig">' + figureHtml(c, 240, !picked) + '</span>' +
+              '<b>' + esc(c.name) + '</b></span>') : '<span class="cm-cell-empty" aria-hidden="true">+</span>') +
+          (guide ? '<span class="cm-guide">' + (guide.links ? '🔗 ' + guide.links + ' link' + (guide.links > 1 ? 's' : '')
+            : guide.socket ? '⚓ socket' : guide.legal ? 'open' : 'no link') + '</span>' : '') +
+          '</button>');
+      }
+    });
+    board.innerHTML = cells.join('') + '<svg class="cm-links" aria-hidden="true"></svg>';
     fitCutouts(board);
+    drawLinks();
     var placed = formationIds().length;
     $('cmPreCount').textContent = placed + '/' + max;
     $('cmPresetSave').disabled = placed === 0;
@@ -581,29 +682,122 @@
     bench.innerHTML = (run.rosterCards || []).map(function (c) {
       var on = state.formation[c.id] != null;
       var item = itemDef((run.equipped || {})[c.id]);
-      return '<button type="button" class="cm-bench-card' + (on ? ' is-on' : '') +
-        (state.formationPick === c.id ? ' is-picked' : '') + '" data-bench="' + esc(c.id) + '" role="option" aria-selected="' + on + '"' +
+      var face = cardFace(c);
+      return '<button type="button" class="cm-bench-card' + (face ? ' has-face' : '') + (on ? ' is-on' : '') +
+        (pick === c.id ? ' is-picked' : '') + '" data-bench="' + esc(c.id) + '" data-drag="' + esc(c.id) + '" role="option" aria-selected="' + on + '"' +
         ' style="--cm-el-c:' + elColor(c.element) + '">' +
-        '<span class="cm-fig">' + figureHtml(c, 240, true) + '</span>' +
-        '<b>' + esc(c.name) + '</b>' +
-        '<small><img src="' + elementIcon(c.element) + '" alt="">' + esc(String(c.rarity || '').toLowerCase()) +
-        (item ? ' · ' + esc(item.icon) : '') + '</small>' +
+        (face ? '<span class="cm-bench-face">' + face + '</span>'
+          : '<span class="cm-fig">' + figureHtml(c, 240, true) + '</span><b>' + esc(c.name) + '</b>' +
+            '<small><img src="' + elementIcon(c.element) + '" alt="">' + esc(String(c.rarity || '').toLowerCase()) + '</small>') +
+        (item ? '<i class="cm-bench-item" title="' + esc(item.name) + '">' + esc(item.icon) + '</i>' : '') +
         (on ? '<em>On board</em>' : '') + '</button>';
     }).join('');
     fitCutouts(bench);
     var hint = $('cmPreHint');
-    if (state.formationPick) {
-      var pc = rosterCard(state.formationPick);
-      hint.innerHTML = 'Place <b>' + esc(pc ? pc.name : '') + '</b> on a square' +
-        (state.formation[state.formationPick] != null ? ', or <button type="button" class="cm-linkbtn" data-unplace>bench it</button>.' : '.');
+    if (pick) {
+      var pc = rosterCard(pick);
+      hint.innerHTML = 'Drop <b>' + esc(pc ? pc.name : '') + '</b> on a square: 🔗 squares link its notches' +
+        (state.formation[pick] != null ? ', or <button type="button" class="cm-linkbtn" data-unplace>bench it</button>.' : '.');
     } else {
-      hint.textContent = placed >= max ? 'Party full. Tap a placed Siegeling to move or bench it.'
-        : 'Tap a Siegeling below, then a square. The front row faces the enemy.';
+      hint.innerHTML = linkSummary() || (placed >= max ? 'Team full. Drag a card to move it, or onto the bench to remove it.'
+        : 'Drag a card onto the board (or tap it, then a square). The front row faces the enemy.');
     }
   }
 
-  function formationTap(target) {
+  function linkSummary() {
+    var links = formationLinks(formationBoard(null));
+    if (!links.length) return '';
+    var same = links.filter(function (l) { return l.ea === l.eb; }).length;
+    var combos = formationCombos(links);
+    return '<span class="cm-link-sum">🔗 <b>' + links.length + '</b> link' + (links.length > 1 ? 's' : '') +
+      (same ? ' · ' + same + ' energy' : '') +
+      (combos.length ? ' · ✦ <b>' + combos.length + '</b> combo' + (combos.length > 1 ? 's' : '') + ' (' +
+        combos.map(function (p) { return p.elements.map(function (e) { return e.charAt(0) + e.slice(1).toLowerCase(); }).join('+'); }).join(', ') + ')' : '') +
+      '</span>';
+  }
+
+  /** Link and combo overlay: a glowing bridge across the gap for every reciprocal link. */
+  function drawLinks() {
+    var board = $('cmBoard');
+    var svg = board && board.querySelector('.cm-links');
+    if (!svg) return;
+    var box = board.getBoundingClientRect();
+    if (!box.width) return;
+    svg.setAttribute('viewBox', '0 0 ' + box.width + ' ' + box.height);
+    var rects = {};
+    Array.prototype.forEach.call(board.querySelectorAll('[data-cell]'), function (el) {
+      var r = el.getBoundingClientRect();
+      rects[el.getAttribute('data-cell')] = { l: r.left - box.left, t: r.top - box.top, r: r.right - box.left, b: r.bottom - box.top };
+    });
+    function anchor(cell, dir) {
+      var q = rects[cell];
+      if (!q) return null;
+      var cx = (q.l + q.r) / 2, cy = (q.t + q.b) / 2;
+      var x = dir.indexOf('LEFT') >= 0 ? q.l : dir.indexOf('RIGHT') >= 0 ? q.r : cx;
+      var y = dir.indexOf('TOP') === 0 ? q.t : dir.indexOf('BOTTOM') === 0 ? q.b : cy;
+      return { x: x, y: y };
+    }
+    var links = formationLinks(formationBoard(null));
+    var combos = formationCombos(links);
+    var comboKey = {};
+    combos.forEach(function (p) { p.links.forEach(function (l) { comboKey[l.r + ',' + l.c + ',' + l.nr + ',' + l.nc] = p; }); });
+    var defs = '', body = '';
+    links.forEach(function (l, i) {
+      var a = anchor(l.r * 3 + l.c, l.dir), b = anchor(l.nr * 3 + l.nc, OPPOSITE[l.dir]);
+      if (!a || !b) return;
+      // Reach 10px into both cards so the bridge reads across a narrow gap.
+      var len = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
+      var ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+      a = { x: a.x - ux * 10, y: a.y - uy * 10 };
+      b = { x: b.x + ux * 10, y: b.y + uy * 10 };
+      var ca = elColor(l.ea.toLowerCase()), cb = elColor(l.eb.toLowerCase());
+      var combo = !!comboKey[l.r + ',' + l.c + ',' + l.nr + ',' + l.nc];
+      defs += '<linearGradient id="cmlg' + i + '" gradientUnits="userSpaceOnUse" x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '">' +
+        '<stop offset="0" style="stop-color:' + ca + '"/><stop offset="1" style="stop-color:' + cb + '"/></linearGradient>';
+      body += '<g class="cm-link' + (combo ? ' is-combo' : l.ea === l.eb ? ' is-same' : '') + '">' +
+        '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="url(#cmlg' + i + ')" class="cm-link-glow"/>' +
+        '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="url(#cmlg' + i + ')" class="cm-link-core"/>' +
+        '<circle cx="' + (a.x + b.x) / 2 + '" cy="' + (a.y + b.y) / 2 + '" r="5" fill="url(#cmlg' + i + ')" class="cm-link-node"/></g>';
+    });
+    combos.forEach(function (p) {
+      var xs = 0, ys = 0, n = 0;
+      p.links.forEach(function (l) {
+        var a = anchor(l.r * 3 + l.c, l.dir), b = anchor(l.nr * 3 + l.nc, OPPOSITE[l.dir]);
+        if (a && b) { xs += (a.x + b.x) / 2; ys += (a.y + b.y) / 2; n++; }
+      });
+      if (!n) return;
+      var x = xs / n, y = ys / n;
+      var stops = p.elements.map(function (e, i) {
+        return '<stop offset="' + (i / Math.max(1, p.elements.length - 1)) + '" style="stop-color:' + elColor(e.toLowerCase()) + '"/>';
+      }).join('');
+      var gid = 'cmcg' + Math.round(x) + '_' + Math.round(y);
+      defs += '<linearGradient id="' + gid + '" x1="0" y1="0" x2="1" y2="1">' + stops + '</linearGradient>';
+      body += '<g class="cm-combo" transform="translate(' + x + ' ' + y + ')">' +
+        '<circle r="13" fill="url(#' + gid + ')" class="cm-combo-orb"/><text y="4" text-anchor="middle">✦' + p.elements.length + '</text></g>';
+    });
+    svg.innerHTML = '<defs>' + defs + '</defs>' + body;
+  }
+
+  function placeFormation(id, cell) {
     var max = (state.run && state.run.arenaPartyMax) || 5;
+    var occupant = null;
+    formationIds().forEach(function (x) { if (state.formation[x] === cell) occupant = x; });
+    if (occupant === id) return;
+    var wasPlaced = state.formation[id] != null;
+    if (!wasPlaced && !occupant && formationIds().length >= max) {
+      toast('Only ' + max + ' Siegelings take the field. Bench one first.');
+      return;
+    }
+    if (occupant) {
+      // Swap: the occupant takes the moved unit's old square (or goes to the bench).
+      if (wasPlaced) state.formation[occupant] = state.formation[id];
+      else delete state.formation[occupant];
+    }
+    state.formation[id] = cell;
+  }
+
+  function formationTap(target) {
+    if (state.dragJustEnded) return true;
     var benchBtn = target.closest('[data-bench]');
     if (benchBtn) {
       var id = benchBtn.getAttribute('data-bench');
@@ -621,7 +815,7 @@
     if (!cellBtn) return false;
     var cell = Number(cellBtn.getAttribute('data-cell'));
     var occupant = null;
-    formationIds().forEach(function (id) { if (state.formation[id] === cell) occupant = id; });
+    formationIds().forEach(function (x) { if (state.formation[x] === cell) occupant = x; });
     var pick = state.formationPick;
     if (!pick) {
       // Tapping a placed unit picks it up to move.
@@ -630,20 +824,85 @@
       return true;
     }
     if (occupant === pick) { state.formationPick = null; drawFormation(); return true; }
-    var wasPlaced = state.formation[pick] != null;
-    if (!wasPlaced && !occupant && formationIds().length >= max) {
-      toast('Only ' + max + ' Siegelings take the field. Bench one first.');
-      return true;
-    }
-    if (occupant) {
-      // Swap: the occupant takes the picked unit's old square (or the bench).
-      if (wasPlaced) state.formation[occupant] = state.formation[pick];
-      else delete state.formation[occupant];
-    }
-    state.formation[pick] = cell;
+    placeFormation(pick, cell);
     state.formationPick = null;
     drawFormation();
     return true;
+  }
+
+  // ---- Drag and drop: bench → board, board → board, board → bench ----
+  // Bench cards start a drag on an upward pull (sideways swipes keep scrolling the
+  // strip); placed cards drag in any direction. A tap still works as pick-then-place.
+  function bindFormationDrag() {
+    var screen = $('screenPreset');
+    var drag = null;
+    function cellAt(x, y) {
+      var el = document.elementFromPoint(x, y);
+      return el && el.closest ? el.closest('#cmBoard [data-cell]') : null;
+    }
+    screen.addEventListener('pointerdown', function (ev) {
+      var src = ev.target.closest('[data-drag]');
+      // Faces inside cells ignore the pointer, so a press on a placed card lands on its cell.
+      if (!src) {
+        var cellEl = ev.target.closest('#cmBoard .cm-cell.has-unit');
+        src = cellEl && cellEl.querySelector('[data-drag]');
+      }
+      if (!src || ev.button > 0) return;
+      drag = { id: src.getAttribute('data-drag'), fromBench: !!src.closest('#cmBench'), x: ev.clientX, y: ev.clientY,
+        pointer: ev.pointerId, src: src, active: false, ghost: null, over: null };
+    });
+    screen.addEventListener('pointermove', function (ev) {
+      if (!drag || ev.pointerId !== drag.pointer) return;
+      var dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+      if (!drag.active) {
+        if (Math.abs(dx) + Math.abs(dy) < 10) return;
+        if (drag.fromBench && Math.abs(dx) > Math.abs(dy)) { drag = null; return; }
+        drag.active = true;
+        state.formationPick = drag.id;
+        var face = drag.src.closest('.cm-bench-card, .cm-cell') || drag.src;
+        var r = face.getBoundingClientRect();
+        var ghost = face.cloneNode(true);
+        ghost.classList.add('cm-drag-ghost');
+        ghost.style.width = r.width + 'px';
+        ghost.style.height = r.height + 'px';
+        document.body.appendChild(ghost);
+        drag.ghost = ghost;
+        drag.offX = r.width / 2;
+        drag.offY = r.height * 0.6;
+        drawFormation();
+        try { screen.setPointerCapture(ev.pointerId); } catch (e) { /* older Safari */ }
+      }
+      ev.preventDefault();
+      drag.ghost.style.transform = 'translate(' + (ev.clientX - drag.offX) + 'px,' + (ev.clientY - drag.offY) + 'px) rotate(-3deg)';
+      var over = cellAt(ev.clientX, ev.clientY);
+      if (over !== drag.over) {
+        if (drag.over) drag.over.classList.remove('is-drop');
+        if (over) over.classList.add('is-drop');
+        drag.over = over;
+      }
+    }, { passive: false });
+    function end(ev) {
+      if (!drag || (ev && ev.pointerId !== drag.pointer)) return;
+      var d = drag;
+      drag = null;
+      if (!d.active) return;
+      if (d.ghost) d.ghost.remove();
+      var target = ev && ev.type === 'pointerup' ? cellAt(ev.clientX, ev.clientY) : null;
+      var overBench = ev && ev.type === 'pointerup' && (function () {
+        var el = document.elementFromPoint(ev.clientX, ev.clientY);
+        return !!(el && el.closest && el.closest('#cmBench'));
+      })();
+      if (target) placeFormation(d.id, Number(target.getAttribute('data-cell')));
+      else if (overBench && !d.fromBench) delete state.formation[d.id];
+      state.formationPick = null;
+      // The click that follows a drop must not act as a tap.
+      state.dragJustEnded = true;
+      setTimeout(function () { state.dragJustEnded = false; }, 60);
+      drawFormation();
+    }
+    screen.addEventListener('pointerup', end);
+    screen.addEventListener('pointercancel', end);
+    window.addEventListener('resize', function () { if (document.body.dataset.screen === 'preset') drawLinks(); });
   }
 
   function openPresetFrom(screen, battle, foeName) {
@@ -1293,6 +1552,7 @@
 
   function boot() {
     applySettings();
+    bindFormationDrag();
     mountShieldNavigation();
     $('cmMenu').addEventListener('click', menuClick);
     $('cmMenu').addEventListener('change', function (ev) {

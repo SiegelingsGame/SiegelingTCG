@@ -84,8 +84,12 @@ public final class CampaignContent {
     public static final int RIVAL_HP = 25;
     public static final int RALLIES_TO_UNLOCK_AKHAR = 4;
 
-    /** Player-side placement cells for N=1..5 (row, col) on the player's 3×3 half. */
-    public static final int[][] PLAYER_SLOTS = {{0, 1}, {0, 0}, {0, 2}, {1, 1}, {1, 0}};
+    /**
+     * Player-side default cells for N=1..5 (row, col) on the player's 3×3 half. Row 2 is
+     * the front line (it faces the enemy's row 2; EffectService targets rows 2 → 0), so
+     * defaults fill the front first.
+     */
+    public static final int[][] PLAYER_SLOTS = {{2, 1}, {2, 0}, {2, 2}, {1, 1}, {1, 0}};
     /** Enemy-side placement cells (mirror of Gauntlet pack slots). */
     public static final int[][] ENEMY_SLOTS = {{2, 1}, {2, 0}, {2, 2}, {1, 1}, {1, 0}};
 

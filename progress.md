@@ -1,3 +1,21 @@
+Original prompt: The bottom should show the cards with notches to guide your placement, enable drag and drop onto the board. Also when notches connect show a link connection or combo connection.
+
+- November 26, 2026 **ArenaTeam formation: card bench, drag and drop, link/combo overlay, front row fixed.**
+  - **Change.**
+    - **Bench.** It now shows real card faces (frame + notches, via `card-binder-visual.js`).
+    - **Drag and drop.** Pointer events move cards bench → board, board → board (swap) and board → bench (remove). On the bench, a sideways swipe keeps scrolling the strip and an upward pull starts the drag; a ghost card follows the finger; tap-then-square still works.
+    - **Placement guide.** While a card is picked or dragged, every empty square shows the guide, using game.js's own `canCardLinkAt` / `canCardAnchorToSocket` (the `PlacementService` rule: first card anywhere, later cards must link or anchor). Squares read 🔗 N links (green), ⚓ socket / open (gold) or no link (dimmed).
+    - **Link/combo overlay.** An SVG bridge is drawn for every reciprocal notch link (one per card pair, as `EnergyService` counts). Same-element links pulse as energy links; combo points (interior points where ≥2 distinct linked elements meet, `EnergyService.toComboPoint`) get an orb (✦N). The hint line summarises links, energy and combos.
+    - **Fixed: front row.** The engine's front line is board row 2 (TOP = row + 1, `EffectService` targets rows 2 → 0, and the Battle Table draws the player's rows [2, 1, 0]), but the formation drew row 0 on top as "Front". The board now draws rows 2/1/0, `CampaignContent.PLAYER_SLOTS` fills the front row first, and a new run's starter stands on cell 7 (front center). Saved cells are unchanged; they now display where they really stand.
+    - **Pins.** `campaign.css?v=18`, `campaign.js?v=20`.
+  - **Verification.** `node --check`; `CampaignServiceTest` 12/12; a new run seeds `{starter: 7}`. Headless Chromium against the local app (390×844 and 1920×1080; roster padded client-side with known notches):
+    - Sundile renders in the Front row and the bench shows 4 card faces.
+    - Dragging Raydile shows a ghost; the guide reads square 4 "🔗 1 link", the left column and back row "⚓ socket", other squares "no link".
+    - Dropping Raydile makes 1 same-element link ("1 energy"); dropping Cacty beside it adds an Earth+Fire combo (orb ✦2, hint "2 links · 1 energy · ✦ 1 combo (Earth+Fire)").
+    - Fawny is marked unable to link at square 5.
+    - A board → board drag moves Raydile 4 → 5, and a drag onto the bench removes it.
+    - No overflow, no page errors.
+
 Original prompt: Merge and deploy
 
 - November 26, 2026 **Campaign SiegelinQ / Wildlands / Arena formation (#1284) merged and live.**
