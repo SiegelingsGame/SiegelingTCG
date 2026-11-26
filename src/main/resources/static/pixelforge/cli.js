@@ -25,8 +25,27 @@ function chunk(type, data) {
   var td = Buffer.concat([Buffer.from(type, 'ascii'), data]), crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(td));
   return Buffer.concat([len, td, crc]);
 }
-function encodePNG(w, h, rgba, scale) {
+// Pixel art rarely uses more than a few dozen colours, so sheets are written as indexed PNG
+// (palette + tRNS) whenever they fit in 256 RGBA colours: typically 3-4x smaller than RGBA.
+function encodeIndexed(w, h, rgba, scale) {
+  var map = new Map(), pal = [];
+  for (var i = 0; i < rgba.length; i += 4) {
+    var a = rgba[i + 3], key = a === 0 ? 0 : ((rgba[i] << 24) | (rgba[i + 1] << 16) | (rgba[i + 2] << 8) | a) >>> 0;
+    if (!map.has(key)) { if (pal.length === 256) return null; map.set(key, pal.length); pal.push(a === 0 ? [0, 0, 0, 0] : [rgba[i], rgba[i + 1], rgba[i + 2], a]); }
+  }
+  var W = w * scale, H = h * scale, raw = Buffer.alloc((W + 1) * H);
+  for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+    var si = (Math.floor(y / scale) * w + Math.floor(x / scale)) * 4, al = rgba[si + 3];
+    raw[y * (W + 1) + 1 + x] = map.get(al === 0 ? 0 : ((rgba[si] << 24) | (rgba[si + 1] << 16) | (rgba[si + 2] << 8) | al) >>> 0);
+  }
+  var plte = Buffer.alloc(pal.length * 3), trns = Buffer.alloc(pal.length);
+  pal.forEach(function (c, j) { plte[j * 3] = c[0]; plte[j * 3 + 1] = c[1]; plte[j * 3 + 2] = c[2]; trns[j] = c[3]; });
+  var ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4); ihdr[8] = 8; ihdr[9] = 3;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('PLTE', plte), chunk('tRNS', trns), chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
+}
+function encodePNG(w, h, rgba, scale, opts) {
   scale = scale || 1;
+  if (!(opts && opts.rgba)) { var ix = encodeIndexed(w, h, rgba, scale); if (ix) return ix; }
   var W = w * scale, H = h * scale, raw = Buffer.alloc((W * 4 + 1) * H);
   for (var y = 0; y < H; y++) {
     raw[y * (W * 4 + 1)] = 0;

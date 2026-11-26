@@ -23,7 +23,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var VERSION = '1.0.0';
+  var VERSION = '1.1.0';
   var TAU = Math.PI * 2;
   var DEG = Math.PI / 180;
 
@@ -226,6 +226,37 @@
     leap: { lean: 0.08, armL: [-0.3, 0.12], armR: [0.3, 0.05], legL: [-0.2, 0.82], legR: [0.24, 0.9], weapon: -150 },
     guard: { lean: -0.06, armL: [0.12, 0.42], armR: [0.24, 0.36], legL: [-0.18, 1], legR: [0.18, 1], weapon: -60 },
     kneel: { lean: 0.05, armL: [-0.1, 0.62], armR: [0.26, 0.62], legL: [-0.2, 0.85], legR: [0.26, 1], weapon: 80 }
+  };
+
+
+  // 7x7 glyphs for buff/debuff/trait read-outs; coloured by the layer ramp like any field layer.
+  var ICONS = {
+    up: ['...#...', '..###..', '.#####.', '#######', '..###..', '..###..', '..###..'],
+    down: ['..###..', '..###..', '..###..', '#######', '.#####.', '..###..', '...#...'],
+    heart: ['.##.##.', '#######', '#######', '#######', '.#####.', '..###..', '...#...'],
+    shield: ['#######', '#######', '#######', '#######', '.#####.', '..###..', '...#...'],
+    sword: ['......#', '.....#.', '....#..', '#..#...', '.##....', '.##....', '#..#...'],
+    skull: ['.#####.', '#######', '#..#..#', '#######', '.##.##.', '.#.#.#.', '.......'],
+    link: ['.####..', '#....#.', '#..####', '#.##..#', '.####.#', '...#..#', '....##.'],
+    die: ['#######', '#.....#', '#.#.#.#', '#.....#', '#.#.#.#', '#.....#', '#######'],
+    hourglass: ['#######', '.#...#.', '..#.#..', '...#...', '..###..', '.#####.', '#######'],
+    star: ['...#...', '..###..', '#######', '.#####.', '..###..', '.##.##.', '##...##'],
+    cross: ['#.....#', '.#...#.', '..#.#..', '...#...', '..#.#..', '.#...#.', '#.....#'],
+    plus: ['..###..', '..###..', '#######', '#######', '#######', '..###..', '..###..'],
+    gem: ['.#####.', '##.#.##', '#######', '.#####.', '..###..', '...#...', '.......'],
+    leaf: ['....###', '..#####', '.###.##', '.##.##.', '###.#..', '#.##...', '#......'],
+    eye: ['.......', '..###..', '.#####.', '##.#.##', '.#####.', '..###..', '.......'],
+    z: ['#######', '.....#.', '....#..', '...#...', '..#....', '.#.....', '#######'],
+    bolt: ['...###.', '..###..', '.#####.', '...##..', '..##...', '.##....', '#......'],
+    flame: ['...#...', '..##...', '..###.#', '.####.#', '#######', '#######', '.#####.'],
+    fist: ['.......', '.####..', '######.', '######.', '######.', '.####..', '.......'],
+    crown: ['#..#..#', '#.###.#', '#######', '#######', '#######', '.......', '.......'],
+    drop: ['...#...', '..###..', '.#####.', '#######', '#######', '.#####.', '..###..'],
+    spiral: ['.#####.', '#.....#', '#.###.#', '#.#.#.#', '#.#...#', '#.#####', '.......'],
+    log: ['.......', '.#####.', '##.#.##', '#.###.#', '##.#.##', '.#####.', '.......'],
+    moon: ['..###..', '.##....', '##.....', '##.....', '##.....', '.##....', '..###..'],
+    gear: ['.#.#.#.', '#######', '.##.##.', '###.###', '.##.##.', '#######', '.#.#.#.'],
+    arrow: ['....#..', '.....#.', '#######', '.....#.', '....#..', '.......', '.......']
   };
 
   var TYPES = {
@@ -699,6 +730,35 @@
       }
     },
 
+    icon: {
+      field: true,
+      params: {
+        icon: { select: Object.keys(ICONS) }, x: [32, -64, 256, 1], y: [32, -64, 256, 1], scale: [2, 1, 8, 1], count: [1, 1, 12, 1],
+        spacing: [14, 0, 80, 1], rise: [{ from: 0, to: -14, ease: 'outCubic' }, -120, 120, 0.5], stagger: [0.1, 0, 0.5, 0.01],
+        pop: [0.15, 0, 1, 0.01], fade: [0.75, 0, 1, 0.01], bob: [0, 0, 6, 0.5], arc: [0, -40, 40, 1], bright: [1, 0, 2, 0.05]
+      },
+      render: function (L, c) {
+        var g = ICONS[L.icon] || ICONS.star, n = Math.round(P(L.count, 0)), s = Math.max(1, Math.round(P(L.scale, 0)));
+        for (var i = 0; i < n; i++) {
+          var lt = clamp((c.t - i * P(L.stagger, 0)) / Math.max(0.05, 1 - (n - 1) * P(L.stagger, 0)), 0, 1);
+          if (c.t < i * P(L.stagger, 0)) continue;
+          var pop = P(L.pop, 0), fd = P(L.fade, 0);
+          // Pop in (grow from 1px), hold, then dither away: reads at tiny sizes where alpha fades don't.
+          var k = pop > 0 ? clamp(lt / pop, 0, 1) : 1, v = P(L.bright, lt) * (lt > fd ? 1 - (lt - fd) / Math.max(0.01, 1 - fd) : 1);
+          if (v <= 0.02) continue;
+          var off = (i - (n - 1) / 2), ss = Math.max(1, Math.round(s * (k < 1 ? 0.5 + 0.5 * k : 1)));
+          var cx = P(L.x, lt) + off * P(L.spacing, 0), cy = P(L.y, lt) + P(L.rise, lt) + Math.abs(off) * P(L.arc, 0) / Math.max(1, n) + Math.sin((c.frame + i * 2) * 0.6) * P(L.bob, 0);
+          var x0 = Math.round(cx - 3.5 * ss), y0 = Math.round(cy - 3.5 * ss);
+          for (var gy = 0; gy < 7; gy++) for (var gx = 0; gx < 7; gx++) {
+            if (g[gy].charAt(gx) !== '#') continue;
+            // Top rows brighter so the ramp gives each glyph a lit/shaded side.
+            var shade = v * (1 - gy * 0.06);
+            for (var sy = 0; sy < ss; sy++) for (var sx = 0; sx < ss; sx++) c.F.put(x0 + gx * ss + sx, y0 + gy * ss + sy, shade);
+          }
+        }
+      }
+    },
+
     // ── direct (RGBA) layers ───────────────────────────────────────────────
     bg: {
       field: false,
@@ -1147,7 +1207,7 @@
   var api = {
     VERSION: VERSION, render: render, sheet: sheet, metaJson: metaJson, encodeGIF: encodeGIF,
     TYPES: TYPES, POST: POST, RAMPS: RAMPS, PALETTES: PALETTES, EASE: EASE, POSES: POSES,
-    schema: schema, defaults: defaults, param: P, hex: hex, toHex: toHex, presets: {},
+    schema: schema, defaults: defaults, param: P, hex: hex, toHex: toHex, presets: {}, ICONS: ICONS,
     // Presets register themselves here (presets.js) so render() can resolve `effect` layers.
     register: function (name, def) { api.presets[name] = def; }
   };

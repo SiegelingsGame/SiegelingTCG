@@ -22,7 +22,7 @@ The same folder is checked into all three repos (see [Keeping the copies in sync
 | `presets.js` | 35 ready-made specs: slashes, element attacks for all 12 elements, impacts, projectiles, auras, status loops, and 5 cutscenes. |
 | `index.html`, `editor.js`, `editor.css` | The editor: preset gallery, layer stack, inspector with keyframes, live preview, and exports. |
 | `player.js` | Runtime for games: load a baked sheet (or bake a preset live) and play it on an overlay canvas or in your own render loop. |
-| `cli.js` | Bake presets/specs to PNG sheets + JSON (+ GIF, per-frame PNGs) from Node. No dependencies. |
+| `cli.js` | Bake presets/specs to PNG sheets + JSON (+ GIF, per-frame PNGs) from Node. No dependencies. Sheets with ≤256 colours are written as indexed PNG. |
 | `test.js` | `node pixelforge/test.js`: determinism, every preset/layer renders, exporters are well-formed. |
 
 ## Editor
@@ -80,6 +80,7 @@ transparent. `blend` can be `normal`, `add`, `erase` (cut holes) or `behind`.
 | `speedlines` | radial, horizontal or vertical anime lines |
 | `cutin` | diagonal cut-in banner with stripes |
 | `figure` | procedural silhouette (stand, lunge, cast, leap, guard, kneel) with a sword, staff or spear |
+| `icon` | 7×7 pixel glyphs (up/down arrows, heart, shield, sword, skull, chain link, die, hourglass, star, gem, leaf, eye, z, bolt, flame, fist, crown, drop, spiral, log, moon, gear, arrow…) that pop in, rise and dither out; use them for buff/debuff/trait read-outs |
 
 **Direct layers** paint colour themselves: `bg` (banded or radial gradient), `letterbox`,
 `flash` (dithered), `invert` (two-tone impact frame), `text` (built-in 3×5 pixel font, typewriter

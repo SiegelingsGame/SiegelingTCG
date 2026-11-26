@@ -1,3 +1,9 @@
+Original prompt: Nice create pixel animations for the anime vs elements, enhancers and trait abilities.
+
+- November 26, 2026 **PixelForge 1.1 synced (icon layer + indexed PNG).**
+  - **Change.** The PixelForge update made for the ANIME VS+ effect set is synced into `static/pixelforge/` with `sync.sh`. It adds a new `icon` field layer with 26 7×7 glyphs (buff/debuff arrows, heart, shield, sword, skull, chain link, die, hourglass, …), and `cli.js` now writes indexed PNGs when a sheet fits in 256 colours. `index.html` loads `core.js?v=2`. No Siegelings game code changed.
+  - **Verification.** `node static/pixelforge/test.js` passes, including the new indexed-PNG round-trip and per-glyph tests. The copy is byte-identical to AnimeVsPlus2's `pixelforge/`.
+
 Original prompt: Learn and build a pixel set generator that can be used across all these projects to generate character attacks effects and cutscenes (reference: pixel-composer.com gallery)
 
 - November 26, 2026 **PixelForge: shared procedural pixel FX + cutscene generator at `/pixelforge/`.**

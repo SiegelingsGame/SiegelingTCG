@@ -68,6 +68,20 @@ test('image layer draws decoded PNG pixels', function () {
   assert.strictEqual(opaque(r.frames[0]), 64);
 });
 
+test('indexed PNG round-trips exactly', function () {
+  var r = PF.render(PF.presets['explosion'].spec), sh = PF.sheet(r), png = cli.encodePNG(sh.w, sh.h, sh.data), dec = cli.decodePNG(png);
+  assert.strictEqual(png[25], 3, 'expected colour type 3 (indexed)');
+  for (var i = 0; i < sh.data.length; i += 4) if (sh.data[i + 3]) assert.deepStrictEqual([dec.data[i], dec.data[i + 1], dec.data[i + 2], dec.data[i + 3]], [sh.data[i], sh.data[i + 1], sh.data[i + 2], sh.data[i + 3]]);
+  else assert.strictEqual(dec.data[i + 3], 0);
+});
+
+test('icon layer draws every glyph', function () {
+  Object.keys(PF.ICONS).forEach(function (ic) {
+    var r = PF.render({ w: 32, h: 32, frames: 3, layers: [{ type: 'icon', icon: ic, x: 16, y: 16, rise: 0, ramp: 'gold' }] });
+    assert.ok(opaque(r.frames[1]) > 8, ic);
+  });
+});
+
 test('text layer draws the pixel font', function () {
   var r = PF.render({ w: 40, h: 10, frames: 1, layers: [{ type: 'text', text: 'HI', x: 20, y: 5, scale: 1, reveal: 1, outline: '' }] });
   // H = 11 ink pixels, I = 9 in the 3x5 font.
