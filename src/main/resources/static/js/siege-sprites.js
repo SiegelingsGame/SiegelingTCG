@@ -53,11 +53,90 @@
     breezee: 'breezee', gagglestand: 'gagglestand', hurricrane: 'hurricrane',
     fawny: 'fawny', chilldoe: 'chilldoe', frostag: 'frostag',
     draco: 'draco', dracoil: 'dracoil' };
+  // Siegelings are sized by rarity, in even steps from a Common (the basic size,
+  // 0.72 of Squire Bob's figure) to twice that for Legendary. Mythic is not a
+  // card rarity today; it sizes as Legendary should it appear. The table is the
+  // catalog rarity per sheet, used when the caller has no live card to read.
+  var rarities = { squirebud: 'COMMON', floraknight: 'UNCOMMON', generoot: 'RARE',
+    sundile: 'COMMON', raydile: 'UNCOMMON', solgator: 'EPIC',
+    cacty: 'COMMON', jackedty: 'UNCOMMON', cactyjackedty: 'RARE',
+    breezee: 'COMMON', gagglestand: 'UNCOMMON', hurricrane: 'EPIC',
+    fawny: 'COMMON', chilldoe: 'UNCOMMON', frostag: 'RARE',
+    draco: 'COMMON', dracoil: 'RARE' };
+  var COMMON_VS_SQUIRE = 0.72;
+  var RARITY_SCALE = { COMMON: 1, UNCOMMON: 1.25, RARE: 1.5, EPIC: 1.75, LEGENDARY: 2, MYTHIC: 2 };
+  // ---- Overlay cutouts: the fallback figure for a Siegeling with no sheet ----
+  // A card's OVERLAY art is its creature on a transparent ground (REPLACE and
+  // FULL_CARD art are rectangles that would read as a framed picture).
+  var STORAGE_PREFIX = 'https://firebasestorage.googleapis.com/';
+  function overlayUrl(card) {
+    if (!card) return '';
+    var c = card.card || {};
+    var mode = String(card.cardArtMode || card.artMode || c.cardArtMode || '').toUpperCase();
+    var url = String(card.cardArtUrl || c.cardArtUrl || card.artUrl || '').trim();
+    return mode === 'OVERLAY' ? url : '';
+  }
+  // Storage sends no CORS header, so pixels (and WebGL textures) come through our
+  // own art mirror, which also serves a resized copy.
+  function cutoutSrc(url, width) {
+    return url.indexOf(STORAGE_PREFIX) === 0
+      ? '/api/cards/art-mirror?w=' + (width || 480) + '&url=' + encodeURIComponent(url) : url;
+  }
+  // The creature's alpha bounds as fractions of the image, so a cutout can be
+  // sized by its body rather than the file's padding (the hub does the same).
+  // Unreadable images fall back to the whole frame.
+  var bounds = {};
+  function measureCutout(url, width, cb) {
+    var key = (width || 480) + '|' + url;
+    var hit = bounds[key];
+    if (hit && hit.done) { cb(hit.value); return; }
+    if (hit) { hit.waiters.push(cb); return; }
+    hit = bounds[key] = { done: false, waiters: [cb], value: null };
+    function finish(v) {
+      hit.done = true; hit.value = v;
+      hit.waiters.forEach(function (f) { f(v); });
+      hit.waiters = [];
+    }
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function () {
+      var aspect = img.naturalWidth / (img.naturalHeight || 1) || 1;
+      var full = { top: 0, bottom: 1, left: 0, right: 1, aspect: aspect };
+      try {
+        var w = 96, h = Math.max(1, Math.round(96 / aspect));
+        var cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        var ctx = cv.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        var px = ctx.getImageData(0, 0, w, h).data;
+        var t = h, btm = -1, l = w, r = -1;
+        for (var y = 0; y < h; y++) {
+          for (var x = 0; x < w; x++) {
+            if (px[(y * w + x) * 4 + 3] > 24) {
+              if (y < t) t = y; if (y > btm) btm = y; if (x < l) l = x; if (x > r) r = x;
+            }
+          }
+        }
+        finish(btm < 0 ? full : { top: t / h, bottom: (btm + 1) / h, left: l / w, right: (r + 1) / w, aspect: aspect });
+      } catch (e) { finish(full); }
+    };
+    img.onerror = function () { finish({ top: 0, bottom: 1, left: 0, right: 1, aspect: 1 }); };
+    img.src = cutoutSrc(url, width);
+  }
   window.SiegeSprites = {
     sheets: sheets,
     cards: cards,
     poses: ['idle', 'walk', 'attack', 'cheer', 'hurt', 'fainted'],
     /** The sheet for a card id, or null when it has no animated sprite yet. */
-    forCard: function (id) { return id && cards[id] ? sheets[cards[id]] : null; }
+    forCard: function (id) { return id && cards[id] ? sheets[cards[id]] : null; },
+    /** Body height as a share of Squire Bob's figure. `rarity` (from live card
+        data) wins over the catalog table. */
+    overlayUrl: overlayUrl,
+    cutoutSrc: cutoutSrc,
+    measureCutout: measureCutout,
+    heightVsSquire: function (id, rarity) {
+      var key = String(rarity || (id && cards[id] && rarities[cards[id]]) || 'COMMON').toUpperCase();
+      return COMMON_VS_SQUIRE * (RARITY_SCALE[key] || 1);
+    }
   };
 })();

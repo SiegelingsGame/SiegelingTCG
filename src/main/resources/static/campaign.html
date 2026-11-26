@@ -17,7 +17,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/style.css?v=310">
 <link rel="stylesheet" href="/css/shield-navigation.css?v=17">
-<link rel="stylesheet" href="/css/campaign.css?v=10">
+<link rel="stylesheet" href="/css/campaign.css?v=15">
 <script src="/js/hub-music.js?v=10" data-autoinit></script>
 </head>
 <body data-screen="loading">
@@ -40,14 +40,27 @@
       <p class="cm-muted cm-center">Loading the campaign&hellip;</p>
     </section>
 
+    <!-- Art first: the chosen partner's home Land fills the stage with Squire Bob and
+         the partner standing in it; the copy rides the art, and the picker below is
+         four painted Land tabs rather than text cards. -->
     <section class="cm-screen" id="screenStart">
+      <div class="cm-ambient" id="cmAmbient" aria-hidden="true"></div>
       <div class="cm-resume" id="cmResume" hidden></div>
-      <div class="cm-start-hero">
-        <img src="/img/sprites/squire-bob/down-idle.webp" alt="Squire Bob" width="72" height="90">
-        <p>You are <strong>Squire Bob</strong>. Choose your first Siegeling, then walk the realms in a 2.5D adventure — popup buildings mark wilds, rivals, and knights on the path to <b>Raidlord Akhar</b>.</p>
+      <div class="cm-show" id="cmShow" aria-live="polite">
+        <div class="cm-show-art" id="cmShowArt" aria-hidden="true"></div>
+        <div class="cm-show-shade" aria-hidden="true"></div>
+        <p class="cm-show-intro">You are <b>Squire Bob</b>. Choose a partner and walk the realms to <b>Raidlord Akhar</b>.</p>
+        <div class="cm-show-ground" aria-hidden="true">
+          <img class="cm-show-bob" src="/img/sprites/squire-bob/down-right-idle.webp" alt="" width="160" height="200">
+          <div class="cm-show-partner" id="cmShowPartner"></div>
+        </div>
+        <div class="cm-show-copy">
+          <span class="cm-show-meta"><span class="cm-el" id="cmShowEl"></span><span id="cmShowLand"></span></span>
+          <h2 class="cm-show-name" id="cmShowName">Choose your partner</h2>
+          <p class="cm-show-blurb" id="cmShowBlurb"></p>
+        </div>
       </div>
-      <h2 class="cm-h2">Choose your partner</h2>
-      <div class="cm-starters" id="cmStarters"></div>
+      <div class="cm-starters" id="cmStarters" role="radiogroup" aria-label="Choose your partner"></div>
       <div class="cm-cta sn-dock">
         <a class="sn-flank is-left" href="/home">Main Menu</a>
         <button class="sn-flank is-right is-gold" id="cmStartBtn" type="button" disabled>Begin the rally</button>
@@ -123,11 +136,11 @@
 
 <script src="/js/viewport-unit.js?v=3"></script>
 <script src="/js/config.js"></script>
-<script src="/js/siege-sprites.js?v=2"></script>
+<script src="/js/siege-sprites.js?v=5"></script>
 <script src="/js/shield-navigation.js?v=10"></script>
 <script src="/js/vendor/three.min.js"></script>
-<script src="/js/campaign-world3d.js?v=11"></script>
-<script src="/js/campaign-overworld.js?v=12"></script>
-<script src="/js/campaign.js?v=12"></script>
+<script src="/js/campaign-world3d.js?v=14"></script>
+<script src="/js/campaign-overworld.js?v=13"></script>
+<script src="/js/campaign.js?v=17"></script>
 </body>
 </html>
