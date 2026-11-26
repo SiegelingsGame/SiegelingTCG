@@ -22,7 +22,7 @@ Original prompt: Update the game screen so it's full screen. Add an open world a
     - **Fixed.** A boot race could drop a returning player on the start screen.
     - **Pins.** `campaign.css?v=16`, `campaign.js?v=18`, `campaign-world3d.js?v=15`, `campaign-overworld.js?v=14` (+ fixture).
   - **Verification.**
-    - **Unit tests.** `CampaignServiceTest` 10/10, with 6 new tests: 3-max preset keeps cells, cells follow battle placement, equip, a wild win catches and levels up, a Legendary win earns its Sigil, all 12 Lands map to a Legendary. Full `mvn -q test` run.
+    - **Unit tests.** `CampaignServiceTest` 10/10, with 6 new tests: 3-max preset keeps cells, cells follow battle placement, equip, a wild win catches and levels up, a Legendary win earns its Sigil, all 12 Lands map to a Legendary. Full `mvn -q test`: 969/971 pass; the 2 errors (`PlayerProgressionControllerStarterPackTest`, null `battlefieldSkinCatalog`) fail identically on `origin/main`.
     - **Live API (local app).** Driven against `mvn spring-boot:run` with real HTTP calls:
       - Start, formation cell 4, area Wildlands, wild battle with real board placement (Sundile on [1,1]).
       - The Oak Charm logs +2 Shield; a forfeit returns to the Wildlands.
