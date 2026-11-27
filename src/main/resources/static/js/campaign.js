@@ -4,7 +4,7 @@
   var SOLO_TOKEN_KEY = 'sieglingsSoloSessionToken';
   var state = {
     options: null, run: null, selectedStarter: null, formation: {}, formationPick: null,
-    returnScreen: 'world', busy: false, settlingArena: false, overworld: null
+    busy: false, prologue: 'approach', arrival: null, overworld: null
   };
 
   function $(id) { return document.getElementById(id); }
@@ -123,49 +123,13 @@
       show('victory');
       return;
     }
-    if (run.phase === 'WILD_BATTLE') {
+    if (run.phase === 'WILD_BATTLE' || run.phase === 'ARENA_BATTLE') {
       setOverworldActive(false);
       renderEncounterResume(run);
       show('arenaResume');
       return;
     }
-    if (run.phase === 'ARENA_BATTLE') {
-      setOverworldActive(false);
-      // One settle attempt — if the duel is still live, show resume instead of looping.
-      if (state.settlingArena) {
-        renderEncounterResume(run);
-        show('arenaResume');
-        return;
-      }
-      state.settlingArena = true;
-      toast('Returning to the campaign…');
-      api('/api/campaign/settle', { method: 'POST' }).then(function (next) {
-        state.settlingArena = false;
-        if (next && next.phase === 'ARENA_BATTLE') {
-          renderEncounterResume(next);
-          show('arenaResume');
-          return;
-        }
-        applyRun(next);
-      }).catch(function (e) {
-        state.settlingArena = false;
-        toast(e.message);
-        renderEncounterResume(run);
-        show('arenaResume');
-      });
-      return;
-    }
-    if (run.phase === 'LAND' || run.phase === 'RALLY') {
-      renderLand(run);
-      show('land');
-      setOverworldActive(true);
-      return;
-    }
-    // WORLD / default hub → the Sanctuary town, or the Wildlands if Bob was walking there.
-    if (run.area === 'wildlands') renderWildlands(run);
-    else renderSanctuary(run);
-    show('world');
-    setOverworldActive(true);
+    renderWalking(run);
   }
 
   function landThumb(s) {
@@ -197,49 +161,43 @@
         '</button>';
     }).join('');
     fitCutouts(host);
-    // The stage needs a subject from the first paint, so the first partner starts chosen.
-    if (list.length && !state.selectedStarter) selectStarter(list[0].id);
-    else if (state.selectedStarter) selectStarter(state.selectedStarter);
+    $('cmPrologueCaptives').innerHTML = list.map(function (card) {
+      return '<span class="cm-prologue-creature" data-captive="' + esc(card.id) + '">' + figureHtml(card, 180, true) + '</span>';
+    }).join('');
+    fitCutouts($('cmPrologueCaptives'));
+    paintPrologue();
+  }
+
+  var PROLOGUE = {
+    approach: ['Squire Bob', "The road to Sanctuary City is blocked. That's a SiegeKnight up ahead.", 'Approach'],
+    arrest: ['Pyla', 'Easy, Squire. I caught these raiders hauling four Siegelings in cages. The raiders are in custody. Help me open the latches.', 'Free the captives'],
+    choose: ['Pyla', 'There. They can leave if they want to. Hold out your hand to one and let it decide.', 'Reach out'],
+    bond: ['Pyla', '', 'Enter Sanctuary City']
+  };
+
+  function paintPrologue() {
+    var step = state.prologue;
+    var copy = PROLOGUE[step];
+    $('screenStart').dataset.prologue = step;
+    $('cmPrologueSpeaker').textContent = copy[0];
+    $('cmPrologueLine').textContent = step === 'bond'
+      ? starterName(state.selectedStarter) + ' rests against your hand. It trusts you, Squire. If it wants to stay, take it with you into Sanctuary City.'
+      : copy[1];
+    $('cmStarters').hidden = step !== 'choose';
+    var button = $('cmStartBtn');
+    button.textContent = copy[2];
+    button.disabled = step === 'choose' && !state.selectedStarter;
   }
 
   function selectStarter(id) {
-    var list = (state.options && state.options.starters) || [];
-    var s = null;
-    list.forEach(function (x) { if (x.id === id) s = x; });
-    if (!s) return;
+    if (state.prologue !== 'choose' || !((state.options && state.options.starters) || []).some(function (s) { return s.id === id; })) return;
     state.selectedStarter = id;
-    document.querySelectorAll('.cm-starter').forEach(function (n) {
-      var on = n.getAttribute('data-starter') === id;
-      n.classList.toggle('is-on', on);
-      n.setAttribute('aria-checked', on ? 'true' : 'false');
+    document.querySelectorAll('[data-starter], [data-captive]').forEach(function (node) {
+      var selected = (node.dataset.starter || node.dataset.captive) === id;
+      node.classList.toggle('is-on', selected);
+      if (node.dataset.starter) node.setAttribute('aria-checked', String(selected));
     });
-    $('cmStartBtn').disabled = false;
-    var color = elColor(s.element);
-    $('cmShow').style.setProperty('--cm-el-c', color);
-    $('cmShowEl').textContent = s.element || '';
-    $('cmShowEl').style.color = color;
-    $('cmShowLand').textContent = s.landName || '';
-    $('cmShowName').textContent = s.name || id;
-    $('cmShowBlurb').textContent = s.blurb || '';
-    var partner = $('cmShowPartner');
-    partner.innerHTML = partnerArtHtml(s);
-    fitCutouts(partner);
-    var sizer = window.SiegeSprites && window.SiegeSprites.heightVsSquire;
-    partner.style.setProperty('--cm-size', sizer ? window.SiegeSprites.heightVsSquire(s.id, s.rarity || (s.card && s.card.rarity)) : 0.72);
-    partner.classList.remove('is-arriving');
-    void partner.offsetWidth;
-    partner.classList.add('is-arriving');
-    // Land paintings crossfade: the new layer fades in over the old one, then the old
-    // one is dropped, so a quick tap-through never flashes the bare panel.
-    var bg = s.background || landThumb(s);
-    [['cmShowArt', bg], ['cmAmbient', landThumb(s)]].forEach(function (pair) {
-      var host = $(pair[0]);
-      var layer = document.createElement('i');
-      layer.style.backgroundImage = 'url(' + pair[1] + ')';
-      host.appendChild(layer);
-      requestAnimationFrame(function () { layer.classList.add('is-in'); });
-      while (host.children.length > 2) host.removeChild(host.firstChild);
-    });
+    paintPrologue();
   }
 
   /** The Siegeling walking behind Bob: the SiegelinQ follower, else the starter. */
@@ -250,8 +208,6 @@
       if (!pick && c.id === want) pick = c;
     });
     if (!pick && run.rosterCards && run.rosterCards[0]) pick = run.rosterCards[0];
-    // Art mode and rarity ride along so the 3D world can stand an overlay
-    // cutout (at its rarity size) when the follower has no sheet.
     return pick ? {
       id: pick.id, artUrl: pick.artUrl, cardArtMode: pick.cardArtMode,
       rarity: pick.rarity || (pick.card && pick.card.rarity)
@@ -261,7 +217,9 @@
   function fillRealmOverlay(run) {
     $('cmWorldBanner').textContent = run.lastMessage || 'Choose a Land to travel.';
     var host = $('cmWorld');
-    host.innerHTML = (run.lands || []).map(function (land) {
+    host.innerHTML = (run.lands || []).filter(function (land) {
+      return ['ice', 'wind', 'fire'].indexOf(land.id) < 0;
+    }).map(function (land) {
       var locked = !land.unlocked && !land.rallied;
       var cls = 'cm-land' + (locked ? ' is-locked' : '') + (land.rallied ? ' is-rallied' : '');
       var status = land.rallied ? 'Rallied' : (land.rivalCleared ? 'Knight awaits' : (locked ? 'Sealed' : 'Open'));
@@ -278,215 +236,120 @@
     if (!ov) return;
     ov.hidden = !on;
     if (on && state.run) fillRealmOverlay(state.run);
+    setOverworldActive(!on && !menuOpen() && document.body.dataset.screen === 'world');
   }
 
   // Campaign duels use the Battle Table. Roaming encounters use Siege.
   function startArena(body) {
     return api('/api/campaign/arena/start', { method: 'POST', body: body }).then(function (data) {
       if (!data.soloToken) throw new Error('No battle token.');
+      rememberBattleLocation();
       goToArena(data.soloToken);
     });
   }
 
-  /** The area Bob is walking in, as the server names it. */
-  function currentArea() {
-    var screen = document.body.dataset.screen;
-    if (screen === 'land' && state.run && state.run.currentLandId) return state.run.currentLandId;
-    return state.mapArea === 'wildlands' ? 'wildlands' : 'sanctuary';
+  var BATTLE_LOCATION_KEY = 'sieglingsAdventureBattleLocation';
+
+  function rememberBattleLocation() {
+    var ow = state.overworld;
+    if (!ow) return;
+    var position = ow.snapshot();
+    try {
+      sessionStorage.setItem(BATTLE_LOCATION_KEY, JSON.stringify({
+        token: state.run.token, area: position.area, player: position.player
+      }));
+    } catch (e) {}
   }
 
-  function wildsFor(area) {
-    var all = (state.run && state.run.wilds) || {};
-    return all[area] || [];
-  }
-
-  /** Tall grass rolled an encounter: one of the area's roamers charges in (Siege mode). */
-  function startRandomWildEncounter() {
-    var area = currentArea();
-    var pool = wildsFor(area);
-    function settle(msg) {
-      var ow = state.overworld;
-      if (ow && ow.encounter) {
-        ow.encounter.pending = false;
-        ow.encounter.grace = ow.encounter.graceOnEnter || 5.5;
-        if (ow.els && ow.els.ow) ow.els.ow.classList.remove('is-encounter');
-        if (ow.setBanner) ow.setBanner(msg);
+  function battleArrival(run) {
+    try {
+      var saved = JSON.parse(sessionStorage.getItem(BATTLE_LOCATION_KEY));
+      if (saved && saved.token === run.token && saved.area === run.area) {
+        sessionStorage.removeItem(BATTLE_LOCATION_KEY);
+        return saved.player;
       }
-    }
-    if (!pool.length) { settle('The grass rustles, but nothing appears.'); return; }
-    var pick = pool[Math.floor(Math.random() * pool.length)];
-    busy(function () {
-      return startWildBattle(pick.id, area).catch(function (e) {
-        settle('The wilds settle… keep exploring.');
-        throw e;
-      });
-    });
+    } catch (e) {}
+    return null;
   }
 
-  function startWildBattle(cardId, area) {
-    return api('/api/campaign/wild/start', { method: 'POST', body: { cardId: cardId, area: area } }).then(function (run) {
+  function startWildBattle(cardId) {
+    return api('/api/campaign/wild/start', { method: 'POST', body: { cardId: cardId, area: state.run.area } }).then(function (run) {
+      rememberBattleLocation();
       applyRun(run);
       window.location.href = '/siege?campaign=1';
     });
   }
 
-  /** Record where Bob walks so a battle (or a reload) returns him there. */
-  function setArea(area) {
+  function travelToLand(landId) {
+    return api('/api/campaign/enter-land', { method: 'POST', body: { landId: landId } }).then(applyRun);
+  }
+
+  function walkToArea(area) {
+    var from = state.run.area;
     return api('/api/campaign/area', { method: 'POST', body: { area: area } }).then(function (run) {
-      state.run = run;
-      return run;
+      var gates = { ice: { x: 560, y: 175 }, wind: { x: 182, y: 384 }, fire: { x: 938, y: 384 } };
+      state.arrival = area === 'wildlands' ? gates[from] : { x: 560, y: 678 };
+      applyRun(run);
     });
   }
 
-  function handleOverworldAct(act, building) {
-    if (act === 'exit') {
-      if (!state.run) return;
-      busy(function () {
-        return setArea('sanctuary').then(function (run) {
-          setOverworldActive(false);
-          renderSanctuary(run);
-          show('world');
-          setOverworldActive(true);
-        });
-      });
-      return;
-    }
-    if (act === 'realms') {
+  function handleOverworldAct(act, actor) {
+    if (act === 'exit' || act === 'woods') {
+      busy(function () { return walkToArea(act === 'exit' ? 'sanctuary' : 'wildlands'); });
+    } else if (act === 'realms') {
       showRealmOverlay(true);
-      return;
-    }
-    if (act === 'preset') {
-      openPresetFrom(document.body.dataset.screen === 'land' ? 'land' : 'world');
-      return;
-    }
-    if (act === 'travel' && building && building.landId) {
-      busy(function () {
-        return api('/api/campaign/enter-land', { method: 'POST', body: { landId: building.landId } })
-          .then(applyRun);
-      });
-      return;
-    }
-    if (act === 'woods') {
-      busy(function () {
-        return setArea('wildlands').then(function (run) {
-          setOverworldActive(false);
-          renderWildlands(run);
-          show('world');
-          setOverworldActive(true);
-        });
-      });
-      return;
-    }
-    if (act === 'wild-foe' && building && building.cardId) {
-      busy(function () { return startWildBattle(building.cardId, currentArea()); });
-      return;
-    }
-    // Arena battles (Battle Table) open the ArenaTeam formation first, with a Fight button.
-    if (act === 'legendary') {
-      var lg = state.run && state.run.currentLand && state.run.currentLand.legendary;
-      openPreBattle({ kind: 'legendary' }, lg ? lg.name : 'the Legendary');
-      return;
-    }
-    if (act === 'rival' || act === 'knight') {
-      openPreBattle({ kind: act }, building && building.label ? building.label : (act === 'rival' ? 'the Rival' : 'the SiegeKnight'));
+    } else if (act === 'travel' && actor.landId) {
+      busy(function () { return travelToLand(actor.landId); });
+    } else if (act === 'wild-foe') {
+      busy(function () { return startWildBattle(actor.cardId); });
+    } else if (act === 'preset') {
+      openPresetFrom();
+    } else if (act === 'road-rival') {
+      openPreBattle({ kind: 'rival', roadLandId: actor.landId }, actor.label);
+    } else if (act === 'talk') {
+      state.overworld.setBanner(actor.label + ': You have our city’s support, Squire.');
+    } else if (act === 'rival' || act === 'knight' || act === 'legendary') {
+      openPreBattle({ kind: act }, actor.label);
     }
   }
 
-  function ensureOverworld(stageId) {
-    stageId = stageId || 'cmStage';
-    if (state.overworld && state.overworld.root && state.overworld.root.id === stageId) {
-      return state.overworld;
-    }
-    if (!window.CampaignOverworld) return null;
-    var stage = $(stageId);
-    if (!stage) return null;
-    // Remount when switching sanctuary ↔ land stages.
-    if (state.overworld) {
-      state.overworld.enable(false);
-      if (state.overworld.dispose) state.overworld.dispose();
-    }
-    state.overworld = new window.CampaignOverworld({
-      root: stage,
-      onInteract: handleOverworldAct,
-      onEncounter: startRandomWildEncounter,
-      onPrompt: syncActButton,
-      onExit: function () {
-        if (document.body.dataset.screen === 'land' || state.mapArea === 'wildlands') handleOverworldAct('exit');
-        else showRealmOverlay(true);
-      }
-    });
-    state.overworld.mount();
-    return state.overworld;
-  }
-
-  // The dock's A button carries what A will do here (or Explore when nothing is near).
   function syncActButton(near, text) {
-    Array.prototype.forEach.call(document.querySelectorAll('[data-act-btn]'), function (btn) {
+    var visible = !near ? 'Explore' : text.indexOf('Challenge ') === 0 ? 'Challenge' : text;
+    document.querySelectorAll('[data-act-btn]').forEach(function (btn) {
       var label = btn.querySelector('[data-act-label]');
-      if (label) label.textContent = near ? text : 'Explore';
-      btn.classList.toggle('is-live', !!(near && !near.disabled));
+      label.textContent = visible;
+      btn.classList.toggle('is-live', !!near);
+      btn.setAttribute('aria-label', near ? text : 'Interact');
     });
   }
 
   function pressAct() {
     var ow = state.overworld;
     if (!ow) return;
-    if (ow.near) { ow.tryInteract(); return; }
-    if (ow.setBanner) ow.setBanner('Walk up to someone or something, then press A.');
+    if (ow.near) ow.tryInteract();
+    else ow.setBanner('Walk up to a sign, trainer, or wild Siegeling, then press A.');
   }
 
-  function renderWildlands(run) {
-    showRealmOverlay(false);
-    var ow = ensureOverworld('cmSanctuaryStage');
-    var ok = ow && ow.loadWildlands && ow.loadWildlands({
-      message: run.lastMessage,
-      gold: run.gold,
-      rallies: (run.ralliedLandIds || []).length,
-      wilds: wildsFor('wildlands'),
-      follower: starterFollower(run)
+  function renderWalking(run) {
+    var city = run.area && run.area !== 'wildlands' && run.area !== 'sanctuary';
+    show(city ? 'land' : 'world');
+    if (!state.overworld) state.overworld = new window.CampaignAdventureMap(handleOverworldAct, syncActButton);
+    var host = $(city ? 'cmStage' : 'cmSanctuaryStage');
+    state.overworld.load(host, run, starterFollower(run), state.arrival || battleArrival(run));
+    state.arrival = null;
+    $('cmWorldOverlay').hidden = true;
+    setOverworldActive(!menuOpen());
+  }
+
+  window.render_game_to_text = function () {
+    var screen = document.body.dataset.screen;
+    return JSON.stringify({
+      screen: screen,
+      prologue: screen === 'start' ? state.prologue : null,
+      starter: state.selectedStarter,
+      map: state.overworld ? state.overworld.snapshot() : null
     });
-    if (!ok) { renderSanctuary(run); return; }
-    state.mapArea = 'wildlands';
-  }
-
-  function renderSanctuary(run) {
-    showRealmOverlay(false);
-    state.mapArea = 'sanctuary';
-    var ow = ensureOverworld('cmSanctuaryStage');
-    if (ow) {
-      ow.loadSanctuary({
-        message: run.lastMessage || 'Sanctuary Plaza — palm woods to the north, waystones to the east.',
-        gold: run.gold,
-        rallies: (run.ralliedLandIds || []).length,
-        lands: run.lands || [],
-        follower: starterFollower(run)
-      });
-    }
-  }
-
-  function renderLand(run) {
-    showRealmOverlay(false);
-    var land = run.currentLand || {};
-    var ow = ensureOverworld('cmStage');
-    if (ow) {
-      ow.loadLand({
-        name: land.name || 'Land',
-        landId: run.currentLandId,
-        message: run.lastMessage || 'Walk Squire Bob to a popup building.',
-        background: land.background || '',
-        element: (land.elements && land.elements[0]) || run.starterElement || 'neutral',
-        rivalDone: (run.clearedRivalLandIds || []).indexOf(run.currentLandId) >= 0,
-        rallied: (run.ralliedLandIds || []).indexOf(run.currentLandId) >= 0,
-        wilds: wildsFor(run.currentLandId),
-        legendary: land.legendary || null,
-        shrineOpen: !!land.shrineOpen,
-        sigilEarned: !!land.sigilEarned,
-        gold: run.gold,
-        rallies: (run.ralliedLandIds || []).length,
-        follower: starterFollower(run)
-      });
-    }
-  }
+  };
 
   // ---- Formation (Arena preset on a 3x3 board half) -------------------------
 
@@ -540,7 +403,6 @@
     var el = String(run.starterElement || 'fire').toLowerCase();
     var wrap = $('cmBoardWrap');
     if (wrap) wrap.style.setProperty('--cm-board-art', 'url(/img/board-skins/board-' + el + '.webp)');
-    $('cmPreMax').textContent = max;
     drawFormation();
   }
 
@@ -906,39 +768,25 @@
     window.addEventListener('resize', function () { if (document.body.dataset.screen === 'preset') drawLinks(); });
   }
 
-  function openPresetFrom(screen, battle, foeName) {
-    state.returnScreen = screen || 'world';
+  function openPresetFrom(battle, foeName) {
     state.preBattle = battle || null;
     closeMenu();
     setOverworldActive(false);
     renderPreset(state.run);
     $('cmPreEyebrow').textContent = battle ? 'Before the duel' : 'ArenaTeam formation';
     $('cmPreTitle').innerHTML = battle ? 'Your ArenaTeam vs <b>' + esc(foeName || 'the foe') + '</b>'
-      : 'Place up to <span id="cmPreMax">' + ((state.run && state.run.arenaPartyMax) || 5) + '</span> Siegelings';
+      : 'Place up to ' + (state.run.arenaPartyMax || 5) + ' Siegelings';
     $('cmPresetSave').textContent = battle ? 'Fight!' : 'Save ArenaTeam';
     show('preset');
   }
 
   /** Arena battles start from the formation: check the ArenaTeam, then Fight. */
   function openPreBattle(battle, foeName) {
-    var screen = document.body.dataset.screen;
-    openPresetFrom(screen === 'land' ? 'land' : 'world', battle, foeName);
+    openPresetFrom(battle, foeName);
   }
 
   function returnFromPreset(run) {
-    run = run || state.run;
-    if (!run) { show('world'); return; }
-    if (state.returnScreen === 'land' && run.phase !== 'WORLD') {
-      renderLand(run);
-      show('land');
-    } else if (state.mapArea === 'wildlands') {
-      renderWildlands(run);
-      show('world');
-    } else {
-      renderSanctuary(run);
-      show('world');
-    }
-    setOverworldActive(true);
+    renderWalking(run || state.run);
   }
 
   // ---- Rally menu (opened from the shield FAB) ------------------------------
@@ -1413,7 +1261,7 @@
           var ow = state.overworld;
           if (ow) {
             ow.follower = f;
-            if (ow.world3d && ow.world3d.setFollower) ow.world3d.setFollower(f && f.id, f);
+            ow.invalidate();
           }
           toast(run.lastMessage || 'Follower set.');
           menuPanel('follower');
@@ -1429,8 +1277,7 @@
     if (p) {
       var id = p.getAttribute('data-panel');
       if (id === 'formation') {
-        var screen = document.body.dataset.screen;
-        openPresetFrom(screen === 'land' ? 'land' : 'world');
+        openPresetFrom();
         return;
       }
       if (id === 'site') {
@@ -1534,28 +1381,21 @@
     show('loading');
     api('/api/campaign/options').then(function (options) {
       state.options = options;
-      renderStarters(options);
       var existing = load(RUN_TOKEN_KEY) || options.accountRunToken;
-      if (existing) {
-        store(RUN_TOKEN_KEY, existing);
-        return api('/api/campaign/run').then(function (run) {
-          var resume = $('cmResume');
-          resume.hidden = false;
-          resume.innerHTML = '<div>Resume as <b>' + esc(run.playerName || 'Squire') + '</b> with ' +
-            esc(starterName(run.starterId)) + '.</div>' +
-            '<button type="button" id="cmResumeBtn">Continue</button>';
-          // The settle request below may already have put the run back on screen;
-          // whichever answers last must not bounce the player to the start screen.
-          if (!state.run) show('start');
-        }).catch(function () {
-          store(RUN_TOKEN_KEY, null);
-          if (!state.run) show('start');
-        });
+      function openPrologue() {
+        renderStarters(options);
+        show('start');
       }
-      if (!state.run) show('start');
+      if (!existing) return openPrologue();
+      store(RUN_TOKEN_KEY, existing);
+      return api('/api/campaign/settle', { method: 'POST' }).then(applyRun).catch(function (e) {
+        if (e.message === 'Campaign run not found.') store(RUN_TOKEN_KEY, null);
+        else throw e;
+        openPrologue();
+      });
     }).catch(function (e) {
-      toast(e.message || 'Could not load campaign.');
-      show('start');
+      $('screenLoading').querySelector('p').textContent = 'Could not load Adventure. Reload to retry.';
+      toast(e.message);
     });
 
     document.body.addEventListener('click', function (ev) {
@@ -1567,8 +1407,7 @@
       t = ev.target.closest('[data-land]');
       if (t && !t.disabled) {
         busy(function () {
-          return api('/api/campaign/enter-land', { method: 'POST', body: { landId: t.getAttribute('data-land') } })
-            .then(applyRun);
+          return travelToLand(t.getAttribute('data-land'));
         });
         return;
       }
@@ -1585,17 +1424,19 @@
     });
 
     $('cmStartBtn').addEventListener('click', function () {
+      var step = state.prologue;
+      if (step !== 'bond') {
+        if (step === 'choose' && !state.selectedStarter) return;
+        state.prologue = { approach: 'arrest', arrest: 'choose', choose: 'bond' }[step];
+        paintPrologue();
+        return;
+      }
       busy(function () {
         return api('/api/campaign/start', {
           method: 'POST',
           body: { starterId: state.selectedStarter, playerName: 'Squire' }
         }).then(applyRun);
       });
-    });
-    document.body.addEventListener('click', function (ev) {
-      if (ev.target.id === 'cmResumeBtn') {
-        busy(function () { return api('/api/campaign/run').then(applyRun); });
-      }
     });
     var worldClose = $('cmWorldClose');
     if (worldClose) {
@@ -1614,9 +1455,7 @@
             var moved = ids.filter(function (id) { return run.presetCells && run.presetCells[id] !== cells[id]; });
             toast(moved.length ? 'Saved. ' + moved.map(function (id) { var c = rosterCard(id); return c ? c.name : id; }).join(', ') +
               ' moved to a square it can link from.' : (state.preBattle ? 'To battle!' : 'ArenaTeam saved.'));
-            var battle = state.preBattle;
-            state.preBattle = null;
-            if (battle) return startArena(battle);
+            if (state.preBattle) return startArena(state.preBattle);
             returnFromPreset(run);
           });
       });
@@ -1653,17 +1492,12 @@
       });
     });
     $('cmNewBtn').addEventListener('click', function () {
-      store(RUN_TOKEN_KEY, null);
-      location.reload();
+      state.prologue = 'approach';
+      state.selectedStarter = null;
+      applyRun(null);
+      renderStarters(state.options);
     });
 
-    // Returning from /play?campaign=1 — settle then show result.
-    if (new URLSearchParams(location.search).get('settled') === '1' || load(RUN_TOKEN_KEY)) {
-      var tok = load(RUN_TOKEN_KEY);
-      if (tok) {
-        api('/api/campaign/settle', { method: 'POST' }).then(applyRun).catch(function () {});
-      }
-    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

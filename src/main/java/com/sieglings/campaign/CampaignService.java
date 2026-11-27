@@ -116,9 +116,9 @@ public class CampaignService {
         }
         run.currentLandId = starter.landId();
         run.phase = Phase.WORLD;
-        run.lastMessage = "You set out from the Sanctuary as a Squire with " + starter.name() + ".";
+        run.lastMessage = starter.name() + " joined you. Take the south gate to the Wildlands.";
         run.gold = 20;
-        journal(run, "story", "Set out from the Sanctuary with " + starter.name() + ". Rally "
+        journal(run, "story", "Freed the raiders’ captives and set out from Sanctuary City with " + starter.name() + ". Rally "
                 + CampaignContent.RALLIES_TO_UNLOCK_AKHAR + " realms to face Raidlord Akhar.");
         return persist(run);
     }
@@ -232,6 +232,11 @@ public class CampaignService {
                 throw new IllegalArgumentException("Unknown area.");
             }
             run.area = clean;
+            if ("wildlands".equals(clean)) {
+                run.lastMessage = "Frostveil lies north, Zephyr Reach west, and Emberfall east.";
+            } else if ("sanctuary".equals(clean)) {
+                run.lastMessage = "The south gate leads to the Wildlands.";
+            }
             // Leaving a Land for the Sanctuary or the Wildlands puts the run back on the world map.
             if (SiegeLand.byId(clean) == null && (run.phase == Phase.LAND || run.phase == Phase.RALLY)) {
                 run.phase = run.ralliedLandIds.size() >= CampaignContent.RALLIES_TO_UNLOCK_AKHAR
@@ -473,12 +478,25 @@ public class CampaignService {
      * preset board put them, under Squire Bob at his current level, holding their items.
      */
     public String startArena(String token, String kindRaw, String wildCardId, String area) {
+        return startArena(token, kindRaw, wildCardId, area, null);
+    }
+
+    public String startArena(String token, String kindRaw, String wildCardId, String area, String roadLandId) {
         CampaignRun run = require(token);
         synchronized (run) {
             settleArenaIfNeeded(run);
             ArenaKind kind = parseKind(kindRaw);
             String fightArea = run.area;
-            if (kind == ArenaKind.AKHAR) {
+            String battleLandId = run.currentLandId;
+            if (roadLandId != null) {
+                requirePhase(run, Phase.WORLD, Phase.AKHAR_READY);
+                if (kind != ArenaKind.RIVAL || !"wildlands".equals(run.area)
+                        || !CampaignContent.SANCTUARY_NPC_KNIGHTS.containsValue(roadLandId)
+                        || !run.unlockedLandIds.contains(roadLandId)) {
+                    throw new IllegalArgumentException("That trainer is not on this road.");
+                }
+                battleLandId = roadLandId;
+            } else if (kind == ArenaKind.AKHAR) {
                 requirePhase(run, Phase.AKHAR_READY, Phase.WORLD, Phase.LAND, Phase.RALLY);
                 if (run.ralliedLandIds.size() < CampaignContent.RALLIES_TO_UNLOCK_AKHAR) {
                     throw new IllegalArgumentException("Rally more kingdoms before challenging Akhar.");
@@ -518,7 +536,7 @@ public class CampaignService {
                     .map(t -> gameService.leveledTrainer(t, run.level))
                     .orElse(null);
 
-            String landId = kind == ArenaKind.AKHAR || kind == ArenaKind.WILD ? null : run.currentLandId;
+            String landId = kind == ArenaKind.AKHAR || kind == ArenaKind.WILD ? null : battleLandId;
             EncounterSpec enemy = kind == ArenaKind.WILD ? wildEncounter(run, fightArea, wildCardId)
                     : kind == ArenaKind.LEGENDARY ? legendaryEncounter(run.currentLandId)
                     : enemyFor(kind, landId, kind == ArenaKind.RIVAL ? Math.min(3, n) : Math.max(3, n),
@@ -690,7 +708,7 @@ public class CampaignService {
             run.lastMessage = "Rival defeated. The realm's SiegeKnight awaits.";
             journal(run, "rival", "Beat the rival of " + (land != null ? land.name() : landId)
                     + ". Its SiegeKnight and Legendary shrine are open.");
-            run.phase = Phase.LAND;
+            run.phase = phaseForArea(run, kind);
         } else if (kind == ArenaKind.KNIGHT && landId != null) {
             run.ralliedLandIds.add(landId);
             unlockNeighbors(run, landId);

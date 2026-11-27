@@ -1,4 +1,4 @@
-/* Rally of the Realms — campaign hub + 2.5D Land stage. */
+/* Rally of the Realms — Adventure campaign. */
 :root {
   --fire: #ff501e; --earth: #b48c50; --wind: #96ffb4; --water: #3296ff;
   --ice: #76e6ff; --shadow: #7832b4; --electric: #ffe63c; --metal: #a0aab4;
@@ -791,105 +791,7 @@ body[data-screen="world"] #cmSanctuaryStage { display: block; }
   .cm-ow-stick:hover, .cm-ow-stick:focus-within { opacity: 1; }
 }
 
-/* ---- Start screen, art first ----
-   One column that never scrolls: resume row (when present), the stage (the only
-   flexing child, painted with the chosen partner's home Land), and the four Land
-   tabs. The page behind it is the same painting, blurred, so the screen reads as
-   one place rather than a panel on navy. */
-#screenStart { gap: 10px; isolation: isolate; }
-#screenStart > * { flex: 0 0 auto; min-width: 0; }
-#screenStart > .cm-show { flex: 1 1 0; min-height: 0; }
-
-.cm-ambient { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
-/* The fixed backdrop spans the whole viewport (past the 1180px shell); the header
-   stays above it. */
 .cm-top { position: relative; z-index: 2; }
-.cm-ambient > i {
-  position: absolute; inset: -40px; background: center/cover no-repeat;
-  filter: blur(28px) saturate(1.15) brightness(.42); opacity: 0; transition: opacity .6s ease;
-}
-.cm-ambient > i.is-in { opacity: 1; }
-.cm-ambient::after {
-  content: ""; position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(11,16,32,.35), rgba(11,16,32,.7) 70%, rgba(11,16,32,.92));
-}
-
-.cm-show {
-  --cm-el-c: var(--cm-gold);
-  position: relative; overflow: hidden; isolation: isolate;
-  border-radius: 20px; border: 1px solid var(--cm-line-strong);
-  background: #0e1528;
-  box-shadow: 0 18px 40px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.4) inset;
-}
-.cm-show-art { position: absolute; inset: 0; z-index: -2; }
-.cm-show-art > i {
-  position: absolute; inset: 0; background: center 62%/cover no-repeat;
-  opacity: 0; transform: scale(1.06); transition: opacity .55s ease, transform 6s ease-out;
-}
-.cm-show-art > i.is-in { opacity: 1; transform: scale(1); }
-/* Top scrim for the intro line, deep foot scrim for the name, element tint at the floor. */
-.cm-show-shade {
-  position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(6,10,20,.62) 0%, rgba(6,10,20,0) 22%),
-    linear-gradient(0deg, rgba(6,10,20,.96) 0%, rgba(6,10,20,.78) 22%, rgba(6,10,20,0) 52%),
-    radial-gradient(70% 34% at 50% 74%, color-mix(in srgb, var(--cm-el-c) 26%, transparent), transparent 70%);
-  transition: background .4s ease;
-}
-.cm-show-intro {
-  position: absolute; left: 14px; right: 14px; top: 12px; margin: 0;
-  font-size: 13px; line-height: 1.35; color: rgba(238,243,251,.88);
-  text-shadow: 0 1px 6px rgba(0,0,0,.7); text-wrap: balance;
-}
-.cm-show-intro b { color: var(--cm-gold); font-family: var(--cm-serif); font-weight: 600; }
-
-/* The two figures share one floor line just above the copy block. */
-.cm-show-ground {
-  position: absolute; left: 0; right: 0; bottom: clamp(96px, 26%, 150px); height: min(40%, 230px);
-  display: flex; align-items: flex-end; justify-content: center; gap: 4%;
-  pointer-events: none;
-}
-.cm-show-ground::before {
-  content: ""; position: absolute; left: 18%; right: 18%; bottom: -10px; height: 22px;
-  background: radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,.55), transparent 70%);
-}
-.cm-show-bob {
-  /* Bob's frame is the size reference: his figure is 64% of it (128 of 200 rows)
-     and his feet sit 2.5% above its foot, so the frame drops by that much to put
-     both pairs of feet on the floor line. */
-  position: relative; height: 100%; width: auto; object-fit: contain;
-  translate: 0 2.5%;
-  filter: drop-shadow(0 6px 6px rgba(0,0,0,.5));
-  animation: cm-bob 2.8s ease-in-out infinite;
-}
-.cm-show-partner {
-  /* Body height = Bob's figure x the rarity scale (SiegeSprites.heightVsSquire):
-     a Common stands at 0.72 of Bob, a Legendary at twice that. */
-  position: relative; height: calc(100% * .64 * var(--cm-size, .72));
-  aspect-ratio: 1; display: flex; align-items: flex-end; justify-content: center;
-  filter: drop-shadow(0 10px 10px rgba(0,0,0,.5));
-}
-.cm-show-partner > img { max-height: 100%; max-width: 100%; object-fit: contain; }
-.cm-show-partner.is-arriving { animation: cm-arrive .5s cubic-bezier(.2,.8,.2,1.2) both; }
-@keyframes cm-arrive {
-  from { opacity: 0; transform: translateY(14px) scale(.9); }
-  to { opacity: 1; transform: none; }
-}
-
-.cm-show-copy {
-  position: absolute; left: 0; right: 0; bottom: 0; padding: 0 16px 14px;
-  display: flex; flex-direction: column; gap: 4px;
-}
-.cm-show-meta {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--cm-muted);
-}
-.cm-show-name {
-  margin: 0; font-family: var(--cm-serif); font-weight: 600; line-height: 1;
-  font-size: clamp(30px, 9vw, 52px); color: #fff4d6;
-  text-shadow: 0 2px 0 rgba(0,0,0,.35), 0 0 24px color-mix(in srgb, var(--cm-el-c) 45%, transparent);
-}
-.cm-show-blurb { margin: 0; font-size: 14px; line-height: 1.4; color: rgba(238,243,251,.82); max-width: 34rem; }
 
 /* Shared sprite strip: n frames laid side by side, stepped with transform. */
 .cm-anim { position: absolute; left: 50%; transform: translateX(-50%); overflow: hidden; }
@@ -938,53 +840,8 @@ body[data-screen="world"] #cmSanctuaryStage { display: block; }
 .cm-starter-name b { font-size: 13px; font-weight: 700; }
 .cm-starter-name small { font-size: 10px; color: var(--cm-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-@media (max-width: 360px) {
-  .cm-show-intro { font-size: 12px; }
-  .cm-show-blurb { font-size: 13px; }
-  .cm-starter-name small { display: none; }
-}
-/* Short phones (SE): the stage keeps the art, the intro line steps aside. */
-@media (max-height: 640px) {
-  .cm-show-intro { display: none; }
-  .cm-show-ground { height: min(46%, 200px); }
-}
-/* Wide screens and landscape phones: stage on the left, Land tabs as a 2x2 column beside it. */
-@media (min-width: 900px), (orientation: landscape) and (max-height: 500px) {
-  #screenStart {
-    display: none; grid-template-columns: minmax(0, 1fr) minmax(280px, 34%);
-    grid-template-rows: auto minmax(0, 1fr); column-gap: 18px; row-gap: 12px;
-  }
-  body[data-screen="start"] #screenStart { display: grid; }
-  #screenStart > .cm-resume { grid-column: 1 / -1; }
-  #screenStart > .cm-show { grid-column: 1; grid-row: 2; }
-  #screenStart > .cm-starters {
-    grid-column: 2; grid-row: 2; grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-content: center; gap: 12px;
-  }
-  .cm-starter { max-height: none; }
-}
-@media (orientation: landscape) and (max-height: 500px) {
-  #screenStart > .cm-starters { grid-template-rows: repeat(2, minmax(0, 1fr)); align-content: stretch; gap: 8px; }
-  .cm-starter { aspect-ratio: auto; height: 100%; }
-  .cm-show-intro { display: none; }
-  .cm-show-ground { bottom: 92px; height: calc(100% - 100px); }
-  .cm-show-name { font-size: 30px; }
-  .cm-show-blurb { font-size: 13px; }
-}
-@media (min-width: 900px) {
-  .cm-show-ground { height: min(42%, 320px); }
-  .cm-starter-name b { font-size: 16px; }
-  .cm-starter-name small { font-size: 11px; }
-  .cm-show-intro { left: 22px; top: 18px; font-size: 15px; max-width: 36rem; }
-  .cm-show-copy { padding: 0 24px 22px; }
-  .cm-show-blurb { font-size: 16px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .cm-anim > i, .cm-show-bob, .cm-show-partner.is-arriving { animation: none !important; }
-  .cm-show-art > i { transition: opacity .2s; transform: none; }
-}
-/* Over the painted backdrop the header reads as part of the scene, not a band. */
-body[data-screen="start"] .cm-top { background: linear-gradient(180deg, rgba(11,16,32,.55), transparent); border-bottom-color: transparent; }
+@media (max-width: 360px) { .cm-starter-name small { display: none; } }
+@media (prefers-reduced-motion: reduce) { .cm-anim > i { animation: none !important; } }
 
 /* ---- Figures: sheet, else overlay cutout, else element dot ----
    A .cm-cut box is the body's box: campaign.js measures the cutout's alpha
@@ -1009,7 +866,6 @@ body[data-screen="start"] .cm-top { background: linear-gradient(180deg, rgba(11,
 /* Fixed figure boxes for the roster and the wild fight (thumbnail scale, not world scale). */
 .cm-fig { position: relative; display: block; width: 72px; height: 60px; margin: 0 auto; }
 .cm-roster-card .cm-fig { width: 84px; height: 64px; }
-.cm-show-partner > .cm-cut, .cm-show-partner > .cm-dot { z-index: 0; }
 
 /* ---- Full-screen world ----
    Walking screens drop the page header: the 3D scene runs edge to edge (under the
@@ -1497,3 +1353,156 @@ button.cm-item { cursor: pointer; }
 .cm-link-sum { color: var(--cm-ink); }
 .cm-link-sum b { color: var(--cm-gold); }
 @media (prefers-reduced-motion: reduce) { .cm-link.is-same .cm-link-core, .cm-combo { animation: none; } }
+
+/* Adventure prologue and walking map. Existing card and dock styles are shared. */
+#screenStart.cm-prologue {
+  width: min(100%, 940px);
+  margin: 0 auto;
+  overflow: auto;
+}
+.cm-prologue-scene {
+  position: relative;
+  overflow: hidden;
+  flex: 1 1 230px;
+  min-height: 170px;
+  border: 1px solid var(--cm-line-strong);
+  border-radius: 18px;
+  isolation: isolate;
+  background:
+    linear-gradient(180deg, rgba(15,24,29,.16), transparent 40%, rgba(16,17,26,.76)),
+    url('/img/lands/locations/earth-journey.webp') center 60% / cover;
+}
+.cm-prologue-location {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #1a2430d9;
+  color: #f0d8a8;
+  font: 600 12px var(--cm-sans);
+}
+.cm-prologue-actors {
+  position: absolute;
+  inset: 23% 3% 12%;
+}
+.cm-prologue-actors img {
+  position: absolute;
+  bottom: 0;
+  height: 84%;
+  max-height: 210px;
+  max-width: 32%;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 8px 6px #131619a6);
+}
+.cm-prologue-bob { left: 3%; }
+.cm-prologue-knight { left: 37%; }
+.cm-prologue-raiders { position: absolute; width: 31%; height: 82%; right: 0; bottom: 15%; }
+.cm-prologue-raiders img { height: 100%; max-width: 72%; filter: grayscale(1) brightness(.55) drop-shadow(0 6px 4px #111a); }
+.cm-prologue-raiders img:first-child { right: 35%; }
+.cm-prologue-raiders img:last-child { right: 0; bottom: -10%; }
+.cm-prologue-captives {
+  display: flex;
+  position: absolute;
+  right: 0;
+  left: 51%;
+  height: clamp(34px, 10vw, 72px);
+  bottom: 0;
+  align-items: stretch;
+  gap: 3px;
+}
+.cm-prologue-creature { position: relative; flex: 1; min-width: 0; }
+.cm-prologue-creature > .cm-anim { max-width: 190%; }
+.cm-prologue[data-prologue="approach"] .cm-prologue-bob { animation: cm-road-step-in .65s ease-out both; }
+.cm-prologue[data-prologue="approach"] .cm-prologue-captives { opacity: .60; }
+.cm-prologue:is([data-prologue="approach"], [data-prologue="arrest"]) .cm-prologue-creature::after {
+  content: "";
+  position: absolute;
+  inset: 0 3px;
+  border: 2px solid #b0a087a1;
+  border-radius: 4px;
+  background: repeating-linear-gradient(90deg, transparent 0 6px, #a7987a94 6px 8px);
+}
+.cm-prologue[data-prologue="arrest"] .cm-prologue-knight { animation: cm-road-arrest .45s ease-out both; }
+@keyframes cm-road-arrest { from { transform: translateX(-22px); } }
+.cm-prologue[data-prologue="choose"] .cm-prologue-raiders,
+.cm-prologue[data-prologue="bond"] .cm-prologue-raiders { opacity: .26; }
+.cm-prologue[data-prologue="choose"] .cm-prologue-creature.is-on,
+.cm-prologue[data-prologue="bond"] .cm-prologue-creature.is-on {
+  filter: drop-shadow(0 0 10px #ffd975);
+  transform: translateY(-12%);
+}
+.cm-prologue[data-prologue="bond"] .cm-prologue-creature:not(.is-on) { opacity: .35; }
+.cm-prologue[data-prologue="bond"] .cm-prologue-creature.is-on { animation: cm-road-bond .55s ease-out both; }
+@keyframes cm-road-step-in { from { transform: translateX(-48px); opacity: .2; } }
+@keyframes cm-road-bond { from { opacity: .4; transform: translateY(0); } to { transform: translateY(-22%); } }
+.cm-prologue-dialogue {
+  flex: 0 0 auto;
+  padding: 12px 16px;
+  border: 1px solid var(--cm-line-strong);
+  border-radius: 12px;
+  background: #172237;
+}
+.cm-prologue-dialogue span { color: var(--cm-gold); font: 700 17px var(--cm-serif); }
+.cm-prologue-dialogue p { margin: 5px 0 0; color: var(--cm-ink); font-size: 14px; line-height: 1.46; }
+#screenStart.cm-prologue .cm-starters {
+  flex: 0 0 clamp(104px, 18vh, 153px);
+  display: grid;
+  grid-template: minmax(0, 1fr) / repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  min-height: 104px;
+}
+.cm-prologue .cm-starter { min-width: 0; min-height: 0; max-height: none; height: 100%; aspect-ratio: auto; }
+.cm-prologue .cm-starter-name small { font-size: clamp(8px, 1.6vw, 12px); }
+.cm-prologue .cm-starter-name b { font-size: clamp(11px, 2.9vw, 18px); }
+
+.cm-road-map { position: absolute; inset: 0; overflow: hidden; background: #384b39; }
+.cm-road-view { display: block; width: 100%; height: 100%; }
+.cm-road-hud {
+  position: absolute;
+  left: max(12px, env(safe-area-inset-left));
+  top: calc(10px + var(--sn-sat, env(safe-area-inset-top)));
+  max-width: min(470px, calc(100% - 24px));
+  padding: 9px 13px;
+  border-radius: 9px;
+  border: 1px solid #e6cd8c60;
+  background: #172327ed;
+  pointer-events: none;
+}
+.cm-road-hud strong { display: block; font: 700 clamp(19px, 4vw, 26px) var(--cm-serif); color: #ffdda2; }
+.cm-road-hud span { font-size: 12px; color: #f2d39e; }
+.cm-road-hud p { font-size: 12px; color: #f1ecdb; margin: 4px 0 0; }
+.cm-road-stick {
+  position: absolute;
+  left: max(14px, env(safe-area-inset-left));
+  bottom: calc(var(--sn-dock-h, 88px) + 15px);
+  display: grid;
+  place-items: center;
+  width: 110px;
+  height: 110px;
+  border: 2px solid #f8deb55e;
+  border-radius: 50%;
+  background: #18242a92;
+  touch-action: none;
+}
+.cm-road-stick i {
+  width: 47px;
+  height: 47px;
+  border-radius: 50%;
+  border: 1px solid #ffeec078;
+  background: radial-gradient(circle at 37% 29%, #f4dcac80, #aaa38d55);
+  pointer-events: none;
+}
+html[data-cm-filter="warm"] .cm-road-view { filter: sepia(.22) saturate(1.18); }
+html[data-cm-filter="cool"] .cm-road-view { filter: hue-rotate(14deg) brightness(1.03); }
+html[data-cm-filter="vivid"] .cm-road-view { filter: saturate(1.45) contrast(1.08); }
+html[data-cm-filter="dusk"] .cm-road-view { filter: brightness(.78) hue-rotate(-14deg); }
+html[data-cm-filter="sepia"] .cm-road-view { filter: sepia(.75); }
+html[data-cm-filter="noir"] .cm-road-view { filter: grayscale(1) contrast(1.18); }
+@media (max-height: 540px) {
+  .cm-road-stick { width: 84px; height: 84px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-prologue .cm-prologue-actors * { animation: none !important; }
+}
