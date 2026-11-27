@@ -14,6 +14,8 @@
   'use strict';
 
   var TOKEN_KEY = 'siegeToken';
+  var campaignBattle = new URLSearchParams(window.location.search).get('campaign') === '1';
+  var CAMPAIGN_PATH = '/campaign';
   // Where every exit out of a run lands: the redesigned hub, on its Play screen.
   // NOT '/play' - that path still serves the battle table's old welcome/mode
   // overlay, so leaving Siege used to drop the player into the layout the
@@ -180,7 +182,7 @@
     // Tutorial mode is a simulated expedition: it answers every /api/siege call
     // from an in-memory run so the guided tour never touches the player's
     // account, saves or gold. Every screen below still runs unmodified.
-    if (window.SiegeTutorial && window.SiegeTutorial.active()) {
+    if (!campaignBattle && window.SiegeTutorial && window.SiegeTutorial.active()) {
       return window.SiegeTutorial.respond(path, opts.body || {});
     }
     var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -213,6 +215,25 @@
 
   function token() { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } }
   function setToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch (e) {} }
+
+  function campaignBattleApi(action, opts) {
+    var campaignToken;
+    try { campaignToken = localStorage.getItem('sieglingsCampaignToken'); } catch (e) {}
+    if (!campaignToken) return Promise.resolve({});
+    opts = opts || {};
+    opts.headers = { 'X-Campaign-Token': campaignToken };
+    return api('/api/campaign/wild/' + action, opts).then(function (run) {
+      if (run.error) throw new Error(run.error);
+      return run;
+    });
+  }
+
+  function battleAction(action, body) {
+    var opts = { method: 'POST', body: body };
+    if (campaignBattle) return campaignBattleApi(action, opts);
+    opts.body = Object.assign({ token: token() }, body);
+    return api('/api/siege/battle/' + action, opts);
+  }
 
   // ---- helpers -------------------------------------------------------
   function $(id) { return document.getElementById(id); }
@@ -769,12 +790,29 @@
     window.addEventListener('orientationchange', onBattleOrientationFlip);
     guardViewportZoom();
     wireStaticButtons();
+    if (campaignBattle) {
+      bootCampaignBattle();
+      return;
+    }
     mountShieldNavigation();
     // Prefer the account checkpoint over this device's old token so phone and
     // desktop always resume the same signed-in expedition. Guests retain the
     // local token fallback, and a transient account lookup failure does not
     // hide a run already open on this device.
     resumeOrRoster();
+  }
+
+  function bootCampaignBattle() {
+    var back = document.querySelector('.siege-back');
+    back.href = CAMPAIGN_PATH;
+    back.title = 'Back to Adventure';
+    back.lastChild.textContent = 'Adventure';
+    document.querySelector('.siege-title span').textContent = 'Wild Encounter';
+    document.querySelector('.siege-load-wordmark span').textContent = 'Wild Encounter';
+    $('bootLoadStatus').textContent = 'Entering battle…';
+    campaignBattleApi('battle').then(applyRun).catch(function (e) {
+      $('bootLoadStatus').textContent = e.message;
+    });
   }
 
   // The shield FAB belongs to the launch screens (loading, resume, setup), the
@@ -2801,6 +2839,11 @@
 
   function renderRun() {
     var run = state.run;
+    if (campaignBattle) {
+      if (run && run.battle) renderBattle();
+      else window.location.replace(CAMPAIGN_PATH);
+      return;
+    }
     if (!run) { updateRunMenu(false); loadRoster(); return; }
     if (!run.camp) state.campMenu = null;
     // A tutorial run has nothing to save, restart or quit — the coach's own ✕
@@ -5870,7 +5913,8 @@
       var wrap = el('div', 'battle-endwrap');
       wrap.appendChild(el('div', 'battle-endtitle ' + (b.phase === 'WON' ? 'win' : 'lose'),
         b.phase === 'WON' ? 'Victory!' : 'Defeat'));
-      var cont = el('button', 'siege-btn primary', b.phase === 'WON' ? 'Claim Rewards' : 'End Expedition');
+      var cont = el('button', 'siege-btn primary',
+        campaignBattle ? 'Return to Adventure' : (b.phase === 'WON' ? 'Claim Rewards' : 'End Expedition'));
       cont.addEventListener('click', continueRun);
       wrap.appendChild(cont);
       hand.appendChild(wrap);
@@ -6668,6 +6712,12 @@
     });
   }
 
+  function onBattleActionError(error) {
+    toast(error.message);
+    state.busy = false;
+    syncBattleActionButtons();
+  }
+
   function playCard(cardId, targetId) {
     if (state.busy) return;
     // Playing a card is a change of mind: a queued End Turn must not fire
@@ -6677,14 +6727,14 @@
     if (endBtn) endBtn.classList.remove('is-queued');
     state.busy = true;
     syncBattleActionButtons();
-    api('/api/siege/battle/play', { method: 'POST', body: { token: token(), cardId: cardId, targetId: targetId } })
+    battleAction('play', { cardId: cardId, targetId: targetId })
       .then(function (run) {
         state.selectedCardId = null;
         if (run.error) toast(run.error);
         state.busy = false;
         applyRun(run);
       })
-      .catch(function (e) { toast(e.message); state.busy = false; });
+      .catch(onBattleActionError);
   }
 
   function endTurn() {
@@ -6705,22 +6755,27 @@
     state.busy = true;
     syncBattleActionButtons();
     state.selectedCardId = null;
-    api('/api/siege/battle/end-turn', { method: 'POST', body: { token: token() } })
+    battleAction('end-turn')
       .then(function (run) { state.busy = false; applyRun(run); })
-      .catch(function (e) { toast(e.message); state.busy = false; });
+      .catch(onBattleActionError);
   }
 
   function useUltimate() {
     if (state.busy) return;
     state.busy = true;
     syncBattleActionButtons();
-    api('/api/siege/battle/ultimate', { method: 'POST', body: { token: token() } })
+    battleAction('ultimate')
       .then(function (run) { if (run.error) toast(run.error); state.busy = false; applyRun(run); })
-      .catch(function (e) { toast(e.message); state.busy = false; });
+      .catch(onBattleActionError);
   }
 
   function continueRun() {
-    if (state.busy) return; state.busy = true;
+    if (state.busy) return;
+    if (campaignBattle) {
+      window.location.replace(CAMPAIGN_PATH);
+      return;
+    }
+    state.busy = true;
     api('/api/siege/continue', { method: 'POST', body: { token: token() } })
       .then(function (run) { state.run = run; renderRun(); announceLevelUps(run); })
       .catch(function (e) { toast(e.message); })

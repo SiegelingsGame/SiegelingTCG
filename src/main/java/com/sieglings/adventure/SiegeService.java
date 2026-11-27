@@ -4685,7 +4685,7 @@ public class SiegeService {
         return s;
     }
 
-    private Map<String, Object> serialize(SiegeRun run) {
+    Map<String, Object> serialize(SiegeRun run) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("token", run.getToken());
         m.put("status", run.getStatus().name());
