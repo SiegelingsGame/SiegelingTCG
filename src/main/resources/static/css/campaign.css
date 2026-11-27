@@ -1396,7 +1396,7 @@ button.cm-item { cursor: pointer; }
   object-position: center bottom;
   filter: drop-shadow(0 8px 6px #131619a6);
 }
-.cm-prologue-bob { left: 3%; }
+.cm-prologue-actors > .cm-prologue-bob { left: 3%; filter: none; }
 .cm-prologue-knight { left: 37%; }
 .cm-prologue-raiders { position: absolute; width: 31%; height: 82%; right: 0; bottom: 15%; }
 .cm-prologue-raiders img { height: 100%; max-width: 72%; filter: grayscale(1) brightness(.55) drop-shadow(0 6px 4px #111a); }

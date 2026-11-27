@@ -150,6 +150,11 @@
   function partnerArtHtml(s) { return figureHtml(s, 480); }
 
   function renderStarters(options) {
+    var bob = document.querySelector('.cm-prologue-bob');
+    if (!bob.dataset.cleaned) {
+      bob.dataset.cleaned = 'true';
+      window.CampaignAdventureMap.cleanOpeningSprite(bob);
+    }
     var host = $('cmStarters');
     if (!host) return;
     var list = options.starters || [];
@@ -280,6 +285,20 @@
     });
   }
 
+  function engageWild(actor, ambush) {
+    if (state.busy) return;
+    var map = state.overworld;
+    setOverworldActive(false);
+    if (ambush) map.setBanner('A wild ' + actor.label + ' appeared!');
+    busy(function () {
+      return startWildBattle(actor.cardId).catch(function (error) {
+        map.setBanner(state.run.lastMessage);
+        if (!menuOpen() && $('cmWorldOverlay').hidden) setOverworldActive(true);
+        throw error;
+      });
+    });
+  }
+
   function travelToLand(landId) {
     return api('/api/campaign/enter-land', { method: 'POST', body: { landId: landId } }).then(applyRun);
   }
@@ -300,8 +319,8 @@
       showRealmOverlay(true);
     } else if (act === 'travel' && actor.landId) {
       busy(function () { return travelToLand(actor.landId); });
-    } else if (act === 'wild-foe') {
-      busy(function () { return startWildBattle(actor.cardId); });
+    } else if (act === 'wild-foe' || act === 'wild-ambush') {
+      engageWild(actor, act === 'wild-ambush');
     } else if (act === 'preset') {
       openPresetFrom();
     } else if (act === 'road-rival') {
