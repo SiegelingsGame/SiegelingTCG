@@ -7861,3 +7861,10 @@ Original prompt: Rebuild the laggy Adventure map around a central city, wilderne
 - Sanctuary connects to the Wildlands, including Frostpine Trail, Galegrass Vale, and Cinderwood Road. Their gates lead to Glacia in Frostveil, Airek in Zephyr Reach, and Pyla in Emberfall. Road rivals use the existing Arena engine and unlock their home city's shrine. Wild encounters still use Siege. The caravan keeps the other campaign realms reachable.
 - The map reuses one Canvas 2D viewport, bakes terrain per area, stops drawing idle cities and hidden maps, and preserves the player's position when returning from a battle.
 - Verified with 302 Campaign and Siege tests and a mobile Playwright run covering the prologue, touch movement, road NPC Arena entry, all three knight challenges, wild Siege entry, same-position return, and render suspension.
+
+Original prompt: Fix the outline on Bob, bring back a 2.5D world, and restore random wild Siegeling encounters.
+
+- Adventure uses an oblique ground projection, raised buildings and trees, depth-sorted sprites, and baked terrain. The road layout, minimap, city gates, and Arena trainers keep their map positions.
+- Bob's Adventure frames correct the pale matte around translucent pixels and cache the cleaned result. The prologue uses the same correction.
+- Off-road walking in the Wildlands can start a Siege battle with a random local Siegeling. Standing still, walking in a city, and following roads do not advance an encounter. Battle return preserves position and starts a fresh encounter distance.
+- Playwright verified an off-road encounter without pressing Interact, safe roads and city walking, a single battle request, and return to the same spot. JavaScript syntax and the diff check passed.
