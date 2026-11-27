@@ -125,15 +125,15 @@
     }
     if (run.phase === 'WILD_BATTLE') {
       setOverworldActive(false);
-      renderWild(run);
-      show('wild');
+      renderEncounterResume(run);
+      show('arenaResume');
       return;
     }
     if (run.phase === 'ARENA_BATTLE') {
       setOverworldActive(false);
       // One settle attempt — if the duel is still live, show resume instead of looping.
       if (state.settlingArena) {
-        renderArenaResume(run);
+        renderEncounterResume(run);
         show('arenaResume');
         return;
       }
@@ -142,7 +142,7 @@
       api('/api/campaign/settle', { method: 'POST' }).then(function (next) {
         state.settlingArena = false;
         if (next && next.phase === 'ARENA_BATTLE') {
-          renderArenaResume(next);
+          renderEncounterResume(next);
           show('arenaResume');
           return;
         }
@@ -150,7 +150,7 @@
       }).catch(function (e) {
         state.settlingArena = false;
         toast(e.message);
-        renderArenaResume(run);
+        renderEncounterResume(run);
         show('arenaResume');
       });
       return;
@@ -280,8 +280,7 @@
     if (on && state.run) fillRealmOverlay(state.run);
   }
 
-  // Every battle the world starts (roaming wilds, grass rolls, shrines, rivals, knights,
-  // Akhar) is an Arena match on the Battle Table, three Siegelings a side at most.
+  // Campaign duels use the Battle Table. Roaming encounters use Siege.
   function startArena(body) {
     return api('/api/campaign/arena/start', { method: 'POST', body: body }).then(function (data) {
       if (!data.soloToken) throw new Error('No battle token.');
@@ -324,9 +323,11 @@
     });
   }
 
-  /** Wild Siegelings fight in Siege mode: the SiegeSquad (left, center, right) on this page. */
   function startWildBattle(cardId, area) {
-    return api('/api/campaign/wild/start', { method: 'POST', body: { cardId: cardId, area: area } }).then(applyRun);
+    return api('/api/campaign/wild/start', { method: 'POST', body: { cardId: cardId, area: area } }).then(function (run) {
+      applyRun(run);
+      window.location.href = '/siege?campaign=1';
+    });
   }
 
   /** Record where Bob walks so a battle (or a reload) returns him there. */
@@ -1475,43 +1476,18 @@
     else menuPanel('home');
   }
 
-  function renderArenaResume(run) {
+  function renderEncounterResume(run) {
     state.run = run;
+    var wild = run.phase === 'WILD_BATTLE';
+    $('cmArenaRetreat').hidden = wild;
+    $('cmArenaResume').textContent = wild ? 'Return to Battle' : 'Return to duel';
+    if (wild) {
+      $('cmArenaResumeMsg').textContent = run.lastMessage || 'Your wild encounter is still underway.';
+      return;
+    }
     var kind = run.pendingArenaKind || 'duel';
     var label = run.lastBattleEncounter || kind;
     $('cmArenaResumeMsg').textContent = 'Your Arena fight with ' + label + ' is still open. Return to the table, or withdraw to the Land.';
-  }
-
-  function renderWild(run) {
-    var b = run.wildBattle || {};
-    $('cmWildBanner').textContent = run.pendingCaptureName
-      ? ('Wild ' + run.pendingCaptureName + (b.over ? (b.won ? ' — captured!' : ' — fled.') : ''))
-      : (run.lastMessage || '');
-    function units(list, hostId) {
-      var host = $(hostId);
-      host.innerHTML = (list || []).map(function (u) {
-        // Units without a sheet once fell back to whatever art the server had,
-        // including a guessed sprite path that 404s; now it is the overlay cutout.
-        var art = '<span class="cm-fig">' + figureHtml(u, 240) + '</span>';
-        var label = u.shadeOf ? ('Shade of ' + u.shadeOf) : u.name;
-        return '<div class="cm-unit' + (u.alive === false ? ' is-down' : '') + '">' + art +
-          '<b>' + esc(label) + '</b>' +
-          '<span class="cm-hp">' + esc(u.hp) + '/' + esc(u.maxHp) + '</span></div>';
-      }).join('');
-    }
-    units(b.enemies, 'cmWildFoes');
-    units(b.allies, 'cmWildAllies');
-    fitCutouts($('cmWild'));
-    $('cmWildAp').textContent = b.over ? '' : ('AP ' + (b.actionPoints || 0) + '/' + (b.maxActionPoints || 3));
-    var hand = $('cmWildHand');
-    hand.innerHTML = (b.hand || []).map(function (c) {
-      return '<button type="button" class="cm-hand-card" data-card="' + esc(c.instanceId) + '"' +
-        (b.over ? ' disabled' : '') + '>' +
-        '<b>' + esc(c.name || 'Move') + '</b>' +
-        '<small>Cost ' + esc(c.cost != null ? c.cost : '?') + '</small></button>';
-    }).join('');
-    $('cmWildEnd').hidden = !!b.over;
-    $('cmWildFinish').hidden = !b.over;
   }
 
   function goToArena(soloToken) {
@@ -1533,10 +1509,6 @@
     return hit && hit.name ? hit.name : (id || 'your partner');
   }
 
-  // Every campaign screen has a flanked sn-dock built around the FAB slot, but the
-  // page never mounted the shield, so the middle of the dock sat empty. The wild
-  // fight keeps it hidden: its hand and AP row need the bottom edge.
-  var FAB_HIDDEN = { wild: 1 };
   function mountShieldNavigation() {
     if (!window.SiegelingsShieldNavigation) return;
     // The FAB is the site's own shield; SiegelinQ has its own dock button.
@@ -1545,9 +1517,6 @@
       if (menuOpen() && !(info && info.shieldOpen)) closeMenu();
       return false;
     });
-    function sync() { nav.setHidden(!!FAB_HIDDEN[document.body.dataset.screen]); }
-    new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['data-screen'] });
-    sync();
   }
 
   function boot() {
@@ -1610,23 +1579,8 @@
         handleOverworldAct(act, landId ? { landId: landId, label: t.textContent } : null);
         return;
       }
-      if (document.body.dataset.screen === 'preset' && ev.target.closest('#screenPreset') &&
-          formationTap(ev.target)) {
-        return;
-      }
-      t = ev.target.closest('[data-card]');
-      if (t && state.run && state.run.phase === 'WILD_BATTLE') {
-        var foes = (state.run.wildBattle && state.run.wildBattle.enemies) || [];
-        var target = null;
-        for (var i = 0; i < foes.length; i++) {
-          if (foes[i].alive !== false) { target = foes[i].id; break; }
-        }
-        busy(function () {
-          return api('/api/campaign/wild/play', {
-            method: 'POST',
-            body: { cardId: t.getAttribute('data-card'), targetId: target }
-          }).then(applyRun);
-        });
+      if (document.body.dataset.screen === 'preset' && ev.target.closest('#screenPreset')) {
+        formationTap(ev.target);
       }
     });
 
@@ -1672,17 +1626,11 @@
       if (ev.target.closest('[data-open-q]')) { openMenu('home'); return; }
       if (ev.target.closest('[data-act-btn]')) pressAct();
     });
-    $('cmWildEnd').addEventListener('click', function () {
-      busy(function () {
-        return api('/api/campaign/wild/end-turn', { method: 'POST' }).then(applyRun);
-      });
-    });
-    $('cmWildFinish').addEventListener('click', function () {
-      busy(function () {
-        return api('/api/campaign/wild/finish', { method: 'POST' }).then(applyRun);
-      });
-    });
     $('cmArenaResume').addEventListener('click', function () {
+      if (state.run && state.run.phase === 'WILD_BATTLE') {
+        window.location.href = '/siege?campaign=1';
+        return;
+      }
       var tok = (state.run && state.run.soloToken) || load(SOLO_TOKEN_KEY);
       if (!tok) {
         toast('No open duel to return to.');

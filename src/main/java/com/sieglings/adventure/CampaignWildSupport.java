@@ -6,7 +6,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -21,6 +20,7 @@ public class CampaignWildSupport {
 
     @Autowired private SiegeContentService content;
     @Autowired private SiegeCombatEngine combat;
+    @Autowired private SiegeService siegeService;
 
     private final Map<String, SiegeRun> byCampaignToken = new ConcurrentHashMap<>();
 
@@ -64,6 +64,8 @@ public class CampaignWildSupport {
             siege.getDeckTemplates().add(new SiegeCard("knightcard", "knight-" + squire.getId(), siege.getKnightActive()));
         }
         siege.setLand(land);
+        siege.getMap().add(new SiegeNode(0, 0, 0, NodeType.BATTLE, "Wild encounter"));
+        siege.setCurrentNodeId(0);
 
         List<Element> palette = land.weightedPalette(List.of(land.elements().get(0)));
         List<Combatant> foes = content.generateEnemies(NodeType.BATTLE, 1,
@@ -132,13 +134,17 @@ public class CampaignWildSupport {
         SiegeRun siege = require(campaignToken);
         SiegeCombatEngine.PlayResult result = combat.playCard(siege, cardInstanceId, targetId, rng);
         if (!result.ok) throw new IllegalArgumentException(result.message);
-        forcePartyWipeLoss(siege);
     }
 
     public void endTurn(String campaignToken, Random rng) {
         SiegeRun siege = require(campaignToken);
         combat.endPlayerTurn(siege, rng);
-        forcePartyWipeLoss(siege);
+    }
+
+    public void useUltimate(String campaignToken, Random rng) {
+        SiegeRun siege = require(campaignToken);
+        SiegeCombatEngine.PlayResult result = combat.useKnightUltimate(siege, rng);
+        if (!result.ok) throw new IllegalArgumentException(result.message);
     }
 
     public boolean isOver(String campaignToken) {
@@ -155,101 +161,13 @@ public class CampaignWildSupport {
         return battle != null && battle.getPhase() == BattlePhase.WON;
     }
 
-    /**
-     * Siege normally keeps fighting while the Knight lives even if the warband is down.
-     * Campaign captures are about the Siegelings — a wiped party ends the skirmish.
-     */
-    private void forcePartyWipeLoss(SiegeRun siege) {
-        SiegeBattle battle = siege.getBattle();
-        if (battle == null || battle.isOver()) return;
-        boolean partyAlive = false;
-        for (Combatant c : battle.getCombatants()) {
-            if (c.getSide() == Side.PLAYER && !c.isKnight() && c.isAlive()) {
-                partyAlive = true;
-                break;
-            }
-        }
-        if (partyAlive) return;
-        if (battle.living(Side.ENEMY).isEmpty()) {
-            battle.setPhase(BattlePhase.WON);
-            battle.log("Victory! The wild Siegelings are defeated.");
-        } else {
-            battle.setPhase(BattlePhase.LOST);
-            battle.log("Your warband has fallen — the wilds drive you back.");
-        }
-    }
-
     public void clear(String campaignToken) {
         byCampaignToken.remove(campaignToken);
     }
 
+    /** Use the same battle payload and event stream as a regular Siege expedition. */
     public Map<String, Object> battleView(String campaignToken) {
-        SiegeRun siege = byCampaignToken.get(campaignToken);
-        SiegeBattle battle = siege == null ? null : siege.getBattle();
-        Map<String, Object> b = new LinkedHashMap<>();
-        if (battle == null) {
-            b.put("over", true);
-            return b;
-        }
-        b.put("phase", battle.getPhase().name());
-        b.put("roundNumber", battle.getRoundNumber());
-        b.put("actionPoints", battle.getActionPoints());
-        b.put("maxActionPoints", SiegeBattle.ACTIONS_PER_TURN);
-        b.put("log", new ArrayList<>(battle.getLog()));
-        b.put("over", battle.isOver());
-        b.put("won", battle.getPhase() == BattlePhase.WON);
-
-        List<Map<String, Object>> allies = new ArrayList<>();
-        List<Map<String, Object>> foes = new ArrayList<>();
-        for (Combatant c : battle.getCombatants()) {
-            if (c.isKnight()) continue;
-            Map<String, Object> cm = new LinkedHashMap<>();
-            cm.put("id", c.getId());
-            cm.put("name", c.getName());
-            cm.put("hp", c.getHp());
-            cm.put("maxHp", c.getMaxHp());
-            String art = c.getArtUrl();
-            if ((art == null || art.isBlank()) && c.getDisplayCardId() != null) {
-                art = "/img/sprites/" + c.getDisplayCardId() + "/" + c.getDisplayCardId() + "-idle.webp";
-            }
-            cm.put("artUrl", art);
-            cm.put("element", c.getElement() == null ? null : c.getElement().name());
-            cm.put("alive", c.isAlive());
-            cm.put("position", c.getPosition());
-            cm.put("cardId", c.getDisplayCardId());
-            // A unit with no animated sheet stands as its card's overlay cutout, so
-            // the client needs the card art and its mode (only OVERLAY is a cutout).
-            if (c.getDisplayCardId() != null) {
-                content.findAnySiegling(c.getDisplayCardId()).ifPresent(card -> {
-                    if (card.getCardArtUrl() != null && !card.getCardArtUrl().isBlank()) {
-                        cm.put("cardArtUrl", card.getCardArtUrl());
-                        cm.put("cardArtMode", card.getCardArtMode());
-                    }
-                });
-            }
-            cm.put("shadeOf", c.getShadeOf());
-            if (c.getSide() == Side.PLAYER) allies.add(cm); else foes.add(cm);
-        }
-        b.put("allies", allies);
-        b.put("enemies", foes);
-
-        List<Map<String, Object>> hand = new ArrayList<>();
-        for (SiegeCard card : battle.getHand()) {
-            Map<String, Object> h = new LinkedHashMap<>();
-            h.put("instanceId", card.getInstanceId());
-            h.put("ownerId", card.getOwnerId());
-            AbilitySpec spec = card.getSpec();
-            if (spec != null) {
-                h.put("name", spec.name());
-                h.put("cost", spec.actionCost());
-                h.put("effect", spec.effect() == null ? null : spec.effect().name());
-                h.put("value", spec.value());
-                h.put("target", spec.target() == null ? null : spec.target().name());
-            }
-            hand.add(h);
-        }
-        b.put("hand", hand);
-        return b;
+        return siegeService.serialize(require(campaignToken));
     }
 
     private SiegeRun require(String campaignToken) {

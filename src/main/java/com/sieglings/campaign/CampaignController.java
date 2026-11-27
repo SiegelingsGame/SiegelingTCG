@@ -120,15 +120,25 @@ public class CampaignController {
         return handle(() -> campaign.runView(campaign.setFollower(token, str(req, "cardId"))));
     }
 
+    @GetMapping("/api/campaign/wild/battle")
+    public Map<String, Object> wildBattle(@RequestHeader(value = "X-Campaign-Token", required = false) String token) {
+        return handle(() -> campaign.wildBattle(token));
+    }
+
     @PostMapping("/api/campaign/wild/play")
     public Map<String, Object> wildPlay(@RequestHeader(value = "X-Campaign-Token", required = false) String token,
                                         @RequestBody Map<String, Object> req) {
-        return handle(() -> campaign.runView(campaign.wildPlay(token, str(req, "cardId"), str(req, "targetId"))));
+        return handle(() -> campaign.wildPlay(token, str(req, "cardId"), str(req, "targetId")));
     }
 
     @PostMapping("/api/campaign/wild/end-turn")
     public Map<String, Object> wildEndTurn(@RequestHeader(value = "X-Campaign-Token", required = false) String token) {
-        return handle(() -> campaign.runView(campaign.wildEndTurn(token)));
+        return handle(() -> campaign.wildEndTurn(token));
+    }
+
+    @PostMapping("/api/campaign/wild/ultimate")
+    public Map<String, Object> wildUltimate(@RequestHeader(value = "X-Campaign-Token", required = false) String token) {
+        return handle(() -> campaign.wildUltimate(token));
     }
 
     @PostMapping("/api/campaign/wild/finish")

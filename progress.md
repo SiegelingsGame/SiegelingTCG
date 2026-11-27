@@ -7849,3 +7849,8 @@ Original prompt: Add the 17 supplied battlefield cosmetics as Shop-purchased pre
 - October 25, 2026 **Home destination plates use more of the desktop viewport.** On desktop-height screens, the five artwork navigation plates now divide a tall responsive rail between the header and bottom safe area. Their height grows with the viewport while shorter landscape and portrait rules remain intact. Bumped `hub-workspaces.css` to v5 in both the app and preview pages.
 
   Verification: Playwright on the running Spring app at 1920x1080, 1280x720 and 1024x768 confirmed all five plates grow to 137px, 88px and 95px respectively and stay clear of the lower caption and viewport edge. At portrait 1024x1366, plates remain at the prior 80px sizing; at 430x932 the portrait layout remains at 40px. All five sizes had no page errors or horizontal overflow. Reviewed the desktop and both portrait screenshots. `git diff --check` passes.
+
+Original prompt: These battles in adventure should run through the Siege mode battle engine
+
+- November 27, 2026. Adventure wild encounters now use the standard Siege battle screen and payload, including Advantage, enemy tells, targeting, and the turn ledger. Campaign still owns the encounter and applies rewards once before sending the player back to the Land or Wildlands.
+  - Verified 301 Campaign and Siege tests. Playwright covered the Adventure launch, mobile Advantage HUD, dragging a card onto the second enemy, the ledger, turn playback, reload and resume, standard Knight defeat, and return to Emberfall. Local API checks covered the Knight Ultimate and victory, including capture, final animation events, and gold awarded once.

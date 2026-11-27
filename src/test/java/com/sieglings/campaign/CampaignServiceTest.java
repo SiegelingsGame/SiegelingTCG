@@ -17,8 +17,11 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -128,13 +131,25 @@ class CampaignServiceTest {
         run.area = "fire";
         CampaignRun started = campaign.startWild(run.token, null, "fire");
         assertEquals(CampaignRun.Phase.WILD_BATTLE, started.phase);
-        when(wildSupport.isOver(run.token)).thenReturn(true);
+        Map<String, Object> opening = Map.of("battle", Map.of("phase", "PLAYER_INPUT"));
+        Map<String, Object> victory = Map.of("battle", Map.of("phase", "WON",
+                "events", List.of(Map.of("type", "faint"))));
+        when(wildSupport.isOver(run.token)).thenReturn(false, false, true);
+        when(wildSupport.battleView(run.token)).thenReturn(opening, victory);
         when(wildSupport.won(run.token)).thenReturn(true);
-        CampaignRun after = campaign.finishWild(run.token);
-        assertTrue(after.roster.contains("fawny"));
-        assertTrue(after.siegeSquad.contains("fawny"));
-        assertEquals(CampaignRun.Phase.LAND, after.phase);
-        assertEquals("fire", after.area);
+
+        assertEquals(opening, campaign.wildBattle(run.token));
+        int initialGold = run.gold;
+        assertEquals(victory, campaign.wildPlay(run.token, "card-1", "enemy-2"));
+        verify(wildSupport).play(eq(run.token), eq("card-1"), eq("enemy-2"), any());
+        assertTrue(run.roster.contains("fawny"));
+        assertTrue(run.siegeSquad.contains("fawny"));
+        assertEquals(CampaignRun.Phase.LAND, run.phase);
+        assertEquals("fire", run.area);
+
+        assertTrue(campaign.wildBattle(run.token).isEmpty());
+        assertTrue(campaign.wildEndTurn(run.token).isEmpty());
+        assertEquals(initialGold + 8, run.gold);
     }
 
     @Test

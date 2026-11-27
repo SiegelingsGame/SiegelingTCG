@@ -357,23 +357,49 @@ public class CampaignService {
         return current != null ? current : CampaignContent.elementalLands().get(0);
     }
 
-    public CampaignRun wildPlay(String token, String cardId, String targetId) {
+    public Map<String, Object> wildBattle(String token) {
         CampaignRun run = require(token);
         synchronized (run) {
-            requirePhase(run, Phase.WILD_BATTLE);
-            wildSupport.play(run.token, cardId, targetId, new Random(System.nanoTime()));
-            finishWildIfOver(run);
-            return persist(run);
+            if (run.phase != Phase.WILD_BATTLE) return Map.of();
+            // An interrupted server session can leave a saved Campaign encounter
+            // without its in-memory Siege battle. Resolve it as a retreat.
+            if (wildSupport.isOver(run.token)) {
+                finishWildIfOver(run);
+                persist(run);
+                return Map.of();
+            }
+            return wildSupport.battleView(run.token);
         }
     }
 
-    public CampaignRun wildEndTurn(String token) {
+    public Map<String, Object> wildPlay(String token, String cardId, String targetId) {
+        return applyWildAction(token, () -> wildSupport.play(token, cardId, targetId, new Random(System.nanoTime())));
+    }
+
+    public Map<String, Object> wildEndTurn(String token) {
+        return applyWildAction(token, () -> wildSupport.endTurn(token, new Random(System.nanoTime())));
+    }
+
+    public Map<String, Object> wildUltimate(String token) {
+        return applyWildAction(token, () -> wildSupport.useUltimate(token, new Random(System.nanoTime())));
+    }
+
+    private Map<String, Object> applyWildAction(String token, Runnable action) {
         CampaignRun run = require(token);
         synchronized (run) {
-            requirePhase(run, Phase.WILD_BATTLE);
-            wildSupport.endTurn(run.token, new Random(System.nanoTime()));
+            if (run.phase != Phase.WILD_BATTLE) return Map.of();
+            if (wildSupport.isOver(run.token)) {
+                finishWildIfOver(run);
+                persist(run);
+                return Map.of();
+            }
+            action.run();
+            // Keep the final play and its animations in the response even though
+            // the Campaign outcome is committed before the player goes back.
+            Map<String, Object> result = wildSupport.battleView(run.token);
             finishWildIfOver(run);
-            return persist(run);
+            persist(run);
+            return result;
         }
     }
 
@@ -874,7 +900,6 @@ public class CampaignService {
         m.put("rosterCards", rosterCards);
 
         if (run.phase == Phase.WILD_BATTLE) {
-            m.put("wildBattle", wildSupport.battleView(run.token));
             m.put("pendingCaptureName", run.pendingCaptureName);
         }
 
