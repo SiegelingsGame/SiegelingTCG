@@ -150,7 +150,7 @@ public class CampaignController {
     public Map<String, Object> arenaStart(@RequestHeader(value = "X-Campaign-Token", required = false) String token,
                                           @RequestBody Map<String, Object> req) {
         return handle(() -> {
-            String soloToken = campaign.startArena(token, str(req, "kind"), str(req, "cardId"), str(req, "area"));
+            String soloToken = campaign.startArena(token, str(req, "kind"), str(req, "cardId"), str(req, "area"), str(req, "roadLandId"));
             Map<String, Object> out = new LinkedHashMap<>(campaign.runView(campaign.view(token)));
             out.put("soloToken", soloToken);
             return out;

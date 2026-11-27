@@ -207,6 +207,27 @@ class CampaignServiceTest {
     }
 
     @Test
+    void roadRivalUsesItsCityAndReturnsToTheWildlandsAfterVictory() {
+        CampaignRun run = runWith();
+        assertThrows(IllegalArgumentException.class, () ->
+                campaign.startArena(run.token, "rival", null, null, "ice"));
+        campaign.setArea(run.token, "wildlands");
+        assertThrows(IllegalArgumentException.class, () ->
+                campaign.startArena(run.token, "rival", null, null, "earth"));
+        when(gameService.newCampaignGame(any(), any(), eq("Rival Trainer of Frostveil"), eq(false), eq(true), eq(0)))
+                .thenReturn(new GameService.SoloHandle("battle-1", null));
+
+        assertEquals("battle-1", campaign.startArena(run.token, "rival", null, null, "ice"));
+        assertEquals("ice", run.pendingArenaLandId);
+        assertEquals("wildlands", run.pendingArenaArea);
+        finishBattle(run, true);
+        CampaignRun after = campaign.view(run.token);
+        assertEquals("wildlands", after.area);
+        assertEquals(CampaignRun.Phase.WORLD, after.phase);
+        assertTrue(after.clearedRivalLandIds.contains("ice"));
+    }
+
+    @Test
     void beatingALandsLegendaryEarnsItsSigil() {
         CampaignRun run = runWith();
         run.pendingArenaKind = CampaignRun.ArenaKind.LEGENDARY;

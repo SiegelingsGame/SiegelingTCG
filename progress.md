@@ -7854,3 +7854,10 @@ Original prompt: These battles in adventure should run through the Siege mode ba
 
 - November 27, 2026. Adventure wild encounters now use the standard Siege battle screen and payload, including Advantage, enemy tells, targeting, and the turn ledger. Campaign still owns the encounter and applies rewards once before sending the player back to the Land or Wildlands.
   - Verified 301 Campaign and Siege tests. Playwright covered the Adventure launch, mobile Advantage HUD, dragging a card onto the second enemy, the ledger, turn playback, reload and resume, standard Knight defeat, and return to Emberfall. Local API checks covered the Knight Ultimate and victory, including capture, final animation events, and gold awarded once.
+
+Original prompt: Rebuild the laggy Adventure map around a central city, wilderness roads with wild Siegelings and Arena NPCs, three knight cities, and a starter rescue cutscene.
+
+- Adventure now opens with Pyla taking raiders into custody on the Old South Road. The player frees four captives, chooses which Siegeling to approach, and bonds before entering Sanctuary City.
+- Sanctuary connects to the Wildlands, including Frostpine Trail, Galegrass Vale, and Cinderwood Road. Their gates lead to Glacia in Frostveil, Airek in Zephyr Reach, and Pyla in Emberfall. Road rivals use the existing Arena engine and unlock their home city's shrine. Wild encounters still use Siege. The caravan keeps the other campaign realms reachable.
+- The map reuses one Canvas 2D viewport, bakes terrain per area, stops drawing idle cities and hidden maps, and preserves the player's position when returning from a battle.
+- Verified with 302 Campaign and Siege tests and a mobile Playwright run covering the prologue, touch movement, road NPC Arena entry, all three knight challenges, wild Siege entry, same-position return, and render suspension.
